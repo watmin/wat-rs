@@ -213,34 +213,37 @@
    val   <- :wat::holon::HolonAST]
   -> :wat::core::nil
   (:wat::core::let
-    [h (:wat::cache::HolographicLru/hologram store)
+    [hologram (:wat::cache::HolographicLru/hologram store)
      lru (:wat::cache::HolographicLru/lru store)
-     _ (:wat::holon::Hologram/put h key val)
+     _ (:wat::holon::Hologram/put hologram key val)
      evicted (:wat::cache::Lru::put lru key nil)]
     (:wat::core::match evicted
       ((:wat::core::Some entry)
         (:wat::core::let
-          [_ (:wat::holon::Hologram/remove h (:wat::cache::Entry/key entry))]
+          [_ (:wat::holon::Hologram/remove hologram (:wat::cache::Entry/key entry))]
           nil))
       (:wat::core::None nil))))
 
 ;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
-;; `Hologram/find` returns the MATCHED key (not necessarily `probe` itself — this is what makes
-;; the lookup similarity-keyed rather than exact) together with the value. Bump the matched key
-;; in the LRU (`Lru::put` on an already-present key updates its recency without displacing
-;; anything) and return `Some val`. `None` on a miss (filter rejected, or nothing coincident).
+;; `Hologram/find'` (prime — arc 278 retirement in progress; bare `Hologram/find` is the dying
+;; non-prime kept alive only for `crates/wat-holon-lru`'s oracle caller, NEVER reach for it here)
+;; returns a `:wat::holon::Match` carrying the MATCHED key (not necessarily `probe` itself — this
+;; is what makes the lookup similarity-keyed rather than exact) together with the value. Bump the
+;; matched key in the LRU (`Lru::put` on an already-present key updates its recency without
+;; displacing anything) and return `Some val`. `None` on a miss (filter rejected, or nothing
+;; coincident).
 (:wat::core::defn :wat::cache::HolographicLru::get
   [store <- :wat::cache::HolographicLru
    probe <- :wat::holon::HolonAST]
   -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
-    [h (:wat::cache::HolographicLru/hologram store)
+    [hologram (:wat::cache::HolographicLru/hologram store)
      lru (:wat::cache::HolographicLru/lru store)]
-    (:wat::core::match (:wat::holon::Hologram/find h probe)
-      ((:wat::core::Some pair)
+    (:wat::core::match (:wat::holon::Hologram/find' hologram probe)
+      ((:wat::core::Some m)
         (:wat::core::let
-          [matched-key (:wat::core::first pair)
-           val (:wat::core::second pair)
+          [matched-key (:wat::holon::Match/key m)
+           val (:wat::holon::Match/value m)
            _ (:wat::cache::Lru::put lru matched-key nil)]
           (:wat::core::Some val)))
       (:wat::core::None :wat::core::None))))

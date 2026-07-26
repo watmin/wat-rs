@@ -4833,6 +4833,7 @@ fn dispatch_keyword_head_value(
         ":wat::holon::Hologram/put" => eval_hologram_put(args, list_span, env, sym),
         ":wat::holon::Hologram/get" => eval_hologram_get(args, list_span, env, sym),
         ":wat::holon::Hologram/find" => eval_hologram_find(args, list_span, env, sym),
+        ":wat::holon::Hologram/find'" => eval_hologram_find_prime(args, list_span, env, sym),
         ":wat::holon::Hologram/remove" => eval_hologram_remove(args, list_span, env, sym),
         ":wat::holon::Hologram/len" => eval_hologram_len(args, list_span, env, sym),
         ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, list_span, env, sym),
@@ -16838,9 +16839,10 @@ fn eval_hologram_get(
 /// `(:wat::holon::Hologram/find store probe)` ->
 /// `:Option<(wat::holon::HolonAST, wat::holon::HolonAST)>`.
 /// Same lookup as `Hologram/get` but returns both the matched key
-/// AND the val. HologramCache and consumers that need the matched key
-/// for downstream bookkeeping (LRU bumps, eviction) compose this;
-/// the user-facing call is `Hologram/get` which discards the key.
+/// AND the val. Arc 278 — RETIRING non-prime: its tuple return is kept
+/// exactly as it always was because its only remaining caller is the
+/// dying oracle crate `crates/wat-holon-lru` (still a live `wat-cli`
+/// battery). See `eval_hologram_find_prime` below for the live form.
 fn eval_hologram_find(
     args: &[WatAST],
     list_span: &Span,
@@ -16876,6 +16878,61 @@ fn eval_hologram_find(
             Value::holon__HolonAST(Arc::new(k)),
             Value::holon__HolonAST(Arc::new(v)),
         ])))))),
+        None => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::holon::Hologram/find' store probe)` -> `:Option<:wat::holon::Match>`.
+/// Arc 278 — the LIVE prime variant (`send'`/`recv'`/`deftest'` shape: build
+/// under the primed name, let the non-prime die with its last caller, then
+/// reclaim the plain `find` name once `crates/wat-holon-lru` — the dying
+/// oracle crate that is `eval_hologram_find`'s only remaining caller — is
+/// annihilated; the 0z drop-`'` move). Same lookup as `Hologram/get` but
+/// returns a `:wat::holon::Match {key value}` record carrying both the
+/// matched key AND the val — `HolographicLru::get` composes this to bump
+/// the matched key's LRU recency, which it cannot do without the key back.
+/// Two verbs here is a retirement in progress, not a design: every NEW
+/// caller reaches for `find'`, never bare `find`.
+fn eval_hologram_find_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::holon::Hologram/find'";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
+        }
+    };
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
+    let span = crate::rust_caller_span!();
+    let result = store.with_ref(OP, |s| {
+        s.find(&probe, sym, span.clone(), &ctx.encoders)
+    })??;
+    match result {
+        Some((k, v)) => Ok(Value::Option(Arc::new(Some(Value::Aggregate(Arc::new(
+            AggregateValue::record(
+                "wat::holon::Match".into(),
+                Arc::new(vec![
+                    Value::holon__HolonAST(Arc::new(k)),
+                    Value::holon__HolonAST(Arc::new(v)),
+                ]),
+            ),
+        )))))),
         None => Ok(Value::Option(Arc::new(None))),
     }
 }

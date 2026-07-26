@@ -17853,6 +17853,31 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 — prime variant. `Hologram/find` (non-prime, above) is the
+    // RETIRING form: its only remaining caller is the dying oracle crate
+    // `crates/wat-holon-lru` (a workspace member + `wat-cli` battery, so its
+    // wat source is type-checked alongside EVERY `wat --check` invocation —
+    // NOT off the build path, despite the original brief's assumption). Its
+    // tuple return stays exactly as it always was so that oracle keeps
+    // compiling and `--check` stays healthy tree-wide. `find'` is the ONLY
+    // live/growing form — same params, `:wat::holon::Match` instead of the
+    // positional tuple. This is the substrate's own `send'`/`recv'`/`deftest'`
+    // pattern: build under the primed name, let the non-prime die with its
+    // last caller, then reclaim the plain `find` name once
+    // `crates/wat-holon-lru` is annihilated (the 0z drop-`'` move). Two verbs
+    // here is NOT a design — it is a retirement in progress.
+    env.register(
+        ":wat::holon::Hologram/find'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![hologram_ty(), holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(":wat::holon::Match".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     env.register(
         ":wat::holon::Hologram/remove".into(),
         TypeScheme {

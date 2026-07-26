@@ -1910,6 +1910,28 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
+    // :wat::holon::Match — the result of `:wat::holon::Hologram/find`. A Hologram
+    // matches by SIMILARITY, so the key `find` hands back is not necessarily the
+    // probe that was passed in — it is whatever stored key coincided above the
+    // filter's floor. `Match` carries that asymmetry in its name (the way
+    // `match.group()` in a regex API is never assumed to equal the pattern);
+    // `get` answers "what value did my probe reach?" and discards the matched
+    // key, while `find` exists precisely so a caller (e.g. `HolographicLru::get`
+    // bumping recency) can name the key that actually matched and act on it.
+    // Fields stay `key` / `value`, matching `:wat::cache::Entry`'s precedent —
+    // the type name carries the semantics, so `matched-key` here would be
+    // redundant. Auto-generated `Match/key` / `Match/value` accessors land in
+    // the symbol table at freeze time via register_struct_methods.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+        name: ":wat::holon::Match".into(),
+        type_params: vec![],
+        fields: vec![
+            ("key".into(), TypeExpr::Path(":wat::holon::HolonAST".into())),
+            ("value".into(), TypeExpr::Path(":wat::holon::HolonAST".into())),
+        ],
+        restrictions: None,
+    }));
+
     // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
     // the `::`/`/` semantic-split doctrine: the namespace IS the umbrella

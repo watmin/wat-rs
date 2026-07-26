@@ -71,6 +71,33 @@
     (:wat::test::assert-eq got-b :wat::core::None)
     (:wat::test::assert-eq got-c (:wat::core::Some (:wat::holon::leaf :val-c)))))
 
+;; ─── the Match record itself — read by name, not position ─────────────────────────────────
+;;
+;; The four tests above exercise `Hologram/find'` only THROUGH `HolographicLru::get`, which
+;; immediately destructures it and discards the record. This test is the one direct gate on
+;; `:wat::holon::Match` itself: probe with a coincident-but-different value and read the
+;; matched key back by NAME (`Match/key`) — proving it is the STORED key, not the probe — and
+;; the value by name (`Match/value`). A tuple could not express this assertion legibly; it is
+;; the reason the record exists. Targets the prime `Hologram/find'` (arc 278 retirement in
+;; progress) — the bare `Hologram/find` non-prime is the dying oracle's tuple-returning form,
+;; not this record-returning one.
+(:wat::test::deftest :wat-tests::cache::HolographicLru::test-find-returns-match-record
+  (:wat::core::let
+    [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 10)
+     k (:wat::holon::Thermometer 50.0 0.0 100.0)
+     v (:wat::holon::leaf :answer-for-fifty)
+     _ (:wat::cache::HolographicLru::put store k v)
+     probe (:wat::holon::Thermometer 50.01 0.0 100.0)
+     hologram (:wat::cache::HolographicLru/hologram store)]
+    (:wat::core::match (:wat::holon::Hologram/find' hologram probe)
+      ((:wat::core::Some m)
+        (:wat::core::let
+          [matched-key (:wat::holon::Match/key m)
+           matched-val (:wat::holon::Match/value m)]
+          (:wat::test::assert-eq matched-key k)
+          (:wat::test::assert-eq matched-val v)))
+      (:wat::core::None (:wat::test::assert-eq :expected-a-match :got-none)))))
+
 ;; ─── len agrees with the bound after overflow ───────────────────────────────────────────────
 ;;
 ;; Cap 3, insert 4 distinct keys — `len` (read via the Hologram, the value-holding half) must
