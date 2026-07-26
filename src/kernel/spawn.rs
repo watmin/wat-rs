@@ -129,7 +129,7 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 ///
 /// `Peer'` is the single transport-blind opaque for both worker self-peers
 /// (handed to spawned threads/processes) and connection handles (from
-/// `peer-pair'`, `connect'`, `accept'`, `socket-pair'`).  Thread-tier peers
+/// `peer-pair'`, `connect'`, `accept'`).  Thread-tier peers
 /// carry a crossbeam channel pair boxed as `Box<dyn CommSender/Receiver<Value>>`;
 /// socket-tier peers carry a `comms::process` io_uring pair through the same box.
 pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer'";

@@ -4,8 +4,9 @@
 ;; Arc 293.W.2d supersedes 2c: the wall moved from send' time to peer PRODUCER time.
 ;;
 ;; After 2d, the compile-time purity wall is at wire-peer PRODUCERS (peer-pair',
-;; socket-pair', connect', accept', program-self-peer'). An impure type arg to a
-;; wire peer producer is a compile-time check error (§7 purity wall).
+;; connect', accept', program-self-peer'; `socket-pair'` was annihilated arc 278
+;; Wave A). An impure type arg to a wire peer producer is a compile-time check
+;; error (§7 purity wall).
 ;;
 ;; This fixture creates peer-pair' with a struct type arg — struct is impure
 ;; (Nature::Struct) — the purity check at the producer fires at CHECK TIME.

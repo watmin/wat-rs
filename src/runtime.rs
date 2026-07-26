@@ -5129,12 +5129,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::peer-pair'" => {
             eval_peer_pair_prime(args, list_span)
         }
-        // Arc 209 C0b.2b / C0b.2e-i-b — socket-pair': mint two connected unified peers via
-        // socketpair(AF_UNIX, SOCK_STREAM). Uses the comms::process io_uring reactor
-        // (Value wire; encoding internal). Returns (Peer'<S,R>, Peer'<R,S>).
-        ":wat::kernel::socket-pair'" => {
-            eval_socket_pair_prime(args, list_span)
-        }
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
         // connect' mints the connection pairs, wraps the client Peer' end locally,
@@ -20851,67 +20845,6 @@ fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Eval
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
-/// `(:wat::kernel::socket-pair' :S :R)` — Arc 209 C0b.2b / C0b.2e-i-b / Arc 258.5b-ii.
-///
-/// Mints a connected socket peer pair via `socketpair(AF_UNIX, SOCK_STREAM)`.
-/// Each end is a unified `Peer'<S,R>` / `Peer'<R,S>` opaque backed by the
-/// comms::process io_uring reactor.  Arc 258.5b-ii: the sender is `Sender<String>`
-/// (raw-passthrough); the eval layer encodes with `sym.types()` and ships the wire
-/// String via `Peer::send_wire`.  Returns `(Tuple Peer'<S,R> Peer'<R,S>)`.
-///
-/// The socket fd is full-duplex; each end sends on its own fd and reads on a
-/// dup of the SAME fd — the dup gives Sender and Receiver independent OwnedFd
-/// lifetimes so closing one side doesn't close the other's read-end early.
-fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::socket-pair'";
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(), expected: 2, got: args.len()
-        } }.into());
-    }
-    for (i, a) in args.iter().enumerate() {
-        if !matches!(a, WatAST::Keyword(_, _)) {
-            return Err(RuntimeError { span: a.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
-            } }.into());
-        }
-    }
-    use crate::kernel::peer::Peer;
-    use crate::kernel::spawn::PEER_TYPE_PATH;
-    use crate::rust_deps::custodia::ThreadOwnedCell;
-    use crate::rust_deps::marshal::make_rust_opaque;
-
-    // Mint the socketpair; each side gets (Sender<Value>, Receiver<Value>).
-    // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> so the eval layer
-    // can pre-encode with sym.types() and ship a wire String via Peer::send_wire.
-    // Receiver<Value> stays so Peer::recv() delivers Value directly.
-    let ((tx_a, rx_a), (tx_b, rx_b)) = crate::comms::process::socket_pair::<Value>()
-        .map_err(|e| RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("socketpair(2) failed: {}", e),
-            },
-        })?;
-
-    // socketpair(AF_UNIX) semantics:
-    //   writes to sv[0] → readable from sv[1]
-    //   writes to sv[1] → readable from sv[0]
-    // tx_a writes sv[0], rx_a reads sv[0] (receives what tx_b wrote to sv[1]).
-    // tx_b writes sv[1], rx_b reads sv[1] (receives what tx_a wrote to sv[0]).
-    // So end_a = (tx_a, rx_a) and end_b = (tx_b, rx_b) — no cross needed.
-    let end_a = make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx_a.reinterpret::<String>(), rx_a)))),
-    );
-    let end_b = make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx_b.reinterpret::<String>(), rx_b)))),
-    );
-    Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
-}
-
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
 /// `(:wat::kernel::listener' host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
 ///
@@ -25780,7 +25713,7 @@ fn is_mutation_head(head: &str) -> bool {
 // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────────
 // `reject_non_portable_on_wire` — deleted. The §7 runtime send-side guard that
 // refused a bare struct at the wire-serialize step is superseded by the
-// compile-time purity wall at wire-peer PRODUCERS (peer-pair', socket-pair',
+// compile-time purity wall at wire-peer PRODUCERS (peer-pair',
 // connect', accept', program-self-peer'). A struct can no longer be typed into
 // a wire peer at CHECK time; the runtime path is no longer reachable. The two
 // call sites (PROCESS branch and socket-tier PEER' branch of eval_peer_send_prime)

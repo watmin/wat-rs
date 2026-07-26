@@ -5008,16 +5008,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.2b — socket-pair': (:S :R) -> (Tuple SocketPeer'<S,R> SocketPeer'<R,S>).
-            // Socket-tier connected pair via socketpair(AF_UNIX, SOCK_STREAM) + io_uring reactor.
-            ":wat::kernel::socket-pair'" => {
-                let (val, mut errs) = infer_socket_pair_prime(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
             // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> Peer'<S,R>.
             // Returns the spawned process child's owner-link (rx=fd0, tx=fd1) as a
             // unified Peer' (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
@@ -10720,53 +10710,6 @@ fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
     ])
 }
 
-/// Arc 209 C0b.2b / C0b.2e-i-b — `(:wat::kernel::socket-pair' :S :R)` →
-/// `(Tuple Peer'<S,R> Peer'<R,S>)`.
-///
-/// Same shape as `infer_peer_pair_prime`: two type-keyword args, crossed
-/// parametric tuple result. The runtime type is `PEER_TYPE_PATH`; the
-/// checker type head is `wat::kernel::Peer'` (unified; SocketPeer' retired).
-fn infer_socket_pair_prime(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    _locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    _subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::socket-pair'";
-    let mut local_errors: Vec<CheckError> = Vec::new();
-
-    if args.len() != 2 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: OP.into(), expected: 2, got: args.len()
-        } });
-        let s = fresh.fresh();
-        let r = fresh.fresh();
-        return CheckResult::partial_with(socket_pair_tuple(s, r), local_errors);
-    }
-
-    let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
-    let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
-
-    // Arc 293.W.2d — socket-pair' creates wire-capable Peer's; type args must be pure.
-    check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
-    check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
-
-    let ty = socket_pair_tuple(s_ty, r_ty);
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
-
-
-/// `(Tuple Peer'<S,R> Peer'<R,S>)` — the crossed result type of `socket-pair'`
-/// (arc 209 C0b.2e-i-b: socket peers now have the same checker type as thread peers).
-fn socket_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
-    TypeExpr::Tuple(vec![
-        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s.clone(), r.clone()] },
-        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] },
-    ])
-}
-
 /// Arc 209 C0b.3a-0 / C0b.2e-i-b — `(:wat::program::self-peer :S :R)` →
 /// `Peer'<S,R>`.
 ///
@@ -11595,7 +11538,7 @@ fn infer_kernel_fn_forms(
 ///
 /// Arc 293.W.2d: Returns `Ok((i_ty, o_ty))` on success. The purity constraint is
 /// now STRUCTURAL (carried by the peer type): `Peer'<I,O>` requires pure I,O by
-/// well-formedness (enforced at producers — connect'/accept'/peer-pair'/socket-pair');
+/// well-formedness (enforced at producers — connect'/accept'/peer-pair');
 /// `ThreadSelfPeer'<I,O>` is in-locus (any I/O). The ops are purity-blind here.
 ///
 /// On failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.

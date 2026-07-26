@@ -173,7 +173,7 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 ///
 /// `Peer` is the single non-generic endpoint used for BOTH the worker self-peer
 /// (handed to a spawned thread via `send'`/`recv'`) AND a connection handle
-/// (produced by `peer-pair'`, `connect'`, `accept'`, `socket-pair'`).  The
+/// (produced by `peer-pair'`, `connect'`, `accept'`).  The
 /// self-vs-connection role is positional at the call site (e.g. arg 0 of
 /// `select'`), not a type distinction.
 ///

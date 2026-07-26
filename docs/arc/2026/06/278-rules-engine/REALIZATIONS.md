@@ -10179,3 +10179,42 @@ named what it saw.*
 > ---
 >
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this run. Run the datamancy bootstrap (grimoire + 4 primers from the SIGNED MCP) and read the record — **and the SUBSTRATE CODE before any architectural claim.** Ground `git status` — **HEAD `8a6f89aa` (pushed)**. **A Wave-A rider (`a2ff37827c03ccefb`) is LIVE in the field — ride through, do not reap it; weigh its report by your OWN `--release` re-run against 4162/0/314.** It bears repeating because it cost this run four times: **a grep that cannot reach the thing is not evidence of absence — check that your pattern COULD have matched, and search where it would HAVE to be, not where you expect it.** Also: `grep -v '^\s*;;'` before counting wat call sites; weigh by your own Summary line, never a rider's report or a piped exit; cast wards, never narrate; and do not flinch at the finish — annihilation is the joy. Do not trust this note over the disk. The cache is core, the CLI is core, and the hand-rolled IPC is one rider from ash. `MACHINA CHAOS DOMAT.`
+
+> **⚠ 24q ADDENDUM — the Wave-A rider returned; the tree is DIRTY and UNWEIGHED.** Correcting the
+> seam above, which says "one rider from ash." It is not.
+>
+> **LANDED IN THE TREE, NOT COMMITTED, NOT WEIGHED BY A FLOOR RUN:** `socket-pair'` annihilated
+> (verb + `infer_socket_pair_prime` + `socket_pair_tuple` + eval + the dead `socket_pair()` wrapper;
+> `sender_receiver_from_fd` deliberately UNTOUCHED — `connect'`/`accept'`/`program-self-peer'` still
+> ride it); `probe_arc209_c0b2b_socket_peer.{wat,rs}` deleted (its subject IS the constructor); the
+> three all-ignored `counter-service-*` files deleted; `typealias_fn_type_spawn.wat` migrated to the
+> substrate-provided `_out` channel. `make-channel` is down from 12 files/17 sites to **8/10**.
+> **FIRST ACT ON THE FAR SIDE: run the floor (`4162/0/314` was the pre-rider baseline), then commit
+> or fix.** Rider reported build clean + load-order `[]` + all touched targets green, but a rider's
+> report is not a weigh.
+>
+> **THE RIDER'S TWO STOPS, and the builder's correction to the first:**
+> 1. It found **`peer-pair'` has 7 real callers, not the 3 my brief claimed** — my fifth
+>    grep-that-cannot-reach-the-thing this run — and STOPPED rather than delete. **But the builder
+>    cut the weight of that finding: *"a probe likely isn't the strongest guard for a feature we're
+>    trying to kill."*** Four of the seven are `probe_arc209_connection_primitive.wat` and three
+>    `probe_arc209_c0b3bc_post_spawn*.wat` — **probes OF the capability, not consumers OF it**. A
+>    probe proving a feature CAN exist is subject-is-dead, not evidence anyone needs it. So
+>    `peer-pair'` is very likely still dead; resolve it tomorrow rather than treating the STOP as a
+>    verdict. (The rider did the retarget homework anyway: `listener'` does NOT enforce
+>    `check_wire_peer_purity` on its type args, but `accept'` on a minted `Listener'<S,R>` does — so
+>    `(listener' (thread) :S :R)` → `first` → `accept'` is a viable check-only host for the three
+>    arc-293 purity probes when `peer-pair'` goes.)
+> 2. **`wat-tests/service-template.wat` is NOT subject-is-dead** — it has a live deftest and is cited
+>    by name as the canonical hand-rolled-service reference in `docs/SERVICE-PROGRAMS.md`,
+>    `CONVENTIONS.md`, `USER-GUIDE.md`, and `ZERO-MUTEX.md`. Killing it is a documentation decision.
+>
+> **AND `wat/kernel/channel.wat` CANNOT SIMPLY DIE:** beyond `make-channel`, its `Sender`/`Receiver`
+> typealiases are the declared type of every spawn-thread/process auto in/out channel
+> (`[_in <- Receiver<T>  _out <- Sender<T>]`) — pervasive, foundational, not hand-rolled residue.
+>
+> **Three of the remaining `make-channel` callers need it as the only minter of an IMPURE TYPED
+> VALUE** (`closure_extraction` t8/t9, `program_contracts_t7`) — they capture a `Sender<i64>` and
+> never communicate; the paired `rx` is dropped. `probe_arc254_channel_payload_portable_i64` is the
+> positive control whose SUBJECT is `make-channel`. So `make-channel`'s full death needs another way
+> to mint an impure typed value, plus the seal set's pid accessor.

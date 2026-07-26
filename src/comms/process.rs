@@ -1936,14 +1936,15 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
 
 /// Wrap one connected socket fd as a `(Sender<T>, Receiver<T>)` pair.
 ///
-/// Arc 209 C0b.2c — shared helper for `socket_pair` (which calls it twice, once per
-/// socketpair end) and for `connect'`/`accept'` (which call it once on a
-/// `UnixStream`'s fd).
+/// Arc 209 C0b.2c — shared helper for `connect'`/`accept'` (which call it once on a
+/// `UnixStream`'s fd). Arc 278 Wave A: the `socket_pair` bare-pair-mint caller
+/// (`socket-pair'`, the process-tier hand-rolled-IPC affordance) was annihilated —
+/// this helper now serves only the named-address wire producers.
 ///
 /// `write_fd` = the fd for the Sender; `read_fd` = a `dup` of `write_fd`, so
 /// Sender and Receiver own independent `OwnedFd` lifetimes — Drop closes each
 /// independently without affecting the peer.  Per-Receiver `IoUring::new(4)` (same
-/// reactor as `pair()` / `socket_pair()`).
+/// reactor as `pair()`).
 pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     fd: OwnedFd,
 ) -> std::io::Result<(Sender<T>, Receiver<T>)> {
@@ -2003,51 +2004,6 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
         _phantom: PhantomData,
     };
     Ok((Sender { write_fd, _phantom: PhantomData }, receiver))
-}
-
-/// Create a connected socket-pair (arc 209 C0b.2b — socket-peer tier).
-///
-/// Allocates a `socketpair(AF_UNIX, SOCK_STREAM, 0)` giving two fully-duplex
-/// fds `sv[0]` and `sv[1]`. Each end becomes a `(Sender<T>, Receiver<T>)`:
-///   - `tx_a` / `rx_a` both wrap sv[0]: writing sv[0] sends to sv[1]; reading
-///     sv[0] receives what sv[1] wrote.
-///   - `tx_b` / `rx_b` both wrap sv[1]: writing sv[1] sends to sv[0]; reading
-///     sv[1] receives what sv[0] wrote.
-///
-/// Each fd is dup'd once (via `sender_receiver_from_fd`) so the Sender and
-/// Receiver on the same end own independent `OwnedFd` lifetimes — Drop closes
-/// each independently without double-closing the same underlying kernel fd.
-///
-/// Returns `((tx_a, rx_a), (tx_b, rx_b))`. The caller should use the ends
-/// without crossing: end_a = (tx_a, rx_a) and end_b = (tx_b, rx_b) already
-/// form a correctly connected pair via the socketpair semantics.
-///
-/// The wire framing and io_uring reactor are IDENTICAL to `pair()` — sockets
-/// respond to `POLLIN|POLLHUP` PollAdd and `opcode::Read` exactly as pipes do.
-pub fn socket_pair<T: EdnRepresentable>() -> std::io::Result<((Sender<T>, Receiver<T>), (Sender<T>, Receiver<T>))> {
-    let mut sv = [0i32; 2];
-    // SAFETY: `sv` is a valid `[i32; 2]` stack allocation.
-    // AF_UNIX SOCK_STREAM socketpair: both fds are connected, full-duplex.
-    let result = unsafe {
-        libc::socketpair(
-            libc::AF_UNIX,
-            libc::SOCK_STREAM | libc::SOCK_CLOEXEC,
-            0,
-            sv.as_mut_ptr(),
-        )
-    };
-    if result != 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-    // sv[0] and sv[1] are each a full-duplex fd. Sender wraps the write side,
-    // Receiver wraps the read side. For a socket fd both sides are the same fd,
-    // so we dup each (via sender_receiver_from_fd) to give Sender and Receiver
-    // independent OwnedFd lifetimes.
-    //
-    // SAFETY: socketpair returned two valid, owned fds. Never alias an OwnedFd.
-    let end_a = sender_receiver_from_fd(unsafe { OwnedFd::from_raw_fd(sv[0]) })?;
-    let end_b = sender_receiver_from_fd(unsafe { OwnedFd::from_raw_fd(sv[1]) })?;
-    Ok((end_a, end_b))
 }
 
 // ─── Timer tests ──────────────────────────────────────────────────────────────

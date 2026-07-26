@@ -1198,7 +1198,7 @@ pub enum EdnReadErrorKind {
     // ── RETIRED arc 293.W.2a ──────────────────────────────────────────────────
     // StructOnWire { class: String } — deleted by arc 293.W.2d.
     // The §7 struct-on-wire runtime backstop is superseded by the compile-time
-    // purity wall at wire-peer PRODUCERS (peer-pair', socket-pair', connect',
+    // purity wall at wire-peer PRODUCERS (peer-pair', connect',
     // accept', program-self-peer'). A struct can no longer be typed into a wire
     // peer at CHECK time, so the runtime decode door has no reachable struct case
     // to reject. The untyped pprintln path is an out-of-scope trust-boundary
@@ -3261,7 +3261,7 @@ pub(crate) fn decode_trusted_wire(
     // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────
     // The §7 runtime backstop that refused a top-level Nature::Struct at the
     // wire-decode door is gone. The compile-time purity wall at wire-peer
-    // PRODUCERS (peer-pair', socket-pair', connect', accept', program-self-peer')
+    // PRODUCERS (peer-pair', connect', accept', program-self-peer')
     // makes the reachable struct-on-wire case structurally unrepresentable. The
     // untyped pprintln path is a trust-boundary concern outside our scope.
     Ok(v)
