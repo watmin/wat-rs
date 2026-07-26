@@ -1,7 +1,7 @@
 //! Dev-only staleness guard for the installed `wat` / `cargo-wat` binary.
 //!
 //! When a developer edits source in the wat repo and runs `cargo build`
-//! without reinstalling (`cargo install --path crates/wat-cli --force`),
+//! without reinstalling (`cargo install --path . --force`),
 //! `~/.cargo/bin/wat` silently stays old while `cargo wat` picks up the
 //! stale installed copy.  This module detects that drift and screams on
 //! stderr — but *only* when the dev source repo is present relative to
@@ -12,10 +12,16 @@
 //!
 //! [`find_dev_repo_root`] walks up the ancestor chain of `cwd` looking
 //! for a `Cargo.toml` that carries both `[workspace]` and the sentinel
-//! `"crates/wat-cli"`.  That combination is unique to this repo (the
-//! workspace root is the `wat` package; `crates/wat-cli` is its CLI
-//! sub-crate member).  If no such file exists, the guard returns
-//! silently — the call is a no-op for anyone who is not in a dev tree.
+//! `name = "cargo-wat"`.  That combination is unique to this repo (the
+//! workspace root is the `wat` package; `cargo-wat` is one of its two
+//! `[[bin]]` targets, arc 170's fold-in of the former `wat-cli` crate).
+//! If no such file exists, the guard returns silently — the call is a
+//! no-op for anyone who is not in a dev tree.
+//!
+//! Pre-arc-170 this sentinel was `"crates/wat-cli"` (the sub-crate
+//! member line). Folding that crate into core removed the string it
+//! anchored on, which would have silently and permanently disabled this
+//! guard — caught while relocating this file, not a pre-existing defect.
 //!
 //! # Staleness detection
 //!
@@ -39,21 +45,21 @@ use std::time::SystemTime;
 // accepted as the wat workspace root:
 //
 // 1. `[workspace]` — it is a workspace manifest, not a member manifest.
-// 2. `"crates/wat-cli"` — the wat-cli sub-crate member line, unique to
-//    this repo.
+// 2. `name = "cargo-wat"` — the `[[bin]]` entry that makes `cargo wat`
+//    resolve at all (the binary is literally named `cargo-wat`); unique
+//    to this repo.
 //
-// Together these are unambiguous: any random Rust workspace won't have a
-// `crates/wat-cli` member.  Adding the package name `name = "wat"` would
-// add a third condition but `crates/wat-cli` alone is already specific
-// enough.
+// Together these are unambiguous: any random Rust workspace won't declare
+// a `cargo-wat` binary. Adding the package name `name = "wat"` would add
+// a third condition but this sentinel alone is already specific enough.
 
-const WORKSPACE_SENTINEL: &str = "crates/wat-cli";
+const WORKSPACE_SENTINEL: &str = "name = \"cargo-wat\"";
 
 // ─── Public helpers (unit-tested) ─────────────────────────────────────────
 
 /// Walk up the ancestor chain of `start` looking for the wat workspace
 /// root.  Returns `Some(root_dir)` if a `Cargo.toml` that carries both
-/// `[workspace]` and `"crates/wat-cli"` is found; `None` otherwise.
+/// `[workspace]` and the `cargo-wat` bin sentinel is found; `None` otherwise.
 ///
 /// The `None` path is the self-disable gate: if the dev repo is absent
 /// (plain binary user, different project) the caller does nothing.
@@ -241,7 +247,7 @@ pub fn check_dev_staleness() {
     if is_stale(binary_mtime, source_mtime) {
         eprintln!(
             "⚠ wat: the installed binary looks STALE (older than the source at {}). \
-             Reinstall:  cargo install --path crates/wat-cli --force",
+             Reinstall:  cargo install --path . --force",
             repo_root.display()
         );
     }
@@ -297,7 +303,7 @@ mod tests {
         // Write a Cargo.toml that looks like the wat workspace root.
         fs::write(
             root.join("Cargo.toml"),
-            "[workspace]\nmembers = [\"crates/wat-cli\"]\n[package]\nname = \"wat\"\n",
+            "[workspace]\nmembers = [\".\"]\n[package]\nname = \"wat\"\n[[bin]]\nname = \"cargo-wat\"\n",
         )
         .unwrap();
 
@@ -311,12 +317,12 @@ mod tests {
         let root = temp_tree("root-nested");
         fs::write(
             root.join("Cargo.toml"),
-            "[workspace]\nmembers = [\"crates/wat-cli\"]\n",
+            "[workspace]\nmembers = [\".\"]\n[[bin]]\nname = \"cargo-wat\"\n",
         )
         .unwrap();
 
         // Start from a deep subdir.
-        let subdir = root.join("crates").join("wat-cli").join("src");
+        let subdir = root.join("src").join("distribution");
         fs::create_dir_all(&subdir).unwrap();
 
         let result = find_dev_repo_root(&subdir);
@@ -327,7 +333,7 @@ mod tests {
     #[test]
     fn returns_none_when_sentinel_absent() {
         let root = temp_tree("no-sentinel");
-        // Cargo.toml with [workspace] but WITHOUT the crates/wat-cli member.
+        // Cargo.toml with [workspace] but WITHOUT the cargo-wat bin entry.
         fs::write(
             root.join("Cargo.toml"),
             "[workspace]\nmembers = [\"other-crate\"]\n",
@@ -358,7 +364,7 @@ mod tests {
         // Has the sentinel string but NOT [workspace].
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"wat\"\n# crates/wat-cli mentioned for no reason\n",
+            "[package]\nname = \"wat\"\n# name = \"cargo-wat\" mentioned for no reason\n",
         )
         .unwrap();
 

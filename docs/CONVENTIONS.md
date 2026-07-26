@@ -1100,3 +1100,56 @@ change exposed a divergence between two cache crates' tests — one
 tested the consumer surface (helper verbs), the other tested the
 wire protocol underneath. Convergence to caller-perspective lands
 both at the right vantage.
+
+---
+
+### `src/` module layout — a module is a DIRECTORY (2026-07-26)
+
+**Builder-ruled while `wat-cli` was being folded into core:** *"everything in `src/` should be
+namespaced… we can create as many files as we need in the namespace."* The strike had produced a
+bare `src/distribution.rs`; that is the shape being ruled against.
+
+**The rule for anything new:**
+
+```
+src/<module>/mod.rs        ← the module
+src/<module>/<part>.rs     ← as many parts as the module actually wants
+```
+
+**Not** `src/<module>.rs`.
+
+#### Why — the namespace is the affordance
+
+A bare top-level `.rs` silently caps a module at one file. Growing it later is a rename plus a
+re-path plus a diff that hides the real change inside a move. Starting as a directory costs one
+extra path segment and removes that ceiling permanently: when a module grows a second concern, it
+grows a second file, and the diff shows only the new concern.
+
+It also makes `ls src/` an architecture diagram rather than a pile. That is the same standard
+`intueri` applies to a file tree — *"the file tree should mirror the domain… not `utils`, `helpers`,
+`common`, `misc`."*
+
+#### The honest state of the tree — THREE shapes exist today
+
+This convention is **forward-looking**. As of the ruling, `src/` is mixed:
+
+| shape | count | examples |
+|---|---|---|
+| bare `src/foo.rs` | ~37 | `runtime.rs`, `stdlib.rs`, `edn_shim.rs`, `parser.rs`, `harness.rs` |
+| `src/foo/mod.rs` | — | `kernel/`, `comms/`, `process/`, `macros/`, `rete/`, `value/` |
+| `src/foo.rs` + `src/foo/` | 4 | `check`, `freeze`, `types`, and (transitionally) `distribution` |
+
+That third shape is legal modern Rust — `src/check.rs` declares `mod error;` which resolves to
+`src/check/error.rs`, with no `mod.rs`. It is **not** what this ruling asks for; the ruling is
+`mod.rs`-style, so the module's own name appears exactly once in the tree, as a directory.
+
+**Do NOT read this as a mandate to convert the existing ~37.** `runtime.rs` and `check.rs` are
+enormous and load-bearing; churning them for layout alone would be a large diff with no behavioural
+content, and every line moved is a line whose `git blame` gets harder to read. The rule binds **new
+modules** and modules already being reshaped for other reasons. An existing single-file module that
+nobody is touching stays as it is until it has a real reason to grow.
+
+#### When a module genuinely is one file
+
+Prefer the directory anyway. The cost is one path segment; the benefit is that the second concern —
+which arrives more often than anyone predicts — lands as a new file rather than a restructure.

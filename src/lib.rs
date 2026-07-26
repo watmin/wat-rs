@@ -50,6 +50,10 @@
 //! - [`rust_deps`] — `:rust::*` namespace registry + marshaling
 //!   traits (`FromWat` / `ToWat`) + `ThreadOwnedCell<T>` /
 //!   `OwnedMoveCell<T>` scope primitives.
+//! - [`distribution`] — `run` / `Battery`: published surface for
+//!   third-party wat distributions (arc 170, folded in from the
+//!   former `wat-cli` crate). Backs the `wat` / `cargo-wat` binaries
+//!   under `src/bin/`.
 //! - [`stdlib`] — baked-in wat source files (Subtract, Console,
 //!   LocalCache, Cache, …) registered before user code parses.
 
@@ -68,6 +72,7 @@ pub mod comms;
 pub mod kernel;
 pub mod compose;
 pub mod config;
+pub mod distribution;
 pub mod edn_shim;
 pub mod error_ns;
 pub mod sigma;

@@ -40,13 +40,7 @@ fn write_temp(contents: &str) -> std::path::PathBuf {
 /// the EDN-encoded form (quoted string) followed by a newline.
 /// Rust scaffolding sends EDN-quoted `"watmin"` on stdin and asserts
 /// the EDN-quoted form on stdout.
-const ECHO_PROGRAM: &str = r#"
-
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-    [line (:wat::kernel::readln)]
-    (:wat::kernel::println line)))
-"#;
+const ECHO_PROGRAM: &str = include_str!("wat_cli__echo_program.wat");
 
 #[test]
 fn echo_program_reads_stdin_writes_stdout() {
@@ -107,27 +101,7 @@ fn echo_program_reads_stdin_writes_stdout() {
 /// inner quoted program uses (:wat::kernel::println "wat-atoms") —
 /// the println call is the load-bearing expression captured as data
 /// and re-executed via eval-ast!. No stdin required.
-const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
-
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-    [program
-       (:wat::core::quote
-         (:wat::kernel::println "wat-atoms"))
-     program-atom
-       (:wat::holon::Atom (:wat::holon::to-holon program))]
-    ;; arc 057 Story-2 recovery: program-atom is now a structural
-    ;; HolonAST (the form lowered onto the algebra grid). to-watast
-    ;; was the original reverse path (HolonAST → WatAST) but is no
-    ;; longer available; use the original quoted WatAST directly.
-    ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
-    ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
-    ;; declared return type of :(). Err arm is unreachable here
-    ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::eval-ast! program)
-      ((Ok _) ())
-      ((Err _) ()))))
-"#;
+const PROGRAMS_ARE_ATOMS_PROGRAM: &str = include_str!("wat_cli__programs_are_atoms.wat");
 
 #[test]
 fn programs_are_atoms_hello_world() {
@@ -183,54 +157,7 @@ fn programs_are_atoms_hello_world() {
 /// of the retired IOReader/IOWriter stdin-echo path. Presence proof
 /// prints "absent"/"present" via println (EDN-encoded Strings).
 /// Observable stdout: `"absent"\n"present"\n"wat-atoms"\n`.
-const PRESENCE_PROOF_PROGRAM: &str = r#"
-
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-    [program
-       (:wat::core::quote
-         (:wat::kernel::println "wat-atoms"))
-     program-atom
-       (:wat::holon::Atom (:wat::holon::to-holon program))
-     key-atom
-       (:wat::holon::Atom (:wat::holon::to-holon "hello-world"))
-
-     ;; Compose: program-atom bound under key-atom.
-     bound
-       (:wat::holon::Bind key-atom program-atom)
-
-     ;; Substrate proof #1: program-atom's signal is GONE from bound.
-     ;; Arc 037 slice 3: presence? does the honest per-d threshold
-     ;; comparison internally. absent = not present.
-     _
-       (:wat::kernel::println
-         (:wat::core::if
-           (:wat::holon::presence? program-atom bound)
-           "present"
-           "absent"))
-
-     ;; Self-inverse: bind(bind(k, p), k) recovers p at the vector level.
-     recovered
-       (:wat::holon::Bind bound key-atom)
-
-     ;; Substrate proof #2: program-atom's signal is BACK in recovered.
-     _
-       (:wat::kernel::println
-         (:wat::core::if
-           (:wat::holon::presence? program-atom recovered)
-           "present"
-           "absent"))
-
-]
-    ;; arc 057 Story-2 recovery: the presence measurements above proved
-    ;; the vector dynamics (absent/present). to-watast (HolonAST → WatAST)
-    ;; is no longer available; run the original quoted WatAST directly.
-    ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
-    ;; the 2026-04-20 INSCRIPTION.
-    (:wat::core::match (:wat::eval-ast! program)
-      ((Ok _) ())
-      ((Err _) ()))))
-"#;
+const PRESENCE_PROOF_PROGRAM: &str = include_str!("wat_cli__presence_proof.wat");
 
 #[test]
 fn presence_proof_hello_world() {
@@ -314,10 +241,7 @@ fn wrong_arg_type_user_main_rejected() {
     // BareLegacy diagnostic fires at type-check time during startup.
     // The exact param type (i64 vs IOReader) is irrelevant — the whole
     // shape is retired.
-    let program = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::i64
-          ())
-    "#;
+    let program = include_str!("wat_cli__wrong_arg_type_main.wat");
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
@@ -364,9 +288,7 @@ fn startup_error_bubbles_up_as_exit_3() {
     // EXIT_STARTUP_ERROR=3 (was 1 pre-arc-104, when cli ran startup
     // in-thread). set-capacity-mode! takes a keyword; passing a string
     // triggers ConfigError::BadType.
-    let program = r#"
-        (:wat::config::set-capacity-mode! "oops")
-    "#;
+    let program = include_str!("wat_cli__bad_capacity_mode.wat");
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
@@ -403,13 +325,7 @@ fn freeze_time_panic_surfaces_structured_not_silent() {
     // A top-level `let` is const-eval'd during freeze (a bare call expr is not);
     // its initializer Result/expect's on an eval-ast! Err (unknown verb) → panics
     // at freeze time. PRE-FIX: mute exit 1 (0 bytes both streams).
-    let program = r#"
-        (:wat::core::let
-          [pf (:wat::core::Result/expect
-                (:wat::eval-ast! (:wat::core::read-string "(:wat::core::this-verb-does-not-exist)"))
-                "freeze-time boom")]
-          pf)
-    "#;
+    let program = include_str!("wat_cli__freeze_time_panic.wat");
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
@@ -439,13 +355,7 @@ fn program_writes_multiple_times_to_stdout() {
     // emits one EDN-encoded line. Two calls → two EDN lines on stdout.
     // Rust assertion updated for arc 170 slice 1f-ι EDN-only contract:
     // println of a String value emits the EDN-quoted form with newline.
-    let program = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::do
-            (:wat::kernel::println "hello")
-            (:wat::kernel::println "world")
-            nil))
-    "#;
+    let program = include_str!("wat_cli__multiple_println.wat");
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
@@ -498,21 +408,7 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
     // pattern `tests/wat_harness_deps.rs` uses against OnceLock
     // contention.
     wat::process::run_in_fork(|| {
-        let program = r#"
-            ;; Arc 170 migration: canonical [] -> :nil signatures;
-            ;; IOWriter/println → (:wat::kernel::println ...);
-            ;; demo::loop no longer needs a stdout param — println
-            ;; routes through the ambient StdOutService.
-            (:wat::core::defn :demo::loop [] -> :wat::core::nil
-              (:wat::core::if (:wat::kernel::stopped?)
-                ()                                       ; observed stop → return clean
-                (:demo::loop)))                          ; tight poll loop
-
-            (:wat::core::defn :user::main [] -> :wat::core::nil
-              (:wat::core::do
-                (:wat::kernel::println "READY")
-                (:demo::loop)))
-        "#;
+        let program = include_str!("wat_cli__sigterm_polling_loop.wat");
         let path = write_temp(program);
         let bin = env!("CARGO_BIN_EXE_wat");
         let mut child = Command::new(bin)
@@ -592,15 +488,9 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
 
 // ─── Arc 115 slice 1 — `wat --check` mode ────────────────────────────────
 
-const ARC115_GOOD_PROGRAM: &str = r#"
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  ())
-"#;
+const ARC115_GOOD_PROGRAM: &str = include_str!("wat_cli__check_good.wat");
 
-const ARC115_BAD_PROGRAM: &str = r#"
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::send no-such-thing 42))
-"#;
+const ARC115_BAD_PROGRAM: &str = include_str!("wat_cli__check_bad.wat");
 
 #[test]
 fn check_mode_exits_zero_on_good_program() {

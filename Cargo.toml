@@ -6,7 +6,6 @@ members = [
     "crates/wat-doc",
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
-    "crates/wat-cli",
     "examples/with-loader",
     "examples/console-demo",
 ]
@@ -23,7 +22,6 @@ default-members = [
     "crates/wat-doc",
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
-    "crates/wat-cli",
     "examples/with-loader",
     "examples/console-demo",
 ]
@@ -60,6 +58,19 @@ edition = "2021"
 license = "Apache-2.0"
 description = "The wat language — parser, type checker, macro expander, and runtime for the 058 algebra surface."
 repository = "https://github.com/watmin/wat-rs"
+
+# Arc 170 — `wat-cli` folded into core. First `[[bin]]` entries this
+# manifest has ever carried; `wat::distribution::run` (src/distribution/)
+# is the library surface both wrap. The `name =` values are FIXED: `cargo
+# wat` resolves only because the binary is literally named `cargo-wat` —
+# cargo's subcommand dispatch convention, not something a rename survives.
+[[bin]]
+name = "wat"
+path = "src/bin/wat.rs"
+
+[[bin]]
+name = "cargo-wat"
+path = "src/bin/cargo-wat.rs"
 
 [dependencies]
 holon = { path = "../holon-rs" }
@@ -185,3 +196,9 @@ path = "tests/lint/mod.rs"
 [[test]]
 name = "wat_lang"
 path = "tests/wat_lang/mod.rs"
+
+# Arc 170 — `wat-cli` folded into core; its `tests/wat_cli.rs` (16 tests)
+# moved here + gained a synthetic Battery fixture (tests/cli/synthetic_battery.rs).
+[[test]]
+name = "cli"
+path = "tests/cli/mod.rs"
