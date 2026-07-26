@@ -4,33 +4,26 @@ members = [
     "crates/wat-reader",
     "crates/wat-macros",
     "crates/wat-doc",
-    "crates/wat-lru",
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
-    "crates/wat-holon-lru",
     "crates/wat-cli",
-    "examples/with-lru",
     "examples/with-loader",
     "examples/console-demo",
 ]
 # default-members makes `cargo test` / `cargo build` / `cargo check` cover
 # every workspace member, not just the root package. Without this an
 # upstream surface change (e.g. arc 047 making `:wat::core::first` return
-# `Option<T>` for Vec args) can rot a downstream crate's tests
-# (crates/wat-lru/wat-tests/) and stay invisible until someone
-# explicitly runs `--workspace`. Pinning here keeps every crate honest
-# at every checkpoint.
+# `Option<T>` for Vec args) can rot a downstream crate's tests and stay
+# invisible until someone explicitly runs `--workspace`. Pinning here
+# keeps every crate honest at every checkpoint.
 default-members = [
     ".",
     "crates/wat-reader",
     "crates/wat-macros",
     "crates/wat-doc",
-    "crates/wat-lru",
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
-    "crates/wat-holon-lru",
     "crates/wat-cli",
-    "examples/with-lru",
     "examples/with-loader",
     "examples/console-demo",
 ]

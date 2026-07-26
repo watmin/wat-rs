@@ -30,3 +30,42 @@ fn cache_lru() {
          Some Entry{:key :a :value 1})",
     );
 }
+
+// ─── Cache Stone 5 coverage-gap closures ──────────────────────────────────────────────────
+//
+// Ported from the dying `crates/wat-lru`'s wat-tests (arc 278 Cache Stone 5 survey) before
+// that crate is deleted — the capability moves before its old home dies. See the `.wat`
+// fixture's per-deftest doc comments for what each one proves and why it wasn't already
+// covered by the gate above.
+
+#[test]
+fn cache_lru_put_overwrites() {
+    call_beside(file!(), ":user::cache_lru_put_overwrites").expect_passed(
+        "cache_lru_put_overwrites deftest must pass (re-putting an existing key updates in \
+         place: second value wins, no eviction, no duplicate, len unchanged)",
+    );
+}
+
+#[test]
+fn cache_lru_holon_key_roundtrip() {
+    call_beside(file!(), ":user::cache_lru_holon_key_roundtrip").expect_passed(
+        "cache_lru_holon_key_roundtrip deftest must pass (a HolonAST key put then got back \
+         returns the stored value)",
+    );
+}
+
+#[test]
+fn cache_lru_holon_key_distinguishes() {
+    call_beside(file!(), ":user::cache_lru_holon_key_distinguishes").expect_passed(
+        "cache_lru_holon_key_distinguishes deftest must pass (structurally distinct HolonAST \
+         keys must not collide)",
+    );
+}
+
+#[test]
+fn cache_lru_holon_key_structural_equal() {
+    call_beside(file!(), ":user::cache_lru_holon_key_structural_equal").expect_passed(
+        "cache_lru_holon_key_structural_equal deftest must pass (two independently-built but \
+         structurally-equal HolonAST keys must collide in the cache)",
+    );
+}

@@ -9,8 +9,8 @@
 //! // your_crate/src/main.rs
 //! fn main() -> std::process::ExitCode {
 //!     wat_cli::run(&[
-//!         (wat_lru::register, wat_lru::wat_sources),
 //!         (my_crate::register, my_crate::wat_sources),
+//!         (another_crate::register, another_crate::wat_sources),
 //!     ])
 //! }
 //! ```
@@ -228,10 +228,13 @@ fn prepend_file_field(edn: wat_edn::OwnedValue, file: &str) -> wat_edn::OwnedVal
 /// Second element: the crate's `wat_sources` function — yields the
 /// `&'static [WatSource]` baked into the crate.
 ///
-/// Every extension crate in this workspace already exposes both
-/// functions with these signatures (`wat-lru`, `wat-holon-lru`).
-/// Downstream extension crates following the same shape (per arc 013's
-/// `wat::main!` external-crate contract) drop in identically.
+/// Any `#[wat_dispatch]` extension crate exposes both functions with
+/// these signatures. As of arc 278 Cache Stone 5 (the cache tooling
+/// moved into core; its two study-oracle extension crates were
+/// retired) this workspace ships no extension crates of its own —
+/// both canonical binaries below run with an empty battery slice.
+/// A downstream extension crate following the same shape (per arc
+/// 013's `wat::main!` external-crate contract) drops in identically.
 pub type Battery = (
     fn(&mut wat::rust_deps::RustDepsBuilder),
     fn() -> &'static [wat::WatSource],
@@ -521,8 +524,8 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
 /// ```text
 /// fn main() -> std::process::ExitCode {
 ///     wat_cli::run(&[
-///         (wat_lru::register, wat_lru::wat_sources),
 ///         (my_crate::register, my_crate::wat_sources),
+///         (another_crate::register, another_crate::wat_sources),
 ///     ])
 /// }
 /// ```

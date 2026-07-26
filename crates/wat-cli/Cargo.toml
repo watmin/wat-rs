@@ -21,6 +21,4 @@ path = "src/bin/cargo-wat.rs"
 [dependencies]
 wat = { path = "../.." }
 wat-edn = { path = "../wat-edn" }
-wat-lru = { path = "../wat-lru" }
-wat-holon-lru = { path = "../wat-holon-lru" }
 libc = "0.2"
