@@ -3655,6 +3655,45 @@ fn infer_list(
                     CheckResult::partial_with(bool_result_ty, local_errors)
                 };
             }
+            // Arc 278 the REQUEST-MALFORMED wall (Stone 1) — `:wat::edn::validate`.
+            //
+            // Signature: (value :DeclaredType) -> :wat::edn::Validation.
+            // Special-cased for EXACTLY the two reasons `conforms?` above is (it is the
+            // same arg shape): (a) arg[0]'s static type is irrelevant — validate IS the
+            // runtime shape check, and at its one real call site (the defservice-generated
+            // dispatch arm) the value is already statically the declared request type,
+            // which is the point: the DECLARATION is what the wire lied about. (b) arg[1]
+            // is type-position; inferring it as a value would resolve a record type
+            // keyword to its constructor's Fn type.
+            ":wat::edn::validate" => {
+                if args.len() != 2 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::edn::validate".into(),
+                        reason: format!(
+                            "expected (:wat::edn::validate <value> :DeclaredType); got {} arg(s)",
+                            args.len()
+                        ),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                let mut _discard: Vec<CheckError> = Vec::new();
+                let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut _discard);
+                if !matches!(&args[1], WatAST::Keyword(_, _)) {
+                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::edn::validate".into(),
+                        reason: "second arg must be a type keyword (e.g. :my::Request or :wat::core::Vector<my::T>)".into(),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                let validation_ty = TypeExpr::Path(":wat::edn::Validation".into());
+                return if local_errors.is_empty() {
+                    CheckResult::ok(validation_ty)
+                } else {
+                    CheckResult::partial_with(validation_ty, local_errors)
+                };
+            }
             ":wat::core::if" => {
                 let (val, mut errs) = infer_if(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);

@@ -1365,6 +1365,55 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::edn::Validation — Arc 278 the REQUEST-MALFORMED wall (Stone 1,
+    // DESIGN-request-malformed-input-sanitization.md). The outcome of
+    // `(:wat::edn::validate <value> :DeclaredType)` — the DEEP shape check at a
+    // trust boundary. `:wat::core::conforms?` cannot answer this question: for an
+    // Aggregate it is a NOMINAL identity check only (runtime.rs `conforms_check`,
+    // the `TypeDef::Aggregate` arm → `concrete_type_name_matches`) — it never
+    // recurses into a record's FIELDS, so `#dos.Bag/PutRequest {:items [1 2 3]}`
+    // against `items <- Vector<String>` passes it. `edn_to_typed_value`
+    // (edn_shim.rs) IS the deep walker (per-field, per-element, with the offending
+    // path); `validate` is its thin wat-facing wrapper.
+    //   :Valid   []                       — the value matches the declared shape.
+    //   :Invalid [path expected got]      — it does not, at `path` (segments, e.g.
+    //                                       ["items" "[0]"]), where the declaration
+    //                                       says `expected` and the wire carried `got`.
+    // `path` is STRUCTURED (Vector<String> — segments the caller can index/walk);
+    // `expected`/`got` are STRINGS, ruled by the four questions (see
+    // DESIGN-request-malformed-input-sanitization.md): `expected` is
+    // `check::format_type`'s rendering (the ONE authoritative type renderer), and
+    // `got` is the EDN SHAPE that arrived ("Integer", "Vector", "Map") — an
+    // untyped wire value has NO declared type, so structuring `got` as a type form
+    // would FABRICATE information. An asymmetric pair (structured expected, string
+    // got) would imply a comparison the substrate cannot make. This is a 400-class
+    // diagnostic, not data anyone computes on.
+    // PURE — three Strings/String-vectors and a nullary variant; fully
+    // EDN-reconstructable. Registered as a builtin because the defservice-generated
+    // serve loop matches on it, before any wat defenum would load.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::edn::Validation".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("Valid".into()),
+            EnumVariant::Tagged {
+                name: "Invalid".into(),
+                fields: vec![
+                    (
+                        "path".into(),
+                        TypeExpr::Parametric {
+                            head: "wat::core::Vector".into(),
+                            args: vec![TypeExpr::Path(":wat::core::String".into())],
+                        },
+                    ),
+                    ("expected".into(), TypeExpr::Path(":wat::core::String".into())),
+                    ("got".into(), TypeExpr::Path(":wat::core::String".into())),
+                ],
+            },
+        ],
+    }));
+
     // :wat::kernel::AcceptOutcome<R,S> — Arc 278 peer-lifecycle Strike 3 (the accept'
     // OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept'` used to RETURN a bare
     // `Peer'<R,S>` and RAISE on its *handleable* failures (rendezvous dropped/shutdown,

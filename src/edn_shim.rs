@@ -1876,7 +1876,24 @@ fn edn_to_typed_value_inner(
                 })?;
                 match env.get(p) {
                     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-                    Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
+                    // Arc 278 the REQUEST-MALFORMED wall (Stone 1) — RECORD-nature aggregates
+                    // join Struct here. They were excluded by a `nature == Struct` guard, so
+                    // every `defrecord` type was an instant `mismatch` on this path: a stale
+                    // narrowing left by the 293.2b Struct/Record collapse, invisible because
+                    // this walker has had ZERO production callers since arc 258 Stone 258.5b.
+                    // Records are the ONLY thing a service request ever is (the S1 convention
+                    // `<S>::<Op>Request` is a defrecord), so without this the sanitization wall
+                    // would reject every well-formed request. `coerce_struct_path` builds with
+                    // the DECLARED nature (below) so the reconstructed value does not lie.
+                    // HolonRecord stays out: its wire form is a `#wat-edn.holon/Bind` hologram
+                    // (see `reconstruct_holon_record`), which this field-map walk cannot honestly
+                    // rebuild — it keeps its existing fall-through.
+                    Some(crate::types::TypeDef::Aggregate(a))
+                        if matches!(
+                            a.nature,
+                            crate::types::Nature::Struct | crate::types::Nature::Record
+                        ) =>
+                    {
                         coerce_struct_path(p, a, edn, types)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
@@ -2108,10 +2125,15 @@ fn coerce_struct_path(
             .map_err(|e| e.at(&format!(".{}", fname)))?;
         fields.push(v);
     }
-    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
-        type_path.trim_start_matches(':').to_string(),
-        fields,
-    ))))
+    // Arc 278 the REQUEST-MALFORMED wall (Stone 1) — build with the DECLARED nature.
+    // A record rebuilt as a Struct-nature aggregate would lie about its purity
+    // (`Nature::is_pure`: Struct permits impurity, Record guarantees it) — the caller's
+    // reconstructed value must carry the same nature `reconstruct_record` gives it.
+    let class = type_path.trim_start_matches(':').to_string();
+    Ok(Value::Aggregate(Arc::new(match def.nature {
+        crate::types::Nature::Record => AggregateValue::record(class, Arc::new(fields)),
+        _ => AggregateValue::struct_(class, fields),
+    })))
 }
 
 fn coerce_enum_path(

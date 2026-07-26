@@ -113,6 +113,31 @@ and the caller is **forced** to face it — enum matches are exhaustive, no wild
   and nothing at runtime validates a variant payload's type — an instance of this very hole inside the
   substrate's own code.
 
+## RULED at Stone 1 — `expected`/`got` are STRINGS; `path` is STRUCTURED
+
+Four questions, flat YES/NO. **Strings: YES / YES / YES / YES. Structured type forms: NO / NO / NO / NO.**
+
+- **Obvious?** `expected ":wat::core::String"` / `got "Integer"` reads at a glance and is the same
+  rendering every type diagnostic in the substrate already prints. A `TypeExpr` ADT the client must walk
+  to recover a one-line fact is not obvious. **String YES, structured NO.**
+- **Simple?** `check::format_type` is the ONE authoritative type renderer and already exists; zero new
+  types. Structured needs a wat-side `TypeForm` ADT mirroring `TypeExpr` (Path/Parametric/Tuple/Fn/Var)
+  plus a Rust→wat lowering — and `got` has nothing to lower FROM. **String YES, structured NO.**
+- **Honest?** This is the decisive one. **`got` is not a type and cannot be made one.** The value that
+  arrived came off an untyped wire; it has no declaration. The honest datum is its EDN SHAPE
+  (`edn_shape_name` — "Integer", "Vector", "Map"). Structuring it as a type form would FABRICATE
+  information. And an asymmetric pair (structured `expected`, string `got`) implies a comparison the
+  substrate cannot make. **String YES, structured NO.**
+- **Good UX?** The consumer is a 400-class refusal arm: log it, or reply it verbatim. Nobody computes on
+  a rejected request's type. **String YES, structured NO.**
+
+`path` goes the OTHER way and stays `Vector<String>` — segments (`["items" "[0]"]`) a caller can index
+and walk. That is real data.
+
+**The rule this settles, for arc 296's `format_type` question to inherit:** the prose-vs-structured rule
+binds DATA THE PROGRAM COMPUTES ON. A rendering of a type for a human or a log is not that — `format_type`
+is the one renderer and its output is a String field. Structure the coordinate; render the type.
+
 ## The acceptance bar
 
 The DoS probe, inverted: the attacker's malformed frame returns a **named `RequestMalformed`**, and a

@@ -4033,6 +4033,12 @@ fn dispatch_keyword_head_value(
         // Signature: (value :TypeExpr) -> :wat::core::bool
         // Error contract: well-formed type + no-match → false; unknown/Fn/Var type → Err.
         ":wat::core::conforms?" => eval_conforms(args, list_span, env, sym),
+        // Arc 278 the REQUEST-MALFORMED wall (Stone 1) — `:wat::edn::validate`, the DEEP
+        // shape check `conforms?` structurally cannot do (its Aggregate arm is nominal-only,
+        // never recursing into fields — the exact gap the wire DoS rode through).
+        // Signature: (value :DeclaredType) -> :wat::edn::Validation
+        // A value mismatch is the matchable `Invalid[path expected got]`, never a raise.
+        ":wat::edn::validate" => eval_edn_validate(args, list_span, env, sym),
         // Arc 237 Stone S-A — `:wat::core::subtype?` is-a hierarchy predicate.
         // Directional, transitive, reflexive walk over the `typesub` child→parent registry.
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
@@ -14067,6 +14073,89 @@ fn eval_conforms(
         } }
     })?;
     Ok(Value::bool(result))
+}
+
+// ─── Arc 278 the REQUEST-MALFORMED wall — :wat::edn::validate ────────────────
+
+/// `(:wat::edn::validate <value> :DeclaredType)` → `:wat::edn::Validation` —
+/// arc 278 Stone 1 (DESIGN-request-malformed-input-sanitization.md).
+///
+/// **Input sanitization at a trust boundary.** `conforms?` (immediately above)
+/// cannot serve here: for an Aggregate its `TypeExpr::Path` arm is a NOMINAL
+/// identity check (`concrete_type_name_matches`) that never recurses into the
+/// record's FIELDS — so `#dos.Bag/PutRequest {:items [1 2 3]}` conforms? TRUE
+/// against `items <- Vector<String>`. That gap is the denial of service: the
+/// handler then uses the field at its declared type and the whole service dies.
+///
+/// This is a THIN WRAPPER over the deep walker that already existed and had zero
+/// production callers since arc 258 Stone 258.5b deleted its last one on the
+/// trusted-wire premise: `edn_shim::edn_to_typed_value` walks the declared
+/// `TypeExpr` per-field / per-element and yields the offending path
+/// (`.items.[0]`). We render the runtime `Value` to EDN (`value_to_edn_with` —
+/// the same writer `:wat::edn::write` uses, so both tiers present identically:
+/// the process tier's decoded `Value` and the thread tier's verbatim crossbeam
+/// `Value` reach this the same way) and hand it to that walker. No new
+/// validation logic is minted — the two halves are merely connected.
+///
+/// Never raises on a bad *value*: a mismatch is the matchable
+/// `Validation::Invalid[path expected got]`. A bad *type keyword* (unparseable /
+/// no registry) is a programmer error and still raises.
+fn eval_edn_validate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::edn::validate";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let value = eval_inner(&args[0], env, sym)?.value_owned();
+    let texpr = parse_type_slot(&args[1]).map_err(|e| RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: format!("second arg must be a type keyword: {}", e)
+    } })?;
+    if sym.types().is_none() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "validate requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+        } }.into());
+    }
+    let edn = crate::edn_shim::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
+    Ok(match crate::edn_shim::edn_to_typed_value(&texpr, &edn, sym) {
+        Ok(_) => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::edn::Validation".into(),
+            variant_name: "Valid".into(),
+            fields: vec![],
+        })),
+        Err(e) => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::edn::Validation".into(),
+            variant_name: "Invalid".into(),
+            fields: vec![
+                Value::Vec(Arc::new(edn_coerce_path_segments(&e.path))),
+                Value::String(Arc::new(e.expected)),
+                Value::String(Arc::new(e.got)),
+            ],
+        })),
+    })
+}
+
+/// Split an `EdnCoerceError.path` (`".items.[0]"` — dot-joined, built leaf-upward
+/// by `EdnCoerceError::at`) into its SEGMENTS (`["items" "[0]"]`).
+///
+/// The segments are the structured half of the `Invalid` payload: a caller can
+/// index/walk them, which is why `path` is a `Vector<String>` while
+/// `expected`/`got` are rendered Strings. An empty path (the mismatch is the
+/// value itself, not a sub-field) yields an empty vector — honest, not a `[""]`.
+fn edn_coerce_path_segments(path: &str) -> Vec<Value> {
+    path.split('.')
+        .filter(|seg| !seg.is_empty())
+        .map(|seg| Value::String(Arc::new(seg.to_string())))
+        .collect()
 }
 
 /// Recursive conformance walker over the `TypeExpr` grammar.

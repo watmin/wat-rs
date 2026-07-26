@@ -137,6 +137,7 @@
      ;; Arc 293 S2: :satisfies (name a surface — reference its S1-synthesized protocol) and
      ;; :impls (bodies-only op implementations, in place of :ops) join the recognized clauses.
      known-clauses  (:wat::core::HashMap/assoc
+                     (:wat::core::HashMap/assoc
                       (:wat::core::HashMap/assoc
                        (:wat::core::HashMap/assoc
                         (:wat::core::HashMap/assoc
@@ -163,6 +164,27 @@
                       ;; (bytes-per-read), threaded to the accepted-connection receivers. Optional;
                       ;; default DEFAULT_MAX_FRAME_BYTES (512 KiB).
                       "max-frame-bytes" true)
+                     ;; Arc 278 Stone 1 (the REQUEST-MALFORMED wall): :sanitize-requests — TRANSITIONAL.
+                     ;; `:all` generates the request SHAPE guard on every surface op (see serve-op-arms);
+                     ;; `:none` (the default) does not. It exists ONLY to stage the rollout: the guard
+                     ;; refuses with a per-op `<Op>Response::RequestMalformed`, so turning it on REQUIRES
+                     ;; that variant on every one of this service's op-Responses. Stone 2 adds the variant
+                     ;; fleet-wide (a wat/fix.wat codemod) and flips it to mandatory in
+                     ;; `synthesize_surface_protocol` (src/types.rs), exactly the order ruling A used for
+                     ;; `:RequestTooLarge` — migration first, THEN the contract lock. At that point this
+                     ;; clause and its `if` come OUT: sanitization is not an option a service opts into,
+                     ;; it is what a service IS.
+                     ;;
+                     ;; WHY A CLAUSE AND NOT REFLECTION ON THE RESPONSE ENUM: the obvious gate — "generate
+                     ;; the guard iff `<Op>Response` declares `:RequestMalformed`" — is IMPOSSIBLE here.
+                     ;; This is a macro; the freeze pipeline runs `expand_all` (step 4) BEFORE
+                     ;; `register_types` (step 5, src/freeze.rs), so at expand time the type registry holds
+                     ;; NOTHING from the program being loaded — not even a surface declared in the same
+                     ;; file, three forms up. (Grounded, not assumed: an enum-variant reflection verb was
+                     ;; built and it failed on `:wat::kernel::StdOut::WriteResponse`, whose defsurface is
+                     ;; directly above its defservice.) The author's intent has to arrive on the form the
+                     ;; macro can actually read: its own.
+                     "sanitize-requests" true)
      clauses-len    (:wat::core::length clauses)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
@@ -191,7 +213,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown clause :"
                                 (:wat::core::string::concat key
-                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers :max-frame-bytes"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers :max-frame-bytes :sanitize-requests"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-clause-pairs))
      ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
@@ -304,6 +326,29 @@
                               (:wat::core::HashMap/get clause-map "max-frame-bytes")
                               "defservice: :max-frame-bytes needs a value")
                             `524288)
+
+     ;; ── Arc 278 Stone 1: :sanitize-requests — the REQUEST SHAPE guard, on/off ──────
+     ;; Keyword-valued (`:all` / `:none`), read HERE at expand time — this is a
+     ;; code-GENERATION decision, so it can only be taken now. Anything other than the
+     ;; two names is a located macro-error; there is no silent misread, and no third
+     ;; state. (`keyword/to-string` on the clause node is the same read `:satisfies`
+     ;; does — a keyword node is the one literal shape a macro can decode today with
+     ;; no new primitive.)
+     sanitize-node  (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "sanitize-requests")
+
+                      (:wat::core::ast-name
+                        (:wat::core::Option/expect
+                          (:wat::core::HashMap/get clause-map "sanitize-requests")
+                          "defservice: :sanitize-requests needs a value"))
+                      ":none")
+     sanitize-all?  (:wat::core::= sanitize-node ":all")
+     _sanitize-ok   (:wat::core::if
+                      (:wat::core::if sanitize-all? true (:wat::core::= sanitize-node ":none"))
+
+                      nil
+                      (:wat::core::macro-error
+                        (:wat::core::string::concat "defservice: :sanitize-requests takes :all or :none; got "
+                          sanitize-node)))
 
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
      state-ty-str   (:wat::core::string::interpolate "{b}::State{p}" :b fqdn-base :p fqdn-tp)
@@ -1057,6 +1102,63 @@
                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))))
                                                 ((:wat::service::Outcome::NoReplyAndArm new-state arms)
                                                   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
+                              ;; ── arc 278 Stone 1 — the REQUEST-MALFORMED sanitization wall ──────────
+                              ;; The SIZE guard's sibling, in the SAME slot and for the same reason.
+                              ;; `:max-request-bytes` asks "is this request too BIG?"; this asks "is
+                              ;; this request the SHAPE we declared we accept?" — the whitelist is the
+                              ;; op's own `<Op>Request` record, already authored; nothing new is declared.
+                              ;;
+                              ;; WHY HERE and nowhere else: this is POST-DECODE, inside the generated
+                              ;; dispatch arm, before the handler — so it covers BOTH TIERS. A Rust-side
+                              ;; decode fix would miss the thread tier entirely: `ReactorClass::InMemory`
+                              ;; (src/runtime.rs) passes the `Value` through crossbeam VERBATIM and never
+                              ;; decodes at all. And the process tier's decode is TAG-driven, not
+                              ;; target-driven (`reconstruct_record` uses the declared fields for names
+                              ;; and order only; the declared `fty` is never compared to the decoded
+                              ;; value). So `#dos.Bag/PutRequest {:items [1 2 3]}` against
+                              ;; `items <- Vector<String>` was accepted verbatim on BOTH tiers, the
+                              ;; handler used the field at its declared type, and the service DIED FOR
+                              ;; EVERYONE — a second, innocent client could not even `connect'`. That is
+                              ;; a denial of service, and it is what this guard pulls out by the root:
+                              ;; a bad caller, malicious or dumb, cannot crash anything.
+                              ;;
+                              ;; OPT-IN, for now, via the service's `:sanitize-requests :all` clause
+                              ;; (see its declaration site above for why the gate is a clause and not
+                              ;; reflection on the Response enum: at macro-expand time the type registry
+                              ;; is EMPTY of this program). Stone 1 proves the mechanism on one service
+                              ;; without paying the corpus cascade; Stone 2 is the fleet migration (a
+                              ;; `wat/fix.wat` codemod adding `:RequestMalformed` to every op-Response)
+                              ;; plus flipping it to MANDATORY in `synthesize_surface_protocol`
+                              ;; (src/types.rs), exactly the order ruling A used for `:RequestTooLarge`.
+                              ;; Once locked, this `if` is dead and comes out.
+                              ;; The WHITELIST: the op's declared request record (the S1 convention
+                              ;; `<proto>::<Op>Request`, the same one `op-methods` builds its client
+                              ;; method's `req` param from — one convention, two consumers).
+                              req-ty-kw     (:wat::core::keyword/from-string
+                                              (:wat::core::string::concat proto-base
+                                                (:wat::core::string::interpolate "::{variant-pascal}Request" :variant-pascal variant-pascal)))
+                              rm-ctor-kw    (:wat::core::keyword/from-string
+                                              (:wat::core::string::concat proto-base
+                                                (:wat::core::string::interpolate "::{variant-pascal}Response::RequestMalformed" :variant-pascal variant-pascal)))
+                              ;; symbol-node binders (mirrors n-sym above) — generated pattern binders,
+                              ;; never caller-visible names.
+                              mpath-sym     (:wat::core::symbol-node "mpath")
+                              mexp-sym      (:wat::core::symbol-node "mexpected")
+                              mgot-sym      (:wat::core::symbol-node "mgot")
+                              shape-guarded (:wat::core::if sanitize-all?
+
+                                              `(:wat::core::match (:wat::edn::validate ~req-binder ~req-ty-kw)
+                                                 (:wat::edn::Validation::Valid ~outcome-match)
+                                                 ;; arc 278 the send'-outcome wall — refuse, then RECURSE
+                                                 ;; INTO SERVE with state UNCHANGED (the handler never ran).
+                                                 ;; A gone client is not fatal either; every arm keeps serving.
+                                                 ((:wat::edn::Validation::Invalid ~mpath-sym ~mexp-sym ~mgot-sym)
+                                                   (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx)
+                                                       (~reply-variant-kw (~rm-ctor-kw ~mpath-sym ~mexp-sym ~mgot-sym)))
+                                                     (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                                                     (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
+                                              outcome-match)
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
@@ -1067,7 +1169,7 @@
                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))
-                                                 ~outcome-match))]
+                                                 ~shape-guarded))]
                              (:wat::core::conj acc
                                `((~op-variant-kw ~req-binder) ~guarded-arm))))))
                      (:wat::core::Vector :wat::WatAST)
