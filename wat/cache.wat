@@ -152,3 +152,101 @@
          (:wat::cache::Lru::put (:wat::cache::lru-svc::State/cache s)
            (:wat::cache::Cache::PutRequest/key req)
            (:wat::cache::Cache::PutRequest/value req)))))])
+
+;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
+;;
+;; The other cache flavour: same eviction discipline as Stone 1's `Lru<K,V>`, different
+;; key-matching — exact-key becomes *hologram similarity*. Concrete over `HolonAST` (the
+;; Hologram store is HolonAST-keyed, not generic), so unlike Stone 1 this type carries no `<K,V>`.
+;;
+;; Study oracle: `crates/wat-holon-lru/wat/holon/lru/HologramCache.wat` — read for the shape
+;; (`put`'s eviction → `Hologram/remove` chain, `get`'s `Hologram/find` → LRU-bump), never copied.
+;; Rebuilt here clean on Stone 1's `:wat::cache::Lru<K,V>` primitive (named `Entry`, not the
+;; oracle's positional tuple) exactly as Stone 1 was rebuilt from its own oracle.
+;;
+;; ─── the two structures, and the invariant that binds them ──────────────────────────────────
+;; `hologram` is the similarity index and holds the VALUES. `lru` is the recency/bound index and
+;; holds KEYS ONLY — its value slot is `:wat::core::nil` on purpose: the LRU is not storing
+;; anything, it is the bound and the recency order; the values live in the Hologram. The LRU
+;; exists so the Hologram cannot grow without limit.
+;;
+;; THE LOAD-BEARING INVARIANT — dual eviction. The two structures must never disagree about which
+;; keys exist. When `put` overflows the LRU, the LRU hands back the displaced `Entry` and that
+;; key is removed from the Hologram too (`HolographicLru::put` below). Miss this and the Hologram
+;; grows forever while the LRU believes it is bounded — the cache silently stops being a cache.
+;;
+;; `defstruct`, not `defrecord`: both fields are live impure handles (a `Hologram` and a
+;; thread-owned `Lru`). That also means a `HolographicLru` can only ever live in a service's
+;; `:ephemeral` — Stone 4's `hologram-svc` problem, not this one's.
+;;
+;; ─── the verbs (type-scoped, mirroring Stone 1) ──────────────────────────────────────────────
+;; `HolographicLru::new` / `::put` / `::get` / `::len`. The BARE `:wat::cache::get` /
+;; `:wat::cache::put` names stay RESERVED — a later stone makes them ONE `defclause` over both
+;; flavours (`Lru | HolographicLru`), and wat forbids two `defn`s sharing an FQDN. Taking them
+;; here would block that stone.
+
+(:wat::core::defstruct :wat::cache::HolographicLru
+  [hologram <- :wat::holon::Hologram
+   lru      <- :wat::cache::Lru<wat::holon::HolonAST,wat::core::nil>])
+
+;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
+;; `filter` gates `Hologram/find` hits (bind `:wat::holon::filter-coincident` /
+;; `filter-present` / `filter-accept-any`, or a caller-supplied closure). `capacity` is the LRU's
+;; hard bound on entry count — the same guard Stone 1's `Lru::new` carries (must be positive).
+(:wat::core::defn :wat::cache::HolographicLru::new
+  [filter   <- :wat::core::Fn(wat::core::f64)->wat::core::bool
+   capacity <- :wat::core::i64]
+  -> :wat::cache::HolographicLru
+  (:wat::cache::HolographicLru
+    :hologram (:wat::holon::Hologram/make filter)
+    :lru (:wat::cache::Lru::new capacity)))
+
+;; ─── put — insert into the Hologram + bump/bound via the LRU, dual-evicting on overflow ───────
+;; 1. Insert (key, val) into the Hologram (slot routing is internal).
+;; 2. Push key -> nil onto the LRU (V is unit; the LRU only tracks freshness by key).
+;; 3. If step 2 displaced an entry (over capacity), remove ITS key from the Hologram too — the
+;;    dual-eviction invariant. Without this the Hologram keeps growing after the LRU claims it
+;;    dropped something.
+(:wat::core::defn :wat::cache::HolographicLru::put
+  [store <- :wat::cache::HolographicLru
+   key   <- :wat::holon::HolonAST
+   val   <- :wat::holon::HolonAST]
+  -> :wat::core::nil
+  (:wat::core::let
+    [h (:wat::cache::HolographicLru/hologram store)
+     lru (:wat::cache::HolographicLru/lru store)
+     _ (:wat::holon::Hologram/put h key val)
+     evicted (:wat::cache::Lru::put lru key nil)]
+    (:wat::core::match evicted
+      ((:wat::core::Some entry)
+        (:wat::core::let
+          [_ (:wat::holon::Hologram/remove h (:wat::cache::Entry/key entry))]
+          nil))
+      (:wat::core::None nil))))
+
+;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
+;; `Hologram/find` returns the MATCHED key (not necessarily `probe` itself — this is what makes
+;; the lookup similarity-keyed rather than exact) together with the value. Bump the matched key
+;; in the LRU (`Lru::put` on an already-present key updates its recency without displacing
+;; anything) and return `Some val`. `None` on a miss (filter rejected, or nothing coincident).
+(:wat::core::defn :wat::cache::HolographicLru::get
+  [store <- :wat::cache::HolographicLru
+   probe <- :wat::holon::HolonAST]
+  -> :wat::core::Option<wat::holon::HolonAST>
+  (:wat::core::let
+    [h (:wat::cache::HolographicLru/hologram store)
+     lru (:wat::cache::HolographicLru/lru store)]
+    (:wat::core::match (:wat::holon::Hologram/find h probe)
+      ((:wat::core::Some pair)
+        (:wat::core::let
+          [matched-key (:wat::core::first pair)
+           val (:wat::core::second pair)
+           _ (:wat::cache::Lru::put lru matched-key nil)]
+          (:wat::core::Some val)))
+      (:wat::core::None :wat::core::None))))
+
+;; ─── len — total entries, read via the Hologram (the value-holding half) ──────────────────────
+(:wat::core::defn :wat::cache::HolographicLru::len
+  [store <- :wat::cache::HolographicLru]
+  -> :wat::core::i64
+  (:wat::holon::Hologram/len (:wat::cache::HolographicLru/hologram store)))
