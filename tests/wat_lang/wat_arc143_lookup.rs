@@ -13,11 +13,11 @@
 //!   3. Unknown name — call on a non-existent name, assert None.
 //!   4. `body-of` for substrate primitive returns None (not the sentinel).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_bool(v: Value, ctx: &str) -> bool {

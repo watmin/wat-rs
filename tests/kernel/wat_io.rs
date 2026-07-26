@@ -13,11 +13,11 @@
 //!   here because that requires spawning sub-threads via :wat::kernel::spawn
 //!   which is slice-3 territory.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 fn unwrap_some_string(v: Value) -> String {

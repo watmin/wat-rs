@@ -13,10 +13,10 @@ use wat::freeze::call_beside;
 
 #[test]
 fn sqlite_store_differential() {
-    let result = call_beside(file!(), ":user::sqlite_store_differential");
-    assert!(
-        result.is_ok(),
-        "sqlite_store_differential deftest' must pass (mem-store' and sqlite-store' must return \
-         IDENTICAL Pages for the same op sequence); got Err: {result:?}"
+    // Arc 278 the vacuous-gate wall — was `call_beside(..).is_ok()`, which certified only
+    // that the fixture froze and ran; every assert-eq inside it was decoration.
+    call_beside(file!(), ":user::sqlite_store_differential").expect_passed(
+        "sqlite_store_differential deftest must pass (mem-store' and sqlite-store' must return \
+         IDENTICAL Pages for the same op sequence)",
     );
 }

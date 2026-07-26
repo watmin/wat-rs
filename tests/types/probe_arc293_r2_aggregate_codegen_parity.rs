@@ -10,14 +10,14 @@
 //! RED at HEAD: startup fails — `:r2::CR/v` / `:r2::HR/v` are unresolved. GREEN after 293.R2a — one
 //! `register_aggregate_methods` mints accessors for all three natures, generic-aware, bare key.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Generic core-record + holon-record field accessors resolve, at parity with the generic struct;
 /// and a holon record is accepted where a core `:wat::core::Record` is wanted (policy c).
 #[test]
 fn aggregate_codegen_parity_generic_record_accessors() {
-    let got = call_beside(file!(), ":r2::probe")
+    let got = call_beside_value(file!(), ":r2::probe")
         .expect("(:r2::probe) must read :r2::CR/v + :r2::HR/v + :r2::ST/v");
 
     match got {

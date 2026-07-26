@@ -6,11 +6,11 @@
 //! f1 f2 ... fn)` evaluates to a `:wat::core::Vector<wat::WatAST>` where each
 //! element is the corresponding unevaluated form captured as data.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_string(v: Value) -> String {

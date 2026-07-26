@@ -14,31 +14,25 @@
 //!
 //! WAT fixture: tests/services/probe_arc278_emitted_from.wat
 
-use wat::freeze::startup_from_file;
-use wat::runtime::apply_function;
+use wat::freeze::{deftest_verdict, startup_from_file, DeftestOutcome};
 
-fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
+/// Arc 278 the vacuous-gate wall — this was `apply_function(..)` + `Ok(_) => Ok(())`, whose
+/// `Ok` answers "did the deftest EVALUATE?" while the gate below read it as "did it PASS?".
+/// A fired assertion is captured into the returned `:wat::kernel::RunResult`, not raised, so
+/// every assert-eq in the fixture was decoration. `deftest_verdict` reads the verdict.
+fn run_test_fn(path: &str, name: &str) -> DeftestOutcome {
     let world = startup_from_file(path)
         .expect("startup should succeed (:wat::telemetry::Log/emitted-from must exist + type-check)");
-    let func = world
-        .symbols()
-        .get(name)
-        .unwrap_or_else(|| panic!("no {name} in {path:?}"))
-        .clone();
-    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("{e:?}")),
-    }
+    deftest_verdict(&world, name)
 }
 
 /// A `:wat::telemetry::Log` built with `:emitted-from (:wat::kernel::call-site)` round-trips a
-/// `Some` file through `Log/emitted-from` -> `Frame/file` — a passing deftest' RETURNS cleanly
-/// (not raises).
+/// `Some` file through `Log/emitted-from` -> `Frame/file`.
 #[test]
 fn emitted_from_round_trips_through_log() {
-    let r = run_test_fn(
+    run_test_fn(
         "tests/services/probe_arc278_emitted_from.wat",
         ":user::emitted-from-round-trips",
-    );
-    assert!(r.is_ok(), "Log/emitted-from must round-trip a Frame with Some file; got Err: {r:?}");
+    )
+    .expect_passed("Log/emitted-from must round-trip a Frame with Some file");
 }

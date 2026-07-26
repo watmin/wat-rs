@@ -15,18 +15,18 @@
 //! Coverage (feedback_logic_coverage_mandate): base ops · holonic preserved · Liskov accept/reject
 //! · cross-flavor.
 
-use wat::freeze::{call_beside, startup_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_beside, startup_from_file};
 use wat::runtime::Value;
 
 fn eval_bool(fn_name: &str) -> bool {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }
 }
 
 fn eval_i64(fn_name: &str) -> i64 {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::i64(n) => n,
         other => panic!("expected i64 from {}; got {:?}", fn_name, other),
     }
@@ -43,7 +43,7 @@ fn eval_i64(fn_name: &str) -> i64 {
 #[test] fn base_assoc_then_read() { assert_eq!(eval_i64(":user::base-assoc-then-read"), 9); }
 #[test] fn base_to_holon_errors() {
     // base has NO holon flavor — to-holon must error (teaching error), not return Ok.
-    let h = call_beside(file!(), ":user::base-to-holon-errors");
+    let h = call_beside_value(file!(), ":user::base-to-holon-errors");
     assert!(h.is_err(), "to-holon on a BASE record must error; got {:?}", h);
 }
 
@@ -52,7 +52,7 @@ fn eval_i64(fn_name: &str) -> i64 {
 #[test] fn holonic_predicate_true() { assert!(eval_bool(":user::holonic-predicate-true")); }
 #[test] fn holonic_to_holon_ok() {
     // holonic HAS a holon flavor — to-holon works.
-    let t = call_beside(file!(), ":user::holonic-to-holon-ok");
+    let t = call_beside_value(file!(), ":user::holonic-to-holon-ok");
     assert!(t.is_ok(), "to-holon on a HOLONIC record must work; got {:?}", t);
 }
 

@@ -10,13 +10,13 @@
 //! Run: cargo test --release -p wat --test probe_arc278_P12c_explain_payload -- --include-ignored
 
 use wat::ast::WatAST;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Invoke a co-located zero-arg entry (each rebuilds the shared lifecycle prefix — `root` /
 /// `step0` — internally, then applies its own tail).
 fn nav(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("compute should run")
+    call_beside_value(file!(), fn_name).expect("compute should run")
 }
 
 /// PATTERN — the first step matched a Temperature condition.

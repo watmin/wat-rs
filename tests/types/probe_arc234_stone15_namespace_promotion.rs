@@ -6,7 +6,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use wat::freeze::{call_beside, startup_beside};
+use wat::freeze::{call_beside_value, startup_beside};
 use wat::runtime::Value;
 use wat::{AggregateValue, Nature};
 use holon::HolonAST;
@@ -113,7 +113,7 @@ fn probe_4_namespace_type_registration() {
     startup_beside(file!())
         .expect("Probe 4: :wat::core::Record annotation must type-check cleanly");
     // Verify the probe-4 function is callable (returns nil)
-    call_beside(file!(), ":user::probe-4").expect("Probe 4: eval should succeed");
+    call_beside_value(file!(), ":user::probe-4").expect("Probe 4: eval should succeed");
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────

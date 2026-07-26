@@ -23,12 +23,12 @@
 //! Run SERIALLY (spawns a thread):
 //!   cargo test --release -p wat --test probe_arc209_bound_listener -- --test-threads=1
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn listener_thread_tier_returns_bound_struct() {
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(10)),

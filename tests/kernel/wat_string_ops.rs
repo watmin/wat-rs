@@ -4,15 +4,15 @@
 //! Bool fns return Value::bool; String fns return Value::String.
 //! Error fns assert eval_in_frozen returns Err.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 fn run_expecting_eval_err(fn_name: &str) -> String {
-    let err = call_beside(file!(), fn_name).expect_err("expected runtime error");
+    let err = call_beside_value(file!(), fn_name).expect_err("expected runtime error");
     format!("{:?}", err)
 }
 

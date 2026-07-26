@@ -36,14 +36,17 @@ fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
     }
 }
 
-/// A PASSING `deftest'` — its fn RETURNS (a clean RunResult); eval is `Ok`.
+/// A PASSING `deftest'` — its fn RETURNS `:wat::kernel::RunResult::Passed`.
+///
+/// Arc 278 the vacuous-gate wall — this asserted only `apply_function(..).is_ok()`, i.e. "the
+/// deftest evaluated", which a FAILING deftest also satisfies (a fired assertion is captured
+/// into the returned RunResult, never raised). It now reads the VERDICT.
 #[test]
 fn deftest_prime_passing_returns() {
-    let r = run_test_fn(
-        "tests/kernel/probe_arc259_deftest_prime_passing.wat",
-        ":user::passing",
-    );
-    assert!(r.is_ok(), "a passing deftest' must RETURN (not raise); got Err: {r:?}");
+    let world = wat::freeze::startup_from_file("tests/kernel/probe_arc259_deftest_prime_passing.wat")
+        .expect("startup should succeed (deftest' macro must exist + expand)");
+    wat::freeze::deftest_verdict(&world, ":user::passing")
+        .expect_passed("a passing deftest' must return RunResult::Passed");
 }
 
 /// A FAILING `deftest'` — its fn RAISES, and the raise carries the assertion message (surfaced

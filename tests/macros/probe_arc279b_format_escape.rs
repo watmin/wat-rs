@@ -13,13 +13,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279b_format_escape -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 fn call_probe(fn_name: &str) -> Result<String, String> {
-    let got = call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))?;
+    let got = call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))?;
     match got {
         Value::String(ref s) => Ok(s.to_string()),
         other => Err(format!("probe must return a String; got {other:?}")),

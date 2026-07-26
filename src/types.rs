@@ -1482,25 +1482,49 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::RunResult — return type of
-    // `:wat::kernel::run-sandboxed`. Arc 278 wave 2d: the `stdout` and
-    // `stderr` capture fields are DROPPED — the peer wire delivers a
-    // child's output via `recv'`, so the byte-pipe capture buffers were
-    // dead weight. `failure` is the sole field: `:None` on success;
-    // `Some(Failure)` when the sandboxed run died.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
+    // :wat::kernel::RunResult — the matchable outcome of running a program:
+    // `:wat::kernel::run-sandboxed`, `:wat::test::run-thread'` /
+    // `run-hermetic'`, and (via the `:wat::test::TestResult` alias) every
+    // `deftest`. Arc 278 the vacuous-gate wall (BRIEF-vacuous-deftest-gate-wall.md),
+    // the third of the outcome walls after RecvOutcome (R53) and SendOutcome (R57).
+    //
+    // It WAS a Nature::Struct with one field, `failure <- Option<Failure>`
+    // (arc 278 wave 2d dropped the stdout/stderr capture buffers, leaving that
+    // single slot). That shape is what let a caller look away: a pass and a
+    // failure wore the SAME type, distinguished only by an `Option` slot nobody
+    // was forced to read. The Rust gate idiom `call_beside_value(..).is_ok()` therefore
+    // certified a fired assertion as a pass — proven by mutating a live gate's
+    // `(assert-eq n 1)` to `n 4242` and watching the test still PASS.
+    //
+    // As an enum, a reason-free failure is UNREPRESENTABLE — exactly two shapes,
+    // and `match` forces the reader to face both:
+    //   :Passed []                    — the run completed with no failure.
+    //   :Failed [failure <- Failure]  — UNCONSTRUCTIBLE without a structured cause;
+    //                                    the first-class `:wat::kernel::Failure`
+    //                                    carrier (never a flat String — wat is EDN
+    //                                    everywhere), the same carrier RecvOutcome::Lost
+    //                                    / SendOutcome::Lost / Reply::Failed use.
+    //
+    // PURE, for the same reason SendOutcome is: non-parametric, holding only pure
+    // data (a nullary variant + a `Failure`, which is Nature::Record / pure EDN,
+    // arc 293.W.2b). A RunResult is fully EDN-reconstructable and wire-crossable;
+    // marking it Impure would lie. Registered as a builtin (like its two sibling
+    // outcome walls) because `run-thread'` constructs it inside the stdlib, before
+    // any wat `defenum` would load.
+    env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::RunResult".into(),
         type_params: vec![],
-        fields: vec![
-            (
-                "failure".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
-                },
-            ),
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("Passed".into()),
+            EnumVariant::Tagged {
+                name: "Failed".into(),
+                fields: vec![(
+                    "failure".into(),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                )],
+            },
         ],
-        restrictions: None,
     }));
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).

@@ -16,14 +16,14 @@
 //!   the fixture maps that detected failure to 1 (mirroring the old
 //!   `RunResult/failure` Some→1 / None→0 read). Still expects 1.
 //!
-//! Tests use the `(:my::compute -> :T)` helper + `call_beside` for the outer
+//! Tests use the `(:my::compute -> :T)` helper + `call_beside_value` for the outer
 //! layer; Rust asserts on the returned Value.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 fn unwrap_string(v: Value) -> String {

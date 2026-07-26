@@ -18,12 +18,12 @@
 //! Run SERIALLY (spawns threads):
 //!   `cargo test --release -p wat --test comms probe_arc209_c0b1b_select_listener -- --test-threads=1`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn select_grows_over_listener_serves_and_shrinks() {
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(24)),

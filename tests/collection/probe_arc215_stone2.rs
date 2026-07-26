@@ -28,22 +28,22 @@
 //! 12. `{"a" 1 "b" 2}` → HashMap<String, i64>; length 2; get "a" → Some(1)
 //! 13. `{1 "v" "two" "w"}` → check fails with TypeMismatch at key #2 (mixed-K rejection)
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:t::pNN…` entry is a zero-arg fn in the co-located
-// `.wat` fixture, driven via `call_beside` — no inline wat driver.
+// `.wat` fixture, driven via `call_beside_value` — no inline wat driver.
 
 // ─── Probe 1: `[1 2 3]` integer Vec (regression — preserved) ─────────────────
 
 #[test]
 fn probe_1_integer_vec_length_and_first_element() {
-    match call_beside(file!(), ":t::p1a-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p1a-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "[1 2 3] must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p1b-vec-first").expect("eval") {
+    match call_beside_value(file!(), ":t::p1b-vec-first").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "first element of [1 2 3] must be 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -53,7 +53,7 @@ fn probe_1_integer_vec_length_and_first_element() {
 
 #[test]
 fn probe_2_float_vec_length() {
-    match call_beside(file!(), ":t::p2-float-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p2-float-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "[1.5 2.5] must have length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -63,7 +63,7 @@ fn probe_2_float_vec_length() {
 
 #[test]
 fn probe_3_string_vec_length() {
-    match call_beside(file!(), ":t::p3-str-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p3-str-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, r#"["a" "b"] must have length 2"#),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -73,7 +73,7 @@ fn probe_3_string_vec_length() {
 
 #[test]
 fn probe_4_empty_vec_length_zero() {
-    match call_beside(file!(), ":t::p4-empty-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p4-empty-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "[] must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -83,7 +83,7 @@ fn probe_4_empty_vec_length_zero() {
 
 #[test]
 fn probe_5_bool_vec_length() {
-    match call_beside(file!(), ":t::p5-bool-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p5-bool-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "[true false true] must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -93,7 +93,7 @@ fn probe_5_bool_vec_length() {
 
 #[test]
 fn probe_6_explicit_infer_vector_form() {
-    match call_beside(file!(), ":t::p6-explicit-infer-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p6-explicit-infer-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :wat::type::Infer 1 2 3) must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -103,7 +103,7 @@ fn probe_6_explicit_infer_vector_form() {
 
 #[test]
 fn probe_7_explicit_infer_vector_form_empty() {
-    match call_beside(file!(), ":t::p7-empty-infer-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p7-empty-infer-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "(:wat::core::Vector :wat::type::Infer) empty must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -126,7 +126,7 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
 
 #[test]
 fn probe_9_explicit_type_vector_form_preserved() {
-    match call_beside(file!(), ":t::p9-explicit-type-vec-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p9-explicit-type-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :wat::core::i64 1 2 3) must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -136,7 +136,7 @@ fn probe_9_explicit_type_vector_form_preserved() {
 
 #[test]
 fn probe_10_let_binder_vector_preserved() {
-    match call_beside(file!(), ":t::p10-let-binder-preserved").expect("eval") {
+    match call_beside_value(file!(), ":t::p10-let-binder-preserved").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "let [x 1 y 2] must bind x=1, y=2, compute x+y=3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -146,12 +146,12 @@ fn probe_10_let_binder_vector_preserved() {
 
 #[test]
 fn probe_11_int_keyed_map_length_and_get() {
-    match call_beside(file!(), ":t::p11a-int-keyed-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p11a-int-keyed-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "{{1 \"v\" 2 \"w\"}} must have length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p11b-int-keyed-contains").expect("eval") {
+    match call_beside_value(file!(), ":t::p11b-int-keyed-contains").expect("eval") {
         Value::bool(b) => assert!(b, "{{1 \"v\" 2 \"w\"}} must contain key 1"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -161,12 +161,12 @@ fn probe_11_int_keyed_map_length_and_get() {
 
 #[test]
 fn probe_12_string_keyed_map_length_and_contains() {
-    match call_beside(file!(), ":t::p12a-str-keyed-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p12a-str-keyed-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "{{\"a\" 1 \"b\" 2}} must have length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p12b-str-keyed-contains").expect("eval") {
+    match call_beside_value(file!(), ":t::p12b-str-keyed-contains").expect("eval") {
         Value::bool(b) => assert!(b, "{{\"a\" 1 \"b\" 2}} must contain key \"a\""),
         other => panic!("expected bool; got {:?}", other),
     }

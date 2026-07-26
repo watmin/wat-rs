@@ -28,11 +28,11 @@
 //!   * "missing-main": a missing `:user::main` maps to Lost[RuntimeError]
 //!     (UserMainMissing), NOT MainSignature.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("compute should run")
+    call_beside_value(file!(), fn_name).expect("compute should run")
 }
 
 /// A `:wat::core::String` result.

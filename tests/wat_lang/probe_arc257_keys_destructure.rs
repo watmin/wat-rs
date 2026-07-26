@@ -9,7 +9,7 @@
 //!
 //! Design: docs/arc/2026/06/257-edn-native-collections/DESIGN.md
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // ─── Probe 1 — single-field keys-destructure ────────────────────────────────
@@ -17,7 +17,7 @@ use wat::runtime::Value;
 // keys-destructure is the EDN-conformant replacement for the old {field} form.
 #[test]
 fn probe_1_keys_destructure_single_field() {
-    match call_beside(file!(), ":t::probe1-single-field").expect("eval") {
+    match call_beside_value(file!(), ":t::probe1-single-field").expect("eval") {
         Value::f64(f) => assert!((f - 5.0).abs() < 1e-9, "got {}", f),
         other => panic!("Probe 1: expected f64 5.0; got {:?}", other),
     }
@@ -26,7 +26,7 @@ fn probe_1_keys_destructure_single_field() {
 // ─── Probe 2 — multi-field keys-destructure ─────────────────────────────────
 #[test]
 fn probe_2_keys_destructure_multi_field() {
-    match call_beside(file!(), ":t::probe2-multi-field").expect("eval") {
+    match call_beside_value(file!(), ":t::probe2-multi-field").expect("eval") {
         Value::String(s) => assert_eq!(s.as_str(), "hello"),
         other => panic!("Probe 2: expected String \"hello\"; got {:?}", other),
     }

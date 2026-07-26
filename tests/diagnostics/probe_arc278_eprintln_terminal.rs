@@ -29,53 +29,45 @@
 //!
 //! `epprintln` (the pretty twin) is pinned identically.
 
-use wat::freeze::call_beside;
+use wat::freeze::{call_beside, DeftestOutcome};
 use wat::runtime::Value;
 
-/// Call a zero-arg compute fn in the co-located fixture and return its
-/// `:wat::kernel::RunResult` value.
-fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("compute should run")
-}
-
-/// Unwrap a `:wat::kernel::RunResult` (wire model — run-hermetic') into its
-/// failure slot: `None` if the child signaled its pass-marker, `Some(message)`
-/// carrying the crash reason otherwise. `RunResult.stdout`/`stderr` are always
-/// empty over the wire and are not inspected.
+/// Run a zero-arg `:wat::kernel::RunResult`-returning compute fn in the co-located fixture
+/// and reduce its verdict to the crash message: `None` if the child signaled its pass-marker,
+/// `Some(message)` carrying the crash reason otherwise.
 ///
-/// RunResult field order (wat/test.wat): arc 278 wave 2d dropped the
-/// `stdout`/`stderr` capture fields — `[failure <- Option<Failure>]` is the
-/// sole field (index 0).
-/// A `:wat::kernel::Failure` record's field[0] is its `message` String
-/// (src/runtime.rs — Failure ctor: message, location, frames, actual, expected).
-fn run_result_failure_message(v: Value) -> Option<String> {
-    let sv = match v {
-        Value::Aggregate(sv) => sv,
-        other => panic!("expected RunResult struct; got {:?}", other),
-    };
-    assert_eq!(sv.class, "wat::kernel::RunResult");
-    assert_eq!(sv.fields.len(), 1);
-    let opt = match &sv.fields[0] {
-        Value::Option(opt) => (**opt).clone(),
-        other => panic!("expected Option for RunResult.failure; got {:?}", other),
-    };
-    opt.map(|failure| match failure {
-        Value::Aggregate(f) => {
-            assert_eq!(
-                f.class, "wat::kernel::Failure",
-                "RunResult.failure must carry a :wat::kernel::Failure; got class {:?}",
-                f.class
-            );
-            // Arc 278 — fields[0] is the `error` (Fault); its fields[0] is the message String.
-            match &f.fields[0] {
-                Value::Aggregate(err) => match &err.fields[0] {
-                    Value::String(s) => (**s).clone(),
-                    other => panic!("Failure.error.message is not a String; got {:?}", other),
-                },
-                other => panic!("Failure.error (field[0]) is not an Aggregate; got {:?}", other),
-            }
+/// Arc 278 the vacuous-gate wall — `RunResult` is an ENUM (`:Passed` / `:Failed[failure]`),
+/// and a fn with this signature IS a test by the substrate's own criterion (zero params,
+/// returning RunResult / TestResult — the same shape `test_runner` discovers), so it is
+/// driven by the VERDICT verb `call_beside`, not by the value verb. `Failed` hands the
+/// `:wat::kernel::Failure` over directly — no nullable slot to unwrap.
+///
+/// A `:wat::kernel::Failure`'s field[0] is its `error` (a `:wat::core::Fault`), whose
+/// field[0] is the message String.
+fn run_result_failure_message(fn_name: &str) -> Option<String> {
+    let failure = match call_beside(file!(), fn_name) {
+        DeftestOutcome::Passed => return None,
+        DeftestOutcome::Failed { failure } => failure,
+        DeftestOutcome::DidNotRun { error } => {
+            panic!("{fn_name} must evaluate to a RunResult, not raise; got: {error:?}")
         }
-        other => panic!("RunResult.failure = Some(_) must be a Failure record; got {:?}", other),
+    };
+    let f = match failure {
+        Value::Aggregate(f) => f,
+        other => panic!("RunResult::Failed must carry a Failure record; got {other:?}"),
+    };
+    assert_eq!(
+        f.class, "wat::kernel::Failure",
+        "RunResult::Failed must carry a :wat::kernel::Failure; got class {:?}",
+        f.class
+    );
+    // Arc 278 — fields[0] is the `error` (Fault); its fields[0] is the message String.
+    Some(match &f.fields[0] {
+        Value::Aggregate(err) => match &err.fields[0] {
+            Value::String(s) => (**s).clone(),
+            other => panic!("Failure.error.message is not a String; got {other:?}"),
+        },
+        other => panic!("Failure.error (field[0]) is not an Aggregate; got {other:?}"),
     })
 }
 
@@ -83,7 +75,7 @@ fn run_result_failure_message(v: Value) -> Option<String> {
 
 #[test]
 fn eprintln_terminates_before_following_forms() {
-    let failure = run_result_failure_message(run_fn(":probe::compute-eprintln-terminates"));
+    let failure = run_result_failure_message(":probe::compute-eprintln-terminates");
 
     // (a) TERMINATION — the child crashed at the eprintln, so the following forms
     // (`(println "AFTER")` AND run-hermetic's `(println 0)` pass-marker) never ran;
@@ -92,7 +84,7 @@ fn eprintln_terminates_before_following_forms() {
     let message = failure.unwrap_or_else(|| {
         panic!(
             "a terminal eprintln must crash the child BEFORE the following forms → \
-             RunResult.failure = Some; got None (the child ran to its pass-marker, \
+             RunResult::Failed; got Passed (the child ran to its pass-marker, \
              i.e. eprintln did NOT terminate)"
         )
     });
@@ -114,12 +106,12 @@ fn eprintln_terminates_before_following_forms() {
 
 #[test]
 fn epprintln_terminates_before_following_forms() {
-    let failure = run_result_failure_message(run_fn(":probe::compute-epprintln-terminates"));
+    let failure = run_result_failure_message(":probe::compute-epprintln-terminates");
 
     let message = failure.unwrap_or_else(|| {
         panic!(
             "a terminal epprintln must crash the child BEFORE the following forms → \
-             RunResult.failure = Some; got None (the child ran to its pass-marker, \
+             RunResult::Failed; got Passed (the child ran to its pass-marker, \
              i.e. epprintln did NOT terminate)"
         )
     });

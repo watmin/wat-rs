@@ -18,18 +18,18 @@
 //!
 //! Run: `cargo test --release --test program probe_arc259_program_cpu_count`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// The verb returns the real host parallelism as i64 — WITHOUT any installed
-/// program env (bare `call_beside`, like every nursery probe). This is the
+/// program env (bare `call_beside_value`, like every nursery probe). This is the
 /// exact property the brackets pool relies on: cpu-count is answerable anywhere.
 #[test]
 fn cpu_count_is_live_and_install_free() {
     let expected = std::thread::available_parallelism()
         .map(|n| n.get() as i64)
         .unwrap_or(1);
-    let got = call_beside(file!(), ":probe::compute")
+    let got = call_beside_value(file!(), ":probe::compute")
         .expect("eval — cpu-count needs no installed program env");
     assert_eq!(
         got,

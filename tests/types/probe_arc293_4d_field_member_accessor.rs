@@ -11,13 +11,13 @@
 //! a record here (the comprehensive case — a field member backed by a foreign extend-type METHOD — is the acceptance
 //! demo).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// `(:t::Colored/color (:t::Ball "red" 2.0))` routes the FIELD member to `:t::Ball/color` (the auto field accessor).
 #[test]
 fn field_member_dispatches_through_the_surface() {
-    let got = call_beside(file!(), ":t::probe")
+    let got = call_beside_value(file!(), ":t::probe")
         .expect("(:t::probe) must dispatch the field member :t::Colored/color to :t::Ball/color");
 
     match got {

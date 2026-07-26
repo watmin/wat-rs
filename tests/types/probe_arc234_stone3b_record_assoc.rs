@@ -4,11 +4,11 @@
 //!
 //! Probes 3 and 4 are expected to produce errors at eval time (unknown field / type mismatch).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run(fn_name: &str) -> Result<Value, String> {
-    call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
 }
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────

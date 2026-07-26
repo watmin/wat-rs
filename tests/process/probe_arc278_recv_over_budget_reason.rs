@@ -23,7 +23,7 @@
 //! Run SERIALLY (spawns a process):
 //!   `cargo test --release -p wat --test process recv_over_budget_reason -- --test-threads=1`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// A `recv'` of an over-budget frame from a spawned child MUST surface the frame-cap reason.
 /// Arc 278 recv'-wall: the over-budget rejection surfaces as a matchable `RecvOutcome::Lost` VALUE
@@ -31,7 +31,7 @@ use wat::freeze::call_beside;
 /// matched Lost as a value) + that the returned reason NAMES the frame-cap reason, not the mute.
 #[test]
 fn process_recv_over_budget_frame_surfaces_cap_reason_not_a_mute() {
-    let result = call_beside(file!(), ":user::over-budget-recv");
+    let result = call_beside_value(file!(), ":user::over-budget-recv");
     let raw = format!("{result:?}");
     assert!(
         result.is_ok(),

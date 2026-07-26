@@ -20,13 +20,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_locus_protocol_foundation
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn locus_protocol_foundation_listener_and_launch_route_through_abstract_locus() {
     // Wat source lives in the co-located fixture: probe_arc209_locus_protocol_foundation.wat
-    let got = call_beside(file!(), ":user::go")
+    let got = call_beside_value(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::bool(true)),

@@ -10,14 +10,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc284_interpolate -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // Runtime interpolation: named slots, unquoted render (String as itself, i64 as digits), {{ }} escape.
 // just-eval (rubric): `:user::runtime-interp` lives in the co-located fixture.
 #[test]
 fn interpolate_runtime_named_unquoted_escaped() {
-    let got = call_beside(file!(), ":user::runtime-interp")
+    let got = call_beside_value(file!(), ":user::runtime-interp")
         .unwrap_or_else(|e| panic!("interpolate undefined at HEAD: {e:?}"));
     match got {
         Value::String(ref s) => assert_eq!(s.as_str(), "x::5 {lit}",
@@ -32,7 +32,7 @@ fn interpolate_runtime_named_unquoted_escaped() {
 
 #[test]
 fn interpolate_is_legal_at_expand_time() {
-    let got = call_beside(file!(), ":user::probe")
+    let got = call_beside_value(file!(), ":user::probe")
         .expect("a defmacro body using string::interpolate must expand cleanly (the whole point)");
     match got {
         Value::String(ref s) => assert_eq!(s.as_str(), "hello::built", "expand-time interpolate; got {s:?}"),

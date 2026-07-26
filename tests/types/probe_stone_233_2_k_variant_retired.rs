@@ -133,7 +133,7 @@ fn probe_3_producer_provenance_survives_let_binding() {
     // lookup. Provenance must flow through env.
     //
     // The expression lives in a co-located FRAGMENT (never an inlined Rust string) — see that
-    // file's header comment for why this bypasses the usual call_beside/apply_function idiom
+    // file's header comment for why this bypasses the usual call_beside_value/apply_function idiom
     // (a user-fn call would launder away the exact provenance under test).
     let expr_path = "tests/types/probe_stone_233_2_k_variant_retired_let_keyword.wat.expr";
     let src = std::fs::read_to_string(expr_path)

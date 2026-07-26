@@ -41,7 +41,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P12_explain_walk -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// LEVEL 1 — explain a directly-derived fact reaches its two input facts. `ColdAndWindy` is derived by
@@ -49,7 +49,7 @@ use wat::runtime::Value;
 /// facts → length 2. Pins: `fire-rules-explain` (opt-in mode), `explain`, `Why/via`.
 #[test]
 fn explain_cold_and_windy_reaches_its_two_inputs() {
-    let n = call_beside(file!(), ":user::explain-coldandwindy-via-length").expect("compute should run");
+    let n = call_beside_value(file!(), ":user::explain-coldandwindy-via-length").expect("compute should run");
     assert!(matches!(n, Value::i64(2)), "ColdAndWindy's why-tree must reach 2 input facts (Temperature, WindSpeed); got {n:?}");
 }
 
@@ -59,6 +59,6 @@ fn explain_cold_and_windy_reaches_its_two_inputs() {
 /// inputs is the LEVEL-1 tree hanging under that single via-entry. Pins: explain over a cascade-derived fact.
 #[test]
 fn explain_weather_alert_has_one_derived_support() {
-    let n = call_beside(file!(), ":user::explain-weatheralert-via-length").expect("compute should run");
+    let n = call_beside_value(file!(), ":user::explain-weatheralert-via-length").expect("compute should run");
     assert!(matches!(n, Value::i64(1)), "WeatherAlert's why-tree has exactly 1 supporting fact (the derived ColdAndWindy); got {n:?}");
 }

@@ -19,14 +19,14 @@
 //! Run SERIALLY (spawns a thread):
 //!   `cargo test --release -p wat --test nursery probe_arc259_thread_crash_reason -- --test-threads=1`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// Call `:user::compute` in the co-located fixture world; return the returned reason text.
 /// Arc 278 recv'-wall: the thread peer crash surfaces as a matchable `RecvOutcome::Lost` VALUE
 /// (never a raise); the fixture RETURNS the Lost cause's `Failure/message`. We assert `is_ok` (it
 /// matched Lost as a value) + that it is not a ::Message/::Closed sentinel.
 fn compute_reason_text() -> String {
-    let result = call_beside(file!(), ":user::compute");
+    let result = call_beside_value(file!(), ":user::compute");
     let text = format!("{result:?}");
     assert!(
         result.is_ok(),

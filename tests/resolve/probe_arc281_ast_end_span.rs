@@ -11,13 +11,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc281_ast_end_span -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn ast_end_span_returns_position_past_close_paren() {
     // just-eval (rubric): `:user::end-col` lives in the co-located fixture.
-    let got = call_beside(file!(), ":user::end-col")
+    let got = call_beside_value(file!(), ":user::end-col")
         .unwrap_or_else(|e| panic!("end-col raised (ast-end-span undefined at HEAD): {e:?}"));
     let col = match got {
         Value::i64(n) => n,

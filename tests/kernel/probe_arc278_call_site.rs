@@ -13,31 +13,26 @@
 //!
 //! WAT fixture: tests/kernel/probe_arc278_call_site.wat
 
-use wat::freeze::startup_from_file;
-use wat::runtime::apply_function;
+use wat::freeze::{deftest_verdict, startup_from_file, DeftestOutcome};
 
-fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
+/// Arc 278 the vacuous-gate wall — this was `apply_function(..)` + `Ok(_) => Ok(())`, whose
+/// `Ok` answers "did the deftest EVALUATE?" while the gate below read it as "did it PASS?".
+/// A fired assertion is captured into the returned `:wat::kernel::RunResult`, not raised, so
+/// every assert-eq in the fixture was decoration. `deftest_verdict` reads the verdict.
+fn run_test_fn(path: &str, name: &str) -> DeftestOutcome {
     let world = startup_from_file(path)
         .expect("startup should succeed (:wat::kernel::call-site must exist + type-check)");
-    let func = world
-        .symbols()
-        .get(name)
-        .unwrap_or_else(|| panic!("no {name} in {path:?}"))
-        .clone();
-    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("{e:?}")),
-    }
+    deftest_verdict(&world, name)
 }
 
-/// `(:wat::kernel::call-site)` returns the caller's Frame — a passing deftest' RETURNS
-/// cleanly (not raises) when the returned file/line/symbol describe the caller (this
-/// fixture file, a positive line, and the "probe::here" symbol).
+/// `(:wat::kernel::call-site)` returns the caller's Frame — the deftest asserts the returned
+/// file/line/symbol describe the caller (this fixture file, a positive line, and the
+/// "probe::here" symbol).
 #[test]
 fn call_site_returns_caller_frame() {
-    let r = run_test_fn(
+    run_test_fn(
         "tests/kernel/probe_arc278_call_site.wat",
         ":user::call-site-returns-caller-frame",
-    );
-    assert!(r.is_ok(), "call-site's returned Frame must describe the caller; got Err: {r:?}");
+    )
+    .expect_passed("call-site's returned Frame must describe the caller");
 }

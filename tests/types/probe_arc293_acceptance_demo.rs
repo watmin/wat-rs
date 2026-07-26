@@ -30,10 +30,10 @@ fn shape_demo_fields_and_methods_and_the_monkeypatch() {
     // GREEN at 293.4d: field + method surface members dispatch + extend-type foreign adapter.
     // GREEN TARGET: the program type-checks and (:geo::demo) yields
     //   "red circle(r=2.0) area=12.56636  |  blue square(s=3.0) area=9.0  |  grey vector[3] area=3.0"
-    use wat::freeze::call_beside;
+    use wat::freeze::call_beside_value;
     use wat::runtime::Value;
 
-    let got = call_beside(file!(), ":geo::demo").expect("(:geo::demo) must evaluate");
+    let got = call_beside_value(file!(), ":geo::demo").expect("(:geo::demo) must evaluate");
 
     match got {
         Value::String(s) => assert_eq!(

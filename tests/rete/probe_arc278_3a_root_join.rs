@@ -15,7 +15,7 @@
 //! Run: cargo test --release -p wat --test probe_arc278_3a_root_join -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
@@ -24,7 +24,7 @@ use wat::runtime::Value;
 #[test]
 #[ignore]
 fn root_join_populates_one_beta_node() {
-    let got = call_beside(file!(), ":user::beta-populated-count").expect("eval");
+    let got = call_beside_value(file!(), ":user::beta-populated-count").expect("eval");
     assert_eq!(got, Value::i64(1), "exactly one beta node (the RootJoinNode) seeded; got {got:?}");
 }
 
@@ -34,7 +34,7 @@ fn root_join_populates_one_beta_node() {
 #[test]
 #[ignore]
 fn root_join_seeds_one_token() {
-    let got = call_beside(file!(), ":user::seeded-token-count").expect("eval");
+    let got = call_beside_value(file!(), ":user::seeded-token-count").expect("eval");
     assert_eq!(got, Value::i64(1), "one Element → one seeded Token; got {got:?}");
 }
 
@@ -44,9 +44,9 @@ fn root_join_seeds_one_token() {
 #[test]
 #[ignore]
 fn seeded_token_carries_bindings_and_support() {
-    let binds = call_beside(file!(), ":user::seeded-token-t-binding").expect("eval");
+    let binds = call_beside_value(file!(), ":user::seeded-token-t-binding").expect("eval");
     assert_eq!(binds, Value::Option(Arc::new(Some(Value::i64(25)))), "Token carries ?t=25; got {binds:?}");
 
-    let support_len = call_beside(file!(), ":user::seeded-token-support-length").expect("eval");
+    let support_len = call_beside_value(file!(), ":user::seeded-token-support-length").expect("eval");
     assert_eq!(support_len, Value::i64(1), "Token's support chain has one entry; got {support_len:?}");
 }

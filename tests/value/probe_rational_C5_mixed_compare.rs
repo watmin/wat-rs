@@ -8,7 +8,7 @@
 //!
 //! RED at HEAD: the co-located fixture (mixed comparisons) fails to type-check, so `startup_beside` errors.
 
-use wat::freeze::{call_beside, startup_beside};
+use wat::freeze::{call_beside_value, startup_beside};
 use wat::runtime::Value;
 
 #[test]
@@ -30,7 +30,7 @@ fn mixed_numeric_comparison_evals_correctly() {
         (":probe::le-big", true),  // i64 <= bigint
         (":probe::gt-rat", true),  // f64 > rational
     ] {
-        let got = call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("{fn_name}: {e:?}"));
+        let got = call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("{fn_name}: {e:?}"));
         assert!(
             matches!(got, Value::bool(b) if b == expect),
             "{fn_name} expected {expect}, got {got:?}"

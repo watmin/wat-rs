@@ -18,10 +18,10 @@
 //!   5. `vector_at_value_position_in_define_body_works_after_arc215` — same
 //!
 //! Tests 4 and 5 share the co-located fixture: wat_arc167_vector_ast.wat,
-//! driven via call_beside(file!(), ":my::probe").
+//! driven via call_beside_value(file!(), ":my::probe").
 
 use wat::ast::WatAST;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::parse_one;
 use wat::runtime::Value;
 
@@ -126,7 +126,7 @@ fn nested_vector_in_list_parses() {
 /// type-checks as `Vec<i64>` and evaluates to length 3 at runtime.
 #[test]
 fn vector_at_value_position_works_after_arc215() {
-    match call_beside(file!(), ":my::probe")
+    match call_beside_value(file!(), ":my::probe")
         .expect("arc 215 stone 2: [1 2 3] at value position must type-check + eval")
     {
         Value::i64(n) => assert_eq!(n, 3, "length of [1 2 3] must be 3"),
@@ -146,7 +146,7 @@ fn vector_at_value_position_works_after_arc215() {
 #[test]
 fn vector_at_value_position_in_define_body_works_after_arc215() {
     // Shares the co-located fixture with test 4.
-    match call_beside(file!(), ":my::probe")
+    match call_beside_value(file!(), ":my::probe")
         .expect("arc 215 stone 2: [1 2 3] in define body must type-check + eval")
     {
         Value::i64(n) => assert_eq!(n, 3, "length must be 3"),

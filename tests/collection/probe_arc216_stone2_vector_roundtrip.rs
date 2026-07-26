@@ -36,17 +36,17 @@
 //! 12. Bundle with non-sequential i64 keys → `from_holon_ast` error (positional invariant)
 
 use wat::comms::HolonRepresentable;
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:t::pNN…` entry is a zero-arg fn in the co-located
-// `.wat` fixture, driven via `call_beside` — no inline wat driver.
+// `.wat` fixture, driven via `call_beside_value` — no inline wat driver.
 
 // ─── Probe 1 — Forward: `[1 2 3]` → classifier-wrapped HolonAST ─────────────
 
 #[test]
 fn probe_1_forward_vec_to_bundle() {
-    match call_beside(file!(), ":t::p1-forward-rt-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p1-forward-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "classifier-wrapped Vector encoding must preserve 3 elements in round-trip"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -57,12 +57,12 @@ fn probe_1_forward_vec_to_bundle() {
 #[test]
 fn probe_2_reverse_bundle_to_vec_roundtrip() {
 
-    match call_beside(file!(), ":t::p2a-rt-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p2a-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "round-trip must preserve length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p2b-rt-first").expect("eval") {
+    match call_beside_value(file!(), ":t::p2b-rt-first").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "round-trip must preserve first element = 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -72,7 +72,7 @@ fn probe_2_reverse_bundle_to_vec_roundtrip() {
 
 #[test]
 fn probe_3_empty_vec_forward() {
-    match call_beside(file!(), ":t::p3-empty-rt-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p3-empty-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty vec classifier-wrapped encoding must round-trip to Vec length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -83,12 +83,12 @@ fn probe_3_empty_vec_forward() {
 #[test]
 fn probe_4_single_element_roundtrip() {
 
-    match call_beside(file!(), ":t::p4a-single-rt-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p4a-single-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "single-element round-trip must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p4b-single-rt-elem").expect("eval") {
+    match call_beside_value(file!(), ":t::p4b-single-rt-elem").expect("eval") {
         Value::i64(n) => assert_eq!(n, 42, "single-element round-trip must retrieve 42 at index 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -99,17 +99,17 @@ fn probe_4_single_element_roundtrip() {
 #[test]
 fn probe_5_multi_t_types() {
 
-    match call_beside(file!(), ":t::p5a-i64-elem1").expect("eval") {
+    match call_beside_value(file!(), ":t::p5a-i64-elem1").expect("eval") {
         Value::i64(n) => assert_eq!(n, 20, "Vec<i64> round-trip: element at index 1 must be 20"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p5b-str-rt-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p5b-str-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "Vec<String> round-trip: length must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p5c-bool-rt-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p5c-bool-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "Vec<bool> round-trip: length must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -120,12 +120,12 @@ fn probe_5_multi_t_types() {
 #[test]
 fn probe_6_order_preservation() {
 
-    match call_beside(file!(), ":t::p6a-order-idx0").expect("eval") {
+    match call_beside_value(file!(), ":t::p6a-order-idx0").expect("eval") {
         Value::i64(n) => assert_eq!(n, 10, "order preservation: index 0 must be 10"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p6b-order-idx2").expect("eval") {
+    match call_beside_value(file!(), ":t::p6b-order-idx2").expect("eval") {
         Value::i64(n) => assert_eq!(n, 30, "order preservation: index 2 must be 30"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -136,17 +136,17 @@ fn probe_6_order_preservation() {
 #[test]
 fn probe_7_nested_vector_roundtrip() {
 
-    match call_beside(file!(), ":t::p7a-nested-outer-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p7a-nested-outer-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "nested Vec round-trip: outer length must be 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p7b-nested-arc228").expect("eval") {
+    match call_beside_value(file!(), ":t::p7b-nested-arc228").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "nested Vec arc 228: classifier-wrapped encoding outer length = 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p7c-nested-inner-elem").expect("eval") {
+    match call_beside_value(file!(), ":t::p7c-nested-inner-elem").expect("eval") {
         Value::i64(n) => assert_eq!(n, 4, "nested Vec round-trip: inner vec at index 1, element at index 0 must be 4"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -157,12 +157,12 @@ fn probe_7_nested_vector_roundtrip() {
 #[test]
 fn probe_8_mixed_nesting_vec_of_hashset() {
 
-    match call_beside(file!(), ":t::p8a-mixed-outer-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p8a-mixed-outer-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "Vec<HashSet<i64>> round-trip: outer length must be 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p8b-mixed-arc228").expect("eval") {
+    match call_beside_value(file!(), ":t::p8b-mixed-arc228").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "Vec<HashSet<i64>> arc 228: classifier-wrapped outer Vec length = 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -173,12 +173,12 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
 #[test]
 fn probe_9_check_passes_for_atomizable_t() {
 
-    match call_beside(file!(), ":t::p9a-atomizable-passes").expect("eval") {
+    match call_beside_value(file!(), ":t::p9a-atomizable-passes").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "Atom on Vec<i64> must pass check and run"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p9b-nested-atomizable").expect("eval") {
+    match call_beside_value(file!(), ":t::p9b-nested-atomizable").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "Atom on Vec<Vec<i64>> must pass check and run (recursive atomizable)"),
         other => panic!("expected i64; got {:?}", other),
     }

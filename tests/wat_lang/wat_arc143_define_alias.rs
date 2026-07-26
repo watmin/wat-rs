@@ -15,11 +15,11 @@
 //!   3. Alias an unknown target — the native form registers a stub; the HARD CUT
 //!      for :wat::runtime::define-alias fires with a retirement remedy.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 // ─── Test 1: alias :wat::core::foldl — native registration resolves builtin ──

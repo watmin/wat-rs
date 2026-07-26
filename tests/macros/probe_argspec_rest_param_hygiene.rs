@@ -9,7 +9,7 @@
 //!
 //! Run: cargo test --release --test probe_argspec_rest_param_hygiene -- --nocapture
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// REST-PARAM HYGIENE GUARD — a macro-generated defclause WITH a rest param must
@@ -21,10 +21,10 @@ use wat::runtime::Value;
 /// the parsed identifiers; the re-walk deleted) makes bind-key == lookup-key.
 ///
 /// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
-/// call_beside — no inline wat driver expression.
+/// call_beside_value — no inline wat driver expression.
 #[test]
 fn macro_generated_defclause_with_rest_resolves_params() {
-    let result = call_beside(file!(), ":user::compute").expect(
+    let result = call_beside_value(file!(), ":user::compute").expect(
         "macro-generated defclause WITH a rest param must freeze without UnboundSymbol; \
          failure = the `% 3` guard bared the fixed params while \
          the scope-tagged body looked them up scoped (Stone 249.5d root fix)",

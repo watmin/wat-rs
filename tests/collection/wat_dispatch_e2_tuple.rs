@@ -1,12 +1,12 @@
 //! E2 — tuple marshaling through `#[wat_dispatch]`.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen (later
-//! superseded by call_beside — see docs/CONVENTIONS.md § Test idioms).
-//! Computation moved to distinct :my::compute-* defns; driven via call_beside(file!(), fn_name).
+//! superseded by call_beside_value — see docs/CONVENTIONS.md § Test idioms).
+//! Computation moved to distinct :my::compute-* defns; driven via call_beside_value(file!(), fn_name).
 //!
 //! Wat source lives in the co-located fixture: wat_dispatch_e2_tuple.wat
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
@@ -41,7 +41,7 @@ fn install() {
 }
 
 fn run(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("compute should run")
+    call_beside_value(file!(), fn_name).expect("compute should run")
 }
 
 #[test]

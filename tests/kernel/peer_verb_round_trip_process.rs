@@ -18,7 +18,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel peer_verb_round_trip_process -- --ignored --test-threads=1
 //! or the `integration-run.sh` harness.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Process-tier send'/recv' round-trip via the WAT surface; peer reaped by RAII Drop.
@@ -31,8 +31,8 @@ use wat::runtime::Value;
 #[test]
 #[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel peer_verb_round_trip_process -- --ignored --test-threads=1"]
 fn process_peer_verb_round_trip() {
-    let result = call_beside(file!(), ":user::compute")
-        .expect("call_beside must succeed: process-tier peer verb round-trip");
+    let result = call_beside_value(file!(), ":user::compute")
+        .expect("call_beside_value must succeed: process-tier peer verb round-trip");
 
     match result {
         Value::i64(n) => assert_eq!(

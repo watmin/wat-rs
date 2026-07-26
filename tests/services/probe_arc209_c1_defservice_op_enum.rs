@@ -22,14 +22,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c1_defservice_op_enum
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn defservice_emits_op_enum_with_wrapped_request_records() {
     // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; accessors read through durable.
     // Wat source lives in the co-located fixture: probe_arc209_c1_defservice_op_enum.wat
-    let got = call_beside(file!(), ":user::probe-op")
+    let got = call_beside_value(file!(), ":user::probe-op")
         .unwrap_or_else(|e| panic!("probe-op raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

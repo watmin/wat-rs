@@ -7,14 +7,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc251_fix_macro_param_types
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn fix_macro_param_types_rewrites_defmacro_only_comment_faithful() {
     // just-eval (rubric): the fix-macro-param-types call lives in the co-located fixture's
-    // `:user::run`, driven via `call_beside`.
-    let out = match call_beside(file!(), ":user::run") {
+    // `:user::run`, driven via `call_beside_value`.
+    let out = match call_beside_value(file!(), ":user::run") {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected migrated source String; got {other:?}"),
     };

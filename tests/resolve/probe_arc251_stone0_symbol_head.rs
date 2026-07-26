@@ -3,13 +3,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_stone0_symbol_head`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::compute-cNN` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed i64.
+// drive it via `call_beside_value` and inspect the returned typed i64.
 fn eval_i64(fn_name: &str) -> Result<i64, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("non-i64: {:?}", other)),
     }

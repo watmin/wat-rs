@@ -12,12 +12,12 @@
 //! `LociDiedError`, `Panic` matches, and the death report round-trips as a
 //! registered record (EDN all the way down).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn recv_lost_cause_is_a_matchable_loci_died_error() {
-    let v = call_beside(file!(), ":my::died-cause-panic-message")
+    let v = call_beside_value(file!(), ":my::died-cause-panic-message")
         .expect("died-cause-panic-message should run");
     let inner = match v {
         Value::Option(opt) => match &*opt {

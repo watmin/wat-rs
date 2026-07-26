@@ -13,11 +13,11 @@
 //!
 //! Slice 1 covers the type-check side; this slice covers runtime.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn assert_bool(v: Value, expected: bool, ctx: &str) {

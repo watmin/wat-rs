@@ -146,9 +146,9 @@ fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
     // Exercise the `(:wat::runtime::argv)` eval arm independently of
     // `:user::main` invocation, via the co-located `:probe::argv-compute`
     // fixture fn (just-eval rubric). Result is the ambient argv as Value::Vec.
-    use wat::freeze::call_beside;
+    use wat::freeze::call_beside_value;
 
-    let result = call_beside(file!(), ":probe::argv-compute")
+    let result = call_beside_value(file!(), ":probe::argv-compute")
         .expect("(:wat::runtime::argv) evaluates");
     match result {
         Value::Vec(_) => {} // Shape proven; contents depend on what earlier tests set
@@ -162,9 +162,9 @@ fn t3_runtime_current_thread_eval_arm_produces_string() {
     // co-located `:probe::current-thread-compute` fixture fn. Slice 1e
     // implements against the main thread; the value is a string rendering
     // of `std::thread::current().id()`.
-    use wat::freeze::call_beside;
+    use wat::freeze::call_beside_value;
 
-    let result = call_beside(file!(), ":probe::current-thread-compute")
+    let result = call_beside_value(file!(), ":probe::current-thread-compute")
         .expect("(:wat::runtime::current-thread) evaluates");
     match result {
         Value::String(_) => {}

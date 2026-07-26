@@ -24,13 +24,13 @@
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6b_state_over_lineage
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn initial_state_crosses_parent_to_child_over_lineage_and_serve_threads_it() {
     // Wat source lives in the co-located fixture: probe_arc272_6b_state_over_lineage.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(1005)),

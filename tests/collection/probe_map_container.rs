@@ -20,13 +20,13 @@
 //! (slurped via startup_beside(file!())).
 //! Negative fixture: tests/collection/probe_map_container_bad_assoc.wat
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{RuntimeError, Value};
 
 // just-eval (rubric): each `:p::…` entry is a zero-arg fn in the co-located
-// `.wat` fixture, driven via `call_beside` — no inline wat driver.
+// `.wat` fixture, driven via `call_beside_value` — no inline wat driver.
 fn eval_probe(fn_name: &str) -> Result<Value, RuntimeError> {
-    call_beside(file!(), fn_name)
+    call_beside_value(file!(), fn_name)
 }
 
 // ── assoc round-trip — HashMap ────────────────────────────────────────────────

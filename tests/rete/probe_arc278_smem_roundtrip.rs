@@ -14,9 +14,9 @@ use wat::freeze::call_beside;
 
 #[test]
 fn smem_roundtrip() {
-    let result = call_beside(file!(), ":user::smem_roundtrip");
-    assert!(
-        result.is_ok(),
-        "smem_roundtrip deftest' must pass (real mem-store' put/scan/scan-index round-trip); got Err: {result:?}"
+    // Arc 278 the vacuous-gate wall — was `call_beside(..).is_ok()`, which certified only
+    // that the fixture froze and ran; every assert-eq inside it was decoration.
+    call_beside(file!(), ":user::smem_roundtrip").expect_passed(
+        "smem_roundtrip deftest must pass (real mem-store' put/scan/scan-index round-trip)",
     );
 }

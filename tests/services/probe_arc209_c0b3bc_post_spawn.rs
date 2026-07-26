@@ -24,13 +24,13 @@
 //! Test 1 FORKS (spawn-program' (process)). Run:
 //! cargo test --release -p wat --test probe_arc209_c0b3bc_post_spawn -- --test-threads=1
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 #[test]
 fn process_post_spawn_hook_receives_child_pid() {
     // Proof 1: process hook receives child pid. Wat source: probe_arc209_c0b3bc_post_spawn.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     let owner_pid = std::process::id() as i64;
     match got {

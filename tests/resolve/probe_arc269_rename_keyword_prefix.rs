@@ -11,13 +11,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc269_rename_keyword_prefix
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn rename_keyword_prefix_swaps_prefix_comment_faithful() {
     // just-eval (rubric): `:user::go` lives in the co-located fixture.
-    let got = match call_beside(file!(), ":user::go")
+    let got = match call_beside_value(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"))
     {
         Value::String(s) => (*s).clone(),

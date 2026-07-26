@@ -16,11 +16,11 @@
 //!
 //! WAT fixture: tests/kernel/probe_arc259_s2cii_b_defclause.wat (co-located sibling)
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_compute_i64() -> i64 {
-    let result = call_beside(file!(), ":user::compute")
+    let result = call_beside_value(file!(), ":user::compute")
         .expect("compute (RED at HEAD: spawn-program' is the 3-arg intrinsic; 2-arg is arity-mismatch)");
     match result {
         Value::i64(n) => n,

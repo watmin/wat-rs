@@ -18,7 +18,7 @@ use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 // just-eval (rubric): the fixture's fwd/rev/roundtrip/rev-default fns take a String arg (no
-// zero-arg entry to call_beside), so fetch the fn from the sibling fixture and apply_function it
+// zero-arg entry to call_beside_value), so fetch the fn from the sibling fixture and apply_function it
 // directly with a Rust-constructed Value::String arg — no inline wat driver expression.
 fn call_string(world: &wat::freeze::FrozenWorld, fn_name: &str, arg: &str) -> String {
     let func = world

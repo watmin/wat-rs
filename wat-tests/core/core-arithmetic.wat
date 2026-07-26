@@ -382,13 +382,10 @@
   ;; prelude-free (arc 278 — prelude annihilated): the check-time type error rides INLINE
   ;; in the hermetic child's body. `<` unifies its args to the SAME type; f64 2.5 vs i64 1
   ;; is a mismatch with no promotion path → the child fails its own startup check → recv'
-  ;; returns Lost → RunResult.failure = Some. No child-local helper needed.
-  (:wat::core::let
-    [r (:wat::test::run-hermetic' (:wat::core::< 1 2.5))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
-        (:wat::kernel::assertion-failed!
-          "expected check-time error: i64 1 < f64 2.5 (mismatched types under <)"
-          :wat::core::None :wat::core::None)))))
+  ;; returns Lost → RunResult::Failed. No child-local helper needed.
+  (:wat::core::match (:wat::test::run-hermetic' (:wat::core::< 1 2.5))
+    ((:wat::kernel::RunResult::Failed _f) nil)
+    (:wat::kernel::RunResult::Passed
+      (:wat::kernel::assertion-failed!
+        "expected check-time error: i64 1 < f64 2.5 (mismatched types under <)"
+        :wat::core::None :wat::core::None))))

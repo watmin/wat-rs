@@ -15,11 +15,11 @@
 //! in the outer process — now as a first-class value over the peer channel,
 //! not a scraped stdout string.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 // ─── Simple hermetic happy path ─────────────────────────────────────────

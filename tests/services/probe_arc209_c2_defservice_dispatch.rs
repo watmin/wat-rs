@@ -21,14 +21,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c2_defservice_dispatch
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn defservice_generates_dispatch_loop_round_trips_on_thread() {
     // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; serve takes ::State (struct).
     // Wat source lives in the co-located fixture: probe_arc209_c2_defservice_dispatch.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

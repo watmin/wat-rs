@@ -4,11 +4,11 @@
 //! RollingStddev needs `var.sqrt()`). Same shape as ln/exp/sin/cos —
 //! single-method f64 unary; mirrors the existing dispatch.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 fn assert_str(val: Value, expected: &str) {

@@ -27,15 +27,15 @@
 //!      (rename (signature-of-defn :fn) :fn :alias) returns Some with the
 //!      renamed name in the head.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn run_expr_expect_err(name: &str) -> bool {
-    call_beside(file!(), name).is_err()
+    call_beside_value(file!(), name).is_err()
 }
 
 fn unwrap_string(v: Value, ctx: &str) -> String {

@@ -36,7 +36,7 @@
 //! Run: cargo test --release -p wat --test comms probe_arc278_connect_outcome_wall -- --test-threads=1
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::{EnumValue, Value};
 
 /// Extract a `:wat::kernel::ConnectOutcome` enum value, asserting the type path.
@@ -67,7 +67,7 @@ fn as_connect_outcome(v: &Value) -> &Arc<EnumValue> {
 /// so `as_connect_outcome` panics ("not a ConnectOutcome enum value"). GREEN after.
 #[test]
 fn connect_to_live_listener_yields_connected() {
-    let v = call_beside(file!(), ":user::connect-happy")
+    let v = call_beside_value(file!(), ":user::connect-happy")
         .unwrap_or_else(|e| panic!("connect' should eval to a ConnectOutcome, not raise: {e:?}"));
     let ev = as_connect_outcome(&v);
     assert_eq!(
@@ -95,11 +95,11 @@ fn connect_to_live_listener_yields_connected() {
 /// retryable transport failure, NOT a raise the dialer unwinds past.
 ///
 /// RED before the wall: `connect'` RAISED ("rendezvous send failed — listener was
-/// dropped") instead of returning `Refused`, so `call_beside` returns `Err` and the
+/// dropped") instead of returning `Refused`, so `call_beside_value` returns `Err` and the
 /// `unwrap_or_else` panics. GREEN after.
 #[test]
 fn connect_to_dropped_listener_yields_refused() {
-    let v = call_beside(file!(), ":user::connect-refused")
+    let v = call_beside_value(file!(), ":user::connect-refused")
         .unwrap_or_else(|e| panic!("connect' on a dropped listener must yield Refused, not raise: {e:?}"));
     let ev = as_connect_outcome(&v);
     assert_eq!(

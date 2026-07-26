@@ -20,11 +20,11 @@
 //!
 //! Run: cargo test --release --test probe_arc237_8c_equality_grid
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn eval_bool(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval")
+    call_beside_value(file!(), fn_name).expect("eval")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -41,14 +41,14 @@
 //! These tests FORK (spawn-program' (process)) → their own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bb_bounced -- --test-threads=1
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 #[test]
 fn owner_served_via_birth_seed() {
     // Proof 1: the owner is served via the birth-seed (regression guard).
     // Wat source lives in the co-located fixture: probe_arc209_c0b3bb_bounced.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(105)),

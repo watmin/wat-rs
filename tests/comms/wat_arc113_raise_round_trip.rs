@@ -20,7 +20,7 @@
 //! whose `failure` is `Some(Failure)` carrying the raised Fault STRUCTURALLY.
 //! Child body unchanged; the assertion below is unchanged.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
@@ -35,7 +35,7 @@ fn raise_data_round_trips_through_failure_message() {
     //
     // Arc 278 the string-wrap annihilation: the old edn::write→String→edn::read
     // round-trip is GONE — Failure/error yields the Fault record directly.
-    let v = call_beside(file!(), ":my::compute").expect("compute should run");
+    let v = call_beside_value(file!(), ":my::compute").expect("compute should run");
     let inner = match v {
         Value::Option(opt) => match &*opt {
             Some(inner) => inner.clone(),

@@ -35,11 +35,11 @@
 //! Negative test uses: tests/macros/vector_splice_symmetry.wat.bad
 //! (loaded via startup_from_file; must fail with "hygiene-scope divergence").
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // just-eval (rubric): each probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 
 // ─── Gap 1 — Vector-bound symbol splices through ~@ ───────────────────
 
@@ -50,7 +50,7 @@ use wat::runtime::Value;
 /// errored with `MacroError::SpliceNotList`.
 #[test]
 fn splice_of_vector_bound_symbol_succeeds() {
-    match call_beside(file!(), ":my::compute-splice").expect("compute should run") {
+    match call_beside_value(file!(), ":my::compute-splice").expect("compute should run") {
         Value::Vec(items) => {
             assert_eq!(items.len(), 3, "expected 3 spliced elements; got {}", items.len());
             assert!(matches!(items[0], Value::i64(10)));
@@ -125,7 +125,7 @@ fn anaphoric_splice_capture_refused_by_hygiene() {
 /// elements are now flattened element-wise into the argspec Vector.
 #[test]
 fn hygienic_splice_adder_binds_via_spliced_names() {
-    match call_beside(file!(), ":my::compute-hygienic").expect("compute should run") {
+    match call_beside_value(file!(), ":my::compute-hygienic").expect("compute should run") {
         Value::i64(n) => assert_eq!(n, 42, "expected 7+35=42; got {}", n),
         other => panic!("expected i64(42); got {:?}", other),
     }
@@ -147,7 +147,7 @@ fn vector_splice_round_trip_matches_list_splice() {
     // Both expansions must produce the same numeric result; the
     // difference must be zero — proving Vector and List splice are
     // observationally identical at the runtime layer.
-    match call_beside(file!(), ":my::compute-round-trip").expect("compute should run") {
+    match call_beside_value(file!(), ":my::compute-round-trip").expect("compute should run") {
         Value::i64(0) => {}
         other => panic!("expected i64(0) — Vector and List splice mismatch: {:?}", other),
     }

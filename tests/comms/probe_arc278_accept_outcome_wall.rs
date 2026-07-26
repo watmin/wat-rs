@@ -33,7 +33,7 @@
 //! Run: cargo test --release -p wat --test comms probe_arc278_accept_outcome_wall -- --test-threads=1
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::{EnumValue, Value};
 
 /// Extract a `:wat::kernel::AcceptOutcome` enum value, asserting the type path.
@@ -64,7 +64,7 @@ fn as_accept_outcome(v: &Value) -> &Arc<EnumValue> {
 /// so `as_accept_outcome` panics ("not an AcceptOutcome enum value"). GREEN after.
 #[test]
 fn accept_authorized_peer_yields_accepted() {
-    let v = call_beside(file!(), ":user::accept-happy")
+    let v = call_beside_value(file!(), ":user::accept-happy")
         .unwrap_or_else(|e| panic!("accept' should eval to an AcceptOutcome, not raise: {e:?}"));
     let ev = as_accept_outcome(&v);
     assert_eq!(
@@ -92,11 +92,11 @@ fn accept_authorized_peer_yields_accepted() {
 /// clean terminal, NOT a raise the server loop unwinds past.
 ///
 /// RED before the wall: `accept'` RAISED ("rendezvous recv failed — address was
-/// dropped or shutdown") instead of returning `Closed`, so `call_beside` returns
+/// dropped or shutdown") instead of returning `Closed`, so `call_beside_value` returns
 /// `Err` and the `unwrap_or_else` panics. GREEN after.
 #[test]
 fn accept_on_dropped_rendezvous_yields_closed() {
-    let v = call_beside(file!(), ":user::accept-closed")
+    let v = call_beside_value(file!(), ":user::accept-closed")
         .unwrap_or_else(|e| panic!("accept' on a dropped rendezvous must yield Closed, not raise: {e:?}"));
     let ev = as_accept_outcome(&v);
     assert_eq!(

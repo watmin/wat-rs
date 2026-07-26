@@ -16,14 +16,14 @@
 //! GREEN after b2-b: an empty failure vector (Bytes::to-hex's `@example` evals to
 //! `"ff0010"` and matches `#=>`; from-hex is `@example-norun`, skipped).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// just-eval (rubric): the `:wat::doctest::verify-examples` call lives in the
-/// co-located fixture (`:user::verify`), driven via `call_beside`. Returns the
+/// co-located fixture (`:user::verify`), driven via `call_beside_value`. Returns the
 /// number of failures (the result Vector's length). RED at HEAD = `Err`.
 fn verify_examples_failure_count() -> Result<usize, String> {
-    match call_beside(file!(), ":user::verify").map_err(|e| format!("eval: {:?}", e))? {
+    match call_beside_value(file!(), ":user::verify").map_err(|e| format!("eval: {:?}", e))? {
         Value::Vec(failures) => Ok(failures.len()),
         other => Err(format!("verify-examples must return a Vector of failures; got {:?}", other)),
     }

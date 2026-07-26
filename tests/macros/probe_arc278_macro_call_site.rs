@@ -13,33 +13,27 @@
 //!
 //! WAT fixture: tests/macros/probe_arc278_macro_call_site.wat
 
-use wat::freeze::startup_from_file;
-use wat::runtime::apply_function;
+use wat::freeze::{deftest_verdict, startup_from_file, DeftestOutcome};
 
-fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
+/// Arc 278 the vacuous-gate wall — this was `apply_function(..)` + `Ok(_) => Ok(())`, whose
+/// `Ok` answers "did the deftest EVALUATE?" while the gate below read it as "did it PASS?".
+/// A fired assertion is captured into the returned `:wat::kernel::RunResult`, not raised, so
+/// every assert-eq in the fixture was decoration. `deftest_verdict` reads the verdict.
+fn run_test_fn(path: &str, name: &str) -> DeftestOutcome {
     let world = startup_from_file(path)
         .expect("startup should succeed (:wat::kernel::macro-call-site must exist + be expand-legal)");
-    let func = world
-        .symbols()
-        .get(name)
-        .unwrap_or_else(|| panic!("no {name} in {path:?}"))
-        .clone();
-    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("{e:?}")),
-    }
+    deftest_verdict(&world, name)
 }
 
 /// `(:wat::kernel::macro-call-site)` captures each macro invocation's OWN source line — two
-/// invocations on adjacent lines differ by exactly 1 (a passing deftest' RETURNS cleanly).
+/// invocations on adjacent lines differ by exactly 1.
 #[test]
 fn macro_call_site_captures_invocation_line() {
-    let r = run_test_fn(
+    run_test_fn(
         "tests/macros/probe_arc278_macro_call_site.wat",
         ":user::macro-call-site-captures-invocation-line",
-    );
-    assert!(
-        r.is_ok(),
-        "macro-call-site must capture each invocation's own line (adjacent calls differ by 1); got Err: {r:?}"
+    )
+    .expect_passed(
+        "macro-call-site must capture each invocation's own line (adjacent calls differ by 1)",
     );
 }

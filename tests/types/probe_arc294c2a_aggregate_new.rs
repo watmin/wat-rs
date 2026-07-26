@@ -15,13 +15,13 @@
 //! all three natures construct via `aggregate-new`, field accessors read back, and the
 //! holon record's DERIVED hologram measures (`cosine h h == 1.0`).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Struct constructed via `aggregate-new`; field `a` reads back 7.
 #[test]
 fn aggregate_new_constructs_struct() {
-    let got = call_beside(file!(), ":user::an-struct-a").expect("eval an-struct-a");
+    let got = call_beside_value(file!(), ":user::an-struct-a").expect("eval an-struct-a");
     match got {
         Value::i64(7) => {}
         other => panic!("aggregate-new struct: expected i64(7), got {:?}", other),
@@ -31,7 +31,7 @@ fn aggregate_new_constructs_struct() {
 /// Base record constructed via `aggregate-new`; field `b` reads back 8.
 #[test]
 fn aggregate_new_constructs_base_record() {
-    let got = call_beside(file!(), ":user::an-record-b").expect("eval an-record-b");
+    let got = call_beside_value(file!(), ":user::an-record-b").expect("eval an-record-b");
     match got {
         Value::i64(8) => {}
         other => panic!("aggregate-new base record: expected i64(8), got {:?}", other),
@@ -41,7 +41,7 @@ fn aggregate_new_constructs_base_record() {
 /// Holon record constructed via `aggregate-new`; field `a` reads back 7 (hologram derived).
 #[test]
 fn aggregate_new_constructs_holon_record() {
-    let got = call_beside(file!(), ":user::an-holon-a").expect("eval an-holon-a");
+    let got = call_beside_value(file!(), ":user::an-holon-a").expect("eval an-holon-a");
     match got {
         Value::i64(7) => {}
         other => panic!("aggregate-new holon record: expected i64(7), got {:?}", other),
@@ -53,7 +53,7 @@ fn aggregate_new_constructs_holon_record() {
 /// `aggregate-new`, not merely that a value was constructed.
 #[test]
 fn aggregate_new_holon_hologram_is_derived_correctly() {
-    let got = call_beside(file!(), ":user::an-holon-self-cos").expect("eval an-holon-self-cos");
+    let got = call_beside_value(file!(), ":user::an-holon-self-cos").expect("eval an-holon-self-cos");
     match got {
         Value::f64(c) => assert!(
             (c - 1.0).abs() < 1e-6,
@@ -70,7 +70,7 @@ fn aggregate_new_holon_hologram_is_derived_correctly() {
 /// constant or empty bundle.
 #[test]
 fn aggregate_new_holon_hologram_is_data_dependent() {
-    let got = call_beside(file!(), ":user::an-holon-diff-cos").expect("eval an-holon-diff-cos");
+    let got = call_beside_value(file!(), ":user::an-holon-diff-cos").expect("eval an-holon-diff-cos");
     match got {
         Value::f64(c) => assert!(
             c < 1.0 - 1e-6 && c > -1.0 - 1e-6,

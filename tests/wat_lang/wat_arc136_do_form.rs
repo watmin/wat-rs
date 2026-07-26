@@ -17,7 +17,7 @@
 //! (and the arc 145 back-out realization), the substrate's existing
 //! inference + recipient unification provides the static check.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn unwrap_i64(v: Value) -> i64 {
@@ -35,7 +35,7 @@ fn unwrap_string(v: Value) -> String {
 }
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn run_err_file(rel_path: &str) -> String {

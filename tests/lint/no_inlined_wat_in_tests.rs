@@ -433,7 +433,7 @@ fn tests_carry_no_inlined_wat() {
          THE FIX — move the wat into a co-located `.wat` fixture and drive it lint-clean via ONE of\n\
          two idioms. RUBRIC (which to reach for): docs/CONVENTIONS.md § 'Test idioms — EDN-over-stdio\n\
          vs just-eval'. In short:\n\
-           • just-eval      — `call_beside(file!(), \":user::compute\")`: run a fixture's named entry\n\
+           • just-eval      — `call_beside_value(file!(), \":user::compute\")`: run a fixture's named entry\n\
                               fn in-process, inspect its typed Result<Value, RuntimeError>. For a\n\
                               VALUE/TYPE claim (a fn's return; a compile-time/freeze property, which\n\
                               often needs only `startup_beside(file!())`, no call).\n\

@@ -24,11 +24,11 @@
 //!
 //! Run: cargo test --release -p wat --test services rst_peer_notify_baseline
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn client_sees_peer_crashed_not_bare_disconnect() {
-    let result = call_beside(file!(), ":user::compute");
+    let result = call_beside_value(file!(), ":user::compute");
     let text = format!("{result:?}");
     assert!(
         result.is_ok(),

@@ -3,13 +3,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc275_verify_stdlib -- --nocapture`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn probe_stdlib_sources_count() {
     // Verify the intrinsic returns a vector with the expected number of files.
-    let val = call_beside(file!(), ":user::compute-sources-count").expect("eval should succeed");
+    let val = call_beside_value(file!(), ":user::compute-sources-count").expect("eval should succeed");
     match val {
         Value::i64(n) => {
             println!("stdlib::sources count = {n}");
@@ -22,7 +22,7 @@ fn probe_stdlib_sources_count() {
 #[test]
 fn probe_verify_stdlib_violation_count() {
     // Run verify-stdlib and print the number of violations.
-    let val = call_beside(file!(), ":user::compute-violation-count").expect("eval should succeed");
+    let val = call_beside_value(file!(), ":user::compute-violation-count").expect("eval should succeed");
     match val {
         Value::i64(n) => {
             println!("verify-stdlib violation count = {n}");
@@ -36,7 +36,7 @@ fn probe_verify_stdlib_violation_count() {
 #[test]
 fn probe_verify_stdlib_violations_detail() {
     // Build a helper that returns all violations as a stringified report.
-    let val = call_beside(file!(), ":user::compute-violations-detail").expect("eval should succeed");
+    let val = call_beside_value(file!(), ":user::compute-violations-detail").expect("eval should succeed");
     match val {
         Value::Vec(v) => {
             println!("=== verify-stdlib violations ({} total) ===", v.len());

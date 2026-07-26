@@ -12,14 +12,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_macros_unbounded_depth
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 #[test]
 fn defmacro_buried_four_dos_deep_still_hoists_and_is_callable() {
-    let got = call_beside(file!(), ":t::use-deep")
+    let got = call_beside_value(file!(), ":t::use-deep")
         .unwrap_or_else(|e| panic!("(:t::use-deep) raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),

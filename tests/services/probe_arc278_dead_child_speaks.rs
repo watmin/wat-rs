@@ -17,7 +17,7 @@
 //!
 //! Run: cargo test --release -p wat --test services dead_child_speaks
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller() {
@@ -28,7 +28,7 @@ fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller
     // The golden #probe.Outcome/Lost [true] is captured (UPDATE_EDN=1), never hand-authored; the
     // per-run-variable Failure location stays in wat, only its boolean RESULT crosses. Mirrors the
     // canonical gate probe_arc278_recv_outcome_wall. "wat stdio is edn — it's always data" (builder).
-    let v = call_beside(file!(), ":user::compute").unwrap_or_else(|e| {
+    let v = call_beside_value(file!(), ":user::compute").unwrap_or_else(|e| {
         panic!(
             "the undecodable payload across a process fork must surface as a matchable \
              RecvOutcome::Lost VALUE (never a raise, which would unwind past the reader); got Err: {e:?}"

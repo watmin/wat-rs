@@ -9,12 +9,12 @@
 //!
 //! STRIKE-READY: committed `#[ignore]`'d (RED) so the floor stays 0; un-ignore when K2 lands.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn defsurface_emits_a_backing_record_from_its_attributes() {
-    match call_beside(file!(), ":k2::demo") {
+    match call_beside_value(file!(), ":k2::demo") {
         Ok(Value::i64(7)) => {}
         other => panic!("expected 7 (3+4) from the emitted :k2::Pt$record; got {other:?}"),
     }

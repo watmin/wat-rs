@@ -16,9 +16,9 @@
 //! PRIMED peer wire — `spawn-program' :process` + `recv'`. "The raise is caught" now
 //! means the child crash surfaces as `recv'` → `Lost[LociDiedError::Panic]` whose
 //! message is the raised Fault's message ("boom"). The `:user::main` assertions
-//! (below, run via `call_beside`) fire a panic if that mapping doesn't hold.
+//! (below, run via `call_beside_value`) fire a panic if that mapping doesn't hold.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 
 /// Wall proof: (raise! 42) is rejected at compile time.
 /// The type checker requires :wat::core::Error; i64 does not satisfy it.
@@ -45,8 +45,8 @@ fn raise_bare_integer_is_compile_error() {
 /// Right path: Fault/of type-checks, satisfies :wat::core::Error, raise is caught.
 #[test]
 fn fault_of_type_checks_and_raise_is_caught() {
-    // call_beside loads probe_arc296_raise_gate.wat (same stem as this .rs) and runs
+    // call_beside_value loads probe_arc296_raise_gate.wat (same stem as this .rs) and runs
     // :user::main — asserts inside the .wat fire panic if wrong.
-    let _result = call_beside(file!(), ":user::main")
+    let _result = call_beside_value(file!(), ":user::main")
         .unwrap_or_else(|e| panic!("(:user::main) raised a runtime error: {e:?}"));
 }

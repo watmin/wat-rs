@@ -15,47 +15,47 @@
 //! Run: cargo test --release -p wat --test probe_arc278_0c_persistent_parity -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each assertion's expr lives in a named zero-arg fn in the
-// co-located `.wat` fixture, driven via `call_beside` — no inline wat/format! driver.
+// co-located `.wat` fixture, driven via `call_beside_value` — no inline wat/format! driver.
 #[test]
 fn persistent_vector_transform_parity() {
     // foldl / foldr (fn-first; return the accumulator)
-    assert_eq!(call_beside(file!(), ":t::p1-foldl").expect("eval"), Value::i64(6), "foldl over PersistentVector");
-    assert_eq!(call_beside(file!(), ":t::p2-foldr").expect("eval"), Value::i64(6), "foldr over PersistentVector");
+    assert_eq!(call_beside_value(file!(), ":t::p1-foldl").expect("eval"), Value::i64(6), "foldl over PersistentVector");
+    assert_eq!(call_beside_value(file!(), ":t::p2-foldr").expect("eval"), Value::i64(6), "foldr over PersistentVector");
 
     // map / filter (fn-first; arc 118.2a: LAZY, returns Stream<T> — materialize via `into`
     // (PersistentVector) to prove PersistentVector is accepted as input).
     assert_eq!(
-        call_beside(file!(), ":t::p3-map").expect("eval"),
+        call_beside_value(file!(), ":t::p3-map").expect("eval"),
         Value::i64(3), "map accepts a PersistentVector, materializes back to one"
     );
     assert_eq!(
-        call_beside(file!(), ":t::p4-filter").expect("eval"),
+        call_beside_value(file!(), ":t::p4-filter").expect("eval"),
         Value::i64(2), "filter accepts a PersistentVector, materializes back to one"
     );
 
     // reverse (type-preserving; head after reverse == 3 — get returns Option<T>)
     assert_eq!(
-        call_beside(file!(), ":t::p5-reverse").expect("eval"),
+        call_beside_value(file!(), ":t::p5-reverse").expect("eval"),
         Value::Option(Arc::new(Some(Value::i64(3)))), "reverse a PersistentVector"
     );
 
     // take / drop (coll-first; arc 118.2a: LAZY, returns Stream<T> — materialize via `into`).
     assert_eq!(
-        call_beside(file!(), ":t::p6-take").expect("eval"),
+        call_beside_value(file!(), ":t::p6-take").expect("eval"),
         Value::i64(2), "take n accepts a PersistentVector, materializes back to one"
     );
     assert_eq!(
-        call_beside(file!(), ":t::p7-drop").expect("eval"),
+        call_beside_value(file!(), ":t::p7-drop").expect("eval"),
         Value::i64(2), "drop n accepts a PersistentVector, materializes back to one"
     );
 
     // concat (two PersistentVectors → a PersistentVector)
     assert_eq!(
-        call_beside(file!(), ":t::p8-concat").expect("eval"),
+        call_beside_value(file!(), ":t::p8-concat").expect("eval"),
         Value::i64(3), "concat two PersistentVectors"
     );
 }

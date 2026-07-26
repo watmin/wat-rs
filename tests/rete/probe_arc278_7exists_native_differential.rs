@@ -10,11 +10,11 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7exists_native_differential
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn count(entry: &str) -> Result<i64, String> {
-    match call_beside(file!(), entry).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), entry).map_err(|e| format!("eval: {e:?}"))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("expected i64; got {other:?}")),
     }

@@ -14,11 +14,11 @@
 //!
 //! Run: cargo test --release -p wat ast_to_source
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn classify(fn_name: &str) -> bool {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool; got {other:?}"),
     }

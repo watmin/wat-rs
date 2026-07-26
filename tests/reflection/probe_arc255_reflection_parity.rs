@@ -21,16 +21,16 @@
 //! enriches these to assert the baseline KEYS, not just Some).
 
 use std::sync::Arc;
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 // just-eval (rubric): the metadata-of calls live in co-located fixtures, driven
-// via `call_beside` / fetch-and-`apply_function`; the Rust side inspects the
+// via `call_beside_value` / fetch-and-`apply_function`; the Rust side inspects the
 // returned typed Value (the same inspection the format!-string driver did).
 
 /// metadata-of(:wat::core::i64::+) via the co-located fixture — is it `Some(_)`?
 fn builtin_metadata_is_some() -> bool {
-    match call_beside(file!(), ":user::builtin-metadata").expect("metadata-of eval") {
+    match call_beside_value(file!(), ":user::builtin-metadata").expect("metadata-of eval") {
         Value::Option(o) => o.is_some(),
         other => panic!("metadata-of must return Option; got {:?}", other),
     }
@@ -50,7 +50,7 @@ fn user_form_metadata_is_some() -> bool {
 
 /// The full metadata-of(:wat::core::Bytes::to-hex) map via the co-located fixture.
 fn metadata_of_map(_name_kw: &str) -> std::collections::HashMap<Value, Value> {
-    match call_beside(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
+    match call_beside_value(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match o.as_ref() {
             Some(Value::wat__std__HashMap(m)) => m.as_ref().clone(),
             other => panic!("metadata-of must return Some(HashMap); got {:?}", other),

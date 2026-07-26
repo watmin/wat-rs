@@ -11,14 +11,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279b_subs_tuple_macro_eval
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 #[test]
 fn subs_tuple_char_walk_runs_at_macro_eval() {
-    let got = call_beside(file!(), ":user::probe").expect("probe must eval");
+    let got = call_beside_value(file!(), ":user::probe").expect("probe must eval");
     let s = match got {
         Value::String(ref s) => s.to_string(),
         other => panic!("expected String; got {other:?}"),

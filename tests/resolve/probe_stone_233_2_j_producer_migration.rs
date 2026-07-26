@@ -29,7 +29,7 @@ use wat::value::{Provenance, TrackedValue};
 
 // just-eval (rubric): `:user::probe`'s call lives in the co-located fixture. Fetch the
 // fixture's OWN parsed body AST (`Function::body`) and eval it directly via `eval_in_frozen`
-// — this is what gets us the raw `TrackedValue` (provenance included); `call_beside`/
+// — this is what gets us the raw `TrackedValue` (provenance included); `call_beside_value`/
 // `apply_function` only ever return the unwrapped `Value`, which is not enough for these
 // two provenance-inspecting probes.
 fn eval_probe() -> TrackedValue {

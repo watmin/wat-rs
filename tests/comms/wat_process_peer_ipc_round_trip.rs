@@ -45,7 +45,7 @@
 //! echo request. Not child/parent (OS-tree) — the role framing is the
 //! conversation, not the process lineage.
 
-use wat::freeze::{call_beside, startup_bare, startup_beside};
+use wat::freeze::{call_beside_value, startup_bare, startup_beside};
 use wat::runtime::Value;
 
 // ─── T1. type mint — both ProcessPeer<i64,String> and ProcessPeer<String,i64>
@@ -91,7 +91,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // the test harness's per-test timeout will kill us. On the clean-shutdown
     // failure path, Process/readln surfaces Err(chain) via the match-on-Err arm,
     // which calls assertion-failed! → RuntimeError.
-    let reply = call_beside(file!(), ":my::round-trip-hello")
+    let reply = call_beside_value(file!(), ":my::round-trip-hello")
         .unwrap_or_else(|e| panic!("ProcessPeer round-trip failed: {}", e));
     match reply {
         Value::String(s) => assert_eq!(

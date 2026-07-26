@@ -25,15 +25,15 @@
 //! RED at HEAD: every value is `Value::holon__HolonAST` -> every assertion
 //! below fails. GREEN after iv-c: plain values + the three enums.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// just-eval (rubric): the metadata-of(:wat::core::Bytes::to-hex) call lives in
-/// the co-located fixture (`:user::to-hex-metadata`), driven via `call_beside`;
+/// the co-located fixture (`:user::to-hex-metadata`), driven via `call_beside_value`;
 /// the Rust side inspects the returned `Some(HashMap)`. The `_fqdn` arg is kept
 /// for call-site readability (the fixture pins the single fqdn under test).
 fn metadata_of(_fqdn: &str) -> std::collections::HashMap<Value, Value> {
-    match call_beside(file!(), ":user::to-hex-metadata").expect("eval metadata-of") {
+    match call_beside_value(file!(), ":user::to-hex-metadata").expect("eval metadata-of") {
         Value::Option(opt) => match &*opt {
             Some(Value::wat__std__HashMap(m)) => (**m).clone(),
             other => panic!("metadata-of must be Some(HashMap); got {other:?}"),

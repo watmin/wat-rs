@@ -4,13 +4,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_ordering_surface`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed Vec<i64>.
+// drive it via `call_beside_value` and inspect the returned typed Vec<i64>.
 fn eval_vec(fn_name: &str) -> Result<Vec<i64>, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::Vec(v) => v.iter().map(|x| match x {
             Value::i64(n) => Ok(*n),
             other => Err(format!("non-i64 elem: {other:?}")),

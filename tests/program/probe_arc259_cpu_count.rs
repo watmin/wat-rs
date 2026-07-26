@@ -17,14 +17,14 @@
 //!
 //! Run: `cargo test --release --test program probe_arc259_cpu_count`
 
-use wat::freeze::{call_beside, invoke_user_main, startup_beside};
+use wat::freeze::{call_beside_value, invoke_user_main, startup_beside};
 use wat::runtime::Value;
 
 /// The record carries `wat.cpu-count` as a readable i64, the 6th constructor arg
 /// (before `user.program`). RED via arity at HEAD: a 7-arg `Env` is an arity error.
 #[test]
 fn env_record_carries_cpu_count() {
-    let got = call_beside(file!(), ":probe::compute").expect("eval");
+    let got = call_beside_value(file!(), ":probe::compute").expect("eval");
     assert_eq!(
         got,
         Value::i64(8),

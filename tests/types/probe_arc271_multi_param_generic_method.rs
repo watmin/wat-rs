@@ -20,12 +20,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc271_multi_param_generic_method
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn multi_param_generic_method_parses_and_instantiates() {
-    let got = call_beside(file!(), ":user::go").unwrap_or_else(|e| panic!("go raised: {e:?}"));
+    let got = call_beside_value(file!(), ":user::go").unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),
         "expected 5: combine<A,B> with (i64,String) → A=i64,B=String → returns x=5; got {got:?}"

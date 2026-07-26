@@ -10,10 +10,13 @@ use wat::freeze::call_beside;
 
 #[test]
 fn sqlite_interop() {
-    let result = call_beside(file!(), ":user::sqlite_interop");
-    assert!(
-        result.is_ok(),
-        "sqlite_interop deftest' must pass (real sqlite open/execute-ddl/execute/select \
-         round-trip + Constraint/Fatal fault classification); got Err: {result:?}"
+    // Arc 278 the vacuous-gate wall — this gate USED to read `call_beside(..).is_ok()`,
+    // which answered "did the fixture evaluate?" while claiming to answer "did it pass?".
+    // Proven vacuous on 2026-07-25 by mutating the fixture's `(assert-eq n 1)` to `n 4242`
+    // and watching this test stay green. `call_beside` now returns a DeftestOutcome with no
+    // `is_ok()`; a fired assertion surfaces as its structured located Failure.
+    call_beside(file!(), ":user::sqlite_interop").expect_passed(
+        "sqlite_interop deftest must pass (real sqlite open/execute-ddl/execute/select \
+         round-trip + Constraint/Fatal fault classification)",
     );
 }

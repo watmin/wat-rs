@@ -9,12 +9,12 @@
 //! refs are order-free (registered in the pre-expansion pass) and are
 //! exempt. See `src/stdlib.rs` for the doctrine comment on STDLIB_FILES.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn verify_stdlib_has_no_load_order_violations() {
-    let val = call_beside(file!(), ":user::compute").expect("eval must succeed");
+    let val = call_beside_value(file!(), ":user::compute").expect("eval must succeed");
     match val {
         Value::i64(n) => {
             assert_eq!(

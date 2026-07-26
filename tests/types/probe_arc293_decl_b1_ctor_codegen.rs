@@ -10,13 +10,13 @@
 //! (R2.2 codegens those for all natures) but NO ctor — `(:test::db::BR 7 8)` is unresolved.
 //! GREEN after decl-b.1: the ctor is codegen'd → construction works for raw-recordtype records.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A base record via raw `recordtype` constructs via its codegen'd ctor; field a = 7.
 #[test]
 fn raw_recordtype_record_has_codegen_ctor() {
-    let got = call_beside(file!(), ":user::db-br-a").expect("eval db-br-a");
+    let got = call_beside_value(file!(), ":user::db-br-a").expect("eval db-br-a");
     match got {
         Value::i64(7) => {}
         other => panic!("raw recordtype record ctor: expected i64(7), got {:?}", other),
@@ -26,7 +26,7 @@ fn raw_recordtype_record_has_codegen_ctor() {
 /// A holon record via raw `recordtype` constructs via its codegen'd ctor; field a = 7.
 #[test]
 fn raw_recordtype_holon_has_codegen_ctor() {
-    let got = call_beside(file!(), ":user::db-hr-a").expect("eval db-hr-a");
+    let got = call_beside_value(file!(), ":user::db-hr-a").expect("eval db-hr-a");
     match got {
         Value::i64(7) => {}
         other => panic!("raw recordtype holon ctor: expected i64(7), got {:?}", other),
@@ -40,7 +40,7 @@ fn raw_recordtype_holon_has_codegen_ctor() {
 #[test]
 #[ignore = "RED until decl-b.1.0 (aggregate-new inheritance) + decl-b.1 (fallback→aggregate-new) land"]
 fn raw_recordtype_holon_has_a_hologram() {
-    let got = call_beside(file!(), ":user::db-hr-cos").expect("eval db-hr-cos");
+    let got = call_beside_value(file!(), ":user::db-hr-cos").expect("eval db-hr-cos");
     match got {
         Value::f64(c) => assert!(
             (c - 1.0).abs() < 1e-6,

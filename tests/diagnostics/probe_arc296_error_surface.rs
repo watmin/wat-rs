@@ -13,13 +13,13 @@
 //!
 //! GREEN after `wat/core.wat` adds the `defsurface :wat::core::Error` form.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn error_surface_declares_and_record_satisfies_and_round_trips() {
     // (a) startup boots — proves :wat::core::Error is in the type registry.
     // (b) :probe::BadInput (defrecord) passes a [e <- :wat::core::Error] param.
     // (c) edn::write→edn::read round-trip inside :user::main doesn't raise.
-    let _result = call_beside(file!(), ":user::main")
+    let _result = call_beside_value(file!(), ":user::main")
         .unwrap_or_else(|e| panic!("(:user::main) raised a runtime error: {e:?}"));
 }

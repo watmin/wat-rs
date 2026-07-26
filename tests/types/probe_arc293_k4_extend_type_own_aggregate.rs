@@ -12,12 +12,12 @@
 //! GREEN at HEAD (no RED phase — this is a lock-in regression, NOT a disconfirming probe, so it is
 //! committed un-ignored and joins the floor immediately).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn extend_type_satisfies_a_surface_on_an_own_aggregate_type() {
-    match call_beside(file!(), ":k4::demo") {
+    match call_beside_value(file!(), ":k4::demo") {
         Ok(Value::i64(25)) => {}
         other => panic!("expected 25 (3*3 + 4*4) via :k4::Located/mag2 dispatched to the own-type extend-type impl; got {other:?}"),
     }

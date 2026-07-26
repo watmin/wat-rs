@@ -20,19 +20,19 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_4b_cascade -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn cascade_fires_rule_b_on_rule_a_output() {
     // THE HEART of 4b: rule B fires on the fact rule A derived. RED at HEAD (single-pass — B never fires).
-    let got = call_beside(file!(), ":user::weatheralert-count-oslo").expect("eval");
+    let got = call_beside_value(file!(), ":user::weatheralert-count-oslo").expect("eval");
     assert_eq!(got, Value::i64(1), "B should fire on A's derived ColdAndWindy → one WeatherAlert; got {got:?}");
 }
 
 #[test]
 fn rule_a_still_derives_its_fact() {
-    let got = call_beside(file!(), ":user::coldandwindy-count-oslo").expect("eval");
+    let got = call_beside_value(file!(), ":user::coldandwindy-count-oslo").expect("eval");
     assert_eq!(got, Value::i64(1), "A derives exactly one ColdAndWindy (no cross-round re-derivation inflation); got {got:?}");
 }
 
@@ -40,7 +40,7 @@ fn rule_a_still_derives_its_fact() {
 fn fixpoint_total_is_exactly_two_derived() {
     // The closure is {ColdAndWindy, WeatherAlert} — exactly 2, proving no inflation (each derived once) and
     // the loop reached a fixpoint rather than spinning.
-    let got = call_beside(file!(), ":user::derived-length-oslo").expect("eval");
+    let got = call_beside_value(file!(), ":user::derived-length-oslo").expect("eval");
     assert_eq!(got, Value::i64(2), "fixpoint closure = ColdAndWindy + WeatherAlert = 2; got {got:?}");
 }
 
@@ -48,6 +48,6 @@ fn fixpoint_total_is_exactly_two_derived() {
 fn no_cascade_without_the_root_fact() {
     // Temp(Oslo)+Wind(Bergen) → A never fires → no ColdAndWindy → B never fires → zero derived, and the
     // fixpoint terminates (no spin).
-    let got = call_beside(file!(), ":user::derived-length-bergen").expect("eval");
+    let got = call_beside_value(file!(), ":user::derived-length-bergen").expect("eval");
     assert_eq!(got, Value::i64(0), "no root match → no cascade → zero derived facts; got {got:?}");
 }

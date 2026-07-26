@@ -16,7 +16,7 @@
 //! Run: `cargo test --release -p wat --test probe_arc259_started_at_boot`
 
 use chrono::{TimeZone, Utc};
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// The seam reads the PRIMED boot clock for started-at — not a fresh `now`.
 /// Inject a known-old boot (epoch 1000s) for this process; `:my::assert-started-at`
@@ -27,7 +27,7 @@ use wat::freeze::call_beside;
 fn started_at_is_the_primed_boot_not_the_seam() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
     assert!(
-        call_beside(file!(), ":my::assert-started-at").is_ok(),
+        call_beside_value(file!(), ":my::assert-started-at").is_ok(),
         "wat.started-at must be the primed boot (epoch 1000), not the seam's now"
     );
 }
@@ -41,7 +41,7 @@ fn started_at_is_the_primed_boot_not_the_seam() {
 fn peer_started_at_is_after_started_at() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
     assert!(
-        call_beside(file!(), ":my::assert-boot-gap").is_ok(),
+        call_beside_value(file!(), ":my::assert-boot-gap").is_ok(),
         "peer-started-at must be strictly after the (past-primed) started-at"
     );
 }

@@ -6,11 +6,11 @@
 //! default `ddof=0`); :wat::core::Option<wat::core::f64> for all three with None on empty
 //! input (matches f64::min-of / max-of's reduction-empty pattern).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 fn assert_str(val: Value, expected: &str) {

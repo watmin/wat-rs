@@ -34,11 +34,10 @@ fn eval_res(src: &str) -> Result<String, EvalBreak> {
 
 #[test]
 fn int_modrem_sign_table() {
-    let result = call_beside(file!(), ":user::modrem_sign_table");
-    assert!(
-        result.is_ok(),
-        "modrem_sign_table deftest' must pass (arc 278 mod/rem/quot sign table); got Err: {result:?}"
-    );
+    // Arc 278 the vacuous-gate wall — was `call_beside(..).is_ok()`, which certified only
+    // that the fixture froze and ran; every assert-eq in the sign table was decoration.
+    call_beside(file!(), ":user::modrem_sign_table")
+        .expect_passed("modrem_sign_table deftest must pass (arc 278 mod/rem/quot sign table)");
 }
 
 // ─── divide-by-zero → DivisionByZero, never a panic (STOP-PANIC) ──────────────────

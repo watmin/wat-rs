@@ -8,13 +8,13 @@
 //! Run: cargo test --release -p wat --test probe_arc278_P2_native_fire_once -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): wind_loc and the fire verb are each 2-valued, so every scenario is a fixed,
-// enumerable named entry in the co-located fixture — driven via call_beside.
+// enumerable named entry in the co-located fixture — driven via call_beside_value.
 fn call(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+    call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 #[test]

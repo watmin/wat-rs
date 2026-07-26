@@ -18,7 +18,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1b_compile -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// Children-count of the FIRST node line whose text contains `kind` — parses the `[...]` child list.
 fn children_count(rendered: &str, kind: &str) -> usize {
@@ -32,7 +32,7 @@ fn children_count(rendered: &str, kind: &str) -> usize {
 }
 
 fn render(entry: &str) -> String {
-    match call_beside(file!(), entry).unwrap_or_else(|e| panic!("compile raised: {e:?}")) {
+    match call_beside_value(file!(), entry).unwrap_or_else(|e| panic!("compile raised: {e:?}")) {
         wat::runtime::Value::String(s) => s.to_string(),
         other => panic!("render-dag must return a String; got {other:?}"),
     }

@@ -10,12 +10,12 @@
 //! Forks (`spawn-program' (process)`) → its own [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6c2_record_ipc_derisk
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn plain_record_round_trips_over_process_ipc() {
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),

@@ -20,13 +20,13 @@
 //! Body: assert-eq with mismatched values → AssertionPayload panic → recv' →
 //! Lost[Panic]; the fixture returns Panic.message as a plain `:wat::core::String`.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Call a zero-arg compute fn in the co-located fixture and return its
 /// `:wat::core::String` result (the crash cause's message).
 fn run_fn(fn_name: &str) -> String {
-    match call_beside(file!(), fn_name).expect("compute should run") {
+    match call_beside_value(file!(), fn_name).expect("compute should run") {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String; got {:?}", other),
     }

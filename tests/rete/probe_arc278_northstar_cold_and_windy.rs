@@ -19,17 +19,17 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_northstar_cold_and_windy -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): the lifecycle (collect → compile → insert → insert → fire → query, wrapped in
-// `length`) lives in the co-located fixture as `:user::compute`, driven via `call_beside`.
+// `length`) lives in the co-located fixture as `:user::compute`, driven via `call_beside_value`.
 
 #[test]
 fn cold_and_windy_fires_and_derives_the_fact() {
     // The rule fires (Temp 15<20 AND Wind 45>30 at the SAME location "Oslo" — the equality join on ?loc),
     // logically inserting ONE ColdAndWindy fact; `query` reads the derived facts back out.
-    let count = call_beside(file!(), ":user::compute")
+    let count = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("rete lifecycle raised: {e:?}"));
     assert_eq!(count, Value::i64(1), "exactly one ColdAndWindy derived (the Oslo equality join)");
 }

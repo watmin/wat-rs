@@ -11,13 +11,13 @@
 //!
 //! RED at HEAD. GREEN at 293.4e-pre.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A surface method with a second arg (`make [self x]`) must dispatch with the right arity and return the arg.
 #[test]
 fn surface_method_with_args_beyond_self_dispatches() {
-    let got = call_beside(file!(), ":t::probe")
+    let got = call_beside_value(file!(), ":t::probe")
         .expect("(:t::probe) must dispatch :t::Maker/make (self + one arg) to :t::Id/make");
 
     match got {

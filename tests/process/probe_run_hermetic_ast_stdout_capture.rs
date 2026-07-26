@@ -16,7 +16,7 @@
 //! `RunResult/stdout` read produced. `Lost[LociDiedError]` / `Closed` are never
 //! swallowed (the fixture re-raises via `assertion-failed!`).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // ─── Probe 1 — spawn-process child prints a value; parent recv's it decoded ─
@@ -31,8 +31,8 @@ use wat::runtime::Value;
 /// Path: `spawn-program' (:wat::spawn::process)` + `recv'`.
 #[test]
 fn probe_run_hermetic_ast_child_stdout_captured() {
-    // World loaded from co-located probe_run_hermetic_ast_stdout_capture.wat via call_beside.
-    let result = call_beside(file!(), ":probe::ast::capture-stdout")
+    // World loaded from co-located probe_run_hermetic_ast_stdout_capture.wat via call_beside_value.
+    let result = call_beside_value(file!(), ":probe::ast::capture-stdout")
         .expect("probe::ast::capture-stdout should run without panicking");
 
     // Arc 278 IPC de-prime: the primed wire delivers the child's `println`'d

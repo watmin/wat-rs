@@ -24,11 +24,11 @@
 //! If a deadlock category were present, `recv'` would hang and neither test
 //! would complete. Completing without hang IS the positive verification.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("probe should run without panicking")
+    call_beside_value(file!(), fn_name).expect("probe should run without panicking")
 }
 
 fn as_string(v: Value) -> String {

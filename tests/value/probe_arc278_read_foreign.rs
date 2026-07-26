@@ -7,7 +7,7 @@
 //! no-hidden-failures floor, R41 EGO SVM LEX, is untouched).
 //!
 //! RED at HEAD `a5a48aa1`: `:wat::edn::read-foreign` + `ForeignRecord`/`ForeignVariant` +
-//! their accessors do not exist, so the co-located fixture will not freeze and `call_beside`
+//! their accessors do not exist, so the co-located fixture will not freeze and `call_beside_value`
 //! fails on exactly that gap. GREEN when Stone A lands.
 //!
 //! The two asserts are the campaign's `DESIGN-STONE-A-read-foreign.md` acceptance:
@@ -15,7 +15,7 @@
 //!   (2) strict `read` on the same input still errors UnknownTag.
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::{RuntimeErrorKind, Value};
 
 /// (1) read-foreign reconstructs the nested-unknown EDN and navigates to the NESTED variant.
@@ -25,7 +25,7 @@ use wat::runtime::{RuntimeErrorKind, Value};
 /// unmasks it — arc-296 lesson): the whole recursive path must resolve to EXACTLY `:Click`.
 #[test]
 fn read_foreign_reconstructs_nested_foreign_variant() {
-    let v = call_beside(file!(), ":my::compute")
+    let v = call_beside_value(file!(), ":my::compute")
         .expect("read-foreign navigation should return the nested variant name");
     assert_eq!(
         v,
@@ -40,7 +40,7 @@ fn read_foreign_reconstructs_nested_foreign_variant() {
 /// read verb's malformed-form raise (exact kind, not a loose message substring).
 #[test]
 fn strict_read_still_errors_on_the_unknown_tag() {
-    let err = call_beside(file!(), ":my::strict-errors")
+    let err = call_beside_value(file!(), ":my::strict-errors")
         .expect_err("strict edn::read on an unknown tag must still raise, not decode");
     assert!(
         matches!(err.kind, RuntimeErrorKind::MalformedForm { .. }),

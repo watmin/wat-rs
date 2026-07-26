@@ -6,11 +6,11 @@
 //! Typed once at the head; each test unifies with :wat::core::bool; each body
 //! unifies with :T; last arm must be (:else body).
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn run_err_file(rel_path: &str) -> String {

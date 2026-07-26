@@ -14,13 +14,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone2_cond_macro`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each contract is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 fn call_named_i64(fn_name: &str) -> Result<i64, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("non-i64: {other:?}")),
     }

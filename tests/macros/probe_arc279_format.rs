@@ -14,14 +14,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279_format -- --include-ignored
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 #[test]
 fn format_fills_named_placeholders_unquoted() {
-    let got = call_beside(file!(), ":user::test-format")
+    let got = call_beside_value(file!(), ":user::test-format")
         .unwrap_or_else(|e| panic!("test-format raised: {e:?}"));
     let s = match got {
         Value::String(ref s) => s.to_string(),

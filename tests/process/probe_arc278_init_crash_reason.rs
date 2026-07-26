@@ -24,7 +24,7 @@
 use std::sync::mpsc;
 use std::time::Duration;
 use wat::assertion::AssertionPayload;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 const SENTINEL: &str = "BOOM-INIT-SENTINEL-99";
 
@@ -32,13 +32,13 @@ const SENTINEL: &str = "BOOM-INIT-SENTINEL-99";
 ///
 /// Arc 278 recv'-wall: the launch handshake's crash-aware `recv'` inside `/start` (wat/spawn.wat)
 /// gets the :init crash as a matchable `RecvOutcome::Lost` — but `/start`'s contract returns a Handle
-/// (a start-failure has no value channel), so it RE-RAISES the reason. `call_beside` (no
+/// (a start-failure has no value channel), so it RE-RAISES the reason. `call_beside_value` (no
 /// `catch_unwind`) lets that raise unwind, so we `catch_unwind` it here and read the reason off the
 /// `AssertionPayload` (the blessed pattern; see probe_arc234_stone2c_accessor_class_safety.rs). If a
 /// tier ever surfaced the crash at the ping's `recv'` instead (a matchable ::Lost VALUE), the fixture
 /// RETURNS the reason as a String and we read it off the Ok — both paths carry the sentinel.
 fn init_crash_reason(entry: &str) -> String {
-    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| call_beside(file!(), entry)));
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| call_beside_value(file!(), entry)));
     match caught {
         // The fixture RETURNED the reason as a value (crash surfaced at the ping's recv').
         Ok(Ok(v)) => format!("{v:?}"),

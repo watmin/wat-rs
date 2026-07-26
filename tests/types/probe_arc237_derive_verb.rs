@@ -19,11 +19,11 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc237_derive_verb
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("{fn_name} raised: {e:?}"))
+    call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("{fn_name} raised: {e:?}"))
 }
 
 #[test]

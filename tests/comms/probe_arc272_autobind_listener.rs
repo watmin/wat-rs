@@ -14,12 +14,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_autobind_listener
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn autobind_listener_process_returns_bound_and_connects() {
-    let got = call_beside(file!(), ":user::go")
+    let got = call_beside_value(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::bool(true)),

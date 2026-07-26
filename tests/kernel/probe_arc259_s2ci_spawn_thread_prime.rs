@@ -21,11 +21,11 @@
 //!
 //! WAT fixture: tests/kernel/probe_arc259_s2ci_spawn_thread_prime.wat (co-located sibling)
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_compute_i64() -> i64 {
-    match call_beside(file!(), ":user::compute").expect("compute eval") {
+    match call_beside_value(file!(), ":user::compute").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }

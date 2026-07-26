@@ -17,13 +17,13 @@
 //! Initial state: 6/6 FAIL with parser/check errors.
 //! Post-stone: 6/6 PASS.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_1_single_field_record_destructure() {
-    match call_beside(file!(), ":t::probe1-single-field").expect("eval") {
+    match call_beside_value(file!(), ":t::probe1-single-field").expect("eval") {
         Value::f64(f) => assert!((f - 5.0).abs() < 1e-9, "got {}", f),
         other => panic!("Probe 1: expected f64; got {:?}", other),
     }
@@ -32,7 +32,7 @@ fn probe_1_single_field_record_destructure() {
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_2_multi_field_record_destructure() {
-    match call_beside(file!(), ":t::probe2-multi-field").expect("eval") {
+    match call_beside_value(file!(), ":t::probe2-multi-field").expect("eval") {
         Value::String(s) => assert_eq!(s.as_str(), "hello"),
         other => panic!("Probe 2: expected String; got {:?}", other),
     }
@@ -41,7 +41,7 @@ fn probe_2_multi_field_record_destructure() {
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_3_hashmap_destructure_some() {
-    match call_beside(file!(), ":t::probe3-hashmap-some").expect("eval") {
+    match call_beside_value(file!(), ":t::probe3-hashmap-some").expect("eval") {
         Value::i64(n) => assert_eq!(n, 8080),
         other => panic!("Probe 3: expected i64; got {:?}", other),
     }
@@ -50,7 +50,7 @@ fn probe_3_hashmap_destructure_some() {
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_4_hashmap_destructure_none() {
-    match call_beside(file!(), ":t::probe4-hashmap-none").expect("eval") {
+    match call_beside_value(file!(), ":t::probe4-hashmap-none").expect("eval") {
         Value::bool(b) => assert!(b, "Probe 4: expected true (None branch)"),
         other => panic!("Probe 4: expected bool; got {:?}", other),
     }
@@ -85,7 +85,7 @@ fn probe_5_unknown_field_errors() {
 // ─── Probe 6 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_6_multiple_destructures_in_same_let() {
-    match call_beside(file!(), ":t::probe6-multiple").expect("eval") {
+    match call_beside_value(file!(), ":t::probe6-multiple").expect("eval") {
         Value::f64(f) => assert!((f - 10.5).abs() < 1e-9, "got {}", f),
         other => panic!("Probe 6: expected f64; got {:?}", other),
     }

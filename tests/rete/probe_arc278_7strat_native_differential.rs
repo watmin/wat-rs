@@ -14,12 +14,12 @@
 //!
 //! Run: cargo test --release -p wat --test rete probe_arc278_7strat_native_differential
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Call the named entry fn and return its first `n` per-type counts. All wat lives in the `.wat`.
 fn run_counts(entry: &str, n: usize) -> Result<Vec<i64>, String> {
-    let out = call_beside(file!(), entry).map_err(|e| format!("eval: {e:?}"))?;
+    let out = call_beside_value(file!(), entry).map_err(|e| format!("eval: {e:?}"))?;
     match &out {
         Value::wat__core__PersistentVector(v) => (0..n)
             .map(|i| match v.get(i) {

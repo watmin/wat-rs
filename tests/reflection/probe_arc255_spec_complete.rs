@@ -12,17 +12,17 @@
 //!   - @yields cross-check bites on wrong type (yields_type_matches_fn_arg_param test).
 //!   - render-doc shows Category: and Yields: lines.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 // just-eval (rubric): the intrinsic probes live in co-located fixtures — the
-// bare-world calls in `probe_arc255_spec_complete.wat` (driven via `call_beside`)
+// bare-world calls in `probe_arc255_spec_complete.wat` (driven via `call_beside_value`)
 // and the higher-order yields-witness in `probe_arc255_spec_complete_yields_witness.wat`.
 // The Rust side inspects the returned typed Value.
 
 /// Invoke a zero-arg fn in the co-located `.wat` and return its i64 result.
 fn call_i64(fn_name: &str) -> i64 {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -30,7 +30,7 @@ fn call_i64(fn_name: &str) -> i64 {
 
 /// Invoke a zero-arg fn in the co-located `.wat` and return its String result.
 fn call_string(fn_name: &str) -> String {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::String(s) => s.as_str().to_owned(),
         other => panic!("render-doc must return String; got {:?}", other),
     }
@@ -136,7 +136,7 @@ fn render_doc_shows_category_reflection() {
 /// metadata-of returns :category for a registered intrinsic.
 #[test]
 fn metadata_of_returns_category() {
-    let result = call_beside(file!(), ":user::to-hex-metadata").expect("eval");
+    let result = call_beside_value(file!(), ":user::to-hex-metadata").expect("eval");
     // metadata-of returns Option<HashMap<keyword, Value>>; we just check Some.
     match result {
         Value::Option(o) => assert!(o.is_some(), "metadata-of must return Some for a registered intrinsic"),

@@ -10,7 +10,7 @@
 //! GREEN after: type-checker accepts `[] -> :wat::kernel::Location`,
 //! startup succeeds, and the assert in `main` (line > 0) passes at runtime.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn kernel_here_returns_location_with_positive_line() {
@@ -19,6 +19,6 @@ fn kernel_here_returns_location_with_positive_line() {
     // Run main — the body asserts Location/line > 0 via (:wat::test::assert-true ...).
     // A failing assert fires assertion-failed! (panic_any) → propagates as a test
     // failure. A passing assert returns :wat::core::nil.
-    let _result = call_beside(file!(), ":user::main")
+    let _result = call_beside_value(file!(), ":user::main")
         .unwrap_or_else(|e| panic!("(:user::main) raised a runtime error: {e:?}"));
 }

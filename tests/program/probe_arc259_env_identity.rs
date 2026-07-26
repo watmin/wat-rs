@@ -19,14 +19,14 @@
 //!
 //! Run: `cargo test --release --test program probe_arc259_env_identity`
 
-use wat::freeze::{call_beside, invoke_user_main, startup_beside};
+use wat::freeze::{call_beside_value, invoke_user_main, startup_beside};
 use wat::runtime::Value;
 
 /// The record carries `wat.process-id` + `wat.os-thread-id` as readable i64 fields
 /// (RED via arity at HEAD: a 4-arg `Env` constructor is an arity error).
 #[test]
 fn env_record_carries_process_and_thread_id() {
-    let got = call_beside(file!(), ":probe::c01-compute").expect("eval");
+    let got = call_beside_value(file!(), ":probe::c01-compute").expect("eval");
     assert_eq!(
         got,
         Value::i64(12345),

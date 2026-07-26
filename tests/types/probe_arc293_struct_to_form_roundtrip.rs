@@ -9,12 +9,12 @@
 //! RED before fix: `eval-ast!` returns `Value::Result(Err(...))` — `UnknownFunction :probe::Pair/new`.
 //! GREEN after fix: `Value::Result(Ok(Value::Aggregate { class: "probe::Pair", fields: [i64(7), i64(9)] }))`.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn struct_to_form_eval_ast_roundtrip() {
-    let got = call_beside(file!(), ":probe::roundtrip")
+    let got = call_beside_value(file!(), ":probe::roundtrip")
         .expect("(:probe::roundtrip) must not throw at the eval level");
 
     let inner = match got {

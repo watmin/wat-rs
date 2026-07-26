@@ -5,11 +5,11 @@
 //! prior gap where `=` couldn't compare two `Value::Enum` values
 //! (added an Enum arm to `values_equal`).
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_bool(v: Value) -> bool {

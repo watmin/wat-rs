@@ -17,13 +17,13 @@
 //! Run: cargo test --release -p wat --test rete probe_arc300_2
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each (node, query-tail) pair is a fixed, enumerable named entry in the
-// co-located fixture — driven via call_beside.
+// co-located fixture — driven via call_beside_value.
 fn call(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+    call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 // ── head-keyword→conv ────────────────────────────────────────────────────────

@@ -57,7 +57,7 @@ use wat::runtime::{apply_function, Value};
 
 // just-eval (rubric): each `*_pN.wat` fixture defines a zero-arg `:user::compute`;
 // fetch it from the frozen world and `apply_function` it — no inline wat driver.
-// (Path-based rather than `call_beside` because this probe shares one `.rs` across
+// (Path-based rather than `call_beside_value` because this probe shares one `.rs` across
 // seven co-located fixtures, so the fixture is not the single sibling `.wat`.)
 fn run_compute_from_file(fixture: &str) -> Result<Value, String> {
     let world = startup_from_file(fixture).map_err(|e| format!("startup: {:?}", e))?;

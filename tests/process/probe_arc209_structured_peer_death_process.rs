@@ -14,7 +14,7 @@
 //! Forks a `:process` child — run SERIALLY:
 //!   `cargo test --release -p wat --test nursery probe_arc209_structured_peer_death_process -- --test-threads=1`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// A `:process` peer dies via `assertion-failed!` carrying a structured `actual` + `expected`.
 /// Arc 278 recv'-wall: the crash surfaces as a matchable `RecvOutcome::Lost` VALUE; the fixture
@@ -22,7 +22,7 @@ use wat::freeze::call_beside;
 /// the returned reason carries BOTH structured fields, not just the message.
 #[test]
 fn process_peer_recv_surfaces_structured_actual_and_expected() {
-    let result = call_beside(file!(), ":user::compute");
+    let result = call_beside_value(file!(), ":user::compute");
     let text = format!("{result:?}");
     assert!(
         result.is_ok(),

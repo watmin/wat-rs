@@ -11,16 +11,16 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc260_keyword_args -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 #[test]
 #[ignore = "arc 260 RED — wat has no keyword args; call sites are positional. UN-IGNORE when \
             option 1 (call-site :name val reorder by param name) ships."]
 fn user_fn_keyword_args_reorder_to_positional() {
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(7)),

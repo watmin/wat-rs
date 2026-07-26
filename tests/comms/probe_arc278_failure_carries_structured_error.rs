@@ -15,12 +15,12 @@
 //! callee-in-call-position, so this only goes RED at test-run time). GREEN once
 //! the stone lands.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn failure_carries_the_raised_error_as_a_structured_record() {
-    let v = call_beside(file!(), ":my::failure-error-is-structured")
+    let v = call_beside_value(file!(), ":my::failure-error-is-structured")
         .expect("failure-error-is-structured should run");
     let inner = match v {
         Value::Option(opt) => match &*opt {

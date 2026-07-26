@@ -14,15 +14,15 @@
 //!   carries the structured doc -> `metadata-of` emits `:added` and `:ret`.
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// just-eval (rubric): the metadata-of call lives in the co-located fixture
-/// (`:user::to-hex-metadata`), driven via `call_beside`. Returns whether the
+/// (`:user::to-hex-metadata`), driven via `call_beside_value`. Returns whether the
 /// resulting `Some(HashMap)` contains the keyword key `key` (e.g. ":added") —
 /// the same containment assertion the format!-string driver made.
 fn metadata_of_has_key(key: &str) -> bool {
-    match call_beside(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
+    match call_beside_value(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match &*o {
             Some(Value::wat__std__HashMap(m)) => {
                 let k = Value::wat__core__keyword(Arc::new(key.to_string()));

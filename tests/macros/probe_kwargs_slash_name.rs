@@ -12,16 +12,16 @@
 //!
 //! Run: cargo test --release -p wat --test probe_kwargs_slash_name
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each call form is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 
 #[test]
 fn slash_named_kwargs_fn_lowers_through_companion_macro() {
     for f in [":t::via-kv", ":t::via-kv-reorder", ":t::via-map"] {
-        let got = call_beside(file!(), f).unwrap_or_else(|e| {
+        let got = call_beside_value(file!(), f).unwrap_or_else(|e| {
             panic!(
                 "({f}) raised (startup should succeed if the companion-macro path composes onto \
                  a /-named fn): {e:?}"

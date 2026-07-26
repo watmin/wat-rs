@@ -19,13 +19,13 @@
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary (auto-registered).
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3a0_self_peer
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn process_self_peer_echoes_over_the_owner_link() {
     // Wat source lives in the co-located fixture: probe_arc209_c0b3a0_self_peer.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(105)),

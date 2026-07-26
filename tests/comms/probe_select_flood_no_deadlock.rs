@@ -48,7 +48,7 @@
 
 use std::time::Duration;
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// `select'` over `[child]` where child floods stdout with > 512 KiB.
@@ -67,7 +67,7 @@ fn select_prime_flood_no_deadlock() {
 
     // Spawns the flooding child and runs `select'` over it — the blocking call that
     // deadlocks at HEAD, returns fast after the fix (co-located fixture, `:user::compute`).
-    let result = call_beside(file!(), ":user::compute");
+    let result = call_beside_value(file!(), ":user::compute");
 
     match result {
         Ok(event) => {

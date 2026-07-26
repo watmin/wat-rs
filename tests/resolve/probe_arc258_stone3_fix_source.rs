@@ -11,14 +11,14 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone3_fix_source`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed Value.
+// drive it via `call_beside_value` and inspect the returned typed Value.
 fn eval_bool(fn_name: &str) -> Result<bool, String> {
     let full = format!(":user::{}", fn_name);
-    match call_beside(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
         Value::bool(b) => Ok(b),
         other => Err(format!("non-bool: {other:?}")),
     }
@@ -26,7 +26,7 @@ fn eval_bool(fn_name: &str) -> Result<bool, String> {
 
 fn eval_string(fn_name: &str) -> Result<String, String> {
     let full = format!(":user::{}", fn_name);
-    match call_beside(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string: {other:?}")),
     }
@@ -111,7 +111,7 @@ fn contract_07_end_to_end_clean_source() {
 #[test]
 fn contract_08_maturity_quasiquote_in_defn() {
     // FLAGGED maturity probe: can a PLAIN defn (not a macro) quasiquote a form?
-    let result = call_beside(file!(), ":user::compute-c08");
+    let result = call_beside_value(file!(), ":user::compute-c08");
     match result {
         Ok(Value::bool(true)) => { /* quasiquote-in-defn WORKS — no gap */ }
         other => panic!(

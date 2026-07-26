@@ -21,15 +21,15 @@
 //! a `Vector` of `:wat::intrinsic::Example` records including
 //! `:wat::core::Bytes::to-hex` (`run = true`).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 use wat::types::Nature;
 
 /// just-eval (rubric): the `:wat::intrinsic::examples` seam call lives in the
-/// co-located fixture (`:user::examples`), driven via `call_beside`; the Rust
+/// co-located fixture (`:user::examples`), driven via `call_beside_value`; the Rust
 /// side inspects the returned Vector<Example>. RED at HEAD = `Err`.
 fn eval_examples_seam() -> Result<Value, String> {
-    call_beside(file!(), ":user::examples").map_err(|e| format!("eval: {:?}", e))
+    call_beside_value(file!(), ":user::examples").map_err(|e| format!("eval: {:?}", e))
 }
 
 #[test]

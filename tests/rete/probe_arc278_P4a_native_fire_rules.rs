@@ -9,13 +9,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P4a_native_fire_rules -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): wind_loc / query type and the fire verb are each small-valued and every
 // combination a #[test] needs is a fixed, enumerable named entry in the co-located fixture.
 fn call(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+    call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 // ─── Single rule: fire-rules' on a one-round derivation == fire-rules ──────────────

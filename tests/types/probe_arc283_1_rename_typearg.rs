@@ -12,12 +12,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc283_1_rename_typearg -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn rename_reaches_type_arguments() {
-    let out = call_beside(file!(), ":user::run").expect("rename-keyword-prefix must eval");
+    let out = call_beside_value(file!(), ":user::run").expect("rename-keyword-prefix must eval");
     let s = match out {
         Value::String(ref s) => s.to_string(),
         other => panic!("expected migrated source String; got {other:?}"),

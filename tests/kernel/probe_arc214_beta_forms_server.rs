@@ -31,7 +31,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel \
 //!     probe_arc214_beta_forms_server -- --ignored --test-threads=1
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// FM-2-bis (β): a forms-program spawned `:process` runs as a `readln`/`println`
 /// server, driven by `send'`/`recv'`; the client sends 41, the server echoes 41+1,
@@ -44,8 +44,8 @@ fn beta_forms_server_round_trip_via_send_recv_prime() {
     // Parent (client): spawn the forms-server, send' 41, recv' the echo+1.
     // Server (the spawned program): the proven arc112_slice2b worker —
     //   read one i64, write n+1 — wrapped as the program's :user::main.
-    let result = call_beside(file!(), ":user::compute")
-        .expect("call_beside must succeed: β forms-server round-trip (RED at HEAD = type error here)");
+    let result = call_beside_value(file!(), ":user::compute")
+        .expect("call_beside_value must succeed: β forms-server round-trip (RED at HEAD = type error here)");
 
     match result {
         wat::runtime::Value::i64(n) => assert_eq!(

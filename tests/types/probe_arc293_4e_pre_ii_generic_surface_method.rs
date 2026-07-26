@@ -8,13 +8,13 @@
 //! RED at HEAD. GREEN at 293.4e-pre.ii — unblocks the `:wat::spawn::Locus` migration (its `launch<S,R,St,Sh,Lu>`
 //! is generic), i.e. the `defprotocol` annihilation (293.4e).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A generic surface method `(make<T> …)` dispatched on a record, instantiating `T = i64`, returns its arg (42).
 #[test]
 fn generic_surface_method_dispatches_with_type_params() {
-    let got = call_beside(file!(), ":t::probe")
+    let got = call_beside_value(file!(), ":t::probe")
         .expect("(:t::probe) must dispatch the generic :t::Maker/make (T=i64) to :t::Id/make");
 
     match got {

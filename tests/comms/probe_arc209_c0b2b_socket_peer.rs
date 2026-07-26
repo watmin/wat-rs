@@ -15,12 +15,12 @@
 //!
 //! Run SERIALLY: cargo test --release -p wat --test comms probe_arc209_c0b2b_socket_peer -- --test-threads=1
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn socket_pair_mints_socket_peers_that_round_trip_over_the_socket() {
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

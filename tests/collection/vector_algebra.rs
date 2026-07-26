@@ -4,14 +4,14 @@
 //! over `Value::Vector` inputs (post-arc-052).
 //!
 //! Wat source lives in the co-located fixture: vector_algebra.wat, driven via
-//! call_beside(file!(), fn_name). Functions return String results so tests
+//! call_beside_value(file!(), fn_name). Functions return String results so tests
 //! inspect the returned Value rather than stdout capture.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_str(fn_name: &str) -> String {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String; got {other:?}"),
     }

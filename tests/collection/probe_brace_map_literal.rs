@@ -17,18 +17,18 @@
 //! 8. Arc 257.2 — old `{outcome grace-residue}` form now errors (migrate to `{:keys […]}`)
 //! 9. Keyword in binding position `{:foo bar}` rejected at CHECK time
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::parser::{ParseError, ParseErrorKind};
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:t::pN…` entry is a zero-arg fn in the co-located
-// `.wat` fixture, driven via `call_beside` — no inline wat driver.
+// `.wat` fixture, driven via `call_beside_value` — no inline wat driver.
 
 // ─── Probe 1: Empty `{}` → empty HashMap ────────────────────────────────────
 
 #[test]
 fn probe_1_empty_brace_is_empty_hashmap() {
-    match call_beside(file!(), ":t::p1-empty-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p1-empty-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty {{}} must produce a length-0 HashMap"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -39,12 +39,12 @@ fn probe_1_empty_brace_is_empty_hashmap() {
 #[test]
 fn probe_2_single_pair_length_and_contains() {
 
-    match call_beside(file!(), ":t::p2a-single-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p2a-single-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "single-pair map literal must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p2b-single-contains").expect("eval") {
+    match call_beside_value(file!(), ":t::p2b-single-contains").expect("eval") {
         Value::bool(b) => assert!(b, "single-pair map literal must contain :foo"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -55,12 +55,12 @@ fn probe_2_single_pair_length_and_contains() {
 #[test]
 fn probe_3_multi_pair_length_and_contains() {
 
-    match call_beside(file!(), ":t::p3a-multi-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p3a-multi-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "three-pair map literal must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    match call_beside(file!(), ":t::p3b-multi-contains").expect("eval") {
+    match call_beside_value(file!(), ":t::p3b-multi-contains").expect("eval") {
         Value::bool(b) => assert!(b, "three-pair map literal must contain :b"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -70,7 +70,7 @@ fn probe_3_multi_pair_length_and_contains() {
 
 #[test]
 fn probe_4_nested_in_expression_position() {
-    match call_beside(file!(), ":t::p4-nested-expr-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p4-nested-expr-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "map literal nested in expression must yield length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -80,7 +80,7 @@ fn probe_4_nested_in_expression_position() {
 
 #[test]
 fn probe_5_map_of_map_resolved_by_arc215() {
-    match call_beside(file!(), ":t::p5-map-of-map-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p5-map-of-map-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "nested map literal must have outer length 1 (arc 215 resolves P2 Probe 5 limitation)"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -102,7 +102,7 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
     );
 
     // Type-check + runtime via co-located fixture.
-    match call_beside(file!(), ":t::p6-int-key-len").expect("eval") {
+    match call_beside_value(file!(), ":t::p6-int-key-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "int-keyed map must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }

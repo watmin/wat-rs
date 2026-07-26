@@ -4,13 +4,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_fix_source_local_rules`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed String.
+// drive it via `call_beside_value` and inspect the returned typed String.
 fn eval_string(fn_name: &str) -> Result<String, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string: {other:?}")),
     }

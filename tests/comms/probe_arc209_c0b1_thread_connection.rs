@@ -15,12 +15,12 @@
 //! Run:
 //!   cargo test --release -p wat --test comms probe_arc209_c0b1_thread_connection -- --test-threads=1
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn thread_connection_listen_accept_connect_round_trips() {
-    let got = call_beside(file!(), ":user::compute").unwrap_or_else(|e| panic!(
+    let got = call_beside_value(file!(), ":user::compute").unwrap_or_else(|e| panic!(
         "thread connection verbs are ABSENT: listener'/connect'/accept' are unsupported. \
          Eval error: {e:?}"
     ));

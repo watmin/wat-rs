@@ -6,11 +6,11 @@
 //! tier → both loci), re-arms itself to `target`, and advances a durable counter — while a client
 //! `poll` still replies (the reactor serves between ticks). RED NOW: no `Alarm`/`ReplyAndArm`/
 //! `NoReplyAndArm`; the serve loop threads `clients`, not `selectables`; the leading dash is dropped
-//! by kebab->pascal → the fixture cannot even type-check, `call_beside` raises. GREEN when the stone
+//! by kebab->pascal → the fixture cannot even type-check, `call_beside_value` raises. GREEN when the stone
 //! lands (count == target, poll replies). The mechanism is proven hand-rolled in
 //! wat-scripts/scratch-pad/probe-self-scheduling-loop.wat — this gate proves the GENERATED serve loop.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// (thread locus) A self-armed `-tick` fires + re-arms to `target` (3), and `poll` still replies.
@@ -25,7 +25,7 @@ use wat::runtime::Value;
 #[ignore = "item-c: the -tick op-ref colon fix (UnboundSymbol) landed; remaining = the remove-at idx-shift \
             (service.wat:958/961) evicting the client peer, + the send'-wall makes the failure legible (DESIGN-send-outcome-wall.md)"]
 fn self_tick_fires_rearms_and_reactor_serves_thread() {
-    let got = call_beside(file!(), ":user::self-tick-rearms-thread").unwrap_or_else(|e| {
+    let got = call_beside_value(file!(), ":user::self-tick-rearms-thread").unwrap_or_else(|e| {
         panic!("the self-scheduling `-tick` must fire + re-arm and poll must reply; got raise: {e:?}")
     });
     match got {
@@ -45,7 +45,7 @@ fn self_tick_fires_rearms_and_reactor_serves_thread() {
 #[ignore = "item-c: the -tick op-ref colon fix (UnboundSymbol) landed; remaining = the remove-at idx-shift \
             (service.wat:958/961) evicting the client peer, + the send'-wall makes the failure legible (DESIGN-send-outcome-wall.md)"]
 fn self_tick_fires_rearms_and_reactor_serves_process() {
-    let got = call_beside(file!(), ":user::self-tick-rearms-process").unwrap_or_else(|e| {
+    let got = call_beside_value(file!(), ":user::self-tick-rearms-process").unwrap_or_else(|e| {
         panic!("the process-tier self-scheduling `-tick` must fire + re-arm and poll must reply; \
                 got raise: {e:?}")
     });

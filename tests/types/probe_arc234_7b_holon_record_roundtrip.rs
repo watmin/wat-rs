@@ -31,13 +31,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc234_7b_holon_record_roundtrip`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// C3 — the written EDN string contains `#wat-edn.holon` (rode the holon encoding).
 #[test]
 fn c3_holon_tag_in_edn_string() {
-    let got = call_beside(file!(), ":user::write-hpt")
+    let got = call_beside_value(file!(), ":user::write-hpt")
         .expect("C3 eval must succeed (write-hpt)");
     let s = match got {
         Value::String(s) => (*s).clone(),
@@ -50,7 +50,7 @@ fn c3_holon_tag_in_edn_string() {
 /// C1 — round-trip: write → read → equal to original (proves holon_form round-tripped).
 #[test]
 fn c1_round_trip_equality() {
-    let got = call_beside(file!(), ":user::roundtrip-eq")
+    let got = call_beside_value(file!(), ":user::roundtrip-eq")
         .expect("C1 eval must succeed; UnknownTag here = decode path missing");
     match got {
         Value::bool(true) => {
@@ -68,7 +68,7 @@ fn c1_round_trip_equality() {
 /// (C1 alone can't catch a wrong struct_form because Eq delegates to holon_form.)
 #[test]
 fn c2_field_accessor_on_decoded_record() {
-    let got = call_beside(file!(), ":user::roundtrip-field-x")
+    let got = call_beside_value(file!(), ":user::roundtrip-field-x")
         .expect("C2 eval must succeed (roundtrip-field-x)");
     match got {
         Value::i64(7) => {

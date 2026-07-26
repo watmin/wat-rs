@@ -17,13 +17,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bb_verbs -- --test-threads=1
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 #[test]
 fn process_listener_allow_deny_succeed() {
     // allow'/deny' on a PROCESS listener' succeed (return nil). Wat source: probe_arc209_c0b3bb_verbs.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),

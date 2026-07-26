@@ -8,11 +8,11 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6a_purity
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
-fn is_true(entry: &str) -> bool { matches!(call_beside(file!(), entry).expect("eval"), Value::bool(true)) }
-fn is_false(entry: &str) -> bool { matches!(call_beside(file!(), entry).expect("eval"), Value::bool(false)) }
+fn is_true(entry: &str) -> bool { matches!(call_beside_value(file!(), entry).expect("eval"), Value::bool(true)) }
+fn is_false(entry: &str) -> bool { matches!(call_beside_value(file!(), entry).expect("eval"), Value::bool(false)) }
 
 // ─── THE orthogonality proof: Uuid/v4 is pure ∧ non-deterministic ──────────────
 

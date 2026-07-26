@@ -30,18 +30,18 @@
 //! must never start up).
 
 use wat::check::CheckErrorKind;
-use wat::freeze::{call_beside, startup_from_file, StartupError};
+use wat::freeze::{call_beside, call_beside_value, startup_from_file, StartupError};
 use wat::runtime::RuntimeErrorKind;
 
 // ─── (a) + (b) — open-surface dispatch to the concrete clause, same return type ──
 
 #[test]
 fn open_surface_dispatch() {
-    let result = call_beside(file!(), ":user::open_surface_dispatch");
-    assert!(
-        result.is_ok(),
-        "open_surface_dispatch deftest' must pass (each concrete class dispatches to its own \
-         clause through the same open-surface-typed call site); got Err: {result:?}"
+    // Arc 278 the vacuous-gate wall — was `call_beside(..).is_ok()`, which certified only
+    // that the fixture froze and ran; every assert-eq inside it was decoration.
+    call_beside(file!(), ":user::open_surface_dispatch").expect_passed(
+        "open_surface_dispatch deftest must pass (each concrete class dispatches to its own \
+         clause through the same open-surface-typed call site)",
     );
 }
 
@@ -49,7 +49,8 @@ fn open_surface_dispatch() {
 
 #[test]
 fn open_surface_dispatch_unknown_class_is_runtime_no_match() {
-    match call_beside(file!(), ":user::describe-unknown") {
+    // A plain `defn` (not a deftest) whose raise IS the subject — the value verb.
+    match call_beside_value(file!(), ":user::describe-unknown") {
         Err(err) => assert!(
             matches!(err.kind, RuntimeErrorKind::NoMatchingClause { .. }),
             "expected RuntimeErrorKind::NoMatchingClause (no clause of `:probe::describe` \

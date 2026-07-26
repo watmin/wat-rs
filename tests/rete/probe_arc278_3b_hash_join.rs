@@ -15,7 +15,7 @@
 //! Run: cargo test --release -p wat --test probe_arc278_3b_hash_join -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
@@ -26,7 +26,7 @@ use wat::runtime::Value;
 #[test]
 #[ignore]
 fn join_produces_one_token_on_matching_loc() {
-    let got = call_beside(file!(), ":user::htoks-length-oslo").expect("eval");
+    let got = call_beside_value(file!(), ":user::htoks-length-oslo").expect("eval");
     assert_eq!(got, Value::i64(1), "Temp+Wind at the same loc → one joined Token; got {got:?}");
 }
 
@@ -36,11 +36,11 @@ fn join_produces_one_token_on_matching_loc() {
 #[test]
 #[ignore]
 fn joined_token_unifies_both_conditions() {
-    assert_eq!(call_beside(file!(), ":user::oslo-t-binding").expect("eval"),
+    assert_eq!(call_beside_value(file!(), ":user::oslo-t-binding").expect("eval"),
         Value::Option(Arc::new(Some(Value::i64(15)))), "?t bound from Temperature");
-    assert_eq!(call_beside(file!(), ":user::oslo-w-binding").expect("eval"),
+    assert_eq!(call_beside_value(file!(), ":user::oslo-w-binding").expect("eval"),
         Value::Option(Arc::new(Some(Value::i64(45)))), "?w bound from WindSpeed");
-    assert_eq!(call_beside(file!(), ":user::oslo-loc-binding").expect("eval"),
+    assert_eq!(call_beside_value(file!(), ":user::oslo-loc-binding").expect("eval"),
         Value::Option(Arc::new(Some(Value::String(Arc::new("Oslo".to_string()))))), "?loc unified");
 }
 
@@ -50,7 +50,7 @@ fn joined_token_unifies_both_conditions() {
 #[test]
 #[ignore]
 fn join_drops_on_mismatched_loc() {
-    let got = call_beside(file!(), ":user::htoks-length-bergen").expect("eval");
+    let got = call_beside_value(file!(), ":user::htoks-length-bergen").expect("eval");
     assert_eq!(got, Value::i64(0), "Temp(Oslo)+Wind(Bergen) → no joined Token; got {got:?}");
 }
 
@@ -63,6 +63,6 @@ fn join_drops_on_mismatched_loc() {
 #[test]
 #[ignore]
 fn join_no_cross_loc_leakage() {
-    let got = call_beside(file!(), ":user::htoks-length-2x2").expect("eval");
+    let got = call_beside_value(file!(), ":user::htoks-length-2x2").expect("eval");
     assert_eq!(got, Value::i64(2), "2 Temps × 2 Winds / 2 locs → exactly 2 same-loc joins (not 4, not 0); got {got:?}");
 }

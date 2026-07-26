@@ -15,11 +15,11 @@
 //!
 //! Run: cargo test --release --test probe_macro_hygiene_capture -- --nocapture
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 
 /// DEFCLAUSE MACRO HYGIENE GUARD — proves that a macro-generated defclause
 /// correctly resolves its parameter bindings when the arg idents carry a
@@ -39,7 +39,7 @@ use wat::runtime::Value;
 /// same key as the body lookup.
 #[test]
 fn macro_generated_defclause_resolves_params() {
-    let result = call_beside(file!(), ":test::compute-1").expect(
+    let result = call_beside_value(file!(), ":test::compute-1").expect(
         "macro-generated defclause must evaluate without UnboundSymbol; \
          failure means bind key (bare) ≠ lookup key (scoped)"
     );
@@ -65,7 +65,7 @@ fn macro_generated_defclause_resolves_params() {
 /// claim is now TRUE, and this guard keeps it true.
 #[test]
 fn classic_macro_capture_is_prevented() {
-    let result = call_beside(file!(), ":test::compute-2").expect("expansion + eval should succeed");
+    let result = call_beside_value(file!(), ":test::compute-2").expect("expansion + eval should succeed");
     assert_eq!(
         result,
         Value::i64(105),
@@ -83,7 +83,7 @@ fn classic_macro_capture_is_prevented() {
 /// Call outer → registers `inner-add`. Call inner with 7 → result 17.
 #[test]
 fn two_scope_identifier_resolves_correctly_end_to_end() {
-    let result = call_beside(file!(), ":test::compute-3").expect(
+    let result = call_beside_value(file!(), ":test::compute-3").expect(
         "2-scope identifier must resolve correctly; failure means \
          bind-key (2-scope env_key) ≠ lookup-key or env_key encoding is broken"
     );

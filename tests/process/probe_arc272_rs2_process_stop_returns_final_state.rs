@@ -7,13 +7,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs2_process_stop_returns_final_state -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn process_stop_returns_the_services_final_state() {
-    // World loaded from co-located probe_arc272_rs2_process_stop_returns_final_state.wat via call_beside.
-    let got = call_beside(file!(), ":user::compute")
+    // World loaded from co-located probe_arc272_rs2_process_stop_returns_final_state.wat via call_beside_value.
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

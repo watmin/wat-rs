@@ -22,15 +22,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c1_defmacro_ast_walk
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each proof is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 
 #[test]
 fn defmacro_can_walk_arg_with_ast_children() {
-    let got = call_beside(file!(), ":user::probe-walk")
+    let got = call_beside_value(file!(), ":user::probe-walk")
         .expect("startup: a defmacro using ast->children/drop/first must expand cleanly");
     assert!(
         matches!(got, Value::i64(20)),
@@ -41,7 +41,7 @@ fn defmacro_can_walk_arg_with_ast_children() {
 
 #[test]
 fn defmacro_can_rebuild_node_with_children() {
-    let got = call_beside(file!(), ":user::probe-rebuild")
+    let got = call_beside_value(file!(), ":user::probe-rebuild")
         .expect("startup: a defmacro using with-children must expand cleanly");
     assert!(
         matches!(got, Value::i64(2)),

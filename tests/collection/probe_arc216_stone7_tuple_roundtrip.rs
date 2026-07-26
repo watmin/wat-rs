@@ -46,11 +46,11 @@
 
 use wat::comms::HolonRepresentable;
 use wat::comms::process::pair;
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:t::pN…` entry is a zero-arg fn in the co-located
-// `.wat` fixture, driven via `call_beside` — no inline wat driver.
+// `.wat` fixture, driven via `call_beside_value` — no inline wat driver.
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ fn assert_holon_representable<T: HolonRepresentable>() {}
 /// we declare the return type explicitly and extract the element at Rust level.
 #[test]
 fn probe_1_forward_2tuple_to_bundle() {
-    let v = call_beside(file!(), ":t::p1-rt-pair").expect("eval");
+    let v = call_beside_value(file!(), ":t::p1-rt-pair").expect("eval");
     assert_eq!(
         tuple_element_i64(v, 0, "probe_1"),
         1,
@@ -104,7 +104,7 @@ fn probe_1_forward_2tuple_to_bundle() {
 #[test]
 fn probe_2_reverse_bundle_to_vec_honest_asymmetry() {
     // Arc 228: from-holon returns Tuple (not Vec). Verify first element = 1 (i64) at Rust level.
-    let v = call_beside(file!(), ":t::p2-rt-pair").expect("eval");
+    let v = call_beside_value(file!(), ":t::p2-rt-pair").expect("eval");
     assert_eq!(
         tuple_element_i64(v, 0, "probe_2"),
         1,
@@ -121,7 +121,7 @@ fn probe_2_reverse_bundle_to_vec_honest_asymmetry() {
 /// Type-checker note: from-holon returns ?T; declare explicit return type; element at Rust level.
 #[test]
 fn probe_3_three_tuple_primitives_bundle_shape() {
-    let v = call_beside(file!(), ":t::p3-rt-triple").expect("eval");
+    let v = call_beside_value(file!(), ":t::p3-rt-triple").expect("eval");
     assert_eq!(
         tuple_element_i64(v, 1, "probe_3"),
         42,
@@ -140,7 +140,7 @@ fn probe_3_three_tuple_primitives_bundle_shape() {
 /// explicit type annotation; extract nested elements at Rust level.
 #[test]
 fn probe_4_nested_tuple_roundtrip() {
-    let v = call_beside(file!(), ":t::p4-rt-nested").expect("eval");
+    let v = call_beside_value(file!(), ":t::p4-rt-nested").expect("eval");
 
     // Single nested match: outer Tuple → inner Tuple → verify length + elements.
     match v {
@@ -168,7 +168,7 @@ fn probe_4_nested_tuple_roundtrip() {
 /// Inner Vec (Vector-classified) decodes to Vec; Vector/length = 3.
 #[test]
 fn probe_5_tuple_containing_vec_roundtrip() {
-    let v = call_beside(file!(), ":t::p5-rt-with-vec").expect("eval");
+    let v = call_beside_value(file!(), ":t::p5-rt-with-vec").expect("eval");
 
     // Single nested match: outer Tuple → inner Vec → verify length + first element.
     match v {
@@ -195,7 +195,7 @@ fn probe_5_tuple_containing_vec_roundtrip() {
 /// HashSet/length = 2.
 #[test]
 fn probe_6_tuple_containing_hashset() {
-    let v = call_beside(file!(), ":t::p6-rt-with-set").expect("eval");
+    let v = call_beside_value(file!(), ":t::p6-rt-with-set").expect("eval");
 
     match v {
         Value::Tuple(outer_items) => match outer_items.first() {
@@ -215,7 +215,7 @@ fn probe_6_tuple_containing_hashset() {
 #[test]
 fn probe_7_is_atomizable_tuple() {
     // Admits: (:wat::core::Tuple 1 "hello") — i64 and String are atomizable.
-    match call_beside(file!(), ":t::p7-admits").expect("eval") {
+    match call_beside_value(file!(), ":t::p7-admits").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "Tuple<i64, String> must pass is_atomizable check"),
         other => panic!("expected i64; got {:?}", other),
     }

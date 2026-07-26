@@ -16,7 +16,7 @@
 //!
 //! Run: `cargo test --release --test program probe_arc259_env_peer_kind`
 
-use wat::freeze::{call_beside, invoke_user_main, startup_beside};
+use wat::freeze::{call_beside_value, invoke_user_main, startup_beside};
 use wat::runtime::Value;
 
 /// The record carries `wat.peer-kind` as a `PeerKind` value (RED via arity at HEAD:
@@ -24,7 +24,7 @@ use wat::runtime::Value;
 /// a genuine `:wat::program::PeerKind` (the proven nominal-membership idiom).
 #[test]
 fn env_record_carries_peer_kind() {
-    let got = call_beside(file!(), ":probe::compute").expect("eval");
+    let got = call_beside_value(file!(), ":probe::compute").expect("eval");
     assert_eq!(
         got,
         Value::bool(true),

@@ -164,7 +164,7 @@
 ;;
 ;; These read the DROPPED :wat::kernel::RunResult/stdout and /stderr
 ;; capture fields. The capture model is gone — the peer wire delivers a
-;; child's output via `recv'`, and RunResult now carries only `failure`.
+;; child's output via `recv'`, and RunResult is now a two-shape outcome enum.
 ;; The helpers (and their `any-line-matches` fold) are deleted; there is
 ;; no stdout/stderr to assert over.
 
@@ -301,9 +301,10 @@
 ;; reason. NO outcome-capture side-channel, NO internal forms, NO test privilege — the
 ;; harness dogfoods exactly what users use.
 ;;
-;; CONTRACT (pass-or-raise; test_runner.rs:297-330): a passing test RETURNS a clean
-;; RunResult (failure=None) → the runner's Ok(Ok) arm reports pass; a failing test
-;; RAISES, the assertion message carried in the raise → the Ok(Err) arm reports it.
+;; CONTRACT: a passing test RETURNS `:wat::kernel::RunResult::Passed` → the runner
+;; reports pass; a failing test RETURNS `RunResult::Failed[failure]` carrying the
+;; structured assertion → the runner reports that Failure. Arc 278 the vacuous-gate
+;; wall made RunResult an ENUM, so a failure can no longer be read as a pass.
 ;; Siblings of the legacy `run-thread`/`deftest` (which ride spawn-thread +
 ;; Thread/join-result); these ride spawn-program' + recv'. The legacy retires in
 ;; S3.5's back-half.
@@ -314,8 +315,8 @@
   ;; arc 278 the recv'-outcome wall reaches the harness: recv' RETURNS RecvOutcome (a VALUE), never
   ;; raises. The child's failing assertion crashes it → recv' returns `Lost[cause]`. We do NOT re-raise
   ;; (that would bend the value back into a control-flow raise); we RETURN the outcome — the Lost cause
-  ;; (a Failure) drops straight into RunResult.failure, and test_runner's failure-slot check reports it.
-  ;; A passing child sends its pass-marker → Message → failure=None. Value-based end to end: a failing
+  ;; (a Failure) becomes `RunResult::Failed[failure]`, which the runner matches and reports.
+  ;; A passing child sends its pass-marker → Message → `RunResult::Passed`. Value-based end to end: a failing
   ;; test is a VALUE, never a swallowed `_ (recv' p)` (the masking this arc annihilates).
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
@@ -330,15 +331,15 @@
                 ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
      (:wat::core::match (:wat::kernel::recv' p)
        ((:wat::kernel::RecvOutcome::Message _m)
-         (:wat::core::struct-new :wat::kernel::RunResult :wat::core::None))
+         :wat::kernel::RunResult::Passed)
        ((:wat::kernel::RecvOutcome::Lost cause)
-         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult.failure
-         ;; is an Option<Failure>, so convert via `LociDiedError/to-failure` (preserves the
+         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult::Failed
+         ;; carries a Failure, so convert via `LociDiedError/to-failure` (preserves the
          ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
-         (:wat::core::struct-new :wat::kernel::RunResult (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
+         (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
        (:wat::kernel::RecvOutcome::Closed
-         (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Some (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")))))))
+         (:wat::kernel::RunResult::Failed
+           (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))))))
 
 (:wat::core::defmacro :wat::test::deftest
   [name <- :wat::WatAST
@@ -360,7 +361,7 @@
 ;; A failing assertion crashes the child → the reason travels over the process Err
 ;; channel (fd 2) → recv' raises with it (the process tier surfaces crashes over
 ;; the pipe, which is precisely why the process tier was the WORKING model that
-;; exposed the thread gap). Passing → returns a clean RunResult (failure=None).
+;; exposed the thread gap). Passing → returns `:wat::kernel::RunResult::Passed`.
 ;;
 ;; Pass-marker mechanics: println writes EDN "0\n" to fd 1; recv' (permissive
 ;; read_edn path) decodes it to i64(0); the result is discarded (_). No -> :T
@@ -374,8 +375,8 @@
   [body <- :wat::WatAST]
   -> :wat::WatAST
   ;; arc 278 the recv'-outcome wall reaches the harness (see run-thread' above): recv' RETURNS the
-  ;; outcome. A failing child crashes → Lost[cause] → RETURNED in RunResult.failure (not re-raised, not
-  ;; swallowed as `_`). A passing child prints its pass-marker → Message → failure=None.
+  ;; outcome. A failing child crashes → Lost[cause] → RETURNED as RunResult::Failed (not re-raised, not
+  ;; swallowed as `_`). A passing child prints its pass-marker → Message → RunResult::Passed.
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::process)
           (:wat::core::forms
@@ -383,15 +384,15 @@
               (:wat::core::do ~body (:wat::kernel::println 0)))))]
      (:wat::core::match (:wat::kernel::recv' p)
        ((:wat::kernel::RecvOutcome::Message _m)
-         (:wat::core::struct-new :wat::kernel::RunResult :wat::core::None))
+         :wat::kernel::RunResult::Passed)
        ((:wat::kernel::RecvOutcome::Lost cause)
-         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult.failure
-         ;; is an Option<Failure>, so convert via `LociDiedError/to-failure` (preserves the
+         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult::Failed
+         ;; carries a Failure, so convert via `LociDiedError/to-failure` (preserves the
          ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
-         (:wat::core::struct-new :wat::kernel::RunResult (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
+         (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
        (:wat::kernel::RecvOutcome::Closed
-         (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Some (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")))))))
+         (:wat::kernel::RunResult::Failed
+           (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic
   [name <- :wat::WatAST

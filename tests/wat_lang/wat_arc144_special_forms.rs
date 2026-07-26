@@ -22,11 +22,11 @@
 //! deliberately-not-registered name; the registry is intentional, not
 //! a wildcard catch-all.
 
-use wat::freeze::{call_beside, startup_beside};
+use wat::freeze::{call_beside_value, startup_beside};
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_string(v: Value, ctx: &str) -> String {

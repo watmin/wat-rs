@@ -17,13 +17,13 @@
 //! Run: cargo nextest run --release -E 'test(recv_outcome_wall)'
 //! Capture goldens: UPDATE_EDN=1 cargo nextest run --release -E 'test(recv_outcome_wall)'
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 /// Render the entrypoint's returned `Value` (a `:probe::Outcome` record — EDN data) and assert it is
-/// DATA-equal to the co-located golden. `call_beside` MUST return `Ok` — the fixture matched the
+/// DATA-equal to the co-located golden. `call_beside_value` MUST return `Ok` — the fixture matched the
 /// `RecvOutcome` as a VALUE (a raise would unwind past the reader, the mask the wall kills).
 fn assert_outcome(fn_name: &str, golden: &str) {
-    let v = call_beside(file!(), fn_name).unwrap_or_else(|e| {
+    let v = call_beside_value(file!(), fn_name).unwrap_or_else(|e| {
         panic!(
             "{fn_name}: recv' must MATCH RecvOutcome as a VALUE (never a raise, which would unwind \
              past the reader); got Err: {e:?}"

@@ -16,15 +16,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_macro_span_fidelity
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 
 #[test]
 fn macro_constructed_node_carries_call_site_span() {
-    let got = call_beside(file!(), ":user::probe-line")
+    let got = call_beside_value(file!(), ":user::probe-line")
         .expect("startup should succeed (macro span-fidelity probe)");
     match got {
         Value::i64(line) => assert!(

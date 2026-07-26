@@ -20,14 +20,14 @@
 //! Run SERIALLY (spawns threads):
 //!   `cargo nextest run --release -E 'test(init_fn)'`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A `(thread/init f)` peer's `user.program` is f's custom record. f returns a
 /// `MyEnv{port: 8080}`; the peer reads `user.program`'s port back. Parent asserts 8080.
 #[test]
 fn thread_init_populates_user_program() {
-    let got = match call_beside(file!(), ":probe::compute-init").expect("compute eval") {
+    let got = match call_beside_value(file!(), ":probe::compute-init").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };
@@ -48,7 +48,7 @@ fn erroring_init_fn_kills_the_peer() {
     // returns a NON-::Message outcome (the peer died before it could smuggle its 7). On this tier the
     // dying init-fn exits before buffering a crash reason, so it surfaces as ::Closed; a
     // reason-carrying tier would surface ::Lost. Both prove the kill — only a smuggled ::Message fails.
-    let result = call_beside(file!(), ":probe::compute-error-init");
+    let result = call_beside_value(file!(), ":probe::compute-error-init");
     let text = format!("{result:?}");
     assert!(
         result.is_ok(),
@@ -68,7 +68,7 @@ fn erroring_init_fn_kills_the_peer() {
 /// constructor's init-fn is the EmptyEnv thunk. The peer reports conformance (1/0).
 #[test]
 fn thread_default_user_program_is_empty_env() {
-    let got = match call_beside(file!(), ":probe::compute-default").expect("compute eval") {
+    let got = match call_beside_value(file!(), ":probe::compute-default").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };

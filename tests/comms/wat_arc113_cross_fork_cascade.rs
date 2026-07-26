@@ -28,7 +28,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Outer uses :my::compute; inner uses canonical nil main.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
@@ -48,7 +48,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     // the same structured Failure as the peer's own Lost cause.)
     //
     // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
-    let result = call_beside(file!(), ":my::compute").expect("compute should run");
+    let result = call_beside_value(file!(), ":my::compute").expect("compute should run");
     let lines: Vec<String> = match result {
         Value::Vec(items) => items
             .iter()

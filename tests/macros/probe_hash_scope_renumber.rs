@@ -98,7 +98,7 @@ fn macro_alias_expands_to_same_hash_as_direct_primitive() {
     // Read from disk (not inlined) so the comparison subject — the raw source TEXT of two
     // distinct programs — lives in co-located fixtures; this test drives the raw
     // parse_all!/register_defmacros/expand_all macro-engine API directly (not a FrozenWorld),
-    // so `call_beside`/`startup_beside` don't apply here.
+    // so `call_beside_value`/`startup_beside` don't apply here.
     fn expand(fixture: &str) -> Vec<WatAST> {
         let src = std::fs::read_to_string(fixture)
             .unwrap_or_else(|e| panic!("wat fixture {fixture:?} must exist: {e}"));

@@ -3,11 +3,11 @@
 //! Wat source: tests/types/probe_arc237_sB1_recordtype.wat (loaded via startup_beside).
 //! Probe 06 (negative) uses tests/types/probe_arc237_sB1_recordtype.wat.bad.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn run_bool(fn_name: &str) -> Result<bool, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
         Value::bool(b) => Ok(b),
         other => Err(format!("expected bool; got {:?}", other)),
     }

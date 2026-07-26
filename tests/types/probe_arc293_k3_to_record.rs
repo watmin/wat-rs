@@ -7,12 +7,12 @@
 //! GREEN after K3-revise: `to-record` + `holon::to-record` are bound; the PAIR is emitted;
 //! `to-struct` is GONE (unbound; dispatch arm removed from runtime.rs and check.rs).
 
-use wat::freeze::{eval_in_frozen, startup_beside, call_beside};
+use wat::freeze::{eval_in_frozen, startup_beside, call_beside_value};
 use wat::runtime::{Environment, Value};
 
 #[test]
 fn pair_projection_emits_core_and_holon_records() {
-    match call_beside(file!(), ":k3::demo") {
+    match call_beside_value(file!(), ":k3::demo") {
         Ok(Value::i64(7)) => {}
         other => panic!("expected 7 (y=4 from $core-record + x=3 from $holon-record); got {other:?}"),
     }

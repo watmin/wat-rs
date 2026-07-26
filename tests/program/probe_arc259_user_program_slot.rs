@@ -18,7 +18,7 @@
 //!
 //! Run: `cargo test --release --test program probe_arc259_user_program_slot`
 
-use wat::freeze::{call_beside, invoke_user_main, startup_beside};
+use wat::freeze::{call_beside_value, invoke_user_main, startup_beside};
 use wat::runtime::Value;
 
 /// The record carries `user.program` holding a record (RED via arity at HEAD: a
@@ -26,7 +26,7 @@ use wat::runtime::Value;
 /// the slot holds a genuine record value.
 #[test]
 fn env_record_carries_user_program_slot() {
-    let got = call_beside(file!(), ":probe::compute").expect("eval");
+    let got = call_beside_value(file!(), ":probe::compute").expect("eval");
     assert_eq!(
         got,
         Value::bool(true),

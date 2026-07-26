@@ -13,14 +13,14 @@
 //! the unified primitive registers (nature=Struct from its `:wat::core::Struct` parent root) and
 //! its codegen'd ctor + accessor work.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A struct declared via `aggregatetype` (parent = the `:wat::core::Struct` nature root)
 /// constructs via its bare ctor and reads field `a` back = 7.
 #[test]
 fn aggregatetype_declares_struct_via_struct_root() {
-    let got = call_beside(file!(), ":user::da-st-a").expect("eval da-st-a");
+    let got = call_beside_value(file!(), ":user::da-st-a").expect("eval da-st-a");
     match got {
         Value::i64(7) => {}
         other => panic!("aggregatetype struct: expected i64(7), got {:?}", other),

@@ -9,13 +9,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc251_fix_text_comment_faithful
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::…` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed String.
+// drive it via `call_beside_value` and inspect the returned typed String.
 fn eval_string(fn_name: &str) -> String {
-    match call_beside(file!(), fn_name) {
+    match call_beside_value(file!(), fn_name) {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected a migrated String from {fn_name}; got {other:?}"),
     }

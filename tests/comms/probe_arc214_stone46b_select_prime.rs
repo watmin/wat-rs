@@ -20,7 +20,7 @@
 //!
 //! Run: `cargo test --release --test comms probe_arc214_stone46b_select_prime`
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 // ─── Probe 1 (LOAD-BEARING, RUNTIME): select' picks the ready peer ────────────
@@ -36,7 +36,7 @@ use wat::runtime::Value;
 /// same `Thread'<i64,i64>` peer type; select' multiplex unchanged.
 #[test]
 fn probe_1_select_returns_ready_index_and_value() {
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .expect("compute must evaluate (select' dispatch exists)");
     // Stone 259: select' returns ServiceEvent<I,O>; happy path is :Message{idx, msg}.
     match &got {

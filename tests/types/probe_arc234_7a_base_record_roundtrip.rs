@@ -26,13 +26,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc234_7a_base_record_roundtrip`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// C1 — the written EDN string contains `:x` and `:y`, not `field-0`.
 #[test]
 fn c1_named_keys_in_edn_string() {
-    let got = call_beside(file!(), ":user::write-pt")
+    let got = call_beside_value(file!(), ":user::write-pt")
         .expect("C1 eval must succeed (write-pt)");
     let s = match got {
         Value::String(s) => (*s).clone(),
@@ -45,7 +45,7 @@ fn c1_named_keys_in_edn_string() {
 /// C2 — round-trip: write → read → equal to original.
 #[test]
 fn c2_round_trip_equality() {
-    let got = call_beside(file!(), ":user::roundtrip-eq")
+    let got = call_beside_value(file!(), ":user::roundtrip-eq")
         .expect("C2 eval must succeed (roundtrip-eq); UnknownTag here = decode path missing");
     match got {
         Value::bool(true) => {

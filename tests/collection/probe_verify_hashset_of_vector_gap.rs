@@ -12,11 +12,11 @@
 //! and confirms it cannot reopen because the mechanism no longer exists.
 //! The test still passes: `HashSet<Vector<i64>>` constructs and evaluates correctly.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn verify_hashset_of_vector_constructs_or_errors() {
-    match call_beside(file!(), ":user::verify") {
+    match call_beside_value(file!(), ":user::verify") {
         Ok(v) => println!("RUNTIME OK: HashSet<Vector<i64>> produced value {:?}", v),
         Err(e) => panic!("RUNTIME FAILED:\n{}\n---\n{:?}", e, e),
     }

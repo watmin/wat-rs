@@ -16,7 +16,7 @@
 //! Run: cargo test --release -p wat --test probe_arc278_2a_alpha_match -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn is_none_option(v: &Value) -> bool {
@@ -25,7 +25,7 @@ fn is_none_option(v: &Value) -> bool {
 
 #[test]
 fn alpha_match_binds_and_constrains() {
-    let got = call_beside(file!(), ":user::match-binds-and-constrains").expect("eval");
+    let got = call_beside_value(file!(), ":user::match-binds-and-constrains").expect("eval");
     assert_eq!(
         got, Value::Option(Arc::new(Some(Value::i64(25)))),
         "alpha-match should bind ?t=25 and pass (> ?t 20); got {got:?}"
@@ -34,12 +34,12 @@ fn alpha_match_binds_and_constrains() {
 
 #[test]
 fn alpha_match_rejects_failed_constraint() {
-    let got = call_beside(file!(), ":user::match-rejects-failed-constraint").expect("eval");
+    let got = call_beside_value(file!(), ":user::match-rejects-failed-constraint").expect("eval");
     assert!(is_none_option(&got), "failed constraint → None; got {got:?}");
 }
 
 #[test]
 fn alpha_match_rejects_wrong_type() {
-    let got = call_beside(file!(), ":user::match-rejects-wrong-type").expect("eval");
+    let got = call_beside_value(file!(), ":user::match-rejects-wrong-type").expect("eval");
     assert!(is_none_option(&got), "wrong fact type → None; got {got:?}");
 }

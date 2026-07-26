@@ -15,11 +15,11 @@
 //! `src/check.rs` for the implementations.
 
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{call_beside, startup_from_file, StartupError};
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn check_errors_from_file(rel_path: &str) -> Vec<CheckError> {

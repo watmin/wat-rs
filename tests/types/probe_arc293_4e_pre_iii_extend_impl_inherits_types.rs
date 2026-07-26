@@ -10,13 +10,13 @@
 //! both after this probe's original "RED at HEAD" framing. So the probe is GREEN and un-ignored. (It was briefly
 //! RED only on a wrong assertion: the body wraps `x` (42), not the Id's tag.)
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A bare generic extend-impl whose body wraps the `:T` arg in `Box<T>` type-checks + dispatches.
 #[test]
 fn extend_impl_inherits_surface_method_types() {
-    let got = call_beside(file!(), ":t::probe")
+    let got = call_beside_value(file!(), ":t::probe")
         .expect("(:t::probe) must dispatch :t::Maker/make to the :t::Id extend-impl and read the :t::Box");
 
     match got {

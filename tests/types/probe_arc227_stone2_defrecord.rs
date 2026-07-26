@@ -7,11 +7,11 @@
 //! Wat source: tests/types/probe_arc227_stone2_defrecord.wat (loaded via startup_beside).
 //! Negative startup tests use sibling .wat.bad fixtures.
 
-use wat::freeze::{call_beside, startup_beside, startup_from_file, FrozenWorld};
+use wat::freeze::{call_beside_value, startup_beside, startup_from_file, FrozenWorld};
 use wat::runtime::{apply_function, Value};
 
 fn run_bool(fn_name: &str) -> bool {
-    match call_beside(file!(), fn_name).expect("eval should succeed") {
+    match call_beside_value(file!(), fn_name).expect("eval should succeed") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }

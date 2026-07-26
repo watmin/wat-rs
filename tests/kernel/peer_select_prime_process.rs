@@ -19,7 +19,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1
 //! or the `integration-run.sh` harness.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Process-tier `select'` over two echo+1 peers — only one has data.
@@ -38,8 +38,8 @@ fn process_select_prime_picks_ready_peer() {
     // The select' test sends 98 to peer b only; select' fires on b (index 1)
     // and returns ServiceEvent::Message{idx=1, msg=99} — 98+1=99 from the echo+1 server.
     // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
-    let result = call_beside(file!(), ":user::compute")
-        .expect("call_beside must succeed: process-tier select' picks ready peer");
+    let result = call_beside_value(file!(), ":user::compute")
+        .expect("call_beside_value must succeed: process-tier select' picks ready peer");
 
     // Stone 259: select' returns ServiceEvent<I,O>; happy path is :Message{idx, msg}.
     match result {

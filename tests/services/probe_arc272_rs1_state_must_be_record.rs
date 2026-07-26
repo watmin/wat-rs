@@ -14,14 +14,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs1_state_must_be_record
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 #[test]
 fn durable_field_vector_mints_record_soul_round_trips() {
     // Base (default) — :durable [fields] mints ::Record (the soul); ::State is a defstruct.
     // Wat source lives in the co-located fixture: probe_arc272_rs1_state_must_be_record.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

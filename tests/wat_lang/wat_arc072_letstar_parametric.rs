@@ -25,11 +25,11 @@
 //! `:Result<i64, String>`). The arc fixes the diagnostic, not the
 //! rule.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 /// `:Result<i64,String>` (canonical, no whitespace) lexes, parses,

@@ -19,11 +19,11 @@
 //! Run: cargo test --release -p wat --test probe_arc278_query_type_safe -- --include-ignored
 
 use wat::check::CheckErrorKind;
-use wat::freeze::{call_beside, startup_from_file, StartupError};
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
 use wat::runtime::Value;
 
 fn call(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+    call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 #[test]

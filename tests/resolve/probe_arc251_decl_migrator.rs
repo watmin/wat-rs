@@ -19,14 +19,14 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_decl_migrator`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed String.
+// drive it via `call_beside_value` and inspect the returned typed String.
 fn eval_string(fn_name: &str) -> Result<String, String> {
     let full = format!(":user::{}", fn_name);
-    match call_beside(file!(), &full).map_err(|e| format!("eval {fn_name}: {e:?}"))? {
+    match call_beside_value(file!(), &full).map_err(|e| format!("eval {fn_name}: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string from {fn_name}: {other:?}")),
     }

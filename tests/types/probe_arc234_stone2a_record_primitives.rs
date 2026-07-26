@@ -3,12 +3,12 @@
 //!
 //! Wat source: tests/types/probe_arc234_stone2a_record_primitives.wat (loaded via startup_beside).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 use wat::types::Nature;
 
 fn run(fn_name: &str) -> Result<Value, String> {
-    call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
 }
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────

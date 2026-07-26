@@ -16,11 +16,11 @@
 //! Two holonic record types with the SAME field names (`[x y]`) — so name-keyed comparison
 //! returns true across the two types when values match (type-blind), the whole point.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn eq(fn_name: &str) -> bool {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }

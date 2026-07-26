@@ -1,10 +1,10 @@
 //! Arc 053 slices 4 + 5 — Engram + EngramLibrary as native wat values.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 fn assert_str(val: Value, expected: &str) {

@@ -11,20 +11,20 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1a_data_model -- --include-ignored
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn rete_data_model_constructs_and_renders() {
     // (a) the network (id → Node) holds both nodes
     assert_eq!(
-        call_beside(file!(), ":user::network-length").expect("network-length eval"),
+        call_beside_value(file!(), ":user::network-length").expect("network-length eval"),
         Value::i64(2),
         "Session.network must hold both nodes"
     );
 
     // (b) render-dag produces a non-empty inspectable string
-    match call_beside(file!(), ":user::render-dag-of-session").expect("render-dag eval") {
+    match call_beside_value(file!(), ":user::render-dag-of-session").expect("render-dag eval") {
         Value::String(s) => assert!(!s.is_empty(), "render-dag must produce a non-empty graph string"),
         other => panic!("render-dag must return a String; got {other:?}"),
     }

@@ -20,16 +20,16 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc260_1b_call_sugar
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each call form is a zero-arg entry fn in the co-located fixture, driven via
-// call_beside — no inline wat driver expression.
+// call_beside_value — no inline wat driver expression.
 
 #[test]
 fn kwargs_call_sugar_kv_map_and_record_all_agree() {
     for f in [":user::via-kv", ":user::via-kv-reorder", ":user::via-map", ":user::via-record"] {
-        let got = call_beside(file!(), f)
+        let got = call_beside_value(file!(), f)
             .unwrap_or_else(|e| panic!("({f}) raised: {e:?}"));
         assert!(
             matches!(got, Value::i64(444)),
@@ -46,13 +46,13 @@ fn kwargs_call_sugar_kv_map_and_record_all_agree() {
 #[test]
 fn pascal_case_field_matched_by_kebab_call_key() {
     // via-kv-pascal calls (:user::pascal-fn :foo-bar 42) — lowered by companion macro at startup
-    let got = call_beside(file!(), ":user::via-kv-pascal").expect("startup should succeed");
+    let got = call_beside_value(file!(), ":user::via-kv-pascal").expect("startup should succeed");
     assert!(
         matches!(got, Value::i64(42)),
         "expected 42: :foo-bar should match FooBar via pascal->kebab-in; got {got:?}"
     );
     // via-map-pascal calls (:user::pascal-fn {{:foo-bar 99}}) — map literal path
-    let got_map = call_beside(file!(), ":user::via-map-pascal").expect("startup should succeed");
+    let got_map = call_beside_value(file!(), ":user::via-map-pascal").expect("startup should succeed");
     assert!(
         matches!(got_map, Value::i64(99)),
         "expected 99 via map literal {{:foo-bar 99}}; got {got_map:?}"

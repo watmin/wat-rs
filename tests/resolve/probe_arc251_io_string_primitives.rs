@@ -5,20 +5,20 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_io_string_primitives`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
-// drive it via `call_beside` and inspect the returned typed Value.
+// drive it via `call_beside_value` and inspect the returned typed Value.
 fn eval_string(fn_name: &str) -> Result<String, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string: {other:?}")),
     }
 }
 
 fn eval_vec_strings(fn_name: &str) -> Result<Vec<String>, String> {
-    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::Vec(v) => v.iter().map(|e| match e {
             Value::String(s) => Ok((**s).clone()),
             other => Err(format!("non-string entry: {other:?}")),

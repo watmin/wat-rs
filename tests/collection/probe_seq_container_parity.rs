@@ -15,11 +15,11 @@
 //! Wat source lives in the co-located fixture: probe_seq_container_parity.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn eval_probe(fn_name: &str) -> Result<Value, String> {
-    call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))
+    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))
 }
 
 fn expect_i64(call: &str, want: i64) {

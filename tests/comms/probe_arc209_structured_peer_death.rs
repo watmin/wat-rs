@@ -18,7 +18,7 @@
 //! Run SERIALLY (spawns a thread):
 //!   `cargo test --release -p wat --test comms probe_arc209_structured_peer_death -- --test-threads=1`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Eval `compute` from the co-located fixture. Arc 278 recv'-wall: the crashed peer surfaces as a
@@ -26,7 +26,7 @@ use wat::runtime::Value;
 /// fixture MATCHES ::Lost → ::Panic → its `Some(Failure)` and RETURNS the three surviving fields
 /// (`Failure/message` | `Failure/actual` | `Failure/expected`) joined with "|".
 fn compute_reason_text() -> String {
-    match call_beside(file!(), ":user::compute").expect("compute should run") {
+    match call_beside_value(file!(), ":user::compute").expect("compute should run") {
         Value::String(s) => (*s).clone(),
         other => panic!(
             "the thread peer crash must surface as a matchable RecvOutcome::Lost VALUE \

@@ -7,7 +7,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
@@ -39,7 +39,7 @@ fn install() {
 }
 
 fn run_fn(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).expect("eval should succeed")
+    call_beside_value(file!(), fn_name).expect("eval should succeed")
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn ticket_redeems_once_successfully() {
 #[test]
 fn ticket_second_redemption_errors() {
     install();
-    let err = call_beside(file!(), ":my::compute-double-redeem").unwrap_err();
+    let err = call_beside_value(file!(), ":my::compute-double-redeem").unwrap_err();
     // The second redeem attempts to consume the already-drained cell;
     // OwnedMoveCell::take returns MalformedForm.
     let errs = format!("{:?}", err);

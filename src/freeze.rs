@@ -698,27 +698,184 @@ pub fn startup_beside(caller_rs: &str) -> Result<FrozenWorld, StartupError> {
     startup_from_file(&wat)
 }
 
-/// Run a co-located `.wat` fixture's named zero-arg entry fn — the lint-clean idiom.
+/// Is this frozen symbol a `deftest`-defined test function?
 ///
-/// [`startup_beside`] + fetch-the-entry-fn + [`apply_function`], fused: freezes the `.wat`
-/// beside `caller_rs` (pass `file!()`), fetches the fully-qualified zero-arg entry fn
-/// `fn_name` (e.g. `":user::compute"`), applies it, and returns the fn's OWN
-/// `Result<Value, RuntimeError>`. The wat LOGIC stays in the co-located `.wat`; this is a
-/// pure Rust INVOCATION, so it does NOT trip `no_inlined_wat` (which targets inline wat
-/// *logic*, not invocation) — unlike the `parse_one!("(:user::compute)")` stub it replaces.
+/// The SIGNATURE is the declaration: zero params, returning `:wat::test::TestResult`
+/// (the role-honest alias `deftest` expands with) or its underlying
+/// `:wat::kernel::RunResult`. Neither typename has other callers, so the shape is
+/// unambiguous. This is the same criterion `crate::test_runner`'s discovery uses —
+/// shared here so [`call_beside`] / [`call_beside_value`] can route a target to the
+/// right verb at CALL time (arc 278 the vacuous-gate wall, wall #2).
+pub fn is_deftest_fn(func: &crate::value::Function) -> bool {
+    func.param_types.is_empty()
+        && matches!(
+            &func.ret_type,
+            TypeExpr::Path(p)
+                if p == ":wat::test::TestResult" || p == ":wat::kernel::RunResult"
+        )
+}
+
+/// The VERDICT of running a co-located `deftest` fixture — arc 278 the vacuous-gate
+/// wall (`docs/arc/2026/06/278-rules-engine/BRIEF-vacuous-deftest-gate-wall.md`).
 ///
-/// `call` (invoke a named fn), deliberately NOT `run` — distinct from `run_beside(expr)`-style
-/// helpers that eval an expression STRING inline. The entry fn's own raise is returned as
-/// `Err` (so a test can `expect_err` a fixture meant to fail); only a broken/missing fixture
-/// panics (a test-authoring bug, not an outcome under test).
-pub fn call_beside(caller_rs: &str, fn_name: &str) -> Result<Value, RuntimeError> {
+/// `call_beside` used to return `Result<Value, RuntimeError>`, and `Result` hands out
+/// `is_ok()` — a method whose real meaning ("did it evaluate?") is one question away
+/// from the meaning every gate author read into it ("did it pass?"). A fired `assert-eq`
+/// landed a `Failure` in the returned `RunResult` and the *evaluation* still succeeded,
+/// so the gate said `Ok` and the test passed. Proven by mutating a live gate's
+/// `(assert-eq n 1)` to `n 4242` and watching it still PASS: every assertion in such a
+/// fixture was decoration.
+///
+/// This type has NO `is_ok()`. There is no boolean to misread — a caller must name the
+/// variant it is claiming, and `Failed` carries the structured `:wat::kernel::Failure`
+/// so the site reports the real located diagnostic instead of a bare `false`.
+/// `#[must_use]` additionally catches a site that discards the verdict entirely.
+#[must_use = "a deftest verdict that is not read is a gate that does not gate — \
+              match it, or call `.expect_passed(..)`"]
+#[derive(Debug)]
+pub enum DeftestOutcome {
+    /// The test ran and every assertion held (`:wat::kernel::RunResult::Passed`).
+    Passed,
+    /// The test ran and an assertion (or the body) failed. Carries the structured
+    /// `:wat::kernel::Failure` from `RunResult::Failed` — message, location, frames,
+    /// actual/expected.
+    Failed { failure: Value },
+    /// The test never produced a verdict: the entry fn itself raised before the
+    /// harness could return a `RunResult` (a freeze/runtime error, not a test result).
+    DidNotRun { error: RuntimeError },
+}
+
+impl DeftestOutcome {
+    /// Panic unless the deftest PASSED, rendering the structured failure as EDN.
+    ///
+    /// Honest by construction: it cannot report a `Failed` or a `DidNotRun` as anything
+    /// but a panic, and it returns `()` — there is no boolean for a caller to invert,
+    /// ignore, or misread. `context` is the gate's own sentence about what the test proves.
+    pub fn expect_passed(self, context: &str) {
+        match self {
+            DeftestOutcome::Passed => {}
+            DeftestOutcome::Failed { failure } => panic!(
+                "{context}\n  deftest FAILED: {}",
+                crate::edn_shim::value_to_edn_string(&failure)
+            ),
+            DeftestOutcome::DidNotRun { error } => panic!(
+                "{context}\n  deftest DID NOT RUN (the entry fn raised before returning a \
+                 verdict): {error:?}"
+            ),
+        }
+    }
+}
+
+/// Run a co-located `.wat` fixture's `deftest` and return its VERDICT.
+///
+/// [`startup_beside`] + fetch-the-entry-fn + [`apply_function`] + read-the-verdict, fused:
+/// freezes the `.wat` beside `caller_rs` (pass `file!()`), fetches the fully-qualified
+/// zero-arg `deftest` entry `fn_name` (e.g. `":user::sqlite_interop"`), applies it, and
+/// decodes the returned `:wat::kernel::RunResult` into a [`DeftestOutcome`]. The wat LOGIC
+/// stays in the co-located `.wat`; this is a pure Rust INVOCATION, so it does NOT trip
+/// `no_inlined_wat` (which targets inline wat *logic*, not invocation).
+///
+/// **This verb is for `deftest` targets only.** A non-deftest `fn_name` PANICS — running a
+/// plain function through the verdict path would have to invent a verdict it has no basis
+/// for. Plain functions go through [`call_beside_value`], which is the exact mirror: it
+/// refuses a `deftest`, so running a test through the ignore-the-verdict path has no form.
+/// A broken/missing fixture or a mis-routed target panics (a test-authoring bug, not an
+/// outcome under test).
+pub fn call_beside(caller_rs: &str, fn_name: &str) -> DeftestOutcome {
     let world = startup_beside(caller_rs)
         .unwrap_or_else(|e| panic!("call_beside: fixture beside {caller_rs:?} failed to freeze: {e:?}"));
+    deftest_verdict(&world, fn_name)
+}
+
+/// Run an already-frozen world's `deftest` and return its VERDICT — the path-agnostic core
+/// of [`call_beside`], for the fixtures loaded by explicit path ([`startup_from_file`], the
+/// rare fixture shared by several probes) rather than by co-location.
+///
+/// Arc 278 the vacuous-gate wall. `startup_from_file(..)` + `apply_function(..)` +
+/// `assert!(r.is_ok())` is the SAME heresy `call_beside(..).is_ok()` was, spelled out longhand:
+/// `apply_function`'s `Ok` means the deftest EVALUATED, while a fired assertion is captured
+/// into the returned `RunResult` — so the gate certifies nothing. This verb is how a
+/// frozen-world caller reads the verdict instead.
+///
+/// Panics if `fn_name` is not a `deftest` (see [`is_deftest_fn`]) — there is no verdict to
+/// report for a plain fn; apply it directly and read its Value.
+pub fn deftest_verdict(world: &FrozenWorld, fn_name: &str) -> DeftestOutcome {
     let func = world
         .symbols()
         .get(fn_name)
-        .unwrap_or_else(|| panic!("call_beside: no entry fn {fn_name:?} in the fixture beside {caller_rs:?}"))
+        .unwrap_or_else(|| panic!("deftest_verdict: no entry fn {fn_name:?} in the frozen world"))
         .clone();
+    if !is_deftest_fn(&func) {
+        panic!(
+            "deftest_verdict: {fn_name:?} is NOT a deftest — it does not return \
+             :wat::test::TestResult, so there is no verdict to report. Use `call_beside_value` \
+             (or `apply_function`) for a plain fn and read its Value."
+        );
+    }
+    match apply_function(func, vec![], world.symbols(), crate::rust_caller_span!()) {
+        Err(error) => DeftestOutcome::DidNotRun { error },
+        Ok(v) => match &v {
+            Value::Enum(e) if e.type_path.trim_start_matches(':') == "wat::kernel::RunResult" => {
+                match e.variant_name.as_str() {
+                    "Passed" => DeftestOutcome::Passed,
+                    "Failed" => match e.fields.first() {
+                        Some(failure) => DeftestOutcome::Failed { failure: failure.clone() },
+                        None => panic!(
+                            "deftest_verdict: {fn_name:?} returned :wat::kernel::RunResult::Failed \
+                             with no Failure payload — the substrate is broken, not the test"
+                        ),
+                    },
+                    other => panic!(
+                        "deftest_verdict: {fn_name:?} returned an unknown \
+                         :wat::kernel::RunResult variant :{other}"
+                    ),
+                }
+            }
+            _ => panic!(
+                "deftest_verdict: {fn_name:?} has a deftest signature but did not return a \
+                 :wat::kernel::RunResult; got {v:?}"
+            ),
+        },
+    }
+}
+
+/// Run a co-located `.wat` fixture's named zero-arg PLAIN fn and return its VALUE.
+///
+/// The value-returning half of the [`call_beside`] split (arc 278 the vacuous-gate wall).
+/// Same mechanics — freeze the `.wat` beside `caller_rs` (pass `file!()`), fetch the
+/// fully-qualified zero-arg entry `fn_name` (e.g. `":user::compute"`), apply it — and
+/// returns the fn's OWN `Result<Value, RuntimeError>`. The entry fn's raise comes back as
+/// `Err` (so a test can `expect_err` a fixture meant to fail); only a broken/missing
+/// fixture panics.
+///
+/// `call` (invoke a named fn), deliberately NOT `run` — distinct from `run_beside(expr)`-style
+/// helpers that eval an expression STRING inline. `_value` names what you get back, so the
+/// question this verb answers ("what did it evaluate to?") is in the name and cannot be
+/// confused with the question [`call_beside`] answers ("did the test pass?").
+///
+/// **This verb REFUSES a `deftest` target** (panics). That is wall #2: a `deftest` driven
+/// through here would hand back an ignorable `RunResult` Value, and `.is_ok()` on it means
+/// "did it evaluate?" — the exact heresy this arc annihilated. Running a test through the
+/// ignore-the-verdict path has no form.
+pub fn call_beside_value(caller_rs: &str, fn_name: &str) -> Result<Value, RuntimeError> {
+    let world = startup_beside(caller_rs).unwrap_or_else(|e| {
+        panic!("call_beside_value: fixture beside {caller_rs:?} failed to freeze: {e:?}")
+    });
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| {
+            panic!("call_beside_value: no entry fn {fn_name:?} in the fixture beside {caller_rs:?}")
+        })
+        .clone();
+    if is_deftest_fn(&func) {
+        panic!(
+            "call_beside_value: {fn_name:?} (beside {caller_rs:?}) IS a deftest — its Value is \
+             a :wat::kernel::RunResult, and reading that as a plain result asks \"did it \
+             evaluate?\" when the only honest question is \"did it pass?\". Use `call_beside` \
+             and match the DeftestOutcome."
+        );
+    }
     apply_function(func, vec![], world.symbols(), crate::rust_caller_span!())
 }
 

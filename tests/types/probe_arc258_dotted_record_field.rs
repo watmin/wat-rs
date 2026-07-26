@@ -12,12 +12,12 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_dotted_record_field`
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn c01_dotted_record_field_roundtrips() {
-    let got = call_beside(file!(), ":user::compute").unwrap_or_else(|e| panic!("eval: {e:?}"));
+    let got = call_beside_value(file!(), ":user::compute").unwrap_or_else(|e| panic!("eval: {e:?}"));
     // Construct a Probe with Instant=at-millis(1234), read wat.started-at back, → 1234.
     assert!(
         matches!(got, Value::i64(1234)),

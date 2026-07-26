@@ -26,7 +26,7 @@
 //!
 //! Over-FOO is a PROCESS-tier concept (byte frames); the thread tier has no frames.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// mechanism 1: a service declaring `:max-frame-bytes 1048576` (1 MiB) on PROCESS accepts a
@@ -34,7 +34,7 @@ use wat::runtime::Value;
 /// makes the legit bulk write arrive (the arena's ~600 KiB write).
 #[test]
 fn large_foo_accepts_a_600kib_request() {
-    let got = call_beside(file!(), ":user::large-foo-accepts")
+    let got = call_beside_value(file!(), ":user::large-foo-accepts")
         .unwrap_or_else(|e| panic!("large-FOO ~600 KiB request must SUCCEED, got raise: {e:?}"));
     assert!(
         matches!(got, Value::i64(7)),
@@ -54,7 +54,7 @@ fn small_foo_over_budget_fails_with_the_reason() {
     // ::Closed. The golden #probe.Outcome/Lost [true] is captured (UPDATE_EDN=1), never hand-authored;
     // the per-run-variable reason location stays in wat, only its boolean RESULT crosses. Mirrors the
     // canonical gate probe_arc278_recv_outcome_wall. "wat stdio is edn — it's always data" (builder).
-    let v = call_beside(file!(), ":user::small-foo-rejects").unwrap_or_else(|e| {
+    let v = call_beside_value(file!(), ":user::small-foo-rejects").unwrap_or_else(|e| {
         panic!(
             "a >4 KiB request under a 4096-byte FOO must surface as a matchable RecvOutcome::Lost \
              VALUE (never a raise, which would unwind past the reader); got Err: {e:?}"
@@ -74,7 +74,7 @@ fn small_foo_over_budget_fails_with_the_reason() {
 /// DoS the shared service (this is what routing to the TERMINAL `Lost` arm would have broken).
 #[test]
 fn small_foo_service_survives_an_over_budget_frame() {
-    let got = call_beside(file!(), ":user::small-foo-survives")
+    let got = call_beside_value(file!(), ":user::small-foo-survives")
         .expect("service must SURVIVE an over-FOO frame — a fresh in-budget request must succeed");
     assert!(
         matches!(got, Value::i64(7)),

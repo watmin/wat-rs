@@ -13,7 +13,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs2_crash_surfaces_to_client
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn far_side_crash_raises_to_the_client_not_hang_or_fake() {
@@ -24,7 +24,7 @@ fn far_side_crash_raises_to_the_client_not_hang_or_fake() {
     // raise — a raise unwinds past the reader). The fixture MATCHES the outcome and RETURNS a marker
     // ("LOST:<administrative msg>" on the crash, "MESSAGE"/"CLOSED" otherwise). The crash must NOT
     // hang and must NOT fake a value — it must surface as ::Lost, distinct from ::Message/::Closed.
-    let result = call_beside(file!(), ":user::compute");
+    let result = call_beside_value(file!(), ":user::compute");
     let text = format!("{result:?}");
     assert!(
         result.is_ok(),

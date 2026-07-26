@@ -17,14 +17,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_locus_agnostic_start
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn locus_agnostic_start_dispatches_thread_launch() {
     // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
     // Wat source lives in the co-located fixture: probe_arc209_locus_agnostic_start.wat
-    let got = call_beside(file!(), ":user::compute")
+    let got = call_beside_value(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

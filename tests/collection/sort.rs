@@ -5,21 +5,21 @@
 //! function name changed (the old `sort-by` was Clojure's `sort` mis-named).
 //!
 //! Wat source lives in the co-located fixture: sort.wat, driven via
-//! call_beside(file!(), fn_name). Functions return their results as
+//! call_beside_value(file!(), fn_name). Functions return their results as
 //! String/i64 so tests inspect the returned Value rather than stdout capture.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_str(fn_name: &str) -> String {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String; got {other:?}"),
     }
 }
 
 fn run_i64(fn_name: &str) -> i64 {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     }

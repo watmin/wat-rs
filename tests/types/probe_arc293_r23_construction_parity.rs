@@ -8,13 +8,13 @@
 //!
 //! RED at HEAD: `(:b::Pt 3 4)` / `(:b::Price 38)` are unresolved. GREEN after R2.3 — `(:b::probe)` = 41.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// A struct and a newtype construct via their bare type name, at parity with records.
 #[test]
 fn construction_form_parity_bare_ctor_for_struct_and_newtype() {
-    let got = call_beside(file!(), ":b::probe")
+    let got = call_beside_value(file!(), ":b::probe")
         .expect("(:b::probe) must construct (:b::Pt 3 4) + (:b::Price 38) via bare ctors");
 
     match got {

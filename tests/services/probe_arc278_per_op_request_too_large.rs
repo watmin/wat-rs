@@ -11,7 +11,7 @@
 //! wall → 16.2 serve-loop codegen) only needs to MOVE this measure+construct out of the body and
 //! into the auto-enforced path — the mechanism itself is sound.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// (1) An over-op-budget request returns the MATCHABLE `RequestTooLarge{bytes, cap}` variant —
@@ -19,7 +19,7 @@ use wat::runtime::Value;
 /// `bytes` (> the 200 cap) on the RequestTooLarge arm, `-1` on the Ok arm.
 #[test]
 fn over_op_request_returns_a_matchable_too_large_variant() {
-    let got = call_beside(file!(), ":user::over-op-returns-matchable").unwrap_or_else(|e| {
+    let got = call_beside_value(file!(), ":user::over-op-returns-matchable").unwrap_or_else(|e| {
         panic!("over-op request must return a matchable RequestTooLarge variant, got raise: {e:?}")
     });
     match got {
@@ -41,7 +41,7 @@ fn over_op_request_returns_a_matchable_too_large_variant() {
 /// of the per-op tier vs the transport `FOO` kick: recoverable in place, not closed.
 #[test]
 fn same_connection_recovers_in_place_after_too_large() {
-    let got = call_beside(file!(), ":user::same-conn-recovers").unwrap_or_else(|e| {
+    let got = call_beside_value(file!(), ":user::same-conn-recovers").unwrap_or_else(|e| {
         panic!("the in-budget follow-up on the SAME connection must succeed, got raise: {e:?}")
     });
     match got {

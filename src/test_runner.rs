@@ -65,7 +65,6 @@ use crate::runtime::{apply_function, Function, Value};
 use crate::types::Nature;
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::source::{self, WatSource};
-use crate::types::TypeExpr;
 
 /// Aggregated result of running every `.wat` file under a path.
 ///
@@ -608,16 +607,12 @@ fn discover_tests(frozen: &FrozenWorld) -> Vec<String> {
 /// neither typename has other callers — so the name filter has
 /// been dropped. Tests use descriptive names; the runner discovers
 /// them by shape.
+/// Arc 278 the vacuous-gate wall — the criterion now lives ONCE, in
+/// [`crate::freeze::is_deftest_fn`], because `call_beside_value` /
+/// `call_beside_value` must route on exactly the same question at call
+/// time. Two copies of "what is a test?" would let the two answers drift.
 fn is_test_function(_name: &str, func: &Arc<Function>) -> bool {
-    if !func.param_types.is_empty() {
-        return false;
-    }
-    matches!(
-        &func.ret_type,
-        TypeExpr::Path(p)
-            if p == ":wat::test::TestResult"
-                || p == ":wat::kernel::RunResult"
-    )
+    crate::freeze::is_deftest_fn(func)
 }
 
 fn strip_leading_colon(s: &str) -> &str {
@@ -625,8 +620,7 @@ fn strip_leading_colon(s: &str) -> &str {
 }
 
 /// Arc 116 slice 1 / arc 296 — extract a structured `OwnedValue` from a
-/// RunResult when it carries a Failure struct. Returns `None` when the
-/// RunResult.failure slot is `:None` (test passed).
+/// RunResult when it is `:Failed`. Returns `None` for `:Passed`.
 ///
 /// The returned tagged envelope:
 /// ```text
@@ -638,12 +632,16 @@ fn strip_leading_colon(s: &str) -> &str {
 /// already IS structured (arc 064); arc 116 stops flattening it
 /// at the test runner's panic boundary. Arc 296 moves from the
 /// intermediate `Diagnostic` type to `OwnedValue` directly.
+///
+/// Arc 278 the vacuous-gate wall — `RunResult` is an ENUM (`:Passed` /
+/// `:Failed[failure]`), not a struct with an ignorable `Option` slot, so
+/// "did it pass?" is answered by the variant and not by a nullable field.
 fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
     use std::borrow::Cow;
     use wat_edn::{Keyword, OwnedValue, Tag};
 
-    let sv = match v {
-        Value::Aggregate(a) if a.nature == Nature::Struct && a.class == "wat::kernel::RunResult" => a,
+    let ev = match v {
+        Value::Enum(e) if e.type_path.trim_start_matches(':') == "wat::kernel::RunResult" => e,
         _ => {
             return Some(make_simple_edn(
                 "MalformedTestResult",
@@ -652,22 +650,25 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
             ));
         }
     };
-    // Arc 278 wave 2d — RunResult holds only `failure`, so it is field 0
-    // (was index 2 when stdout/stderr preceded it).
-    let failure_field = sv.fields.get(0)?;
-    let failure_opt = match failure_field {
-        Value::Option(opt) => opt,
-        _ => {
+    let failure = match ev.variant_name.as_str() {
+        "Passed" => return None,
+        "Failed" => match ev.fields.first() {
+            Some(f) => f,
+            None => {
+                return Some(make_simple_edn(
+                    "MalformedTestResult",
+                    "reason",
+                    "RunResult::Failed carried no Failure",
+                ));
+            }
+        },
+        other => {
             return Some(make_simple_edn(
                 "MalformedTestResult",
                 "reason",
-                "malformed RunResult.failure slot",
+                &format!("unknown :wat::kernel::RunResult variant :{other}"),
             ));
         }
-    };
-    let failure = match &**failure_opt {
-        Some(v) => v,
-        None => return None,
     };
     let fv = match failure {
         Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Failure" => a,
@@ -1063,14 +1064,17 @@ mod arc116_diagnostic_tests {
         ]))))
     }
 
+    // Arc 278 the vacuous-gate wall — RunResult is an enum: `:Passed` (no
+    // payload) / `:Failed[failure]` (UNCONSTRUCTIBLE without a Failure).
     fn make_run_result(failure: Option<Value>) -> Value {
-        let failure_field = match failure {
-            Some(f) => Value::Option(Arc::new(Some(f))),
-            None => Value::Option(Arc::new(None)),
-        };
-        Value::Aggregate(Arc::new(AggregateValue::struct_("wat::kernel::RunResult".into(), vec![
-            failure_field,
-        ])))
+        Value::Enum(Arc::new(crate::value::EnumValue {
+            type_path: ":wat::kernel::RunResult".into(),
+            variant_name: match failure {
+                Some(_) => "Failed".into(),
+                None => "Passed".into(),
+            },
+            fields: failure.into_iter().collect(),
+        }))
     }
 
     #[test]

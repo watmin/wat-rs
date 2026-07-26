@@ -35,7 +35,7 @@
 //! Run:
 //!   cargo test --release -p wat --test channel probe_arc209_connection_primitive -- --test-threads=1
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// The provision round-trip over a NON-SPAWNED, connected `Peer'` pair.
@@ -52,8 +52,8 @@ fn connection_primitive_mints_a_connected_peer_pair_without_spawning() {
     // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
     // The request message is in :Message{idx, msg}.
     // just-eval (rubric): the expression lives in the co-located fixture's
-    // zero-arg `:user::compute`, driven via `call_beside` — no inline wat driver.
-    match call_beside(file!(), ":user::compute") {
+    // zero-arg `:user::compute`, driven via `call_beside_value` — no inline wat driver.
+    match call_beside_value(file!(), ":user::compute") {
         Ok(Value::i64(84)) => { /* green — the provision mechanic works end-to-end */ }
         Ok(other) => panic!(
             "connection primitive round-trip returned the wrong value: expected i64 84, got {other:?}"

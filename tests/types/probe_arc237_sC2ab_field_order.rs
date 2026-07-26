@@ -10,11 +10,11 @@
 //!
 //! All contracts must PASS post-S-C.2ab.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn eval_f64(fn_name: &str) -> f64 {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::f64(x) => x,
         other => panic!("expected f64 from {}; got {:?}", fn_name, other),
     }

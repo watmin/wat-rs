@@ -7,13 +7,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_fence_hof
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// Invoke a co-located zero-arg entry (each quotes its own expr under test and hands it to the
 /// fence predicate) and return its bool result.
 fn classify(fn_name: &str) -> bool {
-    match call_beside(file!(), fn_name).expect("eval") {
+    match call_beside_value(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool; got {other:?}"),
     }

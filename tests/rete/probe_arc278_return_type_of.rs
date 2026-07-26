@@ -12,11 +12,11 @@
 //! Run: cargo test --release -p wat --test probe_arc278_return_type_of -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::{RuntimeErrorKind, Value};
 
 fn call(fn_name: &str) -> Value {
-    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+    call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn return_type_of_unknown_type_raises_not_echoes() {
     // registered in this fixture, reached via a dynamically-built keyword (not a literal AST
     // node, so check.rs's compile-time prime-type validation does not intercept it) — it must
     // raise a RuntimeError naming the unknown type, never return `Ok("s::Nope'")`.
-    match call_beside(file!(), ":user::return-type-of-unknown-raises") {
+    match call_beside_value(file!(), ":user::return-type-of-unknown-raises") {
         Err(e) => {
             assert!(
                 matches!(&e.kind, RuntimeErrorKind::MalformedForm { .. }),

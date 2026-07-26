@@ -10,11 +10,11 @@
 //!
 //! `#[ignore]`'d until strike A ships the lazy transformer family (`wat/seq.wat`).
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 
 #[test]
 fn lazy_take_while_stops_before_forcing_late_boom() {
-    let result = call_beside(file!(), ":my::compute");
+    let result = call_beside_value(file!(), ":my::compute");
     assert!(
         result.is_ok(),
         "take-while must be LAZY — stopping at the first false must not force the later boom(99); got: {:?}",

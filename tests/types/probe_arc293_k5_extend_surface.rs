@@ -12,12 +12,12 @@
 //!
 //! STRIKE-READY: committed `#[ignore]`'d (RED) so the floor stays 0; un-ignore when K5 lands.
 
-use wat::freeze::call_beside;
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
 fn extend_surface_default_rides_both_pair_tiers() {
-    match call_beside(file!(), ":k5::demo") {
+    match call_beside_value(file!(), ":k5::demo") {
         Ok(Value::i64(84)) => {}
         other => panic!("expected 84 (42 core + 42 holon) — the extend-surface default on both pair backing tiers; got {other:?}"),
     }

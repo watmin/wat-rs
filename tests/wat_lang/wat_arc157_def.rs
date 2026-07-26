@@ -23,11 +23,11 @@
 //! - **Position rule — illegal (3 tests)** — `if` wrapper, `define` body,
 //!   redef collision.
 
-use wat::freeze::{call_beside, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
 fn run_beside(name: &str) -> Value {
-    call_beside(file!(), name).expect("eval should succeed")
+    call_beside_value(file!(), name).expect("eval should succeed")
 }
 
 fn startup_ok(rel_path: &str) {

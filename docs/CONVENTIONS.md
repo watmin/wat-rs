@@ -918,10 +918,19 @@ Both are lint-clean; the choice follows **what the test is testing**, not taste.
 
 ### The two idioms
 
-- **just-eval** — `call_beside(file!(), ":user::compute")` runs a fixture's named zero-arg entry
-  fn in-process and returns its typed `Result<Value, RuntimeError>`. The test inspects the typed
-  value (or `expect_err`s a raise) directly. No spawn. This is the *white-box* vantage: you invoke
-  a named entry and read what it returns.
+- **just-eval** — `call_beside_value(file!(), ":user::compute")` runs a fixture's named zero-arg
+  PLAIN entry fn in-process and returns its typed `Result<Value, RuntimeError>`. The test inspects
+  the typed value (or `expect_err`s a raise) directly. No spawn. This is the *white-box* vantage:
+  you invoke a named entry and read what it returns.
+  - **A `deftest` target goes through `call_beside` instead**, which returns a `DeftestOutcome`
+    (`Passed` / `Failed { failure }` / `DidNotRun { error }`) — the test's VERDICT, not its Value.
+    The two verbs refuse each other's targets. Arc 278 the vacuous-gate wall: `call_beside` used
+    to return `Result<Value, _>` for everything, and gates read `.is_ok()` — which answers *"did
+    it evaluate?"*, while a fired `assert-eq` inside a `deftest` is captured into the returned
+    `:wat::kernel::RunResult`, not raised. Six gates were certifying nothing. `DeftestOutcome` has
+    no `is_ok()`; `RunResult` is an enum (`:Passed` / `:Failed[failure]`), not a struct with an
+    ignorable `Option` slot. Gate a deftest with
+    `call_beside(file!(), ":user::x").expect_passed("<what this proves>")`.
 - **EDN-over-stdio** — `run-hermetic` runs `:user::main` as a real spawned process and returns a
   `RunResult { stdout, stderr, failure }`. `:user::main` is `-> :wat::core::nil` by contract, so a
   program *ships* its result: `(:wat::kernel::println value)` writes the value's EDN to stdout, and
@@ -961,7 +970,7 @@ when the *claim itself* is "the program does X," not "this value is X."
 - Spawning a process for a pure unit check — a spawn for zero fidelity.
 - In-process'ing a crash/exit test — you cannot observe the exit code or the dying reason; you are
   testing something weaker.
-- Reaching `call_beside` *past* a program's real interface into an internal helper to peek at
+- Reaching `call_beside_value` *past* a program's real interface into an internal helper to peek at
   intermediate state — a caller-perspective violation (see below): test at the interface, not behind it.
 
 **One-line decision:** claim is *"the PROGRAM does X"* (crashes / prints / ships / survives the wire)
