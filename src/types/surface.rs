@@ -667,7 +667,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 if !r.contains("::") || r.starts_with(":wat::") {
                     continue;
                 }
-                if !message_names.iter().any(|mn| mn == &r) {
+                if !message_is_declared(&message_names, &r) {
                     return Err(TypeError {
                         span: msg_kw.span().clone(),
                         kind: TypeErrorKind::MalformedDecl {
@@ -824,7 +824,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                     if !r.contains("::") || r.starts_with(":wat::") {
                         continue;
                     }
-                    if !message_names.iter().any(|mn| mn == &r) {
+                    if !message_is_declared(&message_names, &r) {
                         return Err(TypeError {
                             span: msgs_span.clone(),
                             kind: TypeErrorKind::MalformedDecl {
@@ -900,6 +900,30 @@ fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
         // Recurse into nested collections (enum tagged-variant vectors, etc.).
         collect_message_form_type_refs(child, out);
     }
+}
+
+/// Arc 278 — is a referenced protocol type path DECLARED in this surface's `:messages`?
+///
+/// The two sides of this comparison spell a PARAMETRIC message differently, and the mismatch is
+/// the whole defect this helper exists to close (third in the series: `7336464e` box-svc<T>::Record,
+/// `10107da9` the flat type-arg split — each one side normalized and the other not):
+///
+/// - the DECLARATION side stores the `:messages` slot-1 keyword VERBATIM, params included —
+///   `":ns::Cache::GetRequest<K>"`;
+/// - the REFERENCE side is a walked `TypeExpr`, and `collect_user_type_paths` emits a
+///   `Parametric` leaf as its HEAD alone — `":ns::Cache::GetRequest"`.
+///
+/// Raw string equality therefore reports a correctly-declared parametric message as undeclared.
+/// Membership is a question about the type's IDENTITY, not its instantiation, so it is asked of
+/// the BASE name on both sides. A message with no type params has no `<` on either side, so
+/// base-normalization is the IDENTITY for it — every concrete surface is bit-for-bit unaffected.
+///
+/// Both walls (the direct feature-reference wall and WALL 2 — transitive completeness) route
+/// through this ONE helper so the twins cannot drift.
+fn message_is_declared(message_names: &[String], referenced: &str) -> bool {
+    let base = |s: &str| crate::runtime::split_type_params_pub(s).0.to_string();
+    let want = base(referenced);
+    message_names.iter().any(|mn| base(mn) == want)
 }
 
 /// Arc 278 S4c — collect the type-path leaves of a `TypeExpr` (for the surface `:messages`
@@ -1068,6 +1092,78 @@ mod tests {
         match err.kind {
             TypeErrorKind::MalformedDecl { .. } => {}
             other => panic!("expected a MalformedDecl for a duplicate option; got {other:?}"),
+        }
+    }
+
+    // ── Arc 278 — the `:messages` completeness walls compare BASE names ──────────────────────
+    //
+    // Third in the series of "one side normalized, the other not" string comparisons
+    // (`7336464e` box-svc<T>::Record, `10107da9` the flat type-arg split). The declaration side
+    // stores `:messages` names VERBATIM (`":…::GetRequest<K>"`); the reference side walks a
+    // `TypeExpr` and emits a `Parametric` leaf as its HEAD alone (`":…::GetRequest"`). Raw
+    // equality therefore reported a correctly-declared PARAMETRIC message as undeclared.
+    // `message_is_declared` asks the question of the BASE on both sides.
+
+    #[test]
+    fn parametric_message_is_recognized_as_declared() {
+        // RED before the base-normalization, verbatim:
+        //   malformed :wat::core::defsurface declaration: surface :t::Cache feature `get`
+        //   references protocol type :t::Cache::GetRequest which is not declared in this
+        //   surface's :messages …
+        // — note the REPORTED name carries no `<K>` while `:messages` declares `GetRequest<K>`.
+        let surf = parse_surface(
+            "(:wat::core::defsurface :t::Cache<K,V> :nature :wat::kernel::Peer' \
+               :messages \
+               [(:wat::core::recordtype :t::Cache::GetRequest<K> [probes <- :wat::core::Vector<K>]) \
+                (:wat::core::defenum :t::Cache::GetResponse<V> :wat::enum::Pure \
+                  :Ok              [results <- :wat::core::Vector<wat::core::Option<V>>] \
+                  :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
+               :features \
+               [(get [self <- :t::Cache<K,V>  req <- :t::Cache::GetRequest<K>] \
+                  -> :t::Cache::GetResponse<V> :max-request-bytes 1024)])",
+        )
+        .expect(
+            "a surface whose :messages declare PARAMETRIC types must recognize a feature's \
+             reference to them — the two sides spell the params differently, so membership is \
+             asked of the BASE name",
+        );
+        assert_eq!(surf.type_params, vec!["K".to_string(), "V".to_string()]);
+    }
+
+    #[test]
+    fn base_normalization_does_not_weaken_the_wall() {
+        // The safety property has TWO halves. This is the second: base-normalization must not
+        // turn the wall into a rubber stamp. A genuinely undeclared message — differing from a
+        // declared one in its BASE, not merely its params — is still a located error.
+        let err = parse_surface(
+            "(:wat::core::defsurface :t::Cache2<K> :nature :wat::kernel::Peer' \
+               :messages \
+               [(:wat::core::recordtype :t::Cache2::GetRequest<K> [probes <- :wat::core::Vector<K>])] \
+               :features \
+               [(get [self <- :t::Cache2<K>  req <- :t::Cache2::PutRequest<K>] \
+                  -> :t::Cache2::GetResponse :max-request-bytes 1024)])",
+        )
+        .expect_err(
+            "a feature referencing a message whose BASE is absent from :messages must STILL be a \
+             located error — base-normalization closes a spelling gap, it does not relax the wall",
+        );
+        match err.kind {
+            // Byte-identical, not a `contains` probe: the reason is a deterministic scalar, so
+            // the whole of it is asserted (a loose check would pass on a wall that named the
+            // WRONG message — precisely the failure mode base-normalization could introduce).
+            TypeErrorKind::MalformedDecl { head, reason } => {
+                assert_eq!(head, HEAD);
+                assert_eq!(
+                    reason,
+                    "surface :t::Cache2 feature `get` references protocol type \
+                     :t::Cache2::PutRequest which is not declared in this surface's :messages — \
+                     a peer surface that owns :messages must declare EVERY non-stdlib \
+                     request/response type it uses, so a :satisfies service ships them across a \
+                     process fork (arc 278 S4c). Add a (defrecord :t::Cache2::PutRequest …) to \
+                     :messages, or remove the reference."
+                );
+            }
+            other => panic!("expected a MalformedDecl for an undeclared message; got {other:?}"),
         }
     }
 }
