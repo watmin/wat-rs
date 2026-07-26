@@ -37,6 +37,28 @@
 ;; pre-expansion pass. So this file sits immediately after wat/sqlite.wat, beside the other
 ;; `:rust::`-shim surface. A baked core source may define under `:wat::` (stdlib bypasses the
 ;; reserved-prefix gate).
+;;
+;; ─── BRIEF-cache-batch-surface (arc 278) — BATCH, both directions, TWO deliberate departures ──
+;; `docs/CONVENTIONS.md:658` (arc 119) rules that every wat-rs-shipped service's `get`/`put` is
+;; BATCH-oriented (Console excepted); `Cache<K,V>` (Stone 2/4, below) originally shipped
+;; single-key — a miss in the brief that designed it. `Cache<K,V>`'s `get`/`put` now take/return
+;; `Vector`s. The shapes are SETTLED (builder-ruled 2026-07-26) and deliberately depart from arc
+;; 119's OWN prose in two places — this note is why nobody should "correct" them back:
+;;   1. Arc 119 says `get -> Vec<Option<V>>`. This ships a NAMED `Cache::GetResult<V>` enum
+;;      (`:Hit [value <- V] | :Miss []`) instead — per the later named-enum doctrine ("a proper
+;;      enum name is doubly useful"; `Option` tells a reader nothing about the DOMAIN). It is also
+;;      the extensible choice: a SIMILARITY cache's miss has kinds (below-threshold vs nothing
+;;      stored) that `Option` forecloses ever distinguishing.
+;;   2. Arc 119 says `put -> :wat::core::nil`. A bare `nil` is no longer expressible for a
+;;      serviceable op — every op-Response must carry `RequestTooLarge`/`RequestMalformed`
+;;      (the arc 278 request-shape wall, wat/service.wat). `PutResponse::Ok []` is what `nil`
+;;      became; precedent is `:wat::kernel::StdOut::WriteResponse`. This also resolves an honesty
+;;      problem: `Lru::put` returns the displaced `Entry` but `HolographicLru::put` (Stone 3/4,
+;;      below) returns bare `nil` and never exposes the evicted key — so a `displaced` field on
+;;      `PutResponse` could not be told truthfully by both satisfiers. Eviction reporting, if ever
+;;      wanted, belongs where it can be honest — not in `put`'s reply; it stays observable through
+;;      a later `get` miss (both services' gates prove this).
+;; Full reasoning: docs/arc/2026/06/278-rules-engine/BRIEF-cache-batch-surface.md.
 
 (:wat::core::use! :rust::cache::Lru)
 
@@ -106,27 +128,51 @@
 ;; This is R5 at the service layer — store the thunk, not the answer — and it is correct BY
 ;; CONSTRUCTION, not by discipline: writing the handle into `:durable` instead does not compile
 ;; (293.W rejects an impure `Lru<K,V>` field outside `:ephemeral`).
+;; ─── batch, both directions (BRIEF-cache-batch-surface, file header above) ───────────────────
+;; `get`: probes IN as a `Vector<K>`, results OUT as an INDEX-ALIGNED `Vector<GetResult<V>>` —
+;; `results[i]` answers `probes[i]`. `put`: entries IN as a `Vector<Entry<K,V>>`, nothing
+;; meaningful out (`:Ok []`) — see the file-header departure note for why. Verbs stay `get`/`put`;
+;; the `Vector` in the signature already says batch (no `get-many`/`put-many` split).
+;;
+;; `:max-request-bytes` is sized for the WORST-case instantiation of this generic surface — the
+;; HolonAST-keyed `hologram-svc` (Stone 4, below), whose keys/values are far larger than
+;; `lru-svc`'s `String`/`i64`. Measured via `(string::length (edn::write req))` — the SAME
+;; expression `wat/service.wat`'s generated guard evaluates — against a live build
+;; (`wat-scripts/scratch-pad/probe-arc278-cache-batch-request-bytes.wat`, a throwaway probe run
+;; once and deleted after measuring, per the scratch-`.wat` convention). Real numbers:
+;;   lru-get (5 String probes)              =   80 bytes
+;;   lru-put (5 String/i64 entries)         =  246 bytes
+;;   hologram-get (5 HolonAST probes)       =  277 bytes
+;;   hologram-put (3 HolonAST/HolonAST entries) =  415 bytes
+;;   hologram-put (10 HolonAST/HolonAST entries) = 1222 bytes
+;; `2048` on both ops fits a realistic ~16-entry HolonAST-keyed put batch (the worst case) with
+;; room to spare, well above what either gate actually sends, and well above the old single-key
+;; `1024` cap, which a multi-item HolonAST batch trips immediately by construction.
 (:wat::core::defsurface :wat::cache::Cache<K,V> :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat::cache::Cache::GetRequest<K> [key <- :K])
+  [(:wat::core::defrecord :wat::cache::Cache::GetRequest<K> [probes <- :wat::core::Vector<K>])
+   (:wat::core::defenum :wat::cache::Cache::GetResult<V> :wat::enum::Pure
+     :Hit  [value <- :V]
+     :Miss [])
    (:wat::core::defenum :wat::cache::Cache::GetResponse<V> :wat::enum::Pure
-     :Hit              [value <- :V]
-     :Miss             []
+     :Ok               [results <- :wat::core::Vector<wat::cache::Cache::GetResult<V>>]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :wat::cache::Cache::PutRequest<K,V> [key <- :K  value <- :V])
-   (:wat::core::defenum :wat::cache::Cache::PutResponse<K,V> :wat::enum::Pure
-     ;; `displaced` reuses Stone 1's `:wat::cache::Entry<K,V>` — a `:wat::`-prefixed type, so the
-     ;; S4c `:messages`-completeness wall treats it as stdlib and does not require it re-declared
-     ;; here (it is not a message of THIS surface — it is the shared cache-primitive vocabulary).
-     :Ok               [displaced <- :wat::core::Option<wat::cache::Entry<K,V>>]
+   ;; `Entry<K,V>` reuses Stone 1's record — a `:wat::`-prefixed type defined earlier in THIS file
+   ;; (before this defsurface), so the S4c `:messages`-completeness wall does not require it
+   ;; re-declared here (it is not a message minted BY this surface — it is the shared
+   ;; cache-primitive vocabulary, same standing the old single-key `PutResponse`'s `displaced`
+   ;; field gave it).
+   (:wat::core::defrecord :wat::cache::Cache::PutRequest<K,V> [entries <- :wat::core::Vector<wat::cache::Entry<K,V>>])
+   (:wat::core::defenum :wat::cache::Cache::PutResponse :wat::enum::Pure
+     :Ok               []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get [self <- :wat::cache::Cache<K,V>  req <- :wat::cache::Cache::GetRequest<K>]
-     -> :wat::cache::Cache::GetResponse<V> :max-request-bytes 1024)
+     -> :wat::cache::Cache::GetResponse<V> :max-request-bytes 2048)
    (put [self <- :wat::cache::Cache<K,V>  req <- :wat::cache::Cache::PutRequest<K,V>]
-     -> :wat::cache::Cache::PutResponse<K,V> :max-request-bytes 1024)])
+     -> :wat::cache::Cache::PutResponse :max-request-bytes 2048)])
 
 (:wat::service::defservice :wat::cache::lru-svc<K,V>
   :satisfies :wat::cache::Cache<K,V>
@@ -138,20 +184,40 @@
             :durable record
             :cache (:wat::cache::Lru::new (:wat::cache::lru-svc::Record/capacity record))))
   :impls
+  ;; Both ops FOLD over the request Vector — `s` is UNCHANGED on Reply either way; the mutation is
+  ;; inside the opaque `Lru` handle via `Lru::get`/`Lru::put`, not in State (mirrors
+  ;; `wat/query/sqlite-store.wat`'s `conn` pattern). `get`'s fold ACCUMULATES the index-aligned
+  ;; results Vector via `conj` — the fold walks `probes` LEFT TO RIGHT and `conj` appends, so
+  ;; `results[i]` answers `probes[i]` by construction. `put`'s fold is side-effect-only (dummy
+  ;; `nil` accumulator, mirrors `wat/bracket.wat`'s per-item fan-out folds) — `PutResponse` carries
+  ;; nothing back (file-header departure note).
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s)
-                             (:wat::cache::Cache::GetRequest/key req))
-         ((:wat::core::Some v) (:wat::cache::Cache::GetResponse::Hit v))
-         (:wat::core::None (:wat::cache::Cache::GetResponse::Miss)))))
-   ;; `s` is UNCHANGED on Reply — the mutation is inside the opaque `Lru` handle via
-   ;; `Lru::put`, not in State (mirrors `wat/query/sqlite-store.wat`'s `conn` pattern).
+       (:wat::cache::Cache::GetResponse::Ok
+         (:wat::core::foldl
+           (:wat::core::fn [acc <- :wat::core::Vector<wat::cache::Cache::GetResult<V>>
+                            k   <- :K]
+             -> :wat::core::Vector<wat::cache::Cache::GetResult<V>>
+             (:wat::core::conj acc
+               (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s) k)
+                 ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
+                 (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
+           (:wat::core::Vector :wat::cache::Cache::GetResult<V>)
+           (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s req]
      (:wat::service::Outcome::Reply s
-       (:wat::cache::Cache::PutResponse::Ok
-         (:wat::cache::Lru::put (:wat::cache::lru-svc::State/cache s)
-           (:wat::cache::Cache::PutRequest/key req)
-           (:wat::cache::Cache::PutRequest/value req)))))])
+       (:wat::core::let
+         [_ (:wat::core::foldl
+              (:wat::core::fn [_acc <- :wat::core::nil
+                               e    <- :wat::cache::Entry<K,V>]
+                -> :wat::core::nil
+                (:wat::core::let
+                  [_ (:wat::cache::Lru::put (:wat::cache::lru-svc::State/cache s)
+                       (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))]
+                  nil))
+              nil
+              (:wat::cache::Cache::PutRequest/entries req))]
+         (:wat::cache::Cache::PutResponse::Ok))))])
 
 ;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
 ;;
@@ -313,21 +379,36 @@
                        ((:wat::cache::HologramFilterKind::AcceptAny)  (:wat::holon::filter-accept-any)))
                      (:wat::cache::hologram-svc::Record/capacity record))))
   :impls
+  ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (Stone 3
+  ;; header above), unlike `Lru::put` — the dual-eviction chain removes the displaced key from the
+  ;; Hologram internally but never hands it back — so this was ALREADY an honest `nil` per-entry,
+  ;; before batching; `PutResponse::Ok []` (file-header departure note) now says the same thing at
+  ;; the whole-batch level instead of a per-entry `Option`. Eviction is still OBSERVABLE through
+  ;; the service — just via a later `get` miss, exactly as the gate proves.
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s)
-                             (:wat::cache::Cache::GetRequest/key req))
-         ((:wat::core::Some v) (:wat::cache::Cache::GetResponse::Hit v))
-         (:wat::core::None (:wat::cache::Cache::GetResponse::Miss)))))
-   ;; `HolographicLru::put` returns `nil` (header above), unlike `Lru::put` — the dual-eviction
-   ;; chain removes the displaced key internally but does not hand it back. So `displaced` is
-   ;; always `None` here: an honest reflection of what `HolographicLru::put` actually exposes, not
-   ;; a lie dressed up to mirror `lru-svc`'s `Some(Entry)` shape. Eviction is still OBSERVABLE
-   ;; through the service — just via a later `get` miss, not via this response.
+       (:wat::cache::Cache::GetResponse::Ok
+         (:wat::core::foldl
+           (:wat::core::fn [acc   <- :wat::core::Vector<wat::cache::Cache::GetResult<wat::holon::HolonAST>>
+                            probe <- :wat::holon::HolonAST]
+             -> :wat::core::Vector<wat::cache::Cache::GetResult<wat::holon::HolonAST>>
+             (:wat::core::conj acc
+               (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s) probe)
+                 ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
+                 (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
+           (:wat::core::Vector :wat::cache::Cache::GetResult<wat::holon::HolonAST>)
+           (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s req]
      (:wat::service::Outcome::Reply s
        (:wat::core::let
-         [_ (:wat::cache::HolographicLru::put (:wat::cache::hologram-svc::State/cache s)
-              (:wat::cache::Cache::PutRequest/key req)
-              (:wat::cache::Cache::PutRequest/value req))]
-         (:wat::cache::Cache::PutResponse::Ok :wat::core::None))))])
+         [_ (:wat::core::foldl
+              (:wat::core::fn [_acc <- :wat::core::nil
+                               e    <- :wat::cache::Entry<wat::holon::HolonAST,wat::holon::HolonAST>]
+                -> :wat::core::nil
+                (:wat::core::let
+                  [_ (:wat::cache::HolographicLru::put (:wat::cache::hologram-svc::State/cache s)
+                       (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))]
+                  nil))
+              nil
+              (:wat::cache::Cache::PutRequest/entries req))]
+         (:wat::cache::Cache::PutResponse::Ok))))])
