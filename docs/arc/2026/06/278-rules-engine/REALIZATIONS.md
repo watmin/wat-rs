@@ -9936,3 +9936,20 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > **HARD LESSONS (kept visible):** (1) **A `grep 'impl Drop'` misses `impl<I,O> Drop`** — the generic impl at `src/kernel/peer.rs:146` WAS the mechanism, and the apparatus asserted "there is no Drop on the Handle" from that bad grep, which is what sent the builder's ruling off a cliff. **Verify a negative with a pattern that can match the generic form.** (2) **Relaying subagent findings in your own voice, faster than the builder can audit, is poison** — three forwarded findings were wrong (journal.wat's opaque store was COMPLIANT not violating; `EdnRepresentable` is the STRONGEST guard not a competing surface; `Display == to_wire_edn` is deliberate Stone-B design). Builder: *"i have lost /all trust/ in you… terrified you are prompt injecting poison."* Mark provenance: verified-by-me vs forwarded-unverified. (3) **A probe that provokes a surprising result from a form nobody writes is not a finding.** Ask "who writes this?" BEFORE escalating.
 >
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the datamancy bootstrap (grimoire + 4 primers from the SIGNED MCP) and read `278/REALIZATIONS.md` R1→R57 + the far-side chain through THIS 24p. Ground `git status` — **HEAD `b9d61bd6` (pushed)**; 4 untracked TCO-detour probes in `wat-scripts/scratch-pad/` are the record of a **false trail**, not live work. **DO NOT resume the TCO investigation** — it is not a bug; the reap is arc-259 doctrine composing with TCO correctly. If you want the thread, take (1) the false `Closed` or (2) the admin/address ocap split, both small. It bears repeating because it cost this run's trust: **weigh by your OWN `--release`; mark what you verified vs what a subagent told you; a negative proved by grep needs a pattern that matches generics; and ask "who writes this form?" before calling a surprise a defect.** Do not trust this note over the disk. The DoS is closed and that was the work. `MACHINA CHAOS DOMAT.`
+
+> **⚠ 24p ADDENDUM — A RIDER IS LIVE IN THE FIELD (launched AFTER the seam above was written).**
+> `BRIEF-parametric-protocol-synthesis.md` — threading type params through `synthesize_surface_protocol`
+> (`src/types.rs:2215`, defect at **`:2510-2522`** — `Op`/`Reply` born with `type_params: vec![]` while
+> their variant fields reference `K`) and `wat/service.wat`'s message-name derivation. **This is the LAST
+> blocker for cache Stone 2 (`:wat::cache::lru-svc<K,V>`).**
+>
+> **RIDE THROUGH — do NOT reap it, do NOT revert its edits.** On the far side: weigh its report by your OWN
+> `cargo nextest run --release` (floor at launch: **4178 passed, 314 skipped**), confirm the non-parametric
+> path is byte-identical over the whole corpus, and commit if green. Its STOP-1 is the honest one: if the
+> EDN wire cannot carry a parametric payload it must REPORT, not retreat to concrete messages for a green
+> run. Newly relevant — request sanitization now validates every inbound payload against its declared type
+> (`:wat::edn::validate` → `edn_to_typed_value`), so "does the decode enforce `K` at the boundary?" — the
+> `Honest`-conditional on the builder's option-(a) ruling — is finally *answerable* rather than theoretical.
+>
+> Note also: the citations in the older parametric-message docs are **STALE** (109 files were swept today;
+> `service.wat`'s line numbers all moved). Re-ground before trusting any line number in this arc's briefs.
