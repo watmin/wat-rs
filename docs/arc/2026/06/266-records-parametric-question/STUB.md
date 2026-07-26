@@ -1,4 +1,42 @@
-# Arc 266 (CLOSED — REJECTED) — are records meant to be parametric? (the type_params asymmetry)
+# Arc 266 (RE-OPENED 2026-07-25 — its own trigger fired) — are records meant to be parametric?
+
+> ## ⚠ RE-OPENED 2026-07-25 (arc 278, cache Stone 2). This is the STUB's OWN stated mechanism firing,
+> ## not an override. The 2026-06-14 rejection is preserved verbatim below.
+>
+> The rejection said: *"**Re-open only if** a real caller needs a user-defined parametric EDN record that
+> the collections + parametric structs cannot serve. None exists today."* **One exists now**, and two of
+> the ruling's three load-bearing premises no longer hold. All three grounded by the orchestrator:
+>
+> **1. The mechanism it ruled on is GONE.** The rejection is stated as *"`RecordDef` will NOT gain
+> `type_params`"* (citing `src/types.rs:197`). **`struct RecordDef` does not exist at HEAD.** Arc **293
+> (struct-record-symmetry)** unified records and structs into `AggregateDef`, which **carries
+> `type_params`** — guarded only by a comment: `pub type_params: Vec<String>, // structs use; records
+> leave empty`. The structural barrier the cut relied on was dissolved by a later arc.
+>
+> **2. It is already violated IN CORE, and it works.** `wat/service.wat:56` —
+> `(:wat::core::defrecord :wat::service::Alarm<O> [after <- :wat::time::Duration  op <- :O])`, a
+> parametric record inside the defservice machinery itself. And `wat/cache.wat:49` —
+> `(:wat::core::defrecord :wat::cache::Entry<K,V> [key <- :K  value <- :V])`, shipped in cache Stone 1
+> (`a86f521c`) with a green gate that constructs it and reads `Entry/key`.
+>
+> **3. The caller has arrived: the cache service protocol.** Builder-ruled 2026-07-25 to option (a) —
+> a PARAMETRIC protocol — after a four-questions pass (a: 4×YES; the concrete-messages alternative
+> failed Obvious, Simple, AND Honest). `:wat::cache::lru-svc<K,V>` needs
+> `Get [probes <- Vector<K>]` / `Put [entries <- Vector<Entry<K,V>>]` as **message records**, which
+> must be **EDN** (they cross the wire) **and** parametric.
+>
+> **What the original ruling actually missed** — stated plainly, because the reasoning is otherwise
+> sound: its dichotomy was *"records are concrete EDN shapes; structs are the flexible/parametric/
+> non-EDN ones."* The cache needs **parametric AND EDN** — a quadrant that dichotomy does not admit.
+> A struct cannot serve (it is the non-EDN half); the built-in collections cannot serve (this is a
+> user-defined shape). That is precisely the gap the re-open clause was written to catch.
+>
+> **What is now owed** (the STUB's own "to investigate when picked up" list, still the right list):
+> ground whether anything in the record/VSA-encoding path assumes records are concrete, and decide
+> whether `AggregateDef`'s `type_params`-for-records is *ratified* or merely *unblocked-by-accident*
+> — the comment says records leave it empty, and two core files already disagree with the comment.
+
+# (historical) Arc 266 (CLOSED — REJECTED) — the 2026-06-14 ruling, preserved
 
 > **Status: CLOSED / REJECTED 2026-06-14.** Records stay **concrete by purpose**; `RecordDef` will
 > NOT gain `type_params`. Decided by four-questions (below). NOT a deferral — an affirmative cut.
