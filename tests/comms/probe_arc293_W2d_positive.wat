@@ -4,10 +4,11 @@
 ;; Arc 293.W.2d — positive cases that MUST type-check:
 ;;
 ;;   1. ThreadSelfPeer' carrying impure I/O type-checks (in-locus, any I/O).
-;;   2. Thread-tier make-channel of an impure payload type-checks (thread exemption).
+;;   2. peer-pair' with pure types still type-checks (the purity gate only
+;;      rejects IMPURE type args; it must not over-reject the pure case).
 ;;
 ;; Both cases must load without error — the Peer'<I,O> well-formedness gate must NOT
-;; apply to ThreadSelfPeer' (it's in-locus) and make-channel (thread-tier exemption).
+;; apply to ThreadSelfPeer' (it's in-locus), and must not fire on pure type args.
 
 ;; A struct type — impure (Nature::Struct).
 (:wat::core::defstruct :w2d_pos::S [val <- :wat::core::i64])

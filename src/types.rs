@@ -1745,11 +1745,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:wat::kernel::spawn-thread` + the arc-259 bracket are the
     // user-facing constructors (Stone D's `run-threads` bracket macro,
     // the original constructor, was retired — dead code, superseded).
-    // Stone C1 itself only mints the type and the two peer-relative
-    // verbs (`Thread/readln`, `Thread/println`); test peer-pair
+    // Stone C1 originally minted the type alongside two peer-relative
+    // read/write verbs on `Thread`; those verbs are now ANNIHILATED
+    // (caller-free — arc 278 IPC de-prime superseded them with the
+    // `spawn-program'` peer model's `send'`/`recv'`). Test peer-pair
     // construction goes through the substrate-internal
-    // `make_thread_peer_pair_for_test` helper in
-    // `typed_channel.rs`.
+    // `make_thread_peer_pair_for_test` helper in `typed_channel.rs`.
     //
     // Auto-generated `ThreadPeer/new` + per-field accessors
     // (`ThreadPeer/rx`, `ThreadPeer/tx`) land at freeze time via
@@ -1813,13 +1814,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Receiver<I> / Sender<O> field types were deliberately named after
     // the THREAD-TIER backing crate (`rust::crossbeam_channel::*`) so
     // both Process verbs and Thread verbs could share dispatch logic.
-    // Stone C2's confession comment noted:
+    // Stone C2's confession comment noted (paraphrased — the original
+    // named the now-ANNIHILATED Process/Thread peer read/write verbs
+    // directly, which no longer exist to reference):
     //   "The Receiver<I> / Sender<O> field types are deliberately the
     //   SAME typed-channel substrate ThreadPeer uses — `typed_recv` /
     //   `typed_send` are transport-polymorphic (Crossbeam tier-1 for
-    //   threads, PipeFd tier-2 for processes), so the Process/readln +
-    //   Process/println eval handlers can mirror Thread/readln +
-    //   Thread/println verbatim modulo the struct tag."
+    //   threads, PipeFd tier-2 for processes), so the Process- and
+    //   Thread-tier peer eval handlers could mirror one another
+    //   verbatim modulo the struct tag."
     //
     // The architectural lesson: dispatch logic is shared via runtime
     // polymorphism (`typed_recv` branches on the Value variant); the

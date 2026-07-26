@@ -1,10 +1,10 @@
 ;; typealias_fn_type_spawn.wat — alias over Fn type works at spawn-thread.
 ;;
-;; Arc 278 Wave A: migrated off `make-channel` (a hand-rolled second channel was
+;; Arc 278 Wave A: migrated off a hand-rolled second channel pair (that was
 ;; incidental here — the actual subject is the typealias, not a channel pair).
 ;; `job` now receives the thread's OWN substrate-provided output Sender (the
 ;; `out <- Sender<i64>` spawn-thread already allocates) instead of a bespoke
-;; make-channel pair; the caller reads it back via `Thread/output`. Same
+;; channel pair; the caller reads it back via `Thread/output`. Same
 ;; typealias-over-Fn-type-at-spawn-thread subject, zero hand-rolled channels.
 (:wat::core::typealias
   :my::Job

@@ -23,8 +23,10 @@
 //!
 //! PDEATHSIG: child must call `prctl(PR_SET_PDEATHSIG, SIGTERM)` BEFORE
 //! parent dies. If parent dies in the fork→prctl window, kernel does
-//! not deliver SIGTERM, child orphans forever. (Demonstrated 10% rate
-//! in probe_pdeathsig_diagnostic.)
+//! not deliver SIGTERM, child orphans forever (a demonstrated ~10% rate
+//! in the now-retired PDEATHSIG diagnostic probe — the seal-set
+//! mechanism it exercised is annihilated; this proof's lifeline-pipe
+//! mechanism is the surviving alternative and stands on its own).
 //!
 //! Lifeline: child inherits the FD across fork() — atomic with the fork
 //! itself. No subsequent registration. Cannot race.

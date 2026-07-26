@@ -145,7 +145,7 @@ pub enum Value {
     /// An `n`-tuple — `:(T1,T2,...,Tn)`. Distinct from [`Value::Vec`]
     /// at the type level (heterogeneous vs homogeneous). Primarily
     /// produced by kernel primitives that return pairs
-    /// (`make-channel`, `spawn`,
+    /// (`peer-pair'`, `spawn`,
     /// `select`) and destructured in `let` via the
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
     /// [`Value::Unit`] — tuples start at arity 1.

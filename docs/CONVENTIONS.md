@@ -819,11 +819,12 @@ References:
   `:trading::telemetry::Spawn = Service::Spawn<trading::log::LogEntry>`
   is the canonical example; the lab's only telemetry consumer
   aliases its concrete shape once.
-- `wat-rs/wat-tests/service-template.wat:72-73` — the canonical
-  service template's `:svc::Spawn` aliases the (pool, driver) tuple
-  AT the consumer's namespace; SERVICE-PROGRAMS.md § "The complete
-  pattern" explicitly says to "rename the `:svc::*` namespace to
-  your domain" when forking.
+
+(The former second reference cited `wat-tests/service-template.wat`'s
+hand-rolled `:svc::Spawn` alias — that file and the hand-rolled pattern
+it taught are retired; services are now built via
+`:wat::service::defservice`, per SERVICE-PROGRAMS.md § "The runnable
+reference".)
 
 ## When to add a primitive
 
@@ -1066,10 +1067,13 @@ wrong vantage teaches the wrong shape.
   site. If a helper verb / public API exists for the use case,
   the test calls it; if not, the test exposes a gap in the
   surface.
-- **Wire-protocol mechanics live in dedicated reference files,
-  not in consumer-crate test directories.** The canonical
-  reference is `wat-rs/wat-tests/service-template.wat` (per
-  `SERVICE-PROGRAMS.md` § "Audience boundary"). A consumer-crate
+- **Wire-protocol mechanics are generated, not hand-built or
+  taught from a template.** `:wat::service::defservice`
+  (`wat-rs/wat/service.wat`) generates the Request/Response
+  records, Op/Reply enums, and dispatch loop from a `:satisfies`
+  / `:durable` / `:ephemeral` / `:init` / `:impls` form; see
+  `wat-rs/wat-tests/service-cache-lru.wat` for the worked example
+  (per `SERVICE-PROGRAMS.md` § "Audience boundary"). A consumer-crate
   wat-test that hand-builds Request enum constructors and calls
   raw `:wat::kernel::send`/`recv` is testing the wrong layer.
 - **Rust unit tests in `src/*.rs` follow the same rule** — their

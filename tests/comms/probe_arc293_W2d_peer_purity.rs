@@ -22,7 +22,7 @@
 //! - `probe_arc293_W2d_peer_purity.wat` (co-located, `startup_beside`): the failing case —
 //!   `peer-pair'` with a struct type arg. World FAILS to load after 2d.
 //! - `probe_arc293_W2d_positive.wat` (sibling): positive cases — `ThreadSelfPeer'` carrying
-//!   impure I/O type-checks (in-locus); thread `make-channel` of impure type type-checks.
+//!   impure I/O type-checks (in-locus); `peer-pair'` with pure types still type-checks.
 
 use wat::freeze::{startup_beside, startup_from_file};
 
@@ -61,14 +61,14 @@ fn impure_type_arg_on_wire_peer_is_check_error() {
 /// `ThreadSelfPeer'<Sender<i64>, i64>` is in-locus (crossbeam, same address space).
 /// The purity constraint does NOT apply to `ThreadSelfPeer'`. The world must load.
 ///
-/// Also asserts: a thread-tier `make-channel` of an impure payload type-checks
-/// (thread channel exemption — thread-tier channels are in-process).
+/// Also asserts: `peer-pair'` with pure type args still type-checks (the purity
+/// gate must reject impure args without over-rejecting the pure case).
 #[test]
-fn thread_self_peer_and_make_channel_impure_type_checks() {
+fn thread_self_peer_and_pure_wire_peer_type_checks() {
     let result = startup_from_file("tests/comms/probe_arc293_W2d_positive.wat");
     assert!(
         result.is_ok(),
-        "ThreadSelfPeer'<Sender<i64>,i64> and make-channel of impure type MUST type-check \
+        "ThreadSelfPeer'<Sender<i64>,i64> and peer-pair' of pure types MUST type-check \
          (in-locus; no purity constraint — arc 293.W.2d positive cases). \
          Error: {:?}",
         result.err()

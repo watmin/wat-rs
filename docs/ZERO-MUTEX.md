@@ -306,22 +306,31 @@ Two routing strategies, both substrate-supported:
   looks up the matching ack-tx at the same index and sends `()`.
   Ack address is implicit in the channel's identity. The
   cleanest shape when ALL replies are unit and the service has
-  one verb. Reference: `wat-rs/wat-tests/service-template.wat`.
+  one verb.
 
 - **Embedded reply-tx in payload** (`Service<E,G>`,
-  `CacheService<K,V>`, the canonical `service-template.wat`).
-  The request payload includes the producer's ack/reply channel
-  as a field. The driver reads the request, dispatches per-verb,
-  sends the reply on the address embedded in the payload.
-  Necessary when reply types differ per verb (`Ack` returns
-  unit; `Get` returns the domain state) — the embedded address
-  lets the driver pick the right typed channel per request.
-  Reference: `wat-rs/wat-tests/service-template.wat`.
+  `CacheService<K,V>`). The request payload includes the
+  producer's ack/reply channel as a field. The driver reads the
+  request, dispatches per-verb, sends the reply on the address
+  embedded in the payload. Necessary when reply types differ per
+  verb (`Ack` returns unit; `Get` returns the domain state) — the
+  embedded address lets the driver pick the right typed channel
+  per request.
 
 Both shapes give the same in-memory-TCP discipline. Pick
 pair-by-index when the service is single-verb-unit-reply (no
 dispatch needed); pick embedded reply-tx when the service has
 multiple verbs with heterogeneous reply types.
+
+(`wat-rs/wat-tests/service-template.wat` used to be the reference for
+both — retired along with the hand-rolled pattern it taught. Build a
+service with `:wat::service::defservice` [`wat-rs/wat/service.wat`]
+instead; see `wat-rs/wat-tests/service-cache-lru.wat` for the worked
+example. Its generated dispatch loop unifies the two strategies above:
+each connected client is a persistent `Peer'` held at a stable index,
+so the reply address is implicit in which peer fired [pair-by-index],
+while each op still carries its own typed Request/Response shape
+[heterogeneous replies] via the generated Reply enum.)
 
 **Compile-time enforcement (arc 126, retired):** the substrate
 used to refuse to compile a function-call site that passed both

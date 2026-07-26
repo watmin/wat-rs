@@ -5,8 +5,9 @@
 //!
 //! Arc 214 Stone 6.1: the χ-1 bounded wrapper (typed_channel quarry) is dead;
 //! this probe now exercises `comms::thread::pair` directly (the same
-//! depth-1 backing `make-channel` uses). Arc 214 ε: `RecvError` is a
-//! two-variant enum — a sender-drop EOF surfaces as `RecvError::Disconnected`.
+//! depth-1 backing the thread-tier channel constructors use). Arc 214 ε:
+//! `RecvError` is a two-variant enum — a sender-drop EOF surfaces as
+//! `RecvError::Disconnected`.
 
 use wat::comms::RecvError;
 use wat::comms::thread::pair;

@@ -674,7 +674,7 @@ wat-rs/
 │   └── tests/smoke.rs      # spawns the binary, asserts "hit"
 ├── wat-tests/              # wat-rs's own baked-stdlib tests
 │   ├── README.md
-│   ├── service-template.wat stream.wat test.wat time.wat
+│   ├── stream.wat test.wat time.wat
 │   ├── core/{option-expect,result-expect,struct-to-form}.wat
 │   ├── edn/{render,roundtrip}.wat
 │   ├── holon/{Circular,Filter,Hologram,ReciprocalLog,Reject,Sequential,

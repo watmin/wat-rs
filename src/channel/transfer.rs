@@ -343,9 +343,9 @@ pub fn try_as_comms_receiver(
 /// EDN-encoded by the substrate; user code sees typed Values.
 ///
 /// Returns the pair as a `(Sender<T>, Receiver<T>)` tuple Value
-/// — same shape `:wat::kernel::make-channel` returns for the
-/// tier-1 case. `T` is phantom at the runtime layer; the type
-/// checker enforces homogeneity per FOUNDATION.
+/// — the same shape the tier-1 (thread) pair constructor returns.
+/// `T` is phantom at the runtime layer; the type checker enforces
+/// homogeneity per FOUNDATION.
 ///
 /// `op` is the caller's wat-level op name for diagnostic
 /// attribution (matches the `make-pipe` convention used by

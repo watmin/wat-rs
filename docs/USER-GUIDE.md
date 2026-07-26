@@ -1982,8 +1982,12 @@ structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
 ```
 
 The caller owns the select loop — remove disconnected receivers from
-the list, exit when the list is empty. A service-driver loop is the
-canonical example (see `wat-tests/service-template.wat`).
+the list, exit when the list is empty. (The hand-rolled service-driver
+loop that used to be the canonical example here — `wat-tests/service-template.wat`
+— is retired; a `:wat::service::defservice`-built service's generated
+loop fans in over `Peer'` values via `select'`/`poll'` instead of raw
+`Receiver<T>` via `select`, so it is not a like-for-like substitute
+example for THIS primitive.)
 
 `:wat::kernel::Chosen<T>` is the fourth substrate alias from
 `wat/kernel/channel.wat`. The variable that binds the return value is

@@ -10,7 +10,7 @@
 ;; `put` must mutate durable state visible to a LATER, SEPARATE `scan` call on the same store —
 ;; genuine interior mutability behind a `:wat::core::Struct`. wat has no generic mutable-cell
 ;; primitive (no `Cell`/`atom`/`swap!`); the tempting workaround — a `defstruct` holding BOTH ends
-;; of one `make-channel` pair as a single-place "MVar" — deadlocks: a role holding both a
+;; of one channel pair as a single-place "MVar" — deadlocks: a role holding both a
 ;; `Sender<T>` and its paired `Receiver<T>` keeps the channel alive against its own `recv`, so the
 ;; recv never wakes. A `ChannelPairDeadlock` static check once rejected this shape at compile time;
 ;; that walker was RETIRED once locus became reachable only through `defservice` and brackets —

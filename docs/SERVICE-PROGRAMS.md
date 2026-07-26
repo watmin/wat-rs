@@ -617,14 +617,18 @@ Two audiences read it for two different reasons:
 
 | Audience | What they read | What they look for |
 |---|---|---|
-| Service implementer | This doc + `wat-rs/wat-tests/service-template.wat` + the eight-step exploration | How to build a service from substrate primitives |
+| Service implementer | This doc + `:wat::service::defservice` (`wat-rs/wat/service.wat`) + a worked example (`wat-rs/wat-tests/service-cache-lru.wat`) + the eight-step exploration | How to build a service from substrate primitives |
 | Service consumer | The consumer-crate's `wat-tests/` (e.g., `crates/wat-lru/wat-tests/`) | How to call an existing service |
 
 These layers don't mix. A service's wat-tests verify the
 **consumer's vantage** — they call helper verbs and observe what
-a real consumer would observe. The wire-protocol mechanics
-(raw `kernel::send`, `Request::Foo` constructors, manual
-`Result<Option<T>, _>` chains) live in `service-template.wat`.
+a real consumer would observe. The wire-protocol mechanics (per-op
+Request/Response records, the Op/Reply enums, the serve dispatch
+loop, the client-face constructors) are generated for you by
+`:wat::service::defservice` (`wat-rs/wat/service.wat`) — you no
+longer hand-write them; see `wat-rs/wat-tests/service-cache-lru.wat`
+for what a `defservice`-built service and its consumer-vantage test
+look like end-to-end.
 
 A consumer-crate test that hand-builds the wire is at the wrong
 vantage — it speaks for the implementer, not the consumer (per
@@ -633,20 +637,26 @@ vantage — it speaks for the implementer, not the consumer (per
 
 ### The runnable reference
 
-`wat-rs/wat-tests/service-template.wat` is the canonical complete
-template for **service implementers**. **Lift it directly when
-starting your own service** — the only things that should change
-are:
+Don't hand-wire a service program — reach for
+**`:wat::service::defservice`** (`wat-rs/wat/service.wat`) instead.
+It is a `defmacro` that, from a single form, generates the per-op
+Request/Response records, the Op/Reply enums, the `serve` dispatch
+loop, and the client-face constructors/methods/`start` fn/`Handle`
+record — the wiring this doc used to teach you to hand-assemble.
 
-- The State struct (your domain — LRU map, treasury record, registry table)
-- The Request enum's verbs (your operations)
-- The `:svc::*` namespace (rename to `:your::domain::*`)
+`wat-rs/wat/cache.wat`'s `:wat::cache::lru-svc<K,V>` is a worked
+`defservice` definition; `wat-rs/wat-tests/service-cache-lru.wat` is
+its consumer-vantage test. **Lift that shape when starting your own
+service** — what changes per-service is:
 
-The wiring (`Service`, `Service/loop`, `Service/handle`, type aliases,
-HandlePool, scope discipline) stays. The test deftest exercises both
-substrate-shipped reply shapes end-to-end, including a batch-read
-that reads LIVE state between two batch-writes — so you can see the
-pattern survive real-world operation orders.
+- The `:satisfies` interface (your domain's request/response records + `:features`)
+- `:durable` / `:ephemeral` state fields (your domain — LRU map, treasury record, registry table)
+- `:init` (how a fresh `Record` becomes the starting `State`)
+- `:impls` — one handler per op, each returning a `:wat::service::Outcome`
+
+The namespace (`:your::domain::*`) is yours to choose; everything
+else — the enums, the dispatch loop, the client face — is generated,
+not hand-lifted.
 
 This file's caller IS the service implementer. Its tests
 exercise substrate primitives directly because that's what the

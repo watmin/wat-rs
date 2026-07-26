@@ -5028,15 +5028,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::Thread/drain-and-join" => {
             eval_kernel_thread_drain_and_join(args, env, sym, list_span)
         }
-        // Arc 170 Stone C1 — peer-relative read/write verbs on
-        // `:wat::kernel::ThreadPeer<I, O>`. Read pulls from the peer's
-        // `rx` field; write pushes through the peer's `tx` field.
-        ":wat::kernel::Thread/readln" => {
-            eval_kernel_thread_readln(args, env, sym, list_span)
-        }
-        ":wat::kernel::Thread/println" => {
-            eval_kernel_thread_println(args, env, sym, list_span)
-        }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym, list_span),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym, list_span),
@@ -5056,7 +5047,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::raise!" => eval_kernel_raise(args, list_span, env, sym),
         // Arc 296 — returns the source coordinate of the `(here)` form itself.
         ":wat::kernel::here" => eval_kernel_here(args, list_span),
-        ":wat::kernel::make-channel" => eval_make_channel(args, list_span),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span).map_err(Into::into),
         ":wat::kernel::spawn-process" => {
             crate::process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
@@ -20765,41 +20755,6 @@ fn eval_config_global_seed(
     Ok(Value::i64(ctx.config.global_seed as i64))
 }
 
-/// `(:wat::kernel::make-channel :T)` — creates a depth-1 bounded
-/// crossbeam channel carrying `:T` values. Returns a
-/// `:(Sender<T>, Receiver<T>)` 2-tuple.
-///
-/// The argument is a TYPE KEYWORD — not evaluated at runtime,
-/// only read for the type checker's benefit. The runtime transports
-/// any `Value`; `T` lives in the scheme only. Any non-keyword argument
-/// is a structural error.
-///
-/// Always `bounded(1)` — Mini-TCP depth-1 doctrine (2026-05-19;
-/// arc 254 §contract). Wrong-capacity is unrepresentable (✅✅✅):
-/// there is no `N` argument to get wrong.
-fn eval_make_channel(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::kernel::make-channel".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::kernel::make-channel".into(),
-            reason: "argument must be a type keyword (e.g., :Candle)".into()
-        } }.into());
-    }
-    // Arc 214 Stone 5.1 — construct via comms::thread::pair (depth-1,
-    // cascade-aware). Replaces the bare crossbeam::bounded(1) construction.
-    let (tx, rx) = crate::comms::thread::pair::<Value>();
-    Ok(Value::Tuple(Arc::new(vec![
-        crate::channel::sender_from_comms(tx),
-        crate::channel::receiver_from_comms(rx),
-    ])))
-}
-
 /// `(:wat::kernel::peer-pair' :S :R)` — mint two connected, crossed bare `Peer'`
 /// ends WITHOUT spawning. Arc 209 Stone C0 — the connection primitive: a service
 /// provisions a client by handing it one end while keeping the other in its
@@ -22525,138 +22480,6 @@ fn drain_thread_output_channel(
         }
     }
     Ok(())
-}
-
-/// `(:wat::kernel::Thread/readln peer) -> :I` — arc 170 Stone C1.
-///
-/// Peer-relative blocking read on a `:wat::kernel::ThreadPeer<I, O>`.
-/// Pulls the `rx` field (a Receiver<I>) and blocks via `typed_recv`
-/// until a value arrives. The value is surfaced UNWRAPPED to the
-/// caller — this verb returns `:I`, not `:Option<I>` or `:Result<...>`.
-///
-/// Disconnect handling: per INTERSTITIAL-REALIZATIONS § "Link
-/// semantics" (the user's "we are lock step - forks are servers -
-/// their clients went away - that is a panic event" framing),
-/// same-universe peer death is a panic event. A disconnect or
-/// process-wide shutdown surfaces as `RuntimeError::ChannelDisconnected`
-/// — propagated through the panic chain at the spawn boundary so
-/// `Thread/drain-and-join` recovers the cause for the parent.
-/// EDN decode failures on a tier-2 transport surface as
-/// `MalformedForm` (matches the `kernel::recv` discipline).
-fn eval_kernel_thread_readln(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Thread/readln";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let peer_struct = eval_thread_peer_struct(OP, &args[0], env, sym)?;
-    let receiver_inner = match peer_struct.fields.first() {
-        Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "ThreadPeer.rx (Receiver)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-            } }.into());
-        }
-    };
-    match crate::channel::typed_recv(
-        receiver_inner.as_ref(),
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    ) {
-        crate::channel::RecvOutcome::Value(v) => Ok(v),
-        crate::channel::RecvOutcome::Disconnected
-        | crate::channel::RecvOutcome::Shutdown => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
-                op: OP.into()
-            } }.into())
-        }
-        crate::channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("EDN decode on ThreadPeer.rx: {}", msg)
-            } }.into())
-        }
-    }
-}
-
-/// `(:wat::kernel::Thread/println peer data:O) -> :wat::core::nil` —
-/// arc 170 Stone C1.
-///
-/// Peer-relative blocking write on a `:wat::kernel::ThreadPeer<I, O>`.
-/// Pulls the `tx` field (a Sender<O>) and sends `data` via
-/// `typed_send`. Returns `Value::Unit` (== `:wat::core::nil`) on the
-/// landed write. Disconnect surfaces as `RuntimeError::ChannelDisconnected`
-/// (same panic-propagation reasoning as `Thread/readln`).
-fn eval_kernel_thread_println(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Thread/println";
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let peer_struct = eval_thread_peer_struct(OP, &args[0], env, sym)?;
-    let sender_inner = match peer_struct.fields.get(1) {
-        Some(Value::wat__kernel__Sender(inner)) => inner.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "ThreadPeer.tx (Sender)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-            } }.into());
-        }
-    };
-    let payload = eval_inner(&args[1], env, sym)?.value_owned();
-    match crate::channel::typed_send(
-        sender_inner.as_ref(),
-        payload,
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    ) {
-        crate::channel::SendOutcome::Ok => Ok(Value::Unit),
-        crate::channel::SendOutcome::Disconnected => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
-                op: OP.into()
-            } }.into())
-        }
-    }
-}
-
-/// Shared peer-struct unwrap for both Thread/readln and Thread/println.
-/// Evaluates `subject_ast` and asserts the resulting Value is a Struct
-/// tagged `:wat::kernel::ThreadPeer`; surfaces a TypeMismatch with the
-/// originating op name otherwise.
-fn eval_thread_peer_struct(
-    op: &str,
-    subject_ast: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Arc<AggregateValue>, EvalBreak> {
-    let peer_value = eval_inner(subject_ast, env, sym)?.value_owned();
-    match peer_value {
-        Value::Aggregate(a) if a.class == "wat::kernel::ThreadPeer" => Ok(a),
-        other => Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: op.into(),
-            expected: "wat::kernel::ThreadPeer",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
 }
 
 /// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
@@ -30926,30 +30749,6 @@ mod tests {
         assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
-    // ─── make-channel (arc 254.0 — the one canonical depth-1 constructor) ─────
-
-    #[test]
-    fn queue_roundtrip_via_destructure_and_send_recv() {
-        // Make a channel, destructure the pair, send a value, recv it,
-        // match to unwrap. End-to-end shape the real kernel primitives
-        // expose.
-        let src = r#"
-            (:wat::core::let
-              [[tx rx] (:wat::kernel::make-channel :i64)
-               _sent (:wat::core::Result/expect
-                              (:wat::kernel::send tx 42)
-                              "roundtrip: send failed")]
-              (:wat::core::match (:wat::kernel::recv rx)
-                ((:wat::core::Ok (:wat::core::Some v)) v)
-                ((:wat::core::Ok :wat::core::None) 0)
-                ((:wat::core::Err _died) -1)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(42) => {}
-            v => panic!("expected 42, got {:?}", v),
-        }
-    }
-
     // ─── Vector primitives (Round 4a) ───────────────────────────────
 
     #[test]
@@ -32196,32 +31995,6 @@ mod tests {
     }
 
     // ─── drop ──────────────────────────────────────────────────────────
-
-    #[test]
-    fn drop_accepts_sender_returns_unit() {
-        let src = r#"
-            (:wat::core::let
-              [[tx rx] (:wat::kernel::make-channel :i64)]
-              (:wat::kernel::drop tx))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::Unit => {}
-            v => panic!("expected unit, got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn drop_accepts_receiver_returns_unit() {
-        let src = r#"
-            (:wat::core::let
-              [[tx rx] (:wat::kernel::make-channel :i64)]
-              (:wat::kernel::drop rx))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::Unit => {}
-            v => panic!("expected unit, got {:?}", v),
-        }
-    }
 
     #[test]
     fn drop_refuses_non_handle() {
@@ -33701,14 +33474,6 @@ mod tests {
     fn select_returns_index_and_value_from_ready_receiver() {
         // Two channels; send only to the second; select returns index 1
         // with the value.
-        let src = r#"
-            (:wat::core::let
-              (((tx0 rx0) (:wat::kernel::make-channel :i64))
-               (((tx1 rx1)) (:wat::kernel::make-channel :i64)))
-              ;; (this shape won't parse — rewrite below)
-              true)
-        "#;
-        let _ = src; // placeholder; inline the real test directly below.
 
         // Direct construction: two receivers, only rx1 gets a value,
         // select must pick index 1.

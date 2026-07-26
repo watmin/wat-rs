@@ -14,8 +14,10 @@
 //!    entry_form path).
 //! 6. spawn-process with factory-fn (single-level capture via slice
 //!    1b's prologue).
-//! 7. spawn-process with impure Sender capture fires
-//!    `ImpureCapture` (arc 293.W.2d rename of NonPortableCapture).
+//! 7. (retired) spawn-process with impure Sender capture — the fixture
+//!    minted its Sender via the now-annihilated depth-1 channel
+//!    constructor; there is no way to construct the scenario without
+//!    it, so the test is gone.
 //! 8/9. (retired) `*-program{,-ast}` callsite retirement nags —
 //!    ANNIHILATED (arc 170 CULMINATION); the verbs had zero live callers
 //!    and no runtime eval, so the check-time nag + its tests are gone.
@@ -30,7 +32,7 @@ use wat::freeze::{
     expected_user_main_signature, invoke_user_main, startup_beside, startup_from_file,
     validate_user_main_signature,
 };
-use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::runtime::{eval, Environment, Value};
 use wat::types::TypeExpr;
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -367,67 +369,6 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
             n
         ),
         other => panic!("expected i64; got {:?}", other),
-    }
-}
-
-// ─── T7. spawn-process with non-portable Sender capture ────────────────
-
-#[test]
-fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
-    // A factory builds a closure capturing a Sender from the parent's
-    // let-scope. The Sender is a channel-bearing Value — pointer
-    // identity does not survive fork(2). Slice 1's portability check
-    // refuses; spawn-process surfaces the diagnostic.
-    // The freeze may succeed (the closure-extract check fires at
-    // spawn-process invocation, not at freeze). If the type-checker
-    // already rejects, that's also a valid failure mode — both paths
-    // refuse the non-portable shape. Fixture: t7_non_portable.wat.
-    match startup_from_file("tests/program/wat_arc170_program_contracts_t7_non_portable.wat") {
-        Ok(world) => {
-            let launcher = world
-                .symbols()
-                .get(":my::launch")
-                .expect("launch defined");
-            let result = wat::runtime::apply_function(
-                launcher.clone(),
-                Vec::new(),
-                world.symbols(),
-                wat::rust_caller_span!(),
-            );
-            match result {
-                Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
-                    // rune:lint(loose-assert) — dead branch: freeze rejects t7 fixture at type-check; runtime MalformedForm arm never executes
-                    assert!(
-                        reason.contains("impure")
-                            || reason.contains("ImpureCapture")
-                            || reason.contains("Impure types")
-                            || reason.contains("Sender")
-                            || reason.contains("Receiver")
-                            || reason.contains("captures"),
-                        "expected impure-capture diagnostic; got reason: {}",
-                        reason
-                    );
-                }
-                Ok(_) => panic!("expected non-portable refusal; succeeded"),
-                Err(other) => {
-                    let msg = format!("{:?}", other);
-                    let lc = msg.to_lowercase();
-                    // rune:lint(loose-assert) — dead branch: freeze rejects t7 fixture at type-check; runtime other-error arm never executes
-                    assert!(
-                        lc.contains("sender")
-                            || lc.contains("non-portable")
-                            || lc.contains("channel")
-                            || lc.contains("captures"),
-                        "expected error mentioning channel non-portability; got: {}",
-                        msg
-                    );
-                }
-            }
-        }
-        Err(freeze_err) => {
-            // Type-check rejected at freeze time — also OK.
-            let _ = format!("{}", freeze_err);
-        }
     }
 }
 

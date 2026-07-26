@@ -1610,28 +1610,18 @@ fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>
 
 /// Retired kernel `Queue*` family — paired with their canonical
 /// replacements. Type names use `<` matching since they appear
-/// as parametric heads (e.g. `:wat::kernel::QueueSender<i64>`);
-/// verb names match the bare keyword.
+/// as parametric heads (e.g. `:wat::kernel::QueueSender<i64>`).
+///
+/// The legacy `make-bounded-queue` / `make-unbounded-queue` /
+/// `make-bounded-channel` / `make-unbounded-channel` verb entries that
+/// used to live here were retired alongside the depth-1 constructor
+/// they used to redirect to (annihilated — arc 278 IPC de-prime);
+/// there is no live canonical verb left to redirect them to, so the
+/// entries are gone rather than pointing at a deleted name.
 const LEGACY_KERNEL_QUEUE_NAMES: &[(&str, &str)] = &[
     (":wat::kernel::QueueSender", ":wat::kernel::Sender"),
     (":wat::kernel::QueueReceiver", ":wat::kernel::Receiver"),
     (":wat::kernel::QueuePair", ":wat::kernel::Channel"),
-    (
-        ":wat::kernel::make-bounded-queue",
-        ":wat::kernel::make-channel",
-    ),
-    (
-        ":wat::kernel::make-unbounded-queue",
-        ":wat::kernel::make-channel",
-    ),
-    (
-        ":wat::kernel::make-bounded-channel",
-        ":wat::kernel::make-channel",
-    ),
-    (
-        ":wat::kernel::make-unbounded-channel",
-        ":wat::kernel::make-channel",
-    ),
 ];
 
 fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
@@ -4090,26 +4080,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 254.0 — one canonical depth-1 constructor. Routed through
-            // `infer_make_channel` so new-shape let bindings that use
-            // `make-channel` as their RHS get a Tuple(Sender<T>, Receiver<T>)
-            // type in `extended`, same as any other let binding.
-            ":wat::kernel::make-channel" => {
-                let (val, mut errs) = infer_make_channel(
-                    args,
-                    head_span,
-                    env,
-                    locals,
-                    fresh,
-                    subst,
-                    ":wat::kernel::make-channel",
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
             // Arc 259 S2c-ii-b — spawn-program' is a wat defclause (spawn.wat);
             // the Rust intrinsic dispatch arm is RETIRED. The defclause machinery
             // in the checker dispatches on the locus type (ThreadOpts | ProcessOpts).
@@ -4251,7 +4221,7 @@ fn infer_list(
                 };
             }
             // Arc 209 Stone C0 — peer-pair': (:S :R) -> (Tuple Peer'<S,R> Peer'<R,S>).
-            // Type-keyword args → crossed parametric tuple (mirror of make-channel).
+            // Type-keyword args → crossed parametric tuple.
             ":wat::kernel::peer-pair'" => {
                 let (val, mut errs) = infer_peer_pair_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -9347,113 +9317,6 @@ fn infer_drop(
     if local_errors.is_empty() { CheckResult::ok(TypeExpr::Tuple(vec![])) } else { CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors) }
 }
 
-/// Type-check `(make-channel :T)` — arc 254.0 canonical constructor.
-/// The single argument is a type keyword (introspected directly, not
-/// inferred as a value). Return type is `:(Sender<T>, Receiver<T>)`.
-///
-/// Written as a special form because the `∀T. ...` shape expresses T
-/// through a type-keyword argument — the value-level checker can't
-/// extract T from `infer(args[0])` the way rank-1 HM would want.
-#[allow(clippy::too_many_arguments)]
-fn infer_make_channel(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    form: &str,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 1 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: form.into(),
-            expected: 1,
-            got: args.len()
-        } });
-        // Still recurse into any extra args for nested checks.
-        for arg in args.iter().skip(1) {
-            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        }
-        // Return a best-effort tuple with a fresh inner so the call
-        // site can continue checking.
-        let t = fresh.fresh();
-        let ty = TypeExpr::Tuple(vec![
-            TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Sender".into(),
-                args: vec![t.clone()],
-            },
-            TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Receiver".into(),
-                args: vec![t],
-            },
-        ]);
-        // HARVEST (236.2): existing diagnostic; partial — return channel type with error.
-        return CheckResult::partial_with(ty, local_errors);
-    }
-    // Extract T from the type-keyword argument.
-    let t_ty = match &args[0] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => {
-                // Arc 293.W.2d — make-channel's portability gate (Arc 254 Stone 254.1)
-                // is DELETED. make-channel is thread-tier (crossbeam, in-process);
-                // a thread channel is NEVER wire-serialized — it carries values by
-                // reference in shared memory. The purity constraint (§7) applies only
-                // to wire peers (Peer'/Process'). A thread channel may carry any type
-                // (including Sender/Receiver handles, structs, etc.) — the THREAD WALL
-                // exempts it. Deleting this gate unblocks `:svc::Request` (an Impure
-                // enum carrying reply-Senders) in thread-tier channels: make-channel
-                // :svc::Request now type-checks correctly, closing the IGNORE-LEDGER row.
-                t
-            }
-            Err(_) => {
-                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: form.into(),
-                    reason: format!("first argument {} is not a valid type keyword", k),
-                    remedies: vec![],
-                } });
-                fresh.fresh()
-            }
-        },
-        other => {
-            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: form.into(),
-                reason: format!(
-                    "first argument must be a type keyword; got {}",
-                    match other {
-                        WatAST::IntLit(_, _) => "int",
-                        WatAST::FloatLit(_, _) => "float",
-                        WatAST::RationalLit(_, _) => "rational",
-                        WatAST::BigIntLit(_, _) => "bigint",
-                        WatAST::BoolLit(_, _) => "bool",
-                        WatAST::StringLit(_, _) => "string",
-                        WatAST::Symbol(_, _) => "symbol",
-                        WatAST::List(_, _) => "list",
-                        WatAST::Vector(_, _) => "vector",
-                        WatAST::NilLit(_) => "nil",
-                        WatAST::Keyword(_, _) => unreachable!(),
-                        WatAST::Map(_, _) => "map",
-                        WatAST::Set(_, _) => "set",
-                    }
-                ),
-                remedies: vec![],
-            } });
-            fresh.fresh()
-        }
-    };
-    let ty = TypeExpr::Tuple(vec![
-        TypeExpr::Parametric {
-            head: "rust::crossbeam_channel::Sender".into(),
-            args: vec![t_ty.clone()],
-        },
-        TypeExpr::Parametric {
-            head: "rust::crossbeam_channel::Receiver".into(),
-            args: vec![t_ty],
-        },
-    ]);
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
-
 /// Arc 293.W.2d — validate that a `Peer'<I,O>` type argument is pure.
 ///
 /// A wire peer (`Peer'`) carries only pure data (records, scalars, pure containers).
@@ -9504,8 +9367,8 @@ fn check_wire_peer_purity_span(
 
 /// Arc 209 Stone C0 — `(:wat::kernel::peer-pair' :S :R)` →
 /// `(Tuple Peer'<S,R> Peer'<R,S>)`. The two type-keyword args type the crossed
-/// bare-`Peer'` ends (mirror of `infer_make_channel`'s type-keyword → parametric
-/// tuple). Runtime mints both ends without spawning (`eval_peer_pair_prime`).
+/// bare-`Peer'` ends (a type-keyword → parametric tuple shape). Runtime mints
+/// both ends without spawning (`eval_peer_pair_prime`).
 fn infer_peer_pair_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -17563,53 +17426,6 @@ fn register_builtins(env: &mut CheckEnv) {
                     thread_died_chain_ty(),
                 ],
             },
-            rest_param_type: None,
-        },
-    );
-
-    // (:wat::kernel::Thread/readln peer) → :I
-    // (:wat::kernel::Thread/println peer data:O) → :wat::core::nil
-    //
-    // Arc 170 Stone C1. Peer-relative read / write on a
-    // `:wat::kernel::ThreadPeer<I, O>`. The verbs read/write through
-    // the appropriate field of the peer struct (`peer.rx` for readln,
-    // `peer.tx` for println). The substrate enforces same-universe
-    // discipline: if the partner is gone, the operation surfaces a
-    // RuntimeError (the substrate-correct propagation per the user's
-    // "lock step - forks are servers - their clients went away - that
-    // is a panic event" framing in INTERSTITIAL-REALIZATIONS § "Link
-    // semantics"); user wat code never sees a None / Disconnected
-    // wrapping at this surface.
-    //
-    // The verbs are NAMED in the `Thread/` namespace (not
-    // `ThreadPeer/`) because that is the wat user's mental model:
-    // "read a line from the thread"; the peer struct is the bookkeeping
-    // device, not the conceptual subject. Auto-generated `ThreadPeer/rx`
-    // and `ThreadPeer/tx` field accessors land separately via
-    // `register_struct_methods` and are not what user code reaches
-    // for at the surface.
-    let thread_peer_ty = || TypeExpr::Parametric {
-        head: "wat::kernel::ThreadPeer".into(),
-        args: vec![
-            TypeExpr::Path(":I".into()),
-            TypeExpr::Path(":O".into()),
-        ],
-    };
-    env.register(
-        ":wat::kernel::Thread/readln".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![thread_peer_ty()],
-            ret: TypeExpr::Path(":I".into()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::kernel::Thread/println".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![thread_peer_ty(), TypeExpr::Path(":O".into())],
-            ret: TypeExpr::Tuple(vec![]),
             rest_param_type: None,
         },
     );

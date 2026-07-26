@@ -30,7 +30,7 @@
 
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::closure_extract::{extract_closure, ClosurePackage, ExtractionError, ExtractionErrorKind};
+use wat::closure_extract::{extract_closure, ClosurePackage};
 use wat::freeze::{startup_from_file, startup_from_forms};
 use wat::runtime::{apply_function, eval, Environment, Value};
 
@@ -62,16 +62,6 @@ fn extract(
     let types = world.symbols().types().expect("TypeEnv attached").clone();
     extract_closure(fn_value, entry_name, world.symbols(), &types)
         .expect("extract_closure should succeed")
-}
-
-fn extract_err(
-    world: &wat::freeze::FrozenWorld,
-    fn_value: &Value,
-    entry_name: Option<&str>,
-) -> ExtractionError {
-    let types = world.symbols().types().expect("TypeEnv attached").clone();
-    extract_closure(fn_value, entry_name, world.symbols(), &types)
-        .expect_err("extract_closure should fail")
 }
 
 /// Slice 1b consumer pattern: re-freeze prologue, then `eval`
@@ -439,77 +429,6 @@ fn t7_factory_pattern() {
     let result =
         invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(7)]);
     assert_i64(&result, 107);
-}
-
-// ─── T8. lambda captures non-portable Sender (NEGATIVE) ─────────────────
-
-#[test]
-fn t8_lambda_captures_sender_is_non_portable() {
-    // The lambda captures `tx` (a Sender) by closing over it but
-    // never reads/writes the channel — the send call would trigger
-    // CommCallOutOfPosition at type-check, which is a separate
-    // discipline. We're only testing extraction's impure-capture gate
-    // here. Capturing the Sender in the closed env is enough to
-    // surface ImpureCapture.
-    let parent = freeze("tests/function/wat_arc170_closure_extraction_t8.wat");
-    let lambda = synth_lambda(&parent, ":my::make-snd");
-    let err = extract_err(&parent, &lambda, None);
-    match &err {
-        ExtractionError { kind: ExtractionErrorKind::ImpureCapture { name, type_name, path: _ }, .. } => {
-            assert_eq!(name, "tx");
-            assert_eq!(type_name, "wat::kernel::Sender", "t8: impure capture type_name golden");
-        }
-        other => panic!("expected ImpureCapture; got {:?}", other),
-    }
-    // Verify the Display rendering carries the substrate-as-teacher
-    // diagnostic. The report shape mandates a verbatim sample.
-    let msg = format!("{}", err);
-    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
-    // rune:lint(no-inlined-wat) — assertion needle, not inline wat: the diagnostic backtick-quotes the captured name (`tx`); the wat reader reads the leading backtick as quasiquote, so the needle parses as a list — a false positive
-    assert!(msg.contains("`tx`"), "missing capture name: {}", msg);
-    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
-    assert!(msg.contains("Sender"), "missing type: {}", msg);
-    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
-    assert!(msg.contains("Impure types") || msg.contains("impure type"),
-            "missing teacher hint: {}", msg);
-    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
-    assert!(msg.contains("stdin/stdout/stderr"),
-            "missing pipes pointer: {}", msg);
-}
-
-// ─── T9. captured struct holds Sender field (NEGATIVE) ──────────────────
-//
-// Slice 1 surfaces this case if the substrate admits a struct holding a
-// Sender field. Since the substrate's struct field-types are validated
-// against TypeEnv at type-check, defining such a struct requires the
-// Sender type be admissible. Lab-side substrate admits this; the
-// extraction surface refuses it.
-
-#[test]
-fn t9_captured_struct_holds_sender_field_nested() {
-    // The substrate admits structs holding kernel-channel types as
-    // fields (the type system has Sender<T> as a parametric type).
-    // The captured value is a struct; encoding walks fields and the
-    // Sender field surfaces as ImpureCapture.
-    let parent = match startup_from_file("tests/function/wat_arc170_closure_extraction_t9.wat") {
-        Ok(w) => w,
-        Err(_e) => {
-            // Substrate may refuse Sender<T> as a struct field type.
-            // In that case T9 is vacuous — the lab can't construct
-            // the failing input shape. Skip via early return.
-            eprintln!("T9 skipped: substrate rejects Sender<T> as struct field");
-            return;
-        }
-    };
-    let lambda = synth_lambda(&parent, ":my::make-pack");
-    let err = extract_err(&parent, &lambda, None);
-    match err {
-        ExtractionError { kind: ExtractionErrorKind::ImpureCapture { name: _, type_name, path }, .. } => {
-            assert_eq!(type_name, "wat::kernel::Sender", "t9: nested impure capture type_name golden");
-            assert!(!path.is_empty(), "expected nested path naming the offending field");
-        }
-        other => panic!("expected ImpureCapture; got {:?}", other),
-    }
 }
 
 // ─── T10. captures with type alias ──────────────────────────────────────

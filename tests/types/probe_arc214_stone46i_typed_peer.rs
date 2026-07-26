@@ -5,7 +5,7 @@
 //!     parametric type heads (mirror `Sender<T>`/`Receiver<T>`).
 //!   - `(:wat::kernel::spawn-program' :tier env prog)` INFERS to the peer type at
 //!     CHECK time — reading the program fn's `[Peer'<S,R>] -> nil` signature
-//!     (mirror `infer_make_channel`, check.rs:10423).
+//!     (a type-keyword → parametric-tuple inference shape).
 //!
 //! ## Why the NEGATIVE probes are the disconfirming core (measured 2026-06-07)
 //!
