@@ -86,3 +86,69 @@
   [cache <- :wat::cache::Lru<K,V>]
   -> :wat::core::i64
   (:rust::cache::Lru::len cache))
+
+;; ═══ Stone 2 — :wat::cache::Cache<K,V>, the MULTI-CLIENT `defservice` form ═══════════════════
+;;
+;; Stone 1 above is thread-owned, zero-mutex — the fastest single-owner memoization. Stone 2 is
+;; the SHARED-cache form: a `defservice` whose actor serialization IS the mutex, so N clients
+;; share ONE cache with no lock written anywhere — the arc-130 N-client case landing natively.
+;; The client verbs the macro generates are `lru-svc/get` / `lru-svc/put` (service-scoped, NOT
+;; the bare `:wat::cache::get`/`put` — those names stay RESERVED, per the header above, for a
+;; later stone's `defclause` over both cache flavours).
+;;
+;; ─── the one contract decision — durable holds the SPEC, ephemeral holds the HANDLE ─────────
+;; `:wat::cache::Lru` is `scope = "thread_owned"` on the Rust shim (header above): it CANNOT
+;; cross a wire or a hibernation boundary, and 293.W enforces exactly that — an impure
+;; surface-typed field may live only in `:ephemeral`. So:
+;;   `:durable   [capacity <- i64]`        — plain EDN, the SPEC the resource is rebuilt from.
+;;   `:ephemeral [cache <- Lru<K,V>]`      — the live handle, born inside `:init` by calling
+;;                                           `Lru::new` on the durable capacity.
+;; This is R5 at the service layer — store the thunk, not the answer — and it is correct BY
+;; CONSTRUCTION, not by discipline: writing the handle into `:durable` instead does not compile
+;; (293.W rejects an impure `Lru<K,V>` field outside `:ephemeral`).
+(:wat::core::defsurface :wat::cache::Cache<K,V> :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat::cache::Cache::GetRequest<K> [key <- :K])
+   (:wat::core::defenum :wat::cache::Cache::GetResponse<V> :wat::enum::Pure
+     :Hit              [value <- :V]
+     :Miss             []
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :wat::cache::Cache::PutRequest<K,V> [key <- :K  value <- :V])
+   (:wat::core::defenum :wat::cache::Cache::PutResponse<K,V> :wat::enum::Pure
+     ;; `displaced` reuses Stone 1's `:wat::cache::Entry<K,V>` — a `:wat::`-prefixed type, so the
+     ;; S4c `:messages`-completeness wall treats it as stdlib and does not require it re-declared
+     ;; here (it is not a message of THIS surface — it is the shared cache-primitive vocabulary).
+     :Ok               [displaced <- :wat::core::Option<wat::cache::Entry<K,V>>]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(get [self <- :wat::cache::Cache<K,V>  req <- :wat::cache::Cache::GetRequest<K>]
+     -> :wat::cache::Cache::GetResponse<V> :max-request-bytes 1024)
+   (put [self <- :wat::cache::Cache<K,V>  req <- :wat::cache::Cache::PutRequest<K,V>]
+     -> :wat::cache::Cache::PutResponse<K,V> :max-request-bytes 1024)])
+
+(:wat::service::defservice :wat::cache::lru-svc<K,V>
+  :satisfies :wat::cache::Cache<K,V>
+  :durable   [capacity <- :wat::core::i64]
+  :ephemeral [cache <- :wat::cache::Lru<K,V>]
+  :init (:wat::core::fn [record <- :wat::cache::lru-svc::Record<K,V>]
+          -> :wat::cache::lru-svc::State<K,V>
+          (:wat::cache::lru-svc::State
+            :durable record
+            :cache (:wat::cache::Lru::new (:wat::cache::lru-svc::Record/capacity record))))
+  :impls
+  [(get [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s)
+                             (:wat::cache::Cache::GetRequest/key req))
+         ((:wat::core::Some v) (:wat::cache::Cache::GetResponse::Hit v))
+         (:wat::core::None (:wat::cache::Cache::GetResponse::Miss)))))
+   ;; `s` is UNCHANGED on Reply — the mutation is inside the opaque `Lru` handle via
+   ;; `Lru::put`, not in State (mirrors `wat/query/sqlite-store.wat`'s `conn` pattern).
+   (put [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::cache::Cache::PutResponse::Ok
+         (:wat::cache::Lru::put (:wat::cache::lru-svc::State/cache s)
+           (:wat::cache::Cache::PutRequest/key req)
+           (:wat::cache::Cache::PutRequest/value req)))))])
