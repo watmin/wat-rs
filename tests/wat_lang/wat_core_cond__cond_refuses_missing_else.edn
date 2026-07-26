@@ -2,12 +2,14 @@
   :message "macro :wat::core::cond — program body eval failed"
   :location #wat.core/Span {
     :file "wat/core.wat"
-    :line 1223
+    :line 1256
     :col 15
-    :end #wat.core.Option/Some [#wat.core/Pos {
-      :line 1223
-      :col 62
-    }]
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 1256
+        :col 62
+      }
+    ]
   }
   :causes []
   :macro-name ":wat::core::cond"
@@ -15,12 +17,14 @@
     :message "malformed template: cond: non-exhaustive — needs a terminal :else arm"
     :location #wat.core/Span {
       :file "wat/core.wat"
-      :line 1213
+      :line 1246
       :col 5
-      :end #wat.core.Option/Some [#wat.core/Pos {
-        :line 1213
-        :col 82
-      }]
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 1246
+          :col 82
+        }
+      ]
     }
     :causes []
     :reason "cond: non-exhaustive — needs a terminal :else arm"

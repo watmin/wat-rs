@@ -732,10 +732,35 @@
       ;; ── KWARGS BRANCH (Arc 260.1a) ───────────────────────────────────────────
       (:wat::core::let
         [name-str        (:wat::core::keyword/to-string name)
-         ;; :<name>::Kwargs — the minted record type keyword value
+         ;; ── Arc 278 parametric names: the name / type-param SPLIT ────────────────────
+         ;; A kwargs defn MAY be generic (`:my::svc/start<T>` — every parametric
+         ;; `defservice`'s auto start/resume is exactly this). Its companions must append
+         ;; the suffix to the BASE and RE-ATTACH the params at the end
+         ;; (`:my::svc/start::Kwargs<T>`), never the naive `:my::svc/start<T>::Kwargs`
+         ;; (a malformed type name). Mirrors the same split in wat/service.wat.
+         ;; IDENTITY when there are no params: `name-tp` = "" and `name-base` IS `name-str`,
+         ;; so every companion name is byte-identical to the pre-split concatenation.
+         ;; DECLARED types/fns carry the params; CTOR / ACCESSOR / by-name-resolution
+         ;; keywords (and the companion MACRO's own name) take the bare base.
+         name-parametric? (:wat::core::string::ends-with? name-str ">")
+         name-base       (:wat::core::if name-parametric?
+                           (:wat::core::first (:wat::core::string::split name-str "<"))
+                           name-str)
+         name-tp         (:wat::core::if name-parametric?
+                           (:wat::core::string::subs name-str
+                             (:wat::core::string::length name-base)
+                             (:wat::core::string::length name-str))
+                           "")
+         ;; the companion MACRO's own head — always the bare name (a macro takes no type args)
+         name-base-node  (:wat::core::keyword-node
+                           (:wat::core::string::interpolate ":{b}" :b name-base))
+         ;; :<name>::Kwargs — the minted bundle type. DECLARED → carries the type params.
          kwargs-ty       (:wat::core::keyword/from-string
-                           (:wat::core::string::interpolate "{name-str}::Kwargs" :name-str name-str))
+                           (:wat::core::string::interpolate "{b}::Kwargs{p}" :b name-base :p name-tp))
          kwargs-ty-str   (:wat::core::keyword/to-string kwargs-ty)
+         ;; the BARE bundle name — the CONSTRUCTOR head and the ACCESSOR prefix, both of
+         ;; which key on the base (identity when the defn is monomorphic).
+         kwargs-ty-base-str (:wat::core::string::interpolate "{b}::Kwargs" :b name-base)
          ;; The inner argspec Vector node (the last element of params-ch)
          kw-argvec       (:wat::core::Option/expect  
                             (:wat::core::last params-ch)
@@ -829,7 +854,7 @@
                                  binder-sym    fname-node
                                  ;; Accessor keyword: :<name>::Kwargs/<field-name>
                                  accessor-kw   (:wat::core::keyword/from-string
-                                                 (:wat::core::string::concat kwargs-ty-str
+                                                 (:wat::core::string::concat kwargs-ty-base-str
                                                    (:wat::core::string::interpolate "/{fname-str}" :fname-str fname-str)))
                                  ;; Accessor call: (:<name>::Kwargs/<field> __kwargs__)
                                  accessor-call `(~accessor-kw ~kw-sym)]
@@ -842,10 +867,12 @@
          let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)
          ;; ── Arc 260.1b: companion macro additions ────────────────────────────
          ;; impl-head-colon-str: ":<name>$impl" — the $impl fn's keyword string
-         impl-head-colon-str (:wat::core::string::concat ":"
-                               (:wat::core::string::concat name-str "$impl"))
-         ;; kwargs-ty-colon-str: ":<name>::Kwargs" — for keyword-node in the companion body
-         kwargs-ty-colon-str (:wat::core::string::concat ":" kwargs-ty-str)
+         impl-head-colon-str (:wat::core::string::interpolate ":{b}$impl{p}" :b name-base :p name-tp)
+         ;; the $impl CALL head baked into the companion macro — bare base (a call resolves
+         ;; on the base name; the type args are inferred from the arguments there).
+         impl-call-colon-str (:wat::core::string::interpolate ":{b}$impl" :b name-base)
+         ;; kwargs-ty-colon-str: ":<name>::Kwargs" — the CONSTRUCTOR head kwargs-lower emits.
+         kwargs-ty-colon-str (:wat::core::string::concat ":" kwargs-ty-base-str)
          ;; n-pos: count of leading positional params (all params before `& [...]`)
          n-pos               (:wat::core::i64::/ (:wat::core::i64::- params-len 2) 3)
          ;; fname-nodes: Vector<WatAST> of field-name symbol nodes in declared order.
@@ -864,6 +891,7 @@
          field-names-ast-vec (:wat::core::with-children kw-argvec fname-nodes)
          ;; impl-name-node: WatAST Keyword node for the $impl fn (used in the def form)
          impl-name-node      (:wat::core::keyword-node impl-head-colon-str)
+         impl-call-node      (:wat::core::keyword-node impl-call-colon-str)
          ;; call-args-sym: rest-arg binder for the companion defmacro.
          ;; symbol-node (not fresh-symbol): the argspec name key is stored as a bare string
          ;; by parse_defmacro_form (ident.as_str()); env_key for a scoped fresh-symbol would
@@ -873,12 +901,17 @@
          ;; ── W2a: the kwargs-check name + the recursion guard ──
          ;; kwargs-check-name-str: "<name>::kwargs-check" (bare string); kwargs-check-kw: the
          ;; keyword node ":<name>::kwargs-check" for the auto-minted fn's own def head.
-         kwargs-check-name-str (:wat::core::string::concat name-str "::kwargs-check")
+         ;; NOTE (arc 278): the ::kwargs-check / ::Coords / ::GrantHandles / ::grant-worker /
+         ;; ::revoke-worker family below is minted ONLY for a Peer'-bearing (dialing) kwargs
+         ;; defn (`mint-coords?`). Those are keyed off the BASE so a parametric name still
+         ;; yields a WELL-FORMED companion; a parametric DIALING kwargs defn (type params that
+         ;; must reach these carriers) is unproven and out of this strike's scope.
+         kwargs-check-name-str (:wat::core::string::concat name-base "::kwargs-check")
          kwargs-check-kw       (:wat::core::keyword-node
                                   (:wat::core::string::concat ":" kwargs-check-name-str))
          ;; GUARD: this defn is ITSELF a kwargs-check (it has `& [...]`, so it took the kwargs
          ;; branch too) → do NOT mint ITS checker (infinite mint). Suffix test on the bare name.
-         is-check (:wat::core::string::ends-with? name-str "::kwargs-check")
+         is-check (:wat::core::string::ends-with? name-base "::kwargs-check")
          ;; ── the head-swapped argvec: fold kw-ch, swap Peer' TYPE nodes only ──
          ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
          ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer'<S,R> (data-typed
@@ -905,7 +938,7 @@
          ;; EDN-crossable — it IS the PoolMsg::Setup wire payload) whose fields are the HEAD-SWAPPED
          ;; argvec (each Peer'<S,R> → Address'<S,R>; data fields keep their own type), SAME field
          ;; names + order as `::Kwargs`. Reuses the `swapped-argvec` field nodes verbatim.
-         coords-ty-str (:wat::core::string::concat name-str "::Coords")
+         coords-ty-str (:wat::core::string::concat name-base "::Coords")
          coords-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" coords-ty-str))
          ;; arc 294 9a kwargs flip: bare aggregate name is now the KWARGS MACRO; the POSITIONAL
          ;; ctor moved to the type-name PRIME. This is GENERATED code constructing a just-minted
@@ -973,7 +1006,7 @@
          ;; each typed `TypedCapability<Si,Ri>` (capswapped). Data fields never enter it — they
          ;; carry no capability to grant. Read `kw-ch`'s ORIGINAL (unswapped) type per field —
          ;; same is-peer test as `has-peer-field`, applied per-field here.
-         grant-handles-ty-str (:wat::core::string::concat name-str "::GrantHandles")
+         grant-handles-ty-str (:wat::core::string::concat name-base "::GrantHandles")
          grant-handles-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" grant-handles-ty-str))
          ;; arc 294 9a kwargs flip: positional ctor of this just-minted aggregate moves to the prime.
          grant-handles-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat grant-handles-ty-str "'")))
@@ -1051,8 +1084,8 @@
          ;; literal service-field list of ::GrantHandles. `handles-sym`/`pid-sym` are reused
          ;; (by identity) between the defn's own param binders and the body's call forms —
          ;; hygienic, mirrors `grantable-self-sym`/`grantable-pids-sym` in wat/service.wat.
-         grant-worker-name-str  (:wat::core::string::concat name-str "::grant-worker")
-         revoke-worker-name-str (:wat::core::string::concat name-str "::revoke-worker")
+         grant-worker-name-str  (:wat::core::string::concat name-base "::grant-worker")
+         revoke-worker-name-str (:wat::core::string::concat name-base "::revoke-worker")
          grant-worker-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" grant-worker-name-str))
          revoke-worker-kw (:wat::core::keyword-node (:wat::core::string::concat ":" revoke-worker-name-str))
          gw-handles-sym (:wat::core::symbol-node "handles")
@@ -1116,7 +1149,7 @@
            (:wat::core::def ~impl-name-node
              (:wat::core::fn ~reshaped-params -> ~ret-type
                (:wat::core::let ~let-binders-vec ~@body-forms)))
-           (:wat::core::defmacro ~name
+           (:wat::core::defmacro ~name-base-node
              [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
              -> :wat::WatAST
              ;; ── Thin forwarder to :wat::core::kwargs-lower ───────────────────────
@@ -1127,11 +1160,11 @@
              ;;   _kl-np:   i64 literal: count of positional params
              ;;   _kl-ns:   keyword node for function namespace (for pascal->kebab-in)
              (:wat::core::let
-               [~(:wat::core::symbol-node "_kl-impl") ~impl-name-node
+               [~(:wat::core::symbol-node "_kl-impl") ~impl-call-node
                 ~(:wat::core::symbol-node "_kl-kty")  (:wat::core::keyword-node ~kwargs-ty-colon-str)
                 ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
                 ~(:wat::core::symbol-node "_kl-np")   ~n-pos
-                ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~name-str))]
+                ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~name-base))]
                `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))
            ~coords-def                  ;; ← W2 record redirect: <fqdn>::Coords (before the checker refs it).
            ~grant-handles-def           ;; ← C2 D: <fqdn>::GrantHandles (before the checker refs it).
