@@ -5800,8 +5800,18 @@ fn infer_list(
                         } else if !explicit_type_suffix.is_empty() {
                             // Generic with EXPLICIT type-args — parse and bind each param.
                             // suffix is `<T1,T2,...>`: strip the enclosing `<` and `>`.
+                            //
+                            // The split must be DEPTH-AWARE: a type-arg may itself be
+                            // parametric, and its inner commas are not separators here.
+                            // `defservice` mints exactly such a head —
+                            // `Locus/launch<Op,Reply,State<K,V>,Admin<K,V>,Status<K,V>>` —
+                            // which a flat `split(',')` tore into 8 fragments instead of 5,
+                            // shifting every binding (`Sh` bound to the shard `V>`).
+                            // Reuses `parse_type_list`'s own depth tracker (arc 170 W2
+                            // Strike 1a, `->`-arrow guard included) rather than minting a
+                            // third twin. Non-nested suffixes split identically to before.
                             let inner = &explicit_type_suffix[1..explicit_type_suffix.len() - 1];
-                            let type_strs: Vec<&str> = inner.split(',').collect();
+                            let type_strs: Vec<&str> = crate::types::split_type_list_top_level(inner);
                             let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
                             for (i, tp) in member_type_params.iter().enumerate() {
                                 if let Some(arg_str) = type_strs.get(i) {

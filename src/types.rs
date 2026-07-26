@@ -3929,12 +3929,52 @@ fn parse_fn_body(
 /// they're never split into a type-list). Found via `wat-scripts/probes/arc-170/…`-class
 /// probing: a hand-written `Tuple<Fn(i64)->i64,i64,>` return type froze to a malformed
 /// 1-element `Tuple(Path("Fn(i64)->i64,i64"))` instead of the correct 2-element Tuple.
+///
+/// The depth-tracking loop itself now lives in [`split_type_list_top_level`] — extracted so
+/// `check.rs`'s call-site type-arg binder splits on the SAME tracker instead of a flat
+/// `split(',')` (which tore `Locus/launch<…,State<K,V>,…>` apart). This fn is the parse half.
 fn parse_type_list(
     s: &str,
     original: &str,
     canonicalize: bool,
     span: &Span,
 ) -> Result<Vec<TypeExpr>, TypeError> {
+    let mut out = Vec::new();
+    let pieces = split_type_list_top_level(s);
+    // `split_type_list_top_level` always yields at least one piece, so
+    // `split_last` never returns None. Every piece BEFORE the last is
+    // parsed unconditionally (an empty one is a malformed list and must
+    // surface as such); the trailing piece is skipped when empty, which
+    // is what admits `Tuple<A,B,>`'s trailing comma.
+    let (tail, init) = pieces.split_last().expect("split yields >= 1 piece");
+    for piece in init {
+        out.push(parse_type_inner(piece.trim(), original, canonicalize, span)?);
+    }
+    if !tail.trim().is_empty() {
+        out.push(parse_type_inner(tail.trim(), original, canonicalize, span)?);
+    }
+    Ok(out)
+}
+
+/// Split a comma-separated type list on **top-level** commas only —
+/// the string-level half of [`parse_type_list`], shared with the
+/// call-site type-arg binder in `check.rs`.
+///
+/// A comma nested inside an inner `<…>` or `(…)` belongs to that inner
+/// type, not to this list: `"Op,State<K,V>,Admin<K,V>"` splits into
+/// three pieces, not five. `defservice` is the first minter of such a
+/// call-head (`Locus/launch<Op,Reply,State<K,V>,Admin<K,V>,Status<K,V>>`);
+/// a flat `split(',')` tore `State<K` / `V>` apart and shifted every
+/// subsequent type-arg by one.
+///
+/// The `->` guard is [`parse_type_list`]'s (arc 170 W2 Strike 1a): a `>`
+/// preceded by `-` is a `Fn(…)->T` arrow, not a bracket close.
+///
+/// Pieces are returned unstripped (no `trim`) and INCLUDE empties, so a
+/// caller can reproduce `str::split(',')` exactly. On a body with no
+/// nesting there is no depth to track and the result is element-for-element
+/// identical to `s.split(',').collect()`.
+pub(crate) fn split_type_list_top_level(s: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut depth = 0i32;
     let mut start = 0usize;
@@ -3945,19 +3985,15 @@ fn parse_type_list(
             '>' if prev_char == Some('-') => {} // Fn(...)->T arrow — not a bracket close.
             '>' | ')' => depth -= 1,
             ',' if depth == 0 => {
-                let piece = &s[start..i];
-                out.push(parse_type_inner(piece.trim(), original, canonicalize, span)?);
+                out.push(&s[start..i]);
                 start = i + 1;
             }
             _ => {}
         }
         prev_char = Some(c);
     }
-    let tail = &s[start..];
-    if !tail.trim().is_empty() {
-        out.push(parse_type_inner(tail.trim(), original, canonicalize, span)?);
-    }
-    Ok(out)
+    out.push(&s[start..]);
+    out
 }
 
 /// Find the first occurrence of `c` at bracket-depth 0.
