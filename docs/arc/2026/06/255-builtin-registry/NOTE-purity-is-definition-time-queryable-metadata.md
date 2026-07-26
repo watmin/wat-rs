@@ -67,6 +67,56 @@ this update corrects.
 So `(metadata-of :wat::core::X)` must carry **`{:kind, :pure, :deterministic, :expand-time-legal, …}`** —
 `:deterministic` is the sibling property the original note didn't name.
 
+## UPDATE 2026-07-25 (arc 278, cache Stone 2) — a THIRD hand-list, and this one is a CORRECTNESS WALL
+
+The class this note names has a third instance, found by probe while grounding parametric records. Unlike the
+other two it is not a tooling gate — **it is the wire-containment wall itself**, and it currently under-reports.
+
+**The gap.** `is_pure_type` (`src/check.rs:14097`) decides purity for a *type*. For wat-declared types it is
+sound — `Nature::is_pure()` for aggregates (Struct → impure), the declared `:wat::enum::{Pure,Impure}` marker
+for enums, recursive over containers/newtypes/tuples. But for **Rust opaques** its knowledge is a hardcoded
+list of **eight path strings**:
+
+```rust
+"wat::kernel::ChildHandle" | "wat::io::IOReader" | "wat::io::IOWriter"
+| "wat::holon::OnlineSubspace" | "wat::holon::Reckoner" | "wat::holon::Engram"
+| "wat::holon::EngramLibrary" | "wat::holon::Hologram" => return false,
+```
+
+Anything not on it falls through to `None => true` — *"portable by convention"*. **Every `#[wat_dispatch]`
+opaque minted since that list was written is therefore invisible to the wall**, and a `Record` will hold one.
+
+**Proven by running it (orchestrator, own hand), all exit 0 where they must be exit 3:**
+- `(defrecord :probe::Direct [c <- :wat::sqlite::Connection])` — a live thread-owned sqlite handle.
+- `(defrecord :probe::Raw [c <- :rust::sqlite::Connection])` — the raw path, so the `Alias => true` arm is not
+  what masks it.
+- `(defrecord :probe::Smuggle [c <- :wat::cache::Lru<String,i64>])` — **our own Stone 1 primitive** (`a86f521c`).
+
+**The wall itself is sound** — controls confirm it: `IOWriter` in a record field IS rejected
+(`ImpureFieldInPureAggregate`), and it sees *through* type parameters (`Box<IOWriter>` rejected, naming the full
+parametric type). So this is not a broken wall; it is a wall whose **opaque enrollment is manual and stopped**.
+
+**Why it has teeth.** 293.W built `validate_aggregate_containment` *in response to a grounded breach* — a Struct
+nested in a Record crossing a process peer (`#w/S {:a 99}` reconstructed far-side) — to make the wire wall a
+TYPE guarantee. That guarantee does not hold for opaques. A record claiming to be EDN can contain a live
+resource, and the rule's own error text says why that must never exist: *"a record holding a struct field could
+never cross — it must not exist."*
+
+**Both fixes are this note's own prescription, at one wall or three:**
+- *Narrow, available now, does NOT need 255:* enroll `#[wat_dispatch]` opaques' purity at registration; delete
+  the eight hardcoded names. Same shape as arc 296's `EdnSchema` inventory drain.
+- *Root:* 255's registry — opaques declare purity where they register; `is_pure_type` PROJECTS from it. Then all
+  three hand-lists dissolve together.
+
+**Unchased (do not inherit as fact):** whether `:rust::sqlite::Connection` is absent from the `TypeEnv` entirely,
+or present with a pure-reading nature. That decides "register it" vs "register it correctly."
+
+**Blast-radius warning for whoever draws this:** if opaques start reading impure, every record currently holding
+one goes RED at startup. That is the *point* — 293.W's containment pass caught six real stdlib mis-declarations
+when it landed and was called a design oracle — but it is a cascade, not a one-liner.
+
+---
+
 **Status / what 278 ships (NOT 255):** 255 (re-lift ~454 builtins into a registry) is **NOT ready** —
 builder's call, 2026-06-20, too big to detour into mid-278. To ship rete, stone 6a carries a small
 **hand-managed metadata map** in `src/rete/purity.rs` (`{pure, deterministic}` per op, default-deny,
