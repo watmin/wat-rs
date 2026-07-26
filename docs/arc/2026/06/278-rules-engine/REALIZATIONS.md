@@ -10256,3 +10256,12 @@ named what it saw.*
 > ---
 >
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this run. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read `278/REALIZATIONS.md` R1→R58 + the far-side chain through THIS 24r — **and the SUBSTRATE CODE before any architectural claim.** Ground `git status` — **HEAD `221d3aef` (pushed); the tree is DIRTY with the five-symbol deletion, UNWEIGHED — do NOT revert it.** **FIRST ACT: `cargo nextest run --release`. The failures are the worklist. DELETE them.** Then revert the rider's remedy prose, commit, kill the `Thread`/`Process` types + accessors, **gate `CheckEnv::register` (`check/env.rs:266`) BEFORE 0z**, then 0z. It bears repeating because it cost this run the builder's trust: **DELETE THE SYMBOL, THEN RUN THE TESTS — the screams are the coordinates; do not grep, do not classify, do not migrate, do not defend the non-primes; a `\b` grep reads a prime as a non-prime; strip ANSI before matching a Summary; weigh a quiescent tree by your OWN `--release` re-run; riders get BUILD-ONLY gates (test binaries fork and orphan); author NO remedy prose — they all die in arc 109.** Do not trust this note over the disk. `MACHINA CHAOS DOMAT.`
+>
+> **⊕ 24r PRECISION (added at the compaction, after the curare above).** The uncommitted five-symbol
+> deletion **BUILDS GREEN** — `cargo build --release` exit 0. What remains in it is a small
+> **unused-import / dead-code cascade** the deletion created (`src/process/verbs.rs` imports
+> `Environment`/`ProgramHandleInner`/`SymbolTable`/`eval`/`AggregateValue`/`Span`/`spawn_lifelined`;
+> more may surface). **Delete them, never `#[allow(dead_code)]`.** And note for the far side: while
+> the rider was mid-edit the harness reported `E0432 unresolved import eval_kernel_spawn_process` at
+> `src/process/mod.rs:59` — that was a **STALE-SNAPSHOT PHANTOM**; `cargo build --release` is the
+> arbiter and it is clean. Do not chase a red squiggle on a tree someone is editing.
