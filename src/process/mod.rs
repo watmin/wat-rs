@@ -24,7 +24,9 @@
 //!   `install_substrate_signal_handlers`, `run_in_fork`, `child_post_fork_init`,
 //!   `child_post_fork_init_preserving`.
 //! - `handle.rs` — parent-side handles: `ChildHandle`, `ForkedProgramHandles`.
-//! - `verbs.rs` — wat dispatch arm: `eval_kernel_spawn_process`.
+//! - `verbs.rs` — `:wat::kernel::spawn-process` retired (non-prime IPC
+//!   de-prime); `fork_program_from_source` (wat-cli source-fork) + the
+//!   `spawn-program' (process)` server-child runtime remain.
 //!
 //! ## In-thread tier (std::thread over kernel pipes)
 //!
@@ -56,7 +58,6 @@ pub(crate) use child::child_post_fork_init;
 pub use handle::{ChildHandle, ForkedProgramHandles};
 pub use verbs::{
     EXIT_SUCCESS, EXIT_RUNTIME_ERROR, EXIT_PANIC, EXIT_STARTUP_ERROR, EXIT_MAIN_SIGNATURE,
-    eval_kernel_spawn_process,
     // wat-cli source-fork entry point: NOT a WAT verb; no dispatch arm; no type registration.
     fork_program_from_source,
 };

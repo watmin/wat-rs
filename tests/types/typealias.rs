@@ -86,11 +86,6 @@ fn alias_over_hashmap_passes_through_std_get() {
     assert!(matches!(run("tests/types/typealias_hashmap_std_get.wat"), Value::i64(10)));
 }
 
-#[test]
-fn alias_over_fn_type_works_at_spawn() {
-    assert!(matches!(run("tests/types/typealias_fn_type_spawn.wat"), Value::i64(7)));
-}
-
 // ─── Alias in return position unifies with its expansion ──────────────
 
 #[test]

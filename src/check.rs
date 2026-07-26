@@ -629,9 +629,10 @@ pub fn check_program(
     // of them on `&func.body`, then one `for form` running all of them on
     // each top-level form. Relative order of the validators is preserved.
     //
-    // Arc 110 — validate_comm_positions: every kernel-comm call must land
-    // in match-scrutinee or option::expect-value position (pre-inference so
-    // a misplaced send/recv reports as the structural problem it is).
+    // Arc 110 — validate_comm_positions retired alongside the raw
+    // :wat::kernel::send / :wat::kernel::recv verbs it policed (non-prime
+    // IPC de-prime; this pass). The prime send'/recv' outcome types carry
+    // their own must-use discipline (see the send'-outcome wall below).
     // Arc 109 slice 1c — validate_bare_legacy_primitives: bare primitive
     // type tokens (`:i64`, `:f64`, `:bool`, `:String`, `:u8`) rejected.
     // Arc 109 slice 9d — walk_for_legacy_stream: legacy `:wat::std::stream::*`
@@ -649,7 +650,6 @@ pub fn check_program(
     for func in sym.functions.values() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
-            validate_comm_positions(body, CommCtx::Forbidden, &mut errors);
             validate_bare_legacy_primitives(body, &mut errors);
             walk_for_legacy_stream(body, &mut errors);
             walk_for_legacy_lru_cache_service(body, &mut errors);
@@ -669,7 +669,6 @@ pub fn check_program(
         if is_fn_def_form(form) {
             continue;
         }
-        validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
         validate_bare_legacy_primitives(form, &mut errors);
         walk_for_legacy_stream(form, &mut errors);
         walk_for_legacy_lru_cache_service(form, &mut errors);
@@ -796,324 +795,6 @@ pub fn check_program(
     } else {
         Err(CheckErrors(errors))
     }
-}
-
-/// Arc 110 — parent-context tag for the `validate_comm_positions`
-/// walk. Every sub-expression descends with one of these; comm calls
-/// are legal only under the four non-Forbidden tags.
-#[derive(Clone, Copy)]
-enum CommCtx {
-    /// Top-level form, function body, struct field, call
-    /// argument, let RHS — anywhere a `:None` would silently slip
-    /// past. The default for every recursive descent.
-    Forbidden,
-    /// Discriminant slot of `:wat::core::match`. The match form
-    /// requires every arm of the comm result's three states
-    /// (Ok(Some _), Ok(:None), Err _) to be handled per arc 111.
-    MatchScrutinee,
-    /// Value-position slot of `:wat::core::result::expect`. Since
-    /// arc 111, send/recv return Result<Option<T>, ThreadDiedError>;
-    /// result::expect unwraps the Result (panic on Err), leaving
-    /// the inner Option<T> for the caller to handle.
-    ResultExpectValue,
-    /// Value-position slot of `:wat::core::option::expect`. Reserved
-    /// for callers that have already unwrapped a Result somewhere
-    /// upstream and want to panic on the inner :None. (Direct
-    /// kernel::send/recv calls won't fit here under arc 111 — their
-    /// type is Result<Option<_>, _>, not Option<_>; they fit
-    /// `ResultExpectValue` instead.)
-    OptionExpectValue,
-    /// RHS position of a `:wat::core::let` binding whose name is
-    /// later consumed in the same let via match scrutinee or
-    /// Result/Option expect. Arc 212 stone δ-comm-positions: the
-    /// fourth permitted slot — comm result bound to a name and
-    /// immediately matched/expected in the same let scope.
-    LetBindingRhs,
-}
-
-/// Arc 110 — refuse to compile programs that ignore a kernel-comm
-/// terminal `:None`. Walks the AST tracking the parent's syntactic
-/// context; whenever a `:wat::kernel::send` or `:wat::kernel::recv`
-/// call appears outside the two permitted slots, push an error.
-///
-/// The rule is local — comm calls live where they're consumed; helper
-/// functions that wrap a recv must do the consumption (match-or-expect)
-/// internally and return a non-Option value.
-fn validate_comm_positions(
-    node: &WatAST,
-    ctx: CommCtx,
-    errors: &mut Vec<CheckError>,
-) {
-    // Let-form scope-aware handler — implements the fourth permitted slot
-    // (bound-name-later-matched-or-expected). Arc 212 stone δ-comm-positions
-    // sharpening: recognize that comm-in-binding-RHS is valid when the
-    // binding-name is later consumed in the same let.
-    //
-    // Layout of a let form: (:wat::core::let [n1 rhs1 n2 rhs2 ...] body...)
-    // The bindings are a flat Vector of alternating name/expr pairs.
-    if let WatAST::List(items, _) = node {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if head == ":wat::core::let" {
-                if let Some(WatAST::Vector(binding_items, _)) = items.get(1) {
-                    let body_forms = &items[2..];
-                    // 1. Pre-walk all RHSes and body forms to collect names
-                    //    that appear as match-scrutinee or expect-value.
-                    let consumed =
-                        collect_consumed_names_in_let(binding_items, body_forms);
-                    // 2. Walk each binding-RHS with consumed-aware context.
-                    //    Bindings are flat: [name0, rhs0, name1, rhs1, ...]
-                    let mut i = 0;
-                    while i + 1 < binding_items.len() {
-                        let name_node = &binding_items[i];
-                        let rhs_node = &binding_items[i + 1];
-                        let binding_name = match name_node {
-                            WatAST::Symbol(ident, _) => Some(ident.as_str()),
-                            WatAST::Keyword(k, _) => Some(k.as_str()),
-                            _ => None,
-                        };
-                        let rhs_ctx = match binding_name {
-                            Some(name) if consumed.contains(name) => {
-                                CommCtx::LetBindingRhs
-                            }
-                            _ => CommCtx::Forbidden,
-                        };
-                        validate_comm_positions(rhs_node, rhs_ctx, errors);
-                        i += 2;
-                    }
-                    // 3. Walk body forms with Forbidden context; comm in body
-                    //    must be consumed by an enclosing match/expect there.
-                    for body_form in body_forms {
-                        validate_comm_positions(body_form, CommCtx::Forbidden, errors);
-                    }
-                } else {
-                    // Malformed let (no bindings vector) — recurse generically.
-                    for child in node.children().iter() {
-                        validate_comm_positions(child, CommCtx::Forbidden, errors);
-                    }
-                }
-                return; // do NOT fall through to generic recursion
-            }
-        }
-    }
-
-    // Walker-specific List-head logic for comm-call positions (existing
-    // three-slot detection preserved verbatim from pre-arc-212, with the
-    // fourth slot LetBindingRhs now included in the permitted check).
-    if let WatAST::List(items, _) = node {
-        let (head_str, head_span) = match items.first() {
-            Some(WatAST::Keyword(k, hs)) => (k.as_str(), hs),
-            _ => {
-                // No keyword head — recurse into all children as Forbidden.
-                for child in items {
-                    validate_comm_positions(child, CommCtx::Forbidden, errors);
-                }
-                return;
-            }
-        };
-
-        // (1) THIS node is a kernel-comm call. Arc 110 enforces
-        // match-or-expect at every thread-tier send/recv call site (the
-        // Result arms must be handled). Arc 278 IPC de-prime: the process
-        // tier's Stone-C comm verbs were annihilated in favour of the
-        // `spawn-program' (process)` peer model, so only send/recv remain.
-        if matches!(
-            head_str,
-            ":wat::kernel::send"
-                | ":wat::kernel::recv"
-        ) {
-            let permitted = matches!(
-                ctx,
-                CommCtx::MatchScrutinee
-                    | CommCtx::ResultExpectValue
-                    | CommCtx::OptionExpectValue
-                    | CommCtx::LetBindingRhs,
-            );
-            if !permitted {
-                errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::CommCallOutOfPosition {
-                    callee: head_str.into(),
-                } });
-            }
-            // Comm-call arguments are ordinary expressions; nested comm
-            // calls inside them are themselves Forbidden.
-            for child in &items[1..] {
-                validate_comm_positions(child, CommCtx::Forbidden, errors);
-            }
-            return;
-        }
-
-        // (2) `:wat::core::match` — items[1] is the scrutinee (permitted slot).
-        //     Arc 258.5 — bare match: (match scrut arm1 arm2 ...); arms at items[2..].
-        if head_str == ":wat::core::match" && items.len() >= 2 {
-            validate_comm_positions(&items[1], CommCtx::MatchScrutinee, errors);
-            for child in &items[2..] {
-                validate_comm_positions(child, CommCtx::Forbidden, errors);
-            }
-            return;
-        }
-
-        // (3) Result-side `expect` form — items[1] is the value-position.
-        //     Layout: (Result/expect <res> <msg>). Arc 109 slice 1j
-        //     renamed `:wat::core::result::expect` to `:wat::core::Result/expect`.
-        //     Stone 241.15: the retired lowercase form is HARD CUT; only
-        //     the canonical head recognized here.
-        //     Arc 111: send/recv now return Result<Option<_>, _>; this is
-        //     their natural panic-on-Err home.
-        if head_str == ":wat::core::Result/expect"
-            && items.len() >= 3
-        {
-            for (i, child) in items.iter().enumerate() {
-                let child_ctx = if i == 1 {
-                    CommCtx::ResultExpectValue
-                } else {
-                    CommCtx::Forbidden
-                };
-                validate_comm_positions(child, child_ctx, errors);
-            }
-            return;
-        }
-
-        // (4) Option-side `expect` form — items[1] is the value-position.
-        //     Layout: (Option/expect <opt> <msg>). Arc 109 slice 1j
-        //     renamed `:wat::core::option::expect` to `:wat::core::Option/expect`.
-        //     Stone 241.15: the retired lowercase form is HARD CUT; only
-        //     the canonical head recognized here.
-        //     Pre-arc-111 home for kernel comm; kept for callers who have
-        //     ALREADY unwrapped the outer Result and want to panic on :None.
-        if head_str == ":wat::core::Option/expect"
-            && items.len() >= 3
-        {
-            for (i, child) in items.iter().enumerate() {
-                let child_ctx = if i == 1 {
-                    CommCtx::OptionExpectValue
-                } else {
-                    CommCtx::Forbidden
-                };
-                validate_comm_positions(child, child_ctx, errors);
-            }
-            return;
-        }
-
-        // (5) Default List case — every child descends as Forbidden.
-        for child in items {
-            validate_comm_positions(child, CommCtx::Forbidden, errors);
-        }
-        return;
-    }
-
-    // Arc 212 — generic recursion via children() covers Vector, Map, and
-    // Set uniformly. Let-form handler above intercepts the
-    // scope-aware case; List-head logic above covers all List nodes;
-    // this handles Vector, Map, and Set (children() returns &[] for
-    // leaf nodes, so this is a no-op for atoms).
-    for child in node.children().iter() {
-        validate_comm_positions(child, CommCtx::Forbidden, errors);
-    }
-}
-
-/// Arc 212 stone δ-comm-positions — pre-walk a `:wat::core::let` form's
-/// binding-RHSes and body forms to collect names that are consumed as
-/// match scrutinees or Result/Option expect-values. A comm call in a
-/// binding-RHS whose name appears in this set is the fourth permitted
-/// slot (LetBindingRhs).
-///
-/// `binding_items` is the flat Vector content `[n0 rhs0 n1 rhs1 ...]`.
-/// `body_forms` is the let's body (items[2..]).
-///
-/// "Consumed" means the name appears as:
-/// - The first argument of `(:wat::core::match <name> ...)`
-/// - The value argument (position 1) of `(:wat::core::Result/expect <name> "msg")`
-///   (Stone 241.15: `:wat::core::result::expect` is HARD CUT; canonical form only)
-/// - The value argument of `(:wat::core::Option/expect <name> "msg")`
-///   (Stone 241.15: `:wat::core::option::expect` is HARD CUT; canonical form only)
-fn collect_consumed_names_in_let(
-    binding_items: &[WatAST],
-    body_forms: &[WatAST],
-) -> std::collections::HashSet<String> {
-    let mut consumed: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    // Walk a single AST node looking for consumption patterns;
-    // recurse into all children for nested forms.
-    fn walk(node: &WatAST, consumed: &mut std::collections::HashSet<String>) {
-        let items = match node {
-            WatAST::List(items, _) => items,
-            _ => {
-                // Recurse into Vector/Map/Set children.
-                for child in node.children().iter() {
-                    walk(child, consumed);
-                }
-                return;
-            }
-        };
-        let head_str = match items.first() {
-            Some(WatAST::Keyword(k, _)) => k.as_str(),
-            _ => {
-                for child in items {
-                    walk(child, consumed);
-                }
-                return;
-            }
-        };
-
-        // (:wat::core::match <scrutinee> -> ...)
-        // items[1] is the scrutinee — collect if it's a bare symbol.
-        if head_str == ":wat::core::match" && items.len() >= 2 {
-            if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
-                consumed.insert(ident.as_str().to_owned());
-            }
-            // Recurse into arm sub-forms (may contain nested lets).
-            for child in &items[2..] {
-                walk(child, consumed);
-            }
-            return;
-        }
-
-        // (:wat::core::Result/expect <value> "msg")
-        // Stone 241.15: retired `:wat::core::result::expect` is HARD CUT; canonical form only.
-        // items[1] is the value — collect if it's a bare symbol.
-        if head_str == ":wat::core::Result/expect"
-            && items.len() >= 3
-        {
-            if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
-                consumed.insert(ident.as_str().to_owned());
-            }
-            for child in items {
-                walk(child, consumed);
-            }
-            return;
-        }
-
-        // (:wat::core::Option/expect <value> "msg")
-        // Stone 241.15: retired `:wat::core::option::expect` is HARD CUT; canonical form only.
-        if head_str == ":wat::core::Option/expect"
-            && items.len() >= 3
-        {
-            if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
-                consumed.insert(ident.as_str().to_owned());
-            }
-            for child in items {
-                walk(child, consumed);
-            }
-            return;
-        }
-
-        // Generic: recurse into all children.
-        for child in items {
-            walk(child, consumed);
-        }
-    }
-
-    // Walk all RHSes (odd indices in the flat binding vector).
-    let mut i = 1;
-    while i < binding_items.len() {
-        walk(&binding_items[i], &mut consumed);
-        i += 2;
-    }
-    // Walk all body forms.
-    for body_form in body_forms {
-        walk(body_form, &mut consumed);
-    }
-
-    consumed
 }
 
 /// Arc 109 slice 1c — walk every WatAST node, parse keywords as
@@ -17327,26 +17008,6 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::spawn-thread body) →
-    //   :wat::kernel::Thread<I,O>.
-    //
-    // Arc 114 slice 1. The in-thread sibling of `:wat::kernel::spawn-process`,
-    // satisfying the same Program contract — input channel, output
-    // channel, error mechanism via join. Body is a function whose
-    // signature MUST be
-    //   :Fn(:Receiver<I>, :Sender<O>) -> :wat::core::nil
-    // (the body reads from the input half, writes to the output half;
-    // values flow only through channels — never via a return).
-    //
-    // Returns Thread<I,O>. The parent gets the OUTSIDE ends:
-    //   `Thread/input`   :Sender<I>     (parent writes; thread reads)
-    //   `Thread/output`  :Receiver<O>   (thread writes; parent reads)
-    //   `Thread/join`    :ProgramHandle (panic surfaces on Thread/join-result)
-    //
-    // Arc 114 names the meta-principle this verb expresses: hosting
-    // is a user choice (thread vs forked process); the protocol is
-    // fixed (typed channels in / out, panic via join). Code that
-    // talks to a Program does not know or care which host backs it.
     let thread_ty = || TypeExpr::Parametric {
         head: "wat::kernel::Thread".into(),
         args: vec![
@@ -17354,28 +17015,6 @@ fn register_builtins(env: &mut CheckEnv) {
             TypeExpr::Path(":O".into()),
         ],
     };
-    let thread_body_fn_ty = || TypeExpr::Fn {
-        args: vec![
-            TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Receiver".into(),
-                args: vec![TypeExpr::Path(":I".into())],
-            },
-            TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Sender".into(),
-                args: vec![TypeExpr::Path(":O".into())],
-            },
-        ],
-        ret: Box::new(TypeExpr::Tuple(vec![])),
-    };
-    env.register(
-        ":wat::kernel::spawn-thread".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![thread_body_fn_ty()],
-            ret: thread_ty(),
-            rest_param_type: None,
-        },
-    );
     // (:wat::kernel::Thread/join-result thr) →
     //   :wat::core::Result<:(), :wat::core::Vector<wat::kernel::ThreadDiedError>>.
     //
@@ -17430,41 +17069,6 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // (:wat::kernel::spawn-process program) → :wat::kernel::Process<I,O>.
-    //
-    // Arc 170 Slice 6 pivot. The `program` arg is a sequence of top-level
-    // wat forms (`:wat::core::Vector<wat::WatAST>`) — exactly what
-    // `wat some-file.wat` would read from disk: optional top-level config
-    // setters, optional helper defines / type declarations, and a
-    // `(:wat::core::define (:user::main -> :wat::core::nil) ...)` entry
-    // point.
-    //
-    // The IPC contract mirrors `wat some-file.wat`: stdin = inputs;
-    // stdout = outputs; stderr = panics. Children use
-    // `(:wat::kernel::readln)` and `(:wat::kernel::println v)`
-    // through ambient stdio (fd 0/1/2 wired by `bootstrap_wat_vm_process`,
-    // called from within `invoke_user_main`). Real OS stdio is canonical
-    // at the process boundary; arc 278 IPC de-prime — typed process IPC
-    // now flows through the `spawn-program' (process)` peer model
-    // (`send'`/`recv'`/`recv-all'`) rather than wat-level pipe wrapping.
-    //
-    // The type params I and O are preserved so `Process<I,O>` unifies with
-    // caller-side annotations (e.g. `-> :wat::kernel::Process<i64,i64>`).
-    // I and O are inferred from context (return-type annotation on the
-    // outer function); the program shape doesn't surface them at the
-    // call site.
-    env.register(
-        ":wat::kernel::spawn-process".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::WatAST".into())],
-            }],
-            ret: process_ty(),
-            rest_param_type: None,
-        },
-    );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland
     // owns transitions. Six nullary primitives: three pollers return
     // :bool; three resetters return :(). SIGINT / SIGTERM stay on the
@@ -17524,54 +17128,6 @@ fn register_builtins(env: &mut CheckEnv) {
         head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
     };
-    let comm_ok_option_t = || TypeExpr::Parametric {
-        head: "wat::core::Result".into(),
-        args: vec![
-            TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
-                args: vec![t_var()],
-            },
-            died_chain_ty(),
-        ],
-    };
-    let comm_send_ret = || TypeExpr::Parametric {
-        head: "wat::core::Result".into(),
-        args: vec![
-            TypeExpr::Tuple(vec![]),
-            died_chain_ty(),
-        ],
-    };
-    // (:wat::kernel::send sender value) —
-    //   ∀T. Sender<T> × T -> Result<(), ThreadDiedError>.
-    env.register(
-        ":wat::kernel::send".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![
-                TypeExpr::Parametric {
-                    head: "rust::crossbeam_channel::Sender".into(),
-                    args: vec![t_var()],
-                },
-                t_var(),
-            ],
-            ret: comm_send_ret(),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::recv receiver) —
-    //   ∀T. Receiver<T> -> Result<Option<T>, ThreadDiedError>.
-    env.register(
-        ":wat::kernel::recv".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Receiver".into(),
-                args: vec![t_var()],
-            }],
-            ret: comm_ok_option_t(),
-            rest_param_type: None,
-        },
-    );
     // (:wat::kernel::join handle) — ∀R. ProgramHandle<R> -> R.
     let r_var = || TypeExpr::Path(":R".into());
     env.register(
@@ -17725,28 +17281,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::select receivers) —
-    //   ∀T. Vec<Receiver<T>> -> :(i64, Result<Option<T>, ThreadDiedError>).
-    // Arc 111 — second tuple element grows from :Option<T> to
-    // :Result<:Option<T>, :ThreadDiedError> for symmetry with recv.
-    env.register(
-        ":wat::kernel::select".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Parametric {
-                    head: "rust::crossbeam_channel::Receiver".into(),
-                    args: vec![t_var()],
-                }],
-            }],
-            ret: TypeExpr::Tuple(vec![
-                TypeExpr::Path(":wat::core::i64".into()),
-                comm_ok_option_t(),
-            ]),
-            rest_param_type: None,
-        },
-    );
+    // Arc 111 registered `:wat::kernel::select` here — the raw
+    // Vec<Receiver<T>> multi-way comm verb. Non-prime IPC de-prime
+    // (this pass): retired in favour of `:wat::kernel::select'`.
     // Algebra measurement: dot product. Per 058-005 new measurement
     // primitive. Scalar-returning sibling of cosine; used by the
     // Gram-Schmidt stdlib macros (Reject, Project).

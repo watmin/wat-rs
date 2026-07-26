@@ -27,7 +27,7 @@
 //! Wat source: tests/function/wat_spawn_fn.wat (positive, shared world) and
 //! tests/function/wat_spawn_fn_not_callable.wat (negative).
 
-use wat::freeze::{startup_beside, startup_from_file};
+use wat::freeze::startup_beside;
 use wat::runtime::{apply_function, Value};
 
 // just-eval (rubric): each `compute_fn` names a zero-arg fn defined in the co-located
@@ -67,25 +67,3 @@ fn spawn_thread_closure_capture() {
     assert!(matches!(run(":my::compute_t3"), Value::i64(123)));
 }
 
-// ─── Non-callable body errors at type-check ───────────────────────────
-
-#[test]
-fn spawn_thread_rejects_non_callable_body() {
-    // 42 is neither a keyword path nor a fn value. The checker's
-    // TypeMismatch arm fires because spawn-thread's body parameter
-    // expects :Fn(Receiver<I>,Sender<O>) -> :() and i64 doesn't unify.
-    match startup_from_file("tests/function/wat_spawn_fn_not_callable.wat") {
-        Err(wat::freeze::StartupError::Check(errs)) => {
-            let hit = errs.0.iter().any(|e| {
-                matches!(
-                    e,
-                    wat::check::CheckError { kind: wat::check::CheckErrorKind::TypeMismatch { callee, .. }, .. }
-                        if callee.contains(":wat::kernel::spawn-thread")
-                )
-            });
-            assert!(hit, "expected spawn-thread TypeMismatch; got {:?}", errs.0);
-        }
-        Err(other) => panic!("expected Check error; got {:?}", other),
-        Ok(_) => panic!("expected check-time failure"),
-    }
-}

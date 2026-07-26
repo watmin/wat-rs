@@ -28,11 +28,8 @@
 //!    from Gap I-A probe 6, extended to include `def`. All 8 declaration forms
 //!    lift together.
 
-use wat::ast::WatAST;
 use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{
-    apply_function, Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, Value,
-};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 fn freeze_ok_file(rel_path: &str) -> wat::freeze::FrozenWorld {
     startup_from_file(rel_path).unwrap_or_else(|e| {
@@ -40,49 +37,27 @@ fn freeze_ok_file(rel_path: &str) -> wat::freeze::FrozenWorld {
     })
 }
 
-/// Drain the stderr field (index 2) of a Process Struct value.
-fn drain_stderr(process: &Value) -> String {
-    match process {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[2] {
-            Value::io__IOReader(rdr) => {
-                let mut all = String::new();
-                while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
-                    all.push_str(&line);
-                }
-                all
-            }
-            _ => "<stderr field not IOReader>".into(),
-        },
-        _ => "<not a Process Struct>".into(),
-    }
-}
-
-/// Evaluate `(:my::launch)` in the frozen world, fork the child, wait for
-/// it to exit, and return (exit_code, stderr_text).
-fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
-    let call = WatAST::List(
-        vec![WatAST::Keyword(
-            ":my::launch".into(),
-            wat::rust_caller_span!(),
-        )],
+/// Apply `(:my::launch)` and return the i64 the child derived from the
+/// declarations under test and sent back over the peer wire.
+///
+/// Arc 278 IPC de-prime — the old form field-poked the concrete `Process`
+/// struct (`fields[2]` stderr, `fields[3]` handle → exit code), an observation
+/// model the opaque `Process'` peer has no analog for. The peer model observes
+/// the same property more strongly: a registration failure surfaces as a
+/// `Lost` cause carrying the child's real reason, not a bare non-zero exit.
+fn run_launch(world: &wat::freeze::FrozenWorld) -> i64 {
+    let launcher = world.symbols().get(":my::launch").expect("launch defined");
+    let result = apply_function(
+        launcher.clone(),
+        Vec::new(),
+        world.symbols(),
         wat::rust_caller_span!(),
-    );
-    let env = Environment::new();
-    let process = wat::runtime::eval(&call, &env, world.symbols())
-        .expect("launch should evaluate").value_owned();
-    let handle = match &process {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
-            Value::wat__kernel__ProgramHandle(h) => h.clone(),
-            other => panic!("expected ProgramHandle field at index 3; got {:?}", other),
-        },
-        other => panic!("expected Process Struct from launch; got {:?}", other),
-    };
-    let exit_code: i64 = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
-        other => panic!("expected Forked handle; got {:?}", other),
-    };
-    let stderr = drain_stderr(&process);
-    (exit_code, stderr)
+    )
+    .expect(":my::launch runs (spawn-program' + recv')");
+    match result {
+        Value::i64(n) => n,
+        other => panic!("expected i64 from launch; got {other:?}"),
+    }
 }
 
 // ─── Probe 1 — def at fn body do-prefix lifts to prologue end-to-end ─────────
@@ -90,11 +65,10 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 #[test]
 fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
     let world = freeze_ok_file("tests/wat_lang/probe_def_not_special_spawn_ok.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (def in do-prefix lifted to prologue; :h::local-answer = 42 resolved); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        42,
+        "child should read 42 back from :h::local-answer (def in do-prefix registered AND resolved)"
     );
 }
 
@@ -176,10 +150,10 @@ fn probe_define_rejected_at_startup_check() {
 #[test]
 fn probe_mixed_declaration_prelude_now_includes_def() {
     let world = freeze_ok_file("tests/wat_lang/probe_def_not_special_mixed_ok.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (all 7 declaration forms in mixed prelude lifted to prologue — including def; define-dispatch retired Stone 241.13); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        129,
+        "child should fold all 7 declaration forms into one value: 99 (def) + 1+2 (struct) + 10 (enum) \
+         + 10 (newtype /0) + 7 (typealias-fn via macro) — define-dispatch retired Stone 241.13"
     );
 }

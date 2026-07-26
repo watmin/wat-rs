@@ -546,7 +546,7 @@ fn check_output_edn_emits_record_per_diagnostic() {
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
     // ARC115_BAD_PROGRAM produces 2 type-check errors: one
-    // CommCallOutOfPosition + one ReturnTypeMismatch. Each surfaces
+    // TypeMismatch + one ReturnTypeMismatch. Each surfaces
     // as one EDN record on its own line.
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(
@@ -558,8 +558,8 @@ fn check_output_edn_emits_record_per_diagnostic() {
     );
     // Arc 296: namespace changed from wat.diag to wat.check.
     assert!( // rune:lint(loose-assert) — each EDN line includes :file "..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
-        lines[0].starts_with("#wat.check/CommCallOutOfPosition"),
-        "first line should be CommCallOutOfPosition tag; got: {}",
+        lines[0].starts_with("#wat.check/TypeMismatch"),
+        "first line should be TypeMismatch tag; got: {}",
         lines[0]
     );
     assert!( // rune:lint(loose-assert) — each EDN line includes :file "..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
@@ -569,7 +569,7 @@ fn check_output_edn_emits_record_per_diagnostic() {
     );
     // Structured fields preserved verbatim — not text-wrapped.
     // :file field is prepended first; callee and function follow.
-    assert!(lines[0].contains(":callee \":wat::kernel::send\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[0].contains(":callee \":wat::core::i64::+\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
     assert!(lines[1].contains(":function \":user::main\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 
@@ -596,8 +596,8 @@ fn check_output_json_emits_record_per_diagnostic() {
     );
     // Arc 296: JSON shape uses #tag sentinel; field keys carry EDN colon prefix.
     assert!( // rune:lint(loose-assert) — each JSON line includes ":file":"..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
-        lines[0].contains("\"#tag\":\"wat.check/CommCallOutOfPosition\""),
-        "first line should have #tag=wat.check/CommCallOutOfPosition; got: {}",
+        lines[0].contains("\"#tag\":\"wat.check/TypeMismatch\""),
+        "first line should have #tag=wat.check/TypeMismatch; got: {}",
         lines[0]
     );
     assert!( // rune:lint(loose-assert) — each JSON line includes ":file":"..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
@@ -606,7 +606,7 @@ fn check_output_json_emits_record_per_diagnostic() {
         lines[1]
     );
     // Keyword field keys carry leading colon in JSON (EDN keyword serialization).
-    assert!(lines[0].contains("\":callee\":\":wat::kernel::send\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[0].contains("\":callee\":\":wat::core::i64::+\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
     assert!(lines[1].contains("\":function\":\":user::main\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 

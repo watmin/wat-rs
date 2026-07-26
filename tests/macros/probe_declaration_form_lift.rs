@@ -13,58 +13,33 @@
 //! (:my::launch-defmacro, :my::launch-newtype, :my::launch-typealias,
 //! :my::launch-mixed) are called by name per test.
 
-use wat::ast::WatAST;
 use wat::freeze::{is_declaration_form, startup_beside};
-use wat::runtime::{eval, Environment, ProgramHandleInner};
+use wat::runtime::Value;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/// Drain the stderr field (index 2) of a Process Struct value.
-fn drain_stderr(process: &wat::runtime::Value) -> String {
-    match process {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => {
-            match &s.fields[2] {
-                wat::runtime::Value::io__IOReader(rdr) => {
-                    let mut all = String::new();
-                    while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
-                        all.push_str(&line);
-                    }
-                    all
-                }
-                _ => "<stderr field not IOReader>".into(),
-            }
-        }
-        _ => "<not a Process Struct>".into(),
-    }
-}
-
-/// Evaluate the named launch fn in the frozen world, fork the child, wait for
-/// it to exit, and return (exit_code, stderr_text).
-fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> (i64, String) {
-    let call = WatAST::List(
-        vec![WatAST::Keyword(
-            name.into(),
-            wat::rust_caller_span!(),
-        )],
+/// Apply the named launch fn and return the i64 the child derived from the
+/// declaration under test and sent back over the peer wire.
+///
+/// Arc 278 IPC de-prime — the old form field-poked the concrete `Process`
+/// struct (`fields[2]` stderr, `fields[3]` handle → exit code), an observation
+/// model the opaque `Process'` peer has no analog for. The peer model observes
+/// the same property more strongly: a registration failure surfaces as a
+/// `Lost` cause carrying the child's real reason rather than a bare non-zero
+/// exit code.
+fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> i64 {
+    let launcher = world.symbols().get(name).unwrap_or_else(|| panic!("{name} defined"));
+    let result = wat::runtime::apply_function(
+        launcher.clone(),
+        Vec::new(),
+        world.symbols(),
         wat::rust_caller_span!(),
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("launch should evaluate").value_owned();
-    let handle = match &process {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => {
-            match &s.fields[3] {
-                wat::runtime::Value::wat__kernel__ProgramHandle(h) => h.clone(),
-                other => panic!("expected ProgramHandle field at index 3; got {:?}", other),
-            }
-        }
-        other => panic!("expected Process Struct from launch; got {:?}", other),
-    };
-    let exit_code: i64 = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
-        other => panic!("expected Forked handle; got {:?}", other),
-    };
-    let stderr = drain_stderr(&process);
-    (exit_code, stderr)
+    )
+    .unwrap_or_else(|e| panic!("{name} runs (spawn-program' + recv'); got: {e:?}"));
+    match result {
+        Value::i64(n) => n,
+        other => panic!("expected i64 from {name}; got {other:?}"),
+    }
 }
 
 // ─── Probe 1 — is_declaration_form covers def (predicate unit test) ───────────
@@ -150,11 +125,10 @@ fn probe_is_declaration_form_covers_all_7_keywords() {
 #[test]
 fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
     let world = startup_beside(file!()).expect("freeze should succeed");
-    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-defmacro");
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (defmacro in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
+        run_named_launch(&world, ":my::launch-defmacro"),
+        5,
+        "child should expand (:h::id-macro 5) → 5 (defmacro in do-prefix registered AND expanded)"
     );
 }
 
@@ -168,11 +142,10 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
 #[test]
 fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
     let world = startup_beside(file!()).expect("freeze should succeed");
-    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-newtype");
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (newtype in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
+        run_named_launch(&world, ":my::launch-newtype"),
+        100,
+        "child should read 100 back via :h::LocalAmount/0 (newtype registered, constructor + accessor synthesized)"
     );
 }
 
@@ -185,11 +158,10 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
 #[test]
 fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
     let world = startup_beside(file!()).expect("freeze should succeed");
-    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-typealias");
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (typealias in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
+        run_named_launch(&world, ":my::launch-typealias"),
+        7,
+        "child should return 7 through the aliased return type (typealias + its consumer fn registered)"
     );
 }
 
@@ -213,10 +185,10 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 #[test]
 fn probe_mixed_declaration_prelude_all_lift() {
     let world = startup_beside(file!()).expect("freeze should succeed");
-    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-mixed");
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (6 of 7 declaration kinds in mixed prelude lifted to prologue; def excluded pending Gap I-B); stderr:\n{}",
-        stderr
+        run_named_launch(&world, ":my::launch-mixed"),
+        30,
+        "child should fold every declaration into one value: (1+2 struct) + (10 enum) + (10 newtype) + (7 typealias-fn via macro) \
+         — 6 of 7 kinds lifted; def excluded pending Gap I-B"
     );
 }

@@ -146,47 +146,6 @@ fn row_a_single_thread_println() {
     );
 }
 
-// ─── B. Multi-thread program — 3 child threads println ─────────────
-
-#[test]
-fn row_b_multi_thread_println() {
-    fresh_thread();
-    let mut rig = build_rig();
-    // Three named child fns; main spawns each via spawn-thread and
-    // joins each via Thread/drain-and-join. Fixture: row_b.
-    let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_b.wat");
-    let stdout_capture = Arc::clone(&rig.stdout_capture);
-
-    let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
-    assert!(matches!(result, Ok(Value::Unit)), "got {:?}", result);
-
-    let captured = drain_to_string(&stdout_capture);
-    // rune:lint(loose-assert) — 3 child threads print in non-deterministic order; any-order property check is correct
-    assert!(captured.contains("child-a"), "expected child-a; got {:?}", captured);
-    // rune:lint(loose-assert) — 3 child threads print in non-deterministic order; any-order property check is correct
-    assert!(captured.contains("child-b"), "expected child-b; got {:?}", captured);
-    // rune:lint(loose-assert) — 3 child threads print in non-deterministic order; any-order property check is correct
-    assert!(captured.contains("child-c"), "expected child-c; got {:?}", captured);
-}
-
-// ─── C. Panic recovery — child thread panics; main continues ───────
-
-#[test]
-fn row_c_panic_recovery() {
-    fresh_thread();
-    let mut rig = build_rig();
-    // Child uses runtime::panic! to die mid-body. Main joins (gets an
-    // Err chain), discards it, and returns nil. The orchestrator's
-    // cleanup still runs: the child's closure-epilogue Remove fires
-    // inside catch_unwind. Validates the panic-resilient reap path.
-    let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_c.wat");
-    let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
-    // Main returns nil cleanly — child's panic is captured by
-    // catch_unwind in spawn-thread, surfaces as Err in Thread/join-
-    // result, and is discarded by main.
-    assert!(matches!(result, Ok(Value::Unit)), "got {:?}", result);
-}
-
 // ─── D. Scope-drop cascade — services exit cleanly on main return ──
 
 #[test]

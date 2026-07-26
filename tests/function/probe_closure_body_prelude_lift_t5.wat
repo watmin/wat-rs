@@ -1,8 +1,22 @@
 ;; tests/function/probe_closure_body_prelude_lift_t5.wat — prefix-termination semantics.
-(:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-  (:wat::kernel::spawn-process
-              (:wat::core::forms
-                (:wat::core::defn :h::counted-helper [] -> :wat::core::i64 7)
-                (:wat::core::defn :user::main [] -> :wat::core::nil
-                  (:wat::core::let [_v (:h::counted-helper)] nil)))))
-
+;;
+;; Arc 278 IPC de-prime — driver migrated to `spawn-program' (process)` + `recv'`; the
+;; declaration under test (`:h::counted-helper` at the child program's top level) is unchanged.
+;; The child now `println`s the helper's value, so the assertion proves it was registered AND
+;; callable AND returned 7 — stronger than exit-0.
+(:wat::core::defn :my::launch [] -> :wat::core::i64
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :h::counted-helper [] -> :wat::core::i64 7)
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let
+               [v    (:h::counted-helper)
+                _out (:wat::kernel::println v)]
+               nil))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m) m)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "launch: child closed before sending its value" :wat::core::None :wat::core::None)))))

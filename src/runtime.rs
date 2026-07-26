@@ -4974,8 +4974,6 @@ fn dispatch_keyword_head_value(
         // that the readln defmacro expands to. The macro forwards the `-> :T`
         // annotation intact; the prime carries an optional leading cap (i64).
         ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
-        ":wat::kernel::recv" => eval_kernel_recv(args, env, sym, list_span),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the
@@ -5016,9 +5014,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::Process/stdin" => {
             eval_kernel_process_stdin(args, env, sym, list_span)
         }
-        ":wat::kernel::spawn-thread" => {
-            eval_kernel_spawn_thread(args, env, sym, list_span)
-        }
         ":wat::kernel::Thread/join-result" => {
             eval_kernel_thread_join_result(args, env, sym, list_span)
         }
@@ -5028,7 +5023,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::Thread/drain-and-join" => {
             eval_kernel_thread_drain_and_join(args, env, sym, list_span)
         }
-        ":wat::kernel::select" => eval_kernel_select(args, env, sym, list_span),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym, list_span),
         ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym, list_span),
@@ -5048,9 +5042,6 @@ fn dispatch_keyword_head_value(
         // Arc 296 — returns the source coordinate of the `(here)` form itself.
         ":wat::kernel::here" => eval_kernel_here(args, list_span),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span).map_err(Into::into),
-        ":wat::kernel::spawn-process" => {
-            crate::process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
-        }
         // Arc 259 (forced-hand) Stone S1 — reify a fn value (anonymous or
         // named-by-reference) into shippable forms via `closure_extract`.
         // See `crate::closure_extract::eval_kernel_fn_forms` doc.
@@ -21336,137 +21327,6 @@ fn eval_deny_prime(
     }
 }
 
-/// `(:wat::kernel::send sender value)` — blocks until the value is
-/// accepted by the channel OR every receiver has been dropped.
-/// Returns `:Option<()>`: `(Some ())` on a successful send,
-/// `:None` when the receiver is gone. Type scheme
-/// `∀T. crossbeam_channel::Sender<T> -> T -> :Option<()>`.
-///
-/// Symmetric with `recv` — both endpoints report disconnect through
-/// the same `:Option` shape. Producers write
-/// `(match (send tx v) -> :() ((Some _) (loop ...)) (:None ()))`
-/// to flush state and exit cleanly when the consumer drops. Prior
-/// behavior (raising `ChannelDisconnected` on the send path) is
-/// retired — it forced callers to either `try` or panic, which
-/// breaks the clean shutdown cascade the stream stdlib wants. The
-/// runtime transports any `Value` through the channel; the type
-/// checker enforces that the declared `Sender<T>` matches the
-/// value's type.
-fn eval_kernel_send(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::kernel::send".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let sender = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::wat__kernel__Sender(s) => s,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::send".into(),
-                expected: "wat::kernel::Sender",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let msg = eval_inner(&args[1], env, sym)?.value_owned();
-    // Arc 111 slice 1 — return type is Result<(), ThreadDiedError>.
-    // Arc 170 slice 1c — dispatch on the transport (Crossbeam vs
-    // PipeFd). Both transports surface disconnect via the same
-    // wat-level Result.Err(ChannelDisconnected) so user code matches
-    // one shape regardless of tier.
-    let outcome = crate::channel::typed_send(
-        sender.as_ref(),
-        msg,
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    );
-    match outcome {
-        crate::channel::SendOutcome::Ok => {
-            Ok(Value::Result(Arc::new(Ok(Value::Unit))))
-        }
-        crate::channel::SendOutcome::Disconnected => {
-            Ok(Value::Result(Arc::new(Err(single_died_chain(
-                thread_died_error_channel_disconnected(),
-            )))))
-        }
-    }
-}
-
-/// `(:wat::kernel::recv receiver)` — blocks until the receiver
-/// produces a value or its sender is dropped. Typed
-/// `∀T. Receiver<T> -> Option<T>` per FOUNDATION: `(:wat::core::Some v)` on a
-/// successful receive, `:wat::core::None` when every sender has dropped
-/// (disconnect becomes first-class absence rather than an error).
-fn eval_kernel_recv(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::kernel::recv".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let receiver = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::wat__kernel__Receiver(r) => r,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::recv".into(),
-                expected: "wat::kernel::Receiver",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
-    // Arc 170 slice 1c — dispatch on the transport. Both Crossbeam
-    // and PipeFd map disconnect to Ok(:None) (FOUNDATION's clean-
-    // shutdown shape); a PipeFd EDN parse failure surfaces as
-    // RuntimeError so the user gets a diagnostic rather than a
-    // silent shutdown.
-    let outcome = crate::channel::typed_recv(
-        receiver.as_ref(),
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    );
-    match outcome {
-        crate::channel::RecvOutcome::Value(v) => {
-            // Arc 233 Stone 233.2.j — planned honest delta: producer provenance is lost
-            // here because the surrounding Value::Option is structurally Value-typed;
-            // converting to TrackedValue would require flipping Option's inner type
-            // (out of scope). Arc 233 Stone 233.2.e revisits via AST-derived provenance.
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
-        }
-        crate::channel::RecvOutcome::Disconnected => {
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
-        }
-        crate::channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::kernel::recv".into(),
-                reason: format!("EDN decode on pipe-channel recv: {}", msg)
-            } }.into())
-        }
-        // arc 170 Slice A — variant added; Slice B wires typed_recv to
-        // produce it. In Slice A this arm is unreachable at runtime.
-        // Mapped to Err(Shutdown) per Slice B's contract so the shape
-        // is correct once wired.
-        crate::channel::RecvOutcome::Shutdown => {
-            Ok(Value::Result(Arc::new(Err(
-                single_died_chain(thread_died_error_shutdown()),
-            ))))
-        }
-    }
-}
-
 /// `(:wat::kernel::drop handle)` — declares the caller is done with a
 /// sender or receiver. Typed `∀T. Sender<T> -> :()` and
 /// `∀T. Receiver<T> -> :()` (two registered schemes; runtime accepts
@@ -21831,129 +21691,10 @@ fn eval_handle_pool_finish(
     Ok(Value::Unit)
 }
 
-/// `(:wat::kernel::select receivers)` — fan-in over multiple receivers.
-/// Blocks until ANY of the given receivers produces a value or
-/// disconnects. Returns a 2-tuple `(index, Option<T>)` — the position
-/// of the ready receiver in the input Vec, and either `(Some v)` if
-/// it produced or `:None` if it disconnected.
-///
-/// The caller typically loops over the result, dropping disconnected
-/// receivers from the Vec on `(index, :None)` and exiting when the
-/// Vec is empty. No Mailbox stdlib; the select loop IS the fan-in.
-///
-/// Spec index type is `:usize`; wat-rs currently has no `:usize`
-/// value variant, so the index surfaces as `:i64`. This is the one
-/// deviation from FOUNDATION here; a follow-up slice adds `:usize`
-/// when the first caller demands it.
-fn eval_kernel_select(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::kernel::select".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let items = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(v) => v,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::select".into(),
-                expected: "wat::core::Vector",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    if items.is_empty() {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::kernel::select".into(),
-            reason: "receivers vec cannot be empty — select would block forever".into()
-        } }.into());
-    }
-    // Extract &comms::thread::Receiver<Value> for each element; error on any
-    // non-receiver Value so the typed-pipe contract is visible.
-    //
-    // Arc 170 slice 1c / Arc 214 Stone 5.1 — `select` is implemented on top of
-    // `comms::thread::Select` (cascade-aware). PipeFd-backed Receivers are
-    // rejected with a diagnostic pointing at the substrate gap; they would need
-    // an epoll/poll integration to participate in a select set.
-    // No real consumer demands tier-2 select today; surface as honest delta
-    // if one shows up. Tier-1-only select keeps the comms fast path
-    // uncompromised.
-    //
-    // We collect the comms::thread::Receiver references; lifetimes require
-    // the underlying ReceiverInner Arcs to outlive the Select, so we keep a
-    // Vec of the Arcs and borrow into Select.
-    let mut rx_arcs: Vec<Arc<crate::channel::ReceiverInner>> = Vec::with_capacity(items.len());
-    for v in items.iter() {
-        match v {
-            Value::wat__kernel__Receiver(inner) => {
-                match crate::channel::try_as_comms_receiver(inner.as_ref()) {
-                    Some(_) => rx_arcs.push(Arc::clone(inner)),
-                    None => {
-                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                            head: ":wat::kernel::select".into(),
-                            reason: "select on a PipeFd-backed Receiver is not supported \
-                                     (tier-2 select would require epoll/poll integration; \
-                                     no consumer demand today)"
-                                .into()
-                        } }.into());
-                    }
-                }
-            }
-            other => {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::kernel::select".into(),
-                    expected: "wat::kernel::Receiver",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — iterating over Vec<Value>; no per-element AST span
-                } }.into());
-            }
-        }
-    }
-    // Build comms::thread::Select — cascade-aware fan-in.
-    // comms::thread::Select::select() returns SelectOutcome:
-    //   Recv { index, result: Ok(v) }  → idx + Ok(Some(v))
-    //   Recv { index, result: Err(_) } → idx + Ok(None) (disconnect)
-    //   Shutdown                       → the cascade fired; we pick index 0
-    //                                    and return Ok(None) (caller unwinds on Shutdown
-    //                                    via the outer recv cascade, not via select).
-    let mut sel = crate::comms::thread::Select::new();
-    for arc in &rx_arcs {
-        // SAFETY: the ReceiverInner Arc has the same lifetime as rx_arcs,
-        // which outlives sel. try_as_comms_receiver checked above that each
-        // arc is Comms-backed.
-        let rx_ref = crate::channel::try_as_comms_receiver(arc.as_ref())
-            .expect("Comms-backed by construction; validated above");
-        sel.recv(rx_ref);
-    }
-    use crate::comms::{ReceiverIndex, SelectOutcome};
-    let (idx, result) = match sel.select() {
-        SelectOutcome::Recv { index: ReceiverIndex(i), result } => (i, result),
-        SelectOutcome::Shutdown => {
-            // Substrate shutdown fired. Return a Shutdown-shaped outcome:
-            // index 0, Err(None) — the caller will see Err(RecvError) → nil.
-            // All recv callers treat this as "channel done".
-            (0_usize, Err(crate::comms::RecvError::Shutdown))
-        }
-        SelectOutcome::Listener => unreachable!("thread-tier Select has no listener arm"),
-    };
-    // Arc 111 slice 1 — second tuple element is
-    // Result<Option<T>, ThreadDiedError>. Slice 2 wires the panic case.
-    let inner = match result {
-        Ok(v) => Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))),
-        Err(_) => Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))),
-    };
-    Ok(Value::Tuple(Arc::new(vec![Value::i64(idx as i64), inner])))
-}
-
 // :wat::kernel::spawn retired in arc 114. The arc-060 SpawnOutcome
-// channel pattern lives on inside `eval_kernel_spawn_thread` (the
-// new mini-TCP-shaped verb) and `spawn_with_world_into_result` (the
+// channel pattern lived on inside the arc-114 in-thread satisfier
+// (`:wat::kernel::spawn-thread`, itself retired — non-prime IPC
+// de-prime, this pass) and `spawn_with_world_into_result` (the
 // Process<I,O> in-thread driver from arc 103a). The retired bare-
 // spawn impl is gone; the type-checker poisons every call site
 // pre-runtime so this layer is unreachable. See arc 114
@@ -22146,143 +21887,6 @@ fn eval_kernel_process_stdin(
             got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
         } }.into()),
     }
-}
-
-/// `(:wat::kernel::spawn-thread body) -> :wat::kernel::Thread<I,O>` —
-/// arc 114 slice 1. Body is a function whose signature is
-///   `:Fn(:Receiver<I>, :Sender<O>) -> :wat::core::nil`
-/// (read input, write output, return nil). The body's "return value"
-/// is a marker for "completed without panic," not a value carrier.
-/// Values flow only through channels — this is the Program contract.
-///
-/// Allocates two unbounded channels (input + output) plus the
-/// existing one-shot SpawnOutcome channel ProgramHandle::InThread
-/// already uses. Spawns a std::thread, runs the body inside
-/// `catch_unwind`, packages the outcome onto the SpawnOutcome
-/// channel — same shape `eval_kernel_spawn`/`spawn_with_world_into_result`
-/// use, so `Thread/join-result` reuses the join semantics unchanged.
-///
-/// Returns Thread<I,O> as the parent-facing struct: input is the
-/// `Sender<I>` outside end (parent writes), output is the
-/// `Receiver<O>` outside end (parent reads), join carries the
-/// SpawnOutcome receiver.
-///
-/// The first argument may be a function-keyword path (looked up in
-/// `sym`) or any expression evaluating to a fn value. Mirrors
-/// `eval_kernel_spawn`'s long-standing accept-by-keyword-or-value
-/// pattern — keeps both shapes available without forcing the user
-/// to wrap everything in a fn-ref.
-fn eval_kernel_spawn_thread(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::spawn-thread";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let body_fn = match &args[0] {
-        WatAST::Keyword(k, kspan) => match sym.get(k) {
-            Some(f) => f.clone(),
-            None => return Err(RuntimeError { span: kspan.clone(), kind: RuntimeErrorKind::UnknownFunction(k.clone()) }.into()),
-        },
-        _ => match eval_inner(&args[0], env, sym)?.value_owned() {
-            Value::wat__core__fn(f) => f,
-            other => {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "function keyword path or fn value",
-                    got: Box::new(ValueSnapshot::of(&other))
-                } }.into());
-            }
-        },
-    };
-    // Two depth-1 channels: parent writes to input, thread reads;
-    // thread writes to output, parent reads. Inside ends go to the
-    // body; outside ends become Thread<I,O>'s input/output fields.
-    // Arc 214 Stone 5.1 — use comms::thread::pair (depth-1, cascade-aware).
-    let (in_tx, in_rx) = crate::comms::thread::pair::<Value>();
-    let (out_tx, out_rx) = crate::comms::thread::pair::<Value>();
-    // SpawnOutcome channel — same one-shot shape ProgramHandle expects.
-    // Arc 214 Stone 6.1 — bounded<SpawnOutcome>(1) converted to comms::thread::pair
-    // (depth-1, cascade-aware). Semantics preserved: one-shot result channel.
-    let (outcome_tx, outcome_rx) = crate::comms::thread::pair::<SpawnOutcome>();
-    let thread_sym = sym.clone();
-    let span = crate::rust_caller_span!();
-    // Derive the most informative name: prefer the keyword path from
-    // args[0] (the WAT identifier the caller passed to spawn-thread),
-    // fall back to the function's declared name, then to a generic marker.
-    let thread_fn_name: String = match &args[0] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => body_fn
-            .name
-            .as_deref()
-            .unwrap_or(":wat::kernel::spawn-thread::<anon>")
-            .to_string(),
-    };
-    let body_args = vec![
-        crate::channel::receiver_from_comms(in_rx),
-        crate::channel::sender_from_comms(out_tx),
-    ];
-    // Arc 170 stdio-as-defservice — give the spawned thread a fresh (empty) ThreadIO so the body's
-    // `(:wat::kernel::println ...)` / `(eprintln ...)` / `(readln)` calls can `connect'` + cache a
-    // client peer to the primed stdio services on first use.
-    //
-    // Lazy pattern: the carrier signal is `sym.primed_stdio()`. When it is None (a service-template's
-    // own internal spawn-thread call during service bootstrap, OR a pre-orchestrator init path) the
-    // ThreadIO install is skipped — those threads never call the stdio verbs, so their ThreadIO stays
-    // absent and the `ServiceNotRunning` path is unreachable in practice. The ThreadIO is built here
-    // and moved into the closure for installation on the new thread's entry.
-    let registration: Option<crate::services::ThreadIO> =
-        if sym.primed_stdio().is_some() {
-            Some(crate::services::new_thread_io())
-        } else {
-            None
-        };
-    std::thread::Builder::new()
-        .name(format!("wat-thread::{}", thread_fn_name))
-        .spawn(move || {
-            // Install ThreadIO BEFORE running the body; the epilogue (uninstall) runs after the body
-            // returns or panics (inside the catch_unwind boundary the body uses).
-            if let Some(io) = registration {
-                crate::services::install_thread_io(io);
-            }
-            // Mirror eval_kernel_spawn's catch_unwind: panics in the
-            // body surface as data on the outcome channel rather than
-            // unwinding the thread silently. AssertUnwindSafe is honest;
-            // body_args + thread_sym are owned by this closure, not
-            // shared with the caller post-panic.
-            let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                apply_function(body_fn, body_args, &thread_sym, span)
-            })) {
-                Ok(Ok(v)) => SpawnOutcome::Ok(v),
-                Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
-                Err(payload) => {
-                    let (message, assertion) = extract_panic_payload(payload);
-                    SpawnOutcome::Panic { message, assertion }
-                }
-            };
-            // Epilogue: uninstall this thread's ThreadIO — its cached primed-stdio client peers drop,
-            // disconnecting from the services.
-            let _ = crate::services::uninstall_thread_io();
-            let _ = outcome_tx.send(outcome);
-        })
-        .expect("Thread::Builder::spawn failed");
-    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
-        "wat::kernel::Thread".into(),
-        vec![
-            crate::channel::sender_from_comms(in_tx),
-            crate::channel::receiver_from_comms(out_rx),
-            Value::wat__kernel__ProgramHandle(Arc::new(
-                ProgramHandleInner::InThread(outcome_rx),
-            )),
-        ],
-    ))))
 }
 
 /// `(:wat::kernel::Thread/join-result thr) ->
@@ -33466,75 +33070,6 @@ mod tests {
             Value::bool(true) => {}
             v => panic!("expected true (alias resolves structurally), got {:?}", v),
         }
-    }
-
-    // ─── select ────────────────────────────────────────────────────────
-
-    #[test]
-    fn select_returns_index_and_value_from_ready_receiver() {
-        // Two channels; send only to the second; select returns index 1
-        // with the value.
-
-        // Direct construction: two receivers, only rx1 gets a value,
-        // select must pick index 1.
-        // Arc 214 Stone 5.1 — use comms::thread::pair instead of crossbeam::bounded.
-        let (tx0, rx0) = crate::comms::thread::pair::<Value>();
-        let (tx1, rx1) = crate::comms::thread::pair::<Value>();
-        drop(tx0); // rx0 disconnected
-        tx1.send(Value::i64(7)).unwrap();
-        let rxs = Value::Vec(Arc::new(vec![
-            crate::channel::receiver_from_comms(rx0),
-            crate::channel::receiver_from_comms(rx1),
-        ]));
-        let env = Environment::new().child().bind_unknown_span("rxs", TrackedValue::from(rxs)).build();
-        let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
-        let result = eval_inner(&ast, &env, &SymbolTable::new()).expect("select").value_owned();
-        match result {
-            Value::Tuple(items) => {
-                assert_eq!(items.len(), 2);
-                // Arc 111 — select now returns CommResult<T> =
-                // Result<Option<T>, ThreadDiedError> as the second
-                // element. select may pick index 0 (disconnected,
-                // Ok(:None)) or index 1 (Ok(Some 7)). Both are
-                // valid because crossbeam's select doesn't promise
-                // ordering. Accept either and assert the result is
-                // consistent with the index.
-                match (&items[0], &items[1]) {
-                    (Value::i64(0), Value::Result(res)) => match &**res {
-                        Ok(Value::Option(opt)) if opt.is_none() => {}
-                        other => panic!("index 0 should be Ok(:None); got {:?}", other),
-                    },
-                    (Value::i64(1), Value::Result(res)) => match &**res {
-                        Ok(Value::Option(opt)) => match &**opt {
-                            Some(Value::i64(7)) => {}
-                            other => panic!("index 1 inner should be Some(7); got {:?}", other),
-                        },
-                        other => panic!("index 1 should be Ok(Some 7); got {:?}", other),
-                    },
-                    other => panic!("unexpected select result {:?}", other),
-                }
-            }
-            v => panic!("expected tuple, got {:?}", v),
-        }
-        drop(tx1);
-    }
-
-    #[test]
-    fn select_refuses_empty_vec() {
-        let src = r#"
-            (:wat::kernel::select (:wat::core::Vector :rust::crossbeam_channel::Receiver<i64>))
-        "#;
-        let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
-    }
-
-    #[test]
-    fn select_refuses_non_receiver_element() {
-        let src = r#"
-            (:wat::kernel::select (:wat::core::Vector :i64 1 2 3))
-        "#;
-        let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── HandlePool ────────────────────────────────────────────────────

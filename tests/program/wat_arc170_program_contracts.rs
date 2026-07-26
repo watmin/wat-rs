@@ -26,13 +26,11 @@
 //! 11. 3-arg `:user::main` — walker fires with the
 //!     BareLegacyMainSignature diagnostic.
 
-use std::sync::Arc;
-use wat::ast::WatAST;
 use wat::freeze::{
     expected_user_main_signature, invoke_user_main, startup_beside, startup_from_file,
     validate_user_main_signature,
 };
-use wat::runtime::{eval, Environment, Value};
+use wat::runtime::Value;
 use wat::types::TypeExpr;
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -42,49 +40,9 @@ fn freeze_ok(fixture: &str) -> wat::freeze::FrozenWorld {
         .unwrap_or_else(|e| panic!("freeze should succeed for {fixture:?}; got: {e}"))
 }
 
-fn freeze_err(fixture: &str) -> String {
-    match startup_from_file(fixture) {
-        Ok(_) => panic!("expected freeze to fail for {fixture:?}; succeeded"),
-        Err(e) => format!("{}", e),
-    }
-}
-
 /// Load the primary fixture (canonical trivial main) via startup_beside.
 fn freeze_trivial() -> wat::freeze::FrozenWorld {
     startup_beside(file!()).expect("trivial-main fixture must freeze")
-}
-
-/// Arc 170 slice 6 helper — build a `(:wat::kernel::spawn-process
-/// (:wat::core::forms <child-program-forms>...))` call AST from a
-/// child-program source string. The child program is parsed via
-/// `parser::parse_all_with_file` and must include a top-level
-/// `(:wat::core::defn :user::main [] -> :wat::core::nil ...)` (Stone 241.12: migrated from define).
-fn build_spawn_process_call(child_program_src: &str) -> WatAST {
-    let child_forms =
-        wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
-            .expect("child program parse");
-    let mut forms_items =
-        vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
-    forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
-    WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
-            forms_call,
-        ],
-        wat::rust_caller_span!(),
-    )
-}
-
-// PARENT_TRIVIAL retired: callers now use freeze_trivial() which loads
-// tests/program/wat_arc170_program_contracts.wat via startup_beside(file!()).
-
-/// Build a spawn-process call AST from a co-located child-program `.wat`
-/// fixture (read from disk, never inlined) — see `build_spawn_process_call`.
-fn build_spawn_process_call_from_fixture(path: &str) -> WatAST {
-    let child_program_src =
-        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("child fixture {path:?} must exist: {e}"));
-    build_spawn_process_call(&child_program_src)
 }
 
 // ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
@@ -154,158 +112,6 @@ fn t3_argv_reachable_via_ambient() {
     );
 }
 
-// ─── T4. spawn-process(fn) end-to-end via typed channels ───────────────
-
-fn drive_typed_recv(
-    receiver_inner: &wat::channel::ReceiverInner,
-    types: Option<&wat::types::TypeEnv>,
-) -> Value {
-    match wat::channel::typed_recv(receiver_inner, types, wat::rust_caller_span!()) {
-        wat::channel::RecvOutcome::Value(v) => v,
-        wat::channel::RecvOutcome::Disconnected => {
-            panic!("recv: clean shutdown before value flowed")
-        }
-        wat::channel::RecvOutcome::DecodeError(msg) => {
-            panic!("recv: decode error: {}", msg)
-        }
-        wat::channel::RecvOutcome::Shutdown => {
-            panic!("recv: unexpected process-wide shutdown during test")
-        }
-    }
-}
-
-fn unwrap_sender_inner(v: &Value) -> &wat::channel::SenderInner {
-    match v {
-        Value::wat__kernel__Sender(inner) => inner.as_ref(),
-        other => panic!("expected Sender Value; got {:?}", other),
-    }
-}
-
-fn unwrap_receiver_inner(v: &Value) -> &wat::channel::ReceiverInner {
-    match v {
-        Value::wat__kernel__Receiver(inner) => inner.as_ref(),
-        other => panic!("expected Receiver Value; got {:?}", other),
-    }
-}
-
-fn process_stdin_field(process: &Value) -> Arc<dyn wat::io::WatWriter> {
-    match process {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[0] {
-            Value::io__IOWriter(w) => w.clone(),
-            other => panic!("expected IOWriter at fields[0]; got {:?}", other),
-        },
-        other => panic!("expected Process Struct; got {:?}", other),
-    }
-}
-
-fn process_stdout_field(process: &Value) -> Arc<dyn wat::io::WatReader> {
-    match process {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[1] {
-            Value::io__IOReader(r) => r.clone(),
-            other => panic!("expected IOReader at fields[1]; got {:?}", other),
-        },
-        other => panic!("expected Process Struct; got {:?}", other),
-    }
-}
-
-fn process_handle_field(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
-    match process {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
-            Value::wat__kernel__ProgramHandle(h) => h.clone(),
-            other => panic!("expected ProgramHandle field; got {:?}", other),
-        },
-        other => panic!("expected Process Struct; got {:?}", other),
-    }
-}
-
-/// Wait for the spawned child to exit; assert exit code == 0.
-fn wait_child_exit_ok(handle: Arc<wat::runtime::ProgramHandleInner>) {
-    use wat::runtime::ProgramHandleInner;
-    match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => {
-            let code = child.wait_or_cached_exit();
-            assert_eq!(code, 0, "expected child exit 0; got {}", code);
-        }
-        other => panic!("expected Forked variant; got {:?}", other),
-    }
-}
-
-#[test]
-fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
-    // Arc 170 slice 6 — spawn-process accepts a wat PROGRAM
-    // (`Vec<WatAST>`). The child program is self-contained: a single
-    // (:user::main -> :nil) define whose body reads one i64, prints n+1.
-    // Parent sends 41 via Sender/from-pipe; child responds 42 via
-    // println; parent reads 42 via Receiver/from-pipe; child exits 0.
-    let world = freeze_trivial();
-    let call = build_spawn_process_call_from_fixture(
-        "tests/program/wat_arc170_program_contracts_t4_child.wat",
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    let types = world.symbols().types().map(|a| a.as_ref());
-    // Parent sends 41 to child via Sender/from-pipe wrapping Process/stdin (IOWriter).
-    let stdin_writer = process_stdin_field(&process);
-    let sender_val = wat::channel::sender_from_pipe(stdin_writer);
-    let sender_inner = unwrap_sender_inner(&sender_val);
-    let outcome = wat::channel::typed_send(
-        sender_inner,
-        Value::i64(41),
-        types,
-        wat::rust_caller_span!(),
-    );
-    assert!(
-        matches!(outcome, wat::channel::SendOutcome::Ok),
-        "send should succeed"
-    );
-    // Drop sender so child's readln sees EOF after the first read (not needed
-    // for single-value round-trip, but avoids child blocking on a second readln).
-    drop(sender_val);
-    // Parent recvs response — should be 42. On unexpected close, drain
-    // stderr so we surface the child's diagnostic in the panic message.
-    let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
-    let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let recv_outcome = wat::channel::typed_recv(
-        receiver_inner,
-        types,
-        wat::rust_caller_span!(),
-    );
-    let response = match recv_outcome {
-        wat::channel::RecvOutcome::Value(v) => v,
-        wat::channel::RecvOutcome::Disconnected => {
-            // Drain child stderr for diagnostic.
-            let stderr_field = match &process {
-                Value::Aggregate(s) => &s.fields[2],
-                _ => panic!("not a Process Struct"),
-            };
-            let stderr_text = match stderr_field {
-                Value::io__IOReader(rdr) => {
-                    let mut all = String::new();
-                    while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
-                        all.push_str(&line);
-                    }
-                    all
-                }
-                _ => "<stderr field not IOReader>".to_string(),
-            };
-            panic!("recv: clean shutdown before value flowed; child stderr:\n{}", stderr_text);
-        }
-        wat::channel::RecvOutcome::DecodeError(msg) => {
-            panic!("recv: decode error: {}", msg)
-        }
-        wat::channel::RecvOutcome::Shutdown => {
-            panic!("recv: unexpected process-wide shutdown during test")
-        }
-    };
-    match response {
-        Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
-        other => panic!("expected i64 response; got {:?}", other),
-    }
-    // Wait for the child to exit cleanly.
-    wait_child_exit_ok(process_handle_field(&process));
-}
-
 // ─── T5. spawn-process(inline lambda) — slice 1b fn-form path ──────────
 
 #[test]
@@ -372,195 +178,12 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     }
 }
 
-// ─── T10. spawn-thread(fn) — UNCHANGED behavior ──────────────────────
-
-#[test]
-fn t10_spawn_thread_unchanged_positive_control() {
-    // Same shape as before arc 170 — spawn-thread takes a fn whose
-    // signature is :Receiver<I> + :Sender<O> → :nil. Behavior must
-    // not regress: the thread runs in parent's world, communicates
-    // via crossbeam channels, returns Thread<I,O>.
-    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t10_echo_thread.wat");
-    // Build (:wat::kernel::spawn-thread :my::echo-thread).
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-thread".into(), wat::rust_caller_span!()),
-            WatAST::Keyword(":my::echo-thread".into(), wat::rust_caller_span!()),
-        ],
-        wat::rust_caller_span!(),
-    );
-    let env = Environment::new();
-    let thread = eval(&call, &env, world.symbols()).expect("spawn-thread succeeds").value_owned();
-    let types = world.symbols().types().map(|a| a.as_ref());
-    // Thread<I,O> field order: input(0), output(1), join(2)
-    let (input, output) = match &thread {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Thread" => (&s.fields[0], &s.fields[1]),
-        other => panic!("expected Thread Struct; got {:?}", other),
-    };
-    let outcome = wat::channel::typed_send(
-        unwrap_sender_inner(input),
-        Value::i64(21),
-        types,
-        wat::rust_caller_span!(),
-    );
-    assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
-    let response = match wat::channel::typed_recv(
-        unwrap_receiver_inner(output),
-        types,
-        wat::rust_caller_span!(),
-    ) {
-        wat::channel::RecvOutcome::Value(v) => v,
-        other => panic!("expected Value; got {:?}", other),
-    };
-    match response {
-        Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
-        other => panic!("expected i64; got {:?}", other),
-    }
-}
-
 // ─── T11. 3-arg :user::main fires walker (BareLegacyMainSignature) ────
 
 #[test]
 #[ignore = "ARC-170 WIP: BareLegacyMainSignature walker no longer fires for a non-canonical :user::main (freeze succeeds where it should reject — likely walker-disconnect); investigate + fix/retire before arc 170 closes."]
 fn t11_legacy_main_signature_fires_walker_diagnostic() {
     unimplemented!("arc 170: BareLegacyMainSignature walker reconnect; on unlock assert the legacy-4arg-main diagnostic exactly");
-}
-
-// ─── T12. spawn-process(fn) — child emits without recv'ing first ──────
-//
-// Slice 1f-λ rebuild for the arc-104 fork_program_child_writes_stdout
-// scenario. Under arc 170 the child's "stdout" is a typed Sender<T>;
-// the child sends one value via tx without first reading rx. The rx
-// channel exists per the contract shape but goes unread.
-
-#[test]
-fn t12_spawn_process_child_emits_without_recv() {
-    // Arc 170 slice 6 — child is a self-contained program emitting via
-    // println; parent reads via Receiver/from-pipe.
-    let world = freeze_trivial();
-    let call = build_spawn_process_call_from_fixture(
-        "tests/program/wat_arc170_program_contracts_t12_child.wat",
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    let types = world.symbols().types().map(|a| a.as_ref());
-    // Parent reads from Process/stdout via Receiver/from-pipe.
-    let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
-    let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let response = drive_typed_recv(receiver_inner, types);
-    match response {
-        Value::String(s) => assert_eq!(&*s, "hello-from-fork", "expected hello-from-fork; got {:?}", s),
-        other => panic!("expected String; got {:?}", other),
-    }
-    wait_child_exit_ok(process_handle_field(&process));
-}
-
-// ─── T13. spawn-process(fn) — child exits clean on parent tx-drop ─────
-//
-// Slice 1f-λ rebuild for the arc-104 fork_program_clean_exit_code
-// scenario. Child waits on rx; parent drops the Process (which drops
-// its Sender side) → child's rx surfaces a disconnect; child returns
-// nil; wait_child_exit_ok confirms exit code 0.
-
-#[test]
-fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
-    // Arc 170 slice 6 — child program returns immediately; parent drops
-    // Process (closes stdin/stdout pipes) → child exits 0.
-    let world = freeze_trivial();
-    let call = build_spawn_process_call_from_fixture(
-        "tests/program/wat_arc170_program_contracts_child_announce.wat",
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    let handle = process_handle_field(&process);
-    // MEASURE the child ran: it announces itself on its stdout pipe.
-    let types = world.symbols().types().map(|a| a.as_ref());
-    let receiver_val = wat::channel::receiver_from_pipe(process_stdout_field(&process));
-    match drive_typed_recv(unwrap_receiver_inner(&receiver_val), types) {
-        Value::String(s) => assert_eq!(&*s, "spawned child", "expected spawned child; got {:?}", s),
-        other => panic!("expected String; got {:?}", other),
-    }
-    // Drop process Struct → stdin/stdout/stderr pipes close; child exits 0.
-    drop(process);
-    wait_child_exit_ok(handle);
-}
-
-// ─── T14. spawn-process(fn) — wait handle is idempotent ──────────────
-//
-// Slice 1f-λ rebuild for the arc-012 wait_child_is_idempotent scenario.
-// ChildHandle::wait_or_cached_exit() uses OnceLock caching; calling it
-// twice must return the same exit code rather than re-waiting or
-// returning a sentinel. Child fn returns nil immediately (idle worker).
-
-#[test]
-fn t14_spawn_process_wait_handle_is_idempotent() {
-    // Arc 170 slice 6 — child program returns immediately; idempotent
-    // wait_or_cached_exit caches exit 0 on first wait and reuses it on the second.
-    let world = freeze_trivial();
-    let call = build_spawn_process_call_from_fixture(
-        "tests/program/wat_arc170_program_contracts_child_announce.wat",
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    let handle = process_handle_field(&process);
-    // MEASURE the child ran: it announces itself on its stdout pipe.
-    let types = world.symbols().types().map(|a| a.as_ref());
-    let receiver_val = wat::channel::receiver_from_pipe(process_stdout_field(&process));
-    match drive_typed_recv(unwrap_receiver_inner(&receiver_val), types) {
-        Value::String(s) => assert_eq!(&*s, "spawned child", "expected spawned child; got {:?}", s),
-        other => panic!("expected String; got {:?}", other),
-    }
-    // Drop process → tx drops → child's rx disconnects → child returns nil → exit 0.
-    drop(process);
-    // First wait — real waitpid; caches exit 0.
-    wait_child_exit_ok(handle.clone());
-    // Second wait — must return cached 0, not re-wait (idempotency).
-    wait_child_exit_ok(handle);
-}
-
-// ─── T15. spawn-process(fn) — child panics → recv Disconnected + non-zero exit
-//
-// Slice 1f-λ rebuild for the arc-012 wait_child_surfaces_panic_exit_code
-// scenario. Child fn body calls Option/expect on None → panics →
-// spawn_process_child_branch's catch_unwind catches → writes to stderr pipe
-// → exits EXIT_PANIC (2). Parent's typed recv returns Disconnected (child
-// closed output before sending). Handle exit code is non-zero.
-
-#[test]
-fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
-    // Arc 170 slice 6 — child panics intentionally before printing;
-    // parent's recv returns Disconnected; exit code is non-zero.
-    let world = freeze_trivial();
-    let call = build_spawn_process_call_from_fixture(
-        "tests/program/wat_arc170_program_contracts_t15_child.wat",
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    let types = world.symbols().types().map(|a| a.as_ref());
-    let handle = process_handle_field(&process);
-    // Parent reads from Process/stdout via Receiver/from-pipe.
-    // Child panics before println → stdout pipe closes → Disconnected.
-    let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
-    let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let recv_outcome = wat::channel::typed_recv(
-        receiver_inner,
-        types,
-        wat::rust_caller_span!(),
-    );
-    assert!(
-        matches!(recv_outcome, wat::channel::RecvOutcome::Disconnected),
-        "expected Disconnected (child panicked before printing); got {:?}",
-        recv_outcome,
-    );
-    // Handle exit code must be non-zero (EXIT_PANIC=2).
-    use wat::runtime::ProgramHandleInner;
-    let code = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
-        other => panic!("expected Forked ProgramHandle; got {:?}", other),
-    };
-    assert_ne!(code, 0, "expected non-zero exit on child panic; got 0");
 }
 
 // ─── T17. hermetic run — happy path over the primed peer wire (arc 278 IPC de-prime)
@@ -878,36 +501,4 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         "assert-eq failed",
         "t18b_msg: LociDiedError::Panic carries the assert-eq diagnostic golden"
     );
-}
-
-// ─── T16. spawn-process(fn) — multiple sequential spawns, no fd/zombie leak
-//
-// Slice 1f-λ rebuild for the arc-012 multiple_sequential_forks_no_leak
-// scenario. Three sequential spawn+exit cycles from one parent prove that
-// pipe fds close cleanly and waitpid reaps zombies without accumulation.
-// Each child uses the idle-worker pattern; each exits 0.
-
-#[test]
-fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
-    // Arc 170 slice 6 — three sequential spawn-process+exit cycles;
-    // pipes close cleanly; waitpid reaps zombies; no accumulation.
-    let world = freeze_trivial();
-    let env = Environment::new();
-    for _ in 0..3 {
-        let call = build_spawn_process_call_from_fixture(
-            "tests/program/wat_arc170_program_contracts_child_announce.wat",
-        );
-        let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-        let handle = process_handle_field(&process);
-        // MEASURE the child ran: it announces itself on its stdout pipe.
-        let types = world.symbols().types().map(|a| a.as_ref());
-        let receiver_val = wat::channel::receiver_from_pipe(process_stdout_field(&process));
-        match drive_typed_recv(unwrap_receiver_inner(&receiver_val), types) {
-            Value::String(s) => assert_eq!(&*s, "spawned child", "expected spawned child; got {:?}", s),
-            other => panic!("expected String; got {:?}", other),
-        }
-        // Drop process → child exits 0.
-        drop(process);
-        wait_child_exit_ok(handle);
-    }
 }

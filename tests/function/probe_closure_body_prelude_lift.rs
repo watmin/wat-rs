@@ -35,9 +35,8 @@
 //!
 //! Wat source: tests/function/probe_closure_body_prelude_lift_tN.wat (one per probe).
 
-use wat::ast::WatAST;
 use wat::freeze::startup_from_file;
-use wat::runtime::{eval, Environment, ProgramHandleInner};
+use wat::runtime::Value;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -48,52 +47,29 @@ fn freeze_ok(fixture: &str) -> wat::freeze::FrozenWorld {
     }
 }
 
-/// Drain the stderr field (index 2) of a Process Struct value.
-fn drain_stderr(process: &wat::runtime::Value) -> String {
-    match process {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => {
-            match &s.fields[2] {
-                wat::runtime::Value::io__IOReader(rdr) => {
-                    let mut all = String::new();
-                    while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
-                        all.push_str(&line);
-                    }
-                    all
-                }
-                _ => "<stderr field not IOReader>".into(),
-            }
-        }
-        _ => "<not a Process Struct>".into(),
-    }
-}
-
-/// Evaluate `(:my::launch)` in the frozen world, fork the child, wait for
-/// it to exit, and return (exit_code, stderr_text).
-fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
-    let call = WatAST::List(
-        vec![WatAST::Keyword(
-            ":my::launch".into(),
-            wat::rust_caller_span!(),
-        )],
+/// Apply `(:my::launch)` in the frozen world and return the i64 the child
+/// computed from its top-level declarations and sent back over the peer wire.
+///
+/// Arc 278 IPC de-prime — the old form field-poked the concrete `Process`
+/// struct (`fields[2]` stderr, `fields[3]` handle → exit code), an
+/// observation model the opaque `Process'` peer has no analog for. The peer
+/// model observes the same thing more strongly: the child `println`s the
+/// value it derived from the declaration under test, and the parent reads it
+/// back via `recv'`. A registration failure now surfaces as a `Lost` cause
+/// carrying the child's real reason, not a bare non-zero exit code.
+fn run_launch(world: &wat::freeze::FrozenWorld) -> i64 {
+    let launcher = world.symbols().get(":my::launch").expect("launch defined");
+    let result = wat::runtime::apply_function(
+        launcher.clone(),
+        Vec::new(),
+        world.symbols(),
         wat::rust_caller_span!(),
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("launch should evaluate").value_owned();
-    let handle = match &process {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => {
-            match &s.fields[3] {
-                wat::runtime::Value::wat__kernel__ProgramHandle(h) => h.clone(),
-                other => panic!("expected ProgramHandle field at index 3; got {:?}", other),
-            }
-        }
-        other => panic!("expected Process Struct from launch; got {:?}", other),
-    };
-    let exit_code: i64 = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
-        other => panic!("expected Forked handle; got {:?}", other),
-    };
-    let stderr = drain_stderr(&process);
-    (exit_code, stderr)
+    )
+    .expect(":my::launch runs (spawn-program' + recv')");
+    match result {
+        Value::i64(n) => n,
+        other => panic!("expected i64 from launch; got {:?}", other),
+    }
 }
 
 // ─── Probe 1 — define in fn body do-prefix lifts to prologue ─────────────────
@@ -112,11 +88,10 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
     // is retired; the natural shape replaces it (declarations live at
     // their natural top-level position from the start).
     let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t1.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (define in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        42,
+        "child should compute 42 via the top-level :h::helper (defn in do-prefix registered)"
     );
 }
 
@@ -129,11 +104,10 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — struct sits at program top-level via spawn-process's
     // program shape (no lift required; the natural shape supersedes it).
     let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t2.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (struct in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        7,
+        "child should compute 3+4 via the top-level :h::LocalPoint (struct registered, accessors resolve)"
     );
 }
 
@@ -145,11 +119,10 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
 fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — enum at program top-level.
     let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t3.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (enum in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        1,
+        "child should match :h::LocalDir::North → 1 (enum registered, variants construct + match)"
     );
 }
 
@@ -162,11 +135,10 @@ fn probe_mixed_prelude_lift() {
     // Arc 170 slice 6 — mixed prelude (struct + enum + define) all live
     // at program top-level via the new spawn-process program shape.
     let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t4.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (mixed prelude: struct+enum+define all lifted); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        100,
+        "child should compute 99 (struct via factory) + 1 (enum match) — all three declarations registered in order"
     );
 }
 
@@ -179,10 +151,9 @@ fn probe_prelude_prefix_terminates_at_first_expression() {
     // the new substrate: declarations sit at program top-level naturally
     // and there is no "prefix" concept.
     let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t5.wat");
-    let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (prefix-terminating define lifted; expression after is nil); stderr:\n{}",
-        stderr
+        run_launch(&world),
+        7,
+        "child should compute 7 via the top-level :h::counted-helper (prefix-terminating defn registered)"
     );
 }
