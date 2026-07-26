@@ -18,11 +18,13 @@
   [(:wat::core::defrecord :probe::Counter::GetRequest        [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -57,7 +59,9 @@
           ((:probe::Counter::IncrementResponse::Ok _v)
             (:probe::do-increments c (:wat::core::i64::- remaining 1) (:wat::core::i64::+ acc 1)))
           ((:probe::Counter::IncrementResponse::RequestTooLarge bytes cap)
-            (:wat::kernel::assertion-failed! "do-increments: unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
+            (:wat::kernel::assertion-failed! "do-increments: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+          ((:probe::Counter::IncrementResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
@@ -119,7 +123,9 @@
                (:wat::core::match __recv
                  ((:probe::Counter::GetResponse::Ok value) value)
                  ((:probe::Counter::GetResponse::RequestTooLarge bytes cap)
-                   (:wat::kernel::assertion-failed! "get: unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
+                   (:wat::kernel::assertion-failed! "get: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+                 ((:probe::Counter::GetResponse::RequestMalformed mpath mexpected mgot)
+                   (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "get: peer closed" :wat::core::None :wat::core::None)))
      ;; ASSERT: every worker landed its 4 typed replies (no cross-talk / no lost reply).

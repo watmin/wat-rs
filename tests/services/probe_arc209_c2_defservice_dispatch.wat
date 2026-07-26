@@ -8,11 +8,13 @@
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -39,12 +41,16 @@
      (:wat::core::match resp ((:my::Counter::GetResponse::Ok value) value)
        ((:my::Counter::GetResponse::RequestTooLarge bytes cap)
          (:wat::kernel::assertion-failed! "reply-value: unexpected GetResponse::RequestTooLarge"
-           :wat::core::None :wat::core::None))))
+           :wat::core::None :wat::core::None))
+       ((:my::Counter::GetResponse::RequestMalformed mpath mexpected mgot)
+         (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:my::Counter::Reply::Increment resp)
      (:wat::core::match resp ((:my::Counter::IncrementResponse::Ok value) value)
        ((:my::Counter::IncrementResponse::RequestTooLarge bytes cap)
          (:wat::kernel::assertion-failed! "reply-value: unexpected IncrementResponse::RequestTooLarge"
-           :wat::core::None :wat::core::None))))
+           :wat::core::None :wat::core::None))
+       ((:my::Counter::IncrementResponse::RequestMalformed mpath mexpected mgot)
+         (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ;; arc 278 no-hidden-failures — the reserved protocol-tier failure. Unreachable here
     ;; (recv' surfaces Reply::Failed as a raise BEFORE this helper sees it), but the
     ;; hand-written match must stay exhaustive + honest: surface the cause, never `_`-swallow.

@@ -2240,6 +2240,41 @@ fn synthesize_surface_protocol(
         ("bytes".to_string(), TypeExpr::Path(":wat::core::i64".into())),
         ("cap".to_string(), TypeExpr::Path(":wat::core::i64".into())),
     ];
+    // Arc 278 Stone 2 (ANNIHILATE the knob) — the SHAPE sibling of the size variant, and now
+    // under the identical lock. Stone 1 built the request-shape guard and defaulted it OFF
+    // behind an `:all | :none` opt-in clause; no service opted in, so the denial of
+    // service (a wrong-typed body under a correct tag kills the service for EVERY client)
+    // stayed live across the whole corpus. Builder ruling: a knob whose off-position is "crash
+    // on malformed input" is a non-option surfaced as a choice. The clause is deleted and
+    // `wat/service.wat` now generates the guard UNCONDITIONALLY for every op of every service
+    // — which makes the refusal variant MANDATORY here, exactly as `RequestTooLarge` is.
+    //
+    // WHY DECLARED AND NOT AUTO-INJECTED: an exception path the author never wrote is a
+    // surprise in the caller's exhaustive match. Every failure kind is a VISIBLE,
+    // author-declared, checker-forced named variant — the verbosity IS the shield.
+    //
+    // Shape: `[path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String
+    //          got <- :wat::core::String]`. `path` is STRUCTURED (the segments `["items" "[0]"]`
+    // a caller indexes and walks — real data); `expected`/`got` are rendered Strings because
+    // `got` is NOT a type and cannot be made one: the value arrived off an untyped wire with no
+    // declaration, so its honest datum is its EDN shape ("Integer", "Vector", "Map"). Ruled at
+    // Stone 1, four questions, 4×YES / 4×NO (DESIGN-request-malformed-input-sanitization.md).
+    //
+    // Built by PARSING the canonical spelling rather than hand-assembling the `TypeExpr`: the
+    // parser is the one authority on how `Vector<T>` is represented, and this way the two
+    // written forms (`:wat::core::Vector<wat::core::String>` and `(:wat::core::Vector
+    // :wat::core::String)`) compare equal, as they must — they are the same type.
+    const RM_VARIANT: &str = "RequestMalformed";
+    const RM_PATH_TY: &str = ":wat::core::Vector<wat::core::String>";
+    let rm_fields: Vec<(String, TypeExpr)> = vec![
+        (
+            "path".to_string(),
+            parse_type_expr(RM_PATH_TY)
+                .expect("RequestMalformed lock: the canonical `path` type must parse"),
+        ),
+        ("expected".to_string(), TypeExpr::Path(":wat::core::String".into())),
+        ("got".to_string(), TypeExpr::Path(":wat::core::String".into())),
+    ];
     // Ruling A binds SERVICEABLE ops — the wire ops of a service. Only a `:nature
     // :wat::kernel::Peer'` surface is a service (its ops' returns ARE `<Op>Response`s
     // that cross the wire and can face a too-large request); a `:Struct`/`:Record`/
@@ -2326,8 +2361,10 @@ fn synthesize_surface_protocol(
                                 "op `{}` in surface {}: `{}` must be an outcome enum carrying \
                                  `{}` (records-as-Responses are retired for services — arc 278 \
                                  ruling A); make it `(:wat::core::defenum {} :wat::enum::Pure \
-                                 :Ok [...] :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64])`",
-                                name, surface.name, resp_path, RTL_VARIANT, resp_path
+                                 :Ok [...] :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64] \
+                                 :RequestMalformed [path <- {}  expected <- :wat::core::String  \
+                                 got <- :wat::core::String])`",
+                                name, surface.name, resp_path, RTL_VARIANT, resp_path, RM_PATH_TY
                             ),
                             remedies: vec![],
                         },
@@ -2351,6 +2388,39 @@ fn synthesize_surface_protocol(
                                      (arc 278 ruling A — every serviceable op-Response is an outcome \
                                      enum that can face a too-large request)",
                                     name, surface.name, resp_path
+                                ),
+                                remedies: vec![],
+                            },
+                        });
+                    }
+                    // Arc 278 Stone 2 — the SHAPE half, same lock, same site, same standing.
+                    // `wat/service.wat` generates the request-shape guard unconditionally into
+                    // every op's dispatch arm; on a violation it replies with THIS variant and
+                    // keeps serving. Omitting it would make the generated guard reference a
+                    // variant that does not exist — so the omission is a located error here,
+                    // where the author can see which op and which surface, rather than an
+                    // unresolved path inside expanded macro output.
+                    let rm_shaped = variants.iter().any(|v| {
+                        matches!(v,
+                            EnumVariant::Tagged { name: vn, fields }
+                                if vn == RM_VARIANT && *fields == rm_fields)
+                    });
+                    if !rm_shaped {
+                        return Err(TypeError {
+                            span: decl_span.clone(),
+                            kind: TypeErrorKind::MalformedVariant {
+                                enum_name: resp_path.clone(),
+                                offending: RM_VARIANT.to_string(),
+                                reason: format!(
+                                    "op `{}` in surface {}: `{}` must carry \
+                                     `:RequestMalformed [path <- {}  expected <- :wat::core::String  \
+                                     got <- :wat::core::String]` (arc 278 Stone 2 — input \
+                                     sanitization is unconditional: every serviceable op-Response \
+                                     is an outcome enum that can face a request whose SHAPE is not \
+                                     the one the op declared it accepts, and that refusal must be a \
+                                     first-class value the caller's exhaustive match faces, never a \
+                                     crash that takes the service down for every other client)",
+                                    name, surface.name, resp_path, RM_PATH_TY
                                 ),
                                 remedies: vec![],
                             },
@@ -5201,15 +5271,92 @@ mod tests {
     }
 
     #[test]
+    fn stone_2_enum_response_missing_request_malformed_is_a_located_error() {
+        // Arc 278 Stone 2 — the SHAPE half of the lock, the exact standing ruling A gave the
+        // SIZE half. An outcome enum that carries `RequestTooLarge` but omits
+        // `RequestMalformed` is a located error: `defservice` generates the request-shape
+        // guard into every op arm UNCONDITIONALLY (there is no clause to opt into and no
+        // default to flip), and that guard refuses with this variant. Omitting it would leave
+        // the generated code referencing a variant that does not exist.
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad4 :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::defenum :t::Bad4::FooResponse :wat::enum::Pure
+                                :Ok [reply <- :wat::core::String]
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+                  :features [(foo [self <- :t::Bad4  req <- :wat::core::String]
+                               -> :t::Bad4::FooResponse :max-request-bytes 524288)])"#,
+        )
+        .expect_err("an enum Response lacking RequestMalformed must be a located error");
+        match err.kind {
+            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+                assert_eq!(enum_name, ":t::Bad4::FooResponse");
+                assert_eq!(offending, "RequestMalformed");
+            }
+            other => panic!("expected MalformedVariant (missing RequestMalformed); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stone_2_malformed_request_malformed_shape_is_a_located_error() {
+        // The field SHAPE is locked, not just the name. `path` must be
+        // `Vector<String>` — the structured coordinate a caller indexes and walks. A `path`
+        // rendered as a flat String would collapse the one field of this variant that is real
+        // DATA rather than a rendering, so it is refused.
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
+                                :Ok [reply <- :wat::core::String]
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path     <- :wat::core::String
+                                                   expected <- :wat::core::String
+                                                   got      <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad5  req <- :wat::core::String]
+                               -> :t::Bad5::FooResponse :max-request-bytes 524288)])"#,
+        )
+        .expect_err("a mis-shaped RequestMalformed (String path) must be a located error");
+        match err.kind {
+            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+                assert_eq!(enum_name, ":t::Bad5::FooResponse");
+                assert_eq!(offending, "RequestMalformed");
+            }
+            other => panic!("expected MalformedVariant (malformed RequestMalformed); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stone_2_request_malformed_path_accepts_the_list_type_spelling() {
+        // `(:wat::core::Vector :wat::core::String)` and `:wat::core::Vector<wat::core::String>`
+        // are the SAME type written two ways, and the lock compares parsed `TypeExpr`s — so
+        // both clear it. This is why `rm_fields` is built by PARSING the canonical spelling
+        // rather than hand-assembling the `TypeExpr`.
+        expand_then_register(
+            r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
+                                :Ok [reply <- :wat::core::String]
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path     <- (:wat::core::Vector :wat::core::String)
+                                                   expected <- :wat::core::String
+                                                   got      <- :wat::core::String])]
+                  :features [(foo [self <- :t::Ok2  req <- :wat::core::String]
+                               -> :t::Ok2::FooResponse :max-request-bytes 524288)])"#,
+        )
+        .expect("the list spelling of Vector<String> is the same type and must clear the lock");
+    }
+
+    #[test]
     fn stone_16_1c_wellshaped_enum_response_passes_and_synthesizes() {
-        // The GREEN half: a conforming outcome enum (`:Ok | :RequestTooLarge [bytes cap]`)
-        // clears the lock, and the protocol enums `::Op` / `::Reply` synthesize as before.
-        // Proves the lock does not false-positive on the migrated (conforming) fleet.
+        // The GREEN half: a conforming outcome enum (`:Ok | :RequestTooLarge [bytes cap] |
+        // :RequestMalformed [path expected got]`) clears BOTH halves of the lock, and the
+        // protocol enums `::Op` / `::Reply` synthesize as before. Proves the lock does not
+        // false-positive on the migrated (conforming) fleet.
         let env = expand_then_register(
             r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer'
                   :messages [(:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
-                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+                                                   expected <- :wat::core::String
+                                                   got      <- :wat::core::String])]
                   :features [(foo [self <- :t::Ok1  req <- :wat::core::String]
                                -> :t::Ok1::FooResponse :max-request-bytes 524288)])"#,
         )

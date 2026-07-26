@@ -1988,14 +1988,64 @@ fn edn_to_typed_value_inner(
                     other => Err(mismatch(target, other)),
                 }
             }
-            "wat::core::HashMap" | "wat::core::HashSet" => {
-                // Not currently supported as a readln target; the
-                // wire form has no typed-K coercion path yet.
-                Err(EdnCoerceError {
-                    expected: crate::check::format_type(target),
-                    got: "(coercion of HashMap/HashSet not yet supported)".into(),
-                    path: String::new(),
-                })
+            // Arc 278 Stone 2 — the HashMap / HashSet arms. These were a `not yet supported`
+            // STUB, and it was invisible for exactly as long as this walker had no callers
+            // (arc 258 Stone 258.5b deleted the last one). Stone 2 turns the walker into the
+            // request-sanitization wall on EVERY op of EVERY service, and the stub immediately
+            // refused well-formed production traffic: `:wat::query::Store::PutRequest` carries
+            // `rows <- Vector<StoredRow>` and `StoredRow.index-keys <- HashMap<String,IndexKey>`,
+            // so every journal write came back `RequestMalformed` at
+            // `["rows" "[0]" "index-keys"]`. That is a FALSE REFUSAL — a `HashMap<K,V>` is
+            // perfectly validatable; the arm was simply never written. Writing it is the fix;
+            // exempting the type would be an escape hatch by another name.
+            //
+            // The wire forms are `value_to_edn_with`'s own (this walk must invert exactly that
+            // writer, since the guard feeds it): a std HashMap writes as a bare EDN map
+            // `{k v …}`, a std HashSet as a bare EDN set `#{v …}`. Keys are walked against `K`
+            // and values against `V`, so a mistyped key or value is still caught — the
+            // recursion is the point, and the offending path names which one.
+            "wat::core::HashMap" => {
+                if args.len() != 2 {
+                    return Err(mismatch(target, edn));
+                }
+                let (key_ty, val_ty) = (&args[0], &args[1]);
+                match edn {
+                    Edn::Map(pairs) => {
+                        #[allow(clippy::mutable_key_type)]
+                        let mut map: std::collections::HashMap<Value, Value> =
+                            std::collections::HashMap::with_capacity(pairs.len());
+                        for (k_edn, v_edn) in pairs.iter() {
+                            // The key's own coordinate is its written form — a map has no
+                            // positional index, so `.{<key>}` is the honest segment.
+                            let seg = format!(".{{{}}}", wat_edn::write(k_edn));
+                            let k = edn_to_typed_value_inner(key_ty, k_edn, types)
+                                .map_err(|e| e.at(&seg))?;
+                            let v = edn_to_typed_value_inner(val_ty, v_edn, types)
+                                .map_err(|e| e.at(&seg))?;
+                            map.insert(k, v);
+                        }
+                        Ok(Value::wat__std__HashMap(Arc::new(map)))
+                    }
+                    other => Err(mismatch(target, other)),
+                }
+            }
+            "wat::core::HashSet" => {
+                let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
+                match edn {
+                    Edn::Set(items) => {
+                        #[allow(clippy::mutable_key_type)]
+                        let mut set: std::collections::HashSet<Value> =
+                            std::collections::HashSet::with_capacity(items.len());
+                        for item in items.iter() {
+                            let seg = format!(".{{{}}}", wat_edn::write(item));
+                            let v = edn_to_typed_value_inner(elem_ty, item, types)
+                                .map_err(|e| e.at(&seg))?;
+                            set.insert(v);
+                        }
+                        Ok(Value::wat__std__HashSet(Arc::new(set)))
+                    }
+                    other => Err(mismatch(target, other)),
+                }
             }
             _ => {
                 // Parametric user type — strip `<...>` to look up the

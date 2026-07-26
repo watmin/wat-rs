@@ -30,7 +30,8 @@
       namespace <- :wat::core::String])
    (:wat::core::defenum :prod::Producer::FloodResponse :wat::enum::Pure
      :Done            [written <- :wat::core::i64]
-     :RequestTooLarge [bytes   <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes   <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(flood [self <- :prod::Producer  req <- :prod::Producer::FloodRequest] -> :prod::Producer::FloodResponse :max-request-bytes 524288)])
 
@@ -95,7 +96,8 @@
   [(:wat::core::defrecord :cons::Consumer::SiftRequest [namespace <- :wat::core::String])
    (:wat::core::defenum :cons::Consumer::SiftResponse :wat::enum::Pure
      :Count           [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :cons::Consumer::PageState
      [done <- :wat::core::bool
       cur  <- (:wat::core::Option :wat::core::String)
@@ -197,4 +199,6 @@
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:cons::Consumer::SiftResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None))
+      ((:cons::Consumer::SiftResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

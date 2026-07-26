@@ -21,7 +21,8 @@
      [items <- :wat::core::Vector<wat::core::String>])
    (:wat::core::defenum :probe-det::Bag::PutResponse :wat::enum::Pure
      :Ok              [len <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :probe-det::Bag  req <- :probe-det::Bag::PutRequest]
      -> :probe-det::Bag::PutResponse :max-request-bytes 4096)])
@@ -52,7 +53,9 @@
               (:wat::core::i64::to-string len))))
         ((:probe-det::Bag::PutResponse::RequestTooLarge bytes cap)
           (:wat::kernel::println
-            (:wat::core::string::concat label " => RequestTooLarge")))))
+            (:wat::core::string::concat label " => RequestTooLarge")))
+        ((:probe-det::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ;; NB (measured): on this path the payload that actually arrives in the `Lost`
     ;; arm at runtime is a `:wat::kernel::Failure`, NOT the declared
     ;; `:wat::kernel::LociDiedError` — calling `LociDiedError/message` on it raises

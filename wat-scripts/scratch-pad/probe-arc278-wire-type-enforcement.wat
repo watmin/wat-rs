@@ -41,7 +41,8 @@
      ;; `seen` is the SERVER's own edn::write of the field it received — the tell.
      :Ok              [seen <- :wat::core::String]
      ;; ruling A — every serviceable op-Response carries the protocol-tier variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :probe-wire::Bag  req <- :probe-wire::Bag::PutRequest]
      -> :probe-wire::Bag::PutResponse :max-request-bytes 4096)])
@@ -71,7 +72,9 @@
             (:wat::core::string::concat label " => Ok, server saw items = " seen)))
         ((:probe-wire::Bag::PutResponse::RequestTooLarge bytes cap)
           (:wat::kernel::println
-            (:wat::core::string::concat label " => RequestTooLarge")))))
+            (:wat::core::string::concat label " => RequestTooLarge")))
+        ((:probe-wire::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::println
         (:wat::core::string::concat label " => RecvOutcome::Lost: "

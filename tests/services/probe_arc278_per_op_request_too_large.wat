@@ -17,7 +17,8 @@
   [(:wat::core::defrecord :probe::Op1::DoOpRequest [payload <- :wat::core::String])
    (:wat::core::defenum :probe::Op1::DoOpResponse :wat::enum::Pure
      :Ok              [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(do-op [self <- :probe::Op1  req <- :probe::Op1::DoOpRequest] -> :probe::Op1::DoOpResponse :max-request-bytes 524288)])
 
@@ -60,6 +61,8 @@
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp
           ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) bytes)
+          ((:probe::Op1::DoOpResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))
           ((:probe::Op1::DoOpResponse::Ok n) -1)))
       ((:wat::kernel::RecvOutcome::Lost _cause) -2)
       (:wat::kernel::RecvOutcome::Closed -3))))
@@ -79,6 +82,8 @@
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp
           ((:probe::Op1::DoOpResponse::Ok n) n)
-          ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) -1)))
+          ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) -1)
+          ((:probe::Op1::DoOpResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost _cause) -2)
       (:wat::kernel::RecvOutcome::Closed -3))))

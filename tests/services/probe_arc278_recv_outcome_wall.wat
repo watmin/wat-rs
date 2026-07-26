@@ -23,10 +23,12 @@
    (:wat::core::defrecord :probe::Crash::BoomrtRequest [])
    (:wat::core::defenum :probe::Crash::BoomResponse :wat::enum::Pure
      :Ok              [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defenum :probe::Crash::BoomrtResponse :wat::enum::Pure
      :Ok              [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(boom   [self <- :probe::Crash  req <- :probe::Crash::BoomRequest] -> :probe::Crash::BoomResponse
      :max-request-bytes 524288)

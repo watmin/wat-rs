@@ -16,7 +16,8 @@
   [(:wat::core::defrecord :probe::Cap1::DoOpRequest [payload <- :wat::core::String])
    (:wat::core::defenum :probe::Cap1::DoOpResponse :wat::enum::Pure
      :Ok              [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(do-op [self <- :probe::Cap1  req <- :probe::Cap1::DoOpRequest] -> :probe::Cap1::DoOpResponse
      :max-request-bytes 200)])
@@ -50,6 +51,8 @@
      r   (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) bytes)
+      ((:probe::Cap1::DoOpResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))
       ((:probe::Cap1::DoOpResponse::Ok n) -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge from the
@@ -65,4 +68,6 @@
      r2  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload "hi"))]   ;; SAME c → Ok
     (:wat::core::match r2 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Cap1::DoOpResponse::Ok n) 1)
-      ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+      ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) -1)
+      ((:probe::Cap1::DoOpResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

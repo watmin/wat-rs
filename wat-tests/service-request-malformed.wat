@@ -55,8 +55,10 @@
   :satisfies :wat-tests::MalBag
   :durable   [n <- :wat::core::i64]
   :ephemeral []
-  ;; the wall, ON (arc 278 Stone 1, transitional — Stone 2 makes it unconditional)
-  :sanitize-requests :all
+  ;; NOTHING IS OPTED INTO HERE. Arc 278 Stone 1 shipped the wall behind a clause and defaulted
+  ;; it off; Stone 2 annihilated the clause. This service declares a surface, a state, and a
+  ;; handler — and the request-shape wall is generated into every one of its op arms regardless,
+  ;; because that is what a service IS. The two deftests below are the proof.
   :impls
   [(put [s req]
      (:wat::service::Outcome::Reply s

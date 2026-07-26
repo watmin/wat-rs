@@ -21,14 +21,18 @@
           ((:wat::kernel::RecvOutcome::Message resp)
             (:wat::core::match resp
               ((:wat::kernel::StdOut::WriteResponse::Ok) 1)
-              ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap) 0)))
+              ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap) 0)
+              ((:wat::kernel::StdOut::WriteResponse::RequestMalformed mpath mexpected mgot)
+                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))
      r2 (:wat::core::match (:wat::kernel::StdOut/write c (:wat::kernel::StdOut::WriteRequest :bytes "primed-line-2\n"))
           ((:wat::kernel::RecvOutcome::Message resp)
             (:wat::core::match resp
               ((:wat::kernel::StdOut::WriteResponse::Ok) 1)
-              ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap) 0)))
+              ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap) 0)
+              ((:wat::kernel::StdOut::WriteResponse::RequestMalformed mpath mexpected mgot)
+                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))]
     (:wat::core::i64::+ r1 r2)))
@@ -70,6 +74,8 @@
         (:wat::core::match resp
           ((:wat::kernel::StdIn::ReadLineResponse::Line line) line)
           ((:wat::kernel::StdIn::ReadLineResponse::Eof) "EOF")
-          ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap) "RTL")))
+          ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap) "RTL")
+          ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "read-line: peer closed" :wat::core::None :wat::core::None)))))

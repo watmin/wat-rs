@@ -18,11 +18,13 @@
   [(:wat::core::defrecord :probe::Ticker::StartRequest [])
    (:wat::core::defenum :probe::Ticker::StartResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Ticker::PollRequest [])
    (:wat::core::defenum :probe::Ticker::PollResponse :wat::enum::Pure
      :Count           [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(start [self <- :probe::Ticker  req <- :probe::Ticker::StartRequest] -> :probe::Ticker::StartResponse
      :max-request-bytes 524288)
@@ -91,7 +93,9 @@
               n                                     ;; observed the target — done, no timing guess
               (:wat::core::let [_ (:probe::nap 5)]  ;; bounded backoff, NOT a correctness-bearing sleep
                 (:probe::poll-until c target (:wat::core::i64::- attempts 1)))))
-          ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1)))
+          ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1)
+          ((:probe::Ticker::PollResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
@@ -107,7 +111,9 @@
       ((:wat::kernel::RecvOutcome::Message __start)
         (:wat::core::match __start
           ((:probe::Ticker::StartResponse::Ok) (:probe::poll-until c 3 40))
-          ((:probe::Ticker::StartResponse::RequestTooLarge _b _cp) -3)))
+          ((:probe::Ticker::StartResponse::RequestTooLarge _b _cp) -3)
+          ((:probe::Ticker::StartResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 

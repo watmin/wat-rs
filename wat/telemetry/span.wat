@@ -161,7 +161,9 @@
                       (:wat::telemetry::Span::CloseResponse::Fatal err))
                     ;; wire-breach at the sink peer propagates outward as our own op's breach.
                     ((:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap)
-                      (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap))))
+                      (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap))
+                    ((:wat::telemetry::Journal::WriteMetricsResponse::RequestMalformed mpath mexpected mgot)
+                      (:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot))))
                 ;; a lost/closed sink peer must NOT kill this span service — map to our own Fatal
                 ;; response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)

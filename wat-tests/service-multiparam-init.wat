@@ -19,7 +19,8 @@
   [(:wat::core::defrecord :wat-tests::OffsetCounter::TotalRequest  [])
    (:wat::core::defenum :wat-tests::OffsetCounter::TotalResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(total [self <- :wat-tests::OffsetCounter  req <- :wat-tests::OffsetCounter::TotalRequest] -> :wat-tests::OffsetCounter::TotalResponse :max-request-bytes 524288)])
 
@@ -56,7 +57,9 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::OffsetCounter::TotalResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "offset-counter-total: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None))
+        ((:wat-tests::OffsetCounter::TotalResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     105))
 
 ;; process tier: identical except the locus — the live offset crosses the wire as EDN in Admin::Init.
@@ -73,5 +76,7 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::OffsetCounter::TotalResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "offset-counter-total: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None))
+        ((:wat-tests::OffsetCounter::TotalResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     105))

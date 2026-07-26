@@ -17,7 +17,8 @@
   [(:wat::core::defrecord :my::aws::Waf::CreateWebACLRequest  [n     <- :wat::core::i64])
    (:wat::core::defenum :my::aws::Waf::CreateWebACLResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(create-web-acl [self <- :my::aws::Waf  req <- :my::aws::Waf::CreateWebACLRequest]
                    -> :my::aws::Waf::CreateWebACLResponse :max-request-bytes 524288)])

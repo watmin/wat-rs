@@ -15,11 +15,13 @@
   [(:wat::core::defrecord :wat-tests::Recorder::RecordRequest  [n     <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::Recorder::RecordResponse :wat::enum::Pure
      :Ok              [ok    <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :wat-tests::Recorder::TotalRequest   [])
    (:wat::core::defenum :wat-tests::Recorder::TotalResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(record [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::RecordRequest]
            -> :wat-tests::Recorder::RecordResponse :max-request-bytes 524288)
@@ -32,7 +34,8 @@
   [(:wat::core::defrecord :wat-tests::Worker::WorkRequest  [n    <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::Worker::WorkResponse :wat::enum::Pure
      :Ok              [done  <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(work [self <- :wat-tests::Worker req <- :wat-tests::Worker::WorkRequest]
          -> :wat-tests::Worker::WorkResponse :max-request-bytes 524288)])
@@ -78,7 +81,9 @@
                   (:wat-tests::Worker::WorkResponse::Ok true))
                 ;; s2s consumer: a downstream wire-breach propagates outward as our own op's breach.
                 ((:wat-tests::Recorder::RecordResponse::RequestTooLarge bytes cap)
-                  (:wat-tests::Worker::WorkResponse::RequestTooLarge bytes cap)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
+                  (:wat-tests::Worker::WorkResponse::RequestTooLarge bytes cap))
+                ((:wat-tests::Recorder::RecordResponse::RequestMalformed mpath mexpected mgot)
+                  (:wat-tests::Worker::WorkResponse::RequestMalformed mpath mexpected mgot)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Reply s wresp)))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
@@ -104,7 +109,9 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::Recorder::TotalResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "recorder-total: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None))
+        ((:wat-tests::Recorder::TotalResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     8))
 
 ;; hibernate -> resume: worker sheds its client + reconnects on resume. resume takes the saved record AND
@@ -134,5 +141,7 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::Recorder::TotalResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "recorder-total: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None))
+        ((:wat-tests::Recorder::TotalResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     8))

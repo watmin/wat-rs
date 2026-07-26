@@ -34,7 +34,8 @@
   [(:wat::core::defrecord :wat::kernel::StdOut::WriteRequest [bytes <- :wat::core::String])
    (:wat::core::defenum :wat::kernel::StdOut::WriteResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(write [self <- :wat::kernel::StdOut  req <- :wat::kernel::StdOut::WriteRequest]
      -> :wat::kernel::StdOut::WriteResponse :max-request-bytes 524288)])
@@ -59,7 +60,8 @@
   [(:wat::core::defrecord :wat::kernel::StdErr::WriteRequest [bytes <- :wat::core::String])
    (:wat::core::defenum :wat::kernel::StdErr::WriteResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(write [self <- :wat::kernel::StdErr  req <- :wat::kernel::StdErr::WriteRequest]
      -> :wat::kernel::StdErr::WriteResponse :max-request-bytes 524288)])
@@ -85,7 +87,8 @@
    (:wat::core::defenum :wat::kernel::StdIn::ReadLineResponse :wat::enum::Pure
      :Line            [line <- :wat::core::String]
      :Eof             []                                     ;; NULLARY (matchable), constructed (::Eof) — mirrors ::Ok
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(read-line [self <- :wat::kernel::StdIn  req <- :wat::kernel::StdIn::ReadLineRequest]
      -> :wat::kernel::StdIn::ReadLineResponse :max-request-bytes 524288)])
@@ -200,7 +203,9 @@
                    (:wat::core::match resp
                      ((:wat::kernel::StdOut::WriteResponse::Ok) nil)
                      ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap)
-                       (:wat::kernel::assertion-failed! "println: stdout write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)" :wat::core::None :wat::core::None))))
+                       (:wat::kernel::assertion-failed! "println: stdout write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)" :wat::core::None :wat::core::None))
+                     ((:wat::kernel::StdOut::WriteResponse::RequestMalformed mpath mexpected mgot)
+                       (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
                  ((:wat::kernel::RecvOutcome::Lost cause)
                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
@@ -224,7 +229,9 @@
                    (:wat::core::match resp
                      ((:wat::kernel::StdErr::WriteResponse::Ok) nil)
                      ((:wat::kernel::StdErr::WriteResponse::RequestTooLarge b cap)
-                       (:wat::kernel::assertion-failed! "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)" :wat::core::None :wat::core::None))))
+                       (:wat::kernel::assertion-failed! "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)" :wat::core::None :wat::core::None))
+                     ((:wat::kernel::StdErr::WriteResponse::RequestMalformed mpath mexpected mgot)
+                       (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
                  ((:wat::kernel::RecvOutcome::Lost cause)
                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
@@ -247,7 +254,9 @@
         ((:wat::kernel::StdIn::ReadLineResponse::Eof)
           (:wat::kernel::assertion-failed! "readln: EOF on stdin — client (parent process or pipe writer) disconnected" :wat::core::None :wat::core::None))
         ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap2)
-          (:wat::kernel::assertion-failed! "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
+          (:wat::kernel::assertion-failed! "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))
+        ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed

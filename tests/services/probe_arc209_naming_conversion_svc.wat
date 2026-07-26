@@ -12,7 +12,8 @@
   [(:wat::core::defrecord :my::Svc::GetObjectRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :my::Svc::GetObjectResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get-object [self <- :my::Svc  req <- :my::Svc::GetObjectRequest] -> :my::Svc::GetObjectResponse :max-request-bytes 524288)])
 
@@ -37,4 +38,6 @@
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:my::Svc::GetObjectResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "req-id: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None))
+      ((:my::Svc::GetObjectResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

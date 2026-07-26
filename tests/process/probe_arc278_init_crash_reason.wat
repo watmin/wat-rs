@@ -13,7 +13,8 @@
   [(:wat::core::defrecord :t::Boom::PingRequest  [x <- :wat::core::i64])
    (:wat::core::defenum :t::Boom::PingResponse :wat::enum::Pure
      :Ok              [x <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse :max-request-bytes 524288)])
 
@@ -49,7 +50,9 @@
       ((:wat::kernel::RecvOutcome::Message __recv)
         (:wat::core::match __recv
           ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
-          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")))
+          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")
+          ((:t::Boom::PingResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
@@ -66,6 +69,8 @@
       ((:wat::kernel::RecvOutcome::Message __recv)
         (:wat::core::match __recv
           ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
-          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")))
+          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")
+          ((:t::Boom::PingResponse::RequestMalformed mpath mexpected mgot)
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

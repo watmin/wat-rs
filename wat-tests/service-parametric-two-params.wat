@@ -35,7 +35,8 @@
      ;; durable field, so a state that lost K (or V) yields a DIFFERENT number, not a crash.
      :Ok              [echo <- :wat::core::i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
   [(put [self <- :wat-tests::Pair<K,V>  req <- :wat-tests::Pair::PutRequest]
@@ -95,7 +96,9 @@
             ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
             ((:wat-tests::Pair::PutResponse::RequestTooLarge bytes cap)
               (:wat::kernel::assertion-failed! "pair-svc put: unexpected RequestTooLarge"
-                :wat::core::None :wat::core::None))))
+                :wat::core::None :wat::core::None))
+            ((:wat-tests::Pair::PutResponse::RequestMalformed mpath mexpected mgot)
+              (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
         ((:wat::kernel::RecvOutcome::Lost __cause)
           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
         (:wat::kernel::RecvOutcome::Closed

@@ -10,7 +10,8 @@
   [(:wat::core::defrecord :probe::Big::PutRequest  [payload <- :wat::core::String])
    (:wat::core::defenum :probe::Big::PutResponse :wat::enum::Pure
      :Ok              [ok <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :probe::Big  req <- :probe::Big::PutRequest] -> :probe::Big::PutResponse :max-request-bytes 1048576)])
 
@@ -52,7 +53,9 @@
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:probe::Big::PutResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "large-foo-accepts: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None))
+      ((:probe::Big::PutResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── (b) small FOO REJECTS a > 4 KiB request: the caller's op must FAIL WITH A REASON (not the
 ;; mute "peer closed"). EXACT DATA: :user::small-foo-rejects returns a structured :probe::Outcome —
@@ -98,4 +101,6 @@
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:probe::Big::PutResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "small-foo-survives: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None))
+      ((:probe::Big::PutResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

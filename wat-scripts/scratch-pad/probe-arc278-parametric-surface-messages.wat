@@ -60,7 +60,8 @@
      :Ok              [echo    <- :wat::core::Vector<K>
                        results <- :wat::core::Vector<wat::core::Option<V>>]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
   [(get [self <- :probe::PCache<K,V>  req <- :probe::PCache::GetRequest<K>]

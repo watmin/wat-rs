@@ -6,7 +6,8 @@
   [(:wat::core::defrecord :my::RstSvc::BoomRequest  [])
    (:wat::core::defenum :my::RstSvc::BoomResponse :wat::enum::Pure
      :Ok              [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(boom [self <- :my::RstSvc  req <- :my::RstSvc::BoomRequest] -> :my::RstSvc::BoomResponse :max-request-bytes 524288)])
 

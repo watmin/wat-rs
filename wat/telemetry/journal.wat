@@ -124,7 +124,9 @@
                       (:wat::telemetry::Journal::WriteMetricsResponse::Fatal err))
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
                     ((:wat::query::Store::PutResponse::RequestTooLarge bytes cap)
-                      (:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap))))
+                      (:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap))
+                    ((:wat::query::Store::PutResponse::RequestMalformed mpath mexpected mgot)
+                      (:wat::telemetry::Journal::WriteMetricsResponse::RequestMalformed mpath mexpected mgot))))
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
@@ -160,7 +162,9 @@
                       (:wat::telemetry::Journal::WriteLogsResponse::Fatal err))
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
                     ((:wat::query::Store::PutResponse::RequestTooLarge bytes cap)
-                      (:wat::telemetry::Journal::WriteLogsResponse::RequestTooLarge bytes cap))))
+                      (:wat::telemetry::Journal::WriteLogsResponse::RequestTooLarge bytes cap))
+                    ((:wat::query::Store::PutResponse::RequestMalformed mpath mexpected mgot)
+                      (:wat::telemetry::Journal::WriteLogsResponse::RequestMalformed mpath mexpected mgot))))
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
@@ -204,7 +208,9 @@
                       (:wat::telemetry::Journal::QueryMetricsResponse::Fatal err))
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
                     ((:wat::query::Store::ScanResponse::RequestTooLarge bytes cap)
-                      (:wat::telemetry::Journal::QueryMetricsResponse::RequestTooLarge bytes cap))))
+                      (:wat::telemetry::Journal::QueryMetricsResponse::RequestTooLarge bytes cap))
+                    ((:wat::query::Store::ScanResponse::RequestMalformed mpath mexpected mgot)
+                      (:wat::telemetry::Journal::QueryMetricsResponse::RequestMalformed mpath mexpected mgot))))
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
@@ -247,7 +253,9 @@
                       (:wat::telemetry::Journal::QueryLogsResponse::Fatal err))
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
                     ((:wat::query::Store::ScanResponse::RequestTooLarge bytes cap)
-                      (:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap))))
+                      (:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap))
+                    ((:wat::query::Store::ScanResponse::RequestMalformed mpath mexpected mgot)
+                      (:wat::telemetry::Journal::QueryLogsResponse::RequestMalformed mpath mexpected mgot))))
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
@@ -304,7 +312,9 @@
                              (:wat::telemetry::Journal::SiftLogsResponse::Fatal err))
                            ;; wire-breach at the store peer propagates outward as our own op's breach.
                            ((:wat::query::Store::ScanResponse::RequestTooLarge bytes cap)
-                             (:wat::telemetry::Journal::SiftLogsResponse::RequestTooLarge bytes cap))))
+                             (:wat::telemetry::Journal::SiftLogsResponse::RequestTooLarge bytes cap))
+                           ((:wat::query::Store::ScanResponse::RequestMalformed mpath mexpected mgot)
+                             (:wat::telemetry::Journal::SiftLogsResponse::RequestMalformed mpath mexpected mgot))))
                        ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                        ((:wat::kernel::RecvOutcome::Lost cause)
@@ -361,7 +371,9 @@
                              (:wat::telemetry::Journal::SiftMetricsResponse::Fatal err))
                            ;; wire-breach at the store peer propagates outward as our own op's breach.
                            ((:wat::query::Store::ScanResponse::RequestTooLarge bytes cap)
-                             (:wat::telemetry::Journal::SiftMetricsResponse::RequestTooLarge bytes cap))))
+                             (:wat::telemetry::Journal::SiftMetricsResponse::RequestTooLarge bytes cap))
+                           ((:wat::query::Store::ScanResponse::RequestMalformed mpath mexpected mgot)
+                             (:wat::telemetry::Journal::SiftMetricsResponse::RequestMalformed mpath mexpected mgot))))
                        ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                        ((:wat::kernel::RecvOutcome::Lost cause)

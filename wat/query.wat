@@ -153,6 +153,7 @@
      resp-ded-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Deductions")))
      resp-fat-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Fatal")))
      resp-rtl-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::RequestTooLarge")))
+     resp-rm-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::RequestMalformed")))
      req-ns-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/namespace")))
      req-lo-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-lo")))
      req-hi-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-hi")))
@@ -332,7 +333,8 @@
             :Deductions [items  <- :wat::core::PersistentVector<wat::core::Value>
                          cursor <- (:wat::core::Option :wat::core::String)]
             :Fatal      [err   <- :wat::query::Fault]
-            :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+            :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+            :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
          :features
          [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw :max-request-bytes 524288)])
        (:wat::service::defservice ~svc-kw
@@ -412,6 +414,14 @@
                     ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
                     ((:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap)
                       (~resp-rtl-kw bytes cap))
+                    ;; …and the SHAPE signal identically (arc 278 Stone 2). The codemod could not
+                    ;; decide this arm structurally — the RequestTooLarge arm above propagates through
+                    ;; an UNQUOTED head (`~resp-rtl-kw`, a macro-built keyword), not a literal one, so
+                    ;; it fell to the terminal `assertion-failed!` default. Asserting here would be
+                    ;; wrong and dangerous: a shape refusal from the journal peer would kill THIS
+                    ;; service for every client — the exact DoS this stone closes, one tier up.
+                    ((:wat::telemetry::Journal::QueryLogsResponse::RequestMalformed mpath mexpected mgot)
+                      (~resp-rm-kw mpath mexpected mgot))
                     (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed")))))
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause))))
@@ -444,7 +454,8 @@
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::query::Store::PutRequest
      [rows <- (:wat::core::Vector :wat::query::StoredRow)])
@@ -454,7 +465,8 @@
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::query::Store::ScanRequest         ;; a base-table page request
      [pk     <- :wat::core::String
@@ -468,7 +480,8 @@
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::query::Store::ScanIndexRequest    ;; a GSI page request
      [index  <- :wat::core::String
@@ -483,7 +496,8 @@
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
    ;; consumer init.

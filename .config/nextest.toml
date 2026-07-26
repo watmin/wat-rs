@@ -17,14 +17,24 @@ retries = 1                                              # absorb a rare leak-fl
 fail-fast = false
 
 # The wat-scripts load gate freezes EVERY .wat under wat-scripts/ in ONE test
-# (~170 files after arc-170 promoted its scratch probes into wat-scripts/probes/)
-# — legitimately CPU-heavy, ~23s isolated, and grows with the corpus. The default
-# 30s kill breaches only under full-floor CPU contention; give it a generous
-# deadline so contention can't SIGTERM it mid-freeze. A genuine hang still dies at 90s.
+# — legitimately CPU-heavy and it GROWS WITH THE CORPUS every time a probe lands.
+#
+# ⚠ MEASURED 2026-07-25: this test took **88.085s** on a full-floor run, against a
+# 90s kill. TWO SECONDS of margin — and several probes landed that same day. The
+# old 45s/90s was already breaching in practice, so it is raised generously:
+# warn at 120s, kill at 240s. A genuine hang still dies; corpus growth no longer
+# walks us into a SIGTERM mid-freeze.
+#
+# `priority` (higher runs earlier) starts it in the FIRST wave rather than letting
+# it become the long pole at the end — it then overlaps the other ~4100 tests
+# instead of running after them. Wall-clock win, and it stops a slow-but-healthy
+# gate from looking like a hang under end-of-run contention.
 [[profile.default.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "45s", terminate-after = 2 }   # warn 45s, kill 90s
+slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
+priority = 100                                            # schedule first
 
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "45s", terminate-after = 2 }
+slow-timeout = { period = "120s", terminate-after = 2 }
+priority = 100

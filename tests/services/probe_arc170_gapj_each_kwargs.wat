@@ -15,11 +15,13 @@
   [(:wat::core::defrecord :probe::Counter::GetRequest       [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -53,7 +55,9 @@
     ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
     ((:probe::Counter::IncrementResponse::RequestTooLarge bytes cap)
       (:wat::kernel::assertion-failed! "record-hit: unexpected RequestTooLarge"
-        :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+        :wat::core::None :wat::core::None))
+    ((:probe::Counter::IncrementResponse::RequestMalformed mpath mexpected mgot)
+      (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; Returns (each's own return value, the counter's final durable count) so the Rust driver can
@@ -70,4 +74,6 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:probe::Counter::GetResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "run: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
+            :wat::core::None :wat::core::None))
+        ((:probe::Counter::GetResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))

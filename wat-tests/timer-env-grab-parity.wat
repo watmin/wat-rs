@@ -22,7 +22,8 @@
   [(:wat::core::defrecord :wat-tests::Deadline::WaitTickRequest  [])
    (:wat::core::defenum :wat-tests::Deadline::WaitTickResponse :wat::enum::Pure
      :Ok              [fired <- :wat::core::keyword]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse :max-request-bytes 524288)])
 
@@ -59,7 +60,9 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::Deadline::WaitTickResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "deadline-wait-tick: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None))
+        ((:wat-tests::Deadline::WaitTickResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     :tick))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -75,5 +78,7 @@
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::Deadline::WaitTickResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "deadline-wait-tick: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None))
+        ((:wat-tests::Deadline::WaitTickResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     :tick))

@@ -69,7 +69,9 @@
       ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1)
       ((:usr::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+      ((:usr::my-sift::SiftRulesResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── PROCESS locus — the loci-agnostic proof. SAME scenario across a FORK: mem-store' + journal'
 ;; + my-sift' all on process, grant-before-dial at every hop (mirrors the arena's chain). ──
@@ -113,7 +115,9 @@
       ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1)
       ((:usr::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+      ((:usr::my-sift::SiftRulesResponse::RequestMalformed mpath mexpected mgot)
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── THREAD locus — fail-closed: one Log's message is `:usr::Other`, NOT among :defs. The WHOLE
 ;; page must come back ::Fatal (never a silent skip / partial result). ──

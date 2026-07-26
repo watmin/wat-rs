@@ -237,7 +237,9 @@
                      ((:arena::my-sift::SiftRulesResponse::Fatal _err)
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))
                      ((:arena::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
+                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+                     ((:arena::my-sift::SiftRulesResponse::RequestMalformed mpath mexpected mgot)
+                       (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
@@ -313,7 +315,9 @@
                      ((:arena::my-sift::SiftRulesResponse::Fatal _err)
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))
                      ((:arena::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
+                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+                     ((:arena::my-sift::SiftRulesResponse::RequestMalformed mpath mexpected mgot)
+                       (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
