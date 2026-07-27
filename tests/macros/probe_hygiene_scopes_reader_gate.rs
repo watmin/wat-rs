@@ -4,11 +4,19 @@
 //!
 //! The macro-hygiene class — variable capture, scoped resolution, scoped identity —
 //! was annihilated across four stones (249.5b/d/e/f) and *proven last* by a manual
-//! enumeration: an `Identifier`'s scope-set is consumed for keying/identity at exactly
-//! TWO sanctioned chokepoints —
+//! enumeration: an `Identifier`'s scope-set is consumed for keying/identity/transport
+//! at exactly THREE sanctioned chokepoints —
 //!   1. `crate::scope::resolution::env_key` — in-process resolution (eval + check),
-//!   2. the canonical hasher (`src/hash.rs`) — cross-process identity (renumbered) —
+//!   2. the canonical hasher (`src/hash.rs`) — cross-process identity (renumbered),
+//!   3. the plain-EDN bridge (`src/wat_edn_bridge.rs`) — cross-process TRANSPORT
+//!      (remapped; arc 170) —
 //! and every resolution bind of a possibly-scoped ident routes through `env_key`.
+//!
+//! (3) joined in arc 170 and is the sibling of (2), not a new keying surface: both
+//! cross a process boundary, and both refuse to carry the sender's raw ids — the
+//! hasher RENUMBERS to first-appearance indices, the bridge REMAPS each distinct wire
+//! id to a `fresh_scope()`. Neither ever keys by a scope; they preserve the structure
+//! and hand resolution back to `env_key` on the far side.
 //!
 //! A manual enumeration is a snapshot; this gate makes it a **build-time invariant.**
 //! A future `src/` file that reads `Identifier::scopes()` directly is a candidate
@@ -57,6 +65,22 @@ const SANCTIONED_SCOPES_READERS: &[(&str, &str)] = &[
         "macros/tests.rs",
         "TEST — asserts the expander (walk_template) APPLIES scope tags; reads scopes \
          to verify the mint side, never keys/identifies by them.",
+    ),
+    (
+        "wat_edn_bridge.rs",
+        "the plain-EDN program bridge — cross-process TRANSPORT of hygiene (arc 170). \
+         Reads scopes ONLY to serialize them onto the wire as \
+         `#wat.ast/ScopedSymbol {:name … :scopes […]}`, and NEVER keys or identifies \
+         by them. Sibling of hash.rs (also cross-process, also refuses the sender's \
+         raw ids): the hasher renumbers, the bridge REMAPS each distinct wire id to a \
+         `fresh_scope()`, so an imported scope can never collide with one this process \
+         mints — resolution on the far side is still env_key's alone. \
+         Necessary because `spawn-process` ships an evaluated `Vector<WatAST>` a macro \
+         built (kernel/spawn.rs:485); erasing its scopes in transit manufactures \
+         HygieneScopeDivergence (check.rs:2035) — disconfirmed by a run. \
+         BACKED BY: tests/program/probe_arc170_edn_bridge_hygiene.rs (C02 scopes \
+         survive, C03 shared-stays-shared + distinct-stays-distinct + the two \
+         structures do not collapse, C04 imported ids are fresh, C05 the wire form).",
     ),
 ];
 
