@@ -148,7 +148,21 @@ impl<'a> CheckEnv<'a> {
         let mut env = Self::with_builtins_and_types(types);
         for (path, func) in &sym.functions {
             if let Some(scheme) = super::derive_scheme_from_function(func) {
-                env.register(path.clone(), scheme);
+                // Arc 170 — the OVERLAY lands through the gate, not a bare insert.
+                // Privilege::Stdlib here because this loop replays an ALREADY-FROZEN
+                // symbol table: reserved-prefix policing for user code happens at
+                // define-registration, upstream of the freeze, so re-asserting it here
+                // would reject the stdlib's own `:wat::` functions. What this call is
+                // for is the Divergent arm — a name meaning two different things.
+                if let Err(verdict) =
+                    env.register_overlay(path.clone(), scheme, crate::resolve::Privilege::Stdlib)
+                {
+                    // Loud on purpose while we learn what the corpus holds. A divergent
+                    // scheme reaching here is exactly the class the gate exists to name.
+                    eprintln!(
+                        "GATE-REJECT\t{path}\t{verdict:?}"
+                    );
+                }
             }
         }
         // Stone 237.8b — also load defclauses from runtime_def_values so the checker
@@ -261,10 +275,58 @@ impl<'a> CheckEnv<'a> {
         self.unit_variant_types.get(key)
     }
 
-    /// Register a function/builtin type scheme at `name`. Consumed by
-    /// `from_symbols` (user functions) and `register_builtins` (substrate primitives).
+    /// Register a BASE-layer scheme at `name` — the substrate primitive table.
+    ///
+    /// Ungated ON PURPOSE, and the purpose is narrow: `register_builtins` fills an
+    /// EMPTY map with distinct names, so there is no predecessor a registration
+    /// could disagree with. Anything layering ON TOP of that base must go through
+    /// [`register_overlay`], which asks the gate.
     pub fn register(&mut self, name: String, scheme: TypeScheme) {
         self.schemes.insert(name, scheme);
+    }
+
+    /// Register an OVERLAY scheme — a definition landing on top of the base table.
+    ///
+    /// # Why this is gated and [`register`] is not
+    ///
+    /// Types have routed every registration through ONE gate since arc 054
+    /// (`TypeEnv::register_validated` → `resolve::gate`): a byte-equivalent
+    /// redeclaration is a `NoOp`, a DIVERGENT one is a hard located error. Macros
+    /// route through the same gate. **Verbs did not** — this path was a bare
+    /// `schemes.insert`, so a function silently clobbered whatever held its name,
+    /// and the substrate had no way to answer "is this name already taken by
+    /// something DIFFERENT?" That asymmetry is the arc-170 `0z` blocker: it is why
+    /// renaming a prime could not be proven safe by construction.
+    ///
+    /// The gate is registry-agnostic and error-taxonomy-neutral by design (its own
+    /// doc says so), so wiring this path to it needs no new policy — only the
+    /// equivalence relation, which is `TypeScheme`'s derived `PartialEq`.
+    ///
+    /// Measured before the change: across 60 real freezes, exactly ONE name
+    /// registers twice (`:wat::io::read-file`, declared BOTH as a builtin scheme at
+    /// `check.rs` and as a `defn` in `wat/io.wat`) and it registers IDENTICALLY —
+    /// zero divergent clobbers. So this gate is not expected to reject anything
+    /// that exists today; it exists so that the day something divergent appears,
+    /// it is a located error instead of a silent last-writer-wins.
+    pub fn register_overlay(
+        &mut self,
+        name: String,
+        scheme: TypeScheme,
+        privilege: crate::resolve::Privilege,
+    ) -> Result<(), crate::resolve::Registration> {
+        let existing = match self.schemes.get(&name) {
+            None => crate::resolve::Existing::Absent,
+            Some(prev) if prev == &scheme => crate::resolve::Existing::Equivalent,
+            Some(_) => crate::resolve::Existing::Divergent,
+        };
+        match crate::resolve::gate(&name, privilege, existing) {
+            crate::resolve::Registration::NoOp => Ok(()),
+            crate::resolve::Registration::Insert => {
+                self.schemes.insert(name, scheme);
+                Ok(())
+            }
+            verdict => Err(verdict),
+        }
     }
 
     /// Look up a function or builtin scheme by FQDN. For `def`-bound value types

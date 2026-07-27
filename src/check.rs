@@ -75,7 +75,7 @@ use std::collections::HashMap;
 /// `rest_param_type: None,` (mechanically populated 2026-05-03 via
 /// brace-depth-tracking python script — sonnet's slice-1 sibling-map
 /// folded back into TypeScheme proper per user direction).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeScheme {
     pub type_params: Vec<String>,
     pub params: Vec<TypeExpr>,
