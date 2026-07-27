@@ -281,6 +281,137 @@ pub(crate) fn chunk_payload(payload: &str) -> Result<Vec<BootFrame>, RuntimeErro
 #[allow(dead_code)]
 fn _span_type_is_used(_: &Span) {}
 
+// ─── The boot-phase transport ────────────────────────────────────────────────
+//
+// Plain `libc::read` / `libc::write` on raw fds, deliberately. This runs BEFORE
+// any world exists in the child — there is no `Receiver`, no service, no wat. The
+// comms layer's framing (`edn_bytes + b'\n'`) is reproduced here in its simplest
+// form so the boot phase depends on nothing that boot has to build.
+//
+// The reader buffers: it reads in chunks and keeps whatever it pulled past a
+// newline. That is safe ONLY because of mini-TCP — the writer is blocked on this
+// frame's ack and has not sent the next one, so there is nothing past the newline
+// to keep. See the module doc; the invariant is not optional.
+
+/// Chunk size for boot reads. Measured: byte-at-a-time costs 91.91 ms per 512 KiB
+/// against 0.41 ms chunked (224x), which is why the accumulator exists at all.
+const BOOT_READ_CHUNK: usize = 64 * 1024;
+
+/// A newline-framed reader over a raw fd, for the pre-world boot phase.
+pub(crate) struct BootReader {
+    fd: i32,
+    acc: Vec<u8>,
+}
+
+impl BootReader {
+    pub(crate) fn new(fd: i32) -> Self {
+        BootReader { fd, acc: Vec::new() }
+    }
+
+    /// Read one newline-terminated line, or `None` at EOF.
+    ///
+    /// EOF mid-handshake is not silently tolerated by callers — it means the peer
+    /// went away before finishing, which is a failure with a name (see
+    /// `read_section`), never an empty success.
+    fn read_line(&mut self) -> Result<Option<String>, RuntimeError> {
+        loop {
+            if let Some(nl) = self.acc.iter().position(|b| *b == b'\n') {
+                let line: Vec<u8> = self.acc.drain(..=nl).collect();
+                let text = String::from_utf8(line[..nl].to_vec())
+                    .map_err(|e| boot_err(format!("boot frame is not valid UTF-8: {e}")))?;
+                return Ok(Some(text));
+            }
+            let mut buf = [0u8; BOOT_READ_CHUNK];
+            // SAFETY: `buf` is a live stack array of exactly this length; `fd` is
+            // the caller-supplied boot fd, open for the duration of the handshake.
+            let n = unsafe {
+                libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len())
+            };
+            if n < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(boot_err(format!("boot read failed: {err}")));
+            }
+            if n == 0 {
+                // EOF. Anything still buffered is a truncated frame, not a frame.
+                if self.acc.is_empty() {
+                    return Ok(None);
+                }
+                return Err(boot_err(format!(
+                    "boot stream ended mid-frame with {} unterminated bytes",
+                    self.acc.len()
+                )));
+            }
+            self.acc.extend_from_slice(&buf[..n as usize]);
+        }
+    }
+
+    /// Read frames until the marker `is_end` accepts, concatenating every
+    /// `Chunk`'s text. Acks each frame on `ack_fd` as it is accepted.
+    ///
+    /// Reassembly is CONCATENATION — a frame boundary may fall mid-form or
+    /// mid-token and this never inspects the content. The section is parsed once,
+    /// by the caller, after the marker.
+    pub(crate) fn read_section(
+        &mut self,
+        ack_fd: i32,
+        section: &str,
+        is_end: impl Fn(&BootFrame) -> bool,
+    ) -> Result<String, RuntimeError> {
+        let mut out = String::new();
+        loop {
+            let line = self.read_line()?.ok_or_else(|| {
+                boot_err(format!(
+                    "boot stream closed during the {section} section — the peer went                      away before its terminating marker"
+                ))
+            })?;
+            let frame = BootFrame::from_wire(&line)?;
+            if is_end(&frame) {
+                write_boot_line(ack_fd, &BootReply::Ack.to_wire())?;
+                return Ok(out);
+            }
+            match frame {
+                BootFrame::Chunk { text } => out.push_str(&text),
+                other => {
+                    return Err(boot_err(format!(
+                        "unexpected {other:?} in the {section} section — a section                          carries Chunks until its own marker"
+                    )))
+                }
+            }
+            write_boot_line(ack_fd, &BootReply::Ack.to_wire())?;
+        }
+    }
+}
+
+/// Write one newline-terminated line to a raw fd, retrying short writes.
+pub(crate) fn write_boot_line(fd: i32, line: &str) -> Result<(), RuntimeError> {
+    let mut bytes = line.as_bytes().to_vec();
+    bytes.push(b'\n');
+    let mut written = 0usize;
+    while written < bytes.len() {
+        // SAFETY: `bytes` is a live Vec; the pointer and length are derived from
+        // its unwritten tail. `fd` is open for the duration of the handshake.
+        let n = unsafe {
+            libc::write(
+                fd,
+                bytes[written..].as_ptr() as *const libc::c_void,
+                bytes.len() - written,
+            )
+        };
+        if n < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(boot_err(format!("boot write failed: {err}")));
+        }
+        written += n as usize;
+    }
+    Ok(())
+}
+
 /// Exhaustiveness guard for the hand-written decoder.
 ///
 /// `#[derive(Edn)]` owns the WRITE side, so adding a `BootFrame` variant updates
@@ -376,6 +507,84 @@ mod tests {
             })
             .collect();
         assert_eq!(rejoined, payload, "concatenation must reproduce the payload exactly");
+    }
+
+    /// The transport, driven end-to-end over a REAL pipe pair.
+    ///
+    /// A writer sends a chunked section plus its marker; a `BootReader` reassembles
+    /// it and acks each frame. This is the mechanism the handshake rests on, proven
+    /// before either side of the fork is rewired.
+    #[test]
+    fn a_section_round_trips_over_a_real_pipe_with_acks() {
+        // data: writer → reader.   ack: reader → writer.
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+
+        // A payload big enough to span frames, with multibyte characters so a
+        // boundary can land mid-codepoint if the chunker is wrong.
+        let payload: String = "λ(:demo::form 1)".repeat(80_000);
+        let frames = chunk_payload(&payload).expect("chunk");
+        assert!(frames.len() > 1, "the payload must span frames for this to prove anything");
+
+        let data_w_fd = data_w.as_raw_fd();
+        let ack_r_fd = ack_r.as_raw_fd();
+        let expected_acks = frames.len() + 1; // every chunk, plus the marker
+
+        // The writer runs on another thread because mini-TCP BLOCKS it: it waits
+        // for each ack before sending the next frame, exactly as the parent will.
+        let writer = std::thread::spawn(move || {
+            let mut acks = BootReader::new(ack_r_fd);
+            for f in frames {
+                write_boot_line(data_w_fd, &f.to_wire()).expect("write chunk");
+                let line = acks.read_line().expect("ack read").expect("ack present");
+                assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
+            }
+            write_boot_line(data_w_fd, &BootFrame::ProgramDone.to_wire()).expect("write marker");
+            let line = acks.read_line().expect("final ack read").expect("final ack present");
+            assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
+            expected_acks
+        });
+
+        let mut reader = BootReader::new(data_r.as_raw_fd());
+        let got = reader
+            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .expect("read_section");
+
+        let acked = writer.join().expect("writer thread");
+        assert_eq!(acked, expected_acks, "every frame AND the marker must be acked");
+        assert_eq!(got, payload, "concatenation must reproduce the payload to the byte");
+    }
+
+    /// A stream that stops before its marker is a NAMED failure, never an empty
+    /// success — the parent going away mid-handshake is exactly the hidden-failure
+    /// shape this arc exists to kill.
+    #[test]
+    fn a_section_that_ends_before_its_marker_is_a_named_failure() {
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+
+        write_boot_line(
+            data_w.as_raw_fd(),
+            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
+        )
+        .expect("write chunk");
+        drop(data_w); // EOF before the marker — the peer vanished.
+        // ack_r stays ALIVE: the reader still acks the chunk it did receive, and
+        // dropping the read end would make that ack fail with EPIPE — surfacing a
+        // write error instead of the truncation this test is about.
+        let _ack_r_held = ack_r;
+
+        let mut reader = BootReader::new(data_r.as_raw_fd());
+        let err = reader
+            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .expect_err("a truncated section must not read as success");
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("closed during the program section"),
+            "the failure must name the section and the cause; got {msg}"
+        );
     }
 
     #[test]
