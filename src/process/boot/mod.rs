@@ -281,6 +281,35 @@ pub(crate) fn chunk_payload(payload: &str) -> Result<Vec<BootFrame>, RuntimeErro
 #[allow(dead_code)]
 fn _span_type_is_used(_: &Span) {}
 
+/// Exhaustiveness guard for the hand-written decoder.
+///
+/// `#[derive(Edn)]` owns the WRITE side, so adding a `BootFrame` variant updates
+/// the encoder for free — and would leave `from_wire` behind. That failure is
+/// loud (an unknown tag is a located refusal, never a guess), but loud-at-runtime
+/// is a rung below caught-at-build.
+///
+/// This match is the rung: a new variant breaks the build HERE, which sends the
+/// author to `from_wire` and to the round-trip test that covers every variant.
+/// It costs one match and never runs.
+///
+/// The proper cure is arc 296.3 — see `docs/arc/2026/06/296-diagnostics-fully-edn/
+/// NOTE-pre-world-decode-is-hand-written.md`. Until then, this guard.
+#[allow(dead_code)]
+fn _every_boot_frame_variant_is_covered(f: &BootFrame) {
+    match f {
+        BootFrame::Chunk { .. } => {}
+        BootFrame::SubstrateDone => {}
+        BootFrame::ProgramDone => {}
+    }
+}
+
+#[allow(dead_code)]
+fn _every_boot_reply_variant_is_covered(r: &BootReply) {
+    match r {
+        BootReply::Ack => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
