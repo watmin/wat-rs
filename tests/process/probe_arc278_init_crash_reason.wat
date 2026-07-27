@@ -18,15 +18,15 @@
   :features
   [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :t::boominit'
+(:wat::service::defservice :t::boominit
   :satisfies :t::Boom
   :durable []
   :init (:wat::core::fn
-          [record <- :t::boominit'::Record]
-          -> :t::boominit'::State
+          [record <- :t::boominit::Record]
+          -> :t::boominit::State
           (:wat::core::let
             [_ (:wat::kernel::assertion-failed! "BOOM-INIT-SENTINEL-99" :wat::core::None :wat::core::None)]
-            (:t::boominit'::State :durable record)))
+            (:t::boominit::State :durable record)))
   :impls
   [(ping [s req]
      (:wat::service::Outcome::Reply s (:t::Boom::PingResponse::Ok 0)))])
@@ -43,8 +43,8 @@
 ;; a String; the .rs handles both (raise-at-/start OR value-at-ping) and asserts the sentinel.
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [h   (:t::boominit'/start :locus (:wat::spawn::thread) :record (:t::boominit'::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [h   (:t::boominit/start :locus (:wat::spawn::thread) :record (:t::boominit::Record))
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message __recv)
@@ -62,8 +62,8 @@
 ;; `recv' svc`, so /start raises the ProcessPanics envelope carrying the sentinel.
 (:wat::core::defn :user::compute-process [] -> :wat::core::String
   (:wat::core::let
-    [h   (:t::boominit'/start :locus (:wat::spawn::process) :record (:t::boominit'::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [h   (:t::boominit/start :locus (:wat::spawn::process) :record (:t::boominit::Record))
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message __recv)

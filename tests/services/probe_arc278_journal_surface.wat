@@ -3,7 +3,7 @@
 ;; A throwaway toy `:wat::telemetry'::Journal` satisfier (NOT `journal'`, that is stone T1b.2)
 ;; proving the surface freezes, is satisfiable via `:satisfies`, and replies through the wire —
 ;; mirrors `mem-store'`'s satisfaction of `Store` (wat/query/mem.wat).
-(:wat::service::defservice :probe::toy-journal'
+(:wat::service::defservice :probe::toy-journal
   :satisfies :wat::telemetry::Journal
   :durable   []
   :ephemeral []
@@ -36,8 +36,8 @@
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).
 (:wat::core::defn :probe::run [] -> :wat::telemetry::Journal::WriteMetricsResponse
   (:wat::core::let
-    [h       (:probe::toy-journal'/start :locus (:wat::spawn::thread) :record (:probe::toy-journal'::Record))
-     journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [h       (:probe::toy-journal/start :locus (:wat::spawn::thread) :record (:probe::toy-journal::Record))
+     journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry::Metric

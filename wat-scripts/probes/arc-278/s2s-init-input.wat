@@ -7,22 +7,22 @@
   :features
   [(get [self <- :probe::Seedy  req <- :probe::Seedy::GetRequest] -> :probe::Seedy::GetResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::seedy'
+(:wat::service::defservice :probe::seedy
   :satisfies :probe::Seedy
   :durable   []
   :ephemeral [seed <- :wat::core::i64]
-  :init (:wat::core::fn [record <- :probe::seedy'::Record  seed <- :wat::core::i64]
-          -> :probe::seedy'::State
-          (:probe::seedy'::State :durable record :seed seed))
+  :init (:wat::core::fn [record <- :probe::seedy::Record  seed <- :wat::core::i64]
+          -> :probe::seedy::State
+          (:probe::seedy::State :durable record :seed seed))
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:probe::Seedy::GetResponse::Ok (:probe::seedy'::State/seed s))))])
+       (:probe::Seedy::GetResponse::Ok (:probe::seedy::State/seed s))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [h  (:probe::seedy'/start :locus (:wat::spawn::process) :record (:probe::seedy'::Record) :seed 99)
-     c  (:wat::core::match (:wat::kernel::connect (:probe::seedy'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [h  (:probe::seedy/start :locus (:wat::spawn::process) :record (:probe::seedy::Record) :seed 99)
+     c  (:wat::core::match (:wat::kernel::connect (:probe::seedy::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r  (:probe::Seedy/get c (:probe::Seedy::GetRequest))]
     (:wat::kernel::println (:wat::core::i64::to-string (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Seedy::GetResponse::Ok v) v)

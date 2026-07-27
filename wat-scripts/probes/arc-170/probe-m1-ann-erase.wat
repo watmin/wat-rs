@@ -12,7 +12,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -25,8 +25,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh   (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea   (:probe::echo'::Handle/addr eh)
+    [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea   (:probe::echo::Handle/addr eh)
      ;; ERASE concrete Address'<Op,Reply> -> bare Address' via ann-form:
      eab  (:wat::core::ann-form ea :wat::kernel::Address)
      erased (:wat::core::Vector :wat::kernel::Address eab)
@@ -67,7 +67,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p))
+                [_  (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p))
                  ;; parent sends a BARE-typed Setup; child decodes into concrete slot.
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Setup (:wat::core::first erased))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Work "z")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))

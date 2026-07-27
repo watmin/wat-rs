@@ -13,7 +13,7 @@
                                                                                                       :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -26,7 +26,7 @@
                                                                                                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::kv'
+(:wat::service::defservice :probe::kv
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s req]
             (:wat::service::Outcome::Reply s

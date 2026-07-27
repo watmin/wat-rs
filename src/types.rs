@@ -1532,7 +1532,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::kernel::RunResult — the matchable outcome of running a program:
-    // `:wat::kernel::run-sandboxed`, `:wat::test::run-thread'` /
+    // `:wat::kernel::run-sandboxed`, `:wat::test::run-thread` /
     // `run-hermetic'`, and (via the `:wat::test::TestResult` alias) every
     // `deftest`. Arc 278 the vacuous-gate wall (BRIEF-vacuous-deftest-gate-wall.md),
     // the third of the outcome walls after RecvOutcome (R53) and SendOutcome (R57).

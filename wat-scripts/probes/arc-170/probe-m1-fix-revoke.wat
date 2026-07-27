@@ -18,7 +18,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -26,8 +26,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea  (:probe::echo'::Handle/addr eh)
+    [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea  (:probe::echo::Handle/addr eh)
      prober (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
@@ -61,10 +61,10 @@
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
              (:wat::core::let
-               [_  (:probe::echo'/grant  eh (:wat::core::Vector :wat::core::i64 p))
+               [_  (:probe::echo/grant  eh (:wat::core::Vector :wat::core::i64 p))
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                 r1 (:wat::kernel::recv prober)
-                _r (:probe::echo'/revoke eh (:wat::core::Vector :wat::core::i64 p))
+                _r (:probe::echo/revoke eh (:wat::core::Vector :wat::core::i64 p))
                 ;; <<< the echo'/revoke line is REMOVED here (the counterfactual) >>>
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                 rr2 (:wat::kernel::recv prober)

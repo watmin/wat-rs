@@ -1,6 +1,6 @@
 //! Arc 278 stone T1b.1 — the `:wat::telemetry'::Journal` surface acceptance gate.
 //!
-//! A throwaway toy `:probe::toy-journal'` (`:satisfies :wat::telemetry'::Journal`, mirroring
+//! A throwaway toy `:probe::toy-journal` (`:satisfies :wat::telemetry'::Journal`, mirroring
 //! `mem-store'`'s satisfaction of `Store`) is spawned on a `:wat::spawn::thread`, dialed, and sent
 //! a `write-metrics` call carrying a 1-element `Metric` batch. Proves the surface freezes, is
 //! satisfiable, and replies through the wire with `Journal::WriteMetricsResponse::Success`.

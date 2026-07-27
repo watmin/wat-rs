@@ -13,7 +13,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -26,8 +26,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh   (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea   (:probe::echo'::Handle/addr eh)
+    [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea   (:probe::echo::Handle/addr eh)
      worker (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
                 ;; child fresh world — re-declare the surface + the union it dials/receives
@@ -66,7 +66,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p)) ;; grant BEFORE the setup dial
+                [_  (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p)) ;; grant BEFORE the setup dial
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup ea)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))            ;; worker dials-and-holds (admitted)
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "a")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  rr1 (:wat::kernel::recv worker)

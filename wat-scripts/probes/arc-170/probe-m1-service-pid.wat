@@ -16,7 +16,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -24,8 +24,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     lp  (:probe::echo'::Handle/handle eh)
+    [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     lp  (:probe::echo::Handle/handle eh)
      _   (:wat::kernel::println "service pid via Handle/handle:")
      _   (:wat::kernel::println (:wat::kernel::peer-pid lp))]
     nil))

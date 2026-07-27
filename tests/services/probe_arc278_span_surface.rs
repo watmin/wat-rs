@@ -1,5 +1,5 @@
 //! arc 278 stone Span.1 — the `:wat::telemetry'::Span` PRODUCER surface acceptance gate. A toy
-//! satisfier (`:probe::toy-span'`, NOT the real `span'`) proves the surface freezes, is satisfiable
+//! satisfier (`:probe::toy-span`, NOT the real `span'`) proves the surface freezes, is satisfiable
 //! via `:satisfies`, and all four ops (`incr`/`timed`/`log`/`close`) reply through the wire. Mirrors
 //! probe_arc278_journal_surface. The real `span'` (holds a `journal'` peer, accumulates, emits on
 //! close) is stone Span.2.

@@ -44,7 +44,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo
   :durable   []
   :ephemeral []
@@ -59,8 +59,8 @@
 ;; mirroring the canonical gate probe_arc278_recv_outcome_wall.
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
-    [h    (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     echo (:wat::core::match (:wat::kernel::connect (:probe::echo'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [h    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     echo (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s   (:wat::kernel::send echo
             (:probe::Echo::Op::Echo
               (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom"))))]

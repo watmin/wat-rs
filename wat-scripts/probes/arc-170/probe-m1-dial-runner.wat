@@ -11,7 +11,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -20,8 +20,8 @@
 ;; PARENT-side PoolMsg alias: bare-D Setup so we can send the erased address.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh   (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea   (:probe::echo'::Handle/addr eh)
+    [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea   (:probe::echo::Handle/addr eh)
      eab  (:wat::core::ann-form ea :wat::kernel::Address)       ;; erase concrete -> bare
      worker (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
@@ -51,7 +51,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p))
+                [_  (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Setup eab)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 0 "a"))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r1 (:wat::core::ann-form

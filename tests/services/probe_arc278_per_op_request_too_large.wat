@@ -24,7 +24,7 @@
 
 ;; The satisfier: the body itself measures + returns the variant (hand-rolled = option a; the
 ;; mechanism the checker-forced serve-loop will codegen = option c).
-(:wat::service::defservice :probe::op1svc'
+(:wat::service::defservice :probe::op1svc
   :satisfies :probe::Op1
   :durable   []
   :ephemeral []
@@ -52,8 +52,8 @@
 (:wat::core::defn :user::over-op-returns-matchable [] -> :wat::core::i64
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
-     h   (:probe::op1svc'/start :locus (:wat::spawn::process) :record (:probe::op1svc'::Record))
-     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     h   (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
+     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
     ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
     ;; `RecvOutcome<DoOpResponse>`; the happy-path Response comes through ::Message.
@@ -73,8 +73,8 @@
 (:wat::core::defn :user::same-conn-recovers [] -> :wat::core::i64
   (:wat::core::let
     [big   (:probe::pl 20)     ;; > cap
-     h     (:probe::op1svc'/start :locus (:wat::spawn::process) :record (:probe::op1svc'::Record))
-     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     h     (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
+     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r1    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))    ;; RequestTooLarge; keep
      r2    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload "hi"))]  ;; SAME c → Ok
     ;; arc 278 the recv'-outcome wall — the in-budget Ok Response comes through ::Message.

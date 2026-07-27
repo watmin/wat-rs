@@ -21,7 +21,7 @@
         (:wat::core::defrecord :probe::Wrapped::Req [c <- :wat::core::i64])]
        :features
        [(echo [self <- :probe::Wrapped req <- :probe::Wrapped::Req] -> :wat::core::i64 :max-request-bytes 524288)])
-     (:wat::service::defservice :probe::wrappedsvc'
+     (:wat::service::defservice :probe::wrappedsvc
        :satisfies :probe::Wrapped
        :durable []
        :impls

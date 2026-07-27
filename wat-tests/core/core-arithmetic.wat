@@ -383,7 +383,7 @@
   ;; in the hermetic child's body. `<` unifies its args to the SAME type; f64 2.5 vs i64 1
   ;; is a mismatch with no promotion path → the child fails its own startup check → recv'
   ;; returns Lost → RunResult::Failed. No child-local helper needed.
-  (:wat::core::match (:wat::test::run-hermetic' (:wat::core::< 1 2.5))
+  (:wat::core::match (:wat::test::run-hermetic (:wat::core::< 1 2.5))
     ((:wat::kernel::RunResult::Failed _f) nil)
     (:wat::kernel::RunResult::Passed
       (:wat::kernel::assertion-failed!

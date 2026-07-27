@@ -33,7 +33,7 @@
           :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
        :features
        [(echo [self <- :probe::Echo req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-     (:wat::service::defservice :probe::echosvc'
+     (:wat::service::defservice :probe::echosvc
        :satisfies :probe::Echo
        :durable []
        :impls

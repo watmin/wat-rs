@@ -309,7 +309,7 @@
 ;; Thread/join-result); these ride spawn-program' + recv'. The legacy retires in
 ;; S3.5's back-half.
 
-(:wat::core::defmacro :wat::test::run-thread'
+(:wat::core::defmacro :wat::test::run-thread
   [body <- :wat::WatAST]
   -> :wat::WatAST
   ;; arc 278 the recv'-outcome wall reaches the harness: recv' RETURNS RecvOutcome (a VALUE), never
@@ -345,7 +345,7 @@
   [name <- :wat::WatAST
    body <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread' ~body)))
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body)))
 
 ;; ── run-hermetic' / deftest-hermetic' — the PROCESS-tier pipe-model siblings ──
 ;;
@@ -371,7 +371,7 @@
 ;; STOP-1: keep the FORMS interface (shared with deftest-remote); no process-only
 ;; special-casing.
 
-(:wat::core::defmacro :wat::test::run-hermetic'
+(:wat::core::defmacro :wat::test::run-hermetic
   [body <- :wat::WatAST]
   -> :wat::WatAST
   ;; arc 278 the recv'-outcome wall reaches the harness (see run-thread' above): recv' RETURNS the
@@ -398,4 +398,4 @@
   [name <- :wat::WatAST
    body <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic' ~body)))
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic ~body)))

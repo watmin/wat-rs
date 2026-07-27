@@ -6,7 +6,7 @@
                                                                                                       :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo :durable [] :ephemeral []
   :impls
   [(echo [s req]
@@ -14,8 +14,8 @@
        (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     c  (:wat::core::match (:wat::kernel::connect (:probe::echo'::Handle/addr eh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     c  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr eh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r  (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))]
     (:wat::kernel::println (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Echo::EchoResponse::Ok reply) reply)

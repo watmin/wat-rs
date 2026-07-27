@@ -23,7 +23,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -39,8 +39,8 @@
 
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
-    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea  (:probe::echo'::Handle/addr eh)
+    [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea  (:probe::echo::Handle/addr eh)
      ;; the TWO-PHASE prober — a SEPARATE process; dials once (admitted), reports UP, blocks for
      ;; a re-dial signal, then dials again (which after revoke is refused → EOF → RAISE → die).
      prober (:wat::kernel::spawn-program (:wat::spawn::process)
@@ -93,7 +93,7 @@
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
              (:wat::core::let
-               [_  (:probe::echo'/grant  eh (:wat::core::Vector :wat::core::i64 p)) ;; ack'd PeersAllowed
+               [_  (:probe::echo/grant  eh (:wat::core::Vector :wat::core::i64 p)) ;; ack'd PeersAllowed
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))                                   ;; give addr → dial #1
                 r1 (:wat::core::match (:wat::kernel::recv prober)                    ;; "echo:hi" (dial #1 admitted); ::Message passes m through so the DISCRIMINATE assert holds
                      ((:wat::kernel::RecvOutcome::Message m) m)
@@ -101,7 +101,7 @@
                        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                      (:wat::kernel::RecvOutcome::Closed
                        (:wat::kernel::assertion-failed! "recv': prober closed" :wat::core::None :wat::core::None)))
-                _  (:probe::echo'/revoke eh (:wat::core::Vector :wat::core::i64 p)) ;; ack'd PeersDenied — pid GONE
+                _  (:probe::echo/revoke eh (:wat::core::Vector :wat::core::i64 p)) ;; ack'd PeersDenied — pid GONE
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))                                   ;; re-dial signal (AFTER revoke ack)
                 r2 (:wat::core::match (:wat::kernel::recv prober)                    ;; owner FACES the outcome as a VALUE, returns the enum
                      ((:wat::kernel::RecvOutcome::Message m) (:probe::Outcome::Served m))  ;; dial #2 admitted (the regression) — carries the reply

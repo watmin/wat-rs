@@ -8,7 +8,7 @@
 ;; a trivial payload record the producer `edn::write`s into the opaque log message String (Stone B).
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
 
-(:wat::service::defservice :probe::toy-span'
+(:wat::service::defservice :probe::toy-span
   :satisfies :wat::telemetry::Span
   :durable   []
   :ephemeral []
@@ -21,8 +21,8 @@
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h    (:probe::toy-span'/start :locus (:wat::spawn::thread) :record (:probe::toy-span'::Record))
-     span (:wat::core::match (:wat::kernel::connect (:probe::toy-span'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [h    (:probe::toy-span/start :locus (:wat::spawn::thread) :record (:probe::toy-span::Record))
+     span (:wat::core::match (:wat::kernel::connect (:probe::toy-span::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _i   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
      _t   (:wat::telemetry::Span/timed span
             (:wat::telemetry::Span::TimedRequest :name :fetch :nanos 100))

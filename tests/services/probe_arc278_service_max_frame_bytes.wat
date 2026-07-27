@@ -16,7 +16,7 @@
   [(put [self <- :probe::Big  req <- :probe::Big::PutRequest] -> :probe::Big::PutResponse :max-request-bytes 1048576)])
 
 ;; (a) a BULK service: declares a large FOO (1 MiB) so a ~600 KiB request ARRIVES.
-(:wat::service::defservice :probe::bigfoo'
+(:wat::service::defservice :probe::bigfoo
   :satisfies :probe::Big
   :max-frame-bytes 1048576
   :durable   []
@@ -25,7 +25,7 @@
   [(put [s req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
 
 ;; (b) a SMALL-FOO service: declares FOO = 4096, so a > 4 KiB request is rejected + closed.
-(:wat::service::defservice :probe::smallfoo'
+(:wat::service::defservice :probe::smallfoo
   :satisfies :probe::Big
   :max-frame-bytes 4096
   :durable   []
@@ -45,8 +45,8 @@
 (:wat::core::defn :user::large-foo-accepts [] -> :wat::core::i64
   (:wat::core::let
     [big  (:probe::payload-of 19200)   ;; 19200*32 = 614400 bytes ≈ 600 KiB (> 512 KiB, < 1 MiB)
-     h    (:probe::bigfoo'/start :locus (:wat::spawn::process) :record (:probe::bigfoo'::Record))
-     c    (:wat::core::match (:wat::kernel::connect (:probe::bigfoo'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     h    (:probe::bigfoo/start :locus (:wat::spawn::process) :record (:probe::bigfoo::Record))
+     c    (:wat::core::match (:wat::kernel::connect (:probe::bigfoo::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r    (:probe::Big/put c (:probe::Big::PutRequest :payload big))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Big::PutResponse::Ok ok) ok)
@@ -74,8 +74,8 @@
 (:wat::core::defn :user::small-foo-rejects [] -> :probe::Outcome
   (:wat::core::let
     [big  (:probe::payload-of 400)     ;; 400*32 = 12800 bytes > 4096
-     h    (:probe::smallfoo'/start :locus (:wat::spawn::process) :record (:probe::smallfoo'::Record))
-     c    (:wat::core::match (:wat::kernel::connect (:probe::smallfoo'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     h    (:probe::smallfoo/start :locus (:wat::spawn::process) :record (:probe::smallfoo::Record))
+     c    (:wat::core::match (:wat::kernel::connect (:probe::smallfoo::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s   (:wat::kernel::send c (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big)))]
     (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
@@ -90,8 +90,8 @@
 (:wat::core::defn :user::small-foo-survives [] -> :wat::core::i64
   (:wat::core::let
     [big  (:probe::payload-of 400)     ;; > 4096 → over-FOO
-     h    (:probe::smallfoo'/start :locus (:wat::spawn::process) :record (:probe::smallfoo'::Record))
-     addr (:probe::smallfoo'::Handle/addr h)
+     h    (:probe::smallfoo/start :locus (:wat::spawn::process) :record (:probe::smallfoo::Record))
+     addr (:probe::smallfoo::Handle/addr h)
      c1   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      c2   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))

@@ -1,8 +1,8 @@
 //! Arc 278 sift-arena, Part B — the two-universe flood-and-sift RED gate, PROCESS-tier.
 //!
-//! A `:prod::producer'` service (its `:messages` carry the producer's OWN log-payload universe —
+//! A `:prod::producer` service (its `:messages` carry the producer's OWN log-payload universe —
 //! `:prod::Alert`/`:prod::Flow`/`:prod::Query`, arbitrary domain records) floods a shared
-//! `journal'` with N=240 Logs cycling 4 shapes. A `:cons::consumer'` service — which never
+//! `journal'` with N=240 Logs cycling 4 shapes. A `:cons::consumer` service — which never
 //! `:peers`/`:satisfies` anything Producer-shaped, never defines `:prod::*` — pages the journal
 //! via `Journal/sift-logs` with a class-guarded FOREIGN predicate (`read-foreign` +
 //! `ForeignRecord/class`/`get`), accumulating survivors across pages. All four services

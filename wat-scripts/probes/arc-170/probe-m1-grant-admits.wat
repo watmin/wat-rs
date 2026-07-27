@@ -23,7 +23,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -31,8 +31,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea  (:probe::echo'::Handle/addr eh)
+    [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea  (:probe::echo::Handle/addr eh)
      ;; the prober — a SEPARATE process; receives A's addr (down), dials, echoes the reply UP.
      prober (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
@@ -62,7 +62,7 @@
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
-             (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p)))
+             (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p)))
            (:wat::core::None
              (:wat::kernel::assertion-failed! "peer-pid returned None on a process prober"
                :wat::core::None :wat::core::None)))

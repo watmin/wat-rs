@@ -15,7 +15,7 @@
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo'
+(:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
@@ -28,8 +28,8 @@
 
 (:wat::core::defn :probe::run [] -> :wat::core::String
   (:wat::core::let
-    [eh   (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     ea   (:probe::echo'::Handle/addr eh)
+    [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
+     ea   (:probe::echo::Handle/addr eh)
      worker (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
@@ -83,7 +83,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo'/grant eh [p])
+                [_  (:probe::echo/grant eh [p])
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup ea)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "a")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r1 (:wat::core::match (:wat::kernel::recv worker)

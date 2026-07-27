@@ -25,14 +25,14 @@
 ;; eprintln terminates BEFORE the following println AND the pass-marker — the
 ;; child crashes → RunResult.failure = Some, carrying the value's EDN.
 (:wat::core::defn :probe::compute-eprintln-terminates [] -> :wat::kernel::RunResult
-  (:wat::test::run-hermetic'
+  (:wat::test::run-hermetic
     (:wat::core::do
       (:wat::kernel::eprintln "dying words")
       (:wat::kernel::println "AFTER"))))
 
 ;; epprintln (pretty twin) is likewise terminal — same shape, pretty EDN writer.
 (:wat::core::defn :probe::compute-epprintln-terminates [] -> :wat::kernel::RunResult
-  (:wat::test::run-hermetic'
+  (:wat::test::run-hermetic
     (:wat::core::do
       (:wat::kernel::epprintln "pretty dying words")
       (:wat::kernel::println "AFTER"))))

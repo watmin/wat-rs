@@ -19,7 +19,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S1  req <- :probe::S1::OpRequest] -> :probe::S1::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s1' :satisfies :probe::S1 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s1 :satisfies :probe::S1 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S1::OpResponse::Ok (:wat::core::string::concat "s1:" (:probe::S1::OpRequest/m req)))))])
 
@@ -30,7 +30,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S2  req <- :probe::S2::OpRequest] -> :probe::S2::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s2' :satisfies :probe::S2 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s2 :satisfies :probe::S2 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S2::OpResponse::Ok (:wat::core::string::concat "s2:" (:probe::S2::OpRequest/m req)))))])
 
@@ -41,7 +41,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S3  req <- :probe::S3::OpRequest] -> :probe::S3::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s3' :satisfies :probe::S3 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s3 :satisfies :probe::S3 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S3::OpResponse::Ok (:wat::core::string::concat "s3:" (:probe::S3::OpRequest/m req)))))])
 
@@ -52,7 +52,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S4  req <- :probe::S4::OpRequest] -> :probe::S4::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s4' :satisfies :probe::S4 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s4 :satisfies :probe::S4 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S4::OpResponse::Ok (:wat::core::string::concat "s4:" (:probe::S4::OpRequest/m req)))))])
 
@@ -63,7 +63,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S5  req <- :probe::S5::OpRequest] -> :probe::S5::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s5' :satisfies :probe::S5 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s5 :satisfies :probe::S5 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S5::OpResponse::Ok (:wat::core::string::concat "s5:" (:probe::S5::OpRequest/m req)))))])
 
@@ -74,7 +74,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S6  req <- :probe::S6::OpRequest] -> :probe::S6::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s6' :satisfies :probe::S6 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s6 :satisfies :probe::S6 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S6::OpResponse::Ok (:wat::core::string::concat "s6:" (:probe::S6::OpRequest/m req)))))])
 
@@ -85,7 +85,7 @@
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S7  req <- :probe::S7::OpRequest] -> :probe::S7::OpResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::s7' :satisfies :probe::S7 :durable [] :ephemeral []
+(:wat::service::defservice :probe::s7 :satisfies :probe::S7 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S7::OpResponse::Ok (:wat::core::string::concat "s7:" (:probe::S7::OpRequest/m req)))))])
 
@@ -166,13 +166,13 @@
 ;; THROUGH THE MACRO: raw handles + data, scrambled order, no Dialable/coord wrapping.
 (:wat::core::defn :probe::run [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
-    [h1 (:probe::s1'/start :locus (:wat::spawn::process) :record (:probe::s1'::Record))
-     h2 (:probe::s2'/start :locus (:wat::spawn::process) :record (:probe::s2'::Record))
-     h3 (:probe::s3'/start :locus (:wat::spawn::process) :record (:probe::s3'::Record))
-     h4 (:probe::s4'/start :locus (:wat::spawn::process) :record (:probe::s4'::Record))
-     h5 (:probe::s5'/start :locus (:wat::spawn::process) :record (:probe::s5'::Record))
-     h6 (:probe::s6'/start :locus (:wat::spawn::process) :record (:probe::s6'::Record))
-     h7 (:probe::s7'/start :locus (:wat::spawn::process) :record (:probe::s7'::Record))]
+    [h1 (:probe::s1/start :locus (:wat::spawn::process) :record (:probe::s1::Record))
+     h2 (:probe::s2/start :locus (:wat::spawn::process) :record (:probe::s2::Record))
+     h3 (:probe::s3/start :locus (:wat::spawn::process) :record (:probe::s3::Record))
+     h4 (:probe::s4/start :locus (:wat::spawn::process) :record (:probe::s4::Record))
+     h5 (:probe::s5/start :locus (:wat::spawn::process) :record (:probe::s5::Record))
+     h6 (:probe::s6/start :locus (:wat::spawn::process) :record (:probe::s6::Record))
+     h7 (:probe::s7/start :locus (:wat::spawn::process) :record (:probe::s7::Record))]
     (:wat::bracket::map (:wat::spawn::process) ["a" "b"] :probe::enrich
       :d2 "D2" :s3 h3 :s1 h1 :d5 "D5" :s7 h7 :d1 "D1"
       :s2 h2 :s5 h5 :d4 "D4" :s4 h4 :d3 "D3" :s6 h6)))
