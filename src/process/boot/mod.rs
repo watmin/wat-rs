@@ -281,22 +281,39 @@ pub(crate) fn chunk_payload(payload: &str) -> Result<Vec<BootFrame>, RuntimeErro
 #[allow(dead_code)]
 fn _span_type_is_used(_: &Span) {}
 
-/// Render a form vector as wat source — the payload a program section carries.
+/// Render a form vector as the EDN the program already is — the payload a
+/// program section carries.
 ///
-/// `write_wat_source` (the same printer behind `:wat::core::ast->source`, arc 278
-/// Stone 1) walks the AST directly, so `::` notation survives; the EDN path would
-/// emit `:wat.core/fn` and could not be read back as the same form.
+/// # This replaced a SOURCE-TEXT payload, and the reason matters
 ///
-/// Both sides of the fork call this: the parent to produce what it sends, the
-/// child to produce what it EXPECTED, so the two strings can be compared. That
-/// comparison is the oracle — see `run_forms_as_server_child`.
-pub(crate) fn forms_to_source(forms: &[crate::ast::WatAST]) -> String {
-    let mut out = String::new();
-    for form in forms {
-        crate::edn_shim::write_wat_source(form, &mut out);
-        out.push('\n');
-    }
-    out
+/// Step 2 first shipped wat source (`write_wat_source`), on the stated grounds
+/// that "the EDN path would emit `:wat.core/fn` and could not be read back as
+/// the same form". That was true of the bridge as it stood and is no longer:
+/// what EDN cannot spell now crosses verbatim, and
+/// `probe_arc170_edn_bridge_unspellable::c03` holds the whole corpus — 1223
+/// files — to an exact round trip.
+///
+/// Source text could never have worked here, for a reason no amount of printer
+/// fixing would reach: `spawn-process` ships forms a MACRO built
+/// (`kernel/spawn.rs:485`), and those carry hygiene scopes that source text has
+/// no syntax for. Printing them dropped the scopes and the child raised
+/// `HygieneScopeDivergence` — the STOP-4 that stopped step 2d the first time.
+/// EDN carries them (`#wat.ast/ScopedSymbol`), so the program survives.
+///
+/// The inverse is [`wire_to_forms`]. Together they are a round trip, which is
+/// the property the child's oracle actually needs — see `spawn_process_peer`.
+pub(crate) fn forms_to_wire(forms: &[crate::ast::WatAST]) -> String {
+    crate::wat_edn_bridge::program_to_edn(forms)
+}
+
+/// Rebuild the program from the wire — the inverse of [`forms_to_wire`].
+///
+/// This is what makes step 2d a real handover: the child runs what it DECODED,
+/// not what it inherited through the fork, so the stream is load-bearing before
+/// the exec removes the inheritance entirely.
+pub(crate) fn wire_to_forms(frame: &str) -> Result<Vec<crate::ast::WatAST>, RuntimeError> {
+    crate::wat_edn_bridge::edn_to_program(frame)
+        .map_err(|e| boot_err(format!("program frame did not decode: {e}")))
 }
 
 // ─── The boot-phase transport ────────────────────────────────────────────────

@@ -835,10 +835,10 @@ pub fn spawn_process_peer(
     // setters (the "wat program" entry-file discipline).
     let inherit_config: Option<crate::config::Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
-    // Arc 170 execve step 2 — render the program as source BEFORE the fork, so the
-    // parent has the exact bytes it will stream and the child keeps `forms` as the
-    // ORACLE to check them against. Both sides call the same printer.
-    let program_source = crate::process::boot::forms_to_source(&forms);
+    // Arc 170 execve step 2d — render the program as the EDN it already is,
+    // BEFORE the fork, so the parent holds the exact bytes it will stream and
+    // the child keeps `forms` as the ORACLE to check the decode against.
+    let program_source = crate::process::boot::forms_to_wire(&forms);
 
     // The raw fds the boot handshake rides: the child's stdin (what the parent
     // writes) and the child's stdout (where its acks come back). Captured before
@@ -875,36 +875,100 @@ pub fn spawn_process_peer(
         // run_forms_as_server_child never returns (calls _exit via run_user_main_in_child).
         crate::process::child_post_fork_init(lifeline_r_raw);
 
-        // Arc 170 execve step 2 — receive the program over the wire, acking as we
-        // go, and CHECK it against the forms we inherited through the fork.
+        // Arc 170 execve step 2d — receive the program over the wire, DECODE it,
+        // and run THAT. The inherited `forms` are now only the oracle.
         //
-        // The inherited forms are the ORACLE. They exist only because this is
-        // still a COW fork; after the exec they are gone and the stream is the
-        // sole path. Checking now, while both are available, is what makes step 4
-        // a one-variable change: if the streamed source ever disagreed with what
-        // the parent actually held, we would learn it HERE rather than as a
-        // mysterious child that froze a different program.
+        // The oracle is a ROUND TRIP, and that is the whole correction. Step 2c
+        // compared the streamed text against `forms_to_source(&forms)` computed
+        // from the inherited forms — the same printer over the same in-memory
+        // value, equal BY CONSTRUCTION, and structurally incapable of catching a
+        // lossy payload. What the claim actually needs is
+        // `decode(encode(forms)) == forms`, so that is what is checked: the
+        // DECODED forms against the inherited ones.
+        //
+        // The inherited forms exist only because this is still a COW fork; after
+        // the exec they are gone and the stream is the sole path. Checking while
+        // both are available is what makes step 4 a one-variable change —
+        // running the decoded program NOW means the exec removes the oracle, not
+        // the mechanism.
         //
         // Diverging is a startup failure, loudly: fd 2 is the err channel by now,
         // so the reason reaches the owner's `recv` as a Lost cause.
-        let expected = crate::process::boot::forms_to_source(&forms);
-        match crate::process::boot::receive_in_child(0, 1) {
-            Ok(streamed) if streamed == expected => {}
-            Ok(streamed) => {
-                crate::process::boot::report_boot_failure_and_exit(&format!(
-                    "boot stream disagreed with the inherited forms: received {} bytes, \
-                     expected {} bytes",
-                    streamed.len(),
-                    expected.len()
-                ));
-            }
+        let decoded = match crate::process::boot::receive_in_child(0, 1)
+            .and_then(|frame| crate::process::boot::wire_to_forms(&frame))
+        {
+            Ok(decoded) => decoded,
             Err(e) => {
                 crate::process::boot::report_boot_failure_and_exit(&format!(
                     "boot handshake failed: {e:?}"
                 ));
             }
+        };
+        // Compare STRUCTURALLY, not by raw scope id. The decode deliberately
+        // remaps each wire scope to a FRESH local one (see `ScopeImport`), so a
+        // macro-generated program is equal only UP TO an order-preserving scope
+        // renaming — and `hash_canonical_program` is exactly that measure
+        // (`hash.rs` renumbers scopes to first-appearance order: "a RENUMBER,
+        // not a strip"). Asserting raw equality here would fail every program a
+        // macro built, which is most of them.
+        let survived = crate::hash::hash_canonical_program(&decoded)
+            == crate::hash::hash_canonical_program(&forms);
+        if !survived {
+            // Name the divergence exactly — a count is not a diagnostic. Report
+            // the first form that differs and both sides of it, so the failure
+            // is a coordinate rather than a mystery.
+            let mut detail = format!(
+                "{} forms decoded, {} inherited",
+                decoded.len(),
+                forms.len()
+            );
+            for (i, (dec, orig)) in decoded.iter().zip(forms.iter()).enumerate() {
+                if dec != orig {
+                    detail = format!(
+                        "{detail}; first divergence at form #{i} || INHERITED: {:.700?} || DECODED: {:.700?}",
+                        orig, dec
+                    );
+                    break;
+                }
+            }
+            crate::process::boot::report_boot_failure_and_exit(&format!(
+                "the program did not survive the wire (decode(encode(forms)) != forms): {detail}"
+            ));
         }
 
+        // ⛔ THE HANDOVER IS BLOCKED — and the blocker is named, grounded by a run.
+        //
+        // `run_forms_as_server_child(decoded, …)` is the one line step 2d wants,
+        // and it CANNOT land until `Function.params` stops storing env-key
+        // strings. `closure_extract::function_to_define_form_with_body` rebuilds
+        // each binder as `Identifier::bare(param)` where `param` is already an
+        // env_key — so a binder arrives as `Identifier { name: "kwargs\u{1}952",
+        // scopes: {} }`, with a scope id baked into the NAME.
+        //
+        // That is illegal on its face: `Identifier::bare`'s own debug assert
+        // rejects it ("name must not contain U+0001"), and a DEBUG run of
+        // `probe_arc170_gapj_each_kwargs` panics there today, at HEAD, with no
+        // change of mine. Release hides it.
+        //
+        // Why it blocks transport specifically: an exec'd child restarts
+        // `fresh_scope()` at 1, so imported scope ids MUST be remapped or they
+        // collide with the child's own — and `ScopeId` has no from-u64
+        // constructor precisely to forbid that. But a scope baked into a NAME is
+        // a string; remapping moves the reference (`{952}` → a fresh id) and
+        // cannot move the binder, so the pair separates and the checker says so
+        // exactly: "reference `kwargs` (scope {973}) is unbound, but a binder
+        // `kwargs` exists under a different scope {952}".
+        //
+        // Until then this stays a strictly better 2c: the payload is the EDN the
+        // program already is (not lossy source text), and the oracle is a real
+        // ROUND TRIP rather than two renderings of one value. The child still
+        // runs the forms it inherited through the fork, so nothing regresses.
+        //
+        // THE FIX, for whoever takes step 4: `Function.params` carries
+        // `Identifier`, not `String`, so a binder is REUSED rather than rebuilt
+        // from its name — which is what HygieneScopeDivergence's own remedy has
+        // been saying all along ("reuse the original AST node").
+        let _ = &decoded;
         crate::process::run_forms_as_server_child(forms, inherit_config, env_fn);
     })
     .map_err(|io_err| RuntimeError {
