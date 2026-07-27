@@ -78,12 +78,13 @@ pub(crate) const MAX_BOOT_FRAME_BYTES: usize = crate::edn_shim::DEFAULT_MAX_FRAM
 /// match. They carry no count: every frame is acked, so a lost frame cannot go
 /// unnoticed, and a count would be a second mechanism for a guarantee the
 /// handshake already gives.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, wat_edn::Edn)]
+#[to_edn(namespace = BOOT_NS)]
 pub(crate) enum BootFrame {
     /// A slice of the current section's payload. Sections are reassembled by
     /// CONCATENATION, so a chunk boundary may fall anywhere — mid-form,
     /// mid-token, mid-string — and the reader never parses content.
-    Chunk(String),
+    Chunk { text: String },
     /// The substrate section is complete.
     SubstrateDone,
     /// The program section is complete. The next thing on this wire belongs to
@@ -91,12 +92,29 @@ pub(crate) enum BootFrame {
     ProgramDone,
 }
 
-/// The child's reply to one frame: received, decoded, accepted.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct BootAck;
+/// The child's reply to one frame.
+///
+/// An enum rather than a bare acknowledgement, because a reply is an OUTCOME: the
+/// child may later need to say *why* it will not take a frame, and a `Refused`
+/// variant joins here without a wire change. A parent that gets no ack today
+/// learns only that the child stopped talking; a parent that gets a refusal
+/// learns which frame and why.
+#[derive(Debug, Clone, Copy, PartialEq, wat_edn::Edn)]
+#[to_edn(namespace = BOOT_NS)]
+pub(crate) enum BootReply {
+    /// Received, decoded, accepted. Send the next frame.
+    Ack,
+}
 
 /// The wire namespace every boot tag lives under.
-const BOOT_NS: &str = "wat.boot";
+///
+/// `#[derive(Edn)]` emits the write impl AND submits an `EdnSchema` into the
+/// link-time inventory that `register_builtin_types` drains — so these frames are
+/// REGISTERED wat types, readable by `edn::read`, not a private Rust dialect. That
+/// is deliberate: a boot frame a wat program cannot name is a stringly holdout of
+/// exactly the kind arc 296 exists to delete, and the handshake is testable from
+/// wat because of it.
+pub(crate) const BOOT_NS: &str = "wat.boot";
 const TAG_CHUNK: &str = "Chunk";
 const TAG_SUBSTRATE_DONE: &str = "SubstrateDone";
 const TAG_PROGRAM_DONE: &str = "ProgramDone";
@@ -115,30 +133,23 @@ fn boot_err(reason: String) -> RuntimeError {
 impl BootFrame {
     /// Encode to the EDN line this frame rides as.
     ///
-    /// Variants serialize positionally (`#ns.Type/Variant [..]`), matching every
-    /// other tagged value on the substrate's wire.
+    /// The shape comes from `#[derive(Edn)]` — there is no hand-written encoder to
+    /// drift from the type. This is only the bridge to `comms`'s string wire.
     pub(crate) fn to_wire(&self) -> String {
-        let v = match self {
-            BootFrame::Chunk(text) => wat_edn::OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.boot", "Chunk"),
-                Box::new(wat_edn::OwnedValue::Vector(vec![
-                    wat_edn::OwnedValue::String(std::borrow::Cow::Owned(text.clone())),
-                ])),
-            ),
-            BootFrame::SubstrateDone => wat_edn::OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.boot", "SubstrateDone"),
-                Box::new(wat_edn::OwnedValue::Vector(vec![])),
-            ),
-            BootFrame::ProgramDone => wat_edn::OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.boot", "ProgramDone"),
-                Box::new(wat_edn::OwnedValue::Vector(vec![])),
-            ),
-        };
-        wat_edn::write(&v)
+        wat_edn::write(&wat_edn::ToEdn::to_edn(self))
     }
 
-    /// Decode one frame. A malformed or unknown frame is a LOCATED error — the
-    /// child must never guess at a frame it does not recognise.
+    /// Decode one frame.
+    ///
+    /// **This reader is hand-written, and that asymmetry is deliberate.** The
+    /// derive registers an `EdnSchema` so `edn::read` can reconstruct these types
+    /// — but `reconstruct_record` needs a `TypeEnv`, and the child has no world
+    /// when it reads these frames; the frames are what BUILD the world. So the
+    /// boot decoder cannot use the registry it populates.
+    ///
+    /// Kept small and total for that reason: three tags, structural comparison,
+    /// and an unknown tag is a LOCATED refusal rather than a guess. A child must
+    /// never improvise about a frame it does not recognise.
     pub(crate) fn from_wire(line: &str) -> Result<BootFrame, RuntimeError> {
         let parsed = wat_edn::parse_owned(line.trim())
             .map_err(|e| boot_err(format!("boot frame is not EDN: {e}")))?;
@@ -162,17 +173,10 @@ impl BootFrame {
             )));
         }
         match tag.name() {
-            TAG_CHUNK => match body {
-                wat_edn::OwnedValue::Vector(v) if v.len() == 1 => match &v[0] {
-                    wat_edn::OwnedValue::String(s) => Ok(BootFrame::Chunk(s.to_string())),
-                    other => Err(boot_err(format!(
-                        "#{BOOT_NS}/{TAG_CHUNK} payload must be a String; got {other:?}"
-                    ))),
-                },
-                other => Err(boot_err(format!(
-                    "#{BOOT_NS}/{TAG_CHUNK} body must be a 1-element vector; got {other:?}"
-                ))),
-            },
+            TAG_CHUNK => {
+                let text = named_string_field(body, "text")?;
+                Ok(BootFrame::Chunk { text })
+            }
             TAG_SUBSTRATE_DONE => Ok(BootFrame::SubstrateDone),
             TAG_PROGRAM_DONE => Ok(BootFrame::ProgramDone),
             other => Err(boot_err(format!(
@@ -182,22 +186,46 @@ impl BootFrame {
     }
 }
 
-impl BootAck {
+/// Pull one named String field out of a derived variant's map body.
+fn named_string_field(body: &wat_edn::OwnedValue, key: &str) -> Result<String, RuntimeError> {
+    let entries = match body {
+        wat_edn::OwnedValue::Map(entries) => entries,
+        other => {
+            return Err(boot_err(format!(
+                "expected a map body carrying :{key}; got {other:?}"
+            )))
+        }
+    };
+    for (k, v) in entries {
+        let matches = matches!(k, wat_edn::OwnedValue::Keyword(kw) if kw.name() == key);
+        if matches {
+            return match v {
+                wat_edn::OwnedValue::String(s) => Ok(s.to_string()),
+                other => Err(boot_err(format!(
+                    ":{key} must be a String; got {other:?}"
+                ))),
+            };
+        }
+    }
+    Err(boot_err(format!("boot frame body is missing :{key}")))
+}
+
+impl BootReply {
     pub(crate) fn to_wire(&self) -> String {
-        wat_edn::write(&wat_edn::OwnedValue::Tagged(
-            wat_edn::Tag::ns("wat.boot", "Ack"),
-            Box::new(wat_edn::OwnedValue::Vector(vec![])),
-        ))
+        wat_edn::write(&wat_edn::ToEdn::to_edn(self))
     }
 
-    pub(crate) fn from_wire(line: &str) -> Result<BootAck, RuntimeError> {
+    /// Decode the child's reply. Anything that is not an `Ack` means the child did
+    /// NOT accept the frame — the parent must never read silence or a surprise as
+    /// success.
+    pub(crate) fn from_wire(line: &str) -> Result<BootReply, RuntimeError> {
         let parsed = wat_edn::parse_owned(line.trim())
-            .map_err(|e| boot_err(format!("boot ack is not EDN: {e}")))?;
+            .map_err(|e| boot_err(format!("boot reply is not EDN: {e}")))?;
         match &parsed {
             wat_edn::OwnedValue::Tagged(tag, _)
                 if tag.namespace() == BOOT_NS && tag.name() == TAG_ACK =>
             {
-                Ok(BootAck)
+                Ok(BootReply::Ack)
             }
             other => Err(boot_err(format!(
                 "expected #{BOOT_NS}/{TAG_ACK}; got {other:?} — the child did not accept the frame"
@@ -236,7 +264,7 @@ pub(crate) fn chunk_payload(payload: &str) -> Result<Vec<BootFrame>, RuntimeErro
             ));
         }
         let (head, tail) = rest.split_at(cut);
-        let frame = BootFrame::Chunk(head.to_string());
+        let frame = BootFrame::Chunk { text: head.to_string() };
         let encoded_len = frame.to_wire().len();
         if encoded_len > MAX_BOOT_FRAME_BYTES {
             return Err(boot_err(format!(
@@ -260,8 +288,8 @@ mod tests {
     #[test]
     fn frames_round_trip_through_the_wire() {
         for f in [
-            BootFrame::Chunk("(:user::main)".into()),
-            BootFrame::Chunk("with \"quotes\" and\nnewlines".into()),
+            BootFrame::Chunk { text: "(:user::main)".into() },
+            BootFrame::Chunk { text: "with \"quotes\" and\nnewlines".into() },
             BootFrame::SubstrateDone,
             BootFrame::ProgramDone,
         ] {
@@ -277,7 +305,7 @@ mod tests {
 
     #[test]
     fn ack_round_trips() {
-        assert_eq!(BootAck::from_wire(&BootAck.to_wire()).expect("decode"), BootAck);
+        assert_eq!(BootReply::from_wire(&BootReply::Ack.to_wire()).expect("decode"), BootReply::Ack);
     }
 
     #[test]
@@ -294,7 +322,7 @@ mod tests {
     fn an_ack_that_is_not_an_ack_is_refused() {
         // The child answering a frame with anything else means it did not accept
         // it — the parent must not read that as success.
-        assert!(BootAck::from_wire("#wat.boot/ProgramDone []").is_err());
+        assert!(BootReply::from_wire("#wat.boot/ProgramDone {}").is_err());
     }
 
     #[test]
@@ -314,7 +342,7 @@ mod tests {
         let rejoined: String = frames
             .iter()
             .map(|f| match f {
-                BootFrame::Chunk(s) => s.as_str(),
+                BootFrame::Chunk { text } => text.as_str(),
                 _ => panic!("chunk_payload emits only Chunks"),
             })
             .collect();
