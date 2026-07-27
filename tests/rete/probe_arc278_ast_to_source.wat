@@ -16,7 +16,7 @@
       form
       (:wat::core::first
         (:wat::core::ast->children
-          (:wat::core::read-string (:wat::core::ast->source form)))))))
+          (:wat::core::match (:wat::core::read-string (:wat::core::ast->source form)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))))))
 
 ;; GUARD (anti-write-forms): ast->source must print the raw `::` token text, never the
 ;; `.`-dialed write-forms notation — the form's head keyword is `:wat::core::fn`, so its

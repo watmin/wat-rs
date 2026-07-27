@@ -1644,10 +1644,23 @@
                             (:wat::core::conj ps2
                               (:wat::core::first
                                 (:wat::core::ast->children
-                                  (:wat::core::read-string
+                                  (:wat::core::match (:wat::core::read-string
                                     (:wat::core::string::concat
                                       "\""
-                                      (:wat::core::string::concat pay "\""))))))
+                                      (:wat::core::string::concat pay "\"")))
+                                    ((:wat::core::ReadOutcome::Forms __forms) __forms)
+                                    ;; EXPAND-TIME site — hand-written, not the codemod's uniform
+                                    ;; arm. `assertion-failed!` is a kernel head that DIVERGES, so
+                                    ;; the F5 default-deny gate refuses it inside a program-body
+                                    ;; macro, and rightly: expand-time failures belong on the
+                                    ;; macro-error channel (EvalBreak::Diagnostic), not the panic
+                                    ;; one. Blessing assertion-failed! to make a codemod's output
+                                    ;; fit would be widening the gate to suit the tool.
+                                    ((:wat::core::ReadOutcome::Malformed __cause)
+                                      (:wat::core::macro-error
+                                        (:wat::core::string::concat
+                                          "string::interpolate: text segment did not parse: "
+                                          (:wat::core::Error/message __cause))))))))
                             used2)
                           ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
                           (:wat::core::let

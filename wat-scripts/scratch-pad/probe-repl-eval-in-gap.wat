@@ -36,10 +36,10 @@
     [;; STEP 1 — a REPL turn's worth of input: one definition line, held as pure data.
      ;; `read-string` returns the ONE wrapping form; `ast->children` is the def vector.
      defs (:wat::core::ast->children
-            (:wat::core::read-string "(:wat::core::defn :usr::f [] -> :wat::core::i64 7)"))
+            (:wat::core::match (:wat::core::read-string "(:wat::core::defn :usr::f [] -> :wat::core::i64 7)") ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
 
      ;; STEP 2 — and a second line that CALLS it. Also just data.
-     expr (:wat::core::first (:wat::core::read-string "(:usr::f)"))]
+     expr (:wat::core::first (:wat::core::match (:wat::core::read-string "(:usr::f)") ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))]
 
     (:wat::core::do
       ;; GREEN — the definition set is real, held, and countable.

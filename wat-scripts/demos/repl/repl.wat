@@ -43,8 +43,24 @@
   [defs <- :wat::core::Vector<wat::WatAST>
    text <- :wat::core::String]
   -> :wat::core::nil
+  ;; The PARSE is a turn outcome too, not a precondition. The codemod's uniform arm for this
+  ;; site was `assertion-failed!` — correct for a tool parsing a file it owns, fatal for a
+  ;; prompt — so the REPL refines it, which is the entire reason `read-string` became total:
+  ;; a caller that wants to survive bad input can now write that down.
+  (:wat::core::match (:wat::core::read-string text)
+    ((:wat::core::ReadOutcome::Malformed cause)
+      (:wat::core::do
+        (:wat::kernel::println cause)
+        (:repl::turn defs)))
+    ((:wat::core::ReadOutcome::Forms forms)
+      (:repl::eval-form defs (:wat::core::first forms)))))
+
+(:wat::core::defn :repl::eval-form
+  [defs <- :wat::core::Vector<wat::WatAST>
+   form <- :wat::WatAST]
+  -> :wat::core::nil
   (:wat::core::let
-    [form (:wat::core::first (:wat::core::read-string text))]
+    []
     (:wat::core::match (:wat::eval-with-defs! form defs)
 
       ;; A DECLARATION joined the world. Nothing to show — but the definition set grows,

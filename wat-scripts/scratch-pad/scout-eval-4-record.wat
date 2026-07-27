@@ -6,7 +6,7 @@
 
 (:wat::core::defn :user::unwrap-form
   [src <- :wat::core::String] -> :wat::WatAST
-  (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))))
+  (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

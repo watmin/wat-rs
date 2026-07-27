@@ -234,7 +234,7 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines   (:wat::core::string::split src "\n")
-                    tree    (:wat::core::read-string src)
+                    tree    (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms   (:wat::core::ast->children tree)
                     ;; top-level forms have no enclosing list → :fix::Parent::Root (no sentinel).
                     nodes   (:fix::walk-seq forms :fix::Parent::Root 0 lines)

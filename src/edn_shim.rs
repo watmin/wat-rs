@@ -402,6 +402,56 @@ pub fn eval_foreign_variant_fields(
 /// as it stands today — the foundation the wat-to-wat fixer needs to read what it
 /// is about to rewrite. (Once the migration lands, source IS clean EDN and the two
 /// converge; until then, only the source parser can read the dirty corpus.)
+/// Arc 170 — the type path of `:wat::core::ReadOutcome` (registered in `types.rs`).
+const READ_OUTCOME_TYPE: &str = ":wat::core::ReadOutcome";
+
+/// `ReadOutcome::Forms [forms]` — the parsed top-level forms.
+fn read_outcome_forms(forms: Value) -> Value {
+    Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
+        type_path: READ_OUTCOME_TYPE.into(),
+        variant_name: "Forms".into(),
+        fields: vec![forms],
+    }))
+}
+
+/// `ReadOutcome::Malformed [cause]` — the text did not parse.
+///
+/// The cause is the parser's own `error_edn()` floor record, decoded back to a typed value; the
+/// STRICT decode is preferred and the FOREIGN (data-mode) decode is the fallback for tags the type
+/// registry does not carry yet. Identical ladder to `check_failed_cause` in `runtime.rs`, and for
+/// the identical reason: a structured diagnostic flattened into a String is the mask this arc
+/// exists to kill, and a lossy carrier is what makes that mask mandatory.
+fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> Value {
+    use crate::to_edn::WatError;
+    let cause_edn = wat_edn::write(&e.error_edn());
+    let types = sym.types().map(|t| &**t);
+    let cause = decode_trusted_wire(&cause_edn, types)
+        .or_else(|_| {
+            wat_edn::parse_owned(&cause_edn)
+                .map_err(|_| ())
+                .and_then(|owned| edn_to_value_foreign(&owned, types).map_err(|_| ()))
+        })
+        .unwrap_or_else(|_| {
+            // A parse error whose own EDN will not decode is itself a defect; report the headline
+            // as a minimal TRUE record rather than smuggling the tree back in as prose.
+            Value::Aggregate(std::sync::Arc::new(
+                crate::value::value::AggregateValue::record(
+                    "wat::core::Fault".into(),
+                    std::sync::Arc::new(vec![
+                        Value::String(std::sync::Arc::new(e.message())),
+                        crate::runtime::value_from_span(e.span.clone()),
+                        Value::Vec(std::sync::Arc::new(Vec::new())),
+                    ]),
+                ),
+            ))
+        });
+    Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
+        type_path: READ_OUTCOME_TYPE.into(),
+        variant_name: "Malformed".into(),
+        fields: vec![cause],
+    }))
+}
+
 pub fn eval_read_string(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -420,14 +470,19 @@ pub fn eval_read_string(
             } });
         }
     };
-    let forms = crate::parser::parse_all_with_file(&s, "<read-string>").map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("parse error: {e}"),
-        } }
-    })?;
-    let ast = WatAST::List(forms, crate::rust_caller_span!());
-    let value = Value::wat__WatAST(std::sync::Arc::new(ast));
+    // Arc 170 — TOTAL. A parse failure is a matchable `ReadOutcome::Malformed`, never a raise:
+    // wat has no try/catch, so a raise here is unsurvivable by construction, and at a REPL one
+    // stray control byte ended the session. The cause is the parser's OWN structured diagnostic
+    // (`ParseError` impls `WatError` at `src/parser.rs`, so `error_edn()` composes the
+    // message/location/causes floor), decoded back to a typed value — the tree stays navigable
+    // down to `#wat.parse/Lex` and its span, rather than being flattened into a message String.
+    let value = match crate::parser::parse_all_with_file(&s, "<read-string>") {
+        Ok(forms) => {
+            let ast = WatAST::List(forms, crate::rust_caller_span!());
+            read_outcome_forms(Value::wat__WatAST(std::sync::Arc::new(ast)))
+        }
+        Err(e) => read_outcome_malformed(&e, sym),
+    };
     Ok(crate::value::TrackedValue::new(
         value,
         crate::value::Provenance::RuntimeBuilt {

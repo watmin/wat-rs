@@ -554,7 +554,7 @@
   -> :wat::core::Vector<wat::lint::Finding>
   (:wat::core::let [path   (:wat::source::File/path sf)
                     source (:wat::source::File/source sf)
-                    tree   (:wat::core::read-string source)
+                    tree   (:wat::core::match (:wat::core::read-string source) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms  (:wat::core::ast->children tree)]
     (:wat::core::foldl
       (:wat::core::fn [acc  <- :wat::core::Vector<wat::lint::Finding>

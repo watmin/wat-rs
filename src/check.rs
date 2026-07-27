@@ -17098,16 +17098,22 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 251.5a-i — `(:wat::core::read-string s)` → `:wat::WatAST`. The homoiconic
+    // Arc 251.5a-i — `(:wat::core::read-string s)` → `:wat::core::ReadOutcome`. The homoiconic
     // `read`: wat SOURCE text → forms-as-data (a WatAST::List of top-level forms),
     // WITHOUT eval. Distinct from `edn::read` (EDN parser) — this runs wat's own
     // source parser, the read side of the wat-to-wat fixer.
+    //
+    // Arc 170 — TOTAL. It returned `:wat::WatAST` and RAISED on malformed source; since wat has
+    // no try/catch, a caller could not survive bad input, and at a REPL a single stray byte took
+    // the whole session down. The failure is now a matchable `:Malformed [cause]`. Converted in
+    // place rather than beside a raising twin — see `:wat::core::ReadOutcome` in `types.rs` for
+    // the precedent (RecvOutcome / SendOutcome / CloseOutcome each did the same).
     env.register(
         ":wat::core::read-string".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
-            ret: TypeExpr::Path(":wat::WatAST".into()),
+            ret: TypeExpr::Path(":wat::core::ReadOutcome".into()),
             rest_param_type: None,
         },
     );

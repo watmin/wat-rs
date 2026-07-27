@@ -988,7 +988,7 @@
                                           
                                           (:wat::core::first
                                             (:wat::core::ast->children
-                                              (:wat::core::read-string
+                                              (:wat::core::match (:wat::core::read-string
                                                 (:wat::core::foldl
                                                   (:wat::core::fn [src <- :wat::core::String  i <- :wat::core::i64]
                                                     -> :wat::core::String
@@ -997,7 +997,7 @@
                                                       (:wat::core::string::split src
                                                         (:wat::core::Option/expect (:wat::core::get internal-op-kw-strs i) "internal-op-kw"))))
                                                   (:wat::core::ast->source body0)
-                                                  (:wat::core::range 0 (:wat::core::length internal-op-kw-strs))))))
+                                                  (:wat::core::range 0 (:wat::core::length internal-op-kw-strs)))) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::core::macro-error (:wat::core::string::concat "defservice: internal-op body did not re-parse: " (:wat::core::Error/message __cause)))))))
                                           body0)
                           param-ch      (:wat::core::ast->children param-vec)
                           s-binder      (:wat::core::first param-ch)

@@ -81,7 +81,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [lines     (:wat::core::string::split src "\n")
-                    tree      (:wat::core::read-string src)
+                    tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:user::scan forms lines)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))

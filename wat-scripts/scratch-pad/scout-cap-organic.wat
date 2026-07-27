@@ -9,7 +9,7 @@
                     (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
                       (:wat::core::> n 3))))
      ;; server side rebuild:
-     form     (:wat::core::read-string captured)
+     form     (:wat::core::match (:wat::core::read-string captured) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
      kids     (:wat::core::ast->children form)
      inner    (:wat::core::Option/expect (:wat::core::get kids 0) "no child 0")
      pure     (:wat::rete::pure? inner)

@@ -177,7 +177,7 @@
   [sym-map <- :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
    file    <- :wat::source::File]
   -> :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
-  (:wat::core::let [tree  (:wat::core::read-string (:wat::source::File/source file))
+  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)
                     path  (:wat::source::File/path file)]
     (:wat::core::foldl
@@ -230,7 +230,7 @@
    sym-map <- :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
    pos-map <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
   -> :wat::core::Vector<wat::deporder::Violation>
-  (:wat::core::let [tree  (:wat::core::read-string (:wat::source::File/source file))
+  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)
                     path  (:wat::source::File/path file)
                     ;; collect all keyword refs from all forms in this file

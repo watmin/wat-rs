@@ -28,5 +28,5 @@
                  (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
      pred-src (:wat::core::match sieve 
                 ((:wat::query::Sieve::Predicate pred) pred))
-     rebuilt (:wat::core::first (:wat::core::ast->children (:wat::core::read-string pred-src)))]
+     rebuilt (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))]
     (:wat::core::= fn-form rebuilt)))

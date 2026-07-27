@@ -142,7 +142,7 @@
    m   <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>]
   -> :wat::core::String
   (:wat::core::let [lines (:wat::core::string::split src "\n")
-                    tree  (:wat::core::read-string src)
+                    tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)
                     eds   (:user::edits-seq forms m lines)
                     ;; edits MUST apply high-offset-first so a low insert never shifts a pending
@@ -152,7 +152,7 @@
 
 ;; ── driver: build the map from ALL files first, then rewrite each ────────────
 (:wat::core::defn :user::read-forms [path <- :wat::core::String] -> :wat::core::Vector<wat::WatAST>
-  (:wat::core::ast->children (:wat::core::read-string (:wat::io::read-file path))))
+  (:wat::core::ast->children (:wat::core::match (:wat::core::read-string (:wat::io::read-file path)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::build-map
   [m <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>

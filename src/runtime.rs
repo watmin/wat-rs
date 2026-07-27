@@ -21825,7 +21825,7 @@ fn record_field_by_name(
 /// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Record)`.
 /// Field order: `(file, line, col)`.
 /// Arc 293.W.2b — Location is now Nature::Record (pure EDN data).
-fn value_from_span(span: crate::span::Span) -> Value {
+pub(crate) fn value_from_span(span: crate::span::Span) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Location".into(),
         Arc::new(vec![

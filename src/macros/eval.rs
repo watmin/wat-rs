@@ -482,6 +482,21 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::do"
         | ":wat::core::fn"
 
+        // ── ReadOutcome constructors (arc 170) ─────────────────────────
+        // `read-string` became TOTAL, so every call site — including the handful INSIDE
+        // program-body defmacros that parse at expand time (`wat/core.wat`'s interpolate
+        // family) — now names these two heads. Constructing a variant of a `Purity::Pure`
+        // enum is pure and total by construction: it allocates, it cannot diverge, and it
+        // touches nothing outside its own fields. Their ABSENCE was the false-refusal this
+        // list's own comment predicts ("a pure head missing from this list makes a stdlib
+        // test RED. Add it here") — it fired as 2530 reds off one MalformedDefmacro root.
+        | ":wat::core::ReadOutcome::Forms"
+        | ":wat::core::ReadOutcome::Malformed"
+        // …and reading the headline off the cause an expand-time Malformed arm caught.
+        // `:wat::core::Error` is a Record-natured SURFACE (`wat/core.wat`), so this is a
+        // plain field read on pure data — total, allocation-only, no effect.
+        | ":wat::core::Error/message"
+
         // ── Collections — constructors ─────────────────────────────────
         | ":wat::core::Vector"
         | ":wat::core::Tuple"

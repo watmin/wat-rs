@@ -37,7 +37,7 @@
               (:wat::core::string::concat "|" (:wat::core::i64::to-string nopen)))]
     (:wat::core::first
       (:wat::core::ast->children
-        (:wat::core::read-string
-          (:wat::core::string::concat "\"" (:wat::core::string::concat out "\"")))))))
+        (:wat::core::match (:wat::core::read-string
+          (:wat::core::string::concat "\"" (:wat::core::string::concat out "\""))) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::core::macro-error (:wat::core::string::concat "expand-time read-string failed: " (:wat::core::Error/message __cause)))))))))
 
 (:wat::core::defn :user::probe [] -> :wat::core::String (:user::strip-braces "a{b{c"))

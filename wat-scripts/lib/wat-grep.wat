@@ -69,7 +69,7 @@
    pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
   ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `Vector<WatAST>`, so `filterv`.
   -> :wat::core::Vector<wat::WatAST>
-  (:wat::core::let [tree  (:wat::core::read-string src)
+  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)]
     (:wat::core::filterv pred forms)))
 
@@ -83,7 +83,7 @@
    pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::core::string::split src "\n")
-                    tree      (:wat::core::read-string src)
+                    tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     ;; Arc 118.2a — `filter` flipped LAZY; `matches` feeds `wat-grep-strip-edits`
                     ;; (Vector<WatAST> param), so `filterv`.

@@ -14,5 +14,5 @@
   (:wat::kernel::println
     (:wat::eval-ast!
       (:wat::core::first
-        (:wat::core::read-string
-          (:wat::kernel::readln ))))))
+        (:wat::core::match (:wat::core::read-string
+          (:wat::kernel::readln )) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))))

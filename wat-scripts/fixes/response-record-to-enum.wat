@@ -248,7 +248,7 @@
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::core::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::read-string src))
+     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      rm    (:user::resp-map forms)
      eds   (:user::seq-edits forms rm lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]

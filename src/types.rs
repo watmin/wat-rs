@@ -949,6 +949,51 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // Arc 170 — :wat::core::ReadOutcome — what `:wat::core::read-string` returns.
+    //
+    // read-string RAISED on malformed source, and wat has no try/catch by design, so a caller had
+    // no way to survive bad input. Proven live and it is why this exists: an arrow key at the REPL
+    // sends ESC (0x1B), the lexer rejects the control byte, and the raise unwound THROUGH the loop
+    // and killed the session. A parse failure is a VALUE the reader faces
+    // (`DESIGN-no-hidden-failures.md`).
+    //
+    //   :Forms     [forms] — the top-level forms, as data (the old return, unchanged)
+    //   :Malformed [cause] — the text did not parse
+    //
+    // CONVERTED IN PLACE, no total-sibling verb. That is what this substrate did every previous
+    // time — RecvOutcome / SendOutcome / CloseOutcome each REPLACED the raiser rather than standing
+    // beside it (below/above in this file); TrySendOutcome is the lone near-twin and its own comment
+    // says it exists because `try-send` is a genuinely different OP, not a totality variant. Two
+    // ways to parse would be the synonym anti-pattern (`docs/ITERATION-PATTERNS.md` — "Synonyms are
+    // LLM-hostile"). Callers for whom a parse failure is fatal (wat/fix.wat, deporder.wat, lint.wat
+    // — tools parsing files they own) still die, but VISIBLY, in an arm they wrote.
+    //
+    // Pure, and honestly so: `:wat::WatAST` holds no fd and no peer (a form is a tree of keywords
+    // and literals), and `:wat::core::Error` is Record-natured (`wat/core.wat`). Marking it Impure
+    // would bar it from pure aggregates and the wire for no reason — SendOutcome's own argument.
+    //
+    // The cause is `:wat::core::Error`, the structural surface, NOT a parse-specific enum: lifting
+    // the parser's ten variants (`Lex`, `UnclosedParen`, `UnclosedBrace`, …) into every caller's
+    // exhaustive match would hand them arms nobody will branch on — the same dead-arm defect
+    // `ReadFrameOutcome` refuses below. The discrimination lives in the navigable causes tree, where
+    // `#wat.parse/Lex` keeps its own tag. `ParseError` already impls `WatError` (`src/parser.rs`),
+    // so `error_edn()` composes the message/location/causes floor for free.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::core::ReadOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Forms".into(),
+                fields: vec![("forms".into(), TypeExpr::Path(":wat::WatAST".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Malformed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
+            },
+        ],
+    }));
+
     // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
     //
     // A FRAME, not a line, and the name is load-bearing: `read_framed_edn`
