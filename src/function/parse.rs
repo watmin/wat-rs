@@ -225,13 +225,14 @@ pub(in crate::function) fn parse_fn_signature_prefix(
 /// signature prefix. Moved from `src/runtime.rs` at Stone 241.18a.
 pub(crate) fn parse_fn_signature(
     args: &[WatAST; 3],
-) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
+) -> Result<(Vec<crate::scope::Identifier>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
     let sig = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: false }).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
         reason: step.kind.reason()
     } })?;
-    let params = sig.params.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
-    Ok((params, sig.param_types, sig.ret_type))
+    // Arc 170 — carry the binders THEMSELVES; flattening to env_key here is
+    // what baked a scope id into a name and made a binder un-remappable.
+    Ok((sig.params, sig.param_types, sig.ret_type))
 }
 
 /// Arc 150 — eval-tier fn signature parser that accepts `& name <- :T` rest binders.
@@ -241,20 +242,23 @@ pub(crate) fn parse_fn_signature(
 /// Called by `eval_fn` so that variadic fn-forms (produced by expanding a variadic
 /// `defn`) can be evaluated into a `Function` value with `rest_param` set.
 ///
-/// Returns a `ParsedFnSignature<String>` (env_key-mapped names) so callers can
-/// bind directly into `Function` fields (`params: Vec<String>`, `rest_param: Option<String>`).
+/// Returns a `ParsedFnSignature<Identifier>` — the binders whole, so callers bind
+/// directly into `Function.params` (`Vec<Identifier>`). `Function.rest_param` is
+/// a lookup KEY rather than a re-emitted binder node, so the caller flattens
+/// that one with `env_key`.
 /// `rest` is `Some((name, type))` when a `& name <- :T` binder was present;
 /// `None` otherwise.
 pub(crate) fn parse_fn_signature_with_rest(
     args: &[WatAST; 3],
-) -> Result<ParsedFnSignature<String>, RuntimeError> {
+) -> Result<ParsedFnSignature<crate::scope::Identifier>, RuntimeError> {
     let sig = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: true }).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
         reason: step.kind.reason()
     } })?;
-    let params = sig.params.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
-    let rest = sig.rest.map(|(id, ty)| (crate::scope::env_key(&id).into_owned(), ty));
-    Ok(ParsedFnSignature { params, param_types: sig.param_types, ret_type: sig.ret_type, rest })
+    // Arc 170 — binders carried whole (see parse_fn_signature); the caller
+    // flattens the rest name to an env_key where `Function.rest_param` wants a
+    // lookup key rather than a binder node.
+    Ok(ParsedFnSignature { params: sig.params, param_types: sig.param_types, ret_type: sig.ret_type, rest: sig.rest })
 }
 
 /// Arc 167 — mirror of `parse_fn_signature` for the check pass.

@@ -936,40 +936,17 @@ pub fn spawn_process_peer(
             ));
         }
 
-        // ⛔ THE HANDOVER IS BLOCKED — and the blocker is named, grounded by a run.
+        // ★ THE HANDOVER — the child runs the program it RECEIVED, not the one it
+        // inherited. `forms` is only the oracle from here, and after step 4's
+        // exec it will not exist at all.
         //
-        // `run_forms_as_server_child(decoded, …)` is the one line step 2d wants,
-        // and it CANNOT land until `Function.params` stops storing env-key
-        // strings. `closure_extract::function_to_define_form_with_body` rebuilds
-        // each binder as `Identifier::bare(param)` where `param` is already an
-        // env_key — so a binder arrives as `Identifier { name: "kwargs\u{1}952",
-        // scopes: {} }`, with a scope id baked into the NAME.
-        //
-        // That is illegal on its face: `Identifier::bare`'s own debug assert
-        // rejects it ("name must not contain U+0001"), and a DEBUG run of
-        // `probe_arc170_gapj_each_kwargs` panics there today, at HEAD, with no
-        // change of mine. Release hides it.
-        //
-        // Why it blocks transport specifically: an exec'd child restarts
-        // `fresh_scope()` at 1, so imported scope ids MUST be remapped or they
-        // collide with the child's own — and `ScopeId` has no from-u64
-        // constructor precisely to forbid that. But a scope baked into a NAME is
-        // a string; remapping moves the reference (`{952}` → a fresh id) and
-        // cannot move the binder, so the pair separates and the checker says so
-        // exactly: "reference `kwargs` (scope {973}) is unbound, but a binder
-        // `kwargs` exists under a different scope {952}".
-        //
-        // Until then this stays a strictly better 2c: the payload is the EDN the
-        // program already is (not lossy source text), and the oracle is a real
-        // ROUND TRIP rather than two renderings of one value. The child still
-        // runs the forms it inherited through the fork, so nothing regresses.
-        //
-        // THE FIX, for whoever takes step 4: `Function.params` carries
-        // `Identifier`, not `String`, so a binder is REUSED rather than rebuilt
-        // from its name — which is what HygieneScopeDivergence's own remedy has
-        // been saying all along ("reuse the original AST node").
-        let _ = &decoded;
-        crate::process::run_forms_as_server_child(forms, inherit_config, env_fn);
+        // This is the line step 2d existed for, and it was blocked until arc
+        // 170 stopped `Function.params` storing flattened env_keys: a binder
+        // rebuilt as `Identifier::bare("kwargs\u{1}952")` carries a scope id
+        // inside a NAME, which no scope remapping can move, so the binder and
+        // its reference parted the moment the decode assigned fresh scopes.
+        // Binders are REUSED now, so both sides remap together.
+        crate::process::run_forms_as_server_child(decoded, inherit_config, env_fn);
     })
     .map_err(|io_err| RuntimeError {
         span: list_span.clone(),

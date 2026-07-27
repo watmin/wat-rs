@@ -767,7 +767,7 @@ pub(crate) fn register_extend_type_surface_impls(
         };
         let func = Arc::new(Function {
             name: Some(method_key.clone()),
-            params: clause.args.fixed_params.iter().map(|(n, _)| crate::scope::env_key(n).into_owned()).collect(),
+            params: clause.args.fixed_params.iter().map(|(n, _)| n.clone()).collect(),
             type_params: vec![],
             param_types,
             ret_type,
@@ -1100,7 +1100,6 @@ pub fn register_aggregate_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::scope::Identifier;
     use crate::types::TypeDef;
 
     for (_name, def) in types.iter() {
@@ -1164,14 +1163,16 @@ pub fn register_aggregate_methods(
             // type-name PRIME `:ns::T'`. Both the `name:` field and the `sym.functions`
             // registration key move together — this is THE ONE ctor source, now at the prime.
             let ctor_name = format!("{}'", agg.name);
-            let all_param_names: Vec<String> = agg.fields.iter().map(|(n, _)| n.clone()).collect();
+            let all_param_names: Vec<crate::scope::Identifier> =
+                agg.fields.iter().map(|(n, _)| crate::scope::Identifier::bare(n.clone())).collect();
             let all_param_types: Vec<crate::types::TypeExpr> =
                 agg.fields.iter().map(|(_, t)| t.clone()).collect();
             let mut new_body_items = Vec::with_capacity(2 + agg.fields.len());
             new_body_items.push(WatAST::Keyword(":wat::core::aggregate-new".into(), crate::rust_caller_span!()));
             new_body_items.push(WatAST::Keyword(agg.name.clone(), crate::rust_caller_span!()));
             for param_name in &all_param_names {
-                new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), crate::rust_caller_span!()));
+                // Arc 170 — REUSE the binder node.
+                new_body_items.push(WatAST::Symbol(param_name.clone(), crate::rust_caller_span!()));
             }
             let ctor_func = Function {
                 name: Some(ctor_name.clone()),
@@ -1246,7 +1247,7 @@ pub fn register_aggregate_methods(
                                 WatAST::Keyword(":wat::core::=".into(), crate::rust_caller_span!()),
                                 WatAST::List(vec![
                                     WatAST::Keyword(":wat::core::type".into(), crate::rust_caller_span!()),
-                                    WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                                    WatAST::Symbol(crate::scope::Identifier::bare("self"), crate::rust_caller_span!()),
                                 ], crate::rust_caller_span!()),
                                 WatAST::StringLit(class_no_colon, crate::rust_caller_span!()),
                             ], crate::rust_caller_span!()),
@@ -1254,7 +1255,7 @@ pub fn register_aggregate_methods(
                             // then: (Some self)
                             WatAST::List(vec![
                                 WatAST::Keyword(":wat::core::Some".into(), crate::rust_caller_span!()),
-                                WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                                WatAST::Symbol(crate::scope::Identifier::bare("self"), crate::rust_caller_span!()),
                             ], crate::rust_caller_span!()),
                             // else: :wat::core::None
                             WatAST::Keyword(":wat::core::None".into(), crate::rust_caller_span!()),
@@ -1265,7 +1266,7 @@ pub fn register_aggregate_methods(
                             WatAST::StringLit(msg_prefix, crate::rust_caller_span!()),
                             WatAST::List(vec![
                                 WatAST::Keyword(":wat::core::type".into(), crate::rust_caller_span!()),
-                                WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                                WatAST::Symbol(crate::scope::Identifier::bare("self"), crate::rust_caller_span!()),
                             ], crate::rust_caller_span!()),
                         ], crate::rust_caller_span!()),
                     ], crate::rust_caller_span!()),
@@ -1275,13 +1276,13 @@ pub fn register_aggregate_methods(
                 // Struct or generic Record/HolonRecord: bare struct-field (type system enforces).
                 WatAST::List(vec![
                     WatAST::Keyword(":wat::core::struct-field".into(), crate::rust_caller_span!()),
-                    WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                    WatAST::Symbol(crate::scope::Identifier::bare("self"), crate::rust_caller_span!()),
                     WatAST::IntLit(own_idx as i64, crate::rust_caller_span!()),
                 ], crate::rust_caller_span!())
             };
             let accessor_func = Function {
                 name: Some(accessor_path.clone()),
-                params: vec!["self".into()],
+                params: vec![crate::scope::Identifier::bare("self")],
                 type_params: agg.type_params.clone(),
                 param_types: vec![accessor_param_type.clone()],
                 ret_type: field_type.clone(),
@@ -1332,7 +1333,7 @@ pub fn register_enum_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::scope::Identifier;
+
     use crate::types::{EnumVariant, TypeDef};
 
     for (_name, def) in types.iter() {
@@ -1375,8 +1376,8 @@ pub fn register_enum_methods(
                     fields,
                 } => {
                     let constructor_path = format!("{}::{}", enum_def.name, variant_name);
-                    let param_names: Vec<String> =
-                        fields.iter().map(|(n, _)| n.clone()).collect();
+                    let param_names: Vec<crate::scope::Identifier> =
+                        fields.iter().map(|(n, _)| crate::scope::Identifier::bare(n.clone())).collect();
                     let param_types: Vec<crate::types::TypeExpr> =
                         fields.iter().map(|(_, t)| t.clone()).collect();
 
@@ -1392,8 +1393,9 @@ pub fn register_enum_methods(
                         crate::rust_caller_span!(),
                     ));
                     for param_name in &param_names {
+                        // Arc 170 — REUSE the binder node.
                         body_items.push(WatAST::Symbol(
-                            Identifier::bare(param_name.clone()),
+                            param_name.clone(),
                             crate::rust_caller_span!(),
                         ));
                     }
@@ -1475,7 +1477,7 @@ pub fn register_newtype_methods(
         );
         let new_func = Function {
             name: Some(constructor_path.clone()),
-            params: vec!["value".into()],
+            params: vec![crate::scope::Identifier::bare("value")],
             type_params: nt_def.type_params.clone(),
             param_types: vec![nt_def.inner.clone()],
             ret_type: nt_type.clone(),
@@ -1497,14 +1499,14 @@ pub fn register_newtype_methods(
         let accessor_body = WatAST::List(
             vec![
                 WatAST::Keyword(":wat::core::struct-field".into(), crate::rust_caller_span!()),
-                WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                WatAST::Symbol(crate::scope::Identifier::bare("self"), crate::rust_caller_span!()),
                 WatAST::IntLit(0, crate::rust_caller_span!()),
             ],
             crate::rust_caller_span!(),
         );
         let accessor_func = Function {
             name: Some(accessor_path.clone()),
-            params: vec!["self".into()],
+            params: vec![crate::scope::Identifier::bare("self")],
             type_params: nt_def.type_params.clone(),
             param_types: vec![nt_type.clone()],
             ret_type: nt_def.inner.clone(),
@@ -1604,7 +1606,7 @@ pub fn register_type_predicates(
 
         let pred_func = Function {
             name: Some(predicate_name.clone()),
-            params: vec!["v".into()],
+            params: vec![crate::scope::Identifier::bare("v")],
             // Fresh type param T — accepts any value (∀T); the checker
             // instantiates a fresh Var at each call site.
             type_params: vec!["T".into()],
@@ -2081,10 +2083,10 @@ fn register_defalias(
     let builtin_env = crate::check::CheckEnv::with_builtins_and_types(&_builtin_types);
     if let Some(scheme) = builtin_env.get(target) {
         // Synthesize param names _p0, _p1, ... from scheme.params.
-        let param_names: Vec<String> = scheme.params
+        let param_names: Vec<crate::scope::Identifier> = scheme.params
             .iter()
             .enumerate()
-            .map(|(i, _)| format!("_p{}", i))
+            .map(|(i, _)| crate::scope::Identifier::bare(format!("_p{}", i)))
             .collect();
         let rest_param = scheme.rest_param_type.as_ref().map(|_| "_rest".to_string());
         let body = build_delegate_body(target, &param_names, rest_param.as_deref(), span.clone());
@@ -2128,17 +2130,15 @@ fn register_defalias(
 /// Used by `register_defalias` to synthesize the body of the alias Function.
 fn build_delegate_body(
     target: &str,
-    params: &[String],
+    params: &[crate::scope::Identifier],
     rest_param: Option<&str>,
     span: Span,
 ) -> WatAST {
     let mut items: Vec<WatAST> = Vec::with_capacity(1 + params.len() + rest_param.is_some() as usize);
     items.push(WatAST::Keyword(target.to_string(), span.clone()));
     for p in params {
-        items.push(WatAST::Symbol(
-            crate::scope::Identifier::bare(p.as_str()),
-            span.clone(),
-        ));
+        // Arc 170 — REUSE the binder node, scopes included.
+        items.push(WatAST::Symbol(p.clone(), span.clone()));
     }
     if let Some(rest) = rest_param {
         // Splice rest param into the call — the runtime spreads rest args via
@@ -2700,7 +2700,7 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     }
     let (fixed_idents, fixed_param_types): (Vec<crate::scope::Identifier>, Vec<crate::types::TypeExpr>) =
         spec.fixed_params.into_iter().unzip();
-    let fixed_params: Vec<String> = fixed_idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
+    let fixed_params: Vec<crate::scope::Identifier> = fixed_idents.clone();
     let (rest_ident, rest_ty) = spec.rest_param?;
     let rest_name = crate::scope::env_key(&rest_ident).into_owned();
     // Stone 251.7 — union raw_type_params with free bare type-vars in the signature.
@@ -2863,8 +2863,7 @@ fn try_parse_user_variadic_def_fn_form(
     }
     let (fixed_idents, fixed_param_types): (Vec<crate::scope::Identifier>, Vec<crate::types::TypeExpr>) =
         spec.fixed_params.into_iter().unzip();
-    let fixed_params: Vec<String> =
-        fixed_idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
+    let fixed_params: Vec<crate::scope::Identifier> = fixed_idents.clone();
     let rest_name = crate::scope::env_key(&rest_ident).into_owned();
     // Stone 251.7 — union raw_type_params with free bare type-vars in the signature.
     let mut raw_type_params = raw_type_params;
@@ -10079,10 +10078,9 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
     for (param, ty) in f.params.iter().zip(f.param_types.iter()) {
         items.push(WatAST::List(
             vec![
-                WatAST::Symbol(
-                    crate::scope::Identifier::bare(param.clone()),
-                    span.clone(),
-                ),
+                // Arc 170 — REUSE the binder node; rebuilding it from a name
+                // is what HygieneScopeDivergence exists to reject.
+                WatAST::Symbol(param.clone(), span.clone()),
                 type_expr_to_ast(ty),
             ],
             span.clone(),
@@ -20157,7 +20155,7 @@ pub fn apply_function(
         let mut drained = cur_args.drain(..);
         for name in cur_func.params.iter() {
             let value = drained.next().expect("arity checked above");
-            builder = builder.bind_unknown_span(name.clone(), TrackedValue::from(value));
+            builder = builder.bind_unknown_span(crate::scope::env_key(name).into_owned(), TrackedValue::from(value));
         }
         // Arc 150 — collect the remaining args (post-fixed) into a
         // Value::Vec and bind to the rest-name. For zero rest-args the
@@ -24222,8 +24220,8 @@ fn step_user_call(
         FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
     };
     for (param, arg) in func.params.iter().zip(args.iter()) {
-        let target = crate::scope::Identifier::bare(param.clone());
-        new_body = substitute(&new_body, &target, arg);
+        // Arc 170 — substitute against the binder ITSELF, scopes included.
+        new_body = substitute(&new_body, param, arg);
     }
     Ok(StepValue::Next(new_body))
 }

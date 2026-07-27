@@ -206,7 +206,8 @@ pub fn extract_closure(
 
     // Walk the entry fn's body for free symbols. Parameters + rest-param
     // are LOCAL within the body's scope.
-    let mut body_locals: BTreeSet<String> = func.params.iter().cloned().collect();
+    let mut body_locals: BTreeSet<String> =
+        func.params.iter().map(|p| crate::scope::env_key(p).into_owned()).collect();
     if let Some(rest) = &func.rest_param {
         body_locals.insert(rest.clone());
     }
@@ -1413,7 +1414,7 @@ fn extract_user_deps_to_fixpoint(
                 .cloned()
                 .ok_or_else(|| ExtractionError { span: crate::rust_caller_span!(), kind: ExtractionErrorKind::Internal(format!("dep {} vanished", name)) })?;
             let mut dep_locals: BTreeSet<String> =
-                dep_func.params.iter().cloned().collect();
+                dep_func.params.iter().map(|p| crate::scope::env_key(p).into_owned()).collect();
             if let Some(rest) = &dep_func.rest_param {
                 dep_locals.insert(rest.clone());
             }
@@ -2739,7 +2740,12 @@ fn function_to_define_form_with_body(
     // Build binder vector: [p1 <- :T1  p2 <- :T2  & rest <- :Trest]
     let mut binder_items: Vec<WatAST> = Vec::with_capacity(func.params.len() * 3 + 3);
     for (param, ty) in func.params.iter().zip(func.param_types.iter()) {
-        binder_items.push(WatAST::Symbol(Identifier::bare(param.clone()), span.clone()));
+        // Arc 170 — REUSE the binder node. This line built
+        // `Identifier::bare("kwargs\u{1}952")` from a flattened env_key: a scope
+        // id baked into a NAME, which `Identifier::bare` debug-asserts against
+        // and which no scope remapping can ever move. It is the exact thing
+        // HygieneScopeDivergence's remedy names — "reuse the original AST node".
+        binder_items.push(WatAST::Symbol(param.clone(), span.clone()));
         binder_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
         binder_items.push(WatAST::Keyword(format_type_for_emit(ty), span.clone()));
     }
@@ -2860,7 +2866,8 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
     let mut args_items: Vec<WatAST> =
         Vec::with_capacity(func.params.len() * 3 + func.rest_param.iter().count() * 3);
     for (param, ty) in func.params.iter().zip(func.param_types.iter()) {
-        args_items.push(WatAST::Symbol(Identifier::bare(param.clone()), span.clone()));
+        // Arc 170 — REUSE the binder node (see the sibling site above).
+        args_items.push(WatAST::Symbol(param.clone(), span.clone()));
         args_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
         args_items.push(WatAST::Keyword(format_type_for_emit(ty), span.clone()));
     }

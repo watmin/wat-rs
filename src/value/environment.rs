@@ -34,7 +34,27 @@ pub enum FunctionBody {
 /// and carry their `closed_env` from the creation site.
 pub struct Function {
     pub name: Option<String>,
-    pub params: Vec<String>,
+    /// Parameter binders, as IDENTIFIERS — name plus hygiene scope set.
+    ///
+    /// This field held `Vec<String>` (the flattened `env_key`) until arc 170.
+    /// That flattening baked a scope id into a NAME — `"kwargs\u{1}952"` — and
+    /// anything rebuilding a binder from it (`closure_extract`'s
+    /// `Identifier::bare(param)`) produced exactly what
+    /// `HygieneScopeDivergence`'s own remedy warns against: "a macro rebuilt
+    /// this binder from its name instead of reusing the node."
+    ///
+    /// It was illegal on its face — `Identifier::bare` debug-asserts that a name
+    /// contains no U+0001 — and a debug run of `probe_arc170_gapj_each_kwargs`
+    /// panicked on it. Release hid it, because the flattened key happens to
+    /// EQUAL the scoped identifier's `env_key`, so resolution matched by
+    /// accident.
+    ///
+    /// It stopped being an accident the moment a program had to cross a process
+    /// boundary: an exec'd child restarts `fresh_scope()` at 1, so imported
+    /// scopes must be REMAPPED — and a scope inside a string cannot be. Carrying
+    /// the `Identifier` means the binder is REUSED, which is what the diagnostic
+    /// asked for all along. Call `env_key` at the point of use for a key.
+    pub params: Vec<crate::scope::Identifier>,
     /// Declared type-parameter list from the function name keyword
     /// (e.g., `<T,U>` on `:my::ns::foo<T,U>`). Empty for monomorphic
     /// functions. Names appearing in `param_types` / `ret_type` that
@@ -220,7 +240,7 @@ mod tests {
     fn debug_function_no_closed_env() {
         let f = Function {
             name: Some(":my::fn".into()),
-            params: vec!["x".into()],
+            params: vec![crate::scope::Identifier::bare("x")],
             type_params: vec![],
             param_types: vec![TypeExpr::Path(":wat::core::i64".into())],
             ret_type: TypeExpr::Path(":wat::core::i64".into()),
@@ -232,7 +252,10 @@ mod tests {
         let dbg = format!("{:?}", f);
         assert_eq!(
             dbg,
-            r#"Function { name: Some(":my::fn"), params: ["x"], rest_param: None, closed_env: "<none>" }"#,
+            // Arc 170 — `params` carries `Identifier`, not `String`, so Debug now
+            // shows the hygiene scope set. That is the point: a binder's scopes
+            // are part of its identity, and this rendering says so.
+            r#"Function { name: Some(":my::fn"), params: [Identifier { name: "x", scopes: {} }], rest_param: None, closed_env: "<none>" }"#,
             "Debug output mismatch"
         );
     }

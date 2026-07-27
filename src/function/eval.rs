@@ -55,7 +55,9 @@ pub(crate) fn eval_fn(
     // Non-variadic forms produce rest = None — strict behavior unchanged.
     let ParsedFnSignature { params, param_types, ret_type, rest } = parse_fn_signature_with_rest(sig3)?;
     let (rest_param, rest_param_type) = match rest {
-        Some((name, ty)) => (Some(name), Some(ty)),
+        // `rest_param` is a lookup key (never re-emitted as a binder node), so
+        // flatten it; `params` stay whole. Arc 170.
+        Some((name, ty)) => (Some(crate::scope::env_key(&name).into_owned()), Some(ty)),
         None => (None, None),
     };
     Ok(Value::wat__core__fn(Arc::new(Function {

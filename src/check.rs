@@ -14412,12 +14412,14 @@ fn format_type_inner(t: &TypeExpr) -> String {
 // ─── Helpers ────────────────────────────────────────────────────────────
 
 fn build_locals(
-    param_names: &[String],
+    param_names: &[crate::scope::Identifier],
     param_types: &[TypeExpr],
 ) -> HashMap<String, TypeExpr> {
     let mut locals = HashMap::new();
     for (name, ty) in param_names.iter().zip(param_types.iter()) {
-        locals.insert(name.clone(), ty.clone());
+        // Arc 170 — key by env_key, so a scoped binder keys by (name, scopes)
+        // exactly as every other resolution site does.
+        locals.insert(crate::scope::env_key(name).into_owned(), ty.clone());
     }
     locals
 }
