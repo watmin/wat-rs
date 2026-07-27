@@ -62,6 +62,91 @@ const FIELD_NAME: &str = "name";
 /// `:scopes` — the hygiene scope ids, ascending (`BTreeSet` order is canonical).
 const FIELD_SCOPES: &str = "scopes";
 
+/// Tag namespace/name for a wat keyword EDN cannot spell:
+/// `#wat.ast/Keyword {:path ":wat::core::Vector/length"}`.
+///
+/// # Why this exists
+///
+/// A wat keyword is not an EDN keyword. EDN's is a flat `ns/name`; wat's is a
+/// small type/path language — `::` segments, `Type/method` accessors, `<>`
+/// generics, `(A,B)` tuple types, `Fn(A)->B` function types, and trailing-`::`
+/// namespace-prefix markers. Forcing one into the other does not merely lose a
+/// value, it changes the FORM'S SHAPE: `:wat::core::Fn(wat::core::i64)->wat::core::i64`
+/// is ONE keyword token going in and comes back as a keyword, a list, and a
+/// symbol — three nodes. (`Keyword::try_ns` validates only the first character,
+/// so the malformed namespace is accepted on the way out.)
+///
+/// So a keyword that cannot survive the crossing is carried VERBATIM — exactly
+/// what a `.wat` source file does, and the same move [`SCOPED_SYM_NAME`] makes
+/// for a symbol EDN cannot spell. The `::`↔`.` dial is not involved on this
+/// path at all.
+///
+/// # Temporary, and bounded
+///
+/// This wrapper exists only because there are TWO readers — `wat-reader`'s
+/// keyword grammar is wider than `wat-edn`'s. Arc 300 converts the corpus to
+/// faithful-Clojure and RETIRES the rust-scheme surface (`VNVS LECTOR NE
+/// DIVIDANTVR`); once nothing can produce a keyword EDN cannot spell, the
+/// [`needs_verbatim_carriage`] test stops firing on its own and this tag can be
+/// deleted. It is not scaffolding to be remembered — it is self-disarming.
+const WAT_KEYWORD_NAME: &str = "Keyword";
+/// `:path` — the wat keyword path, verbatim, leading colon included.
+const FIELD_PATH: &str = "path";
+
+/// Does this keyword survive the crossing as a plain EDN keyword?
+///
+/// Answered by a RUN, never by a grammar predicate: encode the candidate, WRITE
+/// it, READ it back, and decode — if what returns is not the identical path,
+/// the keyword needs verbatim carriage. A hand-written "is it legal EDN?" check
+/// would be a second grammar living beside `wat-edn`'s, free to drift from it;
+/// this cannot drift, because it *is* the round trip it is asking about, and it
+/// covers cases nobody enumerated (the arity bug above was found this way, not
+/// by reading the grammar).
+fn needs_verbatim_carriage(path: &str) -> bool {
+    let candidate = keyword_from_wat_path(path);
+    // The codec already declined — it fell back to a String (a silent type
+    // change on a program wire; here it is a clean "carry it verbatim").
+    let OwnedValue::Keyword(_) = &candidate else {
+        return true;
+    };
+    let written = wat_edn::write(&candidate);
+    match wat_edn::parse_owned(&written) {
+        Ok(OwnedValue::Keyword(kw)) => {
+            let back = match kw.namespace() {
+                Some(ns) => ns_to_wat_path(ns, kw.name()),
+                None => format!(":{}", kw.name()),
+            };
+            back != path
+        }
+        // Re-read as some other shape (the arity bug), or did not parse at all.
+        _ => true,
+    }
+}
+
+/// Does this symbol NAME survive the crossing as a plain EDN symbol?
+///
+/// Same discipline as [`needs_verbatim_carriage`], and it catches the same
+/// class one type over: a wat symbol may be a generic method head like
+/// `mk<S,R>`, which is ONE token to `wat-reader` — but **EDN treats `,` as
+/// whitespace**, so it re-reads as two symbols (`mk<S`, `R>`) and the form's
+/// arity changes. Answered by a run for the same reason: a hand-written
+/// "which characters are safe?" predicate would be a second lexer beside
+/// `wat-edn`'s, free to drift.
+fn symbol_needs_verbatim(name: &str) -> bool {
+    let written = wat_edn::write(&OwnedValue::Symbol(Symbol::new(name)));
+    match wat_edn::parse_owned(&written) {
+        Ok(OwnedValue::Symbol(sym)) => {
+            let back = match sym.namespace() {
+                Some(ns) => format!("{ns}/{}", sym.name()),
+                None => sym.name().to_owned(),
+            };
+            back != name
+        }
+        _ => true,
+    }
+}
+
+
 /// Decode-side scope table: maps each distinct scope id seen ON THE WIRE to a
 /// scope freshly allocated IN THIS PROCESS.
 ///
@@ -182,6 +267,33 @@ impl std::error::Error for WatEdnBridgeError {}
 ///   `crate::rust_caller_span!()` is used throughout; `startup_from_forms` / `freeze`
 ///   re-derives what it needs from the semantic structure, not the span.
 pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
+    // DISPLAY, not transport. `write-forms`, `ast->source` and reflection's
+    // `signature-of` / `lookup-define` all render through here, and a rendering
+    // is allowed to be pretty: `:wat.core/Vector/length` reads better than a
+    // tagged record, and nothing downstream re-parses it.
+    watast_to_edn_with(a, Carriage::Display)
+}
+
+/// Display renders for a human; transport must survive a re-read.
+///
+/// The two were one function until arc 170, and braiding them was a real
+/// defect in both directions: transport silently mangled forms EDN cannot
+/// spell, and when the fix landed on the shared path it changed every
+/// `signature-of` rendering in the reflection suite. They want different
+/// things — display wants legible and never re-parses; transport wants exact
+/// and always does. `solvere`: one reason to change each.
+#[derive(Clone, Copy, PartialEq)]
+enum Carriage {
+    /// Rendering for a reader. Unspellable lexemes render as the codec's best
+    /// effort; nothing re-parses the result.
+    Display,
+    /// Crossing a process boundary. What EDN cannot spell is carried VERBATIM,
+    /// because the far side parses this back into the same program.
+    Transport,
+}
+
+fn watast_to_edn_with(a: &WatAST, carriage: Carriage) -> OwnedValue {
+    let verbatim = carriage == Carriage::Transport;
     match a {
         WatAST::IntLit(n, _) => OwnedValue::Integer(*n),
         WatAST::FloatLit(x, _) => OwnedValue::Float(*x),
@@ -193,12 +305,29 @@ pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
         WatAST::BoolLit(b, _) => OwnedValue::Bool(*b),
         WatAST::StringLit(s, _) => OwnedValue::String(std::borrow::Cow::Owned(s.clone())),
         WatAST::NilLit(_) => OwnedValue::Nil,
-        WatAST::Keyword(k, _) => keyword_from_wat_path(k),
-        WatAST::Symbol(ident, _) if ident.scopes().is_empty() => {
+        // A keyword EDN can spell crosses as a plain EDN keyword, so every frame
+        // that round-trips today keeps its exact spelling. One EDN cannot spell
+        // is carried VERBATIM rather than mangled — see [`WAT_KEYWORD_NAME`].
+        WatAST::Keyword(k, _) if !verbatim || !needs_verbatim_carriage(k) => {
+            keyword_from_wat_path(k)
+        }
+        WatAST::Keyword(k, _) => OwnedValue::Tagged(
+            Tag::ns(SCOPED_SYM_NS, WAT_KEYWORD_NAME),
+            Box::new(OwnedValue::Map(vec![(
+                OwnedValue::Keyword(Keyword::new(FIELD_PATH)),
+                OwnedValue::String(std::borrow::Cow::Owned(k.clone())),
+            )])),
+        ),
+        WatAST::Symbol(ident, _)
+            if ident.scopes().is_empty()
+                && (!verbatim || !symbol_needs_verbatim(ident.as_str())) =>
+        {
             OwnedValue::Symbol(Symbol::new(ident.as_str()))
         }
         WatAST::Symbol(ident, _) => {
-            // A macro minted this name. Carry its hygiene scopes.
+            // Either a macro minted this name (carry its hygiene scopes), or EDN
+            // cannot spell the name itself (carry it verbatim) — one tag, because
+            // both are the same act: this symbol does not survive as a plain one.
             //
             // The ids go out as EDN integers. `ScopeId` wraps a `u64` drawn
             // from a monotonic per-process counter incremented once per macro
@@ -233,19 +362,19 @@ pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
             )
         }
         WatAST::List(items, _) => {
-            OwnedValue::List(items.iter().map(watast_to_edn).collect())
+            OwnedValue::List(items.iter().map(|i| watast_to_edn_with(i, carriage)).collect())
         }
         WatAST::Vector(items, _) => {
-            OwnedValue::Vector(items.iter().map(watast_to_edn).collect())
+            OwnedValue::Vector(items.iter().map(|i| watast_to_edn_with(i, carriage)).collect())
         }
         WatAST::Map(pairs, _) => OwnedValue::Map(
             pairs
                 .iter()
-                .map(|(k, v)| (watast_to_edn(k), watast_to_edn(v)))
+                .map(|(k, v)| (watast_to_edn_with(k, carriage), watast_to_edn_with(v, carriage)))
                 .collect(),
         ),
         WatAST::Set(items, _) => {
-            OwnedValue::Set(items.iter().map(watast_to_edn).collect())
+            OwnedValue::Set(items.iter().map(|i| watast_to_edn_with(i, carriage)).collect())
         }
     }
 }
@@ -299,15 +428,23 @@ fn edn_to_watast_with(
             Ok(WatAST::Keyword(path, crate::rust_caller_span!()))
         }
         Edn::Symbol(sym) => {
-            if sym.namespace().is_some() {
-                // Namespaced EDN symbols have no WatAST counterpart.
-                // A program AST never contains them; reject cleanly.
-                return Err(WatEdnBridgeError::UnsupportedEdnForm {
-                    shape: format!("namespaced Symbol ({:?}/{:?})", sym.namespace(), sym.name()),
-                });
-            }
+            // A wat symbol's name may itself contain `/` — a faithful-Clojure
+            // head like `wat.core/typealias` is ONE symbol to wat-reader. EDN
+            // re-lexes that as a NAMESPACED symbol, so the namespace is not a
+            // second concept here; it is the front half of the name, and the
+            // faithful inverse is to rejoin it.
+            //
+            // This corrects a prior claim on this arm — "a program AST never
+            // contains them; reject cleanly". Arc 300's own conversion fixtures
+            // (`tests/resolve/probe_arc251_decl_migrator__*.wat`, already written
+            // in the faithful surface) are programs that do, and they were 45 of
+            // the corpus's decode failures.
+            let name = match sym.namespace() {
+                Some(ns) => format!("{ns}/{}", sym.name()),
+                None => sym.name().to_owned(),
+            };
             Ok(WatAST::Symbol(
-                Identifier::bare(sym.name()),
+                Identifier::bare(name),
                 crate::rust_caller_span!(),
             ))
         }
@@ -336,7 +473,31 @@ fn edn_to_watast_with(
                 items.iter().map(|i| edn_to_watast_with(i, scopes)).collect();
             Ok(WatAST::Set(nodes?, crate::rust_caller_span!()))
         }
-        // A scoped symbol — the encode side's `#wat.ast/sym ["name" [ids…]]`.
+        // A wat keyword EDN cannot spell — carried verbatim on the way out.
+        Edn::Tagged(tag, body)
+            if tag.namespace() == SCOPED_SYM_NS && tag.name() == WAT_KEYWORD_NAME =>
+        {
+            let Edn::Map(fields) = body.as_ref() else {
+                return Err(WatEdnBridgeError::MalformedScopedSymbol {
+                    detail: format!("body is {}, want a record Map", body.type_name()),
+                });
+            };
+            let path = fields.iter().find_map(|(k, v)| match (k, v) {
+                (Edn::Keyword(kw), Edn::String(s))
+                    if kw.namespace().is_none() && kw.name() == FIELD_PATH =>
+                {
+                    Some(s.as_ref())
+                }
+                _ => None,
+            });
+            match path {
+                Some(p) => Ok(WatAST::Keyword(p.to_owned(), crate::rust_caller_span!())),
+                None => Err(WatEdnBridgeError::MalformedScopedSymbol {
+                    detail: format!("missing or non-String :{FIELD_PATH}"),
+                }),
+            }
+        }
+        // A scoped symbol — the encode side's `#wat.ast/ScopedSymbol {…}`.
         // The wire ids are opaque markers; each distinct one becomes a FRESH
         // local scope, so sharing is preserved and a collision with this
         // process's own scopes is unrepresentable. See [`ScopeImport`].
@@ -383,12 +544,16 @@ fn edn_to_watast_with(
                     })
                 }
             };
-            if ids.is_empty() {
-                // A bare symbol has a spelling of its own; a tagged one with no
-                // scopes is two ways to write one thing. Refuse it.
+            // An empty scope vector is legitimate ONLY when the name itself is
+            // unspellable in EDN (`mk<S,R>`). If a plain EDN symbol would have
+            // round-tripped it, the tag is a second way to write one thing —
+            // refuse it, so the encoder cannot drift into tagging everything.
+            if ids.is_empty() && !symbol_needs_verbatim(name) {
                 return Err(WatEdnBridgeError::MalformedScopedSymbol {
-                    detail: "empty scope vector — a bare symbol must be a plain EDN Symbol"
-                        .to_owned(),
+                    detail: format!(
+                        "no scopes and {name:?} spells fine as a plain EDN Symbol — \
+                         the tag is redundant"
+                    ),
                 });
             }
             let mut ident = Identifier::bare(name);
@@ -435,7 +600,8 @@ fn edn_to_watast_with(
 /// The output contains **NO** `#wat-edn.holon` tags — it is plain EDN.
 /// Contains native `{ }` map and `#{ }` set syntax, and `:ns/name` keywords.
 pub fn program_to_edn(forms: &[WatAST]) -> String {
-    let items: Vec<OwnedValue> = forms.iter().map(watast_to_edn).collect();
+    let items: Vec<OwnedValue> =
+        forms.iter().map(|f| watast_to_edn_with(f, Carriage::Transport)).collect();
     wat_edn::write(&OwnedValue::Vector(items))
 }
 
