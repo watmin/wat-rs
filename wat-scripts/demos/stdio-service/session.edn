@@ -1,0 +1,5 @@
+#repl.Cmd/Bump [5]
+#repl.Cmd/Bump [7]
+#repl.Cmd/Show []
+#repl.Cmd/Bump [-2]
+#repl.Cmd/Quit []
