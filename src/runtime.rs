@@ -5017,6 +5017,8 @@ fn dispatch_keyword_head_value(
         // that the readln defmacro expands to. The macro forwards the `-> :T`
         // annotation intact; the prime carries an optional leading cap (i64).
         ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),
+        // Arc 170 — the raw-frame sibling: undecoded text + EOF as a matchable value.
+        ":wat::kernel::read-frame" => crate::services::eval_kernel_read_frame(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the

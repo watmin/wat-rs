@@ -949,6 +949,61 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
+    //
+    // A FRAME, not a line, and the name is load-bearing: `read_framed_edn`
+    // (`src/edn_shim.rs`) accumulates physical lines until the buffer forms a complete
+    // EDN value. `:wat::io::IOReader/read-line` (`src/io.rs`) is the genuinely-one-line
+    // verb; that name is already spent with that meaning, so reusing it here would both
+    // lie and collide.
+    //
+    // MEASURED, because the obvious inference from "it accumulates" is WRONG for wat
+    // source and I shipped that inference before running it: `next_complete_frame`
+    // continues ONLY on `EdnFrameStatus::Incomplete`, and terminates the frame on
+    // `Complete` *or* `Malformed` (`src/edn_shim.rs`). Wat source is never valid EDN —
+    // `:wat::core::defn` is precisely the "keyword begins with ::" that fails — so a
+    // partial wat form scans as Malformed, not Incomplete, and the frame ENDS at the
+    // first newline. Consequence: for wat input a frame is exactly one physical line, and
+    // multi-line forms are NOT supported. Accumulation is real, but only for input that
+    // is well-formed-EDN-so-far (an unclosed `{`).
+    //
+    // Two variants, and only two:
+    //   :Frame [text] — the raw frame text, UNDECODED. `readln` reads the same bytes and
+    //                   then EDN-decodes them, which is right for a wire and wrong for a
+    //                   human: a REPL user types `(:wat::core::+ 1 1)`, which is wat
+    //                   source, not an EDN literal, and decoding it fails on the `::`.
+    //   :Eof []       — the clean stop, as a VALUE. The StdIn service has always returned
+    //                   a matchable `::Eof` (`stdio-primes.wat`, "NOT a panic that kills
+    //                   the serve loop"); `stdio-read` then raised on it to preserve the
+    //                   old fd-0 behavior for the 72 `readln` callers. That bank is what
+    //                   made a REPL loop unable to stop cleanly. This verb spends it.
+    //
+    // It does NOT return the service's own `StdIn::ReadLineResponse`. That enum carries
+    // `RequestTooLarge`/`RequestMalformed` because `defservice` MANDATES those on every
+    // serviceable op-Response — but this op's request is one i64 the kernel itself
+    // builds, so neither can fire. Handing a caller an exhaustive match with two dead
+    // arms is the same defect as any unreachable arm, and it would couple `:user::` code
+    // to the stdin service's wire contract. A `:TooLong` arm is deliberately absent for
+    // the same reason: it is only earned once `FramedRead::TooLarge` becomes a reply
+    // instead of a raise inside `IOReader/read-frame`.
+    //
+    // Impure — it is I/O — and a sibling of the caller-facing `*Outcome` family
+    // (RecvOutcome / SendOutcome / ConnectOutcome), so a reader already knows the shape.
+    // Named by an intueri cast (2026-07-28), which also caught the frame-vs-line lie.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::ReadFrameOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Impure, // an I/O outcome
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Frame".into(),
+                // `text`, not `line` — it may span several physical lines.
+                fields: vec![("text".into(), TypeExpr::Path(":wat::core::String".into()))],
+            },
+            EnumVariant::Unit("Eof".into()),
+        ],
+    }));
+
     // Arc 170 — :wat::eval::FormOutcome<T> — what `:wat::eval-with-defs!` returns:
     // the outcome of handing ONE form to a world built from a definition set.
     //

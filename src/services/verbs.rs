@@ -219,6 +219,56 @@ pub fn eval_kernel_epprintln(
 ///
 /// `readln'` is intentionally NOT `#[restricted_to]` (the `readln` macro expands to it inside user fn
 /// bodies, before the restricted-call walker runs). The restriction is conventional: write `readln`.
+/// `(:wat::kernel::read-frame)` → `:wat::kernel::ReadFrameOutcome`. Arc 170.
+///
+/// The honest read: one EDN frame's RAW TEXT, plus EOF as a matchable value. Both were
+/// already in the StdIn service and discarded by the wrappers above it — `readln'`
+/// unconditionally EDN-decodes (`verbs.rs`, `decode_trusted_wire`), and `stdio-read`
+/// raises on `::Eof` to preserve pre-arc-170 fd-0 behavior for its 72 callers. Neither
+/// is wrong for a wire; both are wrong for a human at a prompt, who types wat source
+/// (`(:wat::core::+ 1 1)`) rather than an EDN literal, and who expects Ctrl-D to end a
+/// session rather than raise a `LociDiedError/Panic` cascade.
+///
+/// Zero-arg by choice. `readln` carries a `:max-buffer-bytes` knob; this does not, and
+/// uses the same `MAX-READLN-BYTES` default, because a second ambient read verb with its
+/// own knob surface is two names where one will do. If the knob is ever wanted the kwargs
+/// macro slots in above this positional intrinsic, exactly as `readln`/`readln'` are
+/// arranged — which is also why this carries NO prime: the mark means a crossing between
+/// two generations, and there is no predecessor here to cross from.
+pub fn eval_kernel_read_frame(
+    args: &[WatAST],
+    list_span: &Span,
+    _env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::read-frame";
+    if !args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("expected ({}) — no arguments; got {}", OP, args.len()),
+        } });
+    }
+    read_frame_via_stdin(OP, list_span, sym)
+}
+
+/// Drive `:wat::kernel::stdio-read-frame` over the primed StdIn peer and hand back its
+/// `ReadFrameOutcome` VALUE unchanged. Mirrors [`read_via_stdin`] exactly except that it
+/// does not demand a `String` back — the whole point is that the outcome survives.
+fn read_frame_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable) -> Result<Value, RuntimeError> {
+    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
+        span: span.clone(),
+        kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
+    })?;
+    let addr = primed.stdin_addr.clone();
+    let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-in", |io: &ThreadIO| &io.stdin_peer)?;
+    let cap = crate::edn_shim::DEFAULT_MAX_FRAME_BYTES as i64;
+    let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError {
+        span: span.clone(),
+        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into()),
+    })?.clone();
+    apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())
+}
+
 pub fn eval_kernel_readln_prime(
     args: &[WatAST],
     list_span: &Span,

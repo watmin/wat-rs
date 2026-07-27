@@ -39,11 +39,12 @@
 ;; is filed, and it is NOT worked around here — a `;; the honest stop` comment over a crash
 ;; is exactly the lie this arc exists to kill. Ctrl-D ends the session loudly, for now.
 
-(:wat::core::defn :repl::turn
-  [defs <- :wat::core::Vector<wat::WatAST>]
+(:wat::core::defn :repl::eval-and-loop
+  [defs <- :wat::core::Vector<wat::WatAST>
+   text <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::let
-    [form (:wat::core::first (:wat::core::read-string (:wat::kernel::readln )))]
+    [form (:wat::core::first (:wat::core::read-string text))]
     (:wat::core::match (:wat::eval-with-defs! form defs)
 
       ;; A DECLARATION joined the world. Nothing to show — but the definition set grows,
@@ -71,6 +72,26 @@
         (:wat::core::do
           (:wat::kernel::println cause)
           (:repl::turn defs))))))
+
+;; The READ half. `read-frame` hands back the frame's RAW TEXT — a user types wat source,
+;; not an EDN literal — and hands back EOF as a VALUE, so Ctrl-D returns cleanly instead of
+;; raising a death cascade through the loop.
+;;
+;; A frame is not a line in general — the reader accumulates until the buffer forms a
+;; complete EDN value — but for WAT source it is, and one form per line is the contract
+;; here. MEASURED: the frame scanner continues only while the prefix is INCOMPLETE EDN and
+;; terminates on MALFORMED, and wat source is never valid EDN (`:wat::core::defn` is the
+;; "keyword begins with ::" case), so a half-typed form ends the frame at the newline.
+;; A multi-line form therefore reaches `read-string` truncated and raises UnclosedParen.
+;; That is a real limitation of this REPL, named rather than discovered by the next person.
+(:wat::core::defn :repl::turn
+  [defs <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::read-frame )
+    ((:wat::kernel::ReadFrameOutcome::Frame text)
+      (:repl::eval-and-loop defs text))
+    ;; the honest stop — and this time the comment is true
+    (:wat::kernel::ReadFrameOutcome::Eof ())))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:repl::turn (:wat::core::Vector :wat::WatAST)))

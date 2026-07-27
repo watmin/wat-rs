@@ -262,6 +262,40 @@
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "readln: stdin service peer closed" :wat::core::None :wat::core::None))))
 
+;; read one frame via the primed StdIn peer, returning the MATCHABLE outcome rather than the raw
+;; String — the honest sibling of `stdio-read` above. Where `stdio-read` collapses every non-happy
+;; outcome into a raise (it had to: it reproduces the pre-arc-170 EOF-on-fd0 behavior for the 72
+;; `readln` callers, and its comment says so), this one hands `::Eof` BACK as a value. That bank is
+;; exactly what left a REPL loop unable to stop cleanly, and this is where it is spent.
+;;
+;; The two request-framing variants are NOT propagated: `::RequestTooLarge` / `::RequestMalformed`
+;; exist because defservice mandates them on every op-Response, but this op's request is one i64 the
+;; kernel builds, so neither can fire. They raise here rather than widening the caller's enum with
+;; arms that are unreachable by construction. (An over-cap READ is a different thing entirely — it
+;; surfaces from inside `IOReader/read-frame` — which is why `stdio-read`'s ::RequestTooLarge message
+;; mentioning max-buffer-bytes is itself misleading; noted, not fixed here.)
+(:wat::core::defn :wat::kernel::stdio-read-frame
+  [peer <- :wat::kernel::Peer<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>
+   cap  <- :wat::core::i64]
+  -> :wat::kernel::ReadFrameOutcome
+  (:wat::core::match (:wat::kernel::StdIn/read-line peer (:wat::kernel::StdIn::ReadLineRequest :max-buffer-bytes cap))
+    ((:wat::kernel::RecvOutcome::Message resp)
+      (:wat::core::match resp
+        ((:wat::kernel::StdIn::ReadLineResponse::Line line)
+          (:wat::kernel::ReadFrameOutcome::Frame line))
+        ((:wat::kernel::StdIn::ReadLineResponse::Eof)
+          ;; a unit variant is a bare keyword, not a call — it evaluates straight to its
+          ;; pre-built EnumValue via the SymbolTable's unit_variants table
+          :wat::kernel::ReadFrameOutcome::Eof)
+        ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap2)
+          (:wat::kernel::assertion-failed! "read-frame: stdin request framing rejected (RequestTooLarge) — unreachable for a kernel-built request" :wat::core::None :wat::core::None))
+        ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
+          (:wat::kernel::assertion-failed! "read-frame: stdin request framing rejected (RequestMalformed) — unreachable for a kernel-built request" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None))))
+
 ;; ─── write-fd-raw (arc 170) — the RAW, un-terminated write-side sibling of `from-fd`: emit `payload`
 ;;     verbatim to a whitelisted fd (no framing, no newline, no op budget), returning the byte count. ─
 ;;

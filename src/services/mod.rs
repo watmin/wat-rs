@@ -95,7 +95,7 @@ pub use client::{
     // Arc 209 C0b.3a-0 — process child self-peer (owner-link).
     SelfPeerGuard, install_self_peer, current_self_peer,
 };
-pub use verbs::{eval_kernel_println, eval_kernel_pprintln, eval_kernel_eprintln, eval_kernel_epprintln, eval_kernel_readln_prime};
+pub use verbs::{eval_kernel_println, eval_kernel_pprintln, eval_kernel_eprintln, eval_kernel_epprintln, eval_kernel_readln_prime, eval_kernel_read_frame};
 
 // Arc 170 Phase 3 — the old `with_thread_io` (`*_reply_rx` accessor) is DELETED with the hand-rolled
 // path; the flipped verbs reach their cached client peers via `cached_stdio_peer` (client.rs).

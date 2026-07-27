@@ -17277,6 +17277,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 170 — `:wat::kernel::read-frame` — the raw-frame sibling of `readln'`.
+    // Unlike `readln'` its return is CONCRETE, not `:T`: `readln'` reads whatever the
+    // self-describing EDN wire says, so its type is only knowable at the call site,
+    // whereas this one always answers the same two-variant outcome. Zero params — the
+    // cap is the shared stdin default, not a knob (see the verb's own doc for why a
+    // second ambient read verb does not get a second knob surface).
+    env.register(
+        ":wat::kernel::read-frame".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::kernel::ReadFrameOutcome".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 053: Vector-tier algebra primitives. Operate on raw
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.
