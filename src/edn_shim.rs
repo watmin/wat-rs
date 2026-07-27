@@ -536,7 +536,7 @@ pub fn eval_ast_to_source(
 ///   `parse_map_literal_body` — comma is EDN whitespace, `lexer.rs:379`, so plain spaces
 ///   round-trip identically).
 /// - `Set`: `#{` items space-joined `}` (`parser.rs:571-576`, `Token::LHashBrace`).
-fn write_wat_source(ast: &WatAST, out: &mut String) {
+pub(crate) fn write_wat_source(ast: &WatAST, out: &mut String) {
     match ast {
         WatAST::IntLit(n, _) => out.push_str(&n.to_string()),
         WatAST::FloatLit(x, _) => {

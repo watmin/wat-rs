@@ -835,6 +835,17 @@ pub fn spawn_process_peer(
     // setters (the "wat program" entry-file discipline).
     let inherit_config: Option<crate::config::Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
+    // Arc 170 execve step 2 — render the program as source BEFORE the fork, so the
+    // parent has the exact bytes it will stream and the child keeps `forms` as the
+    // ORACLE to check them against. Both sides call the same printer.
+    let program_source = crate::process::boot::forms_to_source(&forms);
+
+    // The raw fds the boot handshake rides: the child's stdin (what the parent
+    // writes) and the child's stdout (where its acks come back). Captured before
+    // the pairs move into the closure.
+    let boot_write_fd = input_tx.raw_fds()[0];
+    let boot_ack_fd = output_rx.raw_fds()[0];
+
     let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
 
@@ -863,6 +874,37 @@ pub fn spawn_process_peer(
         // The dup2'd fd 0/1/2 survive (they are stdio, always below the sweep start).
         // run_forms_as_server_child never returns (calls _exit via run_user_main_in_child).
         crate::process::child_post_fork_init(lifeline_r_raw);
+
+        // Arc 170 execve step 2 — receive the program over the wire, acking as we
+        // go, and CHECK it against the forms we inherited through the fork.
+        //
+        // The inherited forms are the ORACLE. They exist only because this is
+        // still a COW fork; after the exec they are gone and the stream is the
+        // sole path. Checking now, while both are available, is what makes step 4
+        // a one-variable change: if the streamed source ever disagreed with what
+        // the parent actually held, we would learn it HERE rather than as a
+        // mysterious child that froze a different program.
+        //
+        // Diverging is a startup failure, loudly: fd 2 is the err channel by now,
+        // so the reason reaches the owner's `recv` as a Lost cause.
+        let expected = crate::process::boot::forms_to_source(&forms);
+        match crate::process::boot::receive_in_child(0, 1) {
+            Ok(streamed) if streamed == expected => {}
+            Ok(streamed) => {
+                crate::process::boot::report_boot_failure_and_exit(&format!(
+                    "boot stream disagreed with the inherited forms: received {} bytes, \
+                     expected {} bytes",
+                    streamed.len(),
+                    expected.len()
+                ));
+            }
+            Err(e) => {
+                crate::process::boot::report_boot_failure_and_exit(&format!(
+                    "boot handshake failed: {e:?}"
+                ));
+            }
+        }
+
         crate::process::run_forms_as_server_child(forms, inherit_config, env_fn);
     })
     .map_err(|io_err| RuntimeError {
@@ -874,6 +916,16 @@ pub fn spawn_process_peer(
     })?;
 
     // ── PARENT BRANCH ─────────────────────────────────────────────────────────
+
+    // Arc 170 execve step 2 — deliver the program, blocking on each frame's ack.
+    //
+    // This makes `spawn-program` WAIT for the child to accept its program, which
+    // is a behaviour change and an improvement: a startup failure now surfaces at
+    // the call site instead of arriving later as a mute death. It cannot hang on a
+    // dead child — the child holds the ack pipe's write end, so its death closes
+    // that end and the wait ends in a NAMED failure (see `send_frame_and_await_ack`).
+    crate::process::boot::deliver_to_child(boot_write_fd, boot_ack_fd, &program_source)?;
+
     let lifeline_w = lifeline_writer.into_owned_fd();
 
     // Arc 209 C0b.3b-c — capture the child pid BEFORE peer/pidfd is moved into

@@ -281,6 +281,24 @@ pub(crate) fn chunk_payload(payload: &str) -> Result<Vec<BootFrame>, RuntimeErro
 #[allow(dead_code)]
 fn _span_type_is_used(_: &Span) {}
 
+/// Render a form vector as wat source — the payload a program section carries.
+///
+/// `write_wat_source` (the same printer behind `:wat::core::ast->source`, arc 278
+/// Stone 1) walks the AST directly, so `::` notation survives; the EDN path would
+/// emit `:wat.core/fn` and could not be read back as the same form.
+///
+/// Both sides of the fork call this: the parent to produce what it sends, the
+/// child to produce what it EXPECTED, so the two strings can be compared. That
+/// comparison is the oracle — see `run_forms_as_server_child`.
+pub(crate) fn forms_to_source(forms: &[crate::ast::WatAST]) -> String {
+    let mut out = String::new();
+    for form in forms {
+        crate::edn_shim::write_wat_source(form, &mut out);
+        out.push('\n');
+    }
+    out
+}
+
 // ─── The boot-phase transport ────────────────────────────────────────────────
 //
 // Plain `libc::read` / `libc::write` on raw fds, deliberately. This runs BEFORE
@@ -412,6 +430,96 @@ pub(crate) fn write_boot_line(fd: i32, line: &str) -> Result<(), RuntimeError> {
     Ok(())
 }
 
+/// Write one frame and BLOCK until the peer acks it — mini-TCP's producer half.
+///
+/// This is where the parent gives up the ability to run ahead, and it is the whole
+/// reason the reader may buffer: while this waits, nothing further has been sent,
+/// so there is nothing past the frame's newline for a chunked read to swallow.
+///
+/// **This is also why the handshake cannot deadlock on a dead child.** The child
+/// holds the ack pipe's write end; if it dies, that end closes, this read sees EOF,
+/// and the failure is NAMED rather than a parent blocked forever. A `None` from the
+/// ack reader is never "keep waiting" — it is "the peer is gone."
+pub(crate) fn send_frame_and_await_ack(
+    write_fd: i32,
+    acks: &mut BootReader,
+    frame: &BootFrame,
+) -> Result<(), RuntimeError> {
+    write_boot_line(write_fd, &frame.to_wire())?;
+    let line = acks.read_line()?.ok_or_else(|| {
+        boot_err(format!(
+            "the child closed the ack channel while {frame:?} was in flight — it died \
+             during startup; its reason rides the err channel"
+        ))
+    })?;
+    // Anything that is not an Ack means the frame was not accepted. Never read a
+    // surprise as success.
+    BootReply::from_wire(&line)?;
+    Ok(())
+}
+
+/// Deliver both sections to a child over `write_fd`, reading acks from `ack_fd`.
+///
+/// The substrate section is EMPTY today: `Config` still crosses by COW because
+/// step 2 does not exec. The marker is sent anyway so the wire's shape is the
+/// final one and step 3 only fills a section that already exists.
+pub(crate) fn deliver_to_child(
+    write_fd: i32,
+    ack_fd: i32,
+    program_source: &str,
+) -> Result<(), RuntimeError> {
+    let mut acks = BootReader::new(ack_fd);
+    send_frame_and_await_ack(write_fd, &mut acks, &BootFrame::SubstrateDone)?;
+    for frame in chunk_payload(program_source)? {
+        send_frame_and_await_ack(write_fd, &mut acks, &frame)?;
+    }
+    send_frame_and_await_ack(write_fd, &mut acks, &BootFrame::ProgramDone)?;
+    Ok(())
+}
+
+/// The child's half: read both sections, acking as it goes, and return the
+/// program source.
+pub(crate) fn receive_in_child(read_fd: i32, ack_fd: i32) -> Result<String, RuntimeError> {
+    let mut reader = BootReader::new(read_fd);
+    let _substrate = reader.read_section(ack_fd, "substrate", |f| {
+        matches!(f, BootFrame::SubstrateDone)
+    })?;
+    reader.read_section(ack_fd, "program", |f| matches!(f, BootFrame::ProgramDone))
+}
+
+/// Report a boot-handshake failure on the child's err channel and terminate.
+///
+/// Called from the child branch, where fd 2 is already the err channel — so the
+/// reason reaches the owner as a `Lost` cause on its `recv` rather than vanishing
+/// into a mute exit. A child that cannot receive its program has no world to
+/// build a structured error in, so this writes plain bytes: the message is the
+/// diagnostic, and it is never silent.
+///
+/// Exits `EXIT_STARTUP_ERROR` — a boot failure IS a startup failure; exiting 2
+/// would mislabel it as a runtime panic.
+pub(crate) fn report_boot_failure_and_exit(reason: &str) -> ! {
+    let line = format!("wat: boot handshake: {reason}\n");
+    let bytes = line.as_bytes();
+    let mut written = 0usize;
+    while written < bytes.len() {
+        // SAFETY: fd 2 is the child's err channel, dup2'd before this point;
+        // `bytes` is a live buffer. Best-effort: a failed write cannot itself be
+        // reported, so the loop exits on error rather than spinning.
+        let n = unsafe {
+            libc::write(
+                2,
+                bytes[written..].as_ptr() as *const libc::c_void,
+                bytes.len() - written,
+            )
+        };
+        if n <= 0 {
+            break;
+        }
+        written += n as usize;
+    }
+    unsafe { libc::_exit(crate::process::EXIT_STARTUP_ERROR) };
+}
+
 /// Exhaustiveness guard for the hand-written decoder.
 ///
 /// `#[derive(Edn)]` owns the WRITE side, so adding a `BootFrame` variant updates
@@ -470,12 +578,20 @@ mod tests {
 
     #[test]
     fn an_unknown_tag_is_refused_not_guessed() {
-        let err = BootFrame::from_wire("#wat.boot/Sideways []").unwrap_err();
-        let msg = format!("{err:?}");
+        // A DIFFERENTIAL, not a substring check: the only difference between these
+        // two lines is the tag name, so a refusal of the second can be attributed
+        // to the tag and nothing else.
         assert!(
-            msg.contains("unknown boot frame tag"),
-            "an unrecognised frame must be a located refusal; got {msg}"
+            BootFrame::from_wire("#wat.boot/ProgramDone {}").is_ok(),
+            "the control must decode — otherwise the negative case proves nothing"
         );
+        assert!(
+            BootFrame::from_wire("#wat.boot/Sideways {}").is_err(),
+            "an unrecognised tag must be refused; a child must never improvise"
+        );
+        // And a tag from another namespace is refused too, so `Chunk` alone is not
+        // a password.
+        assert!(BootFrame::from_wire("#other.ns/Chunk {:text \"x\"}").is_err());
     }
 
     #[test]
@@ -577,14 +693,36 @@ mod tests {
         let _ack_r_held = ack_r;
 
         let mut reader = BootReader::new(data_r.as_raw_fd());
-        let err = reader
-            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
-            .expect_err("a truncated section must not read as success");
-        let msg = format!("{err:?}");
         assert!(
-            msg.contains("closed during the program section"),
-            "the failure must name the section and the cause; got {msg}"
+            reader
+                .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+                .is_err(),
+            "a section whose marker never arrives must NOT read as an empty success"
         );
+    }
+
+    /// The control for the truncation test: the SAME stream, with its marker,
+    /// reads clean. Without this the negative case only proves "something failed."
+    #[test]
+    fn the_same_section_with_its_marker_reads_clean() {
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+        let _ack_r_held = ack_r;
+
+        write_boot_line(
+            data_w.as_raw_fd(),
+            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
+        )
+        .expect("write chunk");
+        write_boot_line(data_w.as_raw_fd(), &BootFrame::ProgramDone.to_wire())
+            .expect("write marker");
+
+        let mut reader = BootReader::new(data_r.as_raw_fd());
+        let got = reader
+            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .expect("a terminated section must read clean");
+        assert_eq!(got, "(:demo::x 1)");
     }
 
     #[test]
