@@ -311,7 +311,6 @@ impl LifelineWriter {
 // SYS_PIDFD_SEND_SIGNAL raw-syscall pattern (Pidfd::send_signal in this file).
 // compile_error! arch-guard for future ports; x86_64 = 436.
 #[cfg(target_arch = "x86_64")]
-pub(super) const SYS_CLOSE_RANGE: libc::c_long = 436;
 #[cfg(not(target_arch = "x86_64"))]
 compile_error!(
     "close_range: SYS_close_range syscall number not defined for this arch — add it"

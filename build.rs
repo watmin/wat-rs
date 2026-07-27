@@ -91,4 +91,22 @@ fn main() {
         let dest = Path::new(&out_dir).join(format!("{group}_mods.rs"));
         fs::write(&dest, generated).expect("write generated mod list");
     }
+
+    // Arc 170 step 4 — a spawned runtime EXECS the `wat` binary. A process that
+    // never entered wat's CLI entry (a cargo test harness, whose `main` belongs
+    // to libtest) cannot serve as one, so it needs to know where the real
+    // binary is. OUT_DIR is `target/<profile>/build/<pkg>-<hash>/out`; three
+    // parents up is `target/<profile>/`, where cargo puts the bin targets.
+    if let Ok(out_dir) = std::env::var("OUT_DIR") {
+        let profile_dir = std::path::Path::new(&out_dir)
+            .ancestors()
+            .nth(3)
+            .map(std::path::Path::to_path_buf);
+        if let Some(dir) = profile_dir {
+            println!(
+                "cargo:rustc-env=WAT_RUNTIME_BIN_DEFAULT={}",
+                dir.join("wat").display()
+            );
+        }
+    }
 }

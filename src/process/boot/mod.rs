@@ -777,7 +777,53 @@ mod tests {
 /// the child is precisely the parent/child divergence this mechanism exists to
 /// prevent, and it would be invisible — the child would just quietly run under
 /// different settings. Do not reach for `..`.
-pub(crate) fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
+pub(crate) fn substrate_to_wire(
+    cfg: Option<&crate::config::Config>,
+    env_fn: &str,
+) -> String {
+    format!(
+        "{{:config {} :env-fn {:?}}}",
+        config_to_wire(cfg),
+        env_fn
+    )
+}
+
+/// Split the substrate section back into its parts. Both fields are REQUIRED —
+/// a missing one is a located error, never a default, for the same reason the
+/// encode side destructures exhaustively.
+pub(crate) fn wire_to_substrate(
+    frame: &str,
+) -> Result<(Option<crate::config::Config>, String), RuntimeError> {
+    let parsed = wat_edn::parse_owned(frame.trim())
+        .map_err(|e| boot_err(format!("substrate section is not EDN: {e}")))?;
+    let wat_edn::OwnedValue::Map(fields) = &parsed else {
+        return Err(boot_err(format!(
+            "substrate section must be a map, got {}",
+            parsed.type_name()
+        )));
+    };
+    let get = |want: &str| {
+        fields.iter().find_map(|(k, v)| match k {
+            wat_edn::Value::Keyword(kw) if kw.namespace().is_none() && kw.name() == want => Some(v),
+            _ => None,
+        })
+    };
+    let cfg_val = get("config")
+        .ok_or_else(|| boot_err("substrate section is missing :config".to_owned()))?;
+    let env_fn = match get("env-fn") {
+        Some(wat_edn::Value::String(s)) => s.as_ref().to_owned(),
+        Some(other) => {
+            return Err(boot_err(format!(
+                ":env-fn must be a String, got {}",
+                other.type_name()
+            )))
+        }
+        None => return Err(boot_err("substrate section is missing :env-fn".to_owned())),
+    };
+    Ok((wire_to_config(&wat_edn::write(cfg_val))?, env_fn))
+}
+
+fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
     let Some(cfg) = cfg else {
         // No snapshot: the program forms carry their own setters (the
         // entry-file discipline). `nil` says so explicitly rather than by

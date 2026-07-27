@@ -49,6 +49,8 @@ pub mod stdio;
 /// BEFORE the exec so the stream path is proven while the closure is still the
 /// control (see the module doc, and `170/DESIGN-execve-every-fork.md`).
 pub(crate) mod boot;
+/// Arc 170 step 4 — the allocation-free exec handoff (see the module doc).
+pub(crate) mod exec_plan;
 
 // Flat pub-use re-exports so every public name is reachable at
 // crate::process::X (callers never need to know which sub-module holds what).
@@ -58,7 +60,6 @@ pub use clone::{
 };
 pub(crate) use clone::spawn_lifelined_any;
 pub use child::install_substrate_signal_handlers;
-pub(crate) use child::child_post_fork_init;
 pub use handle::ChildHandle;
 pub use verbs::{
     EXIT_SUCCESS, EXIT_RUNTIME_ERROR, EXIT_PANIC, EXIT_STARTUP_ERROR, EXIT_MAIN_SIGNATURE,

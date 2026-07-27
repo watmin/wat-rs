@@ -22032,27 +22032,7 @@ pub(crate) fn process_died_error_runtime_value(e: &impl crate::to_edn::WatError)
     process_died_error_runtime(crate::to_edn::to_wire_edn(e))
 }
 
-/// Build a `:wat::kernel::ProcessDiedError::StartupError(message)`
-/// enum value (arc 170 slice 1i). Emitted by child branches when
-/// `startup_from_forms` / `startup_from_source` returns `Err`.
-fn process_died_error_startup(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "StartupError".into(),
-        fields: vec![Value::String(Arc::new(message))],
-    }))
-}
 
-/// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs.
-///
-/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]: the payload
-/// comes from the error's `WatError::error_edn()` (via
-/// [`crate::to_edn::to_wire_edn`]), enforcing the floor. Flat OS-level
-/// startup failures cross via a [`crate::to_edn::FlatMessage`], which is
-/// itself a `WatError` (the floor still applies).
-pub(crate) fn process_died_error_startup_value(e: &impl crate::to_edn::WatError) -> Value {
-    process_died_error_startup(crate::to_edn::to_wire_edn(e))
-}
 
 
 /// Build a `:wat::kernel::ProcessDiedError::MainSignature(message)`

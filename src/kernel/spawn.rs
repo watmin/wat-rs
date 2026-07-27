@@ -842,7 +842,7 @@ pub fn spawn_process_peer(
     // Arc 170 step 3 — the SUBSTRATE section. `Config` reaches the child by COW
     // today; step 4's exec ends that, so it crosses the wire now, while the COW
     // copy is still there to check it against.
-    let config_wire = crate::process::boot::config_to_wire(inherit_config.as_ref());
+    let config_wire = crate::process::boot::substrate_to_wire(inherit_config.as_ref(), &env_fn);
 
     // The raw fds the boot handshake rides: the child's stdin (what the parent
     // writes) and the child's stdout (where its acks come back). Captured before
@@ -850,119 +850,43 @@ pub fn spawn_process_peer(
     let boot_write_fd = input_tx.raw_fds()[0];
     let boot_ack_fd = output_rx.raw_fds()[0];
 
+    // Arc 170 step 4 — the exec payload, built HERE in the parent. Everything
+    // the child needs is allocated before the clone, so the window between
+    // `clone3` and `execve` can touch nothing but raw syscalls. See
+    // `process::exec_plan`'s module doc for why that rule is absolute.
+    let exec_plan = crate::process::exec_plan::ExecPlan::build().map_err(|e| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("could not build the exec plan: {e}"),
+        },
+    })?;
+    let child_stdio = [
+        input_rx.raw_fds()[0],
+        output_tx.raw_fds()[0],
+        err_tx.raw_fds()[0],
+    ];
+
     let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
-        // ── CHILD BRANCH ──────────────────────────────────────────────────
-
-        // Wire the child's stdio to the comms pipe ends BEFORE the close-sweep
-        // (which starts at fd 3 and never touches fd 0/1/2) — THE ONE WIRE: the
-        // value channel IS the stdio (Song #79, the lanes crossed). fd 0 (stdin)
-        // = the input pipe read end (what the parent's `send'` writes); fd 1
-        // (stdout) = the output pipe write end (what the parent's `recv'` reads);
-        // fd 2 (stderr) = the diagnostic Err-channel (Stone 1a). The forms-server
-        // child reads fd 0 with readln / writes fd 1 with println — the SAME wire as
-        // send'/recv'. The input pipe read fd is `raw_fds()[0]` (Receiver: [read_fd,
-        // ring_fd]); the output pipe write fd is `raw_fds()[0]` (Sender: [write_fd]).
-        unsafe {
-            libc::dup2(input_rx.raw_fds()[0], 0);
-            libc::dup2(output_tx.raw_fds()[0], 1);
-            // Stone 214 1b-ii-α: dup2 the err channel write fd onto fd 2 (stderr).
-            // emit_structured_exit (called by run_forms_as_server_child on startup error)
-            // and the child's panic hook write to fd 2 — the Err channel delivers the
-            // crash reason to the parent's err_rx Receiver.
-            libc::dup2(err_tx.raw_fds()[0], 2);
-        }
-
-        // Arc 214 β: forms-server child. The io_uring comms fds (> 2) are NOT needed
-        // by the forms-server (it reads fd 0 / writes fd 1/2 directly). Use the
-        // non-preserving child_post_fork_init — the close-sweep removes them.
-        // The dup2'd fd 0/1/2 survive (they are stdio, always below the sweep start).
-        // run_forms_as_server_child never returns (calls _exit via run_user_main_in_child).
-        crate::process::child_post_fork_init(lifeline_r_raw);
-
-        // Arc 170 execve step 2d — receive the program over the wire, DECODE it,
-        // and run THAT. The inherited `forms` are now only the oracle.
+        // ── CHILD BRANCH — ALLOCATION-FREE, and it never returns ────────────
         //
-        // The oracle is a ROUND TRIP, and that is the whole correction. Step 2c
-        // compared the streamed text against `forms_to_source(&forms)` computed
-        // from the inherited forms — the same printer over the same in-memory
-        // value, equal BY CONSTRUCTION, and structurally incapable of catching a
-        // lossy payload. What the claim actually needs is
-        // `decode(encode(forms)) == forms`, so that is what is checked: the
-        // DECODED forms against the inherited ones.
+        // This is the whole child now. It places the wire on 0/1/2, the
+        // lifeline on its known fd, sweeps the rest, and execs. Everything the
+        // old COW child did — receiving the program, decoding the substrate,
+        // installing handlers, running the server — happens on the far side of
+        // the exec, in `distribution::spawned_runtime`, where allocation is
+        // safe again.
         //
-        // The inherited forms exist only because this is still a COW fork; after
-        // the exec they are gone and the stream is the sole path. Checking while
-        // both are available is what makes step 4 a one-variable change —
-        // running the decoded program NOW means the exec removes the oracle, not
-        // the mechanism.
+        // The 2c/2d ORACLES ARE GONE, and their absence is the point: they
+        // compared what arrived over the wire against what COW had inherited,
+        // and after the exec there is nothing inherited to compare with. They
+        // did their job while both halves existed — the wire is now the sole
+        // path, which is exactly what it was verified for.
         //
-        // Diverging is a startup failure, loudly: fd 2 is the err channel by now,
-        // so the reason reaches the owner's `recv` as a Lost cause.
-        let (decoded, wired_config) = match crate::process::boot::receive_in_child(0, 1)
-            .and_then(|(substrate, program)| {
-                let cfg = crate::process::boot::wire_to_config(&substrate)?;
-                let forms = crate::process::boot::wire_to_forms(&program)?;
-                Ok((forms, cfg))
-            }) {
-            Ok(pair) => pair,
-            Err(e) => {
-                crate::process::boot::report_boot_failure_and_exit(&format!(
-                    "boot handshake failed: {e:?}"
-                ));
-            }
-        };
-        // Compare STRUCTURALLY, not by raw scope id. The decode deliberately
-        // remaps each wire scope to a FRESH local one (see `ScopeImport`), so a
-        // macro-generated program is equal only UP TO an order-preserving scope
-        // renaming — and `hash_canonical_program` is exactly that measure
-        // (`hash.rs` renumbers scopes to first-appearance order: "a RENUMBER,
-        // not a strip"). Asserting raw equality here would fail every program a
-        // macro built, which is most of them.
-        let survived = crate::hash::hash_canonical_program(&decoded)
-            == crate::hash::hash_canonical_program(&forms);
-        if !survived {
-            // Name the divergence exactly — a count is not a diagnostic. Report
-            // the first form that differs and both sides of it, so the failure
-            // is a coordinate rather than a mystery.
-            let mut detail = format!(
-                "{} forms decoded, {} inherited",
-                decoded.len(),
-                forms.len()
-            );
-            for (i, (dec, orig)) in decoded.iter().zip(forms.iter()).enumerate() {
-                if dec != orig {
-                    detail = format!(
-                        "{detail}; first divergence at form #{i} || INHERITED: {:.700?} || DECODED: {:.700?}",
-                        orig, dec
-                    );
-                    break;
-                }
-            }
-            crate::process::boot::report_boot_failure_and_exit(&format!(
-                "the program did not survive the wire (decode(encode(forms)) != forms): {detail}"
-            ));
-        }
-
-        // ★ THE HANDOVER — the child runs the program it RECEIVED, not the one it
-        // inherited. `forms` is only the oracle from here, and after step 4's
-        // exec it will not exist at all.
-        //
-        // This is the line step 2d existed for, and it was blocked until arc
-        // 170 stopped `Function.params` storing flattened env_keys: a binder
-        // rebuilt as `Identifier::bare("kwargs\u{1}952")` carries a scope id
-        // inside a NAME, which no scope remapping can move, so the binder and
-        // its reference parted the moment the decode assigned fresh scopes.
-        // Binders are REUSED now, so both sides remap together.
-        // The Config the child uses is the one it was TOLD, not the one it
-        // inherited — same handover as the program, and for the same reason:
-        // after the exec there is nothing to inherit. The COW copy is still the
-        // oracle while it exists.
-        if wired_config != inherit_config {
-            crate::process::boot::report_boot_failure_and_exit(
-                "the Config did not survive the wire (decode(encode(config)) != config)",
-            );
-        }
-        crate::process::run_forms_as_server_child(decoded, wired_config, env_fn);
+        // SAFETY: every pointer `exec_in_child` dereferences was built above in
+        // the parent and is owned by `exec_plan`, which is moved into this
+        // closure and outlives the call (the call ends the process).
+        unsafe { exec_plan.exec_in_child(child_stdio, lifeline_r_raw) }
     })
     .map_err(|io_err| RuntimeError {
         span: list_span.clone(),

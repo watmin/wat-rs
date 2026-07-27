@@ -137,6 +137,7 @@
 use std::process::ExitCode;
 use std::sync::Arc;
 
+mod spawned_runtime;
 mod argv;
 mod battery;
 mod check_output;
@@ -175,7 +176,29 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // stderr before the sandbox intercepts.
     crate::panic_hook::install();
 
+    // This process went through wat's CLI entry, so it can BE a spawned runtime
+    // if re-exec'd. A binary that never reaches here (a cargo test harness)
+    // cannot, and `exec_plan` falls back to the built `wat` accordingly.
+    crate::process::exec_plan::mark_wat_entry();
+
     battery::install_batteries(batteries);
+
+    // ── Arc 170 step 4 — am I a SPAWNED RUNTIME? ─────────────────────────────
+    //
+    // A wat parent hands its child the lifeline read-end at a known fd number,
+    // and nothing else does. So the fd's mere EXISTENCE answers the question —
+    // no `--forms-server` flag in the public grammar (that would be user surface
+    // for an internal mechanism: typeable at a shell, visible in `ps`, and a
+    // CLAIM where this is a WITNESS). Reusing the lifeline rather than minting a
+    // marker keeps it one object: the thing that routes you is the thing that
+    // proves a parent holds the other end.
+    //
+    // Note this is ROUTING only. It grants nothing. The boot handshake on fd 0
+    // is the real gate — a process that was not spawned cannot complete it, and
+    // fails by name when it tries.
+    if spawned_runtime::was_spawned() {
+        return spawned_runtime::serve();
+    }
 
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
 
