@@ -23,63 +23,95 @@ pub fn strip_cargo_subcommand(mut argv: Vec<String>, sub: &str) -> Vec<String> {
     argv
 }
 
-/// The parsed result of the CLI's argv grammar: `[--check
-/// [--check-output edn|json]] <entry.wat>`.
-pub(super) struct ParsedArgv {
-    pub(super) check_only: bool,
-    pub(super) check_output_format: Option<CheckOutputFormat>,
-    pub(super) entry_path: String,
+/// What the caller asked for. The MODE carries its own arity contract — a
+/// closed set is an enum, and each variant holds exactly what that mode needs.
+///
+/// Arc 170: the single global `positional.len() != 1` this replaces was arc
+/// 115's (`2b397cc0`), written to enforce `--check`'s grammar and applied to
+/// every path — which is why the argv passthrough arc 170 built the ambient for
+/// never worked. Verifying ONE file and RUNNING a program with arguments are
+/// different contracts; giving each mode its own means a new mode (`--repl`,
+/// which wants zero positionals) joins as a variant, not as a special case.
+pub(super) enum Mode {
+    /// `wat --check [--check-output edn|json] <entry.wat>` — freeze + type-check,
+    /// no `:user::main`. EXACTLY one entry: checking two files at once has no
+    /// defined output shape, so it stays a usage error.
+    Check {
+        entry_path: String,
+        output_format: Option<CheckOutputFormat>,
+    },
+    /// `wat <entry.wat> [args…]` — run the program. AT LEAST one positional;
+    /// `positional[0]` is the entry and everything after it is the program's
+    /// business, not the parser's. The trailing args are not carried in this
+    /// variant because `set_argv` already receives the WHOLE unmodified argv —
+    /// re-threading a slice of it here would be a second copy that could drift
+    /// from the ambient the program actually reads.
+    Run { entry_path: String },
 }
 
-/// Parse `argv[1..]` into the CLI's flag grammar. `prog` is argv\[0\]
-/// (or `"wat"` if argv is empty), used only for the usage message.
+/// Parse `argv[1..]` into a [`Mode`]. `prog` is argv\[0\] (or `"wat"` if argv
+/// is empty), used only for the usage message.
 ///
-/// Returns `Err(exit_code)` on any usage violation — the exact
-/// `eprintln!` message + exit code the pre-split `run_with_args`
-/// produced inline; behavior-preserving extraction (arc 170), not a
-/// grammar change.
-pub(super) fn parse(argv: &[String], prog: &str) -> Result<ParsedArgv, ExitCode> {
+/// Returns `Err(exit_code)` on a usage violation.
+pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
     let mut check_only = false;
-    let mut check_output_format: Option<CheckOutputFormat> = None;
+    let mut output_format: Option<CheckOutputFormat> = None;
     let mut positional: Vec<&str> = Vec::new();
     let mut iter = argv.iter().skip(1);
+
     while let Some(arg) = iter.next() {
         match arg.as_str() {
-            "--check" => check_only = true,
-            "--check-output" => match iter.next().map(String::as_str) {
-                Some("edn") => check_output_format = Some(CheckOutputFormat::Edn),
-                Some("json") => check_output_format = Some(CheckOutputFormat::Json),
-                Some(other) => {
-                    eprintln!(
-                        "wat: --check-output expects 'edn' or 'json'; got {:?}",
-                        other
-                    );
-                    return Err(ExitCode::from(64));
+            // Flags are only recognised BEFORE the entry path. Once an entry is
+            // in hand every remaining token belongs to the program — `wat
+            // prog.wat --check` passes `--check` to the program, it does not
+            // silently switch the cli into check mode.
+            "--check" if positional.is_empty() => check_only = true,
+            "--check-output" if positional.is_empty() => {
+                match iter.next().map(String::as_str) {
+                    Some("edn") => output_format = Some(CheckOutputFormat::Edn),
+                    Some("json") => output_format = Some(CheckOutputFormat::Json),
+                    Some(other) => {
+                        eprintln!("wat: --check-output expects 'edn' or 'json'; got {:?}", other);
+                        return Err(ExitCode::from(64));
+                    }
+                    None => {
+                        eprintln!("wat: --check-output expects 'edn' or 'json'");
+                        return Err(ExitCode::from(64));
+                    }
                 }
-                None => {
-                    eprintln!("wat: --check-output expects 'edn' or 'json'");
-                    return Err(ExitCode::from(64));
-                }
-            },
+            }
             other => positional.push(other),
         }
     }
-    if check_output_format.is_some() && !check_only {
+
+    if output_format.is_some() && !check_only {
         eprintln!("wat: --check-output requires --check");
         return Err(ExitCode::from(64));
     }
-    if positional.len() != 1 {
+
+    let usage = |prog: &str| {
         eprintln!(
-            "usage: {} [--check [--check-output edn|json]] <entry.wat>",
-            prog
+            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]"
         );
-        return Err(ExitCode::from(64)); // EX_USAGE
+        ExitCode::from(64) // EX_USAGE
+    };
+
+    if check_only {
+        // Check mode: exactly one.
+        if positional.len() != 1 {
+            return Err(usage(prog));
+        }
+        return Ok(Mode::Check {
+            entry_path: positional[0].to_string(),
+            output_format,
+        });
     }
-    Ok(ParsedArgv {
-        check_only,
-        check_output_format,
-        entry_path: positional[0].to_string(),
-    })
+
+    // Run mode: at least one; the rest are the program's.
+    match positional.first() {
+        Some(entry) => Ok(Mode::Run { entry_path: entry.to_string() }),
+        None => Err(usage(prog)),
+    }
 }
 
 #[cfg(test)]

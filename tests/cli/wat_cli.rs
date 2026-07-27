@@ -621,3 +621,96 @@ fn check_output_without_check_flag_is_usage_error() {
     let _ = std::fs::remove_file(&path);
     assert_eq!(output.status.code(), Some(64)); // EX_USAGE
 }
+
+// ─── Arc 170 — argv passthrough (the arc's own purpose, finally wired) ───────
+//
+// Arc 170 built the ambient (`ARGV` OnceLock, `set_argv`, the
+// `(:wat::runtime::argv)` verb) and wrote `distribution/mod.rs`'s promise that
+// "argv[2..N] = subsequent shell args … every shell arg passes through
+// unfiltered." Nothing passed through: `argv::parse` demanded EXACTLY one
+// positional, a gate arc 115 (2b397cc0) installed to enforce `--check`'s
+// grammar and that nobody revisited when 170 added the pipe. The valve had been
+// shut since before the pipe was laid.
+//
+// The layout is the OS shell's, unmodified: argv[0] = path to the wat binary,
+// argv[1] = path to the entry file, argv[2..] = whatever else the caller said.
+// `set_argv` already receives the whole vector untouched — only the gate moved.
+
+#[test]
+fn argv_passes_shell_args_through_to_user_main() {
+    let path = write_temp(include_str!("wat_cli__argv_passthrough.wat"));
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .arg(&path)
+        .arg("--some")
+        .arg("arg")
+        .arg("42")
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn wat");
+    let _ = std::fs::remove_file(&path);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "extra shell args must be accepted, not EX_USAGE; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // wat stdio is EDN — assert the STRUCTURE, not a substring. `println` emits
+    // the Vector<String> as one EDN line.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed = wat_edn::parse_owned(stdout.trim()).expect("argv line must be EDN");
+    let items = match &parsed {
+        wat_edn::OwnedValue::Vector(v) => v,
+        other => panic!("argv must be an EDN vector; got {other:?}"),
+    };
+    let strings: Vec<&str> = items
+        .iter()
+        .map(|v| match v {
+            wat_edn::OwnedValue::String(s) => &s[..],
+            other => panic!("every argv element must be a String; got {other:?}"),
+        })
+        .collect();
+
+    // argv[0] is the RESOLVED binary (current_exe), which may differ from the
+    // spelling cargo handed us — compare canonicalised, not verbatim.
+    let expected_bin = std::fs::canonicalize(bin).expect("canonicalize bin");
+    let actual_bin = std::fs::canonicalize(strings[0]).expect("canonicalize argv[0]");
+    assert_eq!(actual_bin, expected_bin, "argv[0] must be the wat binary");
+    assert_eq!(
+        std::path::Path::new(strings[1]),
+        path.as_path(),
+        "argv[1] must be the entry path"
+    );
+    assert_eq!(
+        &strings[2..],
+        &["--some", "arg", "42"],
+        "argv[2..] must be the caller's args, unedited"
+    );
+}
+
+#[test]
+fn check_mode_still_demands_exactly_one_entry() {
+    // Arity belongs to the MODE, not to the parser globally. `--check` verifies
+    // ONE file; handing it two is a usage error even though the run path now
+    // accepts trailing args.
+    // Any valid entry works — the parser rejects on arity before it reads the
+    // file at all, so this reuses the passthrough fixture rather than minting a
+    // second one for a body that is never parsed.
+    let path = write_temp(include_str!("wat_cli__argv_passthrough.wat"));
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .arg("--check")
+        .arg(&path)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn wat");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(
+        output.status.code(),
+        Some(64),
+        "--check with two entries must be EX_USAGE"
+    );
+}

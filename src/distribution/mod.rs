@@ -186,24 +186,41 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // agent / orchestrator tooling. Default (no --check-output): the
     // standard text Display via stderr (same shape `wat <file>` shows
     // on freeze failure).
-    let parsed = match argv::parse(&argv, prog) {
-        Ok(p) => p,
+    let mode = match argv::parse(&argv, prog) {
+        Ok(m) => m,
         Err(code) => return code,
     };
-    let entry_path = parsed.entry_path.as_str();
+    let (entry_path, check_output_format, check_only) = match &mode {
+        argv::Mode::Check { entry_path, output_format } => {
+            (entry_path.as_str(), *output_format, true)
+        }
+        argv::Mode::Run { entry_path } => (entry_path.as_str(), None, false),
+    };
 
-    // Arc 170 slice 1e (REALIZATIONS pass 7) — populate the
-    // process-wide argv ambient. After fork(2) the child inherits
-    // this OnceLock value via COW; `(:wat::runtime::argv)` reads it
-    // from any depth in the wat program. Set BEFORE
-    // `fork_program_from_source` so the child sees the same argv
-    // wat-cli received from the OS shell (argv[0]=binary path,
-    // argv[1]=source path, argv[2..]=remainder).
-    set_argv(argv.clone());
+    // Arc 170 slice 1e (REALIZATIONS pass 7) — populate the process-wide argv
+    // ambient, which `(:wat::runtime::argv)` reads from any depth in the wat
+    // program. The WHOLE argv goes in: argv[0] = the wat binary, argv[1] = the
+    // entry file, argv[2..] = whatever else the caller said. Nothing is
+    // stripped — the parser's job was to FIND the entry, not to edit the
+    // program's arguments.
+    //
+    // argv[0] is the RESOLVED binary path, not the shell's spelling of it. What
+    // the shell hands us is whatever the caller typed — `./target/release/wat`,
+    // a bare `wat` found on PATH, a symlink — and a program that wants to know
+    // where its interpreter lives cannot use any of those without knowing the
+    // cwd and the PATH search that produced them. `current_exe()` answers the
+    // question directly; argv[0] is kept only as the fallback for the platforms
+    // where it can fail, and as the `prog` string in usage messages (where the
+    // caller's own spelling is the friendlier thing to echo back).
+    let mut ambient_argv = argv.clone();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(first) = ambient_argv.first_mut() {
+            *first = exe.display().to_string();
+        }
+    }
+    set_argv(ambient_argv);
 
-    // Read entry file. Cli writes its own diagnostics directly via
-    // eprintln (real fd 2) BEFORE any proxy thread starts — see arc
-    // 104 DESIGN's "Diagnostic-output sequencing" rule.
+    // Read entry file. Diagnostics go straight to the real fd 2.
     let source = match std::fs::read_to_string(entry_path) {
         Ok(s) => s,
         Err(e) => {
@@ -216,11 +233,11 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         .map(|p| p.display().to_string());
 
     // Arc 115 slice 1 — `--check` short-circuit. Run startup_from_source
-    // (parse + type-check + freeze) inline; exit 0 on success, non-zero
-    // with diagnostic on freeze failure. No fork; no :user::main; no
-    // signal handlers; no proxy threads. Side-effect-free verification
-    // suitable for editor save hooks and agent sweep loops.
-    if parsed.check_only {
+    // (parse + type-check + freeze); exit 0 on success, non-zero with a
+    // diagnostic on freeze failure. No `:user::main`, no signal handlers —
+    // side-effect-free verification suitable for editor save hooks and agent
+    // sweep loops.
+    if check_only {
         let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(FsLoader);
         match startup_from_source(&source, canonical.as_deref(), loader) {
             Ok(_world) => {
@@ -228,7 +245,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
                 return ExitCode::from(0);
             }
             Err(e) => {
-                check_output::emit_check_failure(entry_path, &e, parsed.check_output_format);
+                check_output::emit_check_failure(entry_path, &e, check_output_format);
                 return ExitCode::from(1);
             }
         }
