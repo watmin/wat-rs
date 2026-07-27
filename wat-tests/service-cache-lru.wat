@@ -43,9 +43,9 @@
 
 ;; ── dial — the separately-typed verb, load-bearing (pins K,V) per the parametric precedent ──
 (:wat::core::defn :wat-tests::cache-svc/dial
-  [a <- :wat::kernel::Address'<wat::cache::Cache::Op<wat::core::String,wat::core::i64>,wat::cache::Cache::Reply<wat::core::String,wat::core::i64>>]
-  -> :wat::kernel::Peer'<wat::cache::Cache::Op<wat::core::String,wat::core::i64>,wat::cache::Cache::Reply<wat::core::String,wat::core::i64>>
-  (:wat::core::match (:wat::kernel::connect' a)
+  [a <- :wat::kernel::Address<wat::cache::Cache::Op<wat::core::String,wat::core::i64>,wat::cache::Cache::Reply<wat::core::String,wat::core::i64>>]
+  -> :wat::kernel::Peer<wat::cache::Cache::Op<wat::core::String,wat::core::i64>,wat::cache::Cache::Reply<wat::core::String,wat::core::i64>>
+  (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused cz)
       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))

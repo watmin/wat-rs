@@ -16,11 +16,11 @@
 (:wat::core::defn :my::died-cause-panic-message [] -> :wat::core::Option<wat::core::String>
   (:wat::core::let
     [p
-      (:wat::kernel::spawn-program' (:wat::spawn::process)
+      (:wat::kernel::spawn-program (:wat::spawn::process)
         (:wat::core::forms
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::kernel::raise! (:wat::core::Fault/of "loci-died-panic-data")))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
       ((:wat::kernel::RecvOutcome::Lost cause)
         ;; THE GATE: `cause` is a loci-agnostic LociDiedError — a matchable death report,

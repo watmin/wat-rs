@@ -7,7 +7,7 @@
 ;; around it (start the services, connect' → peers) is already green, so the whole
 ;; strike is "define :wat::kernel::peer-pid". EXPECT (post-strike): "(Some <pid>)" then ":None".
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -24,12 +24,12 @@
   (:wat::core::let
     [;; ── a PROCESS peer: its far end is a forked child → peer-pid should be (Some pid) ──
      ph  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     pc  (:wat::core::match (:wat::kernel::connect' (:probe::echo'::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     pc  (:wat::core::match (:wat::kernel::connect (:probe::echo'::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _   (:wat::kernel::println "process-peer peer-pid:")
      _   (:wat::kernel::println (:wat::kernel::peer-pid pc))   ; ← THE GAP (undefined pre-strike)
      ;; ── a THREAD peer: its far end is a cell in THIS process → peer-pid should be :None ──
      th  (:probe::echo'/start :locus (:wat::spawn::thread) :record (:probe::echo'::Record))
-     tc  (:wat::core::match (:wat::kernel::connect' (:probe::echo'::Handle/addr th)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     tc  (:wat::core::match (:wat::kernel::connect (:probe::echo'::Handle/addr th)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _   (:wat::kernel::println "thread-peer peer-pid:")
      _   (:wat::kernel::println (:wat::kernel::peer-pid tc))]
     nil))

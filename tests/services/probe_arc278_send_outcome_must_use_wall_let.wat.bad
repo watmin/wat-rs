@@ -1,15 +1,15 @@
-;; Arc 278 send'-outcome wall Phase 3b — the MUST-USE FORCE, the `let`-`_` discard position.
-;; The do-gate (Phase 3a) walls a bare `send'` dropped in a `do` non-final position. But a
-;; `_`-bound `send'` in a `let` binding vector — `(:wat::core::let [_ (:wat::kernel::send' p m)] …)`
+;; Arc 278 send-outcome wall Phase 3b — the MUST-USE FORCE, the `let`-`_` discard position.
+;; The do-gate (Phase 3a) walls a bare `send` dropped in a `do` non-final position. But a
+;; `_`-bound `send` in a `let` binding vector — `(:wat::core::let [_ (:wat::kernel::send p m)] …)`
 ;; — is the SAME swallow through the other discard door: the outcome is bound to `_` and dropped.
-;; This gate (Phase 3b) makes THAT a located compile error too, so a `send'` swallow is
-;; unrepresentable in BOTH discard positions (R57 "unrepresentable > flagged"). A *faced* send'
+;; This gate (Phase 3b) makes THAT a located compile error too, so a `send` swallow is
+;; unrepresentable in BOTH discard positions (R57 "unrepresentable > flagged"). A *faced* send
 ;; (`match`ed over Sent/Closed/Lost) has type `nil`, not `SendOutcome`, and a `_`-bound `nil` is
 ;; legal; this fixture deliberately does NOT face it.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            nil))
-     _ (:wat::kernel::send' p 42)]
+     _ (:wat::kernel::send p 42)]
     nil))

@@ -23,7 +23,7 @@
   [def-form <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::do
-     (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+     (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
        :messages
        [~def-form
         (:wat::core::defrecord :probe::Echo::EchoRequest [c <- :wat::core::i64])

@@ -1,7 +1,7 @@
 ;; C1 probe — does fn-forms, given a COMPUTED keyword ":probe::work$impl", ship the
 ;; ::Kwargs struct dep too? And what does field-names-of/field-types-of on
 ;; :probe::work::Kwargs return (canonical wat.type/ decomposable forms)?
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                                                                                                                 :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
@@ -9,7 +9,7 @@
 
 (:wat::core::defn :probe::work
   [item <- :wat::core::String
-   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]]
+   & [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>]]
   -> :wat::core::String
   (:wat::core::match
     (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

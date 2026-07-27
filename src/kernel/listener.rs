@@ -113,7 +113,7 @@ impl CommListener for CrossbeamListener {
     }
 
     fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak> {
-        const OP: &str = ":wat::kernel::accept'";
+        const OP: &str = ":wat::kernel::accept";
         // Block on the rendezvous until a connect-request arrives.
         let cr_value = match crate::channel::typed_recv(
             &ReceiverInner::Comms(self.rx.clone()),
@@ -304,7 +304,7 @@ impl SocketListener {
     /// posture (strictly safer than the old `.lock().unwrap()`, which panicked on poison).
     pub(crate) fn authorizes(&self, cred: &crate::comms::process::PeerCred) -> bool {
         self.allowed_pids
-            .with_ref(":wat::kernel::accept'", |lineage| {
+            .with_ref(":wat::kernel::accept", |lineage| {
                 crate::capability::CommsPolicy::OnlyMyPeers { lineage }
                     .admits(cred, unsafe { libc::geteuid() })
             })
@@ -313,14 +313,14 @@ impl SocketListener {
     /// Owner provisions another pid (beyond the birth-seeded self). Errors only on a
     /// cross-thread touch (invariant-forbidden) — surfaced, not swallowed.
     pub(crate) fn allow(&self, pid: i32, span: Span) -> Result<(), RuntimeError> {
-        self.allowed_pids.with_mut(":wat::kernel::allow'", span, |s| {
+        self.allowed_pids.with_mut(":wat::kernel::allow", span, |s| {
             s.insert(pid);
         })
     }
     /// Owner de-provisions a pid (future accepts of it bounce). Errors only on a cross-thread
     /// touch (invariant-forbidden) — surfaced, not swallowed.
     pub(crate) fn deny(&self, pid: i32, span: Span) -> Result<(), RuntimeError> {
-        self.allowed_pids.with_mut(":wat::kernel::deny'", span, |s| {
+        self.allowed_pids.with_mut(":wat::kernel::deny", span, |s| {
             s.remove(&pid);
         })
     }
@@ -434,7 +434,7 @@ impl CommListener for SocketListener {
 
 /// The unified, transport-blind listener entity.
 ///
-/// Stored as a `RustOpaque` under `LISTENER_TYPE_PATH` (`:wat::kernel::Listener'`).
+/// Stored as a `RustOpaque` under `LISTENER_TYPE_PATH` (`:wat::kernel::Listener`).
 /// `listener'` wraps its mechanism here:
 /// - Thread tier: `CrossbeamListener { rx }` (the rendezvous receiver).
 /// - Process tier: `SocketListener { listener }` (the bound non-blocking UDS).

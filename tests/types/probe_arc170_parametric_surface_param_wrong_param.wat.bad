@@ -5,7 +5,7 @@
 ;; This MUST be a located `TypeMismatch` at `wat --check` — if it froze clean, the Gap-1 edge would
 ;; be matching by bare surface name (ignoring the args) and the whole swap-gate would be dead.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -18,7 +18,7 @@
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -34,7 +34,7 @@
 ;; wants a Kv-Dialable
 (:wat::core::defn :probe::takes-kv-dialable
   [d <- :wat::capability::Dialable<probe::Kv::Op,probe::Kv::Reply>]
-  -> :wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>
+  -> :wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>
   (:wat::capability::Dialable/coord d))
 
 ;; …but passes an ECHO handle → MUST be a TypeMismatch (soundness — the swap-gate holds)

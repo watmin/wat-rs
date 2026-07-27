@@ -1,12 +1,12 @@
 ;; Fixture: spawn-program' :thread against Thread'<i64,i64> annotation type-checks.
-(:wat::core::defn :user::mk-echo-peer [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
-  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-    (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+(:wat::core::defn :user::mk-echo-peer [] -> :wat::kernel::Thread<wat::core::i64,wat::core::i64>
+  (:wat::kernel::spawn-program (:wat::spawn::thread)
+    (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
       ;; arc 278 recv'-outcome wall — recv' returns a matchable RecvOutcome<i64>; the
       ;; echo consumer (send' self …) still pins O through the ::Message binding m.
-      (:wat::core::let [r (:wat::kernel::recv' self)]
+      (:wat::core::let [r (:wat::kernel::recv self)]
         (:wat::core::match
-          (:wat::kernel::send' self
+          (:wat::kernel::send self
             (:wat::core::match r
               ((:wat::kernel::RecvOutcome::Message m) m)
               ((:wat::kernel::RecvOutcome::Lost cause)

@@ -5,7 +5,7 @@
 ;; as a located TypeMismatch (not a name/arity error) — a kv'::Handle does not satisfy
 ;; TypedCapability<Echo::Op,Echo::Reply>.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -18,7 +18,7 @@
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -34,8 +34,8 @@
 ;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
 (:wat::core::defn :probe::enrich
   [item <- :wat::core::String
-   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
-      kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
+   & [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>
+      kv   <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>]]
   -> :wat::core::String
   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) 
   ((:probe::Echo::EchoResponse::Ok reply) reply)

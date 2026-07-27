@@ -16,10 +16,10 @@
 ;; (Mirrors the old failure=None clean-exit read; completing = no hang.)
 (:wat::core::defn :probe::test::clean-exit [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
       (:wat::kernel::RecvOutcome::Closed "closed"))))
@@ -30,14 +30,14 @@
 ;; failure=Some[non-empty message] read.)
 (:wat::core::defn :probe::test::intentional-panic [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::assertion-failed!
                "intentional panic from probe_run_hermetic_no_deadlock"
                :wat::core::None
                :wat::core::None))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::LociDiedError/message cause))

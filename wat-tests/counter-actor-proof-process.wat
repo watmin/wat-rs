@@ -70,11 +70,11 @@
    ;; arms use assertion-failed! (a Lost cause is a LociDiedError, surfaced).
 
    (:wat::core::defn :counter-proc/get
-     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>]
+     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Get))
+     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Get))
        (:wat::kernel::SendOutcome::Sent
-         (:wat::core::match (:wat::kernel::recv' peer!)
+         (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
@@ -89,12 +89,12 @@
          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/increment
-     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>
+     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>
       n     <- :wat::core::i64]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Increment n))
+     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Increment n))
        (:wat::kernel::SendOutcome::Sent
-         (:wat::core::match (:wat::kernel::recv' peer!)
+         (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
@@ -109,11 +109,11 @@
          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/reset
-     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>]
+     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Reset))
+     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Reset))
        (:wat::kernel::SendOutcome::Sent
-         (:wat::core::match (:wat::kernel::recv' peer!)
+         (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
@@ -128,11 +128,11 @@
          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/shutdown
-     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>]
+     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Shutdown))
+     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Shutdown))
        (:wat::kernel::SendOutcome::Sent
-         (:wat::core::match (:wat::kernel::recv' peer!)
+         (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
@@ -162,7 +162,7 @@
   ;; the wrappers send' requests and recv' responses over it.
   (:wat::core::let
     [peer!
-       (:wat::kernel::spawn-program' (:wat::spawn::process)
+       (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            ;; Subprocess type declarations — independent from parent's types.
            ;; Same names → same EDN tags → interoperable across process boundary.
@@ -224,7 +224,7 @@
      _            (:wat::test::assert-eq final-state 3)
      ;; Drain the peer to a clean close (arc 278 IPC de-prime: recv-all' replaces
      ;; Process/drain-and-join). The peer's death rides in the Err — surfaced, never swallowed.
-     _drained     (:wat::core::match (:wat::kernel::recv-all' peer!)
+     _drained     (:wat::core::match (:wat::kernel::recv-all peer!)
                     ((:wat::core::Ok _) nil)
                     ((:wat::core::Err cause)
                       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))]

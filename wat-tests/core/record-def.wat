@@ -90,18 +90,18 @@
 (:wat::test::deftest :wat-tests::core::record-def::class-guard-panics-got-class
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; Accessor returns i64; do discards it and returns nil.
            ;; The class guard fires before the nil is reached — that's the point;
            ;; the crash reaches the parent's recv' as Lost before the completion send'.
            (:wat::core::do
              (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) ())
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected class-guard panic on wrong-class receiver; got Success"
@@ -149,8 +149,8 @@
 (:wat::test::deftest :wat-tests::core::record-def::base-to-holon-errors
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; to-holon panics at runtime on base record; do discards result and
            ;; returns nil. The runtime error fires before the nil is reached — the
            ;; crash reaches the parent's recv' as Lost before the completion send'.
@@ -158,11 +158,11 @@
              (:wat::core::let
                [p (:test::rd::Pt :x 3 :y 4)]
                (:wat::core::do (:wat::holon::to-holon p) ()))
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected to-holon runtime error on BASE record; got Success"

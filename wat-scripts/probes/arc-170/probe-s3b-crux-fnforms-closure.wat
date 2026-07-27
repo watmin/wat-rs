@@ -10,19 +10,19 @@
 
 ;; parent-side drain: pins the Process' I/O (parent sends (idx,i64), recvs (idx,i64))
 (:wat::core::defn :probe::drain
-  [w <- :wat::kernel::Process'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+  [w <- :wat::kernel::Process<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
   -> :wat::core::nil
   (:wat::core::let
-    [_ (:wat::core::match (:wat::kernel::send' w (:wat::core::Tuple 0 3)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     _ (:wat::core::match (:wat::kernel::send' w (:wat::core::Tuple 1 5)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     ra (:wat::kernel::recv' w)
+    [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))
-     rb (:wat::kernel::recv' w)
+     rb (:wat::kernel::recv w)
      b  (:wat::core::match rb
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
@@ -41,16 +41,16 @@
      wf (:wat::core::fn [pair <- :(wat::core::i64,wat::core::i64)] -> :(wat::core::i64,wat::core::i64)
           (:wat::core::Tuple (:wat::core::first pair)
                              (work-fn (:wat::core::second pair))))
-     w (:wat::kernel::spawn-program' (:wat::spawn::process)
+     w (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::concat
            (:wat::kernel::fn-forms wf :bracket::__pool-work)     ;; reify wf + its captured work-fn
            (:wat::core::forms
              (:wat::core::defn :bracket::__pool-runner
-               [self <- :wat::kernel::Peer'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+               [self <- :wat::kernel::Peer<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
                -> :wat::core::nil
                (:wat::core::let
-                 [pair (:wat::kernel::recv' self)
-                  _    (:wat::core::match (:wat::kernel::send' self (:bracket::__pool-work pair)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]  ;; apply the reified wf to the pair
+                 [pair (:wat::kernel::recv self)
+                  _    (:wat::core::match (:wat::kernel::send self (:bracket::__pool-work pair)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]  ;; apply the reified wf to the pair
                  (:bracket::__pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::__pool-runner

@@ -2,7 +2,7 @@
 ;; SUBJECT UNCHANGED (orthogonal to the surface migration): :durable [fields] mints ::Record
 ;; (the EDN soul); ::State is a defstruct. Handler reads through State/durable, builds next
 ;; State via State/Record, stop returns ::Record.
-(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::IncrementRequest  [n     <- :wat::core::i64])
    (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
@@ -24,7 +24,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [h     (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record :count 0))
-     c     (:wat::core::match (:wat::kernel::connect' (:my::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c     (:wat::core::match (:wat::kernel::connect (:my::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _     (:wat::core::match (:my::counter/increment c (:my::Counter::IncrementRequest :n 5))
              ((:wat::kernel::RecvOutcome::Message _resp) nil)
              ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message _c) :wat::core::None :wat::core::None))

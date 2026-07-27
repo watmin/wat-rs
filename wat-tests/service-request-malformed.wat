@@ -35,7 +35,7 @@
 ;; `path` is STRUCTURED (segments — ["items" "[0]"]); `expected`/`got` are Strings (the
 ;; four-questions ruling: `got` is the EDN SHAPE that arrived, and an untyped wire value has
 ;; no declared type — structuring it would fabricate information).
-(:wat::core::defsurface :wat-tests::MalBag :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat-tests::MalBag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::MalBag::PutRequest [items <- :wat::core::Vector<wat::core::String>])
    (:wat::core::defenum :wat-tests::MalBag::PutResponse :wat::enum::Pure
@@ -70,7 +70,7 @@
 ;; One call → one label. The exhaustive match is the shield: `:RequestMalformed` is a variant
 ;; the caller CANNOT ignore (arc 109 — no wildcard arm), so a refusal can never be silent.
 (:wat::core::defn :wat-tests::mal/try
-  [c <- :wat::kernel::Peer'<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>
+  [c <- :wat::kernel::Peer<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>
    req <- :wat-tests::MalBag::PutRequest] -> :wat::core::String
   (:wat::core::match (:wat-tests::MalBag/put c req)
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -86,9 +86,9 @@
     (:wat::kernel::RecvOutcome::Closed "Closed")))
 
 (:wat::core::defn :wat-tests::mal/dial
-  [a <- :wat::kernel::Address'<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>]
-  -> :wat::kernel::Peer'<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>
-  (:wat::core::match (:wat::kernel::connect' a)
+  [a <- :wat::kernel::Address<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>]
+  -> :wat::kernel::Peer<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>
+  (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused c)
       (:wat::kernel::assertion-failed! "victim: connect REFUSED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None))

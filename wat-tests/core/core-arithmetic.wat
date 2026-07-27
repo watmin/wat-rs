@@ -223,18 +223,18 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; Body must return nil; do discards the i64 result, then returns ().
            ;; Division panics before () is reached, which is the whole point — the
            ;; crash reaches the parent's recv' as Lost BEFORE the completion send'.
            (:wat::core::do
              (:wat::core::do (:wat::core::/ 5 0) ())
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected RuntimeError for i64 / 0"
@@ -259,11 +259,11 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-add-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ 1 2.0)] x))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ 1 2.0)"
@@ -283,11 +283,11 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::string-add-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ "a" "b")] x))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ \"a\" \"b\")"
@@ -310,11 +310,11 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::< 1 2.5)] b))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected TypeMismatch (check-time) for (< 1 2.5)"
@@ -334,11 +334,11 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::-)] x))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (-)"
@@ -353,11 +353,11 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::/)] x))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (/)"

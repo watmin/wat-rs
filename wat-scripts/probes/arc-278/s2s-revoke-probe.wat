@@ -18,7 +18,7 @@
 ;;   caller2-init-refused     (caller2's connect' was bounced post grant+revoke race)
 ;; or, if the race did not land the revoke before caller2's connect (rare), whatever caller2 prints.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -35,7 +35,7 @@
      (:wat::service::Outcome::Reply s
        (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
-(:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Caller::RunRequest  [])
    (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure :Ok [out <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -46,13 +46,13 @@
 (:wat::service::defservice :probe::caller'
   :satisfies :probe::Caller
   :durable   []
-  :ephemeral [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]
+  :ephemeral [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>]
   :peers     [:probe::Echo]
   :init (:wat::core::fn
           [record    <- :probe::caller'::Record
-           echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
+           echo-addr <- :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>]
           -> :probe::caller'::State
-          (:probe::caller'::State :durable record :echo (:wat::core::match (:wat::kernel::connect' echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+          (:probe::caller'::State :durable record :echo (:wat::core::match (:wat::kernel::connect echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(run [s req]
      (:wat::core::let
@@ -77,7 +77,7 @@
                       (:probe::echo'/grant eh
                         (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
            :record (:probe::caller'::Record) :echo-addr ea)
-     cc1 (:wat::core::match (:wat::kernel::connect' (:probe::caller'::Handle/addr ch1)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     cc1 (:wat::core::match (:wat::kernel::connect (:probe::caller'::Handle/addr ch1)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr1 (:probe::Caller/run cc1 (:probe::Caller::RunRequest))
      _   (:wat::kernel::println (:wat::core::match rr1 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)
@@ -109,7 +109,7 @@
                          _    (:probe::echo'/revoke eh pidv)]
                         nil)))
            :record (:probe::caller'::Record) :echo-addr ea)
-     cc2 (:wat::core::match (:wat::kernel::connect' (:probe::caller'::Handle/addr ch2)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     cc2 (:wat::core::match (:wat::kernel::connect (:probe::caller'::Handle/addr ch2)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr2 (:probe::Caller/run cc2 (:probe::Caller::RunRequest))]
     (:wat::kernel::println (:wat::core::match rr2 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)

@@ -172,7 +172,7 @@ impl CommAddress for SocketAddress {
 
     fn connect(&self, _sym: &SymbolTable, span: &Span)
         -> Result<Result<Peer, ConnectFail>, EvalBreak> {
-        const OP: &str = ":wat::kernel::connect'";
+        const OP: &str = ":wat::kernel::connect";
         use std::os::fd::OwnedFd;
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixStream};
@@ -280,7 +280,7 @@ pub(crate) fn connect_admits(
 
 /// The unified, transport-blind address entity.
 ///
-/// Stored as a `RustOpaque` under `ADDRESS_TYPE_PATH` (`:wat::kernel::Address'`).
+/// Stored as a `RustOpaque` under `ADDRESS_TYPE_PATH` (`:wat::kernel::Address`).
 /// Produced by:
 /// - `listener'` (process): autobind via `Address::from_socket_name_bytes` — kernel-minted
 ///   abstract UDS name, never a user-chosen string (arc 272 step 5 annihilated `socket-address'`).

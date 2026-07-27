@@ -14,7 +14,7 @@
 ;; ── the surface (the counter protocol, lifted) ───────────────────────────────
 ;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
 ;; service ships them across a process fork.
-(:wat::core::defsurface :wat-tests::OffsetCounter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat-tests::OffsetCounter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::OffsetCounter::TotalRequest  [])
    (:wat::core::defenum :wat-tests::OffsetCounter::TotalResponse :wat::enum::Pure
@@ -50,7 +50,7 @@
     (:wat::core::let
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::thread)
            :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
-       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::offset-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::OffsetCounter::TotalResponse::Ok value) value)
@@ -69,7 +69,7 @@
     (:wat::core::let
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::process)
            :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
-       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::offset-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::OffsetCounter::TotalResponse::Ok value) value)

@@ -8,10 +8,10 @@
 ;; `accept'` the server end. Still no spawn, and now the same ceremony every real consumer pays.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [bound (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [bound (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      lis   (:wat::spawn::Bound/listener bound)
      addr  (:wat::spawn::Bound/address bound)
-     tx    (:wat::core::match (:wat::kernel::connect' addr)
+     tx    (:wat::core::match (:wat::kernel::connect addr)
              ((:wat::kernel::ConnectOutcome::Connected p) p)
              ((:wat::kernel::ConnectOutcome::Refused _c)
                (:wat::kernel::assertion-failed! "connect': refused binding the hook channel" :wat::core::None :wat::core::None))
@@ -19,20 +19,20 @@
                (:wat::kernel::assertion-failed! "connect': rejected binding the hook channel" :wat::core::None :wat::core::None))
              ((:wat::kernel::ConnectOutcome::Failed _c)
                (:wat::kernel::assertion-failed! "connect': failed binding the hook channel" :wat::core::None :wat::core::None)))
-     rx    (:wat::core::match (:wat::kernel::accept' lis)
+     rx    (:wat::core::match (:wat::kernel::accept lis)
              ((:wat::kernel::AcceptOutcome::Accepted p) p)
              (:wat::kernel::AcceptOutcome::Closed
                (:wat::kernel::assertion-failed! "accept': listener closed before the hook channel was accepted" :wat::core::None :wat::core::None))
              ((:wat::kernel::AcceptOutcome::Failed _c)
                (:wat::kernel::assertion-failed! "accept': failed accepting the hook channel" :wat::core::None :wat::core::None)))
-     _proc (:wat::kernel::spawn-program'
+     _proc (:wat::kernel::spawn-program
              (:wat::spawn::process/post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                 (:wat::core::let [_ (:wat::core::match (:wat::kernel::send' tx (:wat::spawn::ProcessLaunch/pid launch)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                 (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx (:wat::spawn::ProcessLaunch/pid launch)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                    nil)))
              (:wat::core::forms
                (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))
-     pid   (:wat::core::match (:wat::kernel::recv' rx)
+     pid   (:wat::core::match (:wat::kernel::recv rx)
              ((:wat::kernel::RecvOutcome::Message m) m)
              ((:wat::kernel::RecvOutcome::Lost cause)
                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

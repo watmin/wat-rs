@@ -17,7 +17,7 @@
 ;; ── the surface (the deadline protocol, lifted) ──────────────────────────────
 ;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
 ;; service ships them across a process fork.
-(:wat::core::defsurface :wat-tests::Deadline :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat-tests::Deadline :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::Deadline::WaitTickRequest  [])
    (:wat::core::defenum :wat-tests::Deadline::WaitTickResponse :wat::enum::Pure
@@ -36,8 +36,8 @@
   [(wait-tick [s req]
      (:wat::core::let
        [m (:wat::core::match
-            (:wat::kernel::select'
-              (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword>
+            (:wat::kernel::select
+              (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,wat::core::keyword>
                 (:wat::kernel::after
                   (:wat::program::Env/wat.peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
                   (:wat::time::Millisecond 50)
@@ -53,7 +53,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::deadline::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Deadline::WaitTickResponse::Ok fired) fired)
@@ -71,7 +71,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::deadline::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Deadline::WaitTickResponse::Ok fired) fired)

@@ -19,7 +19,7 @@
 //! ## Peer-as-Value representation
 //!
 //! Both peer types are stored as `Value::RustOpaque` with distinct
-//! `type_path` sentinels (`":wat::kernel::Thread'"` / `":wat::kernel::
+//! `type_path` sentinels (`":wat::kernel::Thread"` / `":wat::kernel::
 //! Process'"`). The inner payload is wrapped in `Arc<ThreadOwnedCell<...>>`:
 //!
 //! - `ThreadOwnedCell<T>` makes any `T: Send` also `Sync` via the
@@ -119,11 +119,11 @@ pub type ProcessPeerCell = Arc<ThreadOwnedCell<Option<ProcessSelectable>>>;
 
 /// `RustOpaque.type_path` for thread-tier peers. Primed name distinguishes
 /// from the legacy `:wat::kernel::Thread` struct (Stone 4.6 polymorphic verbs).
-pub const THREAD_PEER_TYPE_PATH: &str = ":wat::kernel::Thread'";
+pub const THREAD_PEER_TYPE_PATH: &str = ":wat::kernel::Thread";
 
 /// `RustOpaque.type_path` for process-tier peers. Primed name distinguishes
 /// from the legacy `:wat::kernel::Process` struct (Stone 4.6 polymorphic verbs).
-pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
+pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process";
 
 /// `RustOpaque.type_path` for the unified connection/self peer (arc 209 C0b.2e-i-b).
 ///
@@ -132,7 +132,7 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 /// `peer-pair'`, `connect'`, `accept'`).  Thread-tier peers
 /// carry a crossbeam channel pair boxed as `Box<dyn CommSender/Receiver<Value>>`;
 /// socket-tier peers carry a `comms::process` io_uring pair through the same box.
-pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer'";
+pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer";
 
 /// The unified peer cell type — `Arc<ThreadOwnedCell<Option<Peer>>>`.
 ///
@@ -144,12 +144,12 @@ pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer>>>;
 /// `RustOpaque.type_path` for the unified transport-blind `Listener'` entity
 /// (arc 209 C0b.2e-ii). Retires the former process-tier-only socket listener path
 /// — thread and process tiers now share one `Listener` entity.
-pub const LISTENER_TYPE_PATH: &str = ":wat::kernel::Listener'";
+pub const LISTENER_TYPE_PATH: &str = ":wat::kernel::Listener";
 
 /// `RustOpaque.type_path` for the unified transport-blind `Address'` entity
 /// (arc 209 C0b.2e-iii). Replaces the former `SOCKET_ADDRESS_TYPE_PATH` —
 /// both thread and process tiers now produce the same `Address` entity.
-pub const ADDRESS_TYPE_PATH: &str = ":wat::kernel::Address'";
+pub const ADDRESS_TYPE_PATH: &str = ":wat::kernel::Address";
 
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
@@ -363,7 +363,7 @@ pub enum ProcessSelectable {
 // on the host type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process'). The
 // per-tier primitives below remain as the defclause's implementation targets.
 
-/// `(:wat::kernel::spawn-thread' prog init-fn post-spawn-fn)` — arc 259 Stone S2c-i.
+/// `(:wat::kernel::spawn-thread prog init-fn post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
 /// Three positional args:
 /// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model,
@@ -377,14 +377,14 @@ pub enum ProcessSelectable {
 /// branch — no duplication.
 // Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program' defclause
 // in wat/spawn.wat). A :user:: caller is a check error; enforce at check, not runtime.
-#[restricted_to(":wat::kernel::spawn-thread'", ":wat::kernel::")]
+#[restricted_to(":wat::kernel::spawn-thread", ":wat::kernel::")]
 pub fn eval_kernel_spawn_thread_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::spawn-thread'";
+    const OP: &str = ":wat::kernel::spawn-thread";
     if args.len() != 3 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -449,7 +449,7 @@ pub fn eval_kernel_spawn_thread_prime(
     spawn_thread_peer(program_fn, init_fn, post_spawn_fn, sym, list_span).map_err(Into::into)
 }
 
-/// `(:wat::kernel::spawn-process' forms post-spawn-fn)` — arc 259 Stone S2c-i.
+/// `(:wat::kernel::spawn-process forms post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
 /// Two positional args:
 /// - `args[0]` — program forms (a vec of WatAST): the forms-server program.
@@ -461,14 +461,14 @@ pub fn eval_kernel_spawn_thread_prime(
 /// branch — no duplication.
 // Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program' defclause
 // in wat/spawn.wat). A :user:: caller is a check error; enforce at check, not runtime.
-#[restricted_to(":wat::kernel::spawn-process'", ":wat::kernel::")]
+#[restricted_to(":wat::kernel::spawn-process", ":wat::kernel::")]
 pub fn eval_kernel_spawn_process_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::spawn-process'";
+    const OP: &str = ":wat::kernel::spawn-process";
     if args.len() != 4 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -565,7 +565,7 @@ pub fn spawn_thread_peer(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::spawn-thread'";
+    const OP: &str = ":wat::kernel::spawn-thread";
 
     // Two bounded channel pairs (comms::thread::pair, depth-1, cascade-aware).
     //   input:  parent→thread  (input_tx stays with parent; input_rx goes to thread)
@@ -775,7 +775,7 @@ pub fn spawn_process_peer(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::spawn-process'";
+    const OP: &str = ":wat::kernel::spawn-process";
 
     // ── Create comms::process channel pairs (String wire type) ────────────────
     // input:  parent → child  (input_tx stays; input_rx goes to child)
@@ -955,10 +955,10 @@ mod tests {
         // Build a self-peer echo fn: recv' the input, send' it back — identity.
         // Use startup_from_source to get a real Arc<Function>.
         let world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::echo [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-               (:wat::core::match (:wat::kernel::recv' self) \
+            "(:wat::core::defn :my::echo [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+               (:wat::core::match (:wat::kernel::recv self) \
                  ((:wat::kernel::RecvOutcome::Message m) \
-                   (:wat::core::match (:wat::kernel::send' self m) \
+                   (:wat::core::match (:wat::kernel::send self m) \
                      (:wat::kernel::SendOutcome::Sent nil) \
                      (:wat::kernel::SendOutcome::Closed nil) \
                      ((:wat::kernel::SendOutcome::Lost _c) nil))) \
@@ -1077,9 +1077,9 @@ mod tests {
             // disconnects → recv' returns → the do falls through to nil → the worker exits, then join).
             // So EVERY recv' outcome means "reap me, exit cleanly" → all arms nil (NOT the client-call
             // surface-on-failure facing — an assertion-failed! here would crash the worker the test joins).
-            "(:wat::core::defn :my::blocker [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+            "(:wat::core::defn :my::blocker [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
                (:wat::core::do \
-                 (:wat::core::match (:wat::kernel::recv' self) \
+                 (:wat::core::match (:wat::kernel::recv self) \
                    ((:wat::kernel::RecvOutcome::Message _m) nil) \
                    (:wat::kernel::RecvOutcome::Closed nil) \
                    ((:wat::kernel::RecvOutcome::Lost _c) nil)) \

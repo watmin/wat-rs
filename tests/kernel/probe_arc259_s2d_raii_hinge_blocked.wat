@@ -4,11 +4,11 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::do
     (:wat::core::let
-      [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
-              (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-                (:wat::core::match (:wat::kernel::recv' self)
+      [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+              (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+                (:wat::core::match (:wat::kernel::recv self)
                   ((:wat::kernel::RecvOutcome::Message m)
-                    (:wat::core::match (:wat::kernel::send' self m)
+                    (:wat::core::match (:wat::kernel::send self m)
                       (:wat::kernel::SendOutcome::Sent nil)
                       (:wat::kernel::SendOutcome::Closed nil)
                       ((:wat::kernel::SendOutcome::Lost _c) nil)))

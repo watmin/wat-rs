@@ -194,9 +194,9 @@ fn t11_legacy_main_signature_fires_walker_diagnostic() {
 // the value arrives as a `RecvOutcome::Message`.
 //
 // Surface form exercised (fixture t17_run_hermetic.wat):
-//   (:wat::kernel::spawn-program' (:wat::spawn::process)
+//   (:wat::kernel::spawn-program (:wat::spawn::process)
 //     (:wat::core::forms (:user::main ... (:wat::kernel::println (:wat::core::i64::+ 2 2)))))
-//   → (:wat::kernel::recv' p) → RecvOutcome::Message m → m
+//   → (:wat::kernel::recv p) → RecvOutcome::Message m → m
 //
 // The function is defined at :my::test::two-plus-two; invoked with
 // apply_function (zero args); the recv'd value must be i64 4.
@@ -323,7 +323,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
 // stdout-scraped).
 //
 // Fixture: t18_echo_doubled.wat (drain is the shared primed helper
-// `:wat::kernel::recv-all'`, whose canonical call site this is).
+// `:wat::kernel::recv-all`, whose canonical call site this is).
 
 #[test]
 fn t18_run_hermetic_with_io_layer2_echo_doubled() {
@@ -364,7 +364,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
 
 // ─── T18c. recv-all' HELPER GATE — drains ALL outputs, not just one
 //
-// Arc 278 IPC de-prime. t18 exercises `:wat::kernel::recv-all'` on a single-output
+// Arc 278 IPC de-prime. t18 exercises `:wat::kernel::recv-all` on a single-output
 // peer; this is the helper's own gate on the "ALL": a peer that emits THREE `println`
 // values must be drained into the full collected Vector, in order, before the clean
 // EOF (`RecvOutcome::Closed`) turns into `(Ok outputs)`. The child readln's 7 and
@@ -410,7 +410,7 @@ fn t18c_recv_all_drains_all_outputs() {
 fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     // Complementary to T18 — the FAILURE path of the SAME primed bidirectional wire.
     // Arc 278 IPC de-prime: this consumer retired off `run-hermetic-with-io` onto the
-    // composed primes (`spawn-program' (process)` + `send'` + `:wat::kernel::recv-all'`).
+    // composed primes (`spawn-program' (process)` + `send'` + `:wat::kernel::recv-all`).
     // The child recvs 2 (fed by `send' p 2`), then `assert-eq n 3` fails (2 != 3), so the
     // child PANICS before its `println` — the peer DIES mid-exchange.
     //

@@ -9,7 +9,7 @@
 ;; No hand-written `defsurface Dialable`/`extend-type` — the surface is baked (wat/capability.wat)
 ;; and auto-emitted per service (wat/service.wat).
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
@@ -27,13 +27,13 @@
 ;; abstract parametric-surface param + coord on it (Gap 2 return + Gap 1 accepting the handle)
 (:wat::core::defn :probe::takes-dialable
   [d <- :wat::capability::Dialable<probe::Echo::Op,probe::Echo::Reply>]
-  -> :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>
+  -> :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>
   (:wat::capability::Dialable/coord d))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`, per the arc-170 `[] -> :nil` / UselessMain
 ;; wall) dials nothing; it exists so the checker sees a raw `echo'::Handle` flow into the
 ;; `Dialable<…>` param (Gap 1). Returns the coord'd Address'.
-(:wat::core::defn :probe::run [] -> :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>
+(:wat::core::defn :probe::run [] -> :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>
   (:wat::core::let
     [eh (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))]
     (:probe::takes-dialable eh)))

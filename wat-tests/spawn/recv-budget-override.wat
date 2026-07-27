@@ -26,7 +26,7 @@
 (:wat::test::deftest :wat-tests::recv-budget::tiny-budget-rejects-oversized-message
   
   (:wat::core::let
-    [child (:wat::kernel::spawn-program' (:wat::spawn::process/max-message-bytes 64)
+    [child (:wat::kernel::spawn-program (:wat::spawn::process/max-message-bytes 64)
              (:wat::core::forms
                ;; double "x" 8× → 2^8 = 256-char String; println'd it is a
                ;; COMPLETE ('\n'-terminated) frame of ~258 bytes on the wire.
@@ -40,7 +40,7 @@
     ;; the frame-cap reason. ::Message = the budget was ignored (delivered); ::Closed
     ;; = a bare EOF with no reason — both are the failure. The global per-test
     ;; time-limit catches any deadlock regression.
-    (:wat::core::match (:wat::kernel::recv' child)
+    (:wat::core::match (:wat::kernel::recv child)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "tiny budget ignored: the oversized frame was DELIVERED, not rejected"

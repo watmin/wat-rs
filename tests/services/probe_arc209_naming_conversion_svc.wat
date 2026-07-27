@@ -7,7 +7,7 @@
 ;; "get-object" -> "Getobject"), the generated req-ty `:my::Svc::GetObjectRequest` would not
 ;; resolve to the user-declared record and startup would fail. Running the service end-to-end
 ;; therefore proves the kebab<->pascal derivation handles the multi-word op.
-(:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Svc::GetObjectRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :my::Svc::GetObjectResponse :wat::enum::Pure
@@ -30,7 +30,7 @@
 (:wat::core::defn :user::req-id [] -> :wat::core::i64
   (:wat::core::let
     [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect' (:my::svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r (:my::svc/get-object c (:my::Svc::GetObjectRequest :n 42))
      _ (:my::svc/stop h)]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

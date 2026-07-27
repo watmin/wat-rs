@@ -3,7 +3,7 @@
 ;; per-op Request/Response are user-declared records named `<Surface>::<Op>Request/Response`.
 ;; This probe still validates the GENERATED op enum (wrapped-record shape): the CAPITALIZED
 ;; variant `:my::Counter::Op::Increment` wraps the user-declared `:my::Counter::IncrementRequest`.
-(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest       [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure

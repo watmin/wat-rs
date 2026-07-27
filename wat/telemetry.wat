@@ -112,7 +112,7 @@
 ;; The minimal-CloudWatch contract: write + query, for metrics + logs. `write-*` persist a batch;
 ;; `query-*` read a namespace back over a time window (a filtered store scan, hydrating the rows to
 ;; Metric/Log — NO rete: rete is a CONSUMER that instruments itself and queries back, not the engine).
-(:wat::core::defsurface :wat::telemetry::Journal :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::telemetry::Journal :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::telemetry::Journal::WriteMetricsRequest
      [batch <- (:wat::core::Vector :wat::telemetry::Metric)])
@@ -232,7 +232,7 @@
 ;; stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a call-site `open` with the same
 ;; sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct from the `timed` call-site widget
 ;; macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
-(:wat::core::defsurface :wat::telemetry::Span :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::telemetry::Span :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::telemetry::Span::IncrRequest
      [name <- :wat::core::keyword])

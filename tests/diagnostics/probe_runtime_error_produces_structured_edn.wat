@@ -14,12 +14,12 @@
 ;; error text rides RuntimeError.message; we return it as a plain String for the driver.
 (:wat::core::defn :probe::runtime-err [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              ;; Division by zero → RuntimeError::DivisionByZero.
              (:wat::core::let [_ (:wat::core::i64::/ 1 0)] nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause

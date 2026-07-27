@@ -10,7 +10,7 @@
 ;; This test FORKS processes (the counter service + N pool workers) — run --test-threads=1:
 ;; cargo nextest run -p wat -E 'test(/probe_arc170_gapj_each_kwargs/)' --test-threads=1
 
-(:wat::core::defsurface :probe::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Counter::GetRequest       [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
@@ -47,7 +47,7 @@
 ;; own tail). The side effect is the increment; the return value is discarded by `each`.
 (:wat::core::defn :probe::record-hit
   [item <- :wat::core::String
-   & [counter <- :wat::kernel::Peer'<probe::Counter::Op,probe::Counter::Reply>]]
+   & [counter <- :wat::kernel::Peer<probe::Counter::Op,probe::Counter::Reply>]]
   -> :wat::core::i64
   (:wat::core::match
     (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
@@ -66,7 +66,7 @@
   (:wat::core::let
     [h        (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      each-out (:wat::bracket::each (:wat::spawn::process) ["a" "b" "c" "d" "e"] :probe::record-hit :counter h)
-     c        (:wat::core::match (:wat::kernel::connect' (:probe::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c        (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r        (:probe::Counter/get c (:probe::Counter::GetRequest))]
     (:wat::core::Tuple each-out
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

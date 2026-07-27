@@ -5,7 +5,7 @@
 ;; service in wat/service.wat) must catch this at check time as a located TypeMismatch
 ;; — never a runtime "peer closed".
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -18,7 +18,7 @@
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -36,5 +36,5 @@
     [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      kvh (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
      bad (:wat::core::ann-form (:wat::capability::Dialable/coord kvh)
-           :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)]
+           :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)]
     (:wat::kernel::println "measured")))

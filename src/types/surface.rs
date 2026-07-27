@@ -512,7 +512,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     //   (:wat::core::defsurface :Name :nature :<nature-root> [:messages [msgs]] :features [members])
     // :nature is MANDATORY and MUST precede :messages/:features.
     // :messages is OPTIONAL and, when present, MUST precede :features. It is FORBIDDEN unless the
-    //   surface's nature is `:wat::kernel::Peer'` — a peer surface OWNS its protocol
+    //   surface's nature is `:wat::kernel::Peer` — a peer surface OWNS its protocol
     //   `defrecord`/`defenum` forms so a `:satisfies` service can ship them across a process fork
     //   (arc 278 S4c). The forms are registered (as external defrecords are) by `register_types`;
     //   here we only parse the clause, validate it, and validate feature/message completeness.
@@ -578,7 +578,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
-                        ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer'); got {}",
+                        ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer); got {}",
                         v
                     ),
                 },
@@ -589,7 +589,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 span: other.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
-                    reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer')".into(),
+                    reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer)".into(),
                 },
             });
         }
@@ -611,7 +611,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
-                        ":messages is permitted ONLY on a :nature :wat::kernel::Peer' surface \
+                        ":messages is permitted ONLY on a :nature :wat::kernel::Peer surface \
                          (it holds the peer's own protocol records/enums so a :satisfies service \
                          ships them across a process fork); surface {} has :nature {} — remove :messages",
                         name,
@@ -690,7 +690,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     }
 
     // Arc 278 S4c WALL 1 — `:messages` is MANDATORY on a peer surface (peer ⇔ has :messages).
-    // A `:nature :wat::kernel::Peer'` surface OWNS its request/response protocol; a `:satisfies`
+    // A `:nature :wat::kernel::Peer` surface OWNS its request/response protocol; a `:satisfies`
     // service ships those `:messages` records/enums across a process fork so the forked child can
     // resolve them at its fresh startup. A peer surface with NO `:messages` clause has no protocol
     // to ship → the fork cannot carry a wire vocabulary → located compile error. (Non-peer natures
@@ -1112,7 +1112,7 @@ mod tests {
         //   surface's :messages …
         // — note the REPORTED name carries no `<K>` while `:messages` declares `GetRequest<K>`.
         let surf = parse_surface(
-            "(:wat::core::defsurface :t::Cache<K,V> :nature :wat::kernel::Peer' \
+            "(:wat::core::defsurface :t::Cache<K,V> :nature :wat::kernel::Peer \
                :messages \
                [(:wat::core::recordtype :t::Cache::GetRequest<K> [probes <- :wat::core::Vector<K>]) \
                 (:wat::core::defenum :t::Cache::GetResponse<V> :wat::enum::Pure \
@@ -1136,7 +1136,7 @@ mod tests {
         // turn the wall into a rubber stamp. A genuinely undeclared message — differing from a
         // declared one in its BASE, not merely its params — is still a located error.
         let err = parse_surface(
-            "(:wat::core::defsurface :t::Cache2<K> :nature :wat::kernel::Peer' \
+            "(:wat::core::defsurface :t::Cache2<K> :nature :wat::kernel::Peer \
                :messages \
                [(:wat::core::recordtype :t::Cache2::GetRequest<K> [probes <- :wat::core::Vector<K>])] \
                :features \

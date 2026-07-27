@@ -5,7 +5,7 @@
 ;; surface-forms carrier → the child resolves ::Op/::Reply + the message records at its fresh
 ;; startup. Round-trip: start (process) 0 → connect → increment 5 → get → prints 5.
 
-(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure :Ok       [value <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -34,7 +34,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [h  (:my::counter/start :locus (:wat::spawn::process) :record (:my::counter::Record :count 0))
-     c  (:wat::core::match (:wat::kernel::connect' (:my::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c  (:wat::core::match (:wat::kernel::connect (:my::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _  (:wat::core::match (:my::Counter/increment c (:my::Counter::IncrementRequest :n 5))
           ((:wat::kernel::RecvOutcome::Message _resp) nil)
           ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message _c) :wat::core::None :wat::core::None))

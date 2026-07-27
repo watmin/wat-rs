@@ -25,7 +25,7 @@
 ;;
 ;; A bad caller, malicious or dumb, cannot crash anything. (Landed as a regression-proof
 ;; deftest in wat-tests/service-request-malformed.wat, both tiers.)
-(:wat::core::defsurface :dos::Bag :nature :wat::kernel::Peer'
+(:wat::core::defsurface :dos::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :dos::Bag::PutRequest [items <- :wat::core::Vector<wat::core::String>])
    (:wat::core::defenum :dos::Bag::PutResponse :wat::enum::Pure
@@ -49,7 +49,7 @@
            (:wat::core::nth (:dos::Bag::PutRequest/items req) 0)))))])
 
 (:wat::core::defn :dos/try
-  [c <- :wat::kernel::Peer'<dos::Bag::Op,dos::Bag::Reply>  label <- :wat::core::String
+  [c <- :wat::kernel::Peer<dos::Bag::Op,dos::Bag::Reply>  label <- :wat::core::String
    req <- :dos::Bag::PutRequest] -> :wat::core::nil
   (:wat::core::match (:dos::Bag/put c req)
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -81,7 +81,7 @@
      good (:dos::Bag::PutRequest :items (:wat::core::Vector :wat::core::String "abcd"))
      bad  (:wat::edn::read "#dos.Bag/PutRequest {:items [1 2 3]}")
      ;; ATTACKER connection
-     a (:wat::core::match (:wat::kernel::connect' (:dos::bag-svc::Handle/addr h))
+     a (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
@@ -89,7 +89,7 @@
      _ (:dos/try a "attacker good " good)
      _ (:dos/try a "attacker BAD  " bad)
      ;; a SECOND, INNOCENT client connects AFTER the bad frame
-     b (:wat::core::match (:wat::kernel::connect' (:dos::bag-svc::Handle/addr h))
+     b (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "victim: connect REFUSED — service is GONE" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "victim: connect REJECTED — service is GONE" :wat::core::None :wat::core::None))

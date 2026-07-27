@@ -1,6 +1,6 @@
 ;; peer-pid-accessor-naming.wat — the naming target for the pid accessor (arc 170 capability circuit, stone 2).
 ;;
-;; THE THING BEING NAMED: a :wat::kernel:: accessor that, given a Peer' value, lifts the OS pid of the
+;; THE THING BEING NAMED: a :wat::kernel:: accessor that, given a Peer value, lifts the OS pid of the
 ;; process on the FAR END of that peer — or None when the far end is not a separate process.
 ;;
 ;;   process peer (the far end is a forked child process)  -> (Some child-pid)   ; the kernel-vouched pid
@@ -18,21 +18,21 @@
 ;;   - the SAME kernel handle the reap uses (PID-reuse-safe) — the pinned identity of that child.
 ;;
 ;; SIBLING VERBS it sits beside (the :wat::kernel:: peer surface — anchors for register/tone):
-;;   (:wat::kernel::send'    peer msg)      ; -> nil
-;;   (:wat::kernel::recv'    peer)          ; -> msg
-;;   (:wat::kernel::connect' addr)          ; -> Peer'
-;;   (:wat::kernel::self-peer out in)       ; -> ThreadSelfPeer'
-;;   (:wat::kernel::allow'   listener pid)  ; the process-tier accept-gate mutation
-;;   (:wat::kernel::deny'    listener pid)
+;;   (:wat::kernel::send    peer msg)      ; -> nil
+;;   (:wat::kernel::recv    peer)          ; -> msg
+;;   (:wat::kernel::connect addr)          ; -> Peer
+;;   (:wat::kernel::self-peer out in)       ; -> ThreadSelfPeer
+;;   (:wat::kernel::allow   listener pid)  ; the process-tier accept-gate mutation
+;;   (:wat::kernel::deny    listener pid)
 ;;
 ;; NB the existing record already spells the pid of a freshly-forked child, owner-side:
 ;;   (:wat::core::defrecord :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])   ; field named `pid`
 
 ;; ── CANDIDATE NAMES (which one KEEPS ITS PROMISE — says what it is, at the use site?) ──────────
 ;;
-;; The use site reads: (:wat::kernel::<name> p)  where p is a Peer'<S,R>, yielding (Option i64).
+;; The use site reads: (:wat::kernel::<name> p)  where p is a Peer<S,R>, yielding (Option i64).
 ;;
-;;   pid          — bare. Beside send'/recv' it reads as "the pid of this peer" — but WHOSE pid?
+;;   pid          — bare. Beside send/recv it reads as "the pid of this peer" — but WHOSE pid?
 ;;                  (the far-end process's, not mine). Does the bare word carry "far end + Option"?
 ;;   peer-pid     — "the peer's pid". Names the subject (the peer) but is the pid the PEER's or the
 ;;                  peer's FAR END's? A peer is a channel; the pid is the process it talks to.
@@ -43,11 +43,11 @@
 ;;                  precise to the security model, but is "answerer" obvious to a first reader?
 ;;   far-pid      — terse "far end pid"; obvious? or too cute?
 ;;
-;; (Prime `'` convention: the peer verbs carry a trailing `'` — send'/recv'/connect'. Should the
+;; (Prime `'` convention: the peer verbs carry a trailing `'` — send/recv/connect. Should the
 ;;  accessor? It reads, not sends/rendezvous — weigh whether the `'` belongs.)
 
 (:wat::core::defn :naming::PROBE
-  [p <- :wat::kernel::Peer'<:wat::core::i64,:wat::core::i64>]
+  [p <- :wat::kernel::Peer<:wat::core::i64,:wat::core::i64>]
   -> (:wat::core::Option :wat::core::i64)
   ;; <name> goes here — pick the one whose promise holds at THIS use site:
   (:wat::kernel::PLACEHOLDER-NAME p))

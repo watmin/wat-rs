@@ -45,15 +45,15 @@
   ;; LociDiedError/to-failure rebuilds the Option<Failure> the old RunResult/failure gave,
   ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-eq 42 43)
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
-     fail (:wat::core::match (:wat::kernel::recv' p)
+     fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
@@ -80,15 +80,15 @@
   ;; LociDiedError/to-failure rebuilds the Option<Failure> (preserving actual/expected),
   ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-contains "hello" "xyz")
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
-     fail (:wat::core::match (:wat::kernel::recv' p)
+     fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
@@ -131,17 +131,17 @@
   ;; LociDiedError/to-failure rebuilds the Option<Failure> (preserving the rendered
   ;; explanation in `actual`), so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-coincident
                (:wat::holon::to-holon "alice")
                (:wat::holon::to-holon "charlie"))
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
-     fail (:wat::core::match (:wat::kernel::recv' p)
+     fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
@@ -175,20 +175,20 @@
   ;; scraped EDN stdout line ("\"alpha\""); the old assert-stdout-is over captured lines
   ;; becomes assert-eq over the two received Messages. The trailing () returns nil → Closed.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
                (:wat::kernel::println "alpha")
                (:wat::kernel::println "beta")
                ()))))
-     m1 (:wat::core::match (:wat::kernel::recv' p)
+     m1 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before first line" :wat::core::None :wat::core::None)))
-     m2 (:wat::core::match (:wat::kernel::recv' p)
+     m2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -228,11 +228,11 @@
   ;; message carries the emitted value's EDN. assert-stderr-matches (a regex OR-fold over
   ;; captured lines) becomes a single regex match against that one crossed line.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::eprintln "error: code 42"))))
-     msg (:wat::core::match (:wat::kernel::recv' p)
+     msg (:wat::core::match (:wat::kernel::recv p)
            ((:wat::kernel::RecvOutcome::Message _m)
              (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Message" :wat::core::None :wat::core::None))
            ((:wat::kernel::RecvOutcome::Lost cause)
@@ -280,11 +280,11 @@
   ;; DECODED (native String "from-string"), so the old assert-stdout-is over a captured
   ;; EDN line becomes assert-eq over the received Message.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "from-string"))))
-     msg (:wat::core::match (:wat::kernel::recv' p)
+     msg (:wat::core::match (:wat::kernel::recv p)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -305,11 +305,11 @@
   ;; DECODED (native String "from-ast"), so the old assert-stdout-is over a captured EDN
   ;; line becomes assert-eq over the received Message.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "from-ast"))))
-     msg (:wat::core::match (:wat::kernel::recv' p)
+     msg (:wat::core::match (:wat::kernel::recv p)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

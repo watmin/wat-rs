@@ -180,7 +180,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // register_runtime_defs.
     let stdlib_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
     // (a) Pre-register defclause stubs into sym.functions so the checker
-    //     sees them as callable names (e.g. :wat::kernel::spawn-program').
+    //     sees them as callable names (e.g. :wat::kernel::spawn-program).
     for form in &stdlib_residue {
         preregister_stdlib_defclause_stub(form, &mut symbols);
     }

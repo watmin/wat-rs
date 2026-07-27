@@ -4,29 +4,29 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [pair  (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair  (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l     (:wat::spawn::Bound/listener pair)
      addr  (:wat::spawn::Bound/address pair)
-     svc   (:wat::kernel::spawn-program' (:wat::spawn::thread)
-              (:wat::core::fn [_admin <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+     svc   (:wat::kernel::spawn-program (:wat::spawn::thread)
+              (:wat::core::fn [_admin <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                 (:wat::core::let
-                  [conn (:wat::core::match (:wat::kernel::accept' l)
+                  [conn (:wat::core::match (:wat::kernel::accept l)
                           ((:wat::kernel::AcceptOutcome::Accepted p) p)
                           (:wat::kernel::AcceptOutcome::Closed
                             (:wat::kernel::assertion-failed! "accept': listener closed before a client connected" :wat::core::None :wat::core::None))
                           ((:wat::kernel::AcceptOutcome::Failed cause)
                             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
-                   n    (:wat::core::match (:wat::kernel::recv' conn)
+                   n    (:wat::core::match (:wat::kernel::recv conn)
                           ((:wat::kernel::RecvOutcome::Message m) m)
                           ((:wat::kernel::RecvOutcome::Lost cause)
                             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                           (:wat::kernel::RecvOutcome::Closed
                             (:wat::kernel::assertion-failed! "recv': conn closed unexpectedly" :wat::core::None :wat::core::None)))
-                   _    (:wat::core::match (:wat::kernel::send' conn (:wat::core::* n 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                   _    (:wat::core::match (:wat::kernel::send conn (:wat::core::* n 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                   nil)))
-     conn  (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _     (:wat::core::match (:wat::kernel::send' conn 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     reply (:wat::core::match (:wat::kernel::recv' conn)
+     conn  (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     _     (:wat::core::match (:wat::kernel::send conn 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     reply (:wat::core::match (:wat::kernel::recv conn)
              ((:wat::kernel::RecvOutcome::Message m) m)
              ((:wat::kernel::RecvOutcome::Lost cause)
                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

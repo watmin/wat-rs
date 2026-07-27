@@ -13,7 +13,7 @@
 ;; kebab->pascal. GREEN when the stone lands (the count reaches `target`, poll still replies).
 
 ;; ── the WIRE surface — the ONLY client-callable ops (poll; start = kick the first tick) ───────────
-(:wat::core::defsurface :probe::Ticker :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Ticker :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Ticker::StartRequest [])
    (:wat::core::defenum :probe::Ticker::StartResponse :wat::enum::Pure
@@ -65,8 +65,8 @@
 ;; ── nap — mora-honest wait (select' on a one-shot after; the driver runs on a thread) ─────────────
 (:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
-    (:wat::kernel::select'
-      (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword>
+    (:wat::kernel::select
+      (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,wat::core::keyword>
         (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
     
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)
@@ -82,7 +82,7 @@
 ;; elapsed time; polls DURING ticking (exercising "the reactor serves between ticks"), bounded by
 ;; a generous `attempts` failsafe with a small non-correctness-bearing `nap 5` backoff between polls.
 (:wat::core::defn :probe::poll-until
-  [c <- :wat::kernel::Peer'<probe::Ticker::Op,probe::Ticker::Reply>  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
+  [c <- :wat::kernel::Peer<probe::Ticker::Op,probe::Ticker::Reply>  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::i64::<= attempts 0)
     -2                                              ;; bound exhausted without reaching target
     (:wat::core::match (:probe::Ticker/poll c (:probe::Ticker::PollRequest))
@@ -105,7 +105,7 @@
 (:wat::core::defn :probe::drive-ticker
   [h <- :probe::ticker'::Handle] -> :wat::core::i64
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect' (:probe::ticker'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+    [c  (:wat::core::match (:wat::kernel::connect (:probe::ticker'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))]
     (:wat::core::match _s
       ((:wat::kernel::RecvOutcome::Message __start)

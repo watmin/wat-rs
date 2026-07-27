@@ -27,7 +27,7 @@ use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
 
-/// Build `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms <forms>...))`
+/// Build `(:wat::kernel::spawn-program (:wat::spawn::process) (:wat::core::forms <forms>...))`
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     let child_forms =
         wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
@@ -37,7 +37,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::spawn-program'".into(), wat::rust_caller_span!()),
+            WatAST::Keyword(":wat::kernel::spawn-program".into(), wat::rust_caller_span!()),
             WatAST::List(
                 vec![WatAST::Keyword(":wat::spawn::process".into(), wat::rust_caller_span!())],
                 wat::rust_caller_span!(),
@@ -74,12 +74,12 @@ fn select_prime_yields_lost_when_process_child_crashes() {
         .bind("child", wat::rust_caller_span!(), child.into())
         .build();
 
-    // Eval: (select' (Vector :wat::kernel::Process'<wat::core::nil,wat::core::nil> child))
+    // Eval: (select' (Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))
     //
     // Note: we use a plain vector literal [child] via embedded wat.
     let select_call = wat::parse_one!(
         r#"
-        (:wat::kernel::select' (:wat::core::Vector :wat::kernel::Process'<wat::core::nil,wat::core::nil> child))
+        (:wat::kernel::select (:wat::core::Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))
         "#
     )
     .expect("parse select' call");

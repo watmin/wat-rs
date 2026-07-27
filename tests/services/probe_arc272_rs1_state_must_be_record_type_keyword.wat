@@ -2,7 +2,7 @@
 ;; NEGATIVE (subject preserved): a bare type keyword in :durable is UNEXPRESSIBLE — :durable
 ;; takes a field vector. Everything else here is a VALID :satisfies service, so the sole
 ;; defect (and the sole reason for rejection) is the bare `:durable :wat::core::i64`.
-(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest  [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure

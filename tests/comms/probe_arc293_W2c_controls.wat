@@ -18,11 +18,11 @@
 ;; its Peer' self-handle. The gate must not fire — Thread' is in-locus.
 (:wat::core::defn :w2c_ctrl::probe-send-struct-thread [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
+    [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
               (:wat::core::match
-                (:wat::kernel::send' self
-                  (:wat::core::match (:wat::kernel::recv' self)
+                (:wat::kernel::send self
+                  (:wat::core::match (:wat::kernel::recv self)
                     ((:wat::kernel::RecvOutcome::Message m) m)
                     ((:wat::kernel::RecvOutcome::Lost cause)
                       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -31,11 +31,11 @@
                 (:wat::kernel::SendOutcome::Sent nil)
                 (:wat::kernel::SendOutcome::Closed nil)
                 ((:wat::kernel::SendOutcome::Lost _c) nil))))
-     _   (:wat::core::match (:wat::kernel::send' peer (:w2c_ctrl::S :val 99))
+     _   (:wat::core::match (:wat::kernel::send peer (:w2c_ctrl::S :val 99))
            (:wat::kernel::SendOutcome::Sent nil)
            (:wat::kernel::SendOutcome::Closed nil)
            ((:wat::kernel::SendOutcome::Lost _c) nil))
-     got (:wat::core::match (:wat::kernel::recv' peer)
+     got (:wat::core::match (:wat::kernel::recv peer)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -47,11 +47,11 @@
 ;; Records are wire-serializable; the gate must not fire.
 (:wat::core::defn :w2c_ctrl::probe-send-record-to-process [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
-    (:wat::core::match (:wat::kernel::send' p (:w2c_ctrl::R :val 42))
+    (:wat::core::match (:wat::kernel::send p (:w2c_ctrl::R :val 42))
       (:wat::kernel::SendOutcome::Sent nil)
       (:wat::kernel::SendOutcome::Closed nil)
       ((:wat::kernel::SendOutcome::Lost _c) nil))))

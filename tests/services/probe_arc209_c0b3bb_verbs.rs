@@ -1,7 +1,7 @@
 //! Arc 209 C0b.3b-b — the provisioning verbs: `allow'` / `deny'` (the owner mutates the
 //! service's allow-set beyond the birth-seeded self).
 //!
-//! `(:wat::kernel::allow' listener pid) -> :wat::core::nil` inserts `pid`; `deny'` removes it.
+//! `(:wat::kernel::allow listener pid) -> :wat::core::nil` inserts `pid`; `deny'` removes it.
 //! Both are PROCESS-TIER ONLY: a thread/crossbeam listener has no allow-set (the handle IS the
 //! grant), so `allow'`/`deny'` on one is a clean error ("process-tier service gate").
 //!
@@ -52,7 +52,7 @@ fn thread_listener_allow_errors_with_tier_message() {
         Err(msg) => {
             assert_eq!(
                 msg,
-                "RuntimeError { span: Span { file: \"tests/services/probe_arc209_c0b3bb_verbs_thread.wat\", line: 6, col: 33, end_line: 6, end_col: 34 }, kind: MalformedForm { head: \":wat::kernel::allow'\", reason: \"allow' is a process-tier service gate; a thread listener's handle IS the grant\" } }",
+                "RuntimeError { span: Span { file: \"tests/services/probe_arc209_c0b3bb_verbs_thread.wat\", line: 6, col: 33, end_line: 6, end_col: 34 }, kind: MalformedForm { head: \":wat::kernel::allow\", reason: \"allow' is a process-tier service gate; a thread listener's handle IS the grant\" } }",
                 "allow' on a thread listener must match process-tier rejection golden"
             );
         }

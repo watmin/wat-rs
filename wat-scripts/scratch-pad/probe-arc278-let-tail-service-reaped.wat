@@ -27,7 +27,7 @@
 ;; the end of the BINDING LIST rather than the end of the LET FORM — is NOT grounded;
 ;; do not inherit it as fact.
 
-(:wat::core::defsurface :tl::Bag :nature :wat::kernel::Peer'
+(:wat::core::defsurface :tl::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :tl::Bag::PutRequest [n <- :wat::core::i64])
    (:wat::core::defenum :tl::Bag::PutResponse :wat::enum::Pure
@@ -44,7 +44,7 @@
   :impls
   [(put [s req] (:wat::service::Outcome::Reply s (:tl::Bag::PutResponse::Ok 1)))])
 
-(:wat::core::defn :tl/try [c <- :wat::kernel::Peer'<tl::Bag::Op,tl::Bag::Reply>
+(:wat::core::defn :tl/try [c <- :wat::kernel::Peer<tl::Bag::Op,tl::Bag::Reply>
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -57,7 +57,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect' (:tl::bag-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:tl::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))

@@ -30,16 +30,16 @@
 (:wat::core::defenum :probe::Kv::Reply :wat::enum::Pure  :Put [resp <- :probe::Kv::PutResponse] :Get [resp <- :probe::Kv::GetResponse])
 
 ;; The UNIFORM wire types every satisfier shares (this is the ENTIRE reason a caller dials blind):
-;;   :wat::kernel::Address'<probe::Kv::Op, probe::Kv::Reply>   — the dial target (pure, EDN-crossable)
-;;   :wat::kernel::Peer'<probe::Kv::Op, probe::Kv::Reply>      — what connect' yields from that Address'
-;;   :wat::kernel::connect'                                    — the dial: Address' -> Peer'
+;;   :wat::kernel::Address<probe::Kv::Op, probe::Kv::Reply>   — the dial target (pure, EDN-crossable)
+;;   :wat::kernel::Peer<probe::Kv::Op, probe::Kv::Reply>      — what connect yields from that Address
+;;   :wat::kernel::connect                                    — the dial: Address -> Peer
 ;;   :wat::kernel::Locus                                       — the wire (thread/process/UDS/mTLS/L4), orthogonal
 
 ;; ════════════════════════════════════════════════════════════════════════════════════════
 ;; [TRANSITION — PURGED BY S4] — NOT candidates; the scaffolding being replaced
 ;; ════════════════════════════════════════════════════════════════════════════════════════
 ;; S2, to dodge the :probe::Kv/put dispatch-stub collision, emitted the RPC client fn under the
-;; concrete SERVICE namespace: :probe::kv-store'/put  [c <- Peer'<Kv::Op,Kv::Reply>  req <- ...].
+;; concrete SERVICE namespace: :probe::kv-store'/put  [c <- Peer<Kv::Op,Kv::Reply>  req <- ...].
 ;; That name (a) couples the caller to ONE backend (kv-store'), and (b) can't be named by a
 ;; :calls [:probe::Kv] consumer that is BLIND to which backend. It dies with the per-service ::Op.
 
@@ -47,23 +47,23 @@
 ;; THE SLOTS TO NAME (each name is a PROMISE — which candidate keeps it?)
 ;; ════════════════════════════════════════════════════════════════════════════════════════
 
-;; ── SLOT 1 — the PEER-AS-SATISFIER: the construct that makes a dialed Peer' BE a :probe::Kv,
+;; ── SLOT 1 — the PEER-AS-SATISFIER: the construct that makes a dialed Peer BE a :probe::Kv,
 ;;    so the SAME surface method dispatches whether the receiver is a local struct or a remote
 ;;    peer (R31's "the interface and the remote service become one act"). Two shapes:
 ;;
-;;    Shape 1a — NO WRAPPER: the dialed Peer'<Kv::Op,Kv::Reply> DIRECTLY satisfies :probe::Kv
+;;    Shape 1a — NO WRAPPER: the dialed Peer<Kv::Op,Kv::Reply> DIRECTLY satisfies :probe::Kv
 ;;               (the macro emits an `extend-type :probe::Kv` for the peer type; sending
 ;;               Kv::Op::Put / receiving Kv::Reply::Put IS the method body). Then there is no
-;;               new NAME at all — a Peer' of the right protocol is-a Kv. Fewest names, most honest?
+;;               new NAME at all — a Peer of the right protocol is-a Kv. Fewest names, most honest?
 ;;
 ;;    Shape 1b — A NAMED CLIENT TYPE that wraps the peer and satisfies the surface. If we need a
-;;               name, which promise does it keep? Candidates (a struct holding the Peer', that
+;;               name, which promise does it keep? Candidates (a struct holding the Peer, that
 ;;               extend-types :probe::Kv):
-(:wat::core::defstruct :probe::Kv::Client [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; "a Kv client"
-(:wat::core::defstruct :probe::Kv::Remote [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; "a remote Kv"
-(:wat::core::defstruct :probe::Kv::Proxy  [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; "a stand-in for a Kv"
-(:wat::core::defstruct :probe::Kv::Stub   [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; RPC-gen jargon (CORBA/gRPC)
-;;    QUESTION for intueri: does SLOT 1 want a name at all (1a — the Peer' is-a Kv, nothing new),
+(:wat::core::defstruct :probe::Kv::Client [peer <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>])  ;; "a Kv client"
+(:wat::core::defstruct :probe::Kv::Remote [peer <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>])  ;; "a remote Kv"
+(:wat::core::defstruct :probe::Kv::Proxy  [peer <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>])  ;; "a stand-in for a Kv"
+(:wat::core::defstruct :probe::Kv::Stub   [peer <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>])  ;; RPC-gen jargon (CORBA/gRPC)
+;;    QUESTION for intueri: does SLOT 1 want a name at all (1a — the Peer is-a Kv, nothing new),
 ;;    or does a named client type keep a promise the bare peer can't? If named, which of
 ;;    Client / Remote / Proxy / Stub says what it IS (and does not lie — e.g. Proxy/Stub carry
 ;;    OOP-RPC-codegen baggage; Remote asserts a locus when a "remote" may be same-process)?
@@ -80,14 +80,14 @@
 ;;    decomplection R31 promised)? Or does a caller deserve to SEE it may cross the wire?
 
 ;; ── SLOT 3 — the DIAL a :calls [:probe::Kv] consumer runs in :init to turn a given
-;;    Address'<Kv::Op,Kv::Reply> (a pure operating-input) INTO the Kv it then calls.
-;;    Today: (:wat::kernel::connect' addr) -> Peer'. If SLOT 1 = a named client type, the dial
+;;    Address<Kv::Op,Kv::Reply> (a pure operating-input) INTO the Kv it then calls.
+;;    Today: (:wat::kernel::connect addr) -> Peer. If SLOT 1 = a named client type, the dial
 ;;    must PRODUCE it. Candidates for the surface-level dial:
-;;      (:wat::kernel::connect' addr)              — the raw dial (yields Peer'; is-a Kv iff SLOT-1a)
+;;      (:wat::kernel::connect addr)              — the raw dial (yields Peer; is-a Kv iff SLOT-1a)
 ;;      (:probe::Kv/connect addr)                  — a surface-level dial that yields a Kv
 ;;      (:probe::Kv/dial addr)                     — "dial a Kv"
 ;;      (:probe::Kv/at addr)                       — "the Kv at this address"
-;;    QUESTION for intueri: does the consumer just use the ratified `connect'` (SLOT-1a: the Peer'
+;;    QUESTION for intueri: does the consumer just use the ratified `connect` (SLOT-1a: the Peer
 ;;    is already a Kv, no surface-specific dial needed), or is a surface-level dial name warranted
 ;;    (and if so, connect / dial / at — which says "produce the Kv I will call" without mumbling)?
 
@@ -106,6 +106,6 @@
 ;; ════════════════════════════════════════════════════════════════════════════════════════
 ;; What a GOOD verdict looks like: for each slot, the ONE name (or "no name — use the anchor")
 ;; that keeps its promise; the rejected candidates marked Level 1 (lies) / Level 2 (mumbles)
-;; with why; harmonized with the ratified anchors (Op/Reply/Address'/Peer'/connect'/:satisfies/
+;; with why; harmonized with the ratified anchors (Op/Reply/Address/Peer/connect/:satisfies/
 ;; :impls/:calls) and the endpoint doctrine (nobody names a concrete service; the RPC-vs-local
 ;; distinction is decomplected away unless a caller genuinely deserves to see the wire).

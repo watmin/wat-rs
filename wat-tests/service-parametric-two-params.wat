@@ -33,7 +33,7 @@
 ;; depth-aware type-arg split, with K and V load-bearing in the STATE.
 
 ;; ── the surface: TWO type params, messages bare ─────────────────────────────────────────────
-(:wat::core::defsurface :wat-tests::Pair<K,V> :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat-tests::Pair<K,V> :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::Pair::PutRequest [item <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::Pair::PutResponse :wat::enum::Pure
@@ -86,7 +86,7 @@
            :record (:wat-tests::pair-svc::Record
                      :k (:wat::core::Some "hi")
                      :v (:wat::core::Some 42)))
-       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::pair-svc::Handle/addr h))
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::pair-svc::Handle/addr h))
            ((:wat::kernel::ConnectOutcome::Connected p) p)
            ((:wat::kernel::ConnectOutcome::Refused c)
              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))

@@ -35,13 +35,13 @@
 ;; serve threads: saw-tick? + the client's idx (-1 = not yet connected). Replies :Pong to the client
 ;; ONLY once BOTH the timer's :Tick and the client's :Ping have been delivered by poll'.
 (:wat::core::defn :probe-homog::serve-thread
-  [self        <- :wat::kernel::ThreadSelfPeer'<wat::core::nil,wat::core::nil>
-   l           <- :wat::kernel::Listener'<probe-homog::Op,probe-homog::Reply>
-   selectables <- :wat::core::Vector<wat::kernel::Peer'<probe-homog::Reply,probe-homog::Op>>
+  [self        <- :wat::kernel::ThreadSelfPeer<wat::core::nil,wat::core::nil>
+   l           <- :wat::kernel::Listener<probe-homog::Op,probe-homog::Reply>
+   selectables <- :wat::core::Vector<wat::kernel::Peer<probe-homog::Reply,probe-homog::Op>>
    saw-tick    <- :wat::core::bool
    client-idx  <- :wat::core::i64]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l selectables) 
+  (:wat::core::match (:wat::kernel::poll self l selectables) 
     (:wat::spawn::ServiceEvent::Shutdown nil)
     ((:wat::spawn::ServiceEvent::Connection peer)
       (:probe-homog::serve-thread self l (:wat::core::conj selectables peer) saw-tick client-idx))
@@ -51,14 +51,14 @@
         ((:probe-homog::Op::Tick)
           (:wat::core::if (:wat::core::i64::>= client-idx 0)
             (:wat::core::let
-              [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables client-idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
               nil)
             (:probe-homog::serve-thread self l selectables true client-idx)))
         ;; the CLIENT delivered its :Ping (a surface op) through the SAME poll' as the timer:
         ((:probe-homog::Op::Ping)
           (:wat::core::if saw-tick
             (:wat::core::let
-              [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
               nil)
             (:probe-homog::serve-thread self l selectables saw-tick idx)))))
     ((:wat::spawn::ServiceEvent::Closed idx)
@@ -74,21 +74,21 @@
 
 (:wat::core::defn :probe-homog::thread-mix [] -> :probe-homog::Reply
   (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :probe-homog::Op :probe-homog::Reply)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) :probe-homog::Op :probe-homog::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
-     _svc (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::nil,wat::core::nil>]
+     _svc (:wat::kernel::spawn-program (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::nil,wat::core::nil>]
               -> :wat::core::nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind::thread
                      (:wat::time::Millisecond 5) (:probe-homog::Op::Tick))]
                 (:probe-homog::serve-thread self l
-                  (:wat::core::Vector :wat::kernel::Peer'<probe-homog::Reply,probe-homog::Op> t)
+                  (:wat::core::Vector :wat::kernel::Peer<probe-homog::Reply,probe-homog::Op> t)
                   false -1))))
-     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _    (:wat::core::match (:wat::kernel::send' c (:probe-homog::Op::Ping)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     r    (:wat::core::match (:wat::kernel::recv' c)
+     c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     _    (:wat::core::match (:wat::kernel::send c (:probe-homog::Op::Ping)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     r    (:wat::core::match (:wat::kernel::recv c)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': c closed" :wat::core::None :wat::core::None)))]
@@ -100,7 +100,7 @@
 ;; parent recv's the address off the spawn handle, then dials it.
 (:wat::core::defn :probe-homog::process-mix [] -> :probe-homog::Reply
   (:wat::core::let
-    [svc  (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [svc  (:wat::kernel::spawn-program (:wat::spawn::process)
             (:wat::core::forms
               ;; the shared Op/Reply must be re-declared in the forked child universe (a process
               ;; fork is a separate address space; the real defservice ships these via the surface
@@ -111,13 +111,13 @@
               (:wat::core::defenum :probe-homog::Reply :wat::enum::Pure
                 :Pong [])
               (:wat::core::defn :probe-homog::serve-proc
-                [self        <- :wat::kernel::Peer'<wat::kernel::Address'<probe-homog::Op,probe-homog::Reply>,wat::core::nil>
-                 l           <- :wat::kernel::Listener'<probe-homog::Op,probe-homog::Reply>
-                 selectables <- :wat::core::Vector<wat::kernel::Peer'<probe-homog::Reply,probe-homog::Op>>
+                [self        <- :wat::kernel::Peer<wat::kernel::Address<probe-homog::Op,probe-homog::Reply>,wat::core::nil>
+                 l           <- :wat::kernel::Listener<probe-homog::Op,probe-homog::Reply>
+                 selectables <- :wat::core::Vector<wat::kernel::Peer<probe-homog::Reply,probe-homog::Op>>
                  saw-tick    <- :wat::core::bool
                  client-idx  <- :wat::core::i64]
                 -> :wat::core::nil
-                (:wat::core::match (:wat::kernel::poll' self l selectables) 
+                (:wat::core::match (:wat::kernel::poll self l selectables) 
                   (:wat::spawn::ServiceEvent::Shutdown nil)
                   ((:wat::spawn::ServiceEvent::Connection peer)
                     (:probe-homog::serve-proc self l (:wat::core::conj selectables peer) saw-tick client-idx))
@@ -126,13 +126,13 @@
                       ((:probe-homog::Op::Tick)
                         (:wat::core::if (:wat::core::i64::>= client-idx 0)
                           (:wat::core::let
-                            [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables client-idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                             nil)
                           (:probe-homog::serve-proc self l selectables true client-idx)))
                       ((:probe-homog::Op::Ping)
                         (:wat::core::if saw-tick
                           (:wat::core::let
-                            [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                             nil)
                           (:probe-homog::serve-proc self l selectables saw-tick idx)))))
                   ((:wat::spawn::ServiceEvent::Closed idx)
@@ -147,21 +147,21 @@
                     (:probe-homog::serve-proc self l selectables saw-tick client-idx))))
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let
-                  [b2   (:wat::kernel::listener' (:wat::spawn::process) :probe-homog::Op :probe-homog::Reply)
-                   self (:wat::program::self-peer :wat::kernel::Address'<probe-homog::Op,probe-homog::Reply> :wat::core::nil)
-                   _sa  (:wat::kernel::send' self (:wat::spawn::Bound/address b2))
+                  [b2   (:wat::kernel::listener (:wat::spawn::process) :probe-homog::Op :probe-homog::Reply)
+                   self (:wat::program::self-peer :wat::kernel::Address<probe-homog::Op,probe-homog::Reply> :wat::core::nil)
+                   _sa  (:wat::kernel::send self (:wat::spawn::Bound/address b2))
                    t    (:wat::kernel::after :wat::program::PeerKind::process
                           (:wat::time::Millisecond 5) (:probe-homog::Op::Tick))]
                   (:probe-homog::serve-proc self (:wat::spawn::Bound/listener b2)
-                    (:wat::core::Vector :wat::kernel::Peer'<probe-homog::Reply,probe-homog::Op> t)
+                    (:wat::core::Vector :wat::kernel::Peer<probe-homog::Reply,probe-homog::Op> t)
                     false -1)))))
-     addr (:wat::core::match (:wat::kernel::recv' svc)
+     addr (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))
-     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _    (:wat::core::match (:wat::kernel::send' c (:probe-homog::Op::Ping)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     r    (:wat::core::match (:wat::kernel::recv' c)
+     c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     _    (:wat::core::match (:wat::kernel::send c (:probe-homog::Op::Ping)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     r    (:wat::core::match (:wat::kernel::recv c)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': c closed" :wat::core::None :wat::core::None)))]

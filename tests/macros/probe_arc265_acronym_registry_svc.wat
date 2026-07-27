@@ -12,7 +12,7 @@
 ;; S1 synthesis and the service's `:impls` op-name derivation (the two paths must agree).
 (:wat::core::string::declare-acronyms :my::aws::Waf ["ACL"])
 
-(:wat::core::defsurface :my::aws::Waf :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::aws::Waf :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::aws::Waf::CreateWebACLRequest  [n     <- :wat::core::i64])
    (:wat::core::defenum :my::aws::Waf::CreateWebACLResponse :wat::enum::Pure

@@ -33,7 +33,7 @@
 ;; NOT enforce the declared type.
 
 ;; ── the surface: one op, one field, declared Vector<String> ──────────────────
-(:wat::core::defsurface :probe-wire::Bag :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe-wire::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe-wire::Bag::PutRequest
      [items <- :wat::core::Vector<wat::core::String>])
@@ -60,7 +60,7 @@
 
 ;; ── one round-trip, reporting whatever comes back ────────────────────────────
 (:wat::core::defn :probe-wire/round-trip
-  [c     <- :wat::kernel::Peer'<probe-wire::Bag::Op,probe-wire::Bag::Reply>
+  [c     <- :wat::kernel::Peer<probe-wire::Bag::Op,probe-wire::Bag::Reply>
    label <- :wat::core::String
    req   <- :probe-wire::Bag::PutRequest]
   -> :wat::core::nil
@@ -91,7 +91,7 @@
   (:wat::core::let
     [h (:probe-wire::bag-svc/start :locus locus
          :record (:probe-wire::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect' (:probe-wire::bag-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:probe-wire::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)
            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None))

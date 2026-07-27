@@ -1,7 +1,7 @@
 ;; DESIGN-STONE-rst-peer-notify.md STEP-1 probe: a PROCESS service whose handler genuinely
 ;; panics; a SEPARATE connect'-ed client peer `c` reads the reply. At HEAD the client sees a
 ;; bare clean-EOF (RecvError::Disconnected), never a distinct reset — this is the RED baseline.
-(:wat::core::defsurface :my::RstSvc :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::RstSvc :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::RstSvc::BoomRequest  [])
    (:wat::core::defenum :my::RstSvc::BoomResponse :wat::enum::Pure
@@ -31,7 +31,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h (:my::rstsvc/start :locus (:wat::spawn::process) :record (:my::rstsvc::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect' (:my::rstsvc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))]
+     c (:wat::core::match (:wat::kernel::connect (:my::rstsvc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))]
     (:wat::core::match (:my::rstsvc/boom c (:my::RstSvc::BoomRequest))
       ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost _cause) "LOST")

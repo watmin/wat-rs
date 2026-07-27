@@ -25,11 +25,11 @@
 (:wat::core::defn :my::compute [] -> :wat::core::Option<wat::core::String>
   (:wat::core::let
     [p
-      (:wat::kernel::spawn-program' (:wat::spawn::thread)
-        (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+      (:wat::kernel::spawn-program (:wat::spawn::thread)
+        (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
           (:wat::kernel::raise!
             (:wat::core::Fault/of "arc113-raise-data"))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ;; A clean send would mean the raise! never fired — surface :None (the test asserts Some).
       ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
       ((:wat::kernel::RecvOutcome::Lost cause)

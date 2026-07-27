@@ -10,7 +10,7 @@
 ;; If it raises with NO print → the committed test is vacuous → the fixture needs the prober to
 ;; send dial #2's reply UP so success is observable.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -28,9 +28,9 @@
   (:wat::core::let
     [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      ea  (:probe::echo'::Handle/addr eh)
-     prober (:wat::kernel::spawn-program' (:wat::spawn::process)
+     prober (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
-                (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+                (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -40,19 +40,19 @@
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String
-                             :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
-                     addr (:wat::kernel::recv' self)
-                     c1   (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                             :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)
+                     addr (:wat::kernel::recv self)
+                     c1   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                      er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::core::match (:wat::kernel::send' self (:wat::core::match er1 ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _    (:wat::core::match (:wat::kernel::send self (:wat::core::match er1 ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))
   ((:probe::Echo::EchoResponse::RequestMalformed mpath mexpected mgot)
     (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-                     _sig (:wat::kernel::recv' self)
-                     c2   (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                     _sig (:wat::kernel::recv self)
+                     c2   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                      er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))
-                     _2   (:wat::kernel::send' self (:wat::core::match er2 ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _2   (:wat::kernel::send self (:wat::core::match er2 ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))
   ((:probe::Echo::EchoResponse::RequestMalformed mpath mexpected mgot)
@@ -62,11 +62,11 @@
            ((:wat::core::Some p)
              (:wat::core::let
                [_  (:probe::echo'/grant  eh (:wat::core::Vector :wat::core::i64 p))
-                _  (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-                r1 (:wat::kernel::recv' prober)
+                _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+                r1 (:wat::kernel::recv prober)
                 ;; <<< the echo'/revoke line is REMOVED here (the counterfactual) >>>
-                _  (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-                rr2 (:wat::kernel::recv' prober)
+                _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+                rr2 (:wat::kernel::recv prober)
                 r2 (:wat::core::match rr2
                      ((:wat::kernel::RecvOutcome::Message m) m)
                      ((:wat::kernel::RecvOutcome::Lost cause)

@@ -902,7 +902,7 @@
          ;; kwargs-check-name-str: "<name>::kwargs-check" (bare string); kwargs-check-kw: the
          ;; keyword node ":<name>::kwargs-check" for the auto-minted fn's own def head.
          ;; NOTE (arc 278): the ::kwargs-check / ::Coords / ::GrantHandles / ::grant-worker /
-         ;; ::revoke-worker family below is minted ONLY for a Peer'-bearing (dialing) kwargs
+         ;; ::revoke-worker family below is minted ONLY for a Peer-bearing (dialing) kwargs
          ;; defn (`mint-coords?`). Those are keyed off the BASE so a parametric name still
          ;; yields a WELL-FORMED companion; a parametric DIALING kwargs defn (type params that
          ;; must reach these carriers) is unproven and out of this strike's scope.
@@ -912,9 +912,9 @@
          ;; GUARD: this defn is ITSELF a kwargs-check (it has `& [...]`, so it took the kwargs
          ;; branch too) → do NOT mint ITS checker (infinite mint). Suffix test on the bare name.
          is-check (:wat::core::string::ends-with? name-base "::kwargs-check")
-         ;; ── the head-swapped argvec: fold kw-ch, swap Peer' TYPE nodes only ──
+         ;; ── the head-swapped argvec: fold kw-ch, swap Peer TYPE nodes only ──
          ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
-         ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer'<S,R> (data-typed
+         ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer<S,R> (data-typed
          ;; fields pass through as `child` unchanged).
          swapped-ch (:wat::core::foldl
                       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> j <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
@@ -922,10 +922,10 @@
                           [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2a swapped-ch index")
                            is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
                            nm      (:wat::core::ast-name child)
-                           is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer'") false)
+                           is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer") false)
                            swapped (:wat::core::if is-peer
                                      (:wat::core::keyword-node
-                                       (:wat::core::string::join "Address'" (:wat::core::string::split nm "Peer'")))
+                                       (:wat::core::string::join "Address" (:wat::core::string::split nm "Peer")))
                                      child)]
                           (:wat::core::conj acc swapped)))
                       (:wat::core::Vector :wat::WatAST)
@@ -936,7 +936,7 @@
          ;; so N-service reconciliation has NO positional-accessor cap AND data fields fall out for
          ;; free (a data field is just another named field). `<fqdn>::Coords` is a defRECORD (pure,
          ;; EDN-crossable — it IS the PoolMsg::Setup wire payload) whose fields are the HEAD-SWAPPED
-         ;; argvec (each Peer'<S,R> → Address'<S,R>; data fields keep their own type), SAME field
+         ;; argvec (each Peer<S,R> → Address<S,R>; data fields keep their own type), SAME field
          ;; names + order as `::Kwargs`. Reuses the `swapped-argvec` field nodes verbatim.
          coords-ty-str (:wat::core::string::concat name-base "::Coords")
          coords-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" coords-ty-str))
@@ -944,20 +944,20 @@
          ;; ctor moved to the type-name PRIME. This is GENERATED code constructing a just-minted
          ;; aggregate positionally (see kwargs-check-def below) — use the prime, never the bare name.
          coords-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat coords-ty-str "'")))
-         ;; has-peer-field?: does the kwargs section declare ≥1 `Peer'<S,R>` field? This is the
+         ;; has-peer-field?: does the kwargs section declare ≥1 `Peer<S,R>` field? This is the
          ;; SEMANTIC gate for "is this a DIALING work-fn" — the ONLY kind that needs a `::Coords`
-         ;; dial-carrier (services are declared `Peer'` and dialed; data fields ride along). Read
+         ;; dial-carrier (services are declared `Peer` and dialed; data fields ride along). Read
          ;; the ORIGINAL field types (`kw-ch` position j·3+2), NOT the swapped ones: a swapped
-         ;; `Peer'`→`Address'`, but a defservice `start`/`resume` init-param can ALSO be declared
-         ;; `Address'` directly (e.g. `s2s-thread-probe.wat`'s `:echo-addr <- Address'<…>`) — so
-         ;; testing the swapped `Address'` would false-match those. Only a real `Peer'` field
+         ;; `Peer`→`Address`, but a defservice `start`/`resume` init-param can ALSO be declared
+         ;; `Address` directly (e.g. `s2s-thread-probe.wat`'s `:echo-addr <- Address<…>`) — so
+         ;; testing the swapped `Address` would false-match those. Only a real `Peer` field
          ;; (unmangled source) marks a dialing work-fn. This keeps `::Coords` (a pure defrecord)
          ;; from being minted for the many NON-dialing kwargs defns that hold impure fields — every
          ;; `defservice`'s auto `start`/`resume` (`[& [locus <- :wat::spawn::Locus …]]`,
          ;; wat/service.wat:1114) carries a STRUCT `locus`; `probe-kwargs-struct.wat`'s
-         ;; `:probe::apply-it` carries a `Fn`. None declare a `Peer'`, so none mint Coords → the
+         ;; `:probe::apply-it` carries a `Fn`. None declare a `Peer`, so none mint Coords → the
          ;; 293.W ImpureFieldInPureAggregate containment they'd otherwise hit never fires. A dialing
-         ;; work-fn's own fields are all crossable (Peer'→Address' + EDN data); a hypothetical
+         ;; work-fn's own fields are all crossable (Peer→Address + EDN data); a hypothetical
          ;; dialing bundle carrying an impure data field would still (correctly) fail Coords minting
          ;; with a LOCATED 293.W diagnostic naming that field — the honest error, not a Tuple fallback.
          has-peer-field (:wat::core::foldl
@@ -968,21 +968,21 @@
                                   (:wat::core::Option/expect
                                     (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                     "w2a has-peer-field: type index"))
-                                "Peer'")))
+                                "Peer")))
                           false
                           (:wat::core::range 0 n-kw-fields))
          ;; mint-coords?: the checker itself is a kwargs defn (has `& [...]`) so it re-enters this
          ;; branch — the `is-check` suffix guard stops the infinite mint (no Coords/checker for a
-         ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer'-bearing) work-fn.
+         ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer-bearing) work-fn.
          mint-coords? (:wat::core::if is-check false has-peer-field)
-         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — Peer'<S,R> → TypedCapability<S,R> ──
-         ;; A SECOND head-swap, parallel to `swapped-ch` (Address') but targeting the combined
+         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — Peer<S,R> → TypedCapability<S,R> ──
+         ;; A SECOND head-swap, parallel to `swapped-ch` (Address) but targeting the combined
          ;; `:wat::capability::TypedCapability<S,R>` surface (capability.wat) instead. This is
          ;; the checker's OWN param typing (so `bracket/uses` passes RAW HANDLES typed as
          ;; TypedCapability — caught by the bodiless-edge assignability check — never erased,
-         ;; never a bare Address'). `swapped-ch`/`swapped-argvec` (Address') is UNCHANGED and
+         ;; never a bare Address). `swapped-ch`/`swapped-argvec` (Address) is UNCHANGED and
          ;; still used only for `::Coords`'s field TYPES (the pure crossing carrier). The needle
-         ;; is the FULL "wat::kernel::Peer'" (not bare "Peer'"): Address' shares Peer's
+         ;; is the FULL "wat::kernel::Peer" (not bare "Peer"): Address shares Peers
          ;; `wat::kernel::` namespace so the bare swap works there, but TypedCapability lives in
          ;; `wat::capability::` — the whole qualified head must relocate, not just the tail.
          capswapped-ch (:wat::core::foldl
@@ -991,11 +991,11 @@
                               [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2d capswapped-ch index")
                                is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
                                nm      (:wat::core::ast-name child)
-                               is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer'") false)
+                               is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer") false)
                                swapped (:wat::core::if is-peer
                                          (:wat::core::keyword-node
                                            (:wat::core::string::join "wat::capability::TypedCapability"
-                                             (:wat::core::string::split nm "wat::kernel::Peer'")))
+                                             (:wat::core::string::split nm "wat::kernel::Peer")))
                                          child)]
                               (:wat::core::conj acc swapped)))
                           (:wat::core::Vector :wat::WatAST)
@@ -1017,7 +1017,7 @@
                                   orig-ty    (:wat::core::Option/expect
                                                (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                                "w2d gh-field: type index")
-                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
                                   cap-ty     (:wat::core::Option/expect
                                                (:wat::core::get capswapped-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                                "w2d gh-field: capswapped type index")]
@@ -1039,7 +1039,7 @@
                       `(:wat::core::do nil))
          ;; The checker's body now builds BOTH carriers and returns them as a Tuple:
          ;; (::Coords field-1 …) — a service field is coord'd off the TypedCapability param
-         ;; (`TypedCapability/coord`) before entering the pure Address'-typed Coords record; a
+         ;; (`TypedCapability/coord`) before entering the pure Address-typed Coords record; a
          ;; data field passes through unchanged (same as before).
          ;; (::GrantHandles svc-field-1 …) — the RAW TypedCapability-typed params, direct, no
          ;; coord call — these stay live/granted-through, never erased.
@@ -1054,7 +1054,7 @@
                                   orig-ty    (:wat::core::Option/expect
                                                (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                                "w2d coords-ctor-args: type index")
-                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
                                   arg-form   (:wat::core::if is-peer
                                                `(:wat::capability::TypedCapability/coord ~fname-node)
                                                fname-node)]
@@ -1068,7 +1068,7 @@
                              orig-ty    (:wat::core::Option/expect
                                           (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                           "w2d gh-ctor-args: type index")
-                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")]
+                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")]
                             (:wat::core::if is-peer (:wat::core::conj acc fname-node) acc)))
                         (:wat::core::Vector :wat::WatAST)
                         (:wat::core::range 0 n-kw-fields))
@@ -1097,7 +1097,7 @@
                             orig-ty    (:wat::core::Option/expect
                                          (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                          "w2d grant-calls: type index")
-                            is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                            is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
                             fname-str  (:wat::core::ast-name fname-node)
                             acc-kw     (:wat::core::keyword-node
                                          (:wat::core::string::concat ":"
@@ -1114,7 +1114,7 @@
                              orig-ty    (:wat::core::Option/expect
                                           (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                           "w2d revoke-calls: type index")
-                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
                              fname-str  (:wat::core::ast-name fname-node)
                              acc-kw     (:wat::core::keyword-node
                                           (:wat::core::string::concat ":"

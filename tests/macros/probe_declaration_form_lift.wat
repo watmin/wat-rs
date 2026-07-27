@@ -17,12 +17,12 @@
 ;; proves the defmacro registered AND expanded, not merely that the child survived.
 (:wat::core::defn :my::launch-defmacro [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defmacro :h::id-macro [x <- :wat::WatAST] -> :wat::WatAST `~x)
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println (:h::id-macro 5)))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -34,7 +34,7 @@
 ;; so the asserted 100 proves the newtype registered AND constructs AND its accessor resolves.
 (:wat::core::defn :my::launch-newtype [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::newtype :h::LocalAmount :wat::core::i64)
            (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -42,7 +42,7 @@
                [a    (:h::LocalAmount 100)
                 _out (:wat::kernel::println (:h::LocalAmount/0 a))]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -54,7 +54,7 @@
 ;; the asserted 7 proves both the typealias and the fn declared against it registered.
 (:wat::core::defn :my::launch-typealias [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::typealias :h::LocalCount :wat::core::i64)
            (:wat::core::defn :h::get-count [] -> :h::LocalCount 7)
@@ -63,7 +63,7 @@
                [c    (:h::get-count)
                 _out (:wat::kernel::println c)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -76,7 +76,7 @@
 ;; expansion — so a single asserted number proves all of them registered, in order.
 (:wat::core::defn :my::launch-mixed [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::MixPoint
              [x <- :wat::core::i64
@@ -104,7 +104,7 @@
                          (:h::mix-i64 (:h::mix-id 7))))
                 _out (:wat::kernel::println n)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

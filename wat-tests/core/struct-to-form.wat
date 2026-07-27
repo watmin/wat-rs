@@ -18,8 +18,8 @@
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::core::do
                (:wat::core::let
@@ -27,13 +27,13 @@
                   form (:wat::core::struct->form p)
                   _roundtrip (:wat::eval-ast! form)]
                  ()))
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     ;; Assert the inner child succeeded — a clean completion crosses the wire
     ;; as Message; a crash reaches recv' as Lost carrying the death message.
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) nil)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed!

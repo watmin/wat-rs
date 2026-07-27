@@ -110,11 +110,11 @@
 (:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::= 1 1.5)] b))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
           "expected check-time type error for (= 1 1.5)"

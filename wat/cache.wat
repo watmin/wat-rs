@@ -148,7 +148,7 @@
 ;; `2048` on both ops fits a realistic ~16-entry HolonAST-keyed put batch (the worst case) with
 ;; room to spare, well above what either gate actually sends, and well above the old single-key
 ;; `1024` cap, which a multi-item HolonAST batch trips immediately by construction.
-(:wat::core::defsurface :wat::cache::Cache<K,V> :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::cache::Cache<K,V> :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::cache::Cache::GetRequest<K> [probes <- :wat::core::Vector<K>])
    (:wat::core::defenum :wat::cache::Cache::GetResult<V> :wat::enum::Pure

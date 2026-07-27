@@ -2,7 +2,7 @@
 ;; NEGATIVE (subject preserved): a bogus trailing clause must be rejected directly (named),
 ;; not silently mis-read. Everything else here is a VALID :satisfies service, so the sole
 ;; defect (and the sole reason for rejection) is the unrecognized `:bogus-option` clause.
-(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest  [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure

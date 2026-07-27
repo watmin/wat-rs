@@ -29,7 +29,7 @@
 ;; (the verb appends "\n" before fragmenting — see stdio-write-out). `:max-request-bytes 524288` stays
 ;; as the DEFENSIVE FLOOR for a direct >budget caller; the `write-batched` client helper CHUNKS so this
 ;; is never tripped by println's own (possibly oversized) output — a program's output isn't a self-DoS.
-(:wat::core::defsurface :wat::kernel::StdOut :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::kernel::StdOut :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::kernel::StdOut::WriteRequest [bytes <- :wat::core::String])
    (:wat::core::defenum :wat::kernel::StdOut::WriteResponse :wat::enum::Pure
@@ -55,7 +55,7 @@
 
 ;; ─── StdErr (raw write-serializer — identical to StdOut; the eprintln TERMINATE stays the verb's own
 ;;     act, never the service loop's — see DESIGN §3) ────────────────────────────────────────────
-(:wat::core::defsurface :wat::kernel::StdErr :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::kernel::StdErr :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::kernel::StdErr::WriteRequest [bytes <- :wat::core::String])
    (:wat::core::defenum :wat::kernel::StdErr::WriteResponse :wat::enum::Pure
@@ -81,7 +81,7 @@
 
 ;; ─── StdIn (EOF-as-matchable-value upgrade: today's EOF panics-kills-the-loop; here it is a
 ;;     matchable `ReadLineResponse::Eof`, no-hidden-failures R55/R57 — DESIGN §7(c)) ─────────────
-(:wat::core::defsurface :wat::kernel::StdIn :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::kernel::StdIn :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::kernel::StdIn::ReadLineRequest [max-buffer-bytes <- :wat::core::i64])
    (:wat::core::defenum :wat::kernel::StdIn::ReadLineResponse :wat::enum::Pure
@@ -139,27 +139,27 @@
 ;; connect' the shared Address' → this thread's OWN client Peer' (raise on any failure arm — a stdio
 ;; service that cannot be dialed is fatal, mirroring the old path's ChannelDisconnected).
 (:wat::core::defn :wat::kernel::stdio-connect-out
-  [addr <- :wat::kernel::Address'<wat::kernel::StdOut::Op,wat::kernel::StdOut::Reply>]
-  -> :wat::kernel::Peer'<wat::kernel::StdOut::Op,wat::kernel::StdOut::Reply>
-  (:wat::core::match (:wat::kernel::connect' addr)
+  [addr <- :wat::kernel::Address<wat::kernel::StdOut::Op,wat::kernel::StdOut::Reply>]
+  -> :wat::kernel::Peer<wat::kernel::StdOut::Op,wat::kernel::StdOut::Reply>
+  (:wat::core::match (:wat::kernel::connect addr)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat::kernel::stdio-connect-err
-  [addr <- :wat::kernel::Address'<wat::kernel::StdErr::Op,wat::kernel::StdErr::Reply>]
-  -> :wat::kernel::Peer'<wat::kernel::StdErr::Op,wat::kernel::StdErr::Reply>
-  (:wat::core::match (:wat::kernel::connect' addr)
+  [addr <- :wat::kernel::Address<wat::kernel::StdErr::Op,wat::kernel::StdErr::Reply>]
+  -> :wat::kernel::Peer<wat::kernel::StdErr::Op,wat::kernel::StdErr::Reply>
+  (:wat::core::match (:wat::kernel::connect addr)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat::kernel::stdio-connect-in
-  [addr <- :wat::kernel::Address'<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>]
-  -> :wat::kernel::Peer'<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>
-  (:wat::core::match (:wat::kernel::connect' addr)
+  [addr <- :wat::kernel::Address<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>]
+  -> :wat::kernel::Peer<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>
+  (:wat::core::match (:wat::kernel::connect addr)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
@@ -188,7 +188,7 @@
 ;; chunk's ::Ok → recurse on the rest; ::RequestTooLarge (impossible under this chunking — the defensive
 ;; floor) / a lost/closed peer → SURFACE (never silently drop — a stdio write failure is loud).
 (:wat::core::defn :wat::kernel::stdio-write-out
-  [peer    <- :wat::kernel::Peer'<wat::kernel::StdOut::Op,wat::kernel::StdOut::Reply>
+  [peer    <- :wat::kernel::Peer<wat::kernel::StdOut::Op,wat::kernel::StdOut::Reply>
    payload <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::let [len (:wat::core::string::length payload)]
@@ -214,7 +214,7 @@
 
 ;; stdio-write-err — the StdErr twin of stdio-write-out (same chunking; fd 2).
 (:wat::core::defn :wat::kernel::stdio-write-err
-  [peer    <- :wat::kernel::Peer'<wat::kernel::StdErr::Op,wat::kernel::StdErr::Reply>
+  [peer    <- :wat::kernel::Peer<wat::kernel::StdErr::Op,wat::kernel::StdErr::Reply>
    payload <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::let [len (:wat::core::string::length payload)]
@@ -244,7 +244,7 @@
 ;; EOF → the caller saw ChannelDisconnected; the matchable ::Eof variant is BANKED, not yet exposed to
 ;; the 72 readln callers). ::RequestTooLarge → SURFACE.
 (:wat::core::defn :wat::kernel::stdio-read
-  [peer <- :wat::kernel::Peer'<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>
+  [peer <- :wat::kernel::Peer<wat::kernel::StdIn::Op,wat::kernel::StdIn::Reply>
    cap  <- :wat::core::i64]
   -> :wat::core::String
   (:wat::core::match (:wat::kernel::StdIn/read-line peer (:wat::kernel::StdIn::ReadLineRequest :max-buffer-bytes cap))

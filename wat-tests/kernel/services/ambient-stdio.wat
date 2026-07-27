@@ -38,11 +38,11 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-string
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m)
         (:wat::test::assert-eq m "hello"))
       ((:wat::kernel::RecvOutcome::Lost cause)
@@ -58,11 +58,11 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-i64
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println 42))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m)
         (:wat::test::assert-eq m 42))
       ((:wat::kernel::RecvOutcome::Lost cause)
@@ -85,11 +85,11 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-eprintln-string
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::eprintln "err"))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed! "eprintln-string: eprintln is terminal — expected the child to crash before any value, but a value arrived" :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost cause)
@@ -110,14 +110,14 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-twice
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
                (:wat::kernel::println "first")
                (:wat::kernel::println "second")
                nil))))]
-    (:wat::core::match (:wat::kernel::recv-all' p)
+    (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs)
         (:wat::test::assert-eq outputs (:wat::core::Vector :wat::core::String "first" "second")))
       ((:wat::core::Err cause)
@@ -135,17 +135,17 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-readln-echo
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
                [echoed (:wat::kernel::readln )]
                (:wat::kernel::println echoed)))))
-     _ (:wat::core::match (:wat::kernel::send' p "echo me")
+     _ (:wat::core::match (:wat::kernel::send p "echo me")
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
-    (:wat::core::match (:wat::kernel::recv-all' p)
+    (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs)
         (:wat::test::assert-eq outputs (:wat::core::Vector :wat::core::String "echo me")))
       ((:wat::core::Err cause)

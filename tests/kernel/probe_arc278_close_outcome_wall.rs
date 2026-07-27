@@ -1,6 +1,6 @@
 //! Arc 278 peer-lifecycle Strike 2 — the `close'` OUTCOME WALL.
 //!
-//! `:wat::kernel::close'` used to RAISE on its *handleable* teardown failures
+//! `:wat::kernel::close` used to RAISE on its *handleable* teardown failures
 //! (thread-join-panic, process-signaled, process-wait-fail, process-stopped)
 //! and return a bare `nil`/`i64` on success. Per the peer-lifecycle LAW
 //! (2026-07-23) — *"we deliver an enum for code to handle exceptions with; raise
@@ -20,14 +20,14 @@
 //! freeze/check pass would reject a `:user::` caller (that rejection IS a banked
 //! restriction, `probe_arc259_s2d_internal_only_close.wat.bad`). The only way to
 //! drive it is `eval_in_frozen` — READ→EXPAND→EVAL, no check pass — on an inline
-//! `(:wat::kernel::close' peer)` form, exactly as a future kernel-namespace teardown
+//! `(:wat::kernel::close peer)` form, exactly as a future kernel-namespace teardown
 //! caller would run it. Everything that CAN live in a fixture does (the peer spawns
 //! are the co-located `.wat`); the sole inline wat is the irreducible restricted call.
 //!
 //! The returned Value is asserted STRUCTURALLY (`Value::Enum` field extraction),
 //! never a loose `format!("{:?}").contains(...)`.
 
-// rune:lint(no-inlined-wat) — the ONLY inline wat here is `(:wat::kernel::close' peer)`,
+// rune:lint(no-inlined-wat) — the ONLY inline wat here is `(:wat::kernel::close peer)`,
 // which is :wat::kernel::-restricted: a loadable .wat fixture calling it from a :user::
 // entry is rejected at freeze (the banked restriction probe_arc259_s2d_internal_only_close.
 // wat.bad), so eval_in_frozen on an inline form (skipping the check pass) is the ONLY
@@ -40,7 +40,7 @@ use wat::runtime::{apply_function, Environment, TrackedValue, Value};
 /// Spawn a peer via the co-located fixture's `spawn_fn`, then drive the
 /// kernel-restricted `close'` on it via `eval_in_frozen` (no check pass), returning
 /// the `CloseOutcome` Value. Binding the peer to `peer` keeps the ONLY inline wat the
-/// irreducible `(:wat::kernel::close' peer)` — the call a fixture cannot legally hold.
+/// irreducible `(:wat::kernel::close peer)` — the call a fixture cannot legally hold.
 fn spawn_then_close(spawn_fn: &str) -> Value {
     let world: FrozenWorld = startup_beside(file!()).expect("startup_beside");
     let func = world
@@ -54,7 +54,7 @@ fn spawn_then_close(spawn_fn: &str) -> Value {
         .child()
         .bind_unknown_span("peer", TrackedValue::from(peer))
         .build();
-    let ast = wat::parse_one!("(:wat::kernel::close' peer)").expect("parse close' form");
+    let ast = wat::parse_one!("(:wat::kernel::close peer)").expect("parse close' form");
     eval_in_frozen(&ast, &world, &env)
         .unwrap_or_else(|e| panic!("close' should eval to a CloseOutcome, not raise: {e:?}"))
         .value_owned()

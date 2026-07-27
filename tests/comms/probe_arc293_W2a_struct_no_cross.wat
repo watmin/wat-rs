@@ -26,13 +26,13 @@
 ;; Struct probe — sends a bare struct over the wire.
 (:wat::core::defn :w2a::probe-struct [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :w2a::S [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::pprintln (:w2a::S :val 99)))))]
     (:w2a::S/val
-      (:wat::core::match (:wat::kernel::recv' p)
+      (:wat::core::match (:wat::kernel::recv p)
         ((:wat::kernel::RecvOutcome::Message m) m)
         ((:wat::kernel::RecvOutcome::Lost cause)
           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -42,13 +42,13 @@
 ;; Record control probe — sends a base record over the wire.
 (:wat::core::defn :w2a::probe-record [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defrecord :w2a::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::pprintln (:w2a::R :val 42)))))]
     (:w2a::R/val
-      (:wat::core::match (:wat::kernel::recv' p)
+      (:wat::core::match (:wat::kernel::recv p)
         ((:wat::kernel::RecvOutcome::Message m) m)
         ((:wat::kernel::RecvOutcome::Lost cause)
           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -68,11 +68,11 @@
 ;; line raw as a String (no decode crash), keeping stdin open for the write.
 (:wat::core::defn :w2a::probe-send-record [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [_ (:wat::kernel::readln )] nil))))
-     _ (:wat::core::match (:wat::kernel::send' p (:w2a::R :val 42))
+     _ (:wat::core::match (:wat::kernel::send p (:w2a::R :val 42))
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
@@ -83,11 +83,11 @@
 ;; parent extracts the field. Proves the send' guard is process/socket-only.
 (:wat::core::defn :w2a::probe-send-struct-thread [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<w2a::S,w2a::S>] -> :wat::core::nil
+    [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<w2a::S,w2a::S>] -> :wat::core::nil
               (:wat::core::match
-                (:wat::kernel::send' self
-                  (:wat::core::match (:wat::kernel::recv' self)
+                (:wat::kernel::send self
+                  (:wat::core::match (:wat::kernel::recv self)
                     ((:wat::kernel::RecvOutcome::Message m) m)
                     ((:wat::kernel::RecvOutcome::Lost cause)
                       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -96,11 +96,11 @@
                 (:wat::kernel::SendOutcome::Sent nil)
                 (:wat::kernel::SendOutcome::Closed nil)
                 ((:wat::kernel::SendOutcome::Lost _c) nil))))
-     _   (:wat::core::match (:wat::kernel::send' peer (:w2a::S :val 99))
+     _   (:wat::core::match (:wat::kernel::send peer (:w2a::S :val 99))
            (:wat::kernel::SendOutcome::Sent nil)
            (:wat::kernel::SendOutcome::Closed nil)
            ((:wat::kernel::SendOutcome::Lost _c) nil))
-     got (:wat::core::match (:wat::kernel::recv' peer)
+     got (:wat::core::match (:wat::kernel::recv peer)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

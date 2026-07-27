@@ -17,7 +17,7 @@
   :features
   [(grant      [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
    (revoke     [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
-   (coordinate [self <- :wat::capability::Capability] -> :wat::kernel::Address')])
+   (coordinate [self <- :wat::capability::Capability] -> :wat::kernel::Address)])
 
 ;; `as-capability` (arc 170 N-service kwargs stone) — RETIRED. It forced a Handle's
 ;; up-cast to Capability at the scalar call boundary before tupling, because a `Tuple`
@@ -43,7 +43,7 @@
 ;; `:wat::capability::Dialable/coord`), matching the probe's proven shape.
 (:wat::core::defsurface :wat::capability::Dialable<S,R> :nature :wat::core::Struct
   :features
-  [(coord [self <- :wat::capability::Dialable<S,R>] -> :wat::kernel::Address'<S,R>)])
+  [(coord [self <- :wat::capability::Dialable<S,R>] -> :wat::kernel::Address<S,R>)])
 
 ;; TypedCapability<S,R> (arc 170 C2 candidate D) — a THIRD, combined surface every service's
 ;; `<fqdn>::Handle` also satisfies, via a THIRD auto-emitted extend-type that is deliberately
@@ -64,6 +64,6 @@
 ;; qualified surface at a time; there is no unqualified-call ambiguity to resolve.
 (:wat::core::defsurface :wat::capability::TypedCapability<S,R> :nature :wat::core::Struct
   :features
-  [(coord  [self <- :wat::capability::TypedCapability<S,R>] -> :wat::kernel::Address'<S,R>)
+  [(coord  [self <- :wat::capability::TypedCapability<S,R>] -> :wat::kernel::Address<S,R>)
    (grant  [self <- :wat::capability::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
    (revoke [self <- :wat::capability::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])

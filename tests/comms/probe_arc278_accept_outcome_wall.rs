@@ -1,6 +1,6 @@
 //! Arc 278 peer-lifecycle Strike 3 — the `accept'` OUTCOME WALL.
 //!
-//! `:wat::kernel::accept'` used to RETURN a bare `Peer'<R,S>` and RAISE on its
+//! `:wat::kernel::accept` used to RETURN a bare `Peer'<R,S>` and RAISE on its
 //! *handleable* failures (rendezvous dropped/shutdown, decode error, `select`
 //! error, `peer_cred` read fail). Per the peer-lifecycle LAW (2026-07-23) — *"we
 //! deliver an enum for code to handle exceptions with; raise is uncatchable on

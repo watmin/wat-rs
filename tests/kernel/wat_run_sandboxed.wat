@@ -30,10 +30,10 @@
 ;; No message, clean nil-return → recv' → Closed.
 (:wat::core::defn :my::compute-noop [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "message")
       ((:wat::kernel::RecvOutcome::Lost _cause) "lost")
       (:wat::kernel::RecvOutcome::Closed "closed"))))
@@ -42,11 +42,11 @@
 ;; `(println "hello")` → recv' → Message[m], m the native String "hello".
 (:wat::core::defn :my::compute-single-line [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
@@ -60,22 +60,22 @@
 ;; Returns [msg1 msg2 death-message].
 (:wat::core::defn :my::compute-stdout-stderr [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
                (:wat::kernel::println "one")
                (:wat::kernel::println "two")
                (:wat::kernel::eprintln "oops")))))
-     r1 (:wat::core::match (:wat::kernel::recv' p)
+     r1 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
-     r2 (:wat::core::match (:wat::kernel::recv' p)
+     r2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-2")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))
-     r3 (:wat::core::match (:wat::kernel::recv' p)
+     r3 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-3")
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::core::match cause
@@ -97,11 +97,11 @@
 ;; arc-170 rearchitecture).
 (:wat::core::defn :my::compute-parse-error [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::raise! (:wat::core::Fault/of "inner-failure")))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause
@@ -122,10 +122,10 @@
 ;; Returns a tag naming the variant that actually surfaced (so a RED reveals it).
 (:wat::core::defn :my::compute-missing-main [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :my::not-a-main [] -> :wat::core::nil nil)))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause
@@ -144,17 +144,17 @@
 ;; Returns [partial-message panic-message].
 (:wat::core::defn :my::compute-panic-partial [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
                (:wat::kernel::println "before panic")
                (:wat::kernel::raise! (:wat::core::Fault/of "boom"))))))
-     r1 (:wat::core::match (:wat::kernel::recv' p)
+     r1 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
-     r2 (:wat::core::match (:wat::kernel::recv' p)
+     r2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-2")
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::core::match cause
@@ -170,14 +170,14 @@
 ;; (The Ok arm — `(println "ok")` — never runs.)
 (:wat::core::defn :my::compute-scope-inside [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
                (:wat::eval-file! "/nonexistent-in-child-loader.wat")
                ((:wat::core::Ok h) (:wat::kernel::println "ok"))
                ((:wat::core::Err _) (:wat::kernel::eprintln "err"))))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause
@@ -189,14 +189,14 @@
 ;; recv' → Lost[Panic] whose message is the eprintln value's EDN "\"blocked\"".
 (:wat::core::defn :my::compute-scope-outside [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
                (:wat::eval-file! "/also-nonexistent-in-child-loader.wat")
                ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
                ((:wat::core::Err _) (:wat::kernel::eprintln "blocked"))))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause

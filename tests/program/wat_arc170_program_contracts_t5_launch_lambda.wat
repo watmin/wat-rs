@@ -9,18 +9,18 @@
 ;; the value that genuinely crossed the wire. Closest model: t18_echo_doubled.wat (SAME family).
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
                [n    (:wat::kernel::readln )
                 _out (:wat::kernel::println (:wat::core::i64::* n 2))]
                nil))))
-     _ (:wat::core::match (:wat::kernel::send' p 21)
+     _ (:wat::core::match (:wat::kernel::send p 21)
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

@@ -3,7 +3,7 @@
 ;; is gone). This probe HAND-DRIVES the generated `serve` loop directly — Op/Reply are now the
 ;; SURFACE's synthesized enums (:my::Counter::Op / :my::Counter::Reply); serve + the lineage
 ;; Status/Admin peers stay per-service (:my::counter::serve, :my::counter::Status/Admin).
-(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
@@ -63,26 +63,26 @@
 ;; initial state (State (Record 0)), connects a client, round-trips two ops, reads the typed Reply.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :my::Counter::Op :my::Counter::Reply)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) :my::Counter::Op :my::Counter::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
      ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<Status,Admin>),
      ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
-     svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
+     svc  (:wat::kernel::spawn-program (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
-                (:wat::core::Vector :wat::kernel::Peer'<my::Counter::Reply,my::Counter::Op>)
+                (:wat::core::Vector :wat::kernel::Peer<my::Counter::Reply,my::Counter::Op>)
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
-     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _    (:wat::core::match (:wat::kernel::send' c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     r1   (:wat::core::match (:wat::kernel::recv' c)
+     c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     r1   (:wat::core::match (:wat::kernel::recv c)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause)
               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed
               (:wat::kernel::assertion-failed! "recv': c closed before the Increment reply" :wat::core::None :wat::core::None)))
-     _    (:wat::core::match (:wat::kernel::send' c (:my::Counter::Op::Get (:my::Counter::GetRequest))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     r2   (:wat::core::match (:wat::kernel::recv' c)
+     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Get (:my::Counter::GetRequest))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     r2   (:wat::core::match (:wat::kernel::recv c)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause)
               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

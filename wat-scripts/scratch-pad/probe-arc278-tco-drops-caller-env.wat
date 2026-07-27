@@ -33,7 +33,7 @@
 ;; LIST" hypothesis too: in the non-tail rows the very same call sits AFTER the binding
 ;; list and is served. Only genuine tail position reaps.
 
-(:wat::core::defsurface :tco::Bag :nature :wat::kernel::Peer'
+(:wat::core::defsurface :tco::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :tco::Bag::PutRequest [n <- :wat::core::i64])
    (:wat::core::defenum :tco::Bag::PutResponse :wat::enum::Pure
@@ -50,7 +50,7 @@
   :impls
   [(put [s req] (:wat::service::Outcome::Reply s (:tco::Bag::PutResponse::Ok 1)))])
 
-(:wat::core::defn :tco/try [c <- :wat::kernel::Peer'<tco::Bag::Op,tco::Bag::Reply>
+(:wat::core::defn :tco/try [c <- :wat::kernel::Peer<tco::Bag::Op,tco::Bag::Reply>
                             label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tco::Bag/put c (:tco::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -60,9 +60,9 @@
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
 
-(:wat::core::defn :tco/dial [a <- :wat::kernel::Address'<wat::core::i64,wat::core::i64>
+(:wat::core::defn :tco/dial [a <- :wat::kernel::Address<wat::core::i64,wat::core::i64>
                              label <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::connect' a)
+  (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p)
       (:wat::kernel::println (:wat::core::string::concat label " => CONNECTED")))
     ((:wat::kernel::ConnectOutcome::Refused f)
@@ -76,7 +76,7 @@
 (:wat::core::defn :tco/service-non-tail [] -> :wat::core::nil
   (:wat::core::let
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect' (:tco::bag-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
@@ -87,7 +87,7 @@
 (:wat::core::defn :tco/service-let-tail [] -> :wat::core::nil
   (:wat::core::let
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect' (:tco::bag-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
@@ -97,14 +97,14 @@
 ;; ── rows 3+4: a NON-service live resource — a raw kernel Listener' ───────────────
 (:wat::core::defn :tco/listener-non-tail [] -> :wat::core::nil
   (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)]
     (:wat::core::do (:tco/dial a "listener: non-tail") nil)))
 
 (:wat::core::defn :tco/listener-let-tail [] -> :wat::core::nil
   (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)]
     (:tco/dial a "listener: let-TAIL")))

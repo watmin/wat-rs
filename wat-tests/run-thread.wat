@@ -30,15 +30,15 @@
   ;; The PASSING assertion lets the self-peer reach its send' → recv' Message → clean run
   ;; (the old RunResult/failure :None). Lost/Closed would mean the pass was misclassified.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2))
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
-     fail (:wat::core::match (:wat::kernel::recv' p)
+     fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
@@ -60,15 +60,15 @@
   ;; LociDiedError/to-failure rebuilds the Option<Failure> the old RunResult/failure gave
   ;; (:Some), so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2))
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
-     fail (:wat::core::match (:wat::kernel::recv' p)
+     fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]

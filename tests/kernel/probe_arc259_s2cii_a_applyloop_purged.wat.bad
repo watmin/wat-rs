@@ -2,6 +2,6 @@
 ;; Post-purge: apply-loop prog [i64]->i64 handed to spawn-program' :thread must be REJECTED.
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
+  (:wat::core::let [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
                            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))]
     nil))

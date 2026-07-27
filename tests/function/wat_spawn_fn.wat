@@ -7,17 +7,17 @@
 ;; the peer reaps on scope-exit (RAII) — no explicit tx/rx or drain-and-join.
 
 ;; T1: named-define body — :app::increment worker + compute that spawns it by name.
-(:wat::core::defn :app::increment [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+(:wat::core::defn :app::increment [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
   (:wat::core::let
               [value
-                (:wat::core::match (:wat::kernel::recv' self)
+                (:wat::core::match (:wat::kernel::recv self)
                   ((:wat::kernel::RecvOutcome::Message m) m)
                   ((:wat::kernel::RecvOutcome::Lost cause)
                     (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
                     (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
                sum (:wat::core::i64::+ value 1)]
-              (:wat::core::match (:wat::kernel::send' self sum)
+              (:wat::core::match (:wat::kernel::send self sum)
                 (:wat::kernel::SendOutcome::Sent nil)
                 (:wat::kernel::SendOutcome::Closed nil)
                 ((:wat::kernel::SendOutcome::Lost _c) nil))))
@@ -25,14 +25,14 @@
 (:wat::core::defn :my::compute_t1 [] -> :wat::core::i64
   (:wat::core::let
               [peer
-                (:wat::kernel::spawn-program' (:wat::spawn::thread) :app::increment)
+                (:wat::kernel::spawn-program (:wat::spawn::thread) :app::increment)
                _ack
-                (:wat::core::match (:wat::kernel::send' peer 41)
+                (:wat::core::match (:wat::kernel::send peer 41)
                   (:wat::kernel::SendOutcome::Sent nil)
                   (:wat::kernel::SendOutcome::Closed nil)
                   ((:wat::kernel::SendOutcome::Lost _c) nil))
                result
-                (:wat::core::match (:wat::kernel::recv' peer)
+                (:wat::core::match (:wat::kernel::recv peer)
                   ((:wat::kernel::RecvOutcome::Message m) m)
                   ((:wat::kernel::RecvOutcome::Lost cause)
                     (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -44,30 +44,30 @@
 (:wat::core::defn :my::compute_t2 [] -> :wat::core::i64
   (:wat::core::let
               [peer
-                (:wat::kernel::spawn-program' (:wat::spawn::thread)
+                (:wat::kernel::spawn-program (:wat::spawn::thread)
                   (:wat::core::fn
-                    [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>]
+                    [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
                      -> :wat::core::nil
                     (:wat::core::let
                       [value
-                        (:wat::core::match (:wat::kernel::recv' self)
+                        (:wat::core::match (:wat::kernel::recv self)
                           ((:wat::kernel::RecvOutcome::Message m) m)
                           ((:wat::kernel::RecvOutcome::Lost cause)
                             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                           (:wat::kernel::RecvOutcome::Closed
                             (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
                        doubled (:wat::core::i64::* value 2)]
-                      (:wat::core::match (:wat::kernel::send' self doubled)
+                      (:wat::core::match (:wat::kernel::send self doubled)
                         (:wat::kernel::SendOutcome::Sent nil)
                         (:wat::kernel::SendOutcome::Closed nil)
                         ((:wat::kernel::SendOutcome::Lost _c) nil)))))
                _ack
-                (:wat::core::match (:wat::kernel::send' peer 21)
+                (:wat::core::match (:wat::kernel::send peer 21)
                   (:wat::kernel::SendOutcome::Sent nil)
                   (:wat::kernel::SendOutcome::Closed nil)
                   ((:wat::kernel::SendOutcome::Lost _c) nil))
                result
-                (:wat::core::match (:wat::kernel::recv' peer)
+                (:wat::core::match (:wat::kernel::recv peer)
                   ((:wat::kernel::RecvOutcome::Message m) m)
                   ((:wat::kernel::RecvOutcome::Lost cause)
                     (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -81,30 +81,30 @@
               [delta 100
                body
                 (:wat::core::fn
-                  [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>]
+                  [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
                    -> :wat::core::nil
                   (:wat::core::let
                     [n
-                      (:wat::core::match (:wat::kernel::recv' self)
+                      (:wat::core::match (:wat::kernel::recv self)
                         ((:wat::kernel::RecvOutcome::Message v) v)
                         ((:wat::kernel::RecvOutcome::Lost cause)
                           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
                           (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
                      sum (:wat::core::i64::+ n delta)]
-                    (:wat::core::match (:wat::kernel::send' self sum)
+                    (:wat::core::match (:wat::kernel::send self sum)
                       (:wat::kernel::SendOutcome::Sent nil)
                       (:wat::kernel::SendOutcome::Closed nil)
                       ((:wat::kernel::SendOutcome::Lost _c) nil))))
                peer
-                (:wat::kernel::spawn-program' (:wat::spawn::thread) body)
+                (:wat::kernel::spawn-program (:wat::spawn::thread) body)
                _ack
-                (:wat::core::match (:wat::kernel::send' peer 23)
+                (:wat::core::match (:wat::kernel::send peer 23)
                   (:wat::kernel::SendOutcome::Sent nil)
                   (:wat::kernel::SendOutcome::Closed nil)
                   ((:wat::kernel::SendOutcome::Lost _c) nil))
                result
-                (:wat::core::match (:wat::kernel::recv' peer)
+                (:wat::core::match (:wat::kernel::recv peer)
                   ((:wat::kernel::RecvOutcome::Message n) n)
                   ((:wat::kernel::RecvOutcome::Lost cause)
                     (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

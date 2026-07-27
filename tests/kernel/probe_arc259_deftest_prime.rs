@@ -63,7 +63,7 @@ fn deftest_prime_failing_raises_with_message() {
         Err(text) => {
             assert_eq!(
                 text,
-                "RuntimeError { span: Span { file: \"tests/kernel/probe_arc259_deftest_prime_failing.wat\", line: 4, col: 1, end_line: 5, end_col: 95 }, kind: MalformedForm { head: \":wat::kernel::recv'\", reason: \"#wat.kernel/AssertionFailure {:thread \\\"wat-thread-peer::<anon>\\\" :message \\\"DEFTEST-FAIL-SENTINEL\\\" :location {:file \\\"wat/spawn.wat\\\" :line 199 :col 5} :actual nil :expected nil :frames [{:callee :<fn@tests/kernel/probe_arc259_deftest_prime_failing.wat:4:1> :at {:file \\\"wat/spawn.wat\\\" :line 199 :col 5}}] :upstream-chain nil}\" } }",
+                "RuntimeError { span: Span { file: \"tests/kernel/probe_arc259_deftest_prime_failing.wat\", line: 4, col: 1, end_line: 5, end_col: 95 }, kind: MalformedForm { head: \":wat::kernel::recv\", reason: \"#wat.kernel/AssertionFailure {:thread \\\"wat-thread-peer::<anon>\\\" :message \\\"DEFTEST-FAIL-SENTINEL\\\" :location {:file \\\"wat/spawn.wat\\\" :line 199 :col 5} :actual nil :expected nil :frames [{:callee :<fn@tests/kernel/probe_arc259_deftest_prime_failing.wat:4:1> :at {:file \\\"wat/spawn.wat\\\" :line 199 :col 5}}] :upstream-chain nil}\" } }",
                 "failing deftest' must surface assertion message through pipe model"
             );
         }

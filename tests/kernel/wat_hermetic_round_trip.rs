@@ -7,7 +7,7 @@
 //! INNER `:user::main` via `(:wat::spawn::process)`. The child body
 //! `(:wat::kernel::println <value>)`s a value; on the primed wire that
 //! value crosses to the parent as a decoded MESSAGE. The parent
-//! `(:wat::kernel::recv' p)` and matches `RecvOutcome::Message[m]` — `m`
+//! `(:wat::kernel::recv p)` and matches `RecvOutcome::Message[m]` — `m`
 //! IS the child's emitted value, which is exactly what the old stdout
 //! scrape captured. `Lost`/`Closed` raise via `assertion-failed!`.
 //!

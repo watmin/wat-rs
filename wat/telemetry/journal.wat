@@ -67,7 +67,7 @@
   :max-frame-bytes 10485760
   :durable   []
   ;; the dialed backend peer — a client Peer'<Store::Op,Store::Reply>, held as a ROOT ephemeral field
-  :ephemeral [store <- :wat::kernel::Peer'<wat::query::Store::Op,wat::query::Store::Reply>]
+  :ephemeral [store <- :wat::kernel::Peer<wat::query::Store::Op,wat::query::Store::Reply>]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
   :peers     [:wat::query::Store]
   ;; :init connects to the given store (its Address' is a start operating-input, EDN — crosses a fork),
@@ -76,14 +76,14 @@
   ;; sqlite-store' this CREATEs the table + index, so the later `put`s succeed (mem hid this need).
   :init (:wat::core::fn
           [record     <- :wat::telemetry::journal::Record
-           store-addr <- :wat::kernel::Address'<wat::query::Store::Op,wat::query::Store::Reply>]
+           store-addr <- :wat::kernel::Address<wat::query::Store::Op,wat::query::Store::Reply>]
           -> :wat::telemetry::journal::State
           (:wat::core::let
             ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → bind
             ;; the store Peer'; ::Refused/::Rejected/::Failed → assertion-failed! (fatal,
             ;; preserving the pre-wall raise-unwind: a service whose store dial fails at
             ;; :init cannot start). Sibling pattern: spawn.wat's recv'/send' fatal arms.
-            [store (:wat::core::match (:wat::kernel::connect' store-addr)
+            [store (:wat::core::match (:wat::kernel::connect store-addr)
                      ((:wat::kernel::ConnectOutcome::Connected p) p)
                      ((:wat::kernel::ConnectOutcome::Refused c)
                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))

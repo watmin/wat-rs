@@ -20,7 +20,7 @@
 (:wat::core::defn :my::test::recv-assert-fail []
   -> :wat::core::Result<wat::core::Vector<wat::core::i64>,wat::kernel::LociDiedError>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
@@ -30,8 +30,8 @@
                 ;; println never reached (child already dead):
                 _2 (:wat::kernel::println n)]
                nil))))
-     _ (:wat::core::match (:wat::kernel::send' p 2)
+     _ (:wat::core::match (:wat::kernel::send p 2)
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
-    (:wat::kernel::recv-all' p)))
+    (:wat::kernel::recv-all p)))

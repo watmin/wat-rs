@@ -7,7 +7,7 @@
 ;; than exit-0. Both variants are named (full-enum matching is mandatory; no wildcard arm).
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defenum :h::LocalDir :wat::enum::Pure
              :North
@@ -20,7 +20,7 @@
                        (:h::LocalDir::South 2))
                 _out (:wat::kernel::println n)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

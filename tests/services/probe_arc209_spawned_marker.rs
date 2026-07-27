@@ -4,8 +4,8 @@
 //! `Thread'<I,O>`/`Process'<I,O>` (and future remote handles) all `derive` it, so `Handle.handle`
 //! can hold any of them. It is a typesub/`isa?` marker (Clojure's `derive` axis) — NO methods, NOT a
 //! protocol. The stone adds, in `wat/spawn.wat`:
-//!   (:wat::core::derive :wat::kernel::Thread'  :wat::spawn::Spawned)
-//!   (:wat::core::derive :wat::kernel::Process' :wat::spawn::Spawned)
+//!   (:wat::core::derive :wat::kernel::Thread  :wat::spawn::Spawned)
+//!   (:wat::core::derive :wat::kernel::Process :wat::spawn::Spawned)
 //! and retypes defservice's `Handle.handle` from `Thread'<Op,Reply>` to `:wat::spawn::Spawned`.
 //!
 //! This probe: a real `Thread'` from `spawn-program'` flows to a `:wat::spawn::Spawned`-typed param.

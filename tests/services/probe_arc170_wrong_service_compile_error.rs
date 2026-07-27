@@ -4,7 +4,7 @@
 //! `wat --check` time — never a runtime "peer closed". This is carried by the auto-emitted
 //! typed `:wat::capability::Dialable<S,R>` coordinate (W1): `defservice` now auto-emits, per
 //! service, that its `<fqdn>::Handle` satisfies the baked parametric surface
-//! `:wat::capability::Dialable<S,R>` with `(coord [self] -> :wat::kernel::Address'<S,R>)`. So
+//! `:wat::capability::Dialable<S,R>` with `(coord [self] -> :wat::kernel::Address<S,R>)`. So
 //! `(:wat::capability::Dialable/coord eh)` types as `Address'<Echo...>` and
 //! `(:wat::capability::Dialable/coord kvh)` types as `Address'<Kv...>` — ascribing a kv
 //! handle's coord to an Echo address is the wrong-service swap, caught by the checker.
@@ -44,8 +44,8 @@ fn wrong_service_coord_is_compile_error() {
     // kv handle's coord ascribed to an Echo address → the ann-form rejects it
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>"
-            && got == ":wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>");
+            if expected == ":wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>"
+            && got == ":wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>");
 }
 
 #[test]
@@ -58,8 +58,8 @@ fn swapped_colocation_tuple_is_compile_error() {
     // swapped Tuple vs the field-ordered (Echo, Kv) contract at the downstream consumer
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":(wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>,\
-                              wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>)"
-            && got == ":(wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>,\
-                         wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)");
+            if expected == ":(wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>,\
+                              wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>)"
+            && got == ":(wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>,\
+                         wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)");
 }

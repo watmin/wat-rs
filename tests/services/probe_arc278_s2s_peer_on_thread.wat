@@ -10,7 +10,7 @@
 ;; caller' dials echo', calls Echo/echo "hi", returns the reply string. Expect "echo:hi".
 
 ;; ── ECHO: the dialed surface + its service ──────────────────────────────────────
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
@@ -31,7 +31,7 @@
          (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
-(:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Caller::RunRequest  [])
    (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure
@@ -45,15 +45,15 @@
   :satisfies :probe::Caller
   :durable   []
   ;; the dialed peer — a client Peer'<Echo::Op,Echo::Reply>, held as a ROOT ephemeral field
-  :ephemeral [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]
+  :ephemeral [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
   :peers     [:probe::Echo]
   ;; :init connects to echo' (its Address' crosses the fork as an operating-input cap record)
   :init (:wat::core::fn
           [record    <- :probe::caller'::Record
-           echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
+           echo-addr <- :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>]
           -> :probe::caller'::State
-          (:probe::caller'::State :durable record :echo (:wat::core::match (:wat::kernel::connect' echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+          (:probe::caller'::State :durable record :echo (:wat::core::match (:wat::kernel::connect echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(run [s req]
      (:wat::core::let
@@ -75,7 +75,7 @@
     [eh  (:probe::echo'/start   :locus (:wat::spawn::thread) :record (:probe::echo'::Record))
      ea  (:probe::echo'::Handle/addr eh)
      ch  (:probe::caller'/start  :locus (:wat::spawn::thread) :record (:probe::caller'::Record) :echo-addr ea)
-     cc  (:wat::core::match (:wat::kernel::connect' (:probe::caller'::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     cc  (:wat::core::match (:wat::kernel::connect (:probe::caller'::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))]
     (:wat::core::match rr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Caller::RunResponse::Ok out) out)

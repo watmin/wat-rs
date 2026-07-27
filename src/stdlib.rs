@@ -147,7 +147,7 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/spawn.wat"),
     },
     // Arc 259 S3.2a — the brackets layer runner server-loop.  Loaded AFTER
-    // spawn.wat which provides :wat::kernel::Peer', recv', send'.
+    // spawn.wat which provides :wat::kernel::Peer, recv', send'.
     WatSource {
         path: "wat/bracket.wat",
         source: include_str!("../wat/bracket.wat"),
@@ -348,7 +348,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // Arc 278 stone S4 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
     // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings), on the
     // services-as-surfaces OPERATION MODEL (arc 293 Path B): `Store` is a `:nature
-    // :wat::kernel::Peer'` surface — a dialed `:satisfies Store` peer IS a Store, intrinsically
+    // :wat::kernel::Peer` surface — a dialed `:satisfies Store` peer IS a Store, intrinsically
     // (no wrapper struct, no extend-type). Pure declarations: the Store methods-bearing surface,
     // the Reason open-record error surface + Transient/Constraint/Fatal/Fault records, the
     // per-op `Store::<Op>Request`/`Store::<Op>Response` (outcome enum) records, and the plain
@@ -407,7 +407,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // splice) AND, since T1b.1, AFTER wat/query.wat: the `Journal` surface's
     // `Journal::Write{Metrics,Logs}Response` enums reuse `:wat::query::{Constraint,Transient,
     // Fatal}` (the store's error vocabulary, pass-through — not a parallel telemetry error
-    // vocabulary) as payloads, on the `:nature :wat::kernel::Peer'` shape `Store` has
+    // vocabulary) as payloads, on the `:nature :wat::kernel::Peer` shape `Store` has
     // (wat/query.wat:101). Placed last in the manifest (after query.wat/mem.wat/sqlite-store.wat)
     // — already satisfies this dependency; no reorder needed.
     WatSource {

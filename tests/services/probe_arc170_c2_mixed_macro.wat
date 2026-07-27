@@ -12,7 +12,7 @@
 ;;  - Strike 1c (wat/bracket.wat :wat::bracket::uses'): ONE `PoolMsg::Setup(coords-record)` per worker.
 
 ;; ── 7 heterogeneous services ─────────────────────────────────────────────────
-(:wat::core::defsurface :probe::S1 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S1 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S1::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S1::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -23,7 +23,7 @@
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S1::OpResponse::Ok (:wat::core::string::concat "s1:" (:probe::S1::OpRequest/m req)))))])
 
-(:wat::core::defsurface :probe::S2 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S2 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S2::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S2::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -34,7 +34,7 @@
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S2::OpResponse::Ok (:wat::core::string::concat "s2:" (:probe::S2::OpRequest/m req)))))])
 
-(:wat::core::defsurface :probe::S3 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S3 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S3::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S3::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -45,7 +45,7 @@
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S3::OpResponse::Ok (:wat::core::string::concat "s3:" (:probe::S3::OpRequest/m req)))))])
 
-(:wat::core::defsurface :probe::S4 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S4 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S4::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S4::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -56,7 +56,7 @@
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S4::OpResponse::Ok (:wat::core::string::concat "s4:" (:probe::S4::OpRequest/m req)))))])
 
-(:wat::core::defsurface :probe::S5 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S5 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S5::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S5::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -67,7 +67,7 @@
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S5::OpResponse::Ok (:wat::core::string::concat "s5:" (:probe::S5::OpRequest/m req)))))])
 
-(:wat::core::defsurface :probe::S6 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S6 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S6::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S6::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -78,7 +78,7 @@
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S6::OpResponse::Ok (:wat::core::string::concat "s6:" (:probe::S6::OpRequest/m req)))))])
 
-(:wat::core::defsurface :probe::S7 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::S7 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S7::OpRequest [m <- :wat::core::String])
              (:wat::core::defenum :probe::S7::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
@@ -92,13 +92,13 @@
 ;; ── the work-fn: item POSITIONAL; 7 Peer' service kwargs + 5 String data kwargs ──
 (:wat::core::defn :probe::enrich
   [item <- :wat::core::String
-   & [s1 <- :wat::kernel::Peer'<probe::S1::Op,probe::S1::Reply>
-      s2 <- :wat::kernel::Peer'<probe::S2::Op,probe::S2::Reply>
-      s3 <- :wat::kernel::Peer'<probe::S3::Op,probe::S3::Reply>
-      s4 <- :wat::kernel::Peer'<probe::S4::Op,probe::S4::Reply>
-      s5 <- :wat::kernel::Peer'<probe::S5::Op,probe::S5::Reply>
-      s6 <- :wat::kernel::Peer'<probe::S6::Op,probe::S6::Reply>
-      s7 <- :wat::kernel::Peer'<probe::S7::Op,probe::S7::Reply>
+   & [s1 <- :wat::kernel::Peer<probe::S1::Op,probe::S1::Reply>
+      s2 <- :wat::kernel::Peer<probe::S2::Op,probe::S2::Reply>
+      s3 <- :wat::kernel::Peer<probe::S3::Op,probe::S3::Reply>
+      s4 <- :wat::kernel::Peer<probe::S4::Op,probe::S4::Reply>
+      s5 <- :wat::kernel::Peer<probe::S5::Op,probe::S5::Reply>
+      s6 <- :wat::kernel::Peer<probe::S6::Op,probe::S6::Reply>
+      s7 <- :wat::kernel::Peer<probe::S7::Op,probe::S7::Reply>
       d1 <- :wat::core::String
       d2 <- :wat::core::String
       d3 <- :wat::core::String

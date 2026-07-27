@@ -4,7 +4,7 @@
 ;; No hand-written defsurface/extend-type for Dialable — it is BAKED (wat/capability.wat)
 ;; and AUTO-EMITTED per-service (wat/service.wat). EXPECT: freezes clean.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
@@ -19,7 +19,7 @@
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
@@ -39,5 +39,5 @@
     [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      kvh (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
      ok  (:wat::core::ann-form (:wat::capability::Dialable/coord eh)
-           :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)]
+           :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)]
     (:wat::kernel::println "measured")))

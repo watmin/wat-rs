@@ -12,7 +12,7 @@
   (:wat::core::let
     [h  (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread)
           :record (:wat::kernel::stdout-svc::Record) :fd fd)
-     c  (:wat::core::match (:wat::kernel::connect' (:wat::kernel::stdout-svc::Handle/addr h))
+     c  (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdout-svc::Handle/addr h))
           ((:wat::kernel::ConnectOutcome::Connected p) p)
           ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
           ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
@@ -50,7 +50,7 @@
   (:wat::core::let
     [h (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread)
          :record (:wat::kernel::stdout-svc::Record) :fd fd)
-     c (:wat::core::match (:wat::kernel::connect' (:wat::kernel::stdout-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdout-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
@@ -64,7 +64,7 @@
   (:wat::core::let
     [h (:wat::kernel::stdin-svc/start :locus (:wat::spawn::thread)
          :record (:wat::kernel::stdin-svc::Record) :fd fd)
-     c (:wat::core::match (:wat::kernel::connect' (:wat::kernel::stdin-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdin-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))

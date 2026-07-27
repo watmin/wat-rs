@@ -4,8 +4,8 @@
 //! `Bound` is a parametric STRUCT (not a record) because its fields are non-EDN
 //! RustOpaque kernel entities (`Listener'`/`Address'`):
 //!   (:wat::core::defstruct :wat::spawn::Bound<S,R>
-//!     [listener <- :wat::kernel::Listener'<S,R>
-//!      address  <- :wat::kernel::Address'<S,R>])
+//!     [listener <- :wat::kernel::Listener<S,R>
+//!      address  <- :wat::kernel::Address<S,R>])
 //! The thread tier of `listener'` builds it; the accessors `Bound/listener` and
 //! `Bound/address` replace the positional `first`/`second` on the old tuple.
 //!

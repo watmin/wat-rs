@@ -4,8 +4,8 @@
 //! (arc 170 slice 4c-α-ii) — a fork + OS-pipe scrape yielding
 //! `:wat::kernel::RunResult { stdout, stderr, failure }`. That capture model
 //! is retired: every case now flips to a direct
-//! `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms …))`
-//! child + `(:wat::kernel::recv' p)`, and asserts on the primed `RecvOutcome`
+//! `(:wat::kernel::spawn-program (:wat::spawn::process) (:wat::core::forms …))`
+//! child + `(:wat::kernel::recv p)`, and asserts on the primed `RecvOutcome`
 //! (Message / Lost[LociDiedError] / Closed) rather than on `RunResult`.
 //!
 //! The fixture fns (`:my::compute-*`) do the outcome match in wat and return a

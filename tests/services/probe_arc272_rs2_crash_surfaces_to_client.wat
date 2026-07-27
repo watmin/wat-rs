@@ -1,7 +1,7 @@
 ;; Arc 278 S4c migration: :ops RETIRED — the service wears a surface (:satisfies + :impls).
 ;; SUBJECT UNCHANGED: a service with one op whose handler CRASHES (assertion-failed! raises
 ;; inside the serve loop). The far-side crash must SURFACE to the client as a raise.
-(:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer'
+(:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Svc::BoomRequest  [])
    (:wat::core::defenum :my::Svc::BoomResponse :wat::enum::Pure
@@ -30,9 +30,9 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h  (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
-     c  (:wat::core::match (:wat::kernel::connect' (:my::svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _s (:wat::kernel::send' c (:my::Svc::Op::Boom (:my::Svc::BoomRequest)))]
-    (:wat::core::match (:wat::kernel::recv' c)
+     c  (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     _s (:wat::kernel::send c (:my::Svc::Op::Boom (:my::Svc::BoomRequest)))]
+    (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::string::concat "LOST:" (:wat::kernel::LociDiedError/message cause)))

@@ -20,7 +20,7 @@
 
 ;; ── PRODUCER: :prod::Producer — carries its OWN log-payload universe (Alert/Flow/Query, no
 ;; forced Op/Reply shape) plus the flood op pair. ──
-(:wat::core::defsurface :prod::Producer :nature :wat::kernel::Peer'
+(:wat::core::defsurface :prod::Producer :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :prod::Alert [severity <- :wat::core::String  code  <- :wat::core::i64])
    (:wat::core::defrecord :prod::Flow  [proto    <- :wat::core::String  bytes <- :wat::core::i64])
@@ -41,13 +41,13 @@
   ;; the dialed backend peer — a client Peer'<Journal::Op,Journal::Reply>, held as a ROOT
   ;; ephemeral field. NEVER an ephemeral/peer to anything Consumer-shaped — the producer only
   ;; ever talks to the shared journal.
-  :ephemeral [journal <- :wat::kernel::Peer'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :ephemeral [journal <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
           [record       <- :prod::producer'::Record
-           journal-addr <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+           journal-addr <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
           -> :prod::producer'::State
-          (:prod::producer'::State :durable record :journal (:wat::core::match (:wat::kernel::connect' journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+          (:prod::producer'::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(flood [s req]
      (:wat::core::let
@@ -91,7 +91,7 @@
 ;; TCO cursor-loop's observable behavior (page until exhausted) without requiring a helper defn to
 ;; cross the fork. 8 iterations of `:limit 50` covers up to 400 rows — comfortably >= the 240 the
 ;; arena floods.
-(:wat::core::defsurface :cons::Consumer :nature :wat::kernel::Peer'
+(:wat::core::defsurface :cons::Consumer :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :cons::Consumer::SiftRequest [namespace <- :wat::core::String])
    (:wat::core::defenum :cons::Consumer::SiftResponse :wat::enum::Pure
@@ -108,15 +108,15 @@
 (:wat::service::defservice :cons::consumer'
   :satisfies :cons::Consumer
   :durable   []
-  :ephemeral [journal <- :wat::kernel::Peer'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :ephemeral [journal <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
   ;; ONLY the Journal — never Producer. This IS the guarantee: consumer''s child registry never
   ;; compiles `:prod::*`.
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
           [record       <- :cons::consumer'::Record
-           journal-addr <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+           journal-addr <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
           -> :cons::consumer'::State
-          (:cons::consumer'::State :durable record :journal (:wat::core::match (:wat::kernel::connect' journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+          (:cons::consumer'::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(sift [s req]
      (:wat::core::let
@@ -189,8 +189,8 @@
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:cons::consumer'::Record) :journal-addr jaddr)
-     producer (:wat::core::match (:wat::kernel::connect' (:prod::producer'::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     consumer (:wat::core::match (:wat::kernel::connect' (:cons::consumer'::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     producer (:wat::core::match (:wat::kernel::connect (:prod::producer'::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     consumer (:wat::core::match (:wat::kernel::connect (:cons::consumer'::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _flood   (:prod::Producer/flood producer
                 (:prod::Producer::FloodRequest :count 240 :namespace "arena-ns"))
      sr       (:cons::Consumer/sift consumer (:cons::Consumer::SiftRequest :namespace "arena-ns"))]

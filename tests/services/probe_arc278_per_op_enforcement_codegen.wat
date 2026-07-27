@@ -11,7 +11,7 @@
 ;; the body runs. This is the feasibility probe (per_op_request_too_large) with the measure MOVED
 ;; OUT of the body — proving 16.2 turns hand-discipline (option a) into structure (option c).
 
-(:wat::core::defsurface :probe::Cap1 :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Cap1 :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Cap1::DoOpRequest [payload <- :wat::core::String])
    (:wat::core::defenum :probe::Cap1::DoOpResponse :wat::enum::Pure
@@ -47,7 +47,7 @@
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap, < FOO
      h   (:probe::cap1svc'/start :locus (:wat::spawn::process) :record (:probe::cap1svc'::Record))
-     c   (:wat::core::match (:wat::kernel::connect' (:probe::cap1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c   (:wat::core::match (:wat::kernel::connect (:probe::cap1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) bytes)
@@ -63,7 +63,7 @@
   (:wat::core::let
     [big (:probe::pl 20)     ;; > cap
      h   (:probe::cap1svc'/start :locus (:wat::spawn::process) :record (:probe::cap1svc'::Record))
-     c   (:wat::core::match (:wat::kernel::connect' (:probe::cap1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c   (:wat::core::match (:wat::kernel::connect (:probe::cap1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r1  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))     ;; RequestTooLarge; keep
      r2  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload "hi"))]   ;; SAME c → Ok
     (:wat::core::match r2 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

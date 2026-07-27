@@ -25,12 +25,12 @@
     [;; (c) Fault/of satisfies :wat::core::Error structurally.
      msg  (:probe::accept-error (:wat::core::Fault/of "boom"))
      ;; (b) A child that raises is caught over the primed wire as Lost[Panic].
-     p    (:wat::kernel::spawn-program' (:wat::spawn::process)
+     p    (:wat::kernel::spawn-program (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::kernel::raise! (:wat::core::Fault/of "boom")))))
      ;; raise-msg: the Panic message if caught as Lost[Panic]; a sentinel otherwise.
-     raise-msg (:wat::core::match (:wat::kernel::recv' p)
+     raise-msg (:wat::core::match (:wat::kernel::recv p)
                  ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
                  ((:wat::kernel::RecvOutcome::Lost cause)
                    (:wat::core::match cause

@@ -28,7 +28,7 @@
 ;; not on the wire.
 
 ;; ── the surface: parametric (arc 170 C2 — a shipped capability), messages bare ──────────────
-(:wat::core::defsurface :wat-tests::Box<T> :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat-tests::Box<T> :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::Box::PutRequest [item <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::Box::PutResponse :wat::enum::Pure
@@ -72,7 +72,7 @@
     (:wat::core::let
       [h (:wat-tests::box-svc/start :locus (:wat::spawn::thread)
            :record (:wat-tests::box-svc::Record :held (:wat::core::Some 42)))
-       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::box-svc::Handle/addr h))
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::box-svc::Handle/addr h))
            ((:wat::kernel::ConnectOutcome::Connected p) p)
            ((:wat::kernel::ConnectOutcome::Refused c)
              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))

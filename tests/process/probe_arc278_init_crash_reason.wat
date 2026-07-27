@@ -8,7 +8,7 @@
 ;;
 ;; The .rs drives this on BOTH loci (thread + process) under a bounded harness.
 
-(:wat::core::defsurface :t::Boom :nature :wat::kernel::Peer'
+(:wat::core::defsurface :t::Boom :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :t::Boom::PingRequest  [x <- :wat::core::i64])
    (:wat::core::defenum :t::Boom::PingResponse :wat::enum::Pure
@@ -44,7 +44,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit'/start :locus (:wat::spawn::thread) :record (:t::boominit'::Record))
-     svc (:wat::core::match (:wat::kernel::connect' (:t::boominit'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message __recv)
@@ -63,7 +63,7 @@
 (:wat::core::defn :user::compute-process [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit'/start :locus (:wat::spawn::process) :record (:t::boominit'::Record))
-     svc (:wat::core::match (:wat::kernel::connect' (:t::boominit'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message __recv)

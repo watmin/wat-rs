@@ -4,7 +4,7 @@
 ;; obsolete `(:defsurface :Name [members])` grammar and cannot recover `:messages` →
 ;; the child crashes at "expected `:nature :<kw>`"). EXPECT: "[2 4 6]", no crash.
 
-(:wat::core::defsurface :probe::Foo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Foo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Foo::Req  [x <- :wat::core::i64])
    (:wat::core::defenum :probe::Foo::Resp :wat::enum::Pure :Ok [y <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]

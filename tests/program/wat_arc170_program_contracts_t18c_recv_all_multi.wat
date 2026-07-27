@@ -14,7 +14,7 @@
 
 (:wat::core::defn :my::test::echo-multi [] -> :wat::core::Vector<wat::core::i64>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
@@ -23,11 +23,11 @@
                 _  (:wat::kernel::println (:wat::core::i64::* n 2))
                 _  (:wat::kernel::println (:wat::core::i64::* n 3))]
                nil))))
-     _ (:wat::core::match (:wat::kernel::send' p 7)
+     _ (:wat::core::match (:wat::kernel::send p 7)
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
-    (:wat::core::match (:wat::kernel::recv-all' p)
+    (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs) outputs)
       ((:wat::core::Err cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))))

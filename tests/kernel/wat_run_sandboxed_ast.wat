@@ -15,11 +15,11 @@
 
 (:wat::core::defn :my::compute-prints-hello [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -28,22 +28,22 @@
 
 (:wat::core::defn :my::compute-assertion-failure [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; The child body (assert-eq 1 2) is unchanged; a failing assertion
            ;; crashes the peer BEFORE the completion-signal send' — the parent's
            ;; recv' then faces Lost[cause] (the LociDiedError carrying the
            ;; assertion failure). A passing body would reach send' 0 → Message.
            (:wat::core::do
              (:wat::test::assert-eq 1 2)
-             (:wat::core::match (:wat::kernel::send' self 0)
+             (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     ;; Reproduce the old `RunResult/failure` assertion off the recv' outcome:
     ;; Lost = the child crashed = the failure was detected → 1 (the Some arm);
     ;; Message = clean completion = no failure → 0 (the None arm).
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) 0)
       ((:wat::kernel::RecvOutcome::Lost _cause) 1)
       (:wat::kernel::RecvOutcome::Closed 0))))

@@ -19,12 +19,12 @@
 ;; .rs asserts (it must NAME the cap reason, not collapse to the reasonless peer-closed mute).
 (:wat::core::defn :user::over-budget-recv [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process/max-message-bytes 256)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process/max-message-bytes 256)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println
                "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::LociDiedError/message cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

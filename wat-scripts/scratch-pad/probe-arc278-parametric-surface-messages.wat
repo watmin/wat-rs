@@ -44,7 +44,7 @@
 ;; payloads asserted in both directions — is `wat-tests/service-parametric-messages.wat`. This file
 ;; stays as the DECLARATION-wall pin it always was.
 
-(:wat::core::defsurface :probe::PCache<K,V> :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::PCache<K,V> :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::PCache::GetRequest<K,V>
      [probes <- :wat::core::Vector<K>])

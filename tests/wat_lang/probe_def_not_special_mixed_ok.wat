@@ -8,7 +8,7 @@
 ;; + 7 (typealias-returning fn, through the macro) = 129.
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::def :h::def-answer 99)
            (:wat::core::defstruct :h::MixPoint8
@@ -40,7 +40,7 @@
                          (:h::mix-i64-fn8 (:h::mix-id8 7))))
                 _out (:wat::kernel::println n)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

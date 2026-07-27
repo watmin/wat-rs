@@ -15,7 +15,7 @@
 ;;
 ;; MEASUREMENT ONLY — prints and exits; no assertion, nothing is fixed.
 
-(:wat::core::defsurface :probe-det::Bag :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe-det::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe-det::Bag::PutRequest
      [items <- :wat::core::Vector<wat::core::String>])
@@ -40,7 +40,7 @@
            (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0)))))])
 
 (:wat::core::defn :probe-det/round-trip
-  [c     <- :wat::kernel::Peer'<probe-det::Bag::Op,probe-det::Bag::Reply>
+  [c     <- :wat::kernel::Peer<probe-det::Bag::Op,probe-det::Bag::Reply>
    label <- :wat::core::String
    req   <- :probe-det::Bag::PutRequest]
   -> :wat::core::nil
@@ -75,7 +75,7 @@
   (:wat::core::let
     [h (:probe-det::bag-svc/start :locus (:wat::spawn::process)
          :record (:probe-det::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect' (:probe-det::bag-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:probe-det::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused f)
            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None))

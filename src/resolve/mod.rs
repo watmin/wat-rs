@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn reserved_prefix_recognized() {
         assert!(is_reserved_prefix(":wat::core::define"));
-        assert!(is_reserved_prefix(":wat::kernel::spawn-program'"));
+        assert!(is_reserved_prefix(":wat::kernel::spawn-program"));
         assert!(is_reserved_prefix(":wat::holon::Atom"));
         assert!(is_reserved_prefix(":wat::holon::Subtract"));
         assert!(is_reserved_prefix(":wat::config::dim-count"));

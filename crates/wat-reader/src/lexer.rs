@@ -688,12 +688,12 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
 /// `'` (apostrophe) is the canonical separator inside keyword bodies
 /// for arity suffixes and type discriminators (e.g. `:wat::core::op'2`,
 /// `:wat::core::op'i64'i64`). It also appears as a primed type-head
-/// suffix: `:wat::kernel::Thread'<I,O>` — the `'` marks the primed
+/// suffix: `:wat::kernel::Thread<I,O>` — the `'` marks the primed
 /// variant and is immediately followed by `<` opening the generic params.
 /// `,` at depth 0 (outside `(...)` and `<...>`) is rejected with
 /// `LexError::CommaInKeywordBody` (arc 171 closure). Commas inside
 /// `(...)` (tuple types like `:(A,B,C)`) and inside `<...>` (parametric
-/// types like `:HashMap<K,V>` or `:wat::kernel::Thread'<I,O>`) remain
+/// types like `:HashMap<K,V>` or `:wat::kernel::Thread<I,O>`) remain
 /// valid. Whitespace inside an unclosed `(` or `<` is an error.
 /// `"` and `;` terminate the keyword — they never appear inside one.
 fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
@@ -1292,12 +1292,12 @@ mod tests {
     #[test]
     fn keyword_primed_generic_two_param_comma() {
         // Arc 214 fix: `'` before `<` is now a valid type-head-final char.
-        // `:wat::kernel::Thread'<I,O>` must lex as a single keyword; the
+        // `:wat::kernel::Thread<I,O>` must lex as a single keyword; the
         // comma is inside `<...>` (angle_depth > 0) and must NOT trigger
         // CommaInKeywordBody.
         assert_eq!(
-            lex_tokens(":wat::kernel::Thread'<wat::core::i64,wat::core::i64>").unwrap(),
-            vec![Token::Keyword(":wat::kernel::Thread'<wat::core::i64,wat::core::i64>".into())]
+            lex_tokens(":wat::kernel::Thread<wat::core::i64,wat::core::i64>").unwrap(),
+            vec![Token::Keyword(":wat::kernel::Thread<wat::core::i64,wat::core::i64>".into())]
         );
     }
 
@@ -1307,7 +1307,7 @@ mod tests {
         // triggers UnclosedBracketInKeyword (whitespace inside `<...>` is
         // always a lex error), but MUST NOT trigger CommaInKeywordBody.
         // The probe accepts either Ok or a non-comma error.
-        let result = lex_tokens(":wat::kernel::Thread'<wat::core::i64, wat::core::i64>");
+        let result = lex_tokens(":wat::kernel::Thread<wat::core::i64, wat::core::i64>");
         match result {
             Ok(_) => {} // lexed cleanly — fine
             Err(e) => {

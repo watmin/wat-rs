@@ -319,17 +319,17 @@
   ;; A passing child sends its pass-marker → Message → `RunResult::Passed`. Value-based end to end: a failing
   ;; test is a VALUE, never a swallowed `_ (recv' p)` (the masking this arc annihilates).
   `(:wat::core::let
-     [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+     [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
             ;; `recv' p` right below (Message/Lost/Closed all become a RunResult); the
             ;; child's completion-signal send' just needs to proceed regardless.
             (:wat::core::do ~body
-              (:wat::core::match (:wat::kernel::send' self 0)
+              (:wat::core::match (:wat::kernel::send self 0)
                 (:wat::kernel::SendOutcome::Sent   nil)
                 (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces a gone self-peer
                 ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
-     (:wat::core::match (:wat::kernel::recv' p)
+     (:wat::core::match (:wat::kernel::recv p)
        ((:wat::kernel::RecvOutcome::Message _m)
          :wat::kernel::RunResult::Passed)
        ((:wat::kernel::RecvOutcome::Lost cause)
@@ -378,11 +378,11 @@
   ;; outcome. A failing child crashes → Lost[cause] → RETURNED as RunResult::Failed (not re-raised, not
   ;; swallowed as `_`). A passing child prints its pass-marker → Message → RunResult::Passed.
   `(:wat::core::let
-     [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+     [p (:wat::kernel::spawn-program (:wat::spawn::process)
           (:wat::core::forms
             (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::do ~body (:wat::kernel::println 0)))))]
-     (:wat::core::match (:wat::kernel::recv' p)
+     (:wat::core::match (:wat::kernel::recv p)
        ((:wat::kernel::RecvOutcome::Message _m)
          :wat::kernel::RunResult::Passed)
        ((:wat::kernel::RecvOutcome::Lost cause)

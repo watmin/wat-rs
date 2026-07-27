@@ -8,7 +8,7 @@
 ;; clean. No hand-written defsurface/extend-type — TypedCapability is BAKED
 ;; (wat/capability.wat) and AUTO-EMITTED per-service, bodiless (wat/service.wat).
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
@@ -23,7 +23,7 @@
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
@@ -41,8 +41,8 @@
 ;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
 (:wat::core::defn :probe::enrich
   [item <- :wat::core::String
-   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
-      kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
+   & [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>
+      kv   <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>]]
   -> :wat::core::String
   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:probe::Echo::EchoResponse::Ok reply) reply)

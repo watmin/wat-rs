@@ -3,7 +3,7 @@
 ;; (arc 170 gap J — provisioning rides map/each directly; `process/uses` retired),
 ;; run through bracket/map with the CLEAN base name (never $impl).
 ;; EXPECT (green): ["echo:a" "echo:b" "echo:c"]
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -19,7 +19,7 @@
 
 (:wat::core::defn :probe::work
   [item <- :wat::core::String
-   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]]
+   & [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>]]
   -> :wat::core::String
   (:wat::core::match
     (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

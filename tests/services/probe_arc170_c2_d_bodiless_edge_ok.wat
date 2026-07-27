@@ -13,7 +13,7 @@
 ;; register assignability WITHOUT re-declaring methods (the DuplicateDefine the first C2-D
 ;; attempt walled on)? Must freeze clean.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg <- :wat::core::String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
                :Ok              [reply <- :wat::core::String]
@@ -24,7 +24,7 @@
   :impls [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 (:wat::core::defsurface :probe::TypedCapability<S,R> :nature :wat::core::Struct
   :features
-  [(coord  [self <- :probe::TypedCapability<S,R>] -> :wat::kernel::Address'<S,R>)
+  [(coord  [self <- :probe::TypedCapability<S,R>] -> :wat::kernel::Address<S,R>)
    (grant  [self <- :probe::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
    (revoke [self <- :probe::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])
 
@@ -34,7 +34,7 @@
 ;; hold at the abstract combined type; call BOTH grant + typed-coord through it.
 (:wat::core::defn :probe::use-both
   [h <- :probe::TypedCapability<probe::Echo::Op,probe::Echo::Reply>]
-  -> :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>
+  -> :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>
   (:wat::core::let
     [_ (:probe::TypedCapability/grant h (:wat::core::Vector :wat::core::i64 42))]
     (:probe::TypedCapability/coord h)))

@@ -13,7 +13,7 @@
 ;; 4 typed Ok replies (no cross-talk / no lost reply).
 
 ;; ── The counter surface + service (modelled on probe_arc209_c3_defservice_client_face.wat) ──
-(:wat::core::defsurface :probe::Counter :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Counter::GetRequest        [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
@@ -47,7 +47,7 @@
 ;;    counting how many typed IncrementResponse::Ok replies came back (a cross-talk / lost-reply
 ;;    detector — a garbled or misrouted reply would fail the typed match and raise). ────────────
 (:wat::core::defn :probe::do-increments
-  [c         <- :wat::kernel::Peer'<probe::Counter::Op,probe::Counter::Reply>
+  [c         <- :wat::kernel::Peer<probe::Counter::Op,probe::Counter::Reply>
    remaining <- :wat::core::i64
    acc       <- :wat::core::i64]
   -> :wat::core::i64
@@ -70,26 +70,26 @@
 ;; ── A worker body: connect' our OWN client Peer' to the shared Address', do 4 increments,
 ;;    send the Ok-count back up the self-peer. Factored to a defn so the 3 spawns are identical. ─
 (:wat::core::defn :probe::worker-body
-  [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>
-   addr <- :wat::kernel::Address'<probe::Counter::Op,probe::Counter::Reply>]
+  [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>
+   addr <- :wat::kernel::Address<probe::Counter::Op,probe::Counter::Reply>]
   -> :wat::core::nil
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect' addr)
+    [c  (:wat::core::match (:wat::kernel::connect addr)
           ((:wat::kernel::ConnectOutcome::Connected p) p)
           ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
           ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
           ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))
      ok (:probe::do-increments c 4 0)]
-    (:wat::core::match (:wat::kernel::send' self ok)
+    (:wat::core::match (:wat::kernel::send self ok)
       (:wat::kernel::SendOutcome::Sent   nil)
       (:wat::kernel::SendOutcome::Closed nil)
       ((:wat::kernel::SendOutcome::Lost _c) nil))))
 
 ;; helper: recv' an i64 result from a joined worker thread peer.
 (:wat::core::defn :probe::join-count
-  [p <- :wat::kernel::Thread'<wat::core::i64,wat::core::i64>]
+  [p <- :wat::kernel::Thread<wat::core::i64,wat::core::i64>]
   -> :wat::core::i64
-  (:wat::core::match (:wat::kernel::recv' p)
+  (:wat::core::match (:wat::kernel::recv p)
     ((:wat::kernel::RecvOutcome::Message m) m)
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "join-count: worker closed before signalling" :wat::core::None :wat::core::None))))
@@ -99,21 +99,21 @@
     [h    (:probe::counter/start :locus (:wat::spawn::thread) :record (:probe::counter::Record :count 0))
      addr (:probe::counter::Handle/addr h)
      ;; spawn ALL THREE workers first (concurrent), each capturing the shared addr — then join.
-     w1 (:wat::kernel::spawn-program' (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+     w1 (:wat::kernel::spawn-program (:wat::spawn::thread)
+          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:probe::worker-body self addr)))
-     w2 (:wat::kernel::spawn-program' (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+     w2 (:wat::kernel::spawn-program (:wat::spawn::thread)
+          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:probe::worker-body self addr)))
-     w3 (:wat::kernel::spawn-program' (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+     w3 (:wat::kernel::spawn-program (:wat::spawn::thread)
+          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:probe::worker-body self addr)))
      r1 (:probe::join-count w1)
      r2 (:probe::join-count w2)
      r3 (:probe::join-count w3)
      total-ops (:wat::core::i64::+ r1 (:wat::core::i64::+ r2 r3))
      ;; main dials its OWN peer for the final read (h stays alive → service lives).
-     mc (:wat::core::match (:wat::kernel::connect' addr)
+     mc (:wat::core::match (:wat::kernel::connect addr)
           ((:wat::kernel::ConnectOutcome::Connected p) p)
           ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
           ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))

@@ -18,7 +18,7 @@
 ;; run-hermetic provided is preserved by spawn-program' :process.
 (:wat::core::defn :probe::plain-panic [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
            ;; Config setters are load-time DIRECTIVES collected by the child's
            ;; entry-file pass — they MUST sit at the top level of the forms,
@@ -36,7 +36,7 @@
                      (:wat::holon::to-holon "key1")
                      (:wat::holon::to-holon "key2")))]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause

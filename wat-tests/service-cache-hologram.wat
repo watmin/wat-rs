@@ -44,9 +44,9 @@
 
 ;; ── dial — the separately-typed verb, load-bearing (pins the wire's type args) ────────────────
 (:wat::core::defn :wat-tests::hologram-svc/dial
-  [a <- :wat::kernel::Address'<wat::cache::Cache::Op<wat::holon::HolonAST,wat::holon::HolonAST>,wat::cache::Cache::Reply<wat::holon::HolonAST,wat::holon::HolonAST>>]
-  -> :wat::kernel::Peer'<wat::cache::Cache::Op<wat::holon::HolonAST,wat::holon::HolonAST>,wat::cache::Cache::Reply<wat::holon::HolonAST,wat::holon::HolonAST>>
-  (:wat::core::match (:wat::kernel::connect' a)
+  [a <- :wat::kernel::Address<wat::cache::Cache::Op<wat::holon::HolonAST,wat::holon::HolonAST>,wat::cache::Cache::Reply<wat::holon::HolonAST,wat::holon::HolonAST>>]
+  -> :wat::kernel::Peer<wat::cache::Cache::Op<wat::holon::HolonAST,wat::holon::HolonAST>,wat::cache::Cache::Reply<wat::holon::HolonAST,wat::holon::HolonAST>>
+  (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused cz)
       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))

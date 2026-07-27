@@ -11,11 +11,11 @@
 ;; defn so wat's TCO (arc 003 — apply_function replaces the top frame in place)
 ;; keeps the stack constant at any item count.
 ;;
-;; Exit discipline: recv' raises (EvalBreak) when the parent's Thread' is
+;; Exit discipline: recv' raises (EvalBreak) when the parent's Thread is
 ;; dropped → the runner's recursion is broken by the raise → it exits cleanly.
 ;; No explicit termination condition is needed; the channel drain IS the signal.
 ;;
-;; Loads AFTER wat/spawn.wat (uses :wat::kernel::Peer', recv', send').
+;; Loads AFTER wat/spawn.wat (uses :wat::kernel::Peer, recv', send').
 ;;
 ;; ── Rendezvous convention ───────────────────────────────────────────────────
 ;;
@@ -30,18 +30,18 @@
 ;; generated `:user::main` that passes the coordinate's value into the runner.
 
 (:wat::core::defn :wat::bracket::runner-loop<I,O>
-  [self    <- :wat::kernel::ThreadSelfPeer'<O,I>
+  [self    <- :wat::kernel::ThreadSelfPeer<O,I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
   ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<I>.
-  ;; ::Message → work + recurse; ::Lost (parent Thread' crashed) → eprintln the cause
+  ;; ::Message → work + recurse; ::Lost (parent Thread crashed) → eprintln the cause
   ;; (loud, terminal); ::Closed (parent dropped cleanly) → exit the runner loop.
-  (:wat::core::match (:wat::kernel::recv' self)  
+  (:wat::core::match (:wat::kernel::recv self)  
     ((:wat::kernel::RecvOutcome::Message item)
       ;; arc 278 the send'-outcome wall — face all three arms explicitly. A dead parent
       ;; here means the NEXT recv' observes Closed/Lost and exits the loop honestly, so
       ;; every arm proceeds to recurse (never a `_`-swallow).
-      (:wat::core::match (:wat::kernel::send' self (work-fn item))
+      (:wat::core::match (:wat::kernel::send self (work-fn item))
         (:wat::kernel::SendOutcome::Sent   (:wat::bracket::runner-loop self work-fn))
         (:wat::kernel::SendOutcome::Closed (:wat::bracket::runner-loop self work-fn))   ;; parent gone → next recv' faces it
         ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::runner-loop self work-fn))))
@@ -65,13 +65,13 @@
 ;; ships only the work-fn (at the :user::bracket::work-fn rendezvous
 ;; coordinate) and a generated :user::main that passes it in here.
 (:wat::core::defn :wat::bracket::process-runner<D,I,O>
-  [self    <- :wat::kernel::Peer'<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>
+  [self    <- :wat::kernel::Peer<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
   ;; arc 278 the recv'-outcome wall — recv' returns RecvOutcome<PoolMsg>. ::Message →
   ;; dispatch the PoolMsg; ::Lost (parent crashed) → eprintln (loud, terminal); ::Closed
   ;; (parent dropped) → exit the runner.
-  (:wat::core::match (:wat::kernel::recv' self)  
+  (:wat::core::match (:wat::kernel::recv self)  
     ((:wat::kernel::RecvOutcome::Message m)
       (:wat::core::match m  
         ((:wat::bracket::PoolMsg::Work pair)
@@ -79,7 +79,7 @@
             [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
             ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
             ;; via the next recv', so every arm proceeds to recurse.
-            (:wat::core::match (:wat::kernel::send' self out)
+            (:wat::core::match (:wat::kernel::send self out)
               (:wat::kernel::SendOutcome::Sent   (:wat::bracket::process-runner self work-fn))
               (:wat::kernel::SendOutcome::Closed (:wat::bracket::process-runner self work-fn))   ;; parent gone → next recv' faces it
               ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::process-runner self work-fn)))))
@@ -95,31 +95,31 @@
 ;;
 ;; The 2-param cousin of process-runner: a granted worker that DIALS a granted
 ;; service and HOLDS the typed peer across items. Generic over <S,R,I,O>: the
-;; dialed service's channel is S/R, so the held context is `Peer'<S,R>` and the
-;; Setup payload is `Address'<S,R>` (connect' : Address'<S,R> → Peer'<S,R>). Threads
-;; `ctx` = `(Option Peer'<S,R>)`, None until the first Setup:
+;; dialed service's channel is S/R, so the held context is `Peer<S,R>` and the
+;; Setup payload is `Address<S,R>` (connect' : Address<S,R> → Peer<S,R>). Threads
+;; `ctx` = `(Option Peer<S,R>)`, None until the first Setup:
 ;;   :Setup(deps) → dial-and-HOLD: recurse with `(Some (connect' deps))`. The pid was
 ;;                  already granted (grant-boot, map-worker) so connect' is admitted.
 ;;   :Work(pair)  → run the held peer through the 2-param work-fn, send the indexed out.
 ;; This is the defservice :init/:ephemeral pattern lifted onto the bracket, and the
 ;; exact shape scratchpad/probe-m1-worker-setup.wat proved GREEN.
 (:wat::core::defn :wat::bracket::process-dial-runner<S,R,I,O>
-  [self    <- :wat::kernel::Peer'<(wat::core::i64,O),wat::bracket::PoolMsg<wat::kernel::Address'<S,R>,I>>
-   work-fn <- :wat::core::Fn(wat::kernel::Peer'<S,R>,I)->O
-   ctx     <- (:wat::core::Option :wat::kernel::Peer'<S,R>)]
+  [self    <- :wat::kernel::Peer<(wat::core::i64,O),wat::bracket::PoolMsg<wat::kernel::Address<S,R>,I>>
+   work-fn <- :wat::core::Fn(wat::kernel::Peer<S,R>,I)->O
+   ctx     <- (:wat::core::Option :wat::kernel::Peer<S,R>)]
   -> :wat::core::nil
   ;; arc 278 the recv'-outcome wall — RecvOutcome<PoolMsg>. ::Message → dispatch;
   ;; ::Lost → eprintln (terminal); ::Closed → exit the runner.
-  (:wat::core::match (:wat::kernel::recv' self)  
+  (:wat::core::match (:wat::kernel::recv self)  
     ((:wat::kernel::RecvOutcome::Message m)
       (:wat::core::match m  
         ((:wat::bracket::PoolMsg::Setup deps)
           ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → hold the
-          ;; dialed Peer' as (Some p); failure arms → assertion-failed! (fatal, preserving
+          ;; dialed Peer as (Some p); failure arms → assertion-failed! (fatal, preserving
           ;; the pre-wall raise-unwind — the pool does NOT degrade/retry; that is a
           ;; deliberate follow-up if ever wanted, not this wall).
           (:wat::bracket::process-dial-runner self work-fn
-            (:wat::core::match (:wat::kernel::connect' deps)
+            (:wat::core::match (:wat::kernel::connect deps)
               ((:wat::kernel::ConnectOutcome::Connected p) (:wat::core::Some p))
               ((:wat::kernel::ConnectOutcome::Refused c)
                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
@@ -133,7 +133,7 @@
              out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))]
             ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
             ;; via the next recv', so every arm proceeds to recurse.
-            (:wat::core::match (:wat::kernel::send' self out)
+            (:wat::core::match (:wat::kernel::send self out)
               (:wat::kernel::SendOutcome::Sent   (:wat::bracket::process-dial-runner self work-fn ctx))
               (:wat::kernel::SendOutcome::Closed (:wat::bracket::process-dial-runner self work-fn ctx))   ;; parent gone → next recv' faces it
               ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::process-dial-runner self work-fn ctx)))))))
@@ -156,16 +156,16 @@
 ;;   then ship a NAMED index-wrapping pool-runner as source (the defservice fork
 ;;   trick). Mirrors scratchpad/probe-s3-process-runner.wat.
 ;;
-;; Both return :wat::kernel::Peer'<(i64,I),(i64,O)> so collect-loop drains a
-;; uniform Vector<Peer'<…>> (select' accepts Peer' as of S3a).
+;; Both return :wat::kernel::Peer<(i64,I),(i64,O)> so collect-loop drains a
+;; uniform Vector<Peer<…>> (select' accepts Peer as of S3a).
 
-;; Arc 170 M1-pool — the thread self-peer now recv's PoolMsg<Address',(i64,I)> (the
+;; Arc 170 M1-pool — the thread self-peer now recv's PoolMsg<Address,(i64,I)> (the
 ;; universal pool wire), so runner-loop stays the general recv→work-fn→send server
 ;; (untouched — its two direct tests send raw items) while the index-wrapper UNWRAPS
 ;; PoolMsg::Work here. A thread pool never dials (dials empty ⇒ no :Setup ever crosses),
 ;; so the :Setup arm is unreachable-by-construction — it raises rather than fabricate a
 ;; result. `work-fn` is the raw 1-param Fn(I)->O (thread applies it in-memory).
-;; Arc 170 gap J — D-generic (was a fixed bare `Address'`): the surface's `spawn-runner<D,…>`
+;; Arc 170 gap J — D-generic (was a fixed bare `Address`): the surface's `spawn-runner<D,…>`
 ;; now names D freely, so this impl's own annotations follow suit — proven to compile with
 ;; D free (probed this session). D is still ALWAYS `nil` in practice for a thread pool (kwargs
 ;; is process-only by the design doc; nothing ever routes a `::Coords` carrier through here),
@@ -175,8 +175,8 @@
 ;; rather than silently fabricate a result if that invariant is ever violated.
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
   (spawn-runner [self work-fn]
-    (:wat::kernel::spawn-program' self
-      (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>] -> :wat::core::nil
+    (:wat::kernel::spawn-program self
+      (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>] -> :wat::core::nil
         (:wat::bracket::runner-loop sp
           (:wat::core::fn [m <- :wat::bracket::PoolMsg<D,I>] -> :(wat::core::i64,O)
             (:wat::core::match m  
@@ -220,16 +220,16 @@
 ;; keyword-string convention ─────────────────────────────────────────────────
 ;;
 ;; Arc 170 C1 — `field-types-of` (Strike B) renders each `::Kwargs` field's type
-;; through the POST-arc-251 canonical form: `wat.kernel/Peer'` (Symbol, dot/slash,
-;; NO leading colon) rather than the surface literal `:wat::kernel::Peer'` a plain
+;; through the POST-arc-251 canonical form: `wat.kernel/Peer` (Symbol, dot/slash,
+;; NO leading colon) rather than the surface literal `:wat::kernel::Peer` a plain
 ;; fn's own (unmangled) param-type keyword carries. The two conventions are
 ;; interchangeable AS TEXT (both resolve to the same registry key; the wat reader
 ;; accepts either "." or "::" as a namespace separator and "/" as the terminal
 ;; separator) — this just re-punctuates one into the other so the compound
-;; angle-bracket keyword strings built below (`wat::kernel::Address'<S,R>`, …)
+;; angle-bracket keyword strings built below (`wat::kernel::Address<S,R>`, …)
 ;; stay in the ONE convention every other string in this AST-walk already uses.
-;; "wat.kernel/Peer'" -> "wat" "kernel/Peer'" (split ".") -> "wat::kernel/Peer'"
-;;                     -> "wat::kernel" "Peer'" (split "/") -> "wat::kernel::Peer'"
+;; "wat.kernel/Peer" -> "wat" "kernel/Peer" (split ".") -> "wat::kernel/Peer"
+;;                     -> "wat::kernel" "Peer" (split "/") -> "wat::kernel::Peer"
 (:wat::core::defn :wat::bracket::dotpath->colonpath [s <- :wat::core::String] -> :wat::core::String
   (:wat::core::string::join "::"
     (:wat::core::string::split
@@ -238,12 +238,12 @@
 
 ;; Arc 170 M1-pool — the AST-walk now also distinguishes the DIAL work-fn. A
 ;; non-dial work-fn is 1-param `Fn(I)->O` (argspec = 3 AST children: `n <- :I`);
-;; a dial work-fn is 2-param `Fn(Peer'<S,R>,I)->O` (6 children: `c <- :Peer'<S,R>
+;; a dial work-fn is 2-param `Fn(Peer<S,R>,I)->O` (6 children: `c <- :Peer<S,R>
 ;; n <- :I`). We branch on that count:
-;;   NON-DIAL → bake `process-runner`, self-peer recvs `PoolMsg<Address',I>` (D phantom).
+;;   NON-DIAL → bake `process-runner`, self-peer recvs `PoolMsg<Address,I>` (D phantom).
 ;;   DIAL     → bake `process-dial-runner` (threads the held peer + starts at None),
-;;              self-peer recvs the CONCRETE `PoolMsg<Address'<S,R>,I>` — S,R lifted off
-;;              the 1st param `Peer'<S,R>` by a `Peer'`→`Address'` head-swap (split/join),
+;;              self-peer recvs the CONCRETE `PoolMsg<Address<S,R>,I>` — S,R lifted off
+;;              the 1st param `Peer<S,R>` by a `Peer`→`Address` head-swap (split/join),
 ;;              so the child's connect' gets a fully-typed address. The item type I is the
 ;;              LAST param either way; O is the return.
 ;;
@@ -263,7 +263,7 @@
 ;; the keyword-vs-fn distinction is made by defclause's own type dispatch, for free.
 (:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
   (spawn-runner [self work-fn]
-    (:wat::kernel::spawn-program' self (:wat::bracket::process-work-forms work-fn))))
+    (:wat::kernel::spawn-program self (:wat::bracket::process-work-forms work-fn))))
 
 (:wat::core::defclause :wat::bracket::process-work-forms
   ;; ── KWARGS branch (arc 170 C1 ground case N=1, generalized to N by C2 Strike 1) ──
@@ -271,12 +271,12 @@
   ;; Ship `<base>$impl` BY NAME (the fn-forms keyword seam, c8e3c7ff) — its OWN 2-param
   ;; signature is [item <- :I  kwargs <- :<base>::Kwargs] (item FIRST, unlike the raw
   ;; dial shape where the peer is first). Read the ::Kwargs struct's N fields (field-order
-  ;; preserved by field-names-of/field-types-of, Strike B) to recover each field's Peer'<S,R>
+  ;; preserved by field-names-of/field-types-of, Strike B) to recover each field's Peer<S,R>
   ;; — NEVER by reflecting the work-fn value itself. Then synthesize: (1) an N-ARY ADAPTER fn
-  ;; (Peer'<S1,R1>,…,Peer'<Sn,Rn>,I)->O that assembles the ::Kwargs struct positionally (field
+  ;; (Peer<S1,R1>,…,Peer<Sn,Rn>,I)->O that assembles the ::Kwargs struct positionally (field
   ;; order) from the N held dial peers + calls the shipped $impl, and (2) an N-DIAL RUNNER
   ;; emitted as source (the baked single-peer `process-dial-runner` can't carry a variadic
-  ;; type-param list — a Tuple<Address'<S1,R1>,…> carrier is concretely-typed PER CALL, so the
+  ;; type-param list — a Tuple<Address<S1,R1>,…> carrier is concretely-typed PER CALL, so the
   ;; runner recv-ing it must be too; shape proven at
   ;; wat-scripts/probes/arc-170/w3-n-dial-runner.wat). N=1 is not special-cased — it is the
   ;; ground case of the same fold (a 1-element Tuple carrier/ctx).
@@ -311,7 +311,7 @@
        ;; The coords carrier D is the `<base>::Coords` RECORD (minted at the kwargs-defn site,
        ;; wat/core.wat) — addressed by field NAME, so N has NO positional-accessor cap and DATA
        ;; fields fall out for free. The runner recv's ONE `::Coords` record as the Setup payload,
-       ;; reconciles it → `::Kwargs` by field name (Peer' field → connect' the Address'; data field
+       ;; reconciles it → `::Kwargs` by field name (Peer field → connect' the Address; data field
        ;; → copy the value through, routed off `field-types-of`), holds the assembled `::Kwargs`,
        ;; and invokes `$impl` per Work item. `fnames`/`ftypes` are field-ordered + positionally
        ;; aligned (Strike B), so a single fold over 0..n builds the ordered ctor args.
@@ -332,7 +332,7 @@
                          (:wat::core::string::concat "," (:wat::core::string::concat item-t ">"))))
        sp-in         (:wat::core::keyword-node (:wat::core::string::concat ":" sp-in-str))
        runner-self-kw (:wat::core::keyword-node
-                        (:wat::core::string::concat ":wat::kernel::Peer'<"
+                        (:wat::core::string::concat ":wat::kernel::Peer<"
                           (:wat::core::string::concat sp-out-str
                             (:wat::core::string::concat "," (:wat::core::string::concat sp-in-str ">")))))
        ;; ctx holds the assembled ::Kwargs (the N-heterogeneous dialed-peer bundle), None until Setup.
@@ -345,9 +345,9 @@
        ;; construction must go through the type-name PRIME, mirroring core.wat's coords-prime-kw.
        kwargs-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat kwargs-ty-str "'")))
        ;; kwargs-ctor-args: one form per ::Kwargs field, DECLARED order, each read off the ::Coords
-       ;; record BY NAME (`(:<base>::Coords/<field> deps)`). A Peer'-typed field (its ::Kwargs type
-       ;; is a Peer'<S,R> — an `ast-kind` "list" whose head names Peer') gets `connect'`ed
-       ;; (Address'→Peer'); a data field is copied through verbatim. `deps` is the Setup binder
+       ;; record BY NAME (`(:<base>::Coords/<field> deps)`). A Peer-typed field (its ::Kwargs type
+       ;; is a Peer<S,R> — an `ast-kind` "list" whose head names Peer) gets `connect'`ed
+       ;; (Address→Peer); a data field is copied through verbatim. `deps` is the Setup binder
        ;; symbol (literal in the runner quasiquote below — the same across-quasiquote literal-symbol
        ;; reference the C1 dial-runner already used, proven to survive the ship-as-source round-trip).
        kwargs-ctor-args
@@ -362,14 +362,14 @@
               ft          (:wat::core::Option/expect (:wat::core::get ftypes i) "process-work-forms(kwargs): ftypes index")
               is-peer     (:wat::core::if (:wat::core::= (:wat::core::ast-kind ft) "list")
                             (:wat::core::string::contains?
-                              (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ft))) "Peer'")
+                              (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ft))) "Peer")
                             false)
-              ;; arc 278 the connect'-outcome wall — a Peer'-typed field's generated dial
-              ;; FACES the outcome: ::Connected → the Peer'; failure arms → assertion-failed!
+              ;; arc 278 the connect'-outcome wall — a Peer-typed field's generated dial
+              ;; FACES the outcome: ::Connected → the Peer; failure arms → assertion-failed!
               ;; (fatal, preserving the pre-wall raise-unwind). Arm-local p/c are literal in
               ;; the generated code (arm-scoped; they don't escape the match).
               form        (:wat::core::if is-peer
-                            `(:wat::core::match (:wat::kernel::connect' (~accessor-kw deps))
+                            `(:wat::core::match (:wat::kernel::connect (~accessor-kw deps))
                                ((:wat::kernel::ConnectOutcome::Connected p) p)
                                ((:wat::kernel::ConnectOutcome::Refused c)
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
@@ -382,7 +382,7 @@
          (:wat::core::Vector :wat::WatAST)
          (:wat::core::range 0 n))
        ;; N-DIAL RUNNER — emitted as source. recv PoolMsg<::Coords,I>; Setup deps (a ::Coords record)
-       ;; → reconcile-by-name into the ::Kwargs bundle (connect' the Peer' fields, copy the data
+       ;; → reconcile-by-name into the ::Kwargs bundle (connect' the Peer fields, copy the data
        ;; fields), HOLD it; Work pair → invoke `$impl` (via the `:user::bracket::work-fn` keyword,
        ;; arc-009-lifted through `apply`'s head — the C1-proven invocation seam) with the item + the
        ;; held ::Kwargs bundle, send the indexed result, recurse. No separate adapter fn: the
@@ -392,7 +392,7 @@
           [self <- ~runner-self-kw
            ctx  <- ~ctx-ty-kw]
           -> :wat::core::nil
-          (:wat::core::match (:wat::kernel::recv' self)  
+          (:wat::core::match (:wat::kernel::recv self)  
             ((:wat::kernel::RecvOutcome::Message m)
               (:wat::core::match m  
                 ((:wat::bracket::PoolMsg::Setup deps)
@@ -405,7 +405,7 @@
                            (:wat::core::apply  :user::bracket::work-fn (:wat::core::second pair) [k]))]
                     ;; arc 278 the send'-outcome wall — face all three arms; a dead parent
                     ;; surfaces via the next recv', so every arm proceeds to recurse.
-                    (:wat::core::match (:wat::kernel::send' self out)
+                    (:wat::core::match (:wat::kernel::send self out)
                       (:wat::kernel::SendOutcome::Sent   (:user::bracket::dial-runner self ctx))
                       (:wat::kernel::SendOutcome::Closed (:user::bracket::dial-runner self ctx))   ;; parent gone → next recv' faces it
                       ((:wat::kernel::SendOutcome::Lost _c) (:user::bracket::dial-runner self ctx)))))))
@@ -448,11 +448,11 @@
        ;; ── main-def — dispatch on arity ──
        main-def
        (:wat::core::if (:wat::core::= arity 6)
-         ;; DIAL: derive Address'<S,R> off the 1st param Peer'<S,R>; recv PoolMsg<Address'<S,R>,I>.
+         ;; DIAL: derive Address<S,R> off the 1st param Peer<S,R>; recv PoolMsg<Address<S,R>,I>.
          (:wat::core::let
            [c-ty   (:wat::core::first (:wat::core::drop arg-ch 2))          ;; 1st param's TYPE node
-            c-nm   (:wat::core::ast-name c-ty)                              ;; ":wat::kernel::Peer'<S,R>"
-            addr   (:wat::core::string::join "Address'" (:wat::core::string::split c-nm "Peer'"))  ;; ":wat::kernel::Address'<S,R>"
+            c-nm   (:wat::core::ast-name c-ty)                              ;; ":wat::kernel::Peer<S,R>"
+            addr   (:wat::core::string::join "Address" (:wat::core::string::split c-nm "Peer"))  ;; ":wat::kernel::Address<S,R>"
             ;; strip the leading ':' (ast-name keywords always carry one) — inlined via `subs`,
             ;; not `string::strip-leading-colon` (that helper loads in string.wat, AFTER this file).
             addr-b (:wat::core::string::subs addr 1 (:wat::core::string::length addr))
@@ -465,10 +465,10 @@
                 (:wat::program::self-peer ~sp-out ~sp-in)
                 :user::bracket::work-fn
                 :wat::core::None)))
-         ;; NON-DIAL: recv PoolMsg<Address',I> (D phantom — no Setup ever sent).
+         ;; NON-DIAL: recv PoolMsg<Address,I> (D phantom — no Setup ever sent).
          (:wat::core::let
            [sp-in  (:wat::core::keyword-node
-                     (:wat::core::string::concat ":wat::bracket::PoolMsg<wat::kernel::Address',"
+                     (:wat::core::string::concat ":wat::bracket::PoolMsg<wat::kernel::Address,"
                        (:wat::core::string::concat arg-t ">")))]
            `(:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::bracket::process-runner
@@ -478,7 +478,7 @@
 
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
-;; State: peers (the live Thread' vector), items (the full input vector),
+;; State: peers (the live Thread vector), items (the full input vector),
 ;; pairs-acc (accumulator of (idx,result) pairs so far), cursor (next item
 ;; to dispatch), collected (how many results have arrived), m (total item count).
 ;;
@@ -496,19 +496,19 @@
 ;; never disconnect or crash in normal operation; if it does, raise via
 ;; assertion-failed! so the failure is visible rather than silently swallowed.
 
-;; Arc 170 C2 Strike 1c — generalized `Address'` (bare) to `D`. Purely a WIDENING of the
+;; Arc 170 C2 Strike 1c — generalized `Address` (bare) to `D`. Purely a WIDENING of the
 ;; declared type (this fn's own logic never touches the Setup/D payload — it only ever
 ;; handles Work/select' events on the (i64,O) channel). Originally needed so the (since-
 ;; retired) `uses'` coordinator — which back then spawned DIRECTLY via `spawn-program'`,
 ;; bypassing `Locus/spawn-runner`, because that surface's return type was FIXED to a bare
-;; `Address'` and a `::Coords` record couldn't round-trip through it — could reuse this SAME
+;; `Address` and a `::Coords` record couldn't round-trip through it — could reuse this SAME
 ;; collector for its `::Coords`-carrying peers. Arc 170 gap J made `Locus/spawn-runner` itself
 ;; D-generic (wat/spawn.wat), removing that constraint entirely and letting `uses'` fold into
 ;; `map-worker` (both now flow through the ONE `spawn-runner` call); this generalization
 ;; remains because `map-worker` itself is the one caller for every D (nil OR `::Coords`) and
 ;; needs the same widening `collect-loop` already had.
 (:wat::core::defn :wat::bracket::collect-loop<D,I,O>
-  [peers     <- :wat::core::Vector<wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>>
+  [peers     <- :wat::core::Vector<wat::kernel::Peer<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>>
    items     <- :wat::core::Vector<I>
    pairs-acc <- :wat::core::Vector<(wat::core::i64,O)>
    cursor    <- :wat::core::i64
@@ -518,7 +518,7 @@
   (:wat::core::if (:wat::core::= collected m)
     pairs-acc
     (:wat::core::let
-      [event    (:wat::kernel::select' peers)]
+      [event    (:wat::kernel::select peers)]
       (:wat::core::match event
          
         ((:wat::spawn::ServiceEvent::Message peer-pos pair)
@@ -528,7 +528,7 @@
                         ;; A dead runner here surfaces via THIS loop's own select' arm
                         ;; (:Closed/:Lost above, which raise) — this dispatch always advances
                         ;; the cursor regardless of outcome.
-                        (:wat::core::match (:wat::kernel::send'
+                        (:wat::core::match (:wat::kernel::send
                                               (:wat::core::nth peers peer-pos)
                                               (:wat::bracket::PoolMsg::Work
                                                 (:wat::core::Tuple cursor (:wat::core::nth items cursor))))
@@ -594,7 +594,7 @@
 ;; (was pinned to `ProcessOpts`) with a plain pool as the trivial case — `uses'` deletes, its
 ;; body absorbed here. Provisioning (grant + Setup dial) is a PARAMETERIZED layer riding
 ;; orthogonally on the pool, never welded into it: this body never constructs a concrete
-;; `Address'`/`Capability` value itself (the earlier naive D-generic attempt broke exactly
+;; `Address`/`Capability` value itself (the earlier naive D-generic attempt broke exactly
 ;; there, via `Capability/coordinate`) — the carrier flows entirely from the caller, through
 ;; `spawn-runner` (D-generic as of this stone, wat/spawn.wat:305-311).
 ;;
@@ -623,11 +623,11 @@
     [m  (:wat::core::length items)
      rc (:wat::spawn::runner-count locus)
      n  (:wat::core::if (:wat::core::< rc m) rc m)
-     ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Peer'<...>> param
+     ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Peer<...>> param
      ;; — repeatedly `select'`-ed, must be eager) and later `sort-by`, so materialize here.
      peers (:wat::core::mapv
              (:wat::core::fn [i <- :wat::core::i64]
-                 -> :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>
+                 -> :wat::kernel::Peer<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>
                (:wat::core::let
                  [work-fn (worker-init i)                          ;; per-runner setup, once
                   p (:wat::spawn::Locus/spawn-runner locus work-fn)
@@ -649,7 +649,7 @@
                         ;; a dead runner at setup time surfaces later via collect-loop's own
                         ;; select' arm (Closed/Lost raises there); this fold's job is only to
                         ;; fire every worker's Setup, so every arm continues the fold.
-                        (:wat::core::match (:wat::kernel::send' p (:wat::bracket::PoolMsg::Setup c))
+                        (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Setup c))
                           (:wat::kernel::SendOutcome::Sent   nil)
                           (:wat::kernel::SendOutcome::Closed nil)   ;; surfaces via collect-loop's select' arm
                           ((:wat::kernel::SendOutcome::Lost _c) nil)))
@@ -657,7 +657,7 @@
                       setup-carrier)
                   ;; arc 278 the send'-outcome wall — the initial per-worker item primer. A dead
                   ;; runner surfaces via collect-loop's own select' arm; face all three explicitly.
-                  _ (:wat::core::match (:wat::kernel::send' p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))
+                  _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))
                       (:wat::kernel::SendOutcome::Sent   nil)
                       (:wat::kernel::SendOutcome::Closed nil)   ;; surfaces via collect-loop's select' arm
                       ((:wat::kernel::SendOutcome::Lost _c) nil))]
@@ -671,7 +671,7 @@
      ;; thread peer (None) skips. Runs BEFORE the return so no grant escapes the bracket.
      _revoke (:wat::core::foldl
                (:wat::core::fn [_acc <- :wat::core::nil
-                                p    <- :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>]
+                                p    <- :wat::kernel::Peer<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>]
                  -> :wat::core::nil
                  (:wat::core::match (:wat::kernel::peer-pid p)  
                    ((:wat::core::Some pid) (revoke-fn grant-handles pid))

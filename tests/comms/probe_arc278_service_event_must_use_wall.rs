@@ -2,7 +2,7 @@
 //!
 //! WHY: `poll'`/`select'` already return a matchable `:wat::spawn::ServiceEvent` (Message/Closed/
 //! Lost[cause]/Malformed[cause]/Rejected[cause]) — value-faced, a peer failure is a variant, never a
-//! raise. But nothing forced FACING it: `(:wat::core::let [_ (:wat::kernel::select' peers)] …)` (or a
+//! raise. But nothing forced FACING it: `(:wat::core::let [_ (:wat::kernel::select peers)] …)` (or a
 //! do-non-final drop) silently dropped the event, hiding a `Lost`/`Malformed` failure. `ServiceEvent`
 //! is now must-use (added to `MUST_USE_PARAMETRIC_HEADS`), so a dropped event is a located compile
 //! error. A *faced* event has an arm-joined type, not `ServiceEvent`, so this fires ONLY on a raw drop.

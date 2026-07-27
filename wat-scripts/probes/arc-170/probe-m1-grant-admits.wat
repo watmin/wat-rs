@@ -15,7 +15,7 @@
 ;; If grant does NOT admit → the prober's echo recv' EOFs → the prober DIES → the owner's
 ;; recv' on the prober RAISES → the program errors out (non-zero exit, a raise) on that line.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -34,11 +34,11 @@
     [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      ea  (:probe::echo'::Handle/addr eh)
      ;; the prober — a SEPARATE process; receives A's addr (down), dials, echoes the reply UP.
-     prober (:wat::kernel::spawn-program' (:wat::spawn::process)
+     prober (:wat::kernel::spawn-program (:wat::spawn::process)
               (:wat::core::forms
                 ;; the child evals in a FRESH world — it must re-declare the surface it dials
                 ;; (deterministic derivation → wire-identical Op/Reply; arc-054 idempotent).
-                (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+                (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -49,11 +49,11 @@
                   (:wat::core::let
                     [self (:wat::program::self-peer
                             :wat::core::String
-                            :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
-                     addr (:wat::kernel::recv' self)
-                     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                            :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)
+                     addr (:wat::kernel::recv self)
+                     c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::core::match (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _    (:wat::core::match (:wat::kernel::send self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))
   ((:probe::Echo::EchoResponse::RequestMalformed mpath mexpected mgot)
@@ -67,6 +67,6 @@
              (:wat::kernel::assertion-failed! "peer-pid returned None on a process prober"
                :wat::core::None :wat::core::None)))
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.
-     _   (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     out (:wat::kernel::recv' prober)]
+     _   (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     out (:wat::kernel::recv prober)]
     (:wat::kernel::println out)))

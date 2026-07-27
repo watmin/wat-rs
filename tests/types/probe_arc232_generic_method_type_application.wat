@@ -6,7 +6,7 @@
   :features [(mk<S,R> [self <- :user::Mk] -> :wat::spawn::Bound<S,R>)])
 
 (:wat::core::extend-type :wat::spawn::ThreadOpts :user::Mk
-  (mk [self] (:wat::kernel::listener' self :S :R)))
+  (mk [self] (:wat::kernel::listener self :S :R)))
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let

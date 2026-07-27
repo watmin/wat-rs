@@ -169,7 +169,7 @@ impl Nature {
             Nature::Struct => ":wat::core::Struct",
             Nature::Record => ":wat::core::Record",
             Nature::HolonRecord => ":wat::holon::Record",
-            Nature::Peer => ":wat::kernel::Peer'",
+            Nature::Peer => ":wat::kernel::Peer",
         }
     }
 
@@ -181,7 +181,7 @@ impl Nature {
             ":wat::core::Struct"  => Some(Nature::Struct),
             ":wat::core::Record"        => Some(Nature::Record),
             ":wat::holon::Record" => Some(Nature::HolonRecord),
-            ":wat::kernel::Peer'" => Some(Nature::Peer),
+            ":wat::kernel::Peer" => Some(Nature::Peer),
             _                     => None,
         }
     }
@@ -1447,7 +1447,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![(
                     "peer".into(),
                     TypeExpr::Parametric {
-                        head: "wat::kernel::Peer'".into(),
+                        head: "wat::kernel::Peer".into(),
                         args: vec![
                             TypeExpr::Path("R".into()),
                             TypeExpr::Path("S".into()),
@@ -1508,7 +1508,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![(
                     "peer".into(),
                     TypeExpr::Parametric {
-                        head: "wat::kernel::Peer'".into(),
+                        head: "wat::kernel::Peer".into(),
                         args: vec![
                             TypeExpr::Path("S".into()),
                             TypeExpr::Path("R".into()),
@@ -2021,7 +2021,7 @@ fn synthesize_surface_protocol(
         ("got".to_string(), TypeExpr::Path(":wat::core::String".into())),
     ];
     // Ruling A binds SERVICEABLE ops — the wire ops of a service. Only a `:nature
-    // :wat::kernel::Peer'` surface is a service (its ops' returns ARE `<Op>Response`s
+    // :wat::kernel::Peer` surface is a service (its ops' returns ARE `<Op>Response`s
     // that cross the wire and can face a too-large request); a `:Struct`/`:Record`/
     // `:HolonRecord` surface's methods are in-thread accessors whose returns are ordinary
     // values, not Responses, so the RequestTooLarge lock does not apply to them.
@@ -4962,7 +4962,7 @@ mod tests {
     //
     // `synthesize_surface_protocol` enforces: every serviceable op-Response must be an
     // outcome ENUM carrying a well-shaped `RequestTooLarge [bytes <- i64  cap <- i64]`
-    // variant. A `:nature :wat::kernel::Peer'` surface OWNS its protocol types in a
+    // variant. A `:nature :wat::kernel::Peer` surface OWNS its protocol types in a
     // mandatory `:messages` block; `expand_all`'s `hoist_surface_messages` lifts those
     // decls to the top-level form stream AHEAD of the surface form, so they are registered
     // in `env` before `synthesize_surface_protocol` runs. `expand_then_register` mirrors
@@ -4996,7 +4996,7 @@ mod tests {
         // services) is a located ruling-A error. Also confirms STOP-1: env.get(ret)
         // resolved to Aggregate at synthesize time (only then does the record branch fire).
         let err = expand_then_register(
-            r#"(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
                                 [ok <- :wat::core::String])]
                   :features [(foo [self <- :t::Bad  req <- :wat::core::String]
@@ -5017,7 +5017,7 @@ mod tests {
         // An outcome enum that omits the `RequestTooLarge` variant is a located ruling-A
         // error. Also confirms STOP-1: env.get(ret) resolved to Enum at synthesize time.
         let err = expand_then_register(
-            r#"(:wat::core::defsurface :t::Bad2 :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Bad2 :nature :wat::kernel::Peer
                   :messages [(:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String])]
                   :features [(foo [self <- :t::Bad2  req <- :wat::core::String]
@@ -5038,7 +5038,7 @@ mod tests {
         // A `RequestTooLarge` variant whose fields are the WRONG shape (String, not i64) is
         // NOT well-shaped → located ruling-A error. Locks the field-shape, not just the name.
         let err = expand_then_register(
-            r#"(:wat::core::defsurface :t::Bad3 :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Bad3 :nature :wat::kernel::Peer
                   :messages [(:wat::core::defenum :t::Bad3::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::String  cap <- :wat::core::String])]
@@ -5064,7 +5064,7 @@ mod tests {
         // default to flip), and that guard refuses with this variant. Omitting it would leave
         // the generated code referencing a variant that does not exist.
         let err = expand_then_register(
-            r#"(:wat::core::defsurface :t::Bad4 :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Bad4 :nature :wat::kernel::Peer
                   :messages [(:wat::core::defenum :t::Bad4::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
@@ -5088,7 +5088,7 @@ mod tests {
         // rendered as a flat String would collapse the one field of this variant that is real
         // DATA rather than a rendering, so it is refused.
         let err = expand_then_register(
-            r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer
                   :messages [(:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -5115,7 +5115,7 @@ mod tests {
         // both clear it. This is why `rm_fields` is built by PARSING the canonical spelling
         // rather than hand-assembling the `TypeExpr`.
         expand_then_register(
-            r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer
                   :messages [(:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -5135,7 +5135,7 @@ mod tests {
         // protocol enums `::Op` / `::Reply` synthesize as before. Proves the lock does not
         // false-positive on the migrated (conforming) fleet.
         let env = expand_then_register(
-            r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer'
+            r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer
                   :messages [(:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]

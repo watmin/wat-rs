@@ -1,8 +1,8 @@
 ;; A trivial serve loop — proves the launch WIRING (not the poll loop, which 4a-iii covers).
 (:wat::core::defn :my::svc::serve
-  [self    <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
-   l       <- :wat::kernel::Listener'<wat::core::i64,wat::core::i64>
-   clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>
+  [self    <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>
+   l       <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
+   clients <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>
    st      <- :wat::core::i64] -> :wat::core::nil
   nil)
 
@@ -14,7 +14,7 @@
 ;; The thread tier's serve closure sends `(apply lu-mk-kw (Bound/address b) [])` as its
 ;; readiness Started after :init; the parent discards it (crash-aware barrier), so any i64 does.
 (:wat::core::defn :my::svc::mk-lu
-  [a <- :wat::kernel::Address'<wat::core::i64,wat::core::i64>] -> :wat::core::i64 0)
+  [a <- :wat::kernel::Address<wat::core::i64,wat::core::i64>] -> :wat::core::i64 0)
 
 ;; Locus-AGNOSTIC: the param is the abstract `:wat::spawn::Locus`. `Locus/launch` routes through it.
 ;; arc 291: launch signature = [self ship init serve service-forms lu-addr-kw] (6 args).

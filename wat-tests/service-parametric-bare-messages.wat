@@ -28,7 +28,7 @@
 ;; `service-parametric.wat` pins, minus the vacuous `<T>` this stone retires.
 
 ;; ── the surface: parametric, messages BARE (the whole point) ────────────────────────────────
-(:wat::core::defsurface :wat-tests::BareBox<T> :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat-tests::BareBox<T> :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::BareBox::PutRequest [item <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::BareBox::PutResponse :wat::enum::Pure
@@ -69,7 +69,7 @@
   (:wat::core::let
     [h (:wat-tests::barebox-svc/start :locus locus
          :record (:wat-tests::barebox-svc::Record :held (:wat::core::Some 42)))
-     c (:wat::core::match (:wat::kernel::connect' (:wat-tests::barebox-svc::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
          ((:wat::kernel::ConnectOutcome::Refused cz)
            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))

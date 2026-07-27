@@ -21,17 +21,17 @@
               start-time-ns <- :wat::core::i64
               counters      <- (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
               durations     <- (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples)]
-  :ephemeral [sink <- :wat::kernel::Peer'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :ephemeral [sink <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
           [record    <- :wat::telemetry::span::Record
-           sink-addr <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+           sink-addr <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
           -> :wat::telemetry::span::State
           ;; arc 278 the connect'-outcome wall — face all four arms; ::Connected → the sink
           ;; Peer'; failure arms → assertion-failed! (fatal, preserving the pre-wall
           ;; raise-unwind: a span service whose sink dial fails at :init cannot start).
           (:wat::telemetry::span::State :durable record
-            :sink (:wat::core::match (:wat::kernel::connect' sink-addr)
+            :sink (:wat::core::match (:wat::kernel::connect sink-addr)
                     ((:wat::kernel::ConnectOutcome::Connected p) p)
                     ((:wat::kernel::ConnectOutcome::Refused c)
                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
@@ -235,7 +235,7 @@
         ;; arc 278 the connect'-outcome wall — the generated dial faces all four arms;
         ;; ::Connected → the span sink Peer'; failure arms → assertion-failed! (fatal,
         ;; preserving the pre-wall raise-unwind). Arm-local p/c don't escape to ~body.
-        ~span-name (:wat::core::match (:wat::kernel::connect' (:wat::telemetry::span::Handle/addr ~h-sym))
+        ~span-name (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr ~h-sym))
                      ((:wat::kernel::ConnectOutcome::Connected p) p)
                      ((:wat::kernel::ConnectOutcome::Refused c)
                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))

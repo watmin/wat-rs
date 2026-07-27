@@ -6,7 +6,7 @@
 (:wat::core::defmacro :probe::just-surface
   [def-form <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::defsurface :probe::Bare :nature :wat::kernel::Peer'
+  `(:wat::core::defsurface :probe::Bare :nature :wat::kernel::Peer
      :messages
      [~def-form
       (:wat::core::defrecord :probe::Bare::Req [c <- :wat::core::i64])]

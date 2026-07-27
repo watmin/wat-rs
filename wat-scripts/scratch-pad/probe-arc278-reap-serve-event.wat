@@ -11,17 +11,17 @@
 ;;                         ("poll': listener recv failed — address was dropped")
 
 (:wat::core::defn :se/serve
-  [self  <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>
-   l     <- :wat::kernel::Listener'<wat::core::i64,wat::core::i64>
-   peers <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>]
+  [self  <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>
+   l     <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
+   peers <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l peers)
+  (:wat::core::match (:wat::kernel::poll self l peers)
     ;; THE REPORT CHANNEL: the spawned thread CANNOT println (stdio services are not
     ;; routed into a hand-spawned thread — see the SVC LOST row this probe first
     ;; produced), so each event reports itself by sending a distinct sentinel DOWN to
     ;; the connected client, which the owner reads. 999 = Shutdown reached.
     (:wat::spawn::ServiceEvent::Shutdown
-      (:wat::core::match (:wat::kernel::try-send' (:wat::core::nth peers 0) 999)
+      (:wat::core::match (:wat::kernel::try-send (:wat::core::nth peers 0) 999)
         (:wat::kernel::TrySendOutcome::Sent nil)
         (:wat::kernel::TrySendOutcome::WouldBlock nil)
         (:wat::kernel::TrySendOutcome::Closed nil)
@@ -31,7 +31,7 @@
       (:se/serve self l (:wat::core::conj peers peer)))
     ((:wat::spawn::ServiceEvent::Message idx msg)
       (:wat::core::do
-        (:wat::core::match (:wat::kernel::send' (:wat::core::nth peers idx) msg)
+        (:wat::core::match (:wat::kernel::send (:wat::core::nth peers idx) msg)
           (:wat::kernel::SendOutcome::Sent nil)
           (:wat::kernel::SendOutcome::Closed nil)
           ((:wat::kernel::SendOutcome::Lost _c) nil))
@@ -42,14 +42,14 @@
       (:se/serve self l (:wat::std::list::remove-at peers idx)))
     (_ nil)))
 
-(:wat::core::defn :se/try [c <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
+(:wat::core::defn :se/try [c <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
-    (:wat::core::match (:wat::kernel::send' c 7)
+    (:wat::core::match (:wat::kernel::send c 7)
       (:wat::kernel::SendOutcome::Sent nil)
       (:wat::kernel::SendOutcome::Closed (:wat::kernel::println (:wat::core::string::concat label " send => CLOSED")))
       ((:wat::kernel::SendOutcome::Lost _c) nil))
-    (:wat::core::match (:wat::kernel::recv' c)
+    (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message m)
         (:wat::kernel::println (:wat::core::string::concat label
           (:wat::core::string::concat " => Message " (:wat::core::i64/to-string m)))))
@@ -61,14 +61,14 @@
 
 (:wat::core::defn :se/row-tail [] -> :wat::core::nil
   (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)
-     svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>]
+     svc  (:wat::kernel::spawn-program (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
               -> :wat::core::nil
-              (:se/serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>))))
-     c    (:wat::core::match (:wat::kernel::connect' a)
+              (:se/serve self l (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>))))
+     c    (:wat::core::match (:wat::kernel::connect a)
             ((:wat::kernel::ConnectOutcome::Connected p) p)
             ((:wat::kernel::ConnectOutcome::Refused _f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
             ((:wat::kernel::ConnectOutcome::Rejected _f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))

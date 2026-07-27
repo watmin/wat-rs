@@ -7,7 +7,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [svc (:wat::kernel::spawn-program (:wat::spawn::process)
             (:wat::core::forms
               ;; The forked child runs a FRESH startup (stdlib prelude + these forms only) — it does
               ;; NOT inherit the parent's top-level defs. So the record must be defined HERE too (D1's
@@ -17,10 +17,10 @@
                 (:wat::core::let
                   ;; the child mints a plain base record and hands it to the parent over the self-peer.
                   [self (:wat::program::self-peer :user::Pt :wat::core::i64)
-                   _    (:wat::core::match (:wat::kernel::send' self (:user::Pt :x 7 :y 35)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                   _    (:wat::core::match (:wat::kernel::send self (:user::Pt :x 7 :y 35)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                   nil))))
      ;; the parent recv's the record off the lineage channel; reconstruct via the EDN wire.
-     pt  (:wat::core::match (:wat::kernel::recv' svc)
+     pt  (:wat::core::match (:wat::kernel::recv svc)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

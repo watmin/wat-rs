@@ -3346,7 +3346,7 @@ fn eval_tail(
                 // `:wat::core::match` immediately above): preserves the
                 // `serve` self-recursion trampoline through the panic-catch
                 // wrapper. See eval_kernel_serve_dispatch_op_tail's doc.
-                ":wat::kernel::serve-dispatch-op'" => {
+                ":wat::kernel::serve-dispatch-op" => {
                     eval_kernel_serve_dispatch_op_tail(args, &list_span, env, sym)
                 }
                 // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
@@ -4277,7 +4277,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 278 RST stone — non-tail companion of the eval_tail special
         // case above; see eval_kernel_serve_dispatch_op's doc.
-        ":wat::kernel::serve-dispatch-op'" => eval_kernel_serve_dispatch_op(args, list_span, env, sym),
+        ":wat::kernel::serve-dispatch-op" => eval_kernel_serve_dispatch_op(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
         // Stone 241.15: the three retiring verbs (:wat::core::try,
         // :wat::core::option::expect, :wat::core::result::expect) are now
@@ -4297,7 +4297,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::struct-new" => eval_struct_new(args, list_span, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
         ":wat::core::variant" => eval_variant(args, list_span, env, sym),
-        ":wat::kernel::retag-op'" => eval_retag_op(args, list_span, env, sym),
+        ":wat::kernel::retag-op" => eval_retag_op(args, list_span, env, sym),
         ":wat::core::first" => {
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
         }
@@ -5035,10 +5035,10 @@ fn dispatch_keyword_head_value(
         // spawn-thread' : fn([Peer'<S,R>]) -> nil -> Thread'<R,S>
         // spawn-process' : forms -> Process'<I,O>
         // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers.
-        ":wat::kernel::spawn-thread'" => {
+        ":wat::kernel::spawn-thread" => {
             crate::kernel::spawn::eval_kernel_spawn_thread_prime(args, list_span, env, sym)
         }
-        ":wat::kernel::spawn-process'" => {
+        ":wat::kernel::spawn-process" => {
             crate::kernel::spawn::eval_kernel_spawn_process_prime(args, list_span, env, sym)
         }
         // Arc 292 — one-shot timer peer (thread tier).
@@ -5057,7 +5057,7 @@ fn dispatch_keyword_head_value(
         // Each arm downcasts the peer RustOpaque by sentinel (Thread' first,
         // then Process', else TypeMismatch). Thread' passes Value through;
         // Process' bridges via EDN (value_to_edn + wat_edn::write / read_edn).
-        ":wat::kernel::send'" => {
+        ":wat::kernel::send" => {
             eval_peer_send_prime(args, list_span, env, sym)
         }
         // Arc 278 Stone 1a — try-send': best-effort NON-BLOCKING send. Same
@@ -5065,23 +5065,23 @@ fn dispatch_keyword_head_value(
         // gone peer is a silent skip, never a block. The over-FOO `Rejected`
         // serve-loop reply uses it so a client blocked mid-send cannot wedge the
         // serve loop (the deadlock guard).
-        ":wat::kernel::try-send'" => {
+        ":wat::kernel::try-send" => {
             eval_peer_try_send_prime(args, list_span, env, sym)
         }
-        ":wat::kernel::recv'" => {
+        ":wat::kernel::recv" => {
             eval_peer_recv_prime(args, list_span, env, sym)
         }
-        ":wat::kernel::close'" => {
+        ":wat::kernel::close" => {
             eval_peer_close_prime(args, list_span, env, sym)
         }
         // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
         // select' : Vector<peer<I,O>> -> Tuple<i64, O>
-        ":wat::kernel::select'" => {
+        ":wat::kernel::select" => {
             eval_peer_select_prime(args, list_span, env, sym)
         }
         // Arc 209 Stone C0b.2e-i-c — poll': 3-arg service multiplexer.
         // poll' : (self-peer, listener, peers) -> ServiceEvent<I,O>
-        ":wat::kernel::poll'" => {
+        ":wat::kernel::poll" => {
             eval_poll_prime(args, list_span, env, sym)
         }
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
@@ -5090,10 +5090,10 @@ fn dispatch_keyword_head_value(
         // ships the server's raw halves over the rendezvous.
         // accept' receives the server's raw halves from the rendezvous, wraps the
         // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
-        ":wat::kernel::listener'" => {
+        ":wat::kernel::listener" => {
             eval_listener_prime(args, list_span, env, sym)
         }
-        ":wat::kernel::connect'" => {
+        ":wat::kernel::connect" => {
             eval_connect_prime(args, list_span, env, sym)
         }
         // Arc 170 capability circuit, stone 2 — peer-pid: pure projection of the
@@ -5103,16 +5103,16 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::peer-pid" => {
             eval_peer_pid(args, list_span, env, sym)
         }
-        ":wat::kernel::accept'" => {
+        ":wat::kernel::accept" => {
             eval_accept_prime(args, list_span, env, sym)
         }
         // Arc 209 C0b.3b-b — allow'/deny': mutate the SocketListener's allow-set.
         // allow' : (Listener'<S,R>, i64) -> nil  — insert pid; process-tier only.
         // deny'  : (Listener'<S,R>, i64) -> nil  — remove pid; process-tier only.
-        ":wat::kernel::allow'" => {
+        ":wat::kernel::allow" => {
             eval_allow_prime(args, list_span, env, sym)
         }
-        ":wat::kernel::deny'" => {
+        ":wat::kernel::deny" => {
             eval_deny_prime(args, list_span, env, sym)
         }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
@@ -5347,13 +5347,13 @@ fn dispatch_keyword_head_value(
                                             ], span.clone()),
                                             WatAST::Symbol(Identifier::bare("__send"), span.clone()),
                                             WatAST::List(vec![
-                                                WatAST::Keyword(":wat::kernel::send'".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
                                                 WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
                                                 WatAST::Symbol(Identifier::bare("__op"), span.clone()),
                                             ], span.clone()),
                                             WatAST::Symbol(Identifier::bare("__r"), span.clone()),
                                             WatAST::List(vec![
-                                                WatAST::Keyword(":wat::kernel::recv'".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::recv".into(), span.clone()),
                                                 WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
@@ -6695,7 +6695,7 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector",
         Value::wat__std__HashSet(_) => ":wat::core::HashSet",
         // Arc 214 Stone 4.6a-i — peer RustOpaques carry their specific type_path
-        // (e.g. ":wat::kernel::Thread'" / ":wat::kernel::Process'"); report it
+        // (e.g. ":wat::kernel::Thread" / ":wat::kernel::Process"); report it
         // so the defclause dispatcher sees the real peer type, not the generic fallback.
         // One authority: type_name() delegates to inner.type_path for RustOpaque;
         // val_type_path mirrors it as &'static str (inner.type_path IS &'static str).
@@ -12856,7 +12856,7 @@ fn eval_variant(
     })))
 }
 
-/// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op' op :<surface>::Op
+/// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op op :<surface>::Op
 /// :<service>::Op)` — the ONE novel mechanism of the `<service>::Op` superset:
 /// the RE-TAG. A `defservice` serve loop dispatches over its synthesized
 /// `<service>::Op` superset (surface variants + internal `-`-ops), but a client
@@ -12883,7 +12883,7 @@ fn eval_retag_op(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::retag-op'";
+    const OP: &str = ":wat::kernel::retag-op";
     if args.len() != 3 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -20670,7 +20670,7 @@ fn eval_config_global_seed(
 }
 
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
-/// `(:wat::kernel::listener' host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
+/// `(:wat::kernel::listener host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
 ///
 /// Thread tier (C0b.1): `(listener' (thread) :S :R)` — mints a crossbeam rendezvous
 /// channel and returns `Tuple[Listener'<S,R>, Address'<S,R>]` (raw Receiver / raw Sender).
@@ -20691,7 +20691,7 @@ fn eval_listener_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::listener'";
+    const OP: &str = ":wat::kernel::listener";
     // Need at least the host arg to dispatch.
     if args.is_empty() {
         return Err(RuntimeError {
@@ -20823,7 +20823,7 @@ fn eval_listener_prime(
     }
 }
 
-/// `(:wat::kernel::connect' addr)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2e-iii.
+/// `(:wat::kernel::connect addr)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2e-iii.
 ///
 /// Arc 209 C0b.2e-iii: `addr` is now a unified `Address'` opaque (both thread and
 /// process tiers). Downcasts the opaque to `Address`, calls `inner.connect(sym, span)`,
@@ -20838,7 +20838,7 @@ fn eval_connect_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::connect'";
+    const OP: &str = ":wat::kernel::connect";
     if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -20885,7 +20885,7 @@ fn eval_connect_prime(
 /// minted by `connect'` and uniquely owned at the point of receipt:
 /// `Arc::try_unwrap` succeeds.  Returns the server `Peer'<R,S>` opaque.
 fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::accept'"; // same context for error messages
+    const OP: &str = ":wat::kernel::accept"; // same context for error messages
     // Unpack the connect-request tuple: (req_rx: Receiver, resp_tx: Sender).
     let mut items: Vec<Value> = match cr {
         Value::Tuple(arc) => match Arc::try_unwrap(arc) {
@@ -21003,7 +21003,7 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
     ))
 }
 
-/// `(:wat::kernel::accept' listener)` — Arc 209 Stone C0b.1 / C0b.2c.
+/// `(:wat::kernel::accept listener)` — Arc 209 Stone C0b.1 / C0b.2c.
 ///
 /// Thread tier (C0b.1): block on the rendezvous `Listener'` (a raw
 /// `Receiver`) until a connect-request arrives; unpack the server's raw
@@ -21020,7 +21020,7 @@ fn eval_accept_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::accept'";
+    const OP: &str = ":wat::kernel::accept";
     if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -21055,7 +21055,7 @@ fn eval_accept_prime(
     }
 }
 
-/// Arc 209 C0b.3b-b — `(:wat::kernel::allow' listener pid)` → `nil`.
+/// Arc 209 C0b.3b-b — `(:wat::kernel::allow listener pid)` → `nil`.
 ///
 /// Inserts `pid` into the `SocketListener`'s allow-set. Process-tier only: a
 /// `CrossbeamListener` has no allow-set (the crossbeam handle IS the grant).
@@ -21065,7 +21065,7 @@ fn eval_allow_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::allow'";
+    const OP: &str = ":wat::kernel::allow";
     if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -21130,7 +21130,7 @@ fn eval_allow_prime(
     }
 }
 
-/// Arc 209 C0b.3b-b — `(:wat::kernel::deny' listener pid)` → `nil`.
+/// Arc 209 C0b.3b-b — `(:wat::kernel::deny listener pid)` → `nil`.
 ///
 /// Removes `pid` from the `SocketListener`'s allow-set (future accepts by that pid bounce).
 /// Process-tier only: a `CrossbeamListener` has no allow-set (the crossbeam handle IS the grant).
@@ -21140,7 +21140,7 @@ fn eval_deny_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::deny'";
+    const OP: &str = ":wat::kernel::deny";
     if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -24680,7 +24680,7 @@ fn is_mutation_head(head: &str) -> bool {
 // call sites (PROCESS branch and socket-tier PEER' branch of eval_peer_send_prime)
 // were removed. Symmetric to the decode backstop retirement in edn_shim.rs.
 
-/// `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
+/// `(:wat::kernel::send peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
 ///
 /// Thread': `peer.send(value)` Value pass-through (crossbeam, no serialisation).
 /// Process': encode payload via value_to_edn + wat_edn::write → peer.send(String).
@@ -24693,7 +24693,7 @@ fn eval_peer_send_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::send'";
+    const OP: &str = ":wat::kernel::send";
     if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -24828,7 +24828,7 @@ fn eval_peer_send_prime(
     }
 }
 
-/// `(:wat::kernel::try-send' peer payload)` — Arc 278 Stone 1a / Phase 3a
+/// `(:wat::kernel::try-send peer payload)` — Arc 278 Stone 1a / Phase 3a
 /// (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
 /// Best-effort, NON-BLOCKING twin of `send'` for the unified `Peer'<S,R>`. Same
@@ -24848,7 +24848,7 @@ fn eval_peer_try_send_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::try-send'";
+    const OP: &str = ":wat::kernel::try-send";
     if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -25000,7 +25000,7 @@ fn eval_peer_pid(
     }
 }
 
-/// `(:wat::kernel::recv' peer)` — Stone 4.6a-ii / arc 258.5b.
+/// `(:wat::kernel::recv peer)` — Stone 4.6a-ii / arc 258.5b.
 ///
 /// Thread': `peer.recv()` → Value.
 /// Process': `peer.recv()` → decode EDN String → Value via the self-describing wire.
@@ -25067,7 +25067,7 @@ fn eval_peer_recv_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::recv'";
+    const OP: &str = ":wat::kernel::recv";
 
     // Arc 258.5b — recv' is 1-arg only; `-> :T` ascription is illegal on recv'.
     if args.len() != 1 {
@@ -25273,7 +25273,7 @@ fn eval_peer_recv_prime(
     }
 }
 
-/// `(:wat::kernel::close' peer)` — Stone 4.6a-ii; Arc 278 the close' OUTCOME WALL.
+/// `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close' OUTCOME WALL.
 ///
 /// Consumes the peer (takes the Option, leaving None for subsequent calls).
 /// Returns a matchable `:wat::kernel::CloseOutcome` for every HANDLEABLE outcome:
@@ -25287,14 +25287,14 @@ fn eval_peer_recv_prime(
 /// mismatch (checker-prevented; defensive).
 // Arc 259 S2d — restricted to `:wat::kernel::` callers. Teardown is RAII Drop;
 // a :user:: fn calling close' is a check error. The user never holds the rope.
-#[restricted_to(":wat::kernel::close'", ":wat::kernel::")]
+#[restricted_to(":wat::kernel::close", ":wat::kernel::")]
 fn eval_peer_close_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::close'";
+    const OP: &str = ":wat::kernel::close";
     if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -25416,7 +25416,7 @@ fn eval_peer_close_prime(
     }
 }
 
-/// `(:wat::kernel::select' peers)` — Stone 4.6b / Stone 259 Lost-locus.
+/// `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
 /// Blocks until one peer's output is ready; returns a
 /// `:wat::spawn::ServiceEvent`:
@@ -25441,7 +25441,7 @@ fn eval_peer_select_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::select'";
+    const OP: &str = ":wat::kernel::select";
     // Arc 209 Stone C0b.2e-i-c: select' is 1-arg-only (fan-in over homogeneous peers).
     // The 3-arg service multiplexer is poll' — use (poll' self listener clients) instead.
     if args.len() != 1 {
@@ -26038,7 +26038,7 @@ fn eval_peer_select_prime(
     }
 }
 
-/// `(:wat::kernel::poll' self-peer listener peers)` — Arc 209 Stone C0b.1b / C0b.2e-i-c.
+/// `(:wat::kernel::poll self-peer listener peers)` — Arc 209 Stone C0b.1b / C0b.2e-i-c.
 ///
 /// 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
 /// (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
@@ -26236,7 +26236,7 @@ fn eval_kernel_after(
     }
 }
 
-/// `(:wat::kernel::serve-dispatch-op' clients body)` — tail position.
+/// `(:wat::kernel::serve-dispatch-op clients body)` — tail position.
 ///
 /// Arc 278 RST stone, Option A (`docs/arc/2026/06/278-rules-engine/
 /// DESIGN-STONE-rst-peer-notify.md`). The ONE hook that can reach a
@@ -26273,7 +26273,7 @@ fn eval_kernel_serve_dispatch_op_tail(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::serve-dispatch-op'";
+    const OP: &str = ":wat::kernel::serve-dispatch-op";
     if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -26318,7 +26318,7 @@ fn eval_kernel_serve_dispatch_op(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::serve-dispatch-op'";
+    const OP: &str = ":wat::kernel::serve-dispatch-op";
     if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -26353,7 +26353,7 @@ fn eval_poll_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::poll'";
+    const OP: &str = ":wat::kernel::poll";
     const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
 
     // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────

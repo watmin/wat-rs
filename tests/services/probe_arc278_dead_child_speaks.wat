@@ -34,7 +34,7 @@
 ;; capability). `:wat::query::Reason` is a zero-feature Record surface baked into the child (stdlib) —
 ;; any pure record satisfies it ambiently, exactly as the retired `LogMessage` did for `Log.message`.
 ;; The surface itself crosses the fork; a CONCRETE user record placed in the field does not.
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [payload <- :wat::query::Reason])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
@@ -60,11 +60,11 @@
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
     [h    (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     echo (:wat::core::match (:wat::kernel::connect' (:probe::echo'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _s   (:wat::kernel::send' echo
+     echo (:wat::core::match (:wat::kernel::connect (:probe::echo'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     _s   (:wat::kernel::send echo
             (:probe::Echo::Op::Echo
               (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom"))))]
-    (:wat::core::match (:wat::kernel::recv' echo)
+    (:wat::core::match (:wat::kernel::recv echo)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")))

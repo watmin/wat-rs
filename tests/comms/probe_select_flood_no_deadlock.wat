@@ -18,7 +18,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::nil,wat::core::nil,wat::core::nil>
   (:wat::core::let
-    [child (:wat::kernel::spawn-program' (:wat::spawn::process)
+    [child (:wat::kernel::spawn-program (:wat::spawn::process)
              (:wat::core::forms
                (:wat::core::defn :user::main [] -> :wat::core::nil
                  ;; Simulate a NON-CONFORMING peer that floods fd 1 (the peer wire) with un-terminated
@@ -31,4 +31,4 @@
                  (:wat::core::let
                    [_n (:wat::test::flood-own-stdout)]
                    nil))))]
-    (:wat::kernel::select' (:wat::core::Vector :wat::kernel::Process'<wat::core::nil,wat::core::nil> child))))
+    (:wat::kernel::select (:wat::core::Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))))

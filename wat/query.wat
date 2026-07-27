@@ -320,7 +320,7 @@
      log-sym    (:wat::core::symbol-node "log")
      acc-sym    (:wat::core::symbol-node "acc")]
     `(:wat::core::do
-       (:wat::core::defsurface ~surface-kw :nature :wat::kernel::Peer'
+       (:wat::core::defsurface ~surface-kw :nature :wat::kernel::Peer
          :messages
          [~@defs-children
           (:wat::core::defrecord ~req-kw
@@ -340,7 +340,7 @@
        (:wat::service::defservice ~svc-kw
          :satisfies ~surface-kw
          :durable   []
-         :ephemeral [journal  <- :wat::kernel::Peer'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>
+         :ephemeral [journal  <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>
                      template <- :wat::rete::Session]
          :peers     [:wat::telemetry::Journal]
          ;; :init compiles ~@:rules into a Session TEMPLATE (WM empty) held in :ephemeral state —
@@ -349,7 +349,7 @@
          ;; value; a Session is closer to "a resource" than "mutated data").
          :init (:wat::core::fn
                  [~record-sym <- ~record-ty-kw
-                  ~jaddr-sym  <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+                  ~jaddr-sym  <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
                  -> ~state-ty-kw
                  ;; arc 278 the connect'-outcome wall — the generated :init dial faces all
                  ;; four arms; ::Connected → the journal Peer'; failure arms →
@@ -357,7 +357,7 @@
                  ;; service whose journal dial fails at :init cannot start).
                  (~state-ty-kw
                    :durable  ~record-sym
-                   :journal  (:wat::core::match (:wat::kernel::connect' ~jaddr-sym)
+                   :journal  (:wat::core::match (:wat::kernel::connect ~jaddr-sym)
                                ((:wat::kernel::ConnectOutcome::Connected p) p)
                                ((:wat::kernel::ConnectOutcome::Refused c)
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
@@ -444,7 +444,7 @@
 ;; domain vocabulary they are built from (StoredRow/Row/IndexRow/IndexKey/Page/IndexPage/
 ;; TableSchema/IndexSchema) + the error records (Reason/Transient/Constraint/Fatal/Fault) stay
 ;; top-level: they cross via stdlib, are not per-op messages.
-(:wat::core::defsurface :wat::query::Store :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::query::Store :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::query::Store::EnsureSchemaRequest
      [table   <- :wat::query::TableSchema

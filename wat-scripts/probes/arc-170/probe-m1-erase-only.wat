@@ -1,7 +1,7 @@
 ;; Can a concrete Address'<S,R> be erased to bare Address' via ann-form, stored, and
 ;; sent as a bare-D PoolMsg::Setup? Test the TYPE questions only (no child).
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -17,14 +17,14 @@
 
 ;; bare-D PoolMsg (the parent-side shape)
 (:wat::core::defenum :probe::PoolMsg<I> :wat::enum::Pure
-  :Setup [addr <- :wat::kernel::Address']
+  :Setup [addr <- :wat::kernel::Address]
   :Work  [s    <- :I])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      ea  (:probe::echo'::Handle/addr eh)                       ;; concrete Address'<Op,Reply>
-     eab (:wat::core::ann-form ea :wat::kernel::Address')      ;; erase -> bare Address'
-     v   (:wat::core::Vector :wat::kernel::Address' eab)       ;; store bare in Vector<Address'>
+     eab (:wat::core::ann-form ea :wat::kernel::Address)      ;; erase -> bare Address'
+     v   (:wat::core::Vector :wat::kernel::Address eab)       ;; store bare in Vector<Address'>
      msg (:probe::PoolMsg::Setup (:wat::core::first v))]       ;; bare-D Setup constructor
     (:wat::kernel::println "erase-ok")))

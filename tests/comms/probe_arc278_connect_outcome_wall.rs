@@ -1,6 +1,6 @@
 //! Arc 278 peer-lifecycle Strike 4 — the `connect'` OUTCOME WALL (the LAST peer wall).
 //!
-//! `:wat::kernel::connect'` used to RETURN a bare `Peer'<S,R>` and RAISE on its
+//! `:wat::kernel::connect` used to RETURN a bare `Peer'<S,R>` and RAISE on its
 //! *handleable* failures (ECONNREFUSED / no listener / rendezvous gone, the
 //! `OnlyThisPeer` identity reject, `peer_cred` read + socket-wrap io error). Per the
 //! peer-lifecycle LAW (2026-07-23) — *"we deliver an enum for code to handle exceptions

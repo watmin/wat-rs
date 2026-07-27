@@ -1,9 +1,9 @@
 //! Arc 214 Stone 4.6a-i — typed-peer FOUNDATION (FM-2-bis disconfirming probe).
 //!
 //! The foundation the polymorphic peer verbs (4.6a-ii) project from:
-//!   - `:wat::kernel::Thread'<I,O>` / `:wat::kernel::Process'<I,O>` registered as
+//!   - `:wat::kernel::Thread<I,O>` / `:wat::kernel::Process<I,O>` registered as
 //!     parametric type heads (mirror `Sender<T>`/`Receiver<T>`).
-//!   - `(:wat::kernel::spawn-program' :tier env prog)` INFERS to the peer type at
+//!   - `(:wat::kernel::spawn-program :tier env prog)` INFERS to the peer type at
 //!     CHECK time — reading the program fn's `[Peer'<S,R>] -> nil` signature
 //!     (a type-keyword → parametric-tuple inference shape).
 //!
@@ -39,14 +39,14 @@ use wat::types::parse_type_expr;
 
 // ─── Probe 1: the parametric peer type parses ────────────────────────────────
 
-/// `:wat::kernel::Thread'` must parse as a type-keyword (the parametric head
+/// `:wat::kernel::Thread` must parse as a type-keyword (the parametric head
 /// must be a registered/parseable type). Documents the registration target.
 #[test]
 fn probe_1_thread_peer_type_parses() {
-    let result = parse_type_expr(":wat::kernel::Thread'<wat::core::i64,wat::core::i64>");
+    let result = parse_type_expr(":wat::kernel::Thread<wat::core::i64,wat::core::i64>");
     assert!(
         result.is_ok(),
-        "parse_type_expr(:wat::kernel::Thread'<i64,i64>) must return Ok; got {:?}",
+        "parse_type_expr(:wat::kernel::Thread<i64,i64>) must return Ok; got {:?}",
         result
     );
 }

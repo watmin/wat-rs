@@ -23,13 +23,13 @@
 ;; acceptance); ::Sent or any raise is a FAIL (assertion-failed!, non-zero exit).
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::kernel::assertion-failed! "SEND-WALL-PROBE-CRASH" :wat::core::None :wat::core::None)))
      ;; synchronize on the worker's death: recv' blocks until EOF + the crash reason
      ;; lands on the crash channel — by the time this returns, the worker has fully
      ;; unwound and dropped its ends (deterministic, no race).
-     r1 (:wat::kernel::recv' p)
+     r1 (:wat::kernel::recv p)
      _  (:wat::core::match r1
           ((:wat::kernel::RecvOutcome::Message _m)
             (:wat::kernel::assertion-failed!
@@ -42,7 +42,7 @@
               :wat::core::None :wat::core::None)))
      ;; the worker is now guaranteed dead. Pre-strike this send' RAISED "send failed:
      ;; channel disconnected"; post-strike it returns a matchable SendOutcome value.
-     outcome (:wat::kernel::send' p 42)]
+     outcome (:wat::kernel::send p 42)]
     (:wat::core::match outcome
       (:wat::kernel::SendOutcome::Sent
         (:wat::kernel::assertion-failed!

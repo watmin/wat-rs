@@ -3717,7 +3717,7 @@ fn infer_list(
             // Arc 259 S2c-i — per-tier 1-arg primitives.
             // PARTITION — INTRINSIC: projective over the prog fn type (thread) /
             // forms (process).
-            ":wat::kernel::spawn-thread'" => {
+            ":wat::kernel::spawn-thread" => {
                 let (val, mut errs) = infer_spawn_thread_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3725,7 +3725,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::spawn-process'" => {
+            ":wat::kernel::spawn-process" => {
                 let (val, mut errs) = infer_spawn_process_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3763,7 +3763,7 @@ fn infer_list(
             //   close'    — ∀-parametric: peer<∀I,∀O>; clause cannot enumerate all (I,O).
             // See `infer_send_prime` / `infer_recv_prime` /
             // `infer_close_prime` for the per-op reasoning.
-            ":wat::kernel::send'" => {
+            ":wat::kernel::send" => {
                 let (val, mut errs) = infer_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3775,7 +3775,7 @@ fn infer_list(
             // (`:wat::kernel::TrySendOutcome`), NOT a reuse of infer_send_prime:
             // it is non-blocking and so has a WouldBlock outcome send' cannot
             // return. See `infer_try_send_prime` / BRIEF-send-wall-3a-try-send-outcome.md.
-            ":wat::kernel::try-send'" => {
+            ":wat::kernel::try-send" => {
                 let (val, mut errs) = infer_try_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3783,7 +3783,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::recv'" => {
+            ":wat::kernel::recv" => {
                 let (val, mut errs) = infer_recv_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3791,7 +3791,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::close'" => {
+            ":wat::kernel::close" => {
                 let (val, mut errs) = infer_close_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3804,7 +3804,7 @@ fn infer_list(
             // discipline as `poll'`'s `listener` arg); `body`'s type IS the
             // form's own type (do-style passthrough of the last/only
             // meaningful arg). See infer_serve_dispatch_op.
-            ":wat::kernel::serve-dispatch-op'" => {
+            ":wat::kernel::serve-dispatch-op" => {
                 let (val, mut errs) = infer_serve_dispatch_op(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3819,7 +3819,7 @@ fn infer_list(
             // service Op named by arg[2] (a type-keyword literal, parsed the same
             // way as `self-peer`'s S/R args). op (arg[0]) is inferred for error
             // coverage only. See `infer_retag_op`.
-            ":wat::kernel::retag-op'" => {
+            ":wat::kernel::retag-op" => {
                 let (val, mut errs) = infer_retag_op(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3831,7 +3831,7 @@ fn infer_list(
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
             // I,O flow from Vector<peer<I,O>>'s element peer type into the
             // return ServiceEvent<I,O>. See `infer_select_prime` for the reasoning.
-            ":wat::kernel::select'" => {
+            ":wat::kernel::select" => {
                 let (val, mut errs) = infer_select_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3843,7 +3843,7 @@ fn infer_list(
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
             // I,O flow from Vector<Peer'<I,O>>'s element peer type into ServiceEvent<I,O>.
             // See `infer_poll_prime` for the reasoning.
-            ":wat::kernel::poll'" => {
+            ":wat::kernel::poll" => {
                 let (val, mut errs) = infer_poll_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3866,7 +3866,7 @@ fn infer_list(
             // listener' : (locus :S :R) -> Tuple<Listener'<S,R>, Address'<S,R>>
             // connect'  : Address'<S,R>  -> Peer'<S,R>
             // accept'   : Listener'<S,R> -> Peer'<R,S>
-            ":wat::kernel::listener'" => {
+            ":wat::kernel::listener" => {
                 let (val, mut errs) = infer_listener_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3874,7 +3874,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::connect'" => {
+            ":wat::kernel::connect" => {
                 let (val, mut errs) = infer_connect_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3882,7 +3882,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::accept'" => {
+            ":wat::kernel::accept" => {
                 let (val, mut errs) = infer_accept_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3892,7 +3892,7 @@ fn infer_list(
             }
             // Arc 209 C0b.3b-b — allow'/deny': (Listener'<S,R>, i64) -> nil.
             // Tier (thread vs process) is not known at check time; tier-rejection is runtime-only.
-            ":wat::kernel::allow'" => {
+            ":wat::kernel::allow" => {
                 let (val, mut errs) = infer_allow_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3900,7 +3900,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::deny'" => {
+            ":wat::kernel::deny" => {
                 let (val, mut errs) = infer_deny_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -8854,7 +8854,7 @@ fn parse_peer_pair_type_arg(
 /// `parse_peer_pair_type_arg`, single (not crossed) `Peer'<S,R>` result.
 /// The self-peer is a one-sided peer (the child's owner-link); there is no
 /// crossed twin. Runtime type is `PEER_TYPE_PATH`; checker head is
-/// `"wat::kernel::Peer'"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer').
+/// `"wat::kernel::Peer"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer').
 fn infer_program_self_peer(
     args: &[WatAST],
     head_span: &Span,
@@ -8873,7 +8873,7 @@ fn infer_program_self_peer(
         let s = fresh.fresh();
         let r = fresh.fresh();
         return CheckResult::partial_with(
-            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] },
+            TypeExpr::Parametric { head: "wat::kernel::Peer".into(), args: vec![s, r] },
             local_errors,
         );
     }
@@ -8886,11 +8886,11 @@ fn infer_program_self_peer(
     check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
     check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
 
-    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s_ty, r_ty] };
+    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer".into(), args: vec![s_ty, r_ty] };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 209 Stone C0b.1 / C0b.2d — `(:wat::kernel::listener' locus …)`.
+/// Arc 209 Stone C0b.1 / C0b.2d — `(:wat::kernel::listener locus …)`.
 ///
 /// Thread tier (C0b.1): `(listener' (thread) :S :R)` — 3 args; locus, :S, :R →
 /// `(Tuple Listener'<S,R> Address'<S,R>)`.
@@ -8908,7 +8908,7 @@ fn infer_listener_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::listener'";
+    const OP: &str = ":wat::kernel::listener";
     let mut local_errors: Vec<CheckError> = Vec::new();
     // Need at least locus arg.
     if args.is_empty() {
@@ -9029,7 +9029,7 @@ fn bound_type(s: TypeExpr, r: TypeExpr) -> TypeExpr {
 }
 
 
-/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect' addr)` → `Peer'<S,R>`.
+/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect addr)` → `Peer'<S,R>`.
 ///
 /// 1 arg: `addr` of type `Address'<S,R>` (unified — thread and process tiers).
 /// Returns `Peer'<S,R>` (the client end).
@@ -9045,7 +9045,7 @@ fn infer_connect_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::connect'";
+    const OP: &str = ":wat::kernel::connect";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -9073,7 +9073,7 @@ fn infer_connect_prime(
     let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
     let s = fresh.fresh();
     let r = fresh.fresh();
-    let expected = TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s.clone(), r.clone()] };
+    let expected = TypeExpr::Parametric { head: "wat::kernel::Address".into(), args: vec![s.clone(), r.clone()] };
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
             // Arc 209 C0b.2e-iii — unified Address'<S,R> → Peer'<S,R> (both tiers).
@@ -9106,7 +9106,7 @@ fn infer_connect_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept' listener)` → `Peer'<R,S>`.
+/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept listener)` → `Peer'<R,S>`.
 ///
 /// 1 arg: `listener` of type `Listener'<S,R>`. Returns `Peer'<R,S>` (the server end:
 /// server recvs S, sends R — the flipped pair).
@@ -9118,7 +9118,7 @@ fn infer_accept_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::accept'";
+    const OP: &str = ":wat::kernel::accept";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -9141,7 +9141,7 @@ fn infer_accept_prime(
     let listener_surface = apply_subst(&listener_ty, subst);
     let listener_reduced = reduce(&listener_surface, subst, env.types());
     let ty = match listener_reduced {
-        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener" && args.len() == 2 => {
             // Arc 209 C0b.2e-ii — unified Listener'<S,R> (both thread + process tiers)
             // → Peer'<R,S> (server recvs S, sends R — the flipped pair).
             // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be pure.
@@ -9172,7 +9172,7 @@ fn infer_accept_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 209 C0b.3b-b — `(:wat::kernel::allow' listener pid)` → `nil`.
+/// Arc 209 C0b.3b-b — `(:wat::kernel::allow listener pid)` → `nil`.
 ///
 /// 2 args: `listener` of type `Listener'<S,R>`, `pid` of type `i64`.
 /// Returns `nil`. The tier (thread vs process) is NOT checked here; tier-rejection is runtime-only
@@ -9185,7 +9185,7 @@ fn infer_allow_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::allow'";
+    const OP: &str = ":wat::kernel::allow";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -9202,7 +9202,7 @@ fn infer_allow_prime(
     let listener_surface = apply_subst(&listener_ty, subst);
     let listener_reduced = reduce(&listener_surface, subst, env.types());
     match listener_reduced {
-        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener" && args.len() == 2 => {
             // Ok — the listener type is valid
         }
         other => {
@@ -9237,7 +9237,7 @@ fn infer_allow_prime(
     if local_errors.is_empty() { CheckResult::ok(ret) } else { CheckResult::partial_with(ret, local_errors) }
 }
 
-/// Arc 209 C0b.3b-b — `(:wat::kernel::deny' listener pid)` → `nil`.
+/// Arc 209 C0b.3b-b — `(:wat::kernel::deny listener pid)` → `nil`.
 ///
 /// Identical shape to `infer_allow_prime`.
 fn infer_deny_prime(
@@ -9248,7 +9248,7 @@ fn infer_deny_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::deny'";
+    const OP: &str = ":wat::kernel::deny";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -9265,7 +9265,7 @@ fn infer_deny_prime(
     let listener_surface = apply_subst(&listener_ty, subst);
     let listener_reduced = reduce(&listener_surface, subst, env.types());
     match listener_reduced {
-        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener" && args.len() == 2 => {
             // Ok — the listener type is valid
         }
         other => {
@@ -9322,7 +9322,7 @@ fn infer_thread_prog_type(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const PEER_HEAD: &str = "wat::kernel::Thread'";
+    const PEER_HEAD: &str = "wat::kernel::Thread";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
     let fn_inferred = match infer(fn_arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -9396,7 +9396,7 @@ fn infer_thread_prog_type(
     let param_reduced = reduce(&apply_subst(&i_ty, subst), subst, env.types());
     match &param_reduced {
         TypeExpr::Parametric { head, args: peer_args }
-            if (head == "wat::kernel::Peer'" || head == "wat::kernel::ThreadSelfPeer'")
+            if (head == "wat::kernel::Peer" || head == "wat::kernel::ThreadSelfPeer")
                 && peer_args.len() == 2 =>
         {
             // Self-peer model: Thread'<R, S> (param-swap of Peer'<S,R> or ThreadSelfPeer'<S,R>).
@@ -9455,7 +9455,7 @@ fn infer_process_prog_type(
     let i = fresh.fresh();
     let o = fresh.fresh();
     let ty = TypeExpr::Parametric {
-        head: "wat::kernel::Process'".into(),
+        head: "wat::kernel::Process".into(),
         args: vec![i, o],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -9463,7 +9463,7 @@ fn infer_process_prog_type(
 
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
 
-/// Type-check `(:wat::kernel::spawn-thread' prog init-fn)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-thread prog init-fn)` — arc 259 Stone S2c-i.
 ///
 /// Two positional args:
 /// - `args[0]`: program fn; inferred; must be `fn([Peer'<S,R>]) -> nil` (self-peer
@@ -9484,7 +9484,7 @@ fn infer_spawn_thread_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::spawn-thread'";
+    const OP: &str = ":wat::kernel::spawn-thread";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 3 {
         local_errors.push(CheckError {
@@ -9500,7 +9500,7 @@ fn infer_spawn_thread_prime(
         }
         let t = fresh.fresh();
         let ty = TypeExpr::Parametric {
-            head: "wat::kernel::Thread'".into(),
+            head: "wat::kernel::Thread".into(),
             args: vec![t.clone(), t],
         };
         return CheckResult::partial_with(ty, local_errors);
@@ -9522,7 +9522,7 @@ fn infer_spawn_thread_prime(
     }
 }
 
-/// Type-check `(:wat::kernel::spawn-process' forms post-spawn-fn env-fn max-message-bytes)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-process forms post-spawn-fn env-fn max-message-bytes)` — arc 259 Stone S2c-i.
 ///
 /// Four positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
@@ -9546,7 +9546,7 @@ fn infer_spawn_process_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::spawn-process'";
+    const OP: &str = ":wat::kernel::spawn-process";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 4 {
         local_errors.push(CheckError {
@@ -9563,7 +9563,7 @@ fn infer_spawn_process_prime(
         let i = fresh.fresh();
         let o = fresh.fresh();
         let ty = TypeExpr::Parametric {
-            head: "wat::kernel::Process'".into(),
+            head: "wat::kernel::Process".into(),
             args: vec![i, o],
         };
         return CheckResult::partial_with(ty, local_errors);
@@ -9668,7 +9668,7 @@ fn infer_kernel_fn_forms(
 //   close'     — ∀-parametric: the peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>;
 //                a clause matcher cannot enumerate all (I,O) instantiations.
 // The pattern for each: infer args[0], apply_subst+reduce, match
-// Parametric{head:"wat::kernel::Thread'"|"…Process'", args:[I,O]},
+// Parametric{head:"wat::kernel::Thread"|"…Process'", args:[I,O]},
 // project I and/or O. Non-peer arg0 → TypeMismatch "peer (Thread'<I,O> | Process'<I,O>)".
 
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
@@ -9699,10 +9699,10 @@ fn project_peer_io(
         // Arc 209 C0b.2e-i-b: SocketPeer' is retired — all connection peers are Peer'.
         // Arc 293.W.2d: ThreadSelfPeer' is the in-locus (any I/O) peer type.
         TypeExpr::Parametric { ref head, ref args }
-            if (head == "wat::kernel::Thread'"
-                || head == "wat::kernel::Process'"
-                || head == "wat::kernel::Peer'"
-                || head == "wat::kernel::ThreadSelfPeer'")
+            if (head == "wat::kernel::Thread"
+                || head == "wat::kernel::Process"
+                || head == "wat::kernel::Peer"
+                || head == "wat::kernel::ThreadSelfPeer")
                 && args.len() == 2 =>
         {
             // Purity is guaranteed by the peer TYPE, not by ops:
@@ -9766,7 +9766,7 @@ fn infer_kernel_after(
         }
         let o = fresh.fresh();
         let ty = TypeExpr::Parametric {
-            head: "wat::kernel::Peer'".into(),
+            head: "wat::kernel::Peer".into(),
             args: vec![TypeExpr::Path(":wat::core::nil".into()), o],
         };
         return CheckResult::partial_with(ty, local_errors);
@@ -9825,7 +9825,7 @@ fn infer_kernel_after(
     // into Stone 1's `Vector<Peer'<nil, O>>` timer-only sites (`Never <: nil`) — both by the
     // bottom rule, no Value-erasure / fresh-var papering / coercion.
     let peer_ty = TypeExpr::Parametric {
-        head: "wat::kernel::Peer'".into(),
+        head: "wat::kernel::Peer".into(),
         args: vec![TypeExpr::Path(":wat::core::Never".into()), msg_ty],
     };
     if local_errors.is_empty() {
@@ -9837,7 +9837,7 @@ fn infer_kernel_after(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_send_prime` is INTRINSIC (projective).
 // I flows from the peer's Parametric type param into the payload argument position.
-/// Type-check `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii / Arc 278 the
+/// Type-check `(:wat::kernel::send peer payload)` — Stone 4.6a-ii / Arc 278 the
 /// send'-outcome wall Phase 1 (DESIGN-send-outcome-wall.md).
 ///
 /// Two positional args: `args[0]` peer, `args[1]` payload of type I.
@@ -9858,7 +9858,7 @@ fn infer_send_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::send'";
+    const OP: &str = ":wat::kernel::send";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 2 {
         local_errors.push(CheckError {
@@ -9924,7 +9924,7 @@ fn infer_send_prime(
 // PARTITION — CLAUSE vs INTRINSIC: `infer_try_send_prime` is INTRINSIC (projective),
 // same shape as `infer_send_prime` — I flows from the peer's Parametric type param
 // into the payload argument position.
-/// Type-check `(:wat::kernel::try-send' peer payload)` — Arc 278 the send'-outcome
+/// Type-check `(:wat::kernel::try-send peer payload)` — Arc 278 the send'-outcome
 /// wall Phase 3a (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
 /// `try-send'` is a near-mirror of `send'` (same two positional args, same I
@@ -9943,7 +9943,7 @@ fn infer_try_send_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::try-send'";
+    const OP: &str = ":wat::kernel::try-send";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 2 {
         local_errors.push(CheckError {
@@ -10004,7 +10004,7 @@ fn infer_try_send_prime(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_recv_prime` is INTRINSIC (projective).
 // O flows from the peer's Parametric type param into the return type.
-/// Type-check `(:wat::kernel::recv' peer)` — Stone 4.6a-ii / arc 258.5b.
+/// Type-check `(:wat::kernel::recv peer)` — Stone 4.6a-ii / arc 258.5b.
 ///
 /// One positional arg: `args[0]` peer → returns O (the peer's output type).
 ///
@@ -10020,7 +10020,7 @@ fn infer_recv_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::recv'";
+    const OP: &str = ":wat::kernel::recv";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
     // Arc 258.5b — `-> :T` on recv' is illegal; reject it with a clear error.
@@ -10099,7 +10099,7 @@ fn infer_recv_prime(
 // PARTITION — CLAUSE vs INTRINSIC: `infer_close_prime` is INTRINSIC (∀-parametric).
 // The peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>; a defclause cannot enumerate
 // all (I,O) instantiations — the same infinite-open-set argument as get/recv'.
-/// Type-check `(:wat::kernel::close' peer)` — Stone 4.6a-ii; Arc 278 the close'
+/// Type-check `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close'
 /// OUTCOME WALL.
 ///
 /// One positional arg: `args[0]` peer (Thread'<I,O> or Process'<I,O>).
@@ -10115,7 +10115,7 @@ fn infer_close_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::close'";
+    const OP: &str = ":wat::kernel::close";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
         local_errors.push(CheckError {
@@ -10146,12 +10146,12 @@ fn infer_close_prime(
     let close_outcome = || TypeExpr::Path(":wat::kernel::CloseOutcome".into());
     let ret = match &peer_reduced {
         TypeExpr::Parametric { head, args }
-            if head == "wat::kernel::Thread'" && args.len() == 2 =>
+            if head == "wat::kernel::Thread" && args.len() == 2 =>
         {
             close_outcome()
         }
         TypeExpr::Parametric { head, args }
-            if head == "wat::kernel::Process'" && args.len() == 2 =>
+            if head == "wat::kernel::Process" && args.len() == 2 =>
         {
             close_outcome()
         }
@@ -10175,7 +10175,7 @@ fn infer_close_prime(
     }
 }
 
-/// Type-check `(:wat::kernel::serve-dispatch-op' clients body)` — arc 278 RST
+/// Type-check `(:wat::kernel::serve-dispatch-op clients body)` — arc 278 RST
 /// stone. `clients` is inferred for internal-consistency/error-surfacing only
 /// (`poll'`'s `listener`-arg discipline — checked, but its type is never
 /// unified with anything, since `serve-dispatch-op'` is ∀-generic over the
@@ -10192,7 +10192,7 @@ fn infer_serve_dispatch_op(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::serve-dispatch-op'";
+    const OP: &str = ":wat::kernel::serve-dispatch-op";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 2 {
         local_errors.push(CheckError {
@@ -10214,7 +10214,7 @@ fn infer_serve_dispatch_op(
     }
 }
 
-/// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op' op :<surface>::Op
+/// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op op :<surface>::Op
 /// :<service>::Op)` → `<service>::Op`.
 ///
 /// The `<service>::Op` superset RE-TAG. Three args: the op value (inferred for
@@ -10231,7 +10231,7 @@ fn infer_retag_op(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::retag-op'";
+    const OP: &str = ":wat::kernel::retag-op";
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 3 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -10256,7 +10256,7 @@ fn infer_retag_op(
 // A clause cannot enumerate Vector<Thread'<∀I,∀O>> / Vector<Process'<∀I,∀O>> —
 // the same infinite-open-set argument as get/recv'. Mixed tiers are already
 // forbidden by Vector homogeneity at check; no bespoke rejection needed.
-/// Type-check `(:wat::kernel::select' peers)` — Stone 4.6b / Stone 259 Lost-locus.
+/// Type-check `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
 /// One positional arg: `args[0]` a `Vector<Thread'<I,O>>` or
 /// `Vector<Process'<I,O>>`. Returns `ServiceEvent<I,O,A>`.
@@ -10275,7 +10275,7 @@ fn infer_select_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::select'";
+    const OP: &str = ":wat::kernel::select";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
     // Arc 209 Stone C0b.2e-i-c: select' is 1-arg-only.
@@ -10347,9 +10347,9 @@ fn infer_select_prime(
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if (head == "wat::kernel::Thread'"       // TODO(arc-109/arc-170 cleanup): remove Thread'/Process' here —
-                || head == "wat::kernel::Process'"   //   the unified fd-backed Peer' end-state makes select' take
-                || head == "wat::kernel::Peer'")     //   ONLY Peer'; the tier heads vanish. Kept now to unblock the
+            if (head == "wat::kernel::Thread"       // TODO(arc-109/arc-170 cleanup): remove Thread'/Process' here —
+                || head == "wat::kernel::Process"   //   the unified fd-backed Peer' end-state makes select' take
+                || head == "wat::kernel::Peer")     //   ONLY Peer'; the tier heads vanish. Kept now to unblock the
                 && targs.len() == 2 =>               //   loci-agnostic bracket (259 S3a). Peer' is I=targs[0], O=targs[1].
         {
             // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
@@ -10392,7 +10392,7 @@ fn infer_select_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll' self-peer listener peers)` → `ServiceEvent<I,O,A>`.
+/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll self-peer listener peers)` → `ServiceEvent<I,O,A>`.
 ///
 /// 3-arg service-multiplexer form:
 ///   args[0] = self-peer (`Peer'<S,R>` — the owner link; R = admin receive type A).
@@ -10411,7 +10411,7 @@ fn infer_poll_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::poll'";
+    const OP: &str = ":wat::kernel::poll";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
     // args[0]: self-peer — infer and extract the receive type A (targs[1] of Peer'<S,A>
@@ -10426,8 +10426,8 @@ fn infer_poll_prime(
                 let reduced = reduce(&surface, subst, env.types());
                 match &reduced {
                     TypeExpr::Parametric { head, args: targs }
-                        if (head == "wat::kernel::Peer'"
-                            || head == "wat::kernel::ThreadSelfPeer'")
+                        if (head == "wat::kernel::Peer"
+                            || head == "wat::kernel::ThreadSelfPeer")
                             && targs.len() == 2 =>
                     {
                         // Peer'<S, R> or ThreadSelfPeer'<S,R>: targs[1] = R = the receive type A.
@@ -10494,7 +10494,7 @@ fn infer_poll_prime(
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if head == "wat::kernel::Peer'" && targs.len() == 2 =>
+            if head == "wat::kernel::Peer" && targs.len() == 2 =>
         {
             (targs[0].clone(), targs[1].clone())
         }
@@ -12242,7 +12242,7 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 // Arc 293.W.2d — ThreadSelfPeer' is always in-locus (never wire-safe).
                 // Even if its I/O are pure scalars, the peer itself is an in-locus opaque
                 // (crossbeam channel) that cannot cross a comms boundary.
-                | "wat::kernel::ThreadSelfPeer'" => false,
+                | "wat::kernel::ThreadSelfPeer" => false,
                 // Pure container: pure iff all type args are pure.
                 // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
                 // HashSet<T>, Tuple<...> — any other parametric is conservatively
@@ -13800,7 +13800,7 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
     // Arc 293 S3-Nature-2 — a dialed `Peer'<S::Op,S::Reply>` derives `Nature::Peer` exactly; it must
     // not fall through to the `Struct` default below (a peer is not a plain foreign struct).
     if let TypeExpr::Parametric { head, .. } = t {
-        if head == "wat::kernel::Peer'" {
+        if head == "wat::kernel::Peer" {
             return Nature::Peer;
         }
     }
@@ -13861,7 +13861,7 @@ pub(crate) fn assignable(
     // surface: no extend-type needed. `Peer'<X,Y>` satisfies `:S` iff X/Y equal :S's own
     // S1-synthesized `Op`/`Reply` enums.
     if let (TypeExpr::Parametric { head, args: peer_args }, TypeExpr::Path(ep)) = (&a, &e) {
-        if head == "wat::kernel::Peer'" && peer_args.len() == 2 {
+        if head == "wat::kernel::Peer" && peer_args.len() == 2 {
             if let Some(crate::types::TypeDef::Surface(surf)) = types.get(ep) {
                 if surf.nature == Some(crate::types::Nature::Peer) {
                     let want_op    = reduce(&TypeExpr::Path(format!("{}::Op", ep)),    subst, types);
@@ -13977,8 +13977,8 @@ pub(crate) fn assignable(
                     TypeExpr::Parametric { head: yh, args: ya },
                 ) = (&xr, &yr)
                 {
-                    if xh == "wat::kernel::Peer'"
-                        && yh == "wat::kernel::Peer'"
+                    if xh == "wat::kernel::Peer"
+                        && yh == "wat::kernel::Peer"
                         && xa.len() == 2
                         && ya.len() == 2
                     {
@@ -16830,7 +16830,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Arc 111 registered `:wat::kernel::select` here — the raw
     // Vec<Receiver<T>> multi-way comm verb. Non-prime IPC de-prime
-    // (this pass): retired in favour of `:wat::kernel::select'`.
+    // (this pass): retired in favour of `:wat::kernel::select`.
     // Algebra measurement: dot product. Per 058-005 new measurement
     // primitive. Scalar-returning sibling of cosine; used by the
     // Gram-Schmidt stdlib macros (Reject, Project).
@@ -19547,11 +19547,11 @@ mod tests {
         let kw = TypeExpr::Path(":wat::core::keyword".into());
         let nil = TypeExpr::Path(":wat::core::nil".into());
         let thread = TypeExpr::Parametric {
-            head: "wat::kernel::Thread'".into(),
+            head: "wat::kernel::Thread".into(),
             args: vec![nil.clone(), kw.clone()],
         };
         let process = TypeExpr::Parametric {
-            head: "wat::kernel::Process'".into(),
+            head: "wat::kernel::Process".into(),
             args: vec![nil.clone(), kw.clone()],
         };
         assert!(

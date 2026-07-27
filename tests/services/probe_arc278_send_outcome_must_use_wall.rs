@@ -2,7 +2,7 @@
 //!
 //! WHY: Phases 1-2 made `send'` return a matchable `:wat::kernel::SendOutcome` (never raises)
 //! and faced all 183 pre-existing sites. But nothing yet FORCED facing — before this wall,
-//! `(:wat::core::do (:wat::kernel::send' p m) nil)` compiled clean, silently dropping the
+//! `(:wat::core::do (:wat::kernel::send p m) nil)` compiled clean, silently dropping the
 //! outcome (a swallow, worse than the old raise: no error at all). This wall makes a
 //! must-use-typed value in a discard position (a `do` non-final expr) a located compile error,
 //! so a future `send'` swallow is unrepresentable (R57 "unrepresentable > flagged"). A *faced*

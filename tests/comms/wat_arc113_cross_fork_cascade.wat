@@ -23,11 +23,11 @@
 (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
     [p
-      (:wat::kernel::spawn-program' (:wat::spawn::process)
+      (:wat::kernel::spawn-program (:wat::spawn::process)
         (:wat::core::forms
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::test::assert-eq 1 2))))]
-    (:wat::core::match (:wat::kernel::recv' p)
+    (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::core::Vector :wat::core::String "UNEXPECTED-MESSAGE"))
       ((:wat::kernel::RecvOutcome::Lost cause)

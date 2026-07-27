@@ -10,11 +10,11 @@
 
 ;; ── DECISION 1: the address method added to the surface ──────────────────────────────────
 ;; It returns the service's live coordinate — the pure, brute-forceable location a worker
-;; dials (connect' : Address' -> Peer'). Type-erased to bare :wat::kernel::Address'.
+;; dials (connect : Address -> Peer). Type-erased to bare :wat::kernel::Address.
 ;; Anchors on the disk:
 ;;   - the concrete handle already exposes this as a struct accessor `<fqdn>::Handle/addr`
 ;;   - arc-278 R32 (QVANTVMVIS PROCVL IDEM NEXVS): "a service is a surface at a COORDINATE";
-;;     the builder crowned `coordinate` ("that is a wonderful word") for the Address'.
+;;     the builder crowned `coordinate` ("that is a wonderful word") for the Address.
 ;; Candidates (which one says "the location I dial", not a mechanism/verb?):
 ;;   coordinate  — R32's word; the address IS the coordinate; a pure location (recommended?)
 ;;   addr        — matches the existing Handle/addr accessor; terse
@@ -45,7 +45,7 @@
   :features
   [(grant      [self <- :wat::capability::Grantable  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
    (revoke     [self <- :wat::capability::Grantable  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
-   (coordinate [self <- :wat::capability::Grantable] -> :wat::kernel::Address')])   ;; ← DECISION 1 name shown as `coordinate`
+   (coordinate [self <- :wat::capability::Grantable] -> :wat::kernel::Address)])   ;; ← DECISION 1 name shown as `coordinate`
 
 ;; The user form it enables (a bracket handed ONE vec of handles):
 ;;   (:wat::spawn::process/uses (:wat::core::Vector :wat::capability::Grantable kvh eh))

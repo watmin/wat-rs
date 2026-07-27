@@ -18,8 +18,8 @@
   
   (:wat::test::assert-eq
     (:wat::core::match
-      (:wat::kernel::select'
-        (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword>
+      (:wat::kernel::select
+        (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,wat::core::keyword>
           (:wat::kernel::after :wat::program::PeerKind::process
                                (:wat::time::Millisecond 50)
                                :tick)))

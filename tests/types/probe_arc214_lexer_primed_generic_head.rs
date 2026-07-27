@@ -1,7 +1,7 @@
 //! Arc 214 Stone 4.6a-i prereq — primed type heads with multi-param generics
 //! must lex (FM-2-bis disconfirming probe).
 //!
-//! The 4.5 peer types are PRIMED (`:wat::kernel::Thread'` / `Process'`) and
+//! The 4.5 peer types are PRIMED (`:wat::kernel::Thread` / `Process'`) and
 //! parametric (`<I,O>`). The lexer's `<`-as-type-head detection
 //! (src/lexer.rs `lex_keyword`) increments `angle_depth` only when the char
 //! before `<` is alphanumeric/`_` — an apostrophe-suffixed head (`Thread'<`)

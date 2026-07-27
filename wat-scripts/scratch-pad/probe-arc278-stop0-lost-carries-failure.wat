@@ -11,10 +11,10 @@
 ;; other arm eprintln's (terminal, exits non-zero).
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))]
-    (:wat::core::match (:wat::kernel::recv' p) 
+    (:wat::core::match (:wat::kernel::recv p) 
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Message, expected ::Lost"))
       ((:wat::kernel::RecvOutcome::Lost cause)

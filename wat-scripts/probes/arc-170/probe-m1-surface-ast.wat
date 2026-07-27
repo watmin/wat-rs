@@ -1,6 +1,6 @@
 ;; Inspect a defsurface form's AST children (from fn-forms output) to find its :messages.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -16,7 +16,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [wf (:wat::core::fn [c <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]
+    [wf (:wat::core::fn [c <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]
              -> :wat::core::String
            (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Echo::EchoResponse::Ok reply) reply)

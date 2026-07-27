@@ -1,5 +1,5 @@
 //! Arc 259 (The Forced Hand) Stone S2c-i — the per-tier kernel primitive
-//! `:wat::kernel::spawn-thread'` (FM-2-bis disconfirming probe).
+//! `:wat::kernel::spawn-thread` (FM-2-bis disconfirming probe).
 //!
 //! S2c-i extracts the per-tier spawn primitives out of the monolithic
 //! `spawn-program'` (`:tier env prog`, tier-keyword dispatch) into standalone
@@ -13,7 +13,7 @@
 //!
 //! ## Why this is RED at HEAD
 //!
-//! `:wat::kernel::spawn-thread'` is not a registered verb at HEAD — the call
+//! `:wat::kernel::spawn-thread` is not a registered verb at HEAD — the call
 //! fails to resolve / type-check. Post-S2c-i it spawns a thread peer and the
 //! round-trip returns 42.
 //!
