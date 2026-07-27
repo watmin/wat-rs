@@ -3851,16 +3851,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 Stone C0 — peer-pair': (:S :R) -> (Tuple Peer'<S,R> Peer'<R,S>).
-            // Type-keyword args → crossed parametric tuple.
-            ":wat::kernel::peer-pair'" => {
-                let (val, mut errs) = infer_peer_pair_prime(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
             // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> Peer'<S,R>.
             // Returns the spawned process child's owner-link (rx=fd0, tx=fd1) as a
             // unified Peer' (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
@@ -8825,43 +8815,6 @@ fn check_wire_peer_purity_span(
     }
 }
 
-/// Arc 209 Stone C0 — `(:wat::kernel::peer-pair' :S :R)` →
-/// `(Tuple Peer'<S,R> Peer'<R,S>)`. The two type-keyword args type the crossed
-/// bare-`Peer'` ends (a type-keyword → parametric tuple shape). Runtime mints
-/// both ends without spawning (`eval_peer_pair_prime`).
-fn infer_peer_pair_prime(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    _locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    _subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::peer-pair'";
-    let mut local_errors: Vec<CheckError> = Vec::new();
-
-    if args.len() != 2 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: OP.into(), expected: 2, got: args.len()
-        } });
-        let s = fresh.fresh();
-        let r = fresh.fresh();
-        return CheckResult::partial_with(peer_pair_tuple(s, r), local_errors);
-    }
-
-    let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
-    let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
-
-    // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be `:Pure`.
-    // peer-pair' creates wire-capable Peer's; their type args must be pure.
-    // Guard: skip when the type is an unresolved var (mirrors the 2c guard).
-    check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
-    check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
-
-    let ty = peer_pair_tuple(s_ty, r_ty);
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
-
 /// Parse one `peer-pair'` type-keyword arg; on a non-keyword or unparseable
 /// keyword, record a diagnostic and return a fresh var so checking continues.
 fn parse_peer_pair_type_arg(
@@ -8893,13 +8846,6 @@ fn parse_peer_pair_type_arg(
     }
 }
 
-/// `(Tuple Peer'<S,R> Peer'<R,S>)` — the crossed result type of `peer-pair'`.
-fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
-    TypeExpr::Tuple(vec![
-        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s.clone(), r.clone()] },
-        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] },
-    ])
-}
 
 /// Arc 209 C0b.3a-0 / C0b.2e-i-b — `(:wat::program::self-peer :S :R)` →
 /// `Peer'<S,R>`.
@@ -15981,7 +15927,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // return kept alive solely for the oracle crate `crates/wat-holon-lru` —
     // was annihilated with that crate.
     env.register(
-        ":wat::holon::Hologram/find'".into(),
+        ":wat::holon::Hologram/find".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![hologram_ty(), holon_ty()],

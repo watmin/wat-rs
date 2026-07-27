@@ -3,17 +3,17 @@
 ;;
 ;; Arc 293.W.2d — compile-time wire-wall: Peer'<I,O> well-formedness.
 ;;
-;; After 2d: `peer-pair'` with a struct type arg is rejected at CHECK —
+;; After 2d: `:wat::program::self-peer` with a struct type arg is rejected at CHECK —
 ;; a wire peer's I and O must be `:Pure` types.
 ;;
 ;; RED at HEAD: this loads cleanly (no purity check on Peer' producers yet).
-;; GREEN after 2d: the peer-pair' purity gate fires, world fails to load.
+;; GREEN after 2d: the :wat::program::self-peer purity gate fires, world fails to load.
 
 (:wat::core::defstruct :w2d::S [val <- :wat::core::i64])
 
 ;; Creates Peer'<:w2d::S, :wat::core::i64> — struct type arg is impure.
-;; After 2d: the peer-pair' producer checks is_pure_type(:w2d::S) → false → CHECK error.
+;; After 2d: the :wat::program::self-peer producer checks is_pure_type(:w2d::S) → false → CHECK error.
 (:wat::core::defn :w2d::probe-impure-wire-peer [] -> :wat::core::nil
   (:wat::core::let
-    [_pair (:wat::kernel::peer-pair' :w2d::S :wat::core::i64)]
+    [_pair (:wat::program::self-peer :w2d::S :wat::core::i64)]
     nil))

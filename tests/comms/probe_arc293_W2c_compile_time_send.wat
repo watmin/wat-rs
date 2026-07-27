@@ -3,12 +3,12 @@
 ;;
 ;; Arc 293.W.2d supersedes 2c: the wall moved from send' time to peer PRODUCER time.
 ;;
-;; After 2d, the compile-time purity wall is at wire-peer PRODUCERS (peer-pair',
+;; After 2d, the compile-time purity wall is at wire-peer PRODUCERS (:wat::program::self-peer,
 ;; connect', accept', program-self-peer'; `socket-pair'` was annihilated arc 278
 ;; Wave A). An impure type arg to a wire peer producer is a compile-time check
 ;; error (§7 purity wall).
 ;;
-;; This fixture creates peer-pair' with a struct type arg — struct is impure
+;; This fixture creates :wat::program::self-peer with a struct type arg — struct is impure
 ;; (Nature::Struct) — the purity check at the producer fires at CHECK TIME.
 ;; The world FAILS TO LOAD (startup_beside returns Err) with a check error
 ;; mentioning "pure", "struct", or "wire".
@@ -18,9 +18,9 @@
 
 (:wat::core::defstruct :w2c::S [val <- :wat::core::i64])
 
-;; peer-pair' with a struct type arg is a CHECK ERROR (§7 purity wall).
+;; :wat::program::self-peer with a struct type arg is a CHECK ERROR (§7 purity wall).
 ;; The wire peer producer checks that I,O are pure; a struct is impure.
 (:wat::core::defn :w2c::probe-impure-wire-peer [] -> :wat::core::nil
   (:wat::core::let
-    [_pair (:wat::kernel::peer-pair' :w2c::S :wat::core::i64)]
+    [_pair (:wat::program::self-peer :w2c::S :wat::core::i64)]
     nil))

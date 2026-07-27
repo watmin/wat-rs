@@ -4,7 +4,7 @@
 ;; Arc 293.W.2d — positive cases that MUST type-check:
 ;;
 ;;   1. ThreadSelfPeer' carrying impure I/O type-checks (in-locus, any I/O).
-;;   2. peer-pair' with pure types still type-checks (the purity gate only
+;;   2. :wat::program::self-peer with pure types still type-checks (the purity gate only
 ;;      rejects IMPURE type args; it must not over-reject the pure case).
 ;;
 ;; Both cases must load without error — the Peer'<I,O> well-formedness gate must NOT
@@ -23,8 +23,8 @@
                 nil))]
     nil))
 
-;; Positive 2: peer-pair' with pure types — must still type-check.
+;; Positive 2: :wat::program::self-peer with pure types — must still type-check.
 (:wat::core::defn :w2d_pos::probe-pure-wire-peer [] -> :wat::core::nil
   (:wat::core::let
-    [_pair (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)]
+    [_pair (:wat::program::self-peer :wat::core::i64 :wat::core::i64)]
     nil))

@@ -67,20 +67,26 @@ fn record_still_round_trips_after_backstop() {
 
 // ── OUTBOUND: the send' wire-wall ─────────────────────────────────
 
-/// OUTBOUND. A wire peer (`peer-pair'`) with a struct type arg must fail at CHECK.
+/// OUTBOUND. A wire peer (`:wat::program::self-peer`) with a struct type arg must fail at CHECK.
 ///
 /// Arc 293.W.2d: the purity wall is now at wire-peer PRODUCERS (peer-pair', etc.),
 /// not at `send'` time. The test loads `probe_arc293_W2c_compile_time_send.wat`
-/// which uses `peer-pair'<Struct,i64>` and asserts the compile-time check error.
+/// which uses `:wat::program::self-peer<Struct,i64>` and asserts the compile-time check error.
 /// (The 2c send'-gate was deleted in 2d; this test now exercises the 2d wall.)
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
+// The golden below is stale on TWO axes now, and both are recorded so the recapture is not
+// mistaken for a one-liner: (1) the pre-stone-B rust-debug face, which 296 replaces wholesale;
+// (2) arc 278 — the fixture's producer moved off the annihilated `peer-pair'` onto
+// `:wat::program::self-peer`, so the head AND the line:col in the text below are both wrong.
+// Deliberately NOT hand-patched: a golden edited to be less-wrong reads as maintained when it
+// is not. 296's recapture writes it from a real run.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face AND names the annihilated peer-pair' producer (arc 278); unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 #[allow(non_snake_case)]
 fn struct_rejected_at_wire_SEND() {
     let result = startup_from_file("tests/comms/probe_arc293_W2c_compile_time_send.wat");
     assert!(
         result.is_err(),
-        "peer-pair' with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
+        ":wat::program::self-peer with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
          a struct is impure §7; the wire-peer producer's purity gate must reject \
          this world). got Ok"
     );

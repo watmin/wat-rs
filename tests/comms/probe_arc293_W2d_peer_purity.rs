@@ -3,44 +3,44 @@
 //! ## RED at HEAD / GREEN after 2d
 //!
 //! After 2d, `Peer'<I,O>` requires `I,O` to be `:Pure` (wire-safe) by construction —
-//! the producers (`peer-pair'`, `connect'`, `accept'`, `socket-pair'`) reject impure type
+//! the producers (`:wat::program::self-peer`, `connect'`, `accept'`, `socket-pair'`) reject impure type
 //! args at CHECK. `ThreadSelfPeer'<I,O>` (any I/O, in-locus) is the escape hatch.
 //!
 //! ## RED state (HEAD before 2d)
 //!
-//! Creating a `Peer'` with an impure type arg (struct) via `peer-pair'` COMPILES today:
+//! Creating a `Peer'` with an impure type arg (struct) via `:wat::program::self-peer` COMPILES today:
 //! the 2c gate only covers `Process'`; bare `Peer'` producers have no purity check yet.
 //! The probe's `Err` assertion FAILS at HEAD because the world loads without error.
 //!
 //! ## GREEN state (after 2d)
 //!
-//! The `peer-pair'` producer's purity check fires on the struct type arg → the world fails
+//! The `:wat::program::self-peer` producer's purity check fires on the struct type arg → the world fails
 //! to load with a type error naming the impure type. The probe's `Err` assertion passes.
 //!
 //! ## Fixtures
 //!
 //! - `probe_arc293_W2d_peer_purity.wat` (co-located, `startup_beside`): the failing case —
-//!   `peer-pair'` with a struct type arg. World FAILS to load after 2d.
+//!   `:wat::program::self-peer` with a struct type arg. World FAILS to load after 2d.
 //! - `probe_arc293_W2d_positive.wat` (sibling): positive cases — `ThreadSelfPeer'` carrying
-//!   impure I/O type-checks (in-locus); `peer-pair'` with pure types still type-checks.
+//!   impure I/O type-checks (in-locus); `:wat::program::self-peer` with pure types still type-checks.
 
 use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── Main probe (compile-time rejection) ──────────────────────────────────────
 
-/// `peer-pair'` with a struct type arg produces `Peer'<struct,i64>` — MUST fail at CHECK.
+/// `:wat::program::self-peer` with a struct type arg produces `Peer'<struct,i64>` — MUST fail at CHECK.
 ///
-/// RED at HEAD: `peer-pair' :S :i64` creates `Peer'<S,i64>` without a purity check
+/// RED at HEAD: `:wat::program::self-peer :S :i64` creates `Peer'<S,i64>` without a purity check
 /// on the type args → `startup_beside` returns `Ok`. The `Err` assertion FAILS.
 ///
-/// GREEN after 2d: the `peer-pair'` producer's `is_pure_type` check fires on S
+/// GREEN after 2d: the `:wat::program::self-peer` producer's `is_pure_type` check fires on S
 /// (a struct, `Nature::Struct` → impure) → `startup_beside` returns `Err`.
 #[test]
 fn impure_type_arg_on_wire_peer_is_check_error() {
     let result = startup_beside(file!());
     assert!(
         result.is_err(),
-        "peer-pair' with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
+        ":wat::program::self-peer with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
          a wire Peer'<I,O> carries only pure data; the producer must reject impure type \
          args). If this assertion fails, the Peer'<I,O> well-formedness gate is missing \
          from the producer."
@@ -61,14 +61,14 @@ fn impure_type_arg_on_wire_peer_is_check_error() {
 /// `ThreadSelfPeer'<Sender<i64>, i64>` is in-locus (crossbeam, same address space).
 /// The purity constraint does NOT apply to `ThreadSelfPeer'`. The world must load.
 ///
-/// Also asserts: `peer-pair'` with pure type args still type-checks (the purity
+/// Also asserts: `:wat::program::self-peer` with pure type args still type-checks (the purity
 /// gate must reject impure args without over-rejecting the pure case).
 #[test]
 fn thread_self_peer_and_pure_wire_peer_type_checks() {
     let result = startup_from_file("tests/comms/probe_arc293_W2d_positive.wat");
     assert!(
         result.is_ok(),
-        "ThreadSelfPeer'<Sender<i64>,i64> and peer-pair' of pure types MUST type-check \
+        "ThreadSelfPeer'<Sender<i64>,i64> and :wat::program::self-peer of pure types MUST type-check \
          (in-locus; no purity constraint — arc 293.W.2d positive cases). \
          Error: {:?}",
         result.err()

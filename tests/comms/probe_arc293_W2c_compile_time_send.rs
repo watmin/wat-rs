@@ -36,10 +36,10 @@ use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── Main probe (compile-time rejection) ──────────────────────────────────────
 
-/// A wire peer (`peer-pair'`) with a struct type arg MUST fail at CHECK.
+/// A wire peer (`:wat::program::self-peer`) with a struct type arg MUST fail at CHECK.
 ///
 /// Arc 293.W.2d: the purity wall moved from `send'` time (2c, deleted) to wire-peer
-/// PRODUCER time. `peer-pair'<Struct,i64>` is a CHECK error because a struct is
+/// PRODUCER time. `:wat::program::self-peer<Struct,i64>` is a CHECK error because a struct is
 /// impure (Nature::Struct) and the producer's purity gate fires (§7 purity wall).
 ///
 /// GREEN after 2d: `startup_beside` returns `Err` with a check error mentioning
@@ -49,7 +49,7 @@ fn struct_send_to_process_peer_is_check_error() {
     let result = startup_beside(file!());
     assert!(
         result.is_err(),
-        "peer-pair' with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
+        ":wat::program::self-peer with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
          a struct is impure, §7; the wire-peer producer's purity gate must reject \
          this world). If this assertion fails, the peer-pair' purity gate is missing."
     );

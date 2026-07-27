@@ -4832,7 +4832,7 @@ fn dispatch_keyword_head_value(
         ":wat::holon::Hologram/make" => eval_hologram_make(args, list_span, env, sym),
         ":wat::holon::Hologram/put" => eval_hologram_put(args, list_span, env, sym),
         ":wat::holon::Hologram/get" => eval_hologram_get(args, list_span, env, sym),
-        ":wat::holon::Hologram/find'" => eval_hologram_find_prime(args, list_span, env, sym),
+        ":wat::holon::Hologram/find" => eval_hologram_find(args, list_span, env, sym),
         ":wat::holon::Hologram/remove" => eval_hologram_remove(args, list_span, env, sym),
         ":wat::holon::Hologram/len" => eval_hologram_len(args, list_span, env, sym),
         ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, list_span, env, sym),
@@ -5083,12 +5083,6 @@ fn dispatch_keyword_head_value(
         // poll' : (self-peer, listener, peers) -> ServiceEvent<I,O>
         ":wat::kernel::poll'" => {
             eval_poll_prime(args, list_span, env, sym)
-        }
-        // Arc 209 Stone C0 — peer-pair': mint two connected, crossed bare Peer'
-        // ends WITHOUT spawning (the connection primitive defservice provisions —
-        // "programs ≠ channels"). Returns (Peer'<S,R>, Peer'<R,S>).
-        ":wat::kernel::peer-pair'" => {
-            eval_peer_pair_prime(args, list_span)
         }
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
@@ -16790,24 +16784,20 @@ fn eval_hologram_get(
         None => Ok(Value::Option(Arc::new(None))),
     }
 }
-/// `(:wat::holon::Hologram/find' store probe)` -> `:Option<:wat::holon::Match>`.
-/// Arc 278 — the LIVE prime variant (`send'`/`recv'`/`deftest'` shape: build
-/// under the primed name, let the non-prime die with its last caller, then
-/// reclaim the plain `find` name once `crates/wat-holon-lru` — the dying
-/// oracle crate that is `eval_hologram_find`'s only remaining caller — is
-/// annihilated; the 0z drop-`'` move). Same lookup as `Hologram/get` but
-/// returns a `:wat::holon::Match {key value}` record carrying both the
-/// matched key AND the val — `HolographicLru::get` composes this to bump
-/// the matched key's LRU recency, which it cannot do without the key back.
-/// Two verbs here is a retirement in progress, not a design: every NEW
-/// caller reaches for `find'`, never bare `find`.
-fn eval_hologram_find_prime(
+/// `(:wat::holon::Hologram/find store probe)` -> `:Option<:wat::holon::Match>`.
+/// Same lookup as `Hologram/get` but returns a `:wat::holon::Match {key value}`
+/// record carrying both the matched key AND the val — `HolographicLru::get`
+/// composes this to bump the matched key's LRU recency, which it cannot do
+/// without the key back. Arc 278: this was built as `find'` beside a
+/// tuple-returning non-prime; that non-prime died with its last caller
+/// (`crates/wat-holon-lru`) and this reclaimed the plain name.
+fn eval_hologram_find(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/find'";
+    const OP: &str = ":wat::holon::Hologram/find";
     if args.len() != 2 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -20677,51 +20667,6 @@ fn eval_config_global_seed(
     check_nullary(":wat::config::global-seed", args, list_span)?;
     let ctx = require_encoding_ctx(":wat::config::global-seed", sym, list_span)?;
     Ok(Value::i64(ctx.config.global_seed as i64))
-}
-
-/// `(:wat::kernel::peer-pair' :S :R)` — mint two connected, crossed bare `Peer'`
-/// ends WITHOUT spawning. Arc 209 Stone C0 — the connection primitive: a service
-/// provisions a client by handing it one end while keeping the other in its
-/// `select'` set ("programs ≠ channels"). End A is `Peer'<S,R>` (sends S, recvs R);
-/// end B is `Peer'<R,S>` (sends R, recvs S); A's send reaches B's recv and vice-versa.
-///
-/// Mirrors `spawn_thread_peer`'s crossbeam crossover wiring MINUS the spawn — no
-/// thread, no join handle, no crash channel (a bare connected pair has no worker
-/// behind it). Both ends carry `Value` at runtime; the two type-keyword args type
-/// the crossed ends for the checker (`infer_peer_pair_prime`). Thread tier only;
-/// process (pipe) / remote (socket) provisioning is a distinct separate-memory
-/// mechanism (the `:remote`-class future), not this verb extended.
-fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::peer-pair'";
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(), expected: 2, got: args.len()
-        } }.into());
-    }
-    for (i, a) in args.iter().enumerate() {
-        if !matches!(a, WatAST::Keyword(_, _)) {
-            return Err(RuntimeError { span: a.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
-            } }.into());
-        }
-    }
-    use crate::kernel::peer::Peer;
-    use crate::kernel::spawn::PEER_TYPE_PATH;
-    use crate::rust_deps::custodia::ThreadOwnedCell;
-    use crate::rust_deps::marshal::make_rust_opaque;
-    // pair A: end_a → end_b ; pair B: end_b → end_a (the crossover).
-    let (a_tx, a_rx) = crate::comms::thread::pair::<Value>();
-    let (b_tx, b_rx) = crate::comms::thread::pair::<Value>();
-    let end_a = make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(a_tx, b_rx)))),
-    );
-    let end_b = make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(b_tx, a_rx)))),
-    );
-    Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a

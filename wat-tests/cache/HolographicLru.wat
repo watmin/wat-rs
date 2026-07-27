@@ -73,14 +73,12 @@
 
 ;; ─── the Match record itself — read by name, not position ─────────────────────────────────
 ;;
-;; The four tests above exercise `Hologram/find'` only THROUGH `HolographicLru::get`, which
+;; The four tests above exercise `Hologram/find` only THROUGH `HolographicLru::get`, which
 ;; immediately destructures it and discards the record. This test is the one direct gate on
 ;; `:wat::holon::Match` itself: probe with a coincident-but-different value and read the
 ;; matched key back by NAME (`Match/key`) — proving it is the STORED key, not the probe — and
 ;; the value by name (`Match/value`). A tuple could not express this assertion legibly; it is
-;; the reason the record exists. Targets the prime `Hologram/find'` (arc 278 retirement in
-;; progress) — the bare `Hologram/find` non-prime is the dying oracle's tuple-returning form,
-;; not this record-returning one.
+;; the reason the record exists. Targets `Hologram/find` directly.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-find-returns-match-record
   (:wat::core::let
     [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 10)
@@ -89,7 +87,7 @@
      _ (:wat::cache::HolographicLru::put store k v)
      probe (:wat::holon::Thermometer 50.01 0.0 100.0)
      hologram (:wat::cache::HolographicLru/hologram store)]
-    (:wat::core::match (:wat::holon::Hologram/find' hologram probe)
+    (:wat::core::match (:wat::holon::Hologram/find hologram probe)
       ((:wat::core::Some m)
         (:wat::core::let
           [matched-key (:wat::holon::Match/key m)

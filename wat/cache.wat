@@ -291,8 +291,7 @@
       (:wat::core::None nil))))
 
 ;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
-;; `Hologram/find'` (prime — arc 278 retirement in progress; bare `Hologram/find` is the dying
-;; non-prime kept alive only for `crates/wat-holon-lru`'s oracle caller, NEVER reach for it here)
+;; `Hologram/find`
 ;; returns a `:wat::holon::Match` carrying the MATCHED key (not necessarily `probe` itself — this
 ;; is what makes the lookup similarity-keyed rather than exact) together with the value. Bump the
 ;; matched key in the LRU (`Lru::put` on an already-present key updates its recency without
@@ -305,7 +304,7 @@
   (:wat::core::let
     [hologram (:wat::cache::HolographicLru/hologram store)
      lru (:wat::cache::HolographicLru/lru store)]
-    (:wat::core::match (:wat::holon::Hologram/find' hologram probe)
+    (:wat::core::match (:wat::holon::Hologram/find hologram probe)
       ((:wat::core::Some m)
         (:wat::core::let
           [matched-key (:wat::holon::Match/key m)
