@@ -1,0 +1,6 @@
+#proto.Frame/Chunk ["(:demo::alpha 1)"]
+#proto.Frame/Chunk ["(:demo::beta 2)"]
+#proto.Frame/SectionDone [2]
+#proto.Frame/Chunk ["hello "]
+#proto.Frame/Chunk ["world"]
+#proto.Frame/SectionDone [2]
