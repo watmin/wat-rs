@@ -45,6 +45,10 @@ pub mod child;
 pub mod handle;
 pub mod verbs;
 pub mod stdio;
+/// Arc 170 — the boot wire: how a spawned child receives its program. Ships
+/// BEFORE the exec so the stream path is proven while the closure is still the
+/// control (see the module doc, and `170/DESIGN-execve-every-fork.md`).
+pub(crate) mod boot;
 
 // Flat pub-use re-exports so every public name is reachable at
 // crate::process::X (callers never need to know which sub-module holds what).
