@@ -93,6 +93,25 @@ const WAT_KEYWORD_NAME: &str = "Keyword";
 /// `:path` — the wat keyword path, verbatim, leading colon included.
 const FIELD_PATH: &str = "path";
 
+/// A wat keyword carried verbatim: `#wat.ast/Keyword {:path "…"}`.
+///
+/// `pub(crate)` because `edn_shim::keyword_from_wat_path` reaches for it as its
+/// honest last resort. It used to fall back to a bare `OwnedValue::String`
+/// there — a SILENT TYPE CHANGE: a keyword went in, a string came out, and
+/// nothing said so. That is defensible for the logger it was written for and
+/// indefensible anywhere a value is read back. This is the same shape, without
+/// the lie: still one value, still non-panicking, and it decodes to the keyword
+/// it started as.
+pub(crate) fn verbatim_keyword(path: &str) -> OwnedValue {
+    OwnedValue::Tagged(
+        Tag::ns(SCOPED_SYM_NS, WAT_KEYWORD_NAME),
+        Box::new(OwnedValue::Map(vec![(
+            OwnedValue::Keyword(Keyword::new(FIELD_PATH)),
+            OwnedValue::String(std::borrow::Cow::Owned(path.to_owned())),
+        )])),
+    )
+}
+
 /// Does this keyword survive the crossing as a plain EDN keyword?
 ///
 /// Answered by a RUN, never by a grammar predicate: encode the candidate, WRITE
@@ -311,13 +330,7 @@ fn watast_to_edn_with(a: &WatAST, carriage: Carriage) -> OwnedValue {
         WatAST::Keyword(k, _) if !verbatim || !needs_verbatim_carriage(k) => {
             keyword_from_wat_path(k)
         }
-        WatAST::Keyword(k, _) => OwnedValue::Tagged(
-            Tag::ns(SCOPED_SYM_NS, WAT_KEYWORD_NAME),
-            Box::new(OwnedValue::Map(vec![(
-                OwnedValue::Keyword(Keyword::new(FIELD_PATH)),
-                OwnedValue::String(std::borrow::Cow::Owned(k.clone())),
-            )])),
-        ),
+        WatAST::Keyword(k, _) => verbatim_keyword(k),
         WatAST::Symbol(ident, _)
             if ident.scopes().is_empty()
                 && (!verbatim || !symbol_needs_verbatim(ident.as_str())) =>

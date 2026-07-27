@@ -3658,15 +3658,22 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
         let name = &stripped[idx + 2..];
         match Keyword::try_ns(&ns, name) {
             Ok(kw) => OwnedValue::Keyword(kw),
-            // Fallback to a string if the keyword fails wat-edn's
-            // first-character validation. Better to render than to
-            // panic on a logger call.
-            Err(_) => OwnedValue::String(std::borrow::Cow::Owned(k.to_string())),
+            // EDN cannot spell this one — carry it VERBATIM rather than
+            // stringify it. This used to return a bare `OwnedValue::String`
+            // ("better to render than to panic on a logger call"), which is a
+            // SILENT TYPE CHANGE: a Keyword goes in, a String comes out, and
+            // anything that reads the value back gets the wrong type with no
+            // diagnostic. Measured over the corpus, this arm fires for 10
+            // distinct keywords out of 72,510 — all of them trailing-`::`
+            // namespace-prefix markers (`:restricted-to` whitelists), whose
+            // EDN name is empty. Still total, still non-panicking, no longer
+            // a lie.
+            Err(_) => crate::wat_edn_bridge::verbatim_keyword(k),
         }
     } else {
         match Keyword::try_new(stripped) {
             Ok(kw) => OwnedValue::Keyword(kw),
-            Err(_) => OwnedValue::String(std::borrow::Cow::Owned(k.to_string())),
+            Err(_) => crate::wat_edn_bridge::verbatim_keyword(k),
         }
     }
 }
