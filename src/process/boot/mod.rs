@@ -477,15 +477,21 @@ pub(crate) fn send_frame_and_await_ack(
 
 /// Deliver both sections to a child over `write_fd`, reading acks from `ack_fd`.
 ///
-/// The substrate section is EMPTY today: `Config` still crosses by COW because
+/// The substrate section carries `Config` (arc 170 step 3). It used to be empty because
 /// step 2 does not exec. The marker is sent anyway so the wire's shape is the
 /// final one and step 3 only fills a section that already exists.
 pub(crate) fn deliver_to_child(
     write_fd: i32,
     ack_fd: i32,
+    config_wire: &str,
     program_source: &str,
 ) -> Result<(), RuntimeError> {
     let mut acks = BootReader::new(ack_fd);
+    // The SUBSTRATE section, first: what the child used to inherit through COW
+    // and — once step 4 execs — must be told.
+    for frame in chunk_payload(config_wire)? {
+        send_frame_and_await_ack(write_fd, &mut acks, &frame)?;
+    }
     send_frame_and_await_ack(write_fd, &mut acks, &BootFrame::SubstrateDone)?;
     for frame in chunk_payload(program_source)? {
         send_frame_and_await_ack(write_fd, &mut acks, &frame)?;
@@ -496,12 +502,16 @@ pub(crate) fn deliver_to_child(
 
 /// The child's half: read both sections, acking as it goes, and return the
 /// program source.
-pub(crate) fn receive_in_child(read_fd: i32, ack_fd: i32) -> Result<String, RuntimeError> {
+pub(crate) fn receive_in_child(
+    read_fd: i32,
+    ack_fd: i32,
+) -> Result<(String, String), RuntimeError> {
     let mut reader = BootReader::new(read_fd);
-    let _substrate = reader.read_section(ack_fd, "substrate", |f| {
+    let substrate = reader.read_section(ack_fd, "substrate", |f| {
         matches!(f, BootFrame::SubstrateDone)
     })?;
-    reader.read_section(ack_fd, "program", |f| matches!(f, BootFrame::ProgramDone))
+    let program = reader.read_section(ack_fd, "program", |f| matches!(f, BootFrame::ProgramDone))?;
+    Ok((substrate, program))
 }
 
 /// Report a boot-handshake failure on the child's err channel and terminate.
@@ -746,4 +756,144 @@ mod tests {
     fn an_empty_payload_produces_no_frames() {
         assert!(chunk_payload("").expect("chunk").is_empty());
     }
+}
+
+// ─── The substrate section's payload: Config ─────────────────────────────────
+
+/// `Config` on the wire, as EDN.
+///
+/// # Why this exists at all
+///
+/// Until step 4, `Config` reached the child through COW — the fork copied the
+/// parent's address space and the snapshot came along for free. `execve` is
+/// exactly the thing that ends that, so the substrate section stops being empty:
+/// what the child used to inherit, it must now be TOLD.
+///
+/// # The exhaustive destructure is the point
+///
+/// The `let Config { .. } = cfg` below binds every field by name with no `..`
+/// rest pattern, so ADDING A FIELD TO `Config` BREAKS THIS BUILD. That is
+/// deliberate and it is the whole guarantee: a field that silently defaulted in
+/// the child is precisely the parent/child divergence this mechanism exists to
+/// prevent, and it would be invisible — the child would just quietly run under
+/// different settings. Do not reach for `..`.
+pub(crate) fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
+    let Some(cfg) = cfg else {
+        // No snapshot: the program forms carry their own setters (the
+        // entry-file discipline). `nil` says so explicitly rather than by
+        // absence.
+        return "nil".to_owned();
+    };
+    // EXHAUSTIVE — see the doc above. No `..`.
+    let crate::config::Config {
+        capacity_mode,
+        global_seed,
+        dim_count,
+        presence_sigma_ast,
+        coincident_sigma_ast,
+        redef_allowed,
+        eval_redef_allowed,
+    } = cfg;
+
+    let ast_field = |a: &Option<crate::ast::WatAST>| match a {
+        Some(ast) => crate::wat_edn_bridge::program_to_edn(std::slice::from_ref(ast)),
+        None => "nil".to_owned(),
+    };
+    let mode = match capacity_mode {
+        crate::config::CapacityMode::Error => ":error",
+        crate::config::CapacityMode::Panic => ":panic",
+    };
+    format!(
+        "{{:capacity-mode {mode} :global-seed {global_seed} :dim-count {dim_count} \
+         :presence-sigma {} :coincident-sigma {} :redef-allowed {redef_allowed} \
+         :eval-redef-allowed {eval_redef_allowed}}}",
+        ast_field(presence_sigma_ast),
+        ast_field(coincident_sigma_ast),
+    )
+}
+
+/// Rebuild `Config` from the substrate section — the inverse of
+/// [`config_to_wire`].
+///
+/// Every field is REQUIRED. A missing one is a located error, never a default:
+/// defaulting here would reintroduce exactly the silent parent/child divergence
+/// the exhaustive destructure exists to prevent, just on the read side.
+pub(crate) fn wire_to_config(
+    frame: &str,
+) -> Result<Option<crate::config::Config>, RuntimeError> {
+    let trimmed = frame.trim();
+    if trimmed == "nil" || trimmed.is_empty() {
+        return Ok(None);
+    }
+    let parsed = wat_edn::parse_owned(trimmed)
+        .map_err(|e| boot_err(format!("substrate section is not EDN: {e}")))?;
+    let wat_edn::OwnedValue::Map(fields) = &parsed else {
+        return Err(boot_err(format!(
+            "substrate section must be a Config map, got {}",
+            parsed.type_name()
+        )));
+    };
+    let get = |want: &str| {
+        fields.iter().find_map(|(k, v)| match k {
+            wat_edn::Value::Keyword(kw) if kw.namespace().is_none() && kw.name() == want => {
+                Some(v)
+            }
+            _ => None,
+        })
+    };
+    let need = |want: &str| {
+        get(want).ok_or_else(|| boot_err(format!("substrate Config is missing :{want}")))
+    };
+    let int = |want: &str| -> Result<i64, RuntimeError> {
+        match need(want)? {
+            wat_edn::Value::Integer(n) => Ok(*n),
+            other => Err(boot_err(format!(
+                ":{want} must be an integer, got {}",
+                other.type_name()
+            ))),
+        }
+    };
+    let boolean = |want: &str| -> Result<bool, RuntimeError> {
+        match need(want)? {
+            wat_edn::Value::Bool(b) => Ok(*b),
+            other => Err(boot_err(format!(
+                ":{want} must be a boolean, got {}",
+                other.type_name()
+            ))),
+        }
+    };
+    let ast = |want: &str| -> Result<Option<crate::ast::WatAST>, RuntimeError> {
+        match need(want)? {
+            wat_edn::Value::Nil => Ok(None),
+            other => {
+                let text = wat_edn::write(other);
+                let mut forms = crate::wat_edn_bridge::edn_to_program(&text).map_err(|e| {
+                    boot_err(format!(":{want} did not decode as a form: {e}"))
+                })?;
+                match forms.len() {
+                    1 => Ok(Some(forms.pop().expect("len checked"))),
+                    n => Err(boot_err(format!(":{want} carried {n} forms, want exactly 1"))),
+                }
+            }
+        }
+    };
+    let capacity_mode = match need("capacity-mode")? {
+        wat_edn::Value::Keyword(kw) if kw.name() == "error" => crate::config::CapacityMode::Error,
+        wat_edn::Value::Keyword(kw) if kw.name() == "panic" => crate::config::CapacityMode::Panic,
+        other => {
+            return Err(boot_err(format!(
+                ":capacity-mode must be :error or :panic, got {}",
+                wat_edn::write(other)
+            )))
+        }
+    };
+    Ok(Some(crate::config::Config {
+        capacity_mode,
+        global_seed: int("global-seed")? as u64,
+        dim_count: int("dim-count")? as usize,
+        presence_sigma_ast: ast("presence-sigma")?,
+        coincident_sigma_ast: ast("coincident-sigma")?,
+        redef_allowed: boolean("redef-allowed")?,
+        eval_redef_allowed: boolean("eval-redef-allowed")?,
+    }))
 }

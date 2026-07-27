@@ -839,6 +839,10 @@ pub fn spawn_process_peer(
     // BEFORE the fork, so the parent holds the exact bytes it will stream and
     // the child keeps `forms` as the ORACLE to check the decode against.
     let program_source = crate::process::boot::forms_to_wire(&forms);
+    // Arc 170 step 3 — the SUBSTRATE section. `Config` reaches the child by COW
+    // today; step 4's exec ends that, so it crosses the wire now, while the COW
+    // copy is still there to check it against.
+    let config_wire = crate::process::boot::config_to_wire(inherit_config.as_ref());
 
     // The raw fds the boot handshake rides: the child's stdin (what the parent
     // writes) and the child's stdout (where its acks come back). Captured before
@@ -894,10 +898,13 @@ pub fn spawn_process_peer(
         //
         // Diverging is a startup failure, loudly: fd 2 is the err channel by now,
         // so the reason reaches the owner's `recv` as a Lost cause.
-        let decoded = match crate::process::boot::receive_in_child(0, 1)
-            .and_then(|frame| crate::process::boot::wire_to_forms(&frame))
-        {
-            Ok(decoded) => decoded,
+        let (decoded, wired_config) = match crate::process::boot::receive_in_child(0, 1)
+            .and_then(|(substrate, program)| {
+                let cfg = crate::process::boot::wire_to_config(&substrate)?;
+                let forms = crate::process::boot::wire_to_forms(&program)?;
+                Ok((forms, cfg))
+            }) {
+            Ok(pair) => pair,
             Err(e) => {
                 crate::process::boot::report_boot_failure_and_exit(&format!(
                     "boot handshake failed: {e:?}"
@@ -946,7 +953,16 @@ pub fn spawn_process_peer(
         // inside a NAME, which no scope remapping can move, so the binder and
         // its reference parted the moment the decode assigned fresh scopes.
         // Binders are REUSED now, so both sides remap together.
-        crate::process::run_forms_as_server_child(decoded, inherit_config, env_fn);
+        // The Config the child uses is the one it was TOLD, not the one it
+        // inherited — same handover as the program, and for the same reason:
+        // after the exec there is nothing to inherit. The COW copy is still the
+        // oracle while it exists.
+        if wired_config != inherit_config {
+            crate::process::boot::report_boot_failure_and_exit(
+                "the Config did not survive the wire (decode(encode(config)) != config)",
+            );
+        }
+        crate::process::run_forms_as_server_child(decoded, wired_config, env_fn);
     })
     .map_err(|io_err| RuntimeError {
         span: list_span.clone(),
@@ -965,7 +981,12 @@ pub fn spawn_process_peer(
     // the call site instead of arriving later as a mute death. It cannot hang on a
     // dead child — the child holds the ack pipe's write end, so its death closes
     // that end and the wait ends in a NAMED failure (see `send_frame_and_await_ack`).
-    crate::process::boot::deliver_to_child(boot_write_fd, boot_ack_fd, &program_source)?;
+    crate::process::boot::deliver_to_child(
+        boot_write_fd,
+        boot_ack_fd,
+        &config_wire,
+        &program_source,
+    )?;
 
     let lifeline_w = lifeline_writer.into_owned_fd();
 
