@@ -16037,6 +16037,43 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 170 — `:wat::eval-with-defs!` evaluates a form against a world built
+    // from a SUPPLIED definition set, rather than against the caller's ambient
+    // symbol table the way `:wat::eval-ast!` (above) does.
+    //
+    // The sibling above is the whole motivation: `eval-ast!` reaches
+    // `run_constrained(ast, env, sym)` where `sym` is `&SymbolTable` — immutable,
+    // and NOT a parameter the caller may supply. So a wat program can hold an
+    // accumulated definition set (forms are pure data) and has no way to run
+    // anything IN it. This verb closes exactly that gap and nothing else.
+    //
+    // Argument order is `(form, defs)`, not `(defs, form)` — every member of the
+    // eval family takes the evaluand FIRST (`eval-ast!` `wat_ast_ty()`,
+    // `eval-edn!` the source string, `eval-file!` the path), and a name reading
+    // "eval this form with these defs" that took them backwards would lie at
+    // every call site.
+    //
+    // T is the caller's expected value type, same trust-the-caller discipline as
+    // `eval-ast!` / `:wat::edn::read`. It appears only in the `:Evaluated` arm and
+    // is phantom in the other three.
+    env.register(
+        ":wat::eval-with-defs!".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                wat_ast_ty(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                },
+            ],
+            ret: TypeExpr::Parametric {
+                head: "wat::eval::FormOutcome".into(),
+                args: vec![TypeExpr::Path("T".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // :wat::eval-step! (arc 068) — one CBV reduction at the leftmost-
     // outermost redex. Returns Ok(StepResult) on progress (StepNext,
     // StepTerminal, or AlreadyTerminal — arc 070); Err(EvalError) for

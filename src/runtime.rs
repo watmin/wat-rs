@@ -1751,6 +1751,42 @@ pub fn register_runtime_defs(
     Ok(())
 }
 
+/// Arc 170 — the heads [`register_runtime_defs_form`] consumes: the RUNTIME
+/// declaration forms (as opposed to the TYPE declarations, which the freeze
+/// consumes before residue is ever produced).
+///
+/// This is a GATE the match below sits behind, not a copy of it — see
+/// [`is_runtime_declaration_head`]. A head absent from this list can never reach
+/// the match, so the two cannot silently disagree; an un-listed arm goes dead
+/// (fails closed) rather than diverging.
+///
+/// `do` / `let` are here because they SPLICE — either may contain a def in a
+/// nested position, so both are declaration-bearing even though neither is a
+/// declaration itself.
+pub(crate) const RUNTIME_DECLARATION_HEADS: &[&str] = &[
+    ":wat::config::set-redef!",
+    ":wat::config::set-eval-redef!",
+    ":wat::core::def",
+    ":wat::core::do",
+    ":wat::core::let",
+    ":wat::core::defclause",
+    ":wat::core::extend-type",
+];
+
+/// Does this head name a form that [`register_runtime_defs`] will consume?
+///
+/// The one authority on "is this residue form a declaration or an expression",
+/// used by `:wat::eval-with-defs!` to answer `FormOutcome::Declared` vs
+/// `::Evaluated`. It must be asked of a POST-MACRO-EXPANSION form: `defn` is a
+/// macro that expands to `def` (`wat/core.wat:1175`), so the raw surface head a
+/// user typed is not what lands in residue — which is exactly why an eval-time
+/// error cannot classify (`defn` fails eval as `unknown-function`, byte-identical
+/// to a typo; measured in
+/// `wat-scripts/scratch-pad/probe-repl-declaration-refusal.wat`).
+pub(crate) fn is_runtime_declaration_head(head: &str) -> bool {
+    RUNTIME_DECLARATION_HEADS.contains(&head)
+}
+
 /// Recursive helper for [`register_runtime_defs`]. Processes a single form.
 fn register_runtime_defs_form(
     form: &WatAST,
@@ -1768,6 +1804,13 @@ fn register_runtime_defs_form(
         WatAST::Keyword(k, _) => k.as_str(),
         _ => return Ok(()),
     };
+
+    // Arc 170 — the gate. Every head the match below handles must be listed in
+    // RUNTIME_DECLARATION_HEADS, so `is_runtime_declaration_head` is never a second
+    // opinion about what a declaration is: it is the SAME question, asked earlier.
+    if !is_runtime_declaration_head(head) {
+        return Ok(());
+    }
 
     match head {
         // Arc 157 slice 1a-ii — config setters. Update the SymbolTable
@@ -4945,6 +4988,8 @@ fn dispatch_keyword_head_value(
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
         ":wat::eval-ast!" => eval_form_ast(args, env, sym, list_span),
+        // Arc 170 — the sibling that supplies the WORLD as well as the form.
+        ":wat::eval-with-defs!" => eval_form_with_defs(args, env, sym, list_span),
         ":wat::eval-step!" => eval_form_step(args, env, sym, list_span),
         ":wat::eval::walk" => eval_walk(args, env, sym, list_span),
         ":wat::eval-edn!" => eval_form_edn(args, env, sym, list_span),
@@ -22733,6 +22778,289 @@ fn eval_form_ast(
         // already use).
         run_constrained(&ast, env, sym)
     })())
+}
+
+/// Arc 170 — the type path of `:wat::eval::FormOutcome<T>` (registered in `types.rs`).
+const FORM_OUTCOME_TYPE: &str = ":wat::eval::FormOutcome";
+
+fn form_outcome(variant: &str, fields: Vec<Value>) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: FORM_OUTCOME_TYPE.into(),
+        variant_name: variant.into(),
+        fields,
+    }))
+}
+
+/// `FormOutcome::CheckFailed [cause <- :wat::core::Error]` — the form did not survive
+/// the freeze. A STATIC failure: nothing ran.
+///
+/// The cause is the freeze error's own `error_edn()` floor record, STRICT-decoded back
+/// to a typed value — a navigable `#wat.check/CheckErrors {…}` /
+/// `#wat.resolve/UnresolvedReferences {…}` tree with its `:location` and `:causes`
+/// intact, NOT that tree `to_string()`'d into a String slot.
+///
+/// That distinction is the whole point and it has bitten this codebase repeatedly. The
+/// FIRST draft of this function did exactly the wrong thing — `e.to_string()` into
+/// `:wat::kernel::StartupError`, whose registered shape is a single `message <- String`
+/// (`types.rs`) — which re-created the mask `startup_error_chain_edn`
+/// (`process/verbs.rs`) had already been fixed to remove, one function away, under a
+/// test named `cache_probe_startup_error_is_navigable_edn_not_string`. The builder
+/// caught it on sight: *"why is message wrapping a structured edn form?"*
+///
+/// The root was never the call site — it is that a one-`String` carrier leaves a
+/// producer NO honest option, so every new producer re-creates the mask. Arc 296's
+/// `DESIGN-296-typed-causes.md` states the cure as a field-TYPE change ("a typed error
+/// nested as a typed CAUSE — never `format!`'d away"), and affirmatively defers the
+/// same change on ALREADY-REGISTERED wat types (S3/S4) as a breaking change needing its
+/// own decision. This variant is newly minted, so it takes the honest carrier from birth
+/// and inherits none of that debt.
+fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Value {
+    use crate::to_edn::WatError;
+    let cause_edn = wat_edn::write(&e.error_edn());
+    let types = sym.types().map(|t| &**t);
+
+    // Two decodes, in order of how much the substrate can promise about the result:
+    //
+    //   1. STRICT — a fully TYPED record, when the diagnostic's tag is registered.
+    //   2. FOREIGN — arc 278 Stone A's data mode: an unregistered tag reconstructs as a
+    //      self-describing dynamic value instead of raising, recursively, all the way
+    //      down. Most freeze diagnostics land here TODAY (`#wat.resolve/…`,
+    //      `#wat.check/…` are not registered wat types yet — that is arc 296.3's derive
+    //      sweep, `NOTE-pre-world-decode-is-hand-written.md`). The tree is fully
+    //      navigable either way; strict just adds nominal typing, so when 296.3 lands
+    //      these silently upgrade from (2) to (1) with no change here.
+    //
+    // The nested diagnostic rides as a CAUSE under a real `Fault`, rather than BEING the
+    // returned value, so `:CheckFailed`'s declared `:wat::core::Error` is always
+    // satisfied by a genuinely typed record — the dynamic part is contained in the
+    // causes chain, which is exactly what a causes chain is for.
+    let nested = crate::edn_shim::decode_trusted_wire(&cause_edn, types).or_else(|_| {
+        wat_edn::parse_owned(&cause_edn)
+            .map_err(|_| ())
+            .and_then(|owned| crate::edn_shim::edn_to_value_foreign(&owned, types).map_err(|_| ()))
+    });
+
+    match nested {
+        Ok(inner) => fault_with_cause(e.message(), inner),
+        // A diagnostic whose own EDN neither strict- nor foreign-decodes is itself a
+        // defect. Report the headline honestly rather than smuggling the tree back in as
+        // prose — a degraded TRUE record beats a complete LYING one.
+        Err(()) => fault_value(e.message(), None),
+    }
+}
+
+fn form_outcome_check_failed(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Value {
+    form_outcome("CheckFailed", vec![check_failed_cause(e, sym)])
+}
+
+/// A `:wat::core::Fault` carrying one nested structured cause — the shape for "here is
+/// what I can say about this failure, and here is the real diagnostic underneath",
+/// keeping the nested error walkable instead of folding it into the sentence.
+fn fault_with_cause(message: String, cause: Value) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::core::Fault".into(),
+        Arc::new(vec![
+            Value::String(Arc::new(message)),
+            value_from_span(crate::span::Span::new(
+                Arc::new("<runtime>".to_string()),
+                0,
+                0,
+            )),
+            Value::Vec(Arc::new(vec![cause])),
+        ]),
+    )))
+}
+
+/// Arc 170 — `:wat::eval-with-defs!`: evaluate ONE form against a world built from a
+/// SUPPLIED definition set, rather than against the caller's ambient symbol table.
+///
+/// This is the whole of what stood between the substrate and a REPL. `eval-ast!`
+/// (above) reaches `run_constrained(ast, env, sym)` where `sym` is `&SymbolTable` —
+/// immutable, and not a parameter the caller may supply — so a wat program could hold
+/// an accumulated definition set and had no way to run anything IN it. The RED gate is
+/// `wat-scripts/scratch-pad/probe-repl-eval-in-gap.wat`.
+///
+/// # Why it is deliberately SLOW
+///
+/// It re-derives the ENTIRE world on every call. That is not an oversight — it is the
+/// R1/R9 dual-impl discipline: this is the correct-but-slow ORACLE, and a fast
+/// incremental data plane (registering one declaration without re-freezing) gets built
+/// later, behind a differential against this. Obvious correctness first, because this
+/// path IS the ordinary program pipeline: a REPL built on it is exactly as strongly
+/// typed as a compiled program, by construction rather than by care.
+///
+/// # The classification, and why it works this way
+///
+/// The caller cannot pre-classify the line, and neither can an error: `defn` and
+/// `defrecord` fail eval with `unknown-function`, byte-identical to a TYPO (measured,
+/// `wat-scripts/scratch-pad/probe-repl-declaration-refusal.wat`). Both are macros with
+/// no runtime verb to find. So classification happens on the POST-EXPANSION residue the
+/// freeze produces, against `is_runtime_declaration_head` — which means a user's OWN
+/// macro that expands to a `def` classifies correctly with no special knowledge of it.
+///
+/// Two freezes, not one: the baseline (`defs` alone) is what tells us which residue
+/// forms THIS line contributed. Halving that is a data-plane concern, not an oracle's.
+///
+/// The live `Environment` is threaded through UNCHANGED. That is the whole reason an
+/// impure binding — a bound service peer — survives a re-freeze: `run_constrained`
+/// already takes `env` separately from `sym`, and a peer value holds no reference back
+/// into the symbol table. The durable half is a function of the forms; the ephemeral
+/// half is simply never rebuilt.
+fn eval_form_with_defs(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    // Structural pre-check — NOT a FormOutcome. Same discipline as eval-ast!: the
+    // caller's syntactic shape is the type checker's business, not a runtime outcome.
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::eval-with-defs!".into(),
+            reason: format!(
+                "(:wat::eval-with-defs! <form> <defs>) takes exactly 2 arguments; got {}",
+                args.len()
+            )
+        } }.into());
+    }
+
+    let form = match eval_inner(&args[0], env, sym)?.value_owned() {
+        Value::wat__WatAST(a) => a,
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::eval-with-defs!".into(),
+                expected: "Ast",
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
+        }
+    };
+    let defs: Vec<WatAST> = match eval_inner(&args[1], env, sym)?.value_owned() {
+        Value::Vec(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items.iter() {
+                match item {
+                    Value::wat__WatAST(a) => out.push((**a).clone()),
+                    other => {
+                        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::eval-with-defs!".into(),
+                            expected: "Vector of Ast",
+                            got: Box::new(ValueSnapshot::of(other))
+                        } }.into());
+                    }
+                }
+            }
+            out
+        }
+        other => {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::eval-with-defs!".into(),
+                expected: "Vector of Ast",
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
+        }
+    };
+
+    // The session's Config rides through, so a caller is not made to re-declare
+    // `set-dims!` on every line. Same source the spawn path uses (kernel/spawn.rs).
+    let inherit: Option<crate::config::Config> =
+        sym.encoding_ctx().map(|ctx| ctx.config.clone());
+
+    // The error stays a typed StartupError all the way to the carrier — the moment it
+    // becomes a String, its structure is gone and the mask is back.
+    let freeze_forms = |program: Vec<WatAST>|
+     -> Result<crate::freeze::FrozenWorld, crate::freeze::StartupError> {
+        let loader: std::sync::Arc<dyn crate::load::SourceLoader> =
+            std::sync::Arc::new(crate::load::InMemoryLoader::new());
+        match &inherit {
+            Some(cfg) => crate::freeze::startup_from_forms_with_inherit(program, None, loader, cfg),
+            None => crate::freeze::startup_from_forms(program, None, loader),
+        }
+    };
+
+    // The BASELINE — the session as it stands. Its residue length is the only way to
+    // know which of the full world's residue forms the new line contributed.
+    let baseline_residue_len = match freeze_forms(defs.clone()) {
+        Ok(world) => world.program.len(),
+        // The accumulated defs no longer freeze on their own. That is not this line's
+        // fault, and saying so is the honest report — but the real diagnostic is still
+        // the freeze's own structured error, so it rides as a nested CAUSE rather than
+        // being folded into the sentence.
+        Err(e) => {
+            return Ok(form_outcome(
+                "CheckFailed",
+                vec![fault_with_cause(
+                    "the accumulated definition set no longer freezes on its own"
+                        .to_string(),
+                    check_failed_cause(&e, sym),
+                )],
+            ));
+        }
+    };
+
+    let mut program = defs;
+    program.push((*form).clone());
+    let world = match freeze_forms(program) {
+        Ok(w) => w,
+        Err(e) => return Ok(form_outcome_check_failed(&e, sym)),
+    };
+
+    // What this line contributed, post-expansion.
+    let contributed: Vec<WatAST> = world
+        .program
+        .iter()
+        .skip(baseline_residue_len)
+        .cloned()
+        .collect();
+
+    // Consumed by the freeze itself (a TYPE declaration — defrecord / defenum /
+    // defstruct / typealias), so it left no residue at all.
+    if contributed.is_empty() {
+        return Ok(form_outcome("Declared", vec![]));
+    }
+
+    // Register the runtime declarations this line brought, into a symbol table that
+    // carries the session's world. The registration must happen before evaluation so a
+    // line that both declares and computes sees its own declaration.
+    let mut session_sym = world.symbols.clone();
+    let head_of = |f: &WatAST| -> Option<String> {
+        match f {
+            WatAST::List(items, _) => match items.first() {
+                Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+                _ => None,
+            },
+            _ => None,
+        }
+    };
+    let all_declarations = contributed
+        .iter()
+        .all(|f| head_of(f).map(|h| is_runtime_declaration_head(&h)).unwrap_or(false));
+
+    register_runtime_defs(&world.program, env, &mut session_sym)?;
+
+    if all_declarations {
+        return Ok(form_outcome("Declared", vec![]));
+    }
+
+    // An expression (possibly alongside declarations — a `do` can carry both). The
+    // LAST contributed non-declaration form is the line's value, mirroring an
+    // implicit-do: earlier forms run for effect, the last one answers.
+    let mut result = Value::Unit;
+    for f in &contributed {
+        if head_of(f).map(|h| is_runtime_declaration_head(&h)).unwrap_or(false) {
+            continue;
+        }
+        match run_constrained(f, env, &session_sym) {
+            Ok(v) => result = v,
+            Err(EvalBreak::Signal(s)) => return Err(EvalBreak::Signal(s)),
+            Err(EvalBreak::Diagnostic(e)) => {
+                return Ok(form_outcome(
+                    "Raised",
+                    vec![runtime_error_to_eval_error_value(&e)],
+                ));
+            }
+        }
+    }
+    Ok(form_outcome("Evaluated", vec![result]))
 }
 
 /// Arc 066 — wrap a wat Value as a HolonAST Value. Used by
