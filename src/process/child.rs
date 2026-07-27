@@ -16,13 +16,16 @@ use std::sync::atomic::Ordering;
 // flip the substrate's kernel flags; the wat program polls; the
 // program returns cleanly when the flag is observed.
 //
-// Distinct from `crates/wat-cli/src/lib.rs`'s handlers: the cli's
-// handlers ALSO call `killpg(CHILD_PGID, sig)` to cascade. The
-// substrate's handlers only flip flags — fork children rely on the
-// kernel's process-group delivery (cli broadcasts via killpg; the
-// kernel delivers to every group member; each child's handler runs
-// in its own process). No forwarding logic needed in substrate
-// children.
+// HISTORICAL, and named so it is not read as live: the cli once had its
+// own handlers that ALSO called `killpg(CHILD_PGID, sig)` to cascade to a
+// forked child. Both halves of that are gone — arc 170 stopped the cli
+// forking at all (`f56ad55b`), and the cascade was already fictional before
+// that, since every spawned child calls `setpgid(0, 0)` and therefore sits
+// in its OWN group, which a killpg on the cli's group never reaches.
+//
+// The substrate's handlers only flip flags. A spawned child gets its own
+// handlers after its exec (`distribution::spawned_runtime`), on its own
+// fresh statics.
 
 extern "C" fn substrate_on_stop_signal(_sig: libc::c_int) {
     // Arc 106 — flip the kernel stop flag (existing, async-signal-safe:
@@ -59,11 +62,15 @@ extern "C" fn substrate_on_sighup(_sig: libc::c_int) {
 
 /// Install the substrate's wat signal handlers in the calling process.
 ///
-/// Called by `child_branch_from_source` after fork to give the forked
-/// child a working `(:wat::kernel::stopped?)` / `(sigusr1?)` / etc.
-/// polling contract. The handlers reference substrate-level static
-/// atomics (KERNEL_STOPPED, KERNEL_SIGUSR1, etc.) which are COW-copied
-/// at fork; each process flips its own copy independently.
+/// Called by `distribution::spawned_runtime` on a freshly `execve`'d runtime,
+/// and by the cli entry for its own process, to give each a working
+/// `(:wat::kernel::stopped?)` / `(sigusr1?)` polling contract.
+///
+/// The handlers flip substrate-level static atomics (KERNEL_STOPPED,
+/// KERNEL_SIGUSR1, …). Arc 170 step 4: those statics are no longer COW-copied
+/// from a parent — a spawned runtime execs, so it starts with its own fresh
+/// set and there is nothing inherited to flip. Each process owns its flags
+/// because each process IS its own image, not because a copy was made.
 ///
 /// Must be async-signal-safe. The handlers do exactly one atomic
 /// store; nothing else.

@@ -375,38 +375,41 @@ fn program_writes_multiple_times_to_stdout() {
 
 #[test]
 fn sigterm_to_cli_cascades_via_polling_contract() {
-    // Arc 106 — the wat-native polling contract through fork. The
-    // contract this test exercises:
+    // The wat-native polling contract: SIGTERM to a running `wat` reaches the
+    // program as a FLAG it polls, not as a kill.
     //
-    //   1. cli installs wat signal handlers at startup; child
-    //      installs the same handlers post-fork (substrate, not
-    //      SIG_DFL — arc 106 replaced the SIG_DFL reset block in
-    //      `child_branch_from_source` with `install_substrate_signal_handlers`).
-    //   2. The child becomes its own process group leader via
-    //      `setpgid(0, 0)` post-fork. The cli's CHILD_PGID atomic
-    //      tracks this group.
-    //   3. SIGTERM arrives at cli's handler → flips KERNEL_STOPPED
-    //      in cli's memory + `killpg(CHILD_PGID, SIGTERM)` to
-    //      broadcast.
-    //   4. Kernel delivers SIGTERM to every group member; each
-    //      child's wat handler flips its own KERNEL_STOPPED.
-    //   5. Wat program polls `(:wat::kernel::stopped?)` → observes
-    //      true → returns cleanly. :user::main returns ().
-    //   6. Child _exits 0. Cli's waitpid returns WIFEXITED with
-    //      code 0. Cli exits 0.
+    //   1. The cli installs the substrate's signal handlers at startup.
+    //   2. SIGTERM arrives → the handler flips KERNEL_STOPPED. That is all it
+    //      does; a handler must be async-signal-safe, so it is one atomic store.
+    //   3. The wat program polls `(:wat::kernel::stopped?)`, observes true, and
+    //      returns cleanly. `:user::main` returns ().
+    //   4. The process exits 0.
     //
-    // Lock-step via stdout marker. The program prints "READY" once
-    // it's about to enter the polling loop — by then the cli has
-    // forked it, set CHILD_PGID, the child has setpgid'd into its
-    // own group, installed handlers, loaded the program. Test reads
-    // stdout until READY, THEN sends SIGTERM. No sleep; the wire IS
-    // the synchronization.
+    // ⚠ This comment was REWRITTEN 2026-07-27. It used to describe a fork: the
+    // cli forking the program into a child, `child_branch_from_source`
+    // installing handlers post-fork, a `CHILD_PGID` + `killpg` cascade
+    // broadcasting to the group. NONE of that exists. Arc 170 stopped the cli
+    // forking (`f56ad55b` — `wat <file>` runs in-process), and the killpg
+    // cascade was already fictional before that, because every spawned child
+    // calls `setpgid(0, 0)` and so sits in its own group that a killpg on the
+    // cli's group never reaches. `child_branch_from_source` and `CHILD_PGID`
+    // now appear in `src/` only inside comments. A test whose doc narrates a
+    // retired mechanism reads as live code and is the graveyard this arc
+    // exists to burn.
     //
-    // The test runs in its own process — nextest forks per test
-    // for hermetic isolation — fresh signal-handler state, no SIGCHLD
-    // residue from earlier tests in this binary. Same isolation
-    // pattern `tests/wat_harness_deps.rs` uses against OnceLock
-    // contention.
+    // Lock-step via a stdout marker: the program prints "READY" when it is
+    // about to enter the polling loop, and only then does the test send
+    // SIGTERM. No sleep — the wire IS the synchronization.
+    //
+    // FLAKE DISPOSITION (2026-07-27): this failed ONCE under a loaded run and
+    // was parked to be re-checked after the execve landed. Re-checked and NOT
+    // REPRODUCIBLE — 25/25 isolated, 6/6 with the cli binary at 32 threads on
+    // 14 cores, and green in every whole-floor run including two at 2x
+    // over-subscription. The mechanism is gone too, but NOT for the reason
+    // predicted: the guess was that exec would fix it by giving children fresh
+    // KERNEL_STOPPED/handler state, and exec does do that — for spawn-process
+    // children. This path has no fork at all since `f56ad55b`, so the cli
+    // de-fork is what removed the race here, and it landed BEFORE the exec.
     let program = include_str!("wat_cli__sigterm_polling_loop.wat");
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
