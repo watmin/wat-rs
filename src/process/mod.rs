@@ -21,7 +21,7 @@
 //!   `Pidfd` (+impls), `LifelineWriter`, `spawn_lifelined`, `spawn_lifelined_any`,
 //!   `make_pipe`.
 //! - `child.rs` — child-side envelope (post-clone3, pre-user code):
-//!   `install_substrate_signal_handlers`, `run_in_fork`, `child_post_fork_init`,
+//!   `install_substrate_signal_handlers`, `child_post_fork_init`,
 //!   `child_post_fork_init_preserving`.
 //! - `handle.rs` — parent-side handles: `ChildHandle`, `ForkedProgramHandles`.
 //! - `verbs.rs` — `:wat::kernel::spawn-process` retired (non-prime IPC
@@ -53,7 +53,7 @@ pub use clone::{
     spawn_lifelined, make_pipe,
 };
 pub(crate) use clone::spawn_lifelined_any;
-pub use child::{install_substrate_signal_handlers, run_in_fork};
+pub use child::install_substrate_signal_handlers;
 pub(crate) use child::child_post_fork_init;
 pub use handle::{ChildHandle, ForkedProgramHandles};
 pub use verbs::{

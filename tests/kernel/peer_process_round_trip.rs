@@ -10,15 +10,15 @@
 //! The process-tier comms::process::pair + fork combination creates child
 //! processes. A lib test that forks inside the cargo test binary causes
 //! fd/lock inheritance from all sibling tests — this is the process-leak
-//! class the `run_in_fork` + `setsid` containment pattern prevents in the
+//! class the per-test-process + `setsid` containment pattern prevents in the
 //! comms/ tier tests. By placing the process peer test here, build.rs picks
 //! it up automatically (no mod list to edit) and it runs in the comms
 //! integration-test binary alongside the existing process-tier tests.
 //!
 //! # Containment
 //!
-//! The test uses `spawn_lifelined` directly (like `pidfd_primitive.rs`)
-//! rather than `run_in_fork`. The echo child calls `libc::_exit` — it
+//! The test uses `spawn_lifelined` directly (like `pidfd_primitive.rs`).
+//! The echo child calls `libc::_exit` — it
 //! never returns to Rust, so no parent atexit handlers fire. The Pidfd
 //! returned by `spawn_lifelined` is handed to the Process peer and consumed
 //! by `Process::wait`, which calls `Pidfd::wait_status` (blocking waitid).

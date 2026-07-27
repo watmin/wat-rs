@@ -1,12 +1,12 @@
 //! Child-side envelope (post-clone3, pre-user code).
 //!
-//! Signal handlers, run_in_fork, and the canonical post-fork initialization
+//! Signal handlers and the canonical post-fork initialization
 //! sequence (5-step: silent panic hook / setpgid / fd close-sweep /
 //! shutdown-signal registration / signal-handler installation).
 
 use std::sync::atomic::Ordering;
 
-use super::clone::{spawn_lifelined, ExitStatus, SYS_CLOSE_RANGE};
+use super::clone::SYS_CLOSE_RANGE;
 use super::verbs::{EXIT_STARTUP_ERROR, emit_structured_exit};
 
 // ─── Arc 106 — substrate-level signal handlers for fork children ─────
@@ -92,93 +92,6 @@ pub fn install_substrate_signal_handlers() {
             substrate_on_sighup as *const () as libc::sighandler_t,
         );
     }
-}
-
-/// Rebirth all substrate globals with attendant threads/fds after fork.
-///
-/// Every substrate global with an ATTENDANT (worker thread, fd reader,
-/// held lock) must rebirth here — the state forks, the attendant doesn't.
-///
-/// # Current inventory (Stone 214.6.4)
-///
-/// - **Shutdown infra**: `SHUTDOWN_RX_PTR`, `SHUTDOWN_TX_PTR`,
-///   `SHUTDOWN_WAKE_WRITE_FD`, `SHUTDOWN_BROADCAST_READ_FD`, and the
-///   `wat-shutdown-worker` thread. The pid-aware guard in
-///   `init_shutdown_signal_with_inputs` detects the fork-child pid and
-///   rebuilds automatically. The OLD inherited boxes LEAK BY DESIGN —
-///   they are the parent's COW-copied state; freeing them would corrupt
-///   the parent.
-///
-/// # Pre-gate region (async-signal-safe)
-///
-/// The region from `clone3` return to this call is constrained to
-/// async-signal-safe operations only (the OS clears signal handlers via
-/// `CLONE_CLEAR_SIGHAND`; new handlers are installed by
-/// `install_substrate_signal_handlers` AFTER this call). `libc::close`
-/// (called inside the guard for the inherited wake-fd) is
-/// async-signal-safe per `signal-safety(7)`.
-///
-/// # The top rung
-///
-/// `fork+exec` into a fresh address space is the banked arc the
-/// 214 INSCRIPTION cites — that path needs no rebirth (exec replaces
-/// the address space entirely). This function targets fork-without-exec
-/// children only.
-///
-/// Call this FIRST from every fork child before installing signal
-/// handlers or doing any substrate work that depends on the infra.
-pub(crate) fn rebirth_substrate_after_fork() {
-    // The pid-aware guard in init_shutdown_signal detects that the
-    // inherited SHUTDOWN_INIT_PID belongs to the parent (pid differs),
-    // closes the inherited wake-fd, and rebuilds the channel + wake-pipe
-    // + broadcast-pipe + worker thread fresh.
-    crate::runtime::init_shutdown_signal();
-}
-
-/// Run `body` in a forked child process; parent waits + asserts the
-/// child exited 0. Test utility for isolating per-process state
-/// (OnceLock, static mut, signal handlers, install_dep_sources) when
-/// multiple tests in one binary need fresh state.
-///
-/// The child runs `body` inside `catch_unwind`; panic → `libc::_exit(1)`
-/// so the parent's assert fails with the panic visible in the child's
-/// inherited stderr. Uses `_exit` (not `exit`) to skip atexit handlers
-/// the parent's test harness registered — those would flush / close
-/// resources the parent still owns.
-///
-/// Originally `runtime.rs::tests::in_signal_subprocess` for signal
-/// tests (arc 012 side quest). Promoted here because any test that
-/// touches process-global state can use the same pattern —
-/// `tests/wat_harness_deps.rs`'s OnceLock race being the second
-/// caller.
-pub fn run_in_fork<F>(body: F)
-where
-    F: FnOnce() + std::panic::UnwindSafe + 'static,
-{
-    // Arc 213 β — use the canonical Pidfd + lifeline primitive instead of
-    // bare libc::fork(). spawn_lifelined handles: clone3+CLONE_PIDFD,
-    // setpgid(0,0), lifeline pipe, catch_unwind, and _exit(0/1).
-    // run_in_fork's body doesn't poll lifeline_r — the lifeline value is
-    // that if the parent dies before wait_status returns, the kernel closes
-    // _lifeline (LifelineWriter) and the child's lifeline_r EOFs.
-    let (pidfd, _lifeline) = spawn_lifelined(|_lifeline_r| {
-        // Arc 214 Stone 6.4 — THE REBIRTH GATE: rebuild all attendant-bearing
-        // substrate globals before any user code runs. The inherited shutdown
-        // infra is a zombie: SHUTDOWN_INIT_PID holds the parent's pid; the
-        // worker thread did not survive fork. The pid-aware guard detects this
-        // and rebuilds fresh (channel + wake-pipe + broadcast-pipe + worker).
-        rebirth_substrate_after_fork();
-        body();
-    })
-    .expect("spawn_lifelined failed");
-
-    // Parent — wait via canonical Pidfd interface + assert clean exit.
-    let status = pidfd.wait_status().expect("wait_status failed");
-    assert!(
-        matches!(status, ExitStatus::Exited(0)),
-        "forked child exited with failure: {:?}",
-        status
-    );
 }
 
 /// Close every inherited fd above stdio (fd > 2) in the fork child, skipping

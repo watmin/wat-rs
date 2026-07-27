@@ -402,67 +402,65 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
     // stdout until READY, THEN sends SIGTERM. No sleep; the wire IS
     // the synchronization.
     //
-    // The test runs in a forked subprocess via `wat::process::run_in_fork`
+    // The test runs in its own process — nextest forks per test
     // for hermetic isolation — fresh signal-handler state, no SIGCHLD
     // residue from earlier tests in this binary. Same isolation
     // pattern `tests/wat_harness_deps.rs` uses against OnceLock
     // contention.
-    wat::process::run_in_fork(|| {
-        let program = include_str!("wat_cli__sigterm_polling_loop.wat");
-        let path = write_temp(program);
-        let bin = env!("CARGO_BIN_EXE_wat");
-        let mut child = Command::new(bin)
-            .arg(&path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("spawn wat");
+    let program = include_str!("wat_cli__sigterm_polling_loop.wat");
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let mut child = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn wat");
 
-        // Lock-step: read stdout until we see READY. By the time the
-        // child wat process has println'd READY, every cascade
-        // prerequisite is settled — cli has fork()ed + set CHILD_PGID,
-        // child has setpgid'd, child has installed wat handlers, child
-        // has loaded program, child is in the polling loop. SIGTERM
-        // is now safe to deliver; no race window.
-        use std::io::{BufRead, BufReader};
-        let stdout = child.stdout.take().expect("child stdout");
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        reader.read_line(&mut line).expect("read READY");
-        // Arc 170 slice 1f-ι: println EDN-encodes the String value —
-        // `"READY"\n` on the wire. Trim and strip surrounding EDN quotes.
-        let trimmed = line.trim().trim_matches('"');
-        assert_eq!(trimmed, "READY", "expected READY marker; got {:?}", line);
+    // Lock-step: read stdout until we see READY. By the time the
+    // child wat process has println'd READY, every cascade
+    // prerequisite is settled — cli has fork()ed + set CHILD_PGID,
+    // child has setpgid'd, child has installed wat handlers, child
+    // has loaded program, child is in the polling loop. SIGTERM
+    // is now safe to deliver; no race window.
+    use std::io::{BufRead, BufReader};
+    let stdout = child.stdout.take().expect("child stdout");
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+    reader.read_line(&mut line).expect("read READY");
+    // Arc 170 slice 1f-ι: println EDN-encodes the String value —
+    // `"READY"\n` on the wire. Trim and strip surrounding EDN quotes.
+    let trimmed = line.trim().trim_matches('"');
+    assert_eq!(trimmed, "READY", "expected READY marker; got {:?}", line);
 
-        // Send SIGTERM to wat-cli. The handler flips KERNEL_STOPPED
-        // in cli + killpg(CHILD_PGID, SIGTERM) cascades to every
-        // process in the group. Child's wat handler flips its own
-        // KERNEL_STOPPED; child polls; child exits clean.
-        let cli_pid = child.id() as libc::pid_t;
-        unsafe {
-            libc::kill(cli_pid, libc::SIGTERM);
-        }
+    // Send SIGTERM to wat-cli. The handler flips KERNEL_STOPPED
+    // in cli + killpg(CHILD_PGID, SIGTERM) cascades to every
+    // process in the group. Child's wat handler flips its own
+    // KERNEL_STOPPED; child polls; child exits clean.
+    let cli_pid = child.id() as libc::pid_t;
+    unsafe {
+        libc::kill(cli_pid, libc::SIGTERM);
+    }
 
-        let status = child.wait().expect("wait wat-cli");
-        let code = status.code();
-        let _ = std::fs::remove_file(&path);
+    let status = child.wait().expect("wait wat-cli");
+    let code = status.code();
+    let _ = std::fs::remove_file(&path);
 
-        // Polling contract: child exits 0 (clean shutdown via
-        // observed stop flag). NOT 143 (which would mean the child
-        // was killed by SIGTERM's default action — pre-arc-106
-        // contract). NOT None (which would mean the cli process
-        // itself was killed by signal before forwarding — impossible
-        // post-arc-106 because the cli's wat handler runs on signal,
-        // doesn't terminate the cli).
-        assert_eq!(
-            code,
-            Some(0),
-            "polling contract: cli should exit 0 after child observes stopped? \
-             and returns clean; got {:?}",
-            code
-        );
-    });
+    // Polling contract: child exits 0 (clean shutdown via
+    // observed stop flag). NOT 143 (which would mean the child
+    // was killed by SIGTERM's default action — pre-arc-106
+    // contract). NOT None (which would mean the cli process
+    // itself was killed by signal before forwarding — impossible
+    // post-arc-106 because the cli's wat handler runs on signal,
+    // doesn't terminate the cli).
+    assert_eq!(
+        code,
+        Some(0),
+        "polling contract: cli should exit 0 after child observes stopped? \
+         and returns clean; got {:?}",
+        code
+    );
 }
 
 // sigterm_cascades_two_levels_via_process_group — DELETED (arc 170 migration).

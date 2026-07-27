@@ -17,7 +17,7 @@
 //!
 //! `spawn_process_peer` uses `fork`/`clone3`. Fork inside a multi-threaded cargo
 //! test binary inherits the thread pool's fd-table and locks — this is the
-//! fork-in-multithreaded-parent class that the `run_in_fork` + `setsid`
+//! fork-in-multithreaded-parent class that the per-test-process + `setsid`
 //! containment pattern prevents. By placing the test here, it runs in the
 //! comms integration-test binary (single-threaded at startup) under the
 //! setsid+timeout envelope provided by `integration-run.sh`.

@@ -29732,84 +29732,72 @@ mod tests {
     // body in a child process with independent atomic state. No shared
     // mutable state; no race.
     //
-    // Mechanism (arc 012 side quest, 2026-04-21): wraps each body in
-    // `crate::process::run_in_fork` — child runs body in catch_unwind,
-    // exits 0 on success / 1 on panic; parent waits + asserts. Arc 024
-    // slice 0 promoted the helper from private here to public on fork.rs
-    // so `tests/wat_harness_deps.rs` can use the same pattern for its
-    // own OnceLock isolation.
+    // Mechanism: the RUNNER provides it. nextest forks a process per test
+    // (.config/nextest.toml), so each signal test already owns its atomic
+    // state. The hand-rolled `run_in_fork` wrapper that used to do this
+    // (arc 012 side quest, promoted public in arc 024 slice 0) duplicated
+    // the runner and was annihilated once nextest became the floor.
 
-    use crate::process::run_in_fork;
 
     #[test]
     fn sigusr1_query_reflects_flag_state() {
-        run_in_fork(|| {
-            reset_user_signals();
-            match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-                Value::bool(false) => {}
-                v => panic!("expected false, got {:?}", v),
-            }
-            set_kernel_sigusr1();
-            match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-                Value::bool(true) => {}
-                v => panic!("expected true, got {:?}", v),
-            }
-        });
+        reset_user_signals();
+        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false, got {:?}", v),
+        }
+        set_kernel_sigusr1();
+        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
     }
 
     #[test]
     fn sigusr2_and_sighup_independent() {
-        run_in_fork(|| {
-            reset_user_signals();
-            set_kernel_sigusr2();
-            // sighup? must remain false even though sigusr2? is true.
-            match eval_expr("(:wat::kernel::sigusr2?)").unwrap() {
-                Value::bool(true) => {}
-                v => panic!("expected sigusr2 true, got {:?}", v),
-            }
-            match eval_expr("(:wat::kernel::sighup?)").unwrap() {
-                Value::bool(false) => {}
-                v => panic!("expected sighup false, got {:?}", v),
-            }
-        });
+        reset_user_signals();
+        set_kernel_sigusr2();
+        // sighup? must remain false even though sigusr2? is true.
+        match eval_expr("(:wat::kernel::sigusr2?)").unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected sigusr2 true, got {:?}", v),
+        }
+        match eval_expr("(:wat::kernel::sighup?)").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected sighup false, got {:?}", v),
+        }
     }
 
     #[test]
     fn reset_sigusr1_flips_flag_false() {
-        run_in_fork(|| {
-            reset_user_signals();
-            set_kernel_sigusr1();
-            let _ = eval_expr("(:wat::kernel::reset-sigusr1!)").expect("reset");
-            match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-                Value::bool(false) => {}
-                v => panic!("expected false after reset, got {:?}", v),
-            }
-        });
+        reset_user_signals();
+        set_kernel_sigusr1();
+        let _ = eval_expr("(:wat::kernel::reset-sigusr1!)").expect("reset");
+        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false after reset, got {:?}", v),
+        }
     }
 
     #[test]
     fn reset_sighup_returns_unit() {
-        run_in_fork(|| {
-            reset_user_signals();
-            set_kernel_sighup();
-            let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
-            assert!(matches!(v, Value::Unit));
-        });
+        reset_user_signals();
+        set_kernel_sighup();
+        let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
+        assert!(matches!(v, Value::Unit));
     }
 
     #[test]
     fn user_signal_predicates_refuse_arguments() {
-        run_in_fork(|| {
-            reset_user_signals();
-            assert!(matches!(
-                eval_expr("(:wat::kernel::sigusr1? 1)"),
-                Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
-            ));
-            assert!(matches!(
-                eval_expr("(:wat::kernel::reset-sigusr1! true)"),
-                Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
-            ));
-        });
+        reset_user_signals();
+        assert!(matches!(
+            eval_expr("(:wat::kernel::sigusr1? 1)"),
+            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
+        ));
+        assert!(matches!(
+            eval_expr("(:wat::kernel::reset-sigusr1! true)"),
+            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
+        ));
     }
 
     // ─── Tuples + destructure + first/second ───────────────────────────
