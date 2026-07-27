@@ -55,12 +55,14 @@ pub use clone::{
 pub(crate) use clone::spawn_lifelined_any;
 pub use child::install_substrate_signal_handlers;
 pub(crate) use child::child_post_fork_init;
-pub use handle::{ChildHandle, ForkedProgramHandles};
+pub use handle::ChildHandle;
 pub use verbs::{
     EXIT_SUCCESS, EXIT_RUNTIME_ERROR, EXIT_PANIC, EXIT_STARTUP_ERROR, EXIT_MAIN_SIGNATURE,
-    // wat-cli source-fork entry point: NOT a WAT verb; no dispatch arm; no type registration.
-    fork_program_from_source,
 };
+// Arc 170 — `wat <file>` runs IN-PROCESS (the cli's fork was annihilated once
+// arc 104's reason expired). This maps the outcome to an exit code, emitting
+// the same structured EDN the forked path emitted.
+pub(crate) use verbs::{finish_in_process, emit_startup_error_structured_exit, emit_structured_exit};
 pub use stdio::{lend_ambient, emit_panic_envelope};
 // Arc 214 β — post-dup2 server runtime for spawn-program' :process. Called by
 // kernel/spawn.rs after the child branch has dup2'd fd 0/1/2 and called

@@ -4,7 +4,7 @@
 //! `ForkedProgramHandles` — bundle returned by the OS-process spawn paths.
 
 use std::os::fd::OwnedFd;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::clone::{exit_status_to_i64, Pidfd};
@@ -140,12 +140,3 @@ impl Drop for ChildHandle {
     }
 }
 
-/// Bundle of pipe ends + child handle returned by the OS-process
-/// spawn substrate. Used by `spawn_process_peer` (kernel/spawn.rs)
-/// and exposed for external callers that need the raw handle.
-pub struct ForkedProgramHandles {
-    pub child_handle: Arc<ChildHandle>,
-    pub stdin_w: OwnedFd,
-    pub stdout_r: OwnedFd,
-    pub stderr_r: OwnedFd,
-}

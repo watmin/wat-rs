@@ -7,21 +7,19 @@ use crate::config::Config;
 use crate::freeze::{
     invoke_user_main, invoke_user_main_with_program,
     startup_from_forms, startup_from_forms_with_inherit,
-    startup_from_source, validate_user_main_signature, FrozenWorld,
+    FrozenWorld,
 };
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use crate::load::{InMemoryLoader, SourceLoader};
+use crate::load::InMemoryLoader;
 use crate::runtime::{
     RuntimeError, RuntimeErrorKind,
     TrackedValue, Value,
 };
 
-use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
+use std::os::fd::{BorrowedFd, FromRawFd, OwnedFd};
 use std::sync::Arc;
 
-use super::child::{child_post_fork_init};
-use super::clone::{make_pipe, spawn_lifelined_any};
-use super::handle::{ChildHandle, ForkedProgramHandles};
+
 
 /// Exit-code convention shared between slice 2 (this file — child
 /// exits with one of these) and slice 3 (hermetic stdlib define
@@ -57,7 +55,7 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 /// `extract-panics` on the WAT side can still reconstruct the value —
 /// `types.rs` declares `ProcessDiedError::StartupError` field as `String`,
 /// and `edn_to_value` would fail on a tagged payload for those variants.
-fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
+pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
     let line = format!("{}\n", wat_edn::write(&startup_error_chain_edn(e)));
     crate::process::stdio::emit_panic_envelope(&line);
 }
@@ -225,6 +223,65 @@ fn finish_forked_child(
     }
 }
 
+/// In-process twin of [`finish_forked_child`] — same outcome match, same
+/// structured-EDN emissions, same exit codes, but it RETURNS the code instead
+/// of calling `libc::_exit`.
+///
+/// `wat <file>` runs its program in the cli's own process (arc 170 — the fork
+/// that used to wrap it was annihilated once arc 104's reason expired). There
+/// is no child to `_exit`; `run_with_args` maps this code to an `ExitCode`.
+/// The BYTES on fd 2 are identical to the forked path's — the same emitters
+/// are called in the same order — so every black-box cli test that asserts on
+/// stderr keeps passing unchanged.
+pub(crate) fn finish_in_process(
+    world: &crate::freeze::FrozenWorld,
+    // rune:perspicere(intentional-structure) — mirrors finish_forked_child:
+    // outer = catch_unwind panic boundary, inner = eval Result.
+    outcome: std::thread::Result<Result<Value, RuntimeError>>,
+) -> i32 {
+    match outcome {
+        Ok(Ok(Value::Unit)) => EXIT_SUCCESS,
+        Ok(Ok(other)) => {
+            emit_structured_exit(
+                Some(world),
+                crate::runtime::process_died_error_bad_return_value(&crate::to_edn::FlatMessage {
+                    tag: "BadReturnType",
+                    key: "got-type",
+                    message: other.type_name(),
+                }),
+            );
+            EXIT_RUNTIME_ERROR
+        }
+        Ok(Err(runtime_err)) => {
+            emit_structured_exit(
+                Some(world),
+                crate::runtime::process_died_error_runtime_value(&runtime_err),
+            );
+            EXIT_RUNTIME_ERROR
+        }
+        Err(panic_payload) => {
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                emit_panics_to_stderr(world, payload);
+            } else {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                emit_structured_exit(
+                    Some(world),
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
+            }
+            EXIT_PANIC
+        }
+    }
+}
+
 // ─── Post-fork shared prologue + epilogue ────────────────────────────────────
 
 /// Drop parent-side pipe ends, dup2 child-side pipes onto fd 0/1/2, run
@@ -242,71 +299,6 @@ fn finish_forked_child(
 /// Registers the lifeline read-fd with the shutdown worker and transfers
 /// ownership via `mem::forget(lifeline_r)`.
 #[allow(clippy::too_many_arguments)]
-fn redirect_stdio_and_init(
-    stdin_r_raw: i32,
-    stdout_w_raw: i32,
-    stderr_w_raw: i32,
-    lifeline_r_raw: i32,
-    stdin_pair: (OwnedFd, OwnedFd),
-    stdout_pair: (OwnedFd, OwnedFd),
-    stderr_pair: (OwnedFd, OwnedFd),
-    lifeline_r: OwnedFd,
-) -> (Arc<dyn WatReader>, Arc<dyn WatWriter>, Arc<dyn WatWriter>) {
-    // Drop parent-side pipe ends (close our inherited copies).
-    drop(stdin_pair.1); // parent writes
-    drop(stdout_pair.0); // parent reads
-    drop(stderr_pair.0); // parent reads
-
-    // Redirect stdio onto the child-side pipes. fd 2 is still the parent's
-    // stderr pipe here; the write(2,...) calls below can reach the parent.
-    unsafe {
-        if libc::dup2(stdin_r_raw, 0) < 0 {
-            let msg = b"substrate: dup2 failed during child stdio setup (stdin)\n";
-            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-        if libc::dup2(stdout_w_raw, 1) < 0 {
-            let msg = b"substrate: dup2 failed during child stdio setup (stdout)\n";
-            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-        if libc::dup2(stderr_w_raw, 2) < 0 {
-            // fd 2 is now the process pipe; this write goes there.
-            let msg = b"substrate: dup2 failed during child stdio setup (stderr)\n";
-            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-    }
-    // Drop the originals — dup2 made copies at 0/1/2.
-    drop(stdin_pair.0);
-    drop(stdout_pair.1);
-    drop(stderr_pair.1);
-
-    // Arc 213 γ-1 — canonical Phase 3 post-fork init (shared between all
-    // child branches). Must run AFTER dup2 (fd 2 is now the subprocess
-    // stderr pipe) and AFTER dropping parent-side pipe ends.
-    //   (1) install_silent_panic_hook — fd 2 now subprocess stderr, safe
-    //   (2) setpgid(0, 0) — child becomes own pgrp leader
-    //   (3) close_inherited_fds_above_stdio(&[lifeline_r_raw]) — skip lifeline
-    //   (4) init_shutdown_signal_with_inputs — registers lifeline read-end
-    //   (5) install signal handlers — SIGTERM/SIGINT route through wake-pipe
-    child_post_fork_init(lifeline_r_raw);
-
-    // Transfer FD ownership to the shutdown worker thread — the substrate
-    // now owns the lifeline read-fd. Dropping OwnedFd here would close the
-    // FD and the worker would immediately POLLHUP (false-positive shutdown).
-    std::mem::forget(lifeline_r);
-
-    // Build wat-level stdio over fd 0/1/2.
-    let stdin_reader: Arc<dyn WatReader> =
-        Arc::new(PipeReader::from_owned_fd(unsafe { OwnedFd::from_raw_fd(0) }));
-    let stdout_writer: Arc<dyn WatWriter> =
-        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(1) }));
-    let stderr_writer: Arc<dyn WatWriter> =
-        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
-    (stdin_reader, stdout_writer, stderr_writer)
-}
-
 /// Run `:user::main` inside a `catch_unwind` and call `finish_forked_child`.
 /// Shared epilogue for all child branches. Holds the stdio keepalives alive
 /// across the catch_unwind (OwnedFd-keepalive discipline, arc 113 slice 3 /
@@ -424,195 +416,6 @@ pub(crate) fn run_forms_as_server_child(
 
     // run_user_main_in_child never returns.
     run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer, Some(env_fn))
-}
-
-// ─── fork_program_from_source (wat-cli entry point) ─────────────────────────
-//
-// This function is the wat-cli's main program execution path — runs a .wat
-// source file as a forked OS process. It is NOT a WAT verb (no dispatch arm,
-// no type registration). The WAT verbs fork-program and fork-program-ast have
-// been retired (arc 214 1b-ii-ζ.1); this Rust function remains as the
-// system-level run path for `wat some-file.wat`.
-
-/// Forks an OS process that parses, freezes, and runs the given wat source
-/// string. Returns `ForkedProgramHandles` on success (parent holds the pipe
-/// ends and child handle).
-///
-/// Used exclusively by `wat-cli` (the binary entry point for `wat some-file.wat`).
-/// NOT exposed as a WAT verb — the retired `:wat::kernel::fork-program` verb
-/// has no dispatch arm or type registration. This Rust function is the direct
-/// fork-from-source substrate for the CLI.
-pub fn fork_program_from_source(
-    source: &str,
-    canonical: Option<&str>,
-    loader: Arc<dyn SourceLoader>,
-    argv: Vec<String>,
-) -> Result<ForkedProgramHandles, RuntimeError> {
-    const OP: &str = ":wat::process::fork-from-source";
-
-    let (stdin_r, stdin_w) = make_pipe(OP)?;
-    let (stdout_r, stdout_w) = make_pipe(OP)?;
-    let (stderr_r, stderr_w) = make_pipe(OP)?;
-
-    let stdin_r_raw  = stdin_r.as_raw_fd();
-    let stdin_w_raw  = stdin_w.as_raw_fd();
-    let stdout_r_raw = stdout_r.as_raw_fd();
-    let stdout_w_raw = stdout_w.as_raw_fd();
-    let stderr_r_raw = stderr_r.as_raw_fd();
-    let stderr_w_raw = stderr_w.as_raw_fd();
-
-    let owned_source = source.to_string();
-    let owned_canonical = canonical.map(|s| s.to_string());
-
-    // Use spawn_lifelined_any (no UnwindSafe bound) because
-    // Arc<dyn SourceLoader> doesn't satisfy UnwindSafe. The child calls
-    // _exit on every code path so the contract is satisfied.
-    let (pidfd, lifeline_writer) = spawn_lifelined_any(move |lifeline_r_raw: i32| {
-        let stdin_r  = unsafe { OwnedFd::from_raw_fd(stdin_r_raw) };
-        let stdin_w  = unsafe { OwnedFd::from_raw_fd(stdin_w_raw) };
-        let stdout_r = unsafe { OwnedFd::from_raw_fd(stdout_r_raw) };
-        let stdout_w = unsafe { OwnedFd::from_raw_fd(stdout_w_raw) };
-        let stderr_r = unsafe { OwnedFd::from_raw_fd(stderr_r_raw) };
-        let stderr_w = unsafe { OwnedFd::from_raw_fd(stderr_w_raw) };
-        let lifeline_r = unsafe { OwnedFd::from_raw_fd(lifeline_r_raw) };
-
-        child_branch_from_source(
-            owned_source,
-            owned_canonical,
-            loader,
-            argv,
-            stdin_r_raw,
-            stdout_w_raw,
-            stderr_w_raw,
-            lifeline_r_raw,
-            (stdin_r, stdin_w),
-            (stdout_r, stdout_w),
-            (stderr_r, stderr_w),
-            lifeline_r,
-        );
-    })
-    .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: format!("spawn_lifelined_any: {}", err)
-    } })?;
-
-    drop(stdin_r);
-    drop(stdout_w);
-    drop(stderr_w);
-
-    let lifeline_w = lifeline_writer.into_owned_fd();
-
-    Ok(ForkedProgramHandles {
-        child_handle: Arc::new(ChildHandle::new(pidfd, Some(lifeline_w))),
-        stdin_w,
-        stdout_r,
-        stderr_r,
-    })
-}
-
-/// Child's post-fork pipeline for source-string entry (used by
-/// `fork_program_from_source`). Mirrors `run_forked_child` (forms entry)
-/// but parses + freezes from a String instead of an inherited Vec<WatAST>.
-///
-/// Never returns — exits via `libc::_exit` with one of the `EXIT_*` codes.
-#[allow(clippy::too_many_arguments)]
-fn child_branch_from_source(
-    source: String,
-    canonical: Option<String>,
-    loader: Arc<dyn SourceLoader>,
-    argv: Vec<String>,
-    stdin_r_raw: i32,
-    stdout_w_raw: i32,
-    stderr_w_raw: i32,
-    lifeline_r_raw: i32,
-    stdin_pair: (OwnedFd, OwnedFd),
-    stdout_pair: (OwnedFd, OwnedFd),
-    stderr_pair: (OwnedFd, OwnedFd),
-    lifeline_r: OwnedFd,
-) -> ! {
-    let (stdin_reader, stdout_writer, stderr_writer) = redirect_stdio_and_init(
-        stdin_r_raw, stdout_w_raw, stderr_w_raw, lifeline_r_raw,
-        stdin_pair, stdout_pair, stderr_pair, lifeline_r,
-    );
-
-    // Arc 278 no-hidden-failures — wrap the freeze call in catch_unwind. A
-    // PANIC during freeze-time evaluation of a top-level form (e.g. a top-level
-    // `let` whose initializer Result/expect's on an eval-ast! Err) would
-    // otherwise unwind past this Result match and be caught ONLY by the child's
-    // OUTER catch (src/process/clone.rs:429 → _exit(1), payload discarded) with
-    // the silent panic hook eating the default text — a MUTE exit 1. That
-    // asymmetry (a RETURNED StartupError is loud at exit 3; a RUNTIME panic in
-    // :user::main is loud at exit 2 via run_user_main_in_child's own inner
-    // catch; the freeze call had no catch) IS the defect.
-    //
-    // AssertUnwindSafe: identical soundness rationale to the outer catch
-    // (clone.rs:418-422) — the child calls libc::_exit on every path here, so
-    // no panic-unwinding can observe aliased state after _exit terminates the
-    // process. The outer catch stays as the last-resort backstop; this inner
-    // catch fires first.
-    let startup_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        startup_from_source(&source, canonical.as_deref(), loader)
-    }));
-    let world = match startup_result {
-        Ok(Ok(w)) => w,
-        Ok(Err(e)) => {
-            // Arc 296: emit structured EDN cause chain (not prose string).
-            emit_startup_error_structured_exit(&e);
-            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
-        }
-        Err(panic_payload) => {
-            // Freeze-time panic — mirror finish_forked_child's Err arm
-            // (verbs.rs:205-227): downcast AssertionPayload → preserve the rich
-            // #wat.kernel/AssertionFailure diagnostic; else String/&str →
-            // message-only Panic. The world does not exist yet at freeze time,
-            // so emit_structured_exit takes None (pre-world path).
-            //
-            // Phase-honest exit code: a freeze-time failure IS a STARTUP
-            // failure → EXIT_STARTUP_ERROR (3), NOT EXIT_PANIC (2). Exit 2
-            // would mislabel a startup failure as a runtime panic.
-            if let Some(payload) =
-                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
-            {
-                emit_structured_exit(
-                    None,
-                    crate::runtime::process_died_error_panic_value(
-                        payload.message.clone(),
-                        Some(payload.clone()),
-                    ),
-                );
-            } else {
-                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
-                    s.clone()
-                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                    (*s).to_string()
-                } else {
-                    "<unknown panic payload>".to_string()
-                };
-                emit_structured_exit(
-                    None,
-                    crate::runtime::process_died_error_panic_value(msg, None),
-                );
-            }
-            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
-        }
-    };
-
-    if let Err(msg) = validate_user_main_signature(&world) {
-        emit_structured_exit(
-            Some(&world),
-            crate::runtime::process_died_error_main_signature_value(&crate::to_edn::FlatMessage {
-                tag: "MainSignatureError",
-                key: "message",
-                message: &msg,
-            }),
-        );
-        unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
-    }
-
-    // Arc 170 slice 1e (REALIZATIONS pass 7) — argv is ambient.
-    crate::runtime::set_argv(argv);
-
-    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer, None)
 }
 
 // ─── Arg-parsing helpers ─────────────────────────────────────────────

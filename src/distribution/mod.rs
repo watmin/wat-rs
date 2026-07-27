@@ -127,22 +127,19 @@
 //!
 //! # Standard I/O
 //!
-//! `:user::main` takes no I/O handles. Before forking, the CLI installs
-//! three proxy threads that bridge the operator's real
-//! `io::Stdin` / `io::Stdout` / `io::Stderr` to the child's pipe ends
-//! (fd 0 → child stdin; child stdout / stderr → fd 1 / fd 2). Programs
-//! emit via `:wat::kernel::println` (and friends); the proxies forward
-//! the bytes to the terminal.
+//! `:user::main` takes no I/O handles. Arc 170 — the program runs in the
+//! cli's OWN process (arc 104's fork, and the three proxy threads that
+//! bridged the operator's stdio to the child's pipes, are annihilated), so
+//! the `StdOut` / `StdErr` / `StdIn` defservices bind the REAL fd 0/1/2.
+//! Programs emit via `:wat::kernel::println` (and friends) straight to the
+//! terminal — no pipe round-trip, no proxy.
 
 use std::process::ExitCode;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 mod argv;
 mod battery;
 mod check_output;
-mod proxy;
-mod signals;
 mod staleness;
 
 pub use battery::Battery;
@@ -150,7 +147,6 @@ pub use argv::strip_cargo_subcommand;
 
 use crate::freeze::startup_from_source;
 use crate::load::FsLoader;
-use crate::process::fork_program_from_source;
 use crate::runtime::set_argv;
 
 /// argv-injectable variant; `run` = `run_with_args(b, env::args())`.
@@ -238,40 +234,43 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         }
     }
 
-    // Install OS signal handlers BEFORE fork so they're inherited by
-    // the child (which immediately resets to SIG_DFL — see fork.rs).
-    // Arc 104d's signal-forwarding additions will hook into these
-    // same handler addresses.
-    signals::install_signal_handlers();
-
-    // Fork the entry program. Source is parsed inside the child's
-    // post-fork branch; parse / startup / validation errors surface
-    // through the child's exit code (3 / 4) + stderr (which the
-    // proxy thread below forwards to fd 2).
+    // Arc 170 — the cli runs the entry program IN ITS OWN PROCESS.
     //
-    // Loader: FsLoader gives the child cwd-relative file reads with
-    // no scope restriction — the same capability the pre-arc-104 cli
-    // gave to in-process invocation. The wat program is what the
-    // operator chose to run; trust flows downward.
-    // Arc 170 slice 2 — argv pure passthrough. wat-cli forwards
-    // `std::env::args()` to `:user::main` as a typed
-    // `:wat::core::Vector<wat::core::String>`. The argv layout is
-    // OS-shell convention: argv[0] = path to the wat binary,
-    // argv[1] = path to the wat source file, argv[2..N] = subsequent
-    // shell args. Flag-stripping (e.g. `--check`) happens at the
-    // wat-cli layer above; if the program reaches the fork path,
-    // every shell arg passes through unfiltered.
+    // Arc 104 forked it so user code would never run in the cli's own process
+    // ("wat-cli has been the ONE place where the surface metaphor breaks").
+    // That reason expired: at this point the cli has done six things — panic
+    // hook, batteries, argv parse, argv ambient, file read, and this — so there
+    // is no accumulated state to protect a program from. Forking here recreated
+    // the fresh unstarted runtime the shell had just exec'd for us, at the cost
+    // of a pipe round-trip, three proxy threads, and a second fork path in a
+    // substrate that wants exactly one.
+    //
+    // What went with it: fork_program_from_source, child_branch_from_source,
+    // redirect_stdio_and_init, distribution::proxy (3 threads + wait_child),
+    // ForkedProgramHandles, and the CHILD_PGID killpg cascade — whose stated
+    // job (reaching grandchildren) was already fictional: every spawn_lifelined
+    // child calls setpgid(0,0) (clone.rs), so a grandchild is in its OWN group,
+    // not the child's, and the verb the comment named (fork-program) was retired
+    // in 594572fc. Parent-death detection is the lifeline pipe's job and is
+    // untouched.
+    //
+    // Signals: the cli's old handlers were the substrate's plus a killpg
+    // forward. With nothing to forward to, the substrate handlers ARE the
+    // contract — they flip KERNEL_STOPPED and write the shutdown wake-pipe, so
+    // `(:wat::kernel::stopped?)` polling behaves exactly as it did in the child.
+    crate::runtime::init_shutdown_signal();
+    crate::process::install_substrate_signal_handlers();
 
     // rune:exigere(attested-arc) — TEMPORARY STOPGAP, tracked in arc 261
     // (docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md). The eval loop recurses on
     // the NATIVE stack; deep non-tail recursion (e.g. a fix-wat codemod over a large
-    // source file) overflows the default 8MB RLIMIT_STACK and SIGSEGVs the child. We
-    // raise the soft stack limit before the fork — the child inherits it and its main
-    // stack grows on demand — so the self-hosted migration runner works on the whole
-    // corpus today. This only RAISES the ceiling; it does NOT remove the class. The
-    // structural cure is CEK (arc 261), which has no native eval recursion. WHEN ARC 261
-    // LANDS, DELETE THIS BLOCK. Until then this rune is the standing reminder: we have a
-    // recursion-depth ceiling, papered over, on purpose, visibly.
+    // source file) overflows the default 8MB RLIMIT_STACK and SIGSEGVs the process.
+    // Raising the soft limit lets the main stack grow on demand, so the self-hosted
+    // migration runner works on the whole corpus today. This only RAISES the ceiling;
+    // it does NOT remove the class. The structural cure is CEK (arc 261), which has no
+    // native eval recursion. WHEN ARC 261 LANDS, DELETE THIS BLOCK. Until then this
+    // rune is the standing reminder: we have a recursion-depth ceiling, papered over,
+    // on purpose, visibly.
     unsafe {
         let mut rl = std::mem::zeroed::<libc::rlimit>();
         if libc::getrlimit(libc::RLIMIT_STACK, &mut rl) == 0 {
@@ -280,88 +279,102 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         }
     }
 
-    let handles = match fork_program_from_source(
-        &source,
-        canonical.as_deref(),
-        Arc::new(FsLoader),
-        argv.clone(),
-    ) {
-        Ok(h) => h,
-        Err(e) => {
-            eprintln!("wat: fork: {}", e);
-            return ExitCode::from(1);
+    // Freeze. `startup_from_source` also imposes the `:user::main` wall
+    // (freeze.rs — validate_user_main_signature + _not_useless), so a bad main
+    // arrives here as StartupError::MainSignature and keeps its own exit code
+    // rather than being folded into the generic startup failure.
+    // Freeze, under a panic boundary. A PANIC during freeze-time evaluation of a
+    // top-level form would otherwise unwind straight out of `run_with_args` and
+    // hit Rust's default handler — a MUTE exit 101. That asymmetry (a RETURNED
+    // StartupError is loud at 3; a freeze-time panic silently 101) IS the defect
+    // arc 278's no-hidden-failures cut B closed, and `freeze_time_panic_surfaces
+    // _structured_not_silent` guards it. Mirrors the arm the forked child ran.
+    //
+    // Phase-honest exit code: a freeze-time failure IS a STARTUP failure →
+    // EXIT_STARTUP_ERROR (3), never EXIT_PANIC (2), which would mislabel it as a
+    // runtime panic. The world does not exist yet, so the emitters take None.
+    //
+    // AssertUnwindSafe: nothing captured here is observed after the unwind — the
+    // Err arm reads only the payload and returns.
+    let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(FsLoader);
+    let startup_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        startup_from_source(&source, canonical.as_deref(), loader)
+    }));
+    let world = match startup_result {
+        Ok(Ok(w)) => w,
+        Ok(Err(e)) => {
+            let code = match e {
+                crate::freeze::StartupError::MainSignature(_) => {
+                    crate::process::EXIT_MAIN_SIGNATURE
+                }
+                _ => crate::process::EXIT_STARTUP_ERROR,
+            };
+            crate::process::emit_startup_error_structured_exit(&e);
+            return ExitCode::from(code as u8);
+        }
+        Err(panic_payload) => {
+            // Downcast AssertionPayload to preserve the rich
+            // #wat.kernel/AssertionFailure diagnostic; else String/&str → a
+            // message-only Panic.
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                crate::process::emit_structured_exit(
+                    None,
+                    crate::runtime::process_died_error_panic_value(
+                        payload.message.clone(),
+                        Some(payload.clone()),
+                    ),
+                );
+            } else {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                crate::process::emit_structured_exit(
+                    None,
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
+            }
+            return ExitCode::from(crate::process::EXIT_STARTUP_ERROR as u8);
         }
     };
 
-    let child_pid = handles.child_handle.child_pid();
-
-    // Publish the child's process-group ID for signal-handler cascade
-    // (arc 104d → arc 106). The substrate's `child_branch_from_source`
-    // called `setpgid(0, 0)` post-fork, so the child is its own pgid
-    // leader — pgid == child_pid. Handlers read this atomic and call
-    // `killpg(pgid, sig)` to broadcast to every process in the group
-    // (child + any grandchildren the wat program forked via
-    // `:wat::kernel::fork-program`). One syscall, kernel-driven fanout.
-    signals::CHILD_PGID.store(child_pid, Ordering::SeqCst);
-
-    // Spawn the three proxy threads. Each runs a tight read/write
-    // loop bridging real OS stdio to the child's pipe end. They
-    // exit naturally on EOF (read returns 0). The cli waits on
-    // their join handles AFTER waitpid so any in-flight bytes
-    // finish forwarding before we return.
-    let stdin_proxy = proxy::spawn_stdin_proxy(handles.stdin_w);
-    let stdout_proxy = proxy::spawn_stdout_proxy(handles.stdout_r);
-    let stderr_proxy = proxy::spawn_stderr_proxy(handles.stderr_r);
-
-    // waitpid the child. Exit code follows shell convention:
-    // WEXITSTATUS for normal exit, 128 + WTERMSIG for signal
-    // termination. Idempotent via ChildHandleInner's cached_exit
-    // (arc 012 slice 2c) — Drop won't double-reap.
-    let exit_code = proxy::wait_child(child_pid);
-
-    // Mark reaped so ChildHandle::Drop doesn't try to kill
-    // + wait the already-collected pid.
-    handles.child_handle.mark_reaped();
-
-    // Clear the published child PGID so any late signal arriving
-    // between waitpid and exit doesn't get killpg'd to a group that's
-    // since been reused by the OS.
-    signals::CHILD_PGID.store(-1, Ordering::SeqCst);
-
-    // Join the OUTPUT proxies. Each sees its peer fd close (child
-    // exit closes the child-side write end → parent's read returns
-    // 0 → proxy exits cleanly).
-    let _ = stdout_proxy.join();
-    let _ = stderr_proxy.join();
-
-    // DO NOT join stdin_proxy. The stdin proxy reads from the cli's
-    // real stdin (fd 0) — typically a tty under interactive use —
-    // and writes to the child's stdin pipe. When the child has
-    // exited, the child-side read end of the pipe has closed, so
-    // the proxy's NEXT write will fail with EPIPE and the proxy
-    // will exit. But it can't reach that write while it's still
-    // blocked on `libc::read(STDIN_FILENO, ...)`, and a tty's read
-    // doesn't return until the user types something or sends EOF.
+    // Run `:user::main` under a panic boundary and map the outcome to an exit
+    // code, emitting the SAME structured EDN on fd 2 that the forked child
+    // emitted — `finish_in_process` is `finish_forked_child` with the `_exit`
+    // swapped for a return, so every black-box cli assertion holds unchanged.
     //
-    // Joining here would hang the cli for any wat program that
-    // exits before consuming all of stdin (a panic, an early
-    // return, anything quick). Per arc 107a's diagnosis: detected
-    // when `:wat::std::option::expect` / `:wat::std::result::expect`
-    // panic'd in interactive runs and the cli hung indefinitely
-    // afterward instead of surfacing the panic.
-    //
-    // Instead, let the proxy die with the process. The OS reaps
-    // its thread + fd when the cli's main returns. Any bytes the
-    // proxy already buffered but hadn't written are lost — fine,
-    // the child wouldn't have read them anyway.
-    drop(stdin_proxy);
-
-    if exit_code >= 0 && exit_code <= 255 {
-        ExitCode::from(exit_code as u8)
-    } else {
-        // 128 + signum can exceed 255 on some signals; clamp to 255.
-        ExitCode::from(255)
+    // AssertUnwindSafe: the world is consumed only by this call and by the
+    // emitters below it, both on this thread; nothing observes it across the
+    // unwind boundary in a torn state.
+    // The `:user::main` wall, unconditionally. `startup_from_source` imposes it
+    // only WHEN `:user::main` is declared (freeze.rs — `if world.symbols()
+    // .get(":user::main").is_some()`), because `startup_from_forms` must stay
+    // usable by callers that legitimately build worlds without a main. A program
+    // that declares NO main therefore freezes clean and must be caught here —
+    // exactly as the forked child caught it before this arc. Same emitter, same
+    // exit code, byte-identical stderr.
+    if let Err(msg) = crate::freeze::validate_user_main_signature(&world) {
+        crate::process::emit_structured_exit(
+            Some(&world),
+            crate::runtime::process_died_error_main_signature_value(&crate::to_edn::FlatMessage {
+                tag: "MainSignatureError",
+                key: "message",
+                message: &msg,
+            }),
+        );
+        return ExitCode::from(crate::process::EXIT_MAIN_SIGNATURE as u8);
     }
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        crate::freeze::invoke_user_main(&world, Vec::new())
+    }));
+    let code = crate::process::finish_in_process(&world, outcome);
+    ExitCode::from(code as u8)
 }
 
 /// Run the wat CLI with the supplied batteries.
