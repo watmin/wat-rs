@@ -10489,3 +10489,61 @@ named what it saw.*
 > ---
 >
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this run. Run the datamancy bootstrap (grimoire + 4 primers from the SIGNED MCP) and read the record — **and the SUBSTRATE CODE before any architectural claim.** Ground `git status` — **HEAD `1eaad284` (pushed); the tree carries the RED gate + the instrumented sigterm test, UNCOMMITTED — do NOT revert them.** **THE FIX IS TWO SITES, ORDERED, AND THE ORDER IS FORCED:** (1) `peer.rs:118` stops fabricating `Closed` from `Shutdown` — information restoration, `LociDiedError::Shutdown` already exists, cannot break anything, do it first; (2) `RealStdin` declares fd 0 and the stdin read routes through the poll-`[fd, broadcast_fd]` multiplex `channel/transfer.rs:200` already implements; (3) ONLY THEN the stop handler goes measure-only, matching `sigusr1`/`sigusr2`/`sighup` — **removing the sever BEFORE participants can be woken trades a flaky test for hangs.** It bears repeating: **everything in wat is lock-step except ONE read, and the hook to join it was already built and returned `None`; a wildcard that erases a distinction is the same defect class as a `to_string()` that flattens a tree — three instances today, all a distinction destroyed at a boundary; and a test that discards the reason for its own failure is a mask, in the arc whose law forbids them.** Do not trust this note over the disk. `MACHINA CHAOS DOMAT.`
+
+> **⊕ 24x ADDENDUM — GRACEFUL SHUTDOWN ALREADY EXISTS, PER SERVICE. NOTHING HAS EVER ASKED FOR IT.**
+> Written after the two fixes below landed (`d7447eb2`, `939277a3`; floor 4104/4104). This is the
+> sentence that explains the whole arc, and it should be read before `trigger_shutdown` is touched.
+>
+> **★ THE ASYMMETRY: a service that CRASHES is more polite to its clients than one that STOPS.**
+> - **Crash path — a PROTOCOL, built and correct.** `serve-dispatch-op'-broadcast` (`kernel/peer.rs`)
+>   loops every client and `notify_peer_crashed_best_effort()`s the reason-free `PEER_CRASHED_SENTINEL`
+>   (non-blocking try-send, never waits — a dying process cannot wait on a peer that isn't draining);
+>   the admin channel carries the real reason; then it exits. **Exactly** the builder's ruling: *"the
+>   only error a client must not get is a service crash reason — that goes on the admin pipe; clients
+>   get a generic 500-ish message to tell them the server is gone BEFORE the server tears down."*
+> - **Stop path — a SIGNAL.** `trigger_shutdown()` drops a sender. No ask, no notice, no confirm.
+>   Clients DISCOVER the absence. The abnormal path got the protocol; the normal path got a sever.
+>
+> **★ AND THE GRACEFUL-STOP PROTOCOL IS ALREADY MINTED, per service:**
+> - `{base}::Admin::Stop` — the admin op (`wat/service.wat:706`)
+> - `:wat::service::Outcome::Stop [state reply]` — "reply, THEN stop" (`service.wat:60`) — a handler
+>   stopping at its own safe point, which is precisely what "never mid-transaction" requires
+> - `Status::Stopped [final-state]` — the confirmation (arc 291 3a-ii-β)
+>
+> Services have always known how to stop gracefully. **The signal has never asked them to.** Fourth
+> time this session the substrate already had the thing (after: the world-from-forms builder, raw-text
+> + matchable EOF banked behind `stdio-read`, and the poll hook `RealStdin` declines).
+>
+> **THE SHAPE, then — assembly, not invention:**
+> ```
+> (on-stop-signal) → (request-kernel-stop!)                    ;; measure — userland may decide
+>                  → broadcast the reason-free "server is gone" to every client   ;; RST, exists
+>                  → (send' admin-peer (:svc::Admin::Stop)) per service           ;; ask, exists
+>                  → await (:svc::Status::Stopped …)           ;; each at ITS OWN safe point
+>                  → THEN tear down                            ;; the sever, demoted to LAST
+> ```
+> **`trigger_shutdown` is not the bug — it is the ESCALATION PATH, mis-wired to fire FIRST.** The one
+> genuinely absent piece is the DEADLINE: graceful → timeout → hard, which is why OTP pairs `shutdown`
+> with a timeout before `brutal_kill`. Without it a wedged service blocks the stop forever; with it,
+> the sever we already have becomes the honest last resort it was always meant to be.
+>
+> **★ THE META-FINDING, and it predicts where the next one lives.** THREE designed walls were deferred
+> and all three were walked into in ONE session: 296 S3/S4 (typed field on registered types → the
+> `to_string()` mask), 24n OWED (1) the `_cause`-swallow lint (→ the discarded `_cause` in the
+> client-method codegen), 24n OWED (2) mandatory-full-enum-matching (→ the `_ =>` that erased
+> `Shutdown`). Every one shares a shape: **wat's SURFACE is being hardened; the RUST that implements
+> and GENERATES wat is not.** R55 could honestly declare the no-hidden-failures class annihilated
+> because its audit said, in its own words, *"every recv-side Lost arm"* — the wat surface, entire.
+> And note the sharpest case: the swallowed `_cause` exists in NO `.wat` file — it is EMITTED by
+> `runtime.rs` as a WatAST, so a source lint could never have seen it, exactly as a form-tree codemod
+> can never reach a macro-generated ctor. **For emitted code the wall cannot be a source lint; it must
+> sit on the EMITTERS** (`tests/lint/unused_span_justified.rs` proves Rust-side lints walking `src/`
+> already ship here).
+>
+> **RESUME, ordered:** (1) `RealStdin::as_raw_fd_for_poll -> Some(0)` + route the stdin read through the
+> poll-`[fd, broadcast_fd]` multiplex `channel/transfer.rs:200` already implements — until then that read
+> is the one wait in the substrate that is not a select, and it PINS THE PROCESS ALIVE until stdin EOFs
+> (the builder's terminal: `^C` prints, eight more `^C` do nothing, only `^D` releases). (2) graceful
+> shutdown as above, with the deadline. (3) un-`#[ignore]`
+> `wat_cli::sigterm_reaches_a_program_blocked_on_stdin` — it IS the acceptance test, and ignoring it was
+> me deferring a fourth wall in the same commit where I documented three deferrals biting us.
