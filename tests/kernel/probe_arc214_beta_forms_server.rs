@@ -39,7 +39,6 @@ use wat::freeze::call_beside_value;
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout, `--test-threads=1`.
 #[test]
-#[ignore = "process-tier FM-2-bis probe (arc 214 1b-ii-β): run via setsid timeout 180 cargo test --release --test kernel probe_arc214_beta_forms_server -- --ignored --test-threads=1"]
 fn beta_forms_server_round_trip_via_send_recv_prime() {
     // Parent (client): spawn the forms-server, send' 41, recv' the echo+1.
     // Server (the spawned program): the proven arc112_slice2b worker —

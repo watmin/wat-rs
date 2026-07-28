@@ -167,7 +167,6 @@ fn empty_env_expr() -> String {
 /// flag serializes the two probes without changing the test structure.
 /// NEVER run via raw `cargo test --test test` (deadlocks on the old stack).
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_echo_round_trip() {
     let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
@@ -220,7 +219,6 @@ fn spawn_program_prime_process_echo_round_trip() {
 ///
 /// Marked `#[ignore]` — run with `--test-threads=1`.
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
@@ -274,7 +272,6 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
 /// Run via:
 ///   cargo test --test kernel spawn_program_prime_process_helper_round_trip -- --ignored
 #[test]
-#[ignore = "KR-1 regression probe: run via integration-run.sh or with --ignored --test-threads=1"]
 fn spawn_program_prime_process_helper_round_trip() {
     // Forms-server with echo+1 logic (arc 214 β canonical shape).
     // The helper-round-trip concept from the fn era is now expressed as:

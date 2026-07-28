@@ -29,7 +29,6 @@ use wat::runtime::Value;
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout with --test-threads=1.
 #[test]
-#[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel peer_verb_round_trip_process -- --ignored --test-threads=1"]
 fn process_peer_verb_round_trip() {
     let result = call_beside_value(file!(), ":user::compute")
         .expect("call_beside_value must succeed: process-tier peer verb round-trip");

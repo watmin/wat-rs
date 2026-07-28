@@ -56,7 +56,6 @@ use wat::kernel::peer::Process;
 /// directly via:
 ///   cargo test --test kernel peer_process_round_trip -- --ignored
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored flag; never via raw cargo test --test test"]
 fn process_peer_round_trip() {
     // ── Step 1: create channel pairs ─────────────────────────────────────
     // input: parent writes → child reads. output: child writes → parent reads.

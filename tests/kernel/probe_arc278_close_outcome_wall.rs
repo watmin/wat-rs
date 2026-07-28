@@ -110,7 +110,6 @@ fn thread_clean_close_yields_closed_none() {
 ///   setsid timeout 180 cargo test --release --test kernel \
 ///     probe_arc278_close_outcome_wall -- --ignored --test-threads=1
 #[test]
-#[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel probe_arc278_close_outcome_wall -- --ignored --test-threads=1"]
 fn process_clean_close_yields_closed_some_zero() {
     let v = spawn_then_close(":user::spawn-noop-process");
     let ev = as_close_outcome(&v);

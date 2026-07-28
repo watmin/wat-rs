@@ -31,7 +31,6 @@ use wat::runtime::Value;
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout with --test-threads=1.
 #[test]
-#[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1"]
 fn process_select_prime_picks_ready_peer() {
     // Arc 214 β: spawn-program' :process takes a forms-server (not a fn).
     // Each spawned peer runs readln -> :i64, println (i64::+ n 1) — echo+1 server.
