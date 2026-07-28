@@ -275,7 +275,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let mut sym = frozen.symbols().clone();
 
     // Start the three PRIMED stdio defservices on the ambient fds. Driven through the kernel helper
-    // `:wat::kernel::start-primed-stdio` (wat/kernel/services/stdio-primes.wat), a plain 3-arg defn
+    // `:wat::kernel::start-primed-stdio` (wat/kernel/services/stdio.wat), a plain 3-arg defn
     // whose body calls the three `<svc>/start` kwargs macros — those expand at NORMAL freeze time
     // (inside the defn body), sidestepping the kwargs-defn-via-`eval_in_frozen` macro-eval gap (that
     // path mis-resolves the companion's `$impl` keyword to a live fn). The helper returns a 3-tuple of

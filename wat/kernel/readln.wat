@@ -1,10 +1,22 @@
-;; wat/kernel/services/stdin.wat — the `readln` macro + its default cap.
+;; wat/kernel/readln.wat — the `readln` macro and the default frame cap it injects.
 ;;
-;; Arc 170 Phase 3: the hand-rolled StdInService (the `:wat::kernel::ThreadId` typealias, the
-;; `StdInService::Req`/`Rep` structs, and the `StdInService/handle` fn driven by the Rust
-;; `spawn_service_peer` loop) is DELETED. stdin is now the primed `:wat::kernel::stdin-svc` defservice
-;; (wat/kernel/services/stdio-primes.wat), reached by the flipped `readln'` verb. All that remains here
-;; is the user-facing `readln` macro + the default frame cap it injects — both load-order-free.
+;; WHY THIS FILE EXISTS AT ALL, and why only readln has one. `println`/`pprintln`/`eprintln`/
+;; `epprintln` are Rust intrinsics with no wat layer whatsoever. `readln` is the one member of
+;; the stdio triad that takes a KWARG (`:max-buffer-bytes`), and kwargs-is-always-a-macro means
+;; something has to lower that surface to the positional prime `readln'`. That lowering is this
+;; file. The asymmetry is DERIVED from the surface, not chosen — which is the only kind of
+;; asymmetry that clears the bar.
+;;
+;; WHY IT IS NOT IN `services/`, AND NOT CALLED `stdin`. It held neither name honestly until
+;; arc 170 #24. It was `wat/kernel/services/stdin.wat` because the hand-rolled `StdInService`
+;; once lived here; Phase 3 DELETED that service (stdin is now the `:wat::kernel::stdin-svc`
+;; defservice in `wat/kernel/services/stdio.wat`) and left the file standing over its own
+;; grave, holding two things that are entirely about `readln` and nothing about stdin. A macro
+;; is also not a service, so `services/` was wrong twice. The file is now named for what it
+;; holds and sits beside `wat/kernel/channel.wat`, the other non-service kernel form.
+;;
+;; Load-order-free by construction: `readln'` is a Rust intrinsic (available at expand time, no
+;; dependency on any wat file), and `MAX-READLN-BYTES` is referenced only by the macro below.
 
 ;; ─── Default frame cap ────────────────────────────────────────────────────
 ;;
@@ -43,7 +55,7 @@
 ;;
 ;; `readln'` is a Rust intrinsic (always available at expand time — no
 ;; load-order dependency on any wat file). This macro therefore has no
-;; load-order constraint and lives in stdin.wat as the natural home.
+;; load-order constraint and lives in readln.wat, the file named for what it holds.
 (:wat::core::defmacro :wat::kernel::readln
   [& args <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST

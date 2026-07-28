@@ -1018,12 +1018,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                   human: a REPL user types `(:wat::core::+ 1 1)`, which is wat
     //                   source, not an EDN literal, and decoding it fails on the `::`.
     //   :Eof []       — the clean stop, as a VALUE. The StdIn service has always returned
-    //                   a matchable `::Eof` (`stdio-primes.wat`, "NOT a panic that kills
+    //                   a matchable `::Eof` (`stdio.wat`, "NOT a panic that kills
     //                   the serve loop"); `stdio-read` then raised on it to preserve the
     //                   old fd-0 behavior for the 72 `readln` callers. That bank is what
     //                   made a REPL loop unable to stop cleanly. This verb spends it.
     //   :Stopped []   — a process-wide stop was requested while `stdio-read-frame`
-    //                   (`stdio-primes.wat`) was blocked waiting on the StdIn service.
+    //                   (`stdio.wat`) was blocked waiting on the StdIn service.
     //                   NOT an `Eof` (the peer didn't close) and NOT an error — its own
     //                   outcome, matching `StdIn::ReadLineResponse::Stopped` one layer
     //                   below. Named `Stopped`, not `Shutdown`: wat already has a word
@@ -1055,7 +1055,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             },
             EnumVariant::Unit("Eof".into()),
             // Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
-            // while `stdio-read-frame` (`stdio-primes.wat`) was blocked waiting on
+            // while `stdio-read-frame` (`stdio.wat`) was blocked waiting on
             // the StdIn service. NOT an `Eof` (the peer didn't close) and NOT an
             // error — its own outcome, matching `StdIn::ReadLineResponse::Stopped`
             // one layer below. Named by the arc-170 intueri cast, 2026-07-28: wat
@@ -1113,7 +1113,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // The raw-IOReader-level sibling of `:wat::kernel::ReadFrameOutcome` above: this
     // one is what the verb hands back DIRECTLY (see `eval_ioreader_read_frame`,
     // `src/io.rs`); `:wat::kernel::ReadFrameOutcome` is the higher, caller-facing
-    // outcome the StdIn *service* (`stdin-svc` in `stdio-primes.wat`) builds from its
+    // outcome the StdIn *service* (`stdin-svc` in `stdio.wat`) builds from its
     // own `StdIn::ReadLineResponse` reply. Two different enums at two different
     // layers, deliberately — the brief's "rooms 4 and 6" are not the same room.
     //

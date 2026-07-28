@@ -15,7 +15,7 @@
 ;; DUP-then-own: each dup(2)s the caller's fd and owns ONLY the dup (Drop closes the dup, never the
 ;; real fd 0/1/2). Privileged (forging a handle from a raw fd is a capability) — only kernel-internal
 ;; wat may call them, e.g. the primed stdio defservices' generated `::init` in
-;; wat/kernel/services/stdio-primes.wat. The fd is a pure i64 that rides `Admin::Init` clean; the
+;; wat/kernel/services/stdio.wat. The fd is a pure i64 that rides `Admin::Init` clean; the
 ;; impure handle is BORN inside init, never passed as an init param (arc 293.W Pure-Admin wall).
 
 ;; read-file — Ruby's File.read. Opens a file at `path`, reads the whole content to a

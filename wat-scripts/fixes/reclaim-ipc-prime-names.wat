@@ -16,7 +16,7 @@
 ;; NOT here, each for its own reason:
 ;;   peer-pair'   ANNIHILATED (890b60a4) — a deletion, not a rename
 ;;   readln'      STRUCTURALLY REQUIRED: `:wat::kernel::readln` is a live defmacro
-;;                (wat/kernel/services/stdin.wat:47) that EXPANDS TO `readln'`. Same name, two
+;;                (wat/kernel/readln.wat:59) that EXPANDS TO `readln'`. Same name, two
 ;;                forms — drop the `'` and the macro collides with the verb it expands into.
 ;;   Frame'       the positional-CONSTRUCTOR idiom — Frame is the record type, Frame' builds one
 ;;   fire-rules' / fire-once' / fire-rules-explain' / step-payload'

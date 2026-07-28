@@ -6,7 +6,7 @@
 //! ## Arc 170 Strike 3 — the verb flip (PURE IMPL-SWAP)
 //!
 //! These five verbs now route to the PRIMED stdio defservices (`:wat::kernel::{stdout,stderr,stdin}-svc`,
-//! built in `wat/kernel/services/stdio-primes.wat`) instead of the hand-rolled `spawn_service_peer`
+//! built in `wat/kernel/services/stdio.wat`) instead of the hand-rolled `spawn_service_peer`
 //! path. Their CONTRACTS are byte-identical — only who they call changed:
 //!   - Each verb reaches its stream's `Address'` via `sym.primed_stdio()` (the `PrimedStdio` carrier
 //!     the freeze bootstrap seeded), `connect'`s a per-thread client `Peer'` ONCE (cached in ThreadIO
@@ -74,7 +74,7 @@ fn eprintln_terminate(reason: String) -> ! {
 ///
 /// `pub(crate)` (arc 170 "stopping is a protocol") — the shutdown worker (`src/runtime.rs`) reuses
 /// this exact path to emit its one `#wat.kernel/StopAccepted {…}` notice on STDOUT rather than
-/// touching fd 1 directly: `stdout-svc` owns a DUP of fd 1 (`wat/kernel/services/stdio-primes.wat`),
+/// touching fd 1 directly: `stdout-svc` owns a DUP of fd 1 (`wat/kernel/services/stdio.wat`),
 /// so a second independent writer on the same real fd would tear the service's own output.
 pub(crate) fn write_via_stdout(op: &'static str, span: &Span, sym: &SymbolTable, line: String) -> Result<(), RuntimeError> {
     let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {

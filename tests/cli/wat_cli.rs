@@ -760,7 +760,7 @@ fn check_mode_still_demands_exactly_one_entry() {
 ///
 ///   `:wat::kernel::LociDiedError/message: expected wat::kernel::*DiedError,
 ///    got wat::core::Record <wat::kernel::Failure{"service peer lost …"}>`
-///   at `wat/kernel/services/stdio-primes.wat:210`, cause built at `wat/spawn.wat:351`
+///   at `wat/kernel/services/stdio.wat:210`, cause built at `wat/spawn.wat:351`
 ///
 /// So there is a SECOND defect behind the first: a `RecvOutcome::Lost` producer that hands
 /// a `Failure` where a `LociDiedError` is required — an arc-278 LociDiedError-migration

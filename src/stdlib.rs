@@ -187,12 +187,12 @@ const STDLIB_FILES: &[WatSource] = &[
     },
     // Arc 170 Phase 3 — stdin.wat is now just the `readln` macro + `MAX-READLN-BYTES` cap. The
     // hand-rolled StdInService (Req/Rep + handle fn) is DELETED; stdin is the primed
-    // `:wat::kernel::stdin-svc` defservice (wat/kernel/services/stdio-primes.wat). The old
+    // `:wat::kernel::stdin-svc` defservice (wat/kernel/services/stdio.wat). The old
     // `wat/kernel/services/{stdout,stderr}.wat` (pure dead handle fns) are DELETED — their streams are
     // the primed `stdout-svc`/`stderr-svc` defservices too.
     WatSource {
-        path: "wat/kernel/services/stdin.wat",
-        source: include_str!("../wat/kernel/services/stdin.wat"),
+        path: "wat/kernel/readln.wat",
+        source: include_str!("../wat/kernel/readln.wat"),
     },
     // Arc 170 CULMINATION (arc 278 IPC de-prime) — wat/kernel/hermetic.wat
     // and wat/kernel/sandbox.wat ANNIHILATED. They defined the manual
@@ -331,8 +331,8 @@ const STDLIB_FILES: &[WatSource] = &[
     // param (the Pure-`Admin` containment wall, arc 293.W). Freeze-bootstrapped on the real fds by
     // src/freeze.rs; nothing flipped in Phase 1.
     WatSource {
-        path: "wat/kernel/services/stdio-primes.wat",
-        source: include_str!("../wat/kernel/services/stdio-primes.wat"),
+        path: "wat/kernel/services/stdio.wat",
+        source: include_str!("../wat/kernel/services/stdio.wat"),
     },
     // Arc 278 stone 1a — :wat::rete:: — the rete engine data model.
     // Pure data records (Token/Element/Activation, Rule, AlphaNode/RootJoinNode/

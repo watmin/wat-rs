@@ -657,9 +657,9 @@ wat-rs/
 │   ├── Ngram.wat Bigram.wat Trigram.wat
 │   └── ReciprocalLog.wat   # arc 034
 ├── wat/kernel/             # kernel-namespace wat sources (arc 109 K-doctrine)
-│   ├── channel.wat hermetic.wat sandbox.wat
+│   ├── channel.wat readln.wat
 │   └── services/
-│       └── stderr.wat stdin.wat stdout.wat
+│       └── stdio.wat
 ├── wat/                    # remaining baked-in wat sources (root-level)
 │   └── core.wat edn.wat holon.wat list.wat runtime.wat stream.wat test.wat
 ├── crates/wat-lru/         # external wat crate — LRU surface (arc 013)

@@ -20,7 +20,7 @@
 ;; none of the six prefixes — untouched. No collision with the deleted `StdInService` (different name).
 ;;
 ;; Usage (one EDN vector of EVERY path holding a `'`-name on stdin — list them ALL):
-;;   printf '["wat/kernel/services/stdio-primes.wat" "tests/services/probe_arc170_stdio_prime.wat"]\n' \
+;;   printf '["wat/kernel/services/stdio.wat" "tests/services/probe_arc170_stdio_prime.wat"]\n' \
 ;;     | ./target/release/wat ./wat-scripts/fixes/reclaim-stdio-prime-names.wat
 ;;
 ;; The def/registration seams the codemod cannot touch (Rust doc comments, the DESIGN doc) are the

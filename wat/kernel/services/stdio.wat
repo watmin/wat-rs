@@ -1,4 +1,4 @@
-;; wat/kernel/services/stdio-primes.wat — arc 170 stdio-as-defservice, PHASE 1.
+;; wat/kernel/services/stdio.wat — arc 170 stdio-as-defservice, PHASE 1.
 ;;
 ;; The three stdio streams reborn as `defservice`s — the PRIMES. They COEXIST with the hand-rolled
 ;; path (the old :wat::kernel::services::Std{In,Out,Err}Service/handle fns + the Rust
@@ -356,7 +356,7 @@
 ;; the tooling forbids it structurally; there is NO user-callable raw-write escape hatch). Its own
 ;; enclosing fn is `:wat::kernel::`, so its call to the gated write-fd-raw passes. Reached only from
 ;; kernel/test code; the select'-flood probe's child reaches it through a `:wat::test::` flood body.
-;; (Lives in stdio-primes.wat — not wat/test.wat, which loads BEFORE this file — so the defn→defn
+;; (Lives in stdio.wat — not wat/test.wat, which loads BEFORE this file — so the defn→defn
 ;; eval-dep on write-fd-raw stays intra-file / correctly ordered.)
 (:wat::core::defn :wat::kernel::flood-stdout-raw
   {:restricted-to [:wat::kernel:: :wat::test::]}
@@ -385,7 +385,7 @@
 ;; The select'-flood deadlock probe's `:user::` child calls `(:wat::test::flood-own-stdout)` to
 ;; simulate a non-conforming peer.
 ;;
-;; (Lives in stdio-primes.wat, not wat/test.wat: test.wat loads earlier, so a defn there would
+;; (Lives in stdio.wat, not wat/test.wat: test.wat loads earlier, so a defn there would
 ;; eval-depend on the later kernel helpers — a deporder violation. Namespace ≠ file; a baked stdlib
 ;; source may define `:wat::test::` here under stdlib privilege.)
 (:wat::core::defn :wat::test::flood-own-stdout

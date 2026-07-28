@@ -38,7 +38,7 @@ readln'(cap) → StdInService::Req {thread-id, max-buffer-bytes}   ;; Req gains 
             → StdInService/handle → (:wat::io::IOReader/read-frame in cap)
             → read_framed_edn(..., cap)                          ;; the param committed in 49cbe8ee
 ```
-- **`wat/kernel/services/stdin.wat`**: `StdInService::Req` gains `max-buffer-bytes <- :wat::core::i64`;
+- **`wat/kernel/readln.wat`**: `StdInService::Req` gains `max-buffer-bytes <- :wat::core::i64`;
   `StdInService/handle` reads it off the Req and passes it to `read-frame`.
 - **`src/io.rs` `eval_ioreader_read_frame`**: accept a positional max-bytes (`(read-frame in <i64>)`),
   passing it to `read_framed_edn` instead of the hardcoded `DEFAULT_MAX_FRAME_BYTES`. (The default now
