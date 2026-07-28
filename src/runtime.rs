@@ -5453,9 +5453,35 @@ fn dispatch_keyword_head_value(
                                                 ], span.clone()),
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                    // Arc 170 — SCRUB THE DEATH, PASS THE STOP.
+                                                    //
+                                                    // The scrub is arc-294's ruling: a client learns no server
+                                                    // internals. But `Shutdown` is NOT a server internal — it is
+                                                    // the CLIENT'S OWN process being asked to stop, and rewriting
+                                                    // it as a peer death re-destroys, one layer up, the exact
+                                                    // distinction `kernel/peer.rs` was just fixed to carry.
+                                                    //
+                                                    // Emits: (match _cause
+                                                    //          (LociDiedError::Shutdown LociDiedError::Shutdown)
+                                                    //          (_ LociDiedError::Disconnected))
+                                                    //
+                                                    // The `_` here is deliberate INFORMATION HIDING at a trust
+                                                    // boundary (every genuine death → one reason-free value),
+                                                    // not the accidental variant-erasure this arc is killing.
+                                                    // The difference is that the client is not entitled to what
+                                                    // is dropped, and IS entitled to know its own process is
+                                                    // stopping.
                                                     WatAST::List(vec![
-                                                        WatAST::Keyword(":wat::kernel::message-only-failure".into(), span.clone()),
-                                                        WatAST::StringLit("service peer lost (reason on the owner's crash channel)".into(), span.clone()),
+                                                        WatAST::Keyword(":wat::core::match".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Shutdown".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Shutdown".into(), span.clone()),
+                                                        ], span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Symbol(Identifier::bare("_"), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Disconnected".into(), span.clone()),
+                                                        ], span.clone()),
                                                     ], span.clone()),
                                                 ], span.clone()),
                                             ], span.clone()),
