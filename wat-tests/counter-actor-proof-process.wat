@@ -162,7 +162,7 @@
   ;; the wrappers send' requests and recv' responses over it.
   (:wat::core::let
     [peer!
-       (:wat::kernel::spawn-program (:wat::spawn::process)
+       (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            ;; Subprocess type declarations — independent from parent's types.
            ;; Same names → same EDN tags → interoperable across process boundary.

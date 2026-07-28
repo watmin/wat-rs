@@ -30,7 +30,7 @@
      ;; ERASE concrete Address'<Op,Reply> -> bare Address' via ann-form:
      eab  (:wat::core::ann-form ea :wat::kernel::Address)
      erased (:wat::core::Vector :wat::kernel::Address eab)
-     worker (:wat::kernel::spawn-program (:wat::spawn::process)
+     worker (:wat::test::spawn-peer (:wat::spawn::process)
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages

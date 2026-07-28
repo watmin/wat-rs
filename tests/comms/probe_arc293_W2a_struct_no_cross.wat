@@ -26,7 +26,7 @@
 ;; Struct probe — sends a bare struct over the wire.
 (:wat::core::defn :w2a::probe-struct [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :w2a::S [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -42,7 +42,7 @@
 ;; Record control probe — sends a base record over the wire.
 (:wat::core::defn :w2a::probe-record [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defrecord :w2a::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -68,7 +68,7 @@
 ;; line raw as a String (no decode crash), keeping stdin open for the write.
 (:wat::core::defn :w2a::probe-send-record [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [_ (:wat::kernel::readln )] nil))))
@@ -83,7 +83,7 @@
 ;; parent extracts the field. Proves the send' guard is process/socket-only.
 (:wat::core::defn :w2a::probe-send-struct-thread [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [peer (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<w2a::S,w2a::S>] -> :wat::core::nil
               (:wat::core::match
                 (:wat::kernel::send self

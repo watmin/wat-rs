@@ -6,7 +6,7 @@
 ;; struct was registered AND constructible AND its accessors resolve — stronger than exit-0.
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::LocalPoint
              [x <- :wat::core::i64

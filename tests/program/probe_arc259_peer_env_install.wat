@@ -3,7 +3,7 @@
 
 ;; compute-a: spawn a thread peer that sends its own os-thread-id back.
 (:wat::core::defn :probe::compute-a [] -> :wat::core::i64
-  (:wat::core::let [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+  (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                              (:wat::core::match
                                (:wat::kernel::send self
@@ -25,7 +25,7 @@
 
 ;; compute-b: spawn a thread peer that sends 111 if its peer-kind is :thread, else 222.
 (:wat::core::defn :probe::compute-b [] -> :wat::core::i64
-  (:wat::core::let [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+  (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                              (:wat::core::match
                                (:wat::kernel::send self

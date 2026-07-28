@@ -9,7 +9,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))]
     (:wat::core::match (:wat::kernel::recv p)

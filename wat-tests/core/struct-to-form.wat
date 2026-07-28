@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::core::do

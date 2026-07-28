@@ -4,7 +4,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc  (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc  (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let

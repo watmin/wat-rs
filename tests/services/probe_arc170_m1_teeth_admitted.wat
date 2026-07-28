@@ -30,7 +30,7 @@
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)
      ;; the prober — a SEPARATE process; receives A's addr (down), dials, echoes the reply UP.
-     prober (:wat::kernel::spawn-program (:wat::spawn::process)
+     prober (:wat::test::spawn-peer (:wat::spawn::process)
               (:wat::core::forms
                 ;; the child evals in a FRESH world — it must re-declare the surface it dials
                 ;; (deterministic derivation → wire-identical Op/Reply; arc-054 idempotent).

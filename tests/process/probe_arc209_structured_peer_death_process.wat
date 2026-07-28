@@ -12,7 +12,7 @@
 ;; the .rs asserts they survive recv'.
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
-  (:wat::core::let [peer (:wat::kernel::spawn-program (:wat::spawn::process)
+  (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::process)
                            (:wat::core::forms
                              (:wat::core::defn :user::main [] -> :wat::core::nil
                                (:wat::core::let [n (:wat::kernel::readln )

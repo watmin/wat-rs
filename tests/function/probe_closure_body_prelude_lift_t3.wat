@@ -7,7 +7,7 @@
 ;; than exit-0. Both variants are named (full-enum matching is mandatory; no wildcard arm).
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defenum :h::LocalDir :wat::enum::Pure
              :North

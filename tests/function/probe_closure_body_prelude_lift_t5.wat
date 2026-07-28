@@ -6,7 +6,7 @@
 ;; callable AND returned 7 — stronger than exit-0.
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :h::counted-helper [] -> :wat::core::i64 7)
            (:wat::core::defn :user::main [] -> :wat::core::nil

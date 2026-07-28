@@ -309,6 +309,66 @@
 ;; Thread/join-result); these ride spawn-program' + recv'. The legacy retires in
 ;; S3.5's back-half.
 
+;; ── The capability holders (arc 170 #13) ────────────────────────────────────
+;;
+;; `spawn-program` is restricted to `[:wat::spawn:: :wat::test::]`. The
+;; restriction check attributes a call to its ENCLOSING FN — and for a call
+;; SPLICED BY A MACRO that is the EXPANSION SITE, not the macro. So a macro
+;; that emits `spawn-program` directly would put the privileged call inside
+;; every `:user::` test fn `deftest` generates, and the whole corpus would
+;; (correctly) go red: a macro splicing a privileged call into user code is
+;; capability laundering, and the checker refuses to be laundered.
+;;
+;; So the CALL lives here, in a named `:wat::test::` fn that holds the
+;; capability; the macros below only hand it a program. The peer is a
+;; let-bound local, so its type never reaches the signature.
+(:wat::core::defn :wat::test::spawn-thread-program
+  [prog <- [:wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64> :-> :wat::core::nil]]
+  -> :wat::test::TestResult
+  (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::thread) prog)]
+    (:wat::core::match (:wat::kernel::recv p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        :wat::kernel::RunResult::Passed)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::RunResult::Failed
+          (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))))))
+
+;; ── The peer-returning holders ──────────────────────────────────────────────
+;;
+;; `run-thread`/`run-hermetic` SWALLOW the peer: they spawn, await one
+;; completion signal, and hand back a RunResult. That serves a test whose only
+;; question is "did the child pass?" — but not one that must CONVERSE with what
+;; it spawned (send a request, read a reply, drive a round trip). Before the
+;; wall those tests had nowhere to go, so they hand-rolled `spawn-program`
+;; directly; the harness was one verb short, and the duplication was the
+;; symptom, not the disease.
+;;
+;; These two close that gap: same capability, same namespace, but the PEER is
+;; returned so the caller keeps its own send'/recv'. The locus is a parameter,
+;; so `(thread/init f)`, `(process/env s)`, `(process/max-message-bytes n)` and
+;; friends all reach through unchanged — constructing a locus was never
+;; restricted; only spawning on one is.
+;;
+;; They are deliberately THIN. The wall's purpose is that arbitrary code cannot
+;; reach for a locus ad hoc — not that tests may never spawn. Routing the
+;; sanctioned case through one named, auditable verb in the capability-holding
+;; namespace is the point; the thinness is the design, not an oversight.
+;; ONE verb, dispatching on locus type exactly as `spawn-program` does — so a
+;; corpus site migrates by a pure HEAD rename (`:wat::kernel::spawn-program` ->
+;; `:wat::test::spawn-peer`), same arity, same arguments. That makes the whole
+;; corpus migration a recorded wat-fix codemod rather than a hand-sorted sweep.
+(:wat::core::defclause :wat::test::spawn-peer
+  ([locus <- :wat::spawn::ThreadOpts
+    prog  <- [:wat::kernel::ThreadSelfPeer<S,R> :-> :wat::core::nil]]
+    -> :wat::kernel::Thread<R,S>
+    (:wat::kernel::spawn-program locus prog))
+  ([locus <- :wat::spawn::ProcessOpts
+    prog  <- :wat::core::Vector<wat::WatAST>]
+    -> :wat::kernel::Process<I,O>
+    (:wat::kernel::spawn-program locus prog)))
+
 (:wat::core::defmacro :wat::test::run-thread
   [body <- :wat::WatAST]
   -> :wat::WatAST
@@ -318,28 +378,18 @@
   ;; (a Failure) becomes `RunResult::Failed[failure]`, which the runner matches and reports.
   ;; A passing child sends its pass-marker → Message → `RunResult::Passed`. Value-based end to end: a failing
   ;; test is a VALUE, never a swallowed `_ (recv' p)` (the masking this arc annihilates).
-  `(:wat::core::let
-     [p (:wat::kernel::spawn-program (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-            ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
-            ;; `recv' p` right below (Message/Lost/Closed all become a RunResult); the
-            ;; child's completion-signal send' just needs to proceed regardless.
-            (:wat::core::do ~body
-              (:wat::core::match (:wat::kernel::send self 0)
-                (:wat::kernel::SendOutcome::Sent   nil)
-                (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces a gone self-peer
-                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
-     (:wat::core::match (:wat::kernel::recv p)
-       ((:wat::kernel::RecvOutcome::Message _m)
-         :wat::kernel::RunResult::Passed)
-       ((:wat::kernel::RecvOutcome::Lost cause)
-         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult::Failed
-         ;; carries a Failure, so convert via `LociDiedError/to-failure` (preserves the
-         ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
-         (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
-       (:wat::kernel::RecvOutcome::Closed
-         (:wat::kernel::RunResult::Failed
-           (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))))))
+  ;; The macro no longer emits `spawn-program` — it hands the program to
+  ;; `:wat::test::spawn-thread-program`, which holds the capability (see above).
+  `(:wat::test::spawn-thread-program
+     (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+       ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
+       ;; `recv' p` in the holder fn (Message/Lost/Closed all become a RunResult); the
+       ;; child's completion-signal send' just needs to proceed regardless.
+       (:wat::core::do ~body
+         (:wat::core::match (:wat::kernel::send self 0)
+           (:wat::kernel::SendOutcome::Sent   nil)
+           (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces a gone self-peer
+           ((:wat::kernel::SendOutcome::Lost _c) nil))))))
 
 (:wat::core::defmacro :wat::test::deftest
   [name <- :wat::WatAST
@@ -371,28 +421,34 @@
 ;; STOP-1: keep the FORMS interface (shared with deftest-remote); no process-only
 ;; special-casing.
 
+;; The process-tier capability holder — the sibling of
+;; `:wat::test::spawn-thread-program` above; same reason, same shape.
+(:wat::core::defn :wat::test::spawn-hermetic-program
+  [prog <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::test::TestResult
+  (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::process) prog)]
+    (:wat::core::match (:wat::kernel::recv p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        :wat::kernel::RunResult::Passed)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::RunResult::Failed
+          (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))))))
+
 (:wat::core::defmacro :wat::test::run-hermetic
   [body <- :wat::WatAST]
   -> :wat::WatAST
   ;; arc 278 the recv'-outcome wall reaches the harness (see run-thread' above): recv' RETURNS the
   ;; outcome. A failing child crashes → Lost[cause] → RETURNED as RunResult::Failed (not re-raised, not
   ;; swallowed as `_`). A passing child prints its pass-marker → Message → RunResult::Passed.
-  `(:wat::core::let
-     [p (:wat::kernel::spawn-program (:wat::spawn::process)
-          (:wat::core::forms
-            (:wat::core::defn :user::main [] -> :wat::core::nil
-              (:wat::core::do ~body (:wat::kernel::println 0)))))]
-     (:wat::core::match (:wat::kernel::recv p)
-       ((:wat::kernel::RecvOutcome::Message _m)
-         :wat::kernel::RunResult::Passed)
-       ((:wat::kernel::RecvOutcome::Lost cause)
-         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult::Failed
-         ;; carries a Failure, so convert via `LociDiedError/to-failure` (preserves the
-         ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
-         (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
-       (:wat::kernel::RecvOutcome::Closed
-         (:wat::kernel::RunResult::Failed
-           (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))))))
+  ;; The macro no longer emits `spawn-program` — it hands the forms to
+  ;; `:wat::test::spawn-hermetic-program`, which holds the capability.
+  ;; STOP-1 preserved: the FORMS interface is unchanged (shared with deftest-remote).
+  `(:wat::test::spawn-hermetic-program
+     (:wat::core::forms
+       (:wat::core::defn :user::main [] -> :wat::core::nil
+         (:wat::core::do ~body (:wat::kernel::println 0))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic
   [name <- :wat::WatAST

@@ -68,7 +68,7 @@
      addr (:wat::spawn::Bound/address pair)
      ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<Status,Admin>),
      ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
-     svc  (:wat::kernel::spawn-program (:wat::spawn::thread)
+     svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer<my::Counter::Reply,my::Counter::Op>)

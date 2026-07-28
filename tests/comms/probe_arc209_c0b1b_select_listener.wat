@@ -30,7 +30,7 @@
     [pair (:wat::kernel::listener (:wat::spawn::thread) :user::Op :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
-     svc  (:wat::kernel::spawn-program (:wat::spawn::thread)
+     svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,user::Op>))))
      c1   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

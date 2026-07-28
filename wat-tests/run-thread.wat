@@ -24,13 +24,13 @@
 ;; ─── Ok-path: passing assertion inside run-thread ─────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::std::test::run-thread-ok-path
+(:wat::test::deftest :wat-tests::test::run-thread-ok-path
   
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
   ;; The PASSING assertion lets the self-peer reach its send' → recv' Message → clean run
   ;; (the old RunResult/failure :None). Lost/Closed would mean the pass was misclassified.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2))
@@ -53,14 +53,14 @@
 ;; ─── Err-path: failing assertion inside run-thread ────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::std::test::run-thread-err-path
+(:wat::test::deftest :wat-tests::test::run-thread-err-path
   
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
   ;; The FAILING assertion crashes the self-peer BEFORE its send' → recv' Lost[cause];
   ;; LociDiedError/to-failure rebuilds the Option<Failure> the old RunResult/failure gave
   ;; (:Some), so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2))

@@ -8,7 +8,7 @@
   nil)
 
 (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
-  (:wat::kernel::spawn-program (:wat::spawn::process)
+  (:wat::test::spawn-peer (:wat::spawn::process)
     (:wat::core::forms
       (:wat::core::defn :user::main [] -> :wat::core::nil
         (:my::worker)))))

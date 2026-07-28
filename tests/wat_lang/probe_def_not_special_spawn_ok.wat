@@ -6,7 +6,7 @@
 ;; assertion proves the def registered AND resolved — stronger than exit-0.
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::def :h::local-answer 42)
            (:wat::core::defn :user::main [] -> :wat::core::nil

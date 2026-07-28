@@ -11,7 +11,7 @@
 ;; NEVER swallowed.
 (:wat::core::defn :my::test::two-plus-two [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println (:wat::core::i64::+ 2 2)))))]

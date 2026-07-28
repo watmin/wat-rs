@@ -7,7 +7,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               ;; The forked child runs a FRESH startup (stdlib prelude + these forms only) — it does
               ;; NOT inherit the parent's top-level defs. So the record must be defined HERE too (D1's

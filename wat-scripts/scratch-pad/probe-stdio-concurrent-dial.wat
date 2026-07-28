@@ -99,13 +99,13 @@
     [h    (:probe::counter/start :locus (:wat::spawn::thread) :record (:probe::counter::Record :count 0))
      addr (:probe::counter::Handle/addr h)
      ;; spawn ALL THREE workers first (concurrent), each capturing the shared addr — then join.
-     w1 (:wat::kernel::spawn-program (:wat::spawn::thread)
+     w1 (:wat::test::spawn-peer (:wat::spawn::thread)
           (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:probe::worker-body self addr)))
-     w2 (:wat::kernel::spawn-program (:wat::spawn::thread)
+     w2 (:wat::test::spawn-peer (:wat::spawn::thread)
           (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:probe::worker-body self addr)))
-     w3 (:wat::kernel::spawn-program (:wat::spawn::thread)
+     w3 (:wat::test::spawn-peer (:wat::spawn::thread)
           (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:probe::worker-body self addr)))
      r1 (:probe::join-count w1)

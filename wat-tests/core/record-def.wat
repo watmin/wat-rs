@@ -90,7 +90,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::class-guard-panics-got-class
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; Accessor returns i64; do discards it and returns nil.
            ;; The class guard fires before the nil is reached — that's the point;
@@ -149,7 +149,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::base-to-holon-errors
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; to-holon panics at runtime on base record; do discards result and
            ;; returns nil. The runtime error fires before the nil is reached — the

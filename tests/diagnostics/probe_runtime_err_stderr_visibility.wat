@@ -3,7 +3,7 @@
 ;;
 ;; IPC de-prime (arc 278): migrated off the non-prime `:wat::test::run-hermetic`
 ;; (fork + OS-pipe scrape → :wat::kernel::RunResult{stdout,stderr,failure}) onto the
-;; PRIMED peer wire — a direct `(:wat::kernel::spawn-program' (:wat::spawn::process)
+;; PRIMED peer wire — a direct `(:wat::test::spawn-peer (:wat::spawn::process)
 ;; (:wat::core::forms …))` child + `(:wat::kernel::recv' p)`. `RunResult` is GONE.
 ;;
 ;; ORIGINAL PURPOSE (now obsolete — see the .rs header): this probe surfaced
@@ -18,7 +18,7 @@
 ;; the assertion message rides Panic.message. We return it as a plain String.
 (:wat::core::defn :probe::structured [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::test::assert-eq "intentional" "different"))))]

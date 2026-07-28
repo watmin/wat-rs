@@ -43,7 +43,7 @@
      ea  (:probe::echo::Handle/addr eh)
      ;; the TWO-PHASE prober — a SEPARATE process; dials once (admitted), reports UP, blocks for
      ;; a re-dial signal, then dials again (which after revoke is refused → EOF → RAISE → die).
-     prober (:wat::kernel::spawn-program (:wat::spawn::process)
+     prober (:wat::test::spawn-peer (:wat::spawn::process)
               (:wat::core::forms
                 ;; the child evals in a FRESH world — it must re-declare the surface it dials.
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer

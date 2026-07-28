@@ -4,7 +4,7 @@
 ;; execution semantics through the retired non-prime `:wat::test::run-hermetic`
 ;; capture model (fork + OS-pipe scrape → :wat::kernel::RunResult stdout/stderr/
 ;; failure). They are migrated onto the PRIMED peer wire — a direct
-;; `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms …))`
+;; `(:wat::test::spawn-peer (:wat::spawn::process) (:wat::core::forms …))`
 ;; child + `(:wat::kernel::recv' p)` — and `RunResult` is GONE from this file.
 ;; Each hermetic semantic is re-expressed against the primed `RecvOutcome`:
 ;;
@@ -30,7 +30,7 @@
 ;; No message, clean nil-return → recv' → Closed.
 (:wat::core::defn :my::compute-noop [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
@@ -42,7 +42,7 @@
 ;; `(println "hello")` → recv' → Message[m], m the native String "hello".
 (:wat::core::defn :my::compute-single-line [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
@@ -60,7 +60,7 @@
 ;; Returns [msg1 msg2 death-message].
 (:wat::core::defn :my::compute-stdout-stderr [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
@@ -97,7 +97,7 @@
 ;; arc-170 rearchitecture).
 (:wat::core::defn :my::compute-parse-error [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::raise! (:wat::core::Fault/of "inner-failure")))))]
@@ -122,7 +122,7 @@
 ;; Returns a tag naming the variant that actually surfaced (so a RED reveals it).
 (:wat::core::defn :my::compute-missing-main [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :my::not-a-main [] -> :wat::core::nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
@@ -144,7 +144,7 @@
 ;; Returns [partial-message panic-message].
 (:wat::core::defn :my::compute-panic-partial [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
@@ -170,7 +170,7 @@
 ;; (The Ok arm — `(println "ok")` — never runs.)
 (:wat::core::defn :my::compute-scope-inside [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
@@ -189,7 +189,7 @@
 ;; recv' → Lost[Panic] whose message is the eprintln value's EDN "\"blocked\"".
 (:wat::core::defn :my::compute-scope-outside [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match

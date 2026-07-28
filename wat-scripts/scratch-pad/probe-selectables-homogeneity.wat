@@ -77,7 +77,7 @@
     [pair (:wat::kernel::listener (:wat::spawn::thread) :probe-homog::Op :probe-homog::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
-     _svc (:wat::kernel::spawn-program (:wat::spawn::thread)
+     _svc (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::nil,wat::core::nil>]
               -> :wat::core::nil
               (:wat::core::let
@@ -100,7 +100,7 @@
 ;; parent recv's the address off the spawn handle, then dials it.
 (:wat::core::defn :probe-homog::process-mix [] -> :probe-homog::Reply
   (:wat::core::let
-    [svc  (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc  (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               ;; the shared Op/Reply must be re-declared in the forked child universe (a process
               ;; fork is a separate address space; the real defservice ships these via the surface

@@ -62,7 +62,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::none-panics-with-message
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; Option/expect on :None panics; the crash reaches the parent's recv'
            ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.

@@ -7,7 +7,7 @@
 ;; so a single value proves every declaration registered in order — stronger than exit-0.
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::LocalItem
              [value <- :wat::core::i64])

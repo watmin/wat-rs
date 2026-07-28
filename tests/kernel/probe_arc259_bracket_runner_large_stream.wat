@@ -18,7 +18,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
    (:wat::core::let
-     [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+     [peer (:wat::test::spawn-peer (:wat::spawn::thread)
                      (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                        (:wat::bracket::runner-loop self
                          (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))))]

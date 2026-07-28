@@ -4,7 +4,7 @@
 ;; Get a real Thread' from spawn-program' (thread tier) and pass it through the :Spawned bound.
 (:wat::core::defn :user::go [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [svc (:wat::test::spawn-peer (:wat::spawn::thread)
            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
              nil))]
     (:user::take-spawned svc)))

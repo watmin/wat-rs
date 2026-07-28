@@ -28,7 +28,7 @@
   (:wat::core::let
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea   (:probe::echo::Handle/addr eh)
-     worker (:wat::kernel::spawn-program (:wat::spawn::process)
+     worker (:wat::test::spawn-peer (:wat::spawn::process)
               (:wat::core::forms
                 ;; child fresh world — re-declare the surface + the union it dials/receives
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer

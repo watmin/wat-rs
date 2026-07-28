@@ -1,6 +1,6 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
              ;; ── the service loop (named recursion) — poll' multiplexes the self-peer
              ;; (owner link → :Shutdown), the socket listener (new connections), and the

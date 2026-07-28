@@ -2,7 +2,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [wf (:wat::kernel::fn-forms :my::adder :probe::work)
-     w  (:wat::kernel::spawn-program (:wat::spawn::process)
+     w  (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::concat wf
             (:wat::core::forms
               (:wat::core::defn :probe::runner [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil

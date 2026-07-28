@@ -19,7 +19,7 @@
 ;; .rs asserts (it must NAME the cap reason, not collapse to the reasonless peer-closed mute).
 (:wat::core::defn :user::over-budget-recv [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process/max-message-bytes 256)
+    [p (:wat::test::spawn-peer (:wat::spawn::process/max-message-bytes 256)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println

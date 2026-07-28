@@ -21,7 +21,7 @@
   
   (:wat::test::assert-eq
     (:wat::core::let
-      [p (:wat::kernel::spawn-program (:wat::spawn::process)
+      [p (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::kernel::pprintln {:alpha 1 :beta 2 :gamma 3 :delta 4 :epsilon 5}))))]

@@ -18,7 +18,7 @@
 (:wat::core::defn :my::failure-error-is-structured [] -> :wat::core::Option<wat::core::String>
   (:wat::core::let
     [p
-      (:wat::kernel::spawn-program (:wat::spawn::process)
+      (:wat::test::spawn-peer (:wat::spawn::process)
         (:wat::core::forms
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::kernel::raise! (:wat::core::Fault/of "structured-error-data")))))]

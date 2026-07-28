@@ -38,7 +38,7 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-string
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
@@ -58,7 +58,7 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-i64
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println 42))))]
@@ -85,7 +85,7 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-eprintln-string
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::eprintln "err"))))]
@@ -110,7 +110,7 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-twice
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::do
@@ -135,7 +135,7 @@
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-readln-echo
 
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let

@@ -25,7 +25,7 @@
                (:wat::kernel::assertion-failed! "accept': listener closed before the hook channel was accepted" :wat::core::None :wat::core::None))
              ((:wat::kernel::AcceptOutcome::Failed _c)
                (:wat::kernel::assertion-failed! "accept': failed accepting the hook channel" :wat::core::None :wat::core::None)))
-     _proc (:wat::kernel::spawn-program
+     _proc (:wat::test::spawn-peer
              (:wat::spawn::process/post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx (:wat::spawn::ProcessLaunch/pid launch)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]

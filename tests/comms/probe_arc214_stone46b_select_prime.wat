@@ -4,7 +4,7 @@
 ;; Two thread echo peers; send 7 to peer B ONLY; select' [a b] must return ServiceEvent::Message{idx=1, msg=7}.
 
 (:wat::core::defn :user::mk [] -> :wat::kernel::Thread<wat::core::i64,wat::core::i64>
-  (:wat::kernel::spawn-program (:wat::spawn::thread)
+  (:wat::test::spawn-peer (:wat::spawn::thread)
     (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
       (:wat::core::match
         (:wat::kernel::send self

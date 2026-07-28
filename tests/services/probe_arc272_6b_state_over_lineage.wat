@@ -2,7 +2,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
              ;; the child runs a FRESH startup (stdlib + these forms only) — the record must be
              ;; defined here too so the crossed Counter reconstructs in the child universe.

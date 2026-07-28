@@ -18,7 +18,7 @@
 ;; its Peer' self-handle. The gate must not fire — Thread' is in-locus.
 (:wat::core::defn :w2c_ctrl::probe-send-struct-thread [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [peer (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
               (:wat::core::match
                 (:wat::kernel::send self
@@ -47,7 +47,7 @@
 ;; Records are wire-serializable; the gate must not fire.
 (:wat::core::defn :w2c_ctrl::probe-send-record-to-process [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]

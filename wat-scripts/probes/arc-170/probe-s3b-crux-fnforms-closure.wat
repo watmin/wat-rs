@@ -41,7 +41,7 @@
      wf (:wat::core::fn [pair <- :(wat::core::i64,wat::core::i64)] -> :(wat::core::i64,wat::core::i64)
           (:wat::core::Tuple (:wat::core::first pair)
                              (work-fn (:wat::core::second pair))))
-     w (:wat::kernel::spawn-program (:wat::spawn::process)
+     w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat
            (:wat::kernel::fn-forms wf :bracket::__pool-work)     ;; reify wf + its captured work-fn
            (:wat::core::forms

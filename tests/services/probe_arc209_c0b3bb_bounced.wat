@@ -4,7 +4,7 @@
 ;; getppid() = the owner), then poll'-serve echo n+100.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc  (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc  (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
              (:wat::core::defn :user::serve
                [self    <- :wat::kernel::Peer<wat::kernel::Address<wat::core::i64,wat::core::i64>,wat::core::i64>

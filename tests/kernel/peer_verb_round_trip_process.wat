@@ -3,7 +3,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program (:wat::spawn::process)
+    [peer (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let

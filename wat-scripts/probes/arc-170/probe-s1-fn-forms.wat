@@ -15,7 +15,7 @@
      work-forms (:wat::kernel::fn-forms work :probe::work)
      ;; assemble the child program: the reified work FIRST (so :probe::work resolves), then the
      ;; runner + child-main that reference it.
-     w (:wat::kernel::spawn-program (:wat::spawn::process)
+     w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat
            work-forms
            (:wat::core::forms

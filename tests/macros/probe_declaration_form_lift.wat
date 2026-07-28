@@ -17,7 +17,7 @@
 ;; proves the defmacro registered AND expanded, not merely that the child survived.
 (:wat::core::defn :my::launch-defmacro [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defmacro :h::id-macro [x <- :wat::WatAST] -> :wat::WatAST `~x)
            (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -34,7 +34,7 @@
 ;; so the asserted 100 proves the newtype registered AND constructs AND its accessor resolves.
 (:wat::core::defn :my::launch-newtype [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::newtype :h::LocalAmount :wat::core::i64)
            (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -54,7 +54,7 @@
 ;; the asserted 7 proves both the typealias and the fn declared against it registered.
 (:wat::core::defn :my::launch-typealias [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::typealias :h::LocalCount :wat::core::i64)
            (:wat::core::defn :h::get-count [] -> :h::LocalCount 7)
@@ -76,7 +76,7 @@
 ;; expansion — so a single asserted number proves all of them registered, in order.
 (:wat::core::defn :my::launch-mixed [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::MixPoint
              [x <- :wat::core::i64

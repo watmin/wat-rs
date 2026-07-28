@@ -25,7 +25,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [w (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [w (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,wat::core::i64),probe::PoolMsg<wat::core::nil,wat::core::i64>>] -> :wat::core::nil
            (:probe::serve sp)))
      _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg::Work (:wat::core::Tuple 0 3))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))

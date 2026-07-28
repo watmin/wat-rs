@@ -13,7 +13,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [w (:wat::kernel::spawn-program (:wat::spawn::process)
+    [w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            ;; the work-fn, shipped as SOURCE (crosses the fork like a defservice :impl)
            (:wat::core::defn :probe::dbl [x <- :wat::core::i64] -> :wat::core::i64

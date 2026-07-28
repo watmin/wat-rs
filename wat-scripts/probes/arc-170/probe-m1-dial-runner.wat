@@ -23,7 +23,7 @@
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea   (:probe::echo::Handle/addr eh)
      eab  (:wat::core::ann-form ea :wat::kernel::Address)       ;; erase concrete -> bare
-     worker (:wat::kernel::spawn-program (:wat::spawn::process)
+     worker (:wat::test::spawn-peer (:wat::spawn::process)
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages

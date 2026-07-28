@@ -3,7 +3,7 @@
 ;; The thread prog drives its OWN pipes-only self-peer: recv the parent's 42, echo it back.
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+  (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                              (:wat::core::match
                                (:wat::kernel::send self

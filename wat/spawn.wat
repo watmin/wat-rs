@@ -260,6 +260,24 @@
 ;; A new locus type (e.g. RemoteOpts when its door is finally specified)
 ;; arrives as one new key + one new clause here; the 2-arg sig is unmoved.
 (:wat::core::defclause :wat::kernel::spawn-program
+  ;; ── The IPC wall (arc 170 #13) ───────────────────────────────────────────
+  ;; Spawning a locus is a CAPABILITY, not a verb anyone may reach for. The
+  ;; whitelist is the two namespaces that legitimately hold it:
+  ;;   :wat::spawn:: — the Locus surface impls (extend-type ThreadOpts/ProcessOpts
+  ;;                   :wat::spawn::Locus; their method FQDNs are
+  ;;                   `:wat::spawn::<T>/<method>`, so the prefix matches even for
+  ;;                   the impls that live in wat/bracket.wat)
+  ;;   :wat::test::  — the harness capability holders (spawn-thread-program /
+  ;;                   spawn-hermetic-program in wat/test.wat)
+  ;; NOT :wat::kernel:: — that is where spawn-program is DEFINED, not called from.
+  ;; The tier primitives below it (spawn-thread / spawn-process) are separately
+  ;; walled in Rust via #[restricted_to] + the inventory drain.
+  ;;
+  ;; The check attributes a call to its ENCLOSING FN, and for a macro-spliced
+  ;; call that is the EXPANSION SITE — so a macro may not emit this call into
+  ;; user code (capability laundering); it must route through a named fn inside
+  ;; the whitelist. wat/test.wat's run-thread/run-hermetic do exactly that.
+  {:restricted-to [:wat::spawn:: :wat::test::]}
   ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
   ;; The locus's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
   ;; The locus's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side

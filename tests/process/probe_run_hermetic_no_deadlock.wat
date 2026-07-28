@@ -2,7 +2,7 @@
 ;;
 ;; Arc 278 IPC de-prime (MAP unit). A no-deadlock regression: historically drove
 ;; the non-prime `:wat::test::run-hermetic` + `run-hermetic-driver` drain-then-join
-;; restructure. Migrated onto the PRIMED peer wire — `(:wat::kernel::spawn-program'
+;; restructure. Migrated onto the PRIMED peer wire — `(:wat::test::spawn-peer
 ;; (:wat::spawn::process) (:wat::core::forms …))` child + `(:wat::kernel::recv' p)`.
 ;; The point is preserved: the primed wire ALSO does not deadlock — the parent's
 ;; `recv'` COMPLETES (rather than hanging) for both a clean child and a dying one.
@@ -16,7 +16,7 @@
 ;; (Mirrors the old failure=None clean-exit read; completing = no hang.)
 (:wat::core::defn :probe::test::clean-exit [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
@@ -30,7 +30,7 @@
 ;; failure=Some[non-empty message] read.)
 (:wat::core::defn :probe::test::intentional-panic [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::assertion-failed!

@@ -4,7 +4,7 @@
 ;; `:wat::test::run-hermetic` capture model (fork + OS-pipe stdout scrape →
 ;; :wat::kernel::RunResult), reading the child's `println` back out of
 ;; RunResult/stdout as the EDN-quoted line "\"hello-from-probe\"". Migrated onto
-;; the PRIMED peer wire — a direct `(:wat::kernel::spawn-program'
+;; the PRIMED peer wire — a direct `(:wat::test::spawn-peer
 ;; (:wat::spawn::process) (:wat::core::forms …))` child + `(:wat::kernel::recv' p)`.
 ;; On the wire the child's printed value crosses DECODED: `(println "hello-from-probe")`
 ;; arrives as RecvOutcome::Message["hello-from-probe"] (native String), NOT the
@@ -13,7 +13,7 @@
 
 (:wat::core::defn :probe::ast::capture-stdout [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello-from-probe"))))]

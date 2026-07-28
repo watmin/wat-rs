@@ -223,7 +223,7 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; Body must return nil; do discards the i64 result, then returns nil.
            ;; Division panics before nil is reached, which is the whole point — the
@@ -259,7 +259,7 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-add-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ 1 2.0)] x))))]
@@ -283,7 +283,7 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::string-add-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ "a" "b")] x))))]
@@ -310,7 +310,7 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::< 1 2.5)] b))))]
@@ -334,7 +334,7 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::-)] x))))]
@@ -353,7 +353,7 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::/)] x))))]

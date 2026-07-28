@@ -76,6 +76,6 @@
                    (:probe::__runner
                      (:wat::program::self-peer ~sp1-node ~sp2-node)))
      runner-forms (:wat::core::Vector :wat::WatAST runner-def main-def)
-     w (:wat::kernel::spawn-program (:wat::spawn::process)
+     w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat forms runner-forms))]
     (:probe::drain w)))

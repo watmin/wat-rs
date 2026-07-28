@@ -84,7 +84,7 @@
     [pair (:wat::kernel::listener (:wat::spawn::thread) :probe-retag::Surface::Op :probe-retag::Surface::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
-     _svc (:wat::kernel::spawn-program (:wat::spawn::thread)
+     _svc (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::nil,wat::core::nil>]
               -> :wat::core::nil
               (:wat::core::let
@@ -106,7 +106,7 @@
 ;; manifest + synthesizes Svc::Op) and sends its Address' UP the lineage self-peer. ────────────────
 (:wat::core::defn :probe-retag::process-mix [] -> :probe-retag::Surface::Reply
   (:wat::core::let
-    [svc  (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc  (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defenum :probe-retag::Surface::Op :wat::enum::Pure
                 :Ping [])

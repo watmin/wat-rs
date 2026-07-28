@@ -15,7 +15,7 @@
 
 (:wat::core::defn :my::compute-prints-hello [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
@@ -28,7 +28,7 @@
 
 (:wat::core::defn :my::compute-assertion-failure [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
            ;; The child body (assert-eq 1 2) is unchanged; a failing assertion
            ;; crashes the peer BEFORE the completion-signal send' — the parent's

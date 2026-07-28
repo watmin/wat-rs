@@ -25,7 +25,7 @@
 (:wat::core::defn :my::compute_t1 [] -> :wat::core::i64
   (:wat::core::let
               [peer
-                (:wat::kernel::spawn-program (:wat::spawn::thread) :app::increment)
+                (:wat::test::spawn-peer (:wat::spawn::thread) :app::increment)
                _ack
                 (:wat::core::match (:wat::kernel::send peer 41)
                   (:wat::kernel::SendOutcome::Sent nil)
@@ -44,7 +44,7 @@
 (:wat::core::defn :my::compute_t2 [] -> :wat::core::i64
   (:wat::core::let
               [peer
-                (:wat::kernel::spawn-program (:wat::spawn::thread)
+                (:wat::test::spawn-peer (:wat::spawn::thread)
                   (:wat::core::fn
                     [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
                      -> :wat::core::nil
@@ -97,7 +97,7 @@
                       (:wat::kernel::SendOutcome::Closed nil)
                       ((:wat::kernel::SendOutcome::Lost _c) nil))))
                peer
-                (:wat::kernel::spawn-program (:wat::spawn::thread) body)
+                (:wat::test::spawn-peer (:wat::spawn::thread) body)
                _ack
                 (:wat::core::match (:wat::kernel::send peer 23)
                   (:wat::kernel::SendOutcome::Sent nil)

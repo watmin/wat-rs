@@ -110,7 +110,7 @@
 (:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
   
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::= 1 1.5)] b))))]

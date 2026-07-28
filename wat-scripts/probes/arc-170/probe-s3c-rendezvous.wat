@@ -45,7 +45,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
-     w (:wat::kernel::spawn-program (:wat::spawn::process)
+     w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat
            ;; the user's work-fn, reified to the RENDEZVOUS coordinate (non-reserved, clean name)
            (:wat::kernel::fn-forms work :user::bracket::work-fn)

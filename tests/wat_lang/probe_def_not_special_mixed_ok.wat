@@ -8,7 +8,7 @@
 ;; + 7 (typealias-returning fn, through the macro) = 129.
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::def :h::def-answer 99)
            (:wat::core::defstruct :h::MixPoint8

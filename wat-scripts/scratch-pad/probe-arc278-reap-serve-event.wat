@@ -64,7 +64,7 @@
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)
-     svc  (:wat::kernel::spawn-program (:wat::spawn::thread)
+     svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
               -> :wat::core::nil
               (:se/serve self l (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>))))

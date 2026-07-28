@@ -11,7 +11,7 @@
 ;; Exemplar: wat_arc170_program_contracts_t5_launch_lambda.wat (same shape, minus the send').
 (:wat::core::defn :my::launch [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :h::helper [] -> :wat::core::i64 42)
            (:wat::core::defn :user::main [] -> :wat::core::nil

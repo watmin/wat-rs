@@ -4,7 +4,7 @@
 ;;
 ;; IPC de-prime (arc 278): the sandboxed-raise leg was migrated off the non-prime
 ;; `:wat::test::run-thread` (spawn-thread + Thread/join-result → :wat::kernel::RunResult)
-;; onto the PRIMED peer wire — a direct `(:wat::kernel::spawn-program' (:wat::spawn::process)
+;; onto the PRIMED peer wire — a direct `(:wat::test::spawn-peer (:wat::spawn::process)
 ;; (:wat::core::forms …))` child + `(:wat::kernel::recv' p)`. `RunResult` is GONE.
 ;; NOTE: the retired harness here was run-THREAD, not run-hermetic; the primed replacement
 ;; is the :process tier (per the migration template + the sibling diagnostics). "The raise
@@ -25,7 +25,7 @@
     [;; (c) Fault/of satisfies :wat::core::Error structurally.
      msg  (:probe::accept-error (:wat::core::Fault/of "boom"))
      ;; (b) A child that raises is caught over the primed wire as Lost[Panic].
-     p    (:wat::kernel::spawn-program (:wat::spawn::process)
+     p    (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::kernel::raise! (:wat::core::Fault/of "boom")))))

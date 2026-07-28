@@ -13,7 +13,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [w (:wat::kernel::spawn-program (:wat::spawn::process)
+    [w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            ;; NOTE: :probe::dbl is NOT redefined here — the child references it BY NAME.
            (:wat::core::defn :probe::runner

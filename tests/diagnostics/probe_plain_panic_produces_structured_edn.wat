@@ -3,7 +3,7 @@
 ;;
 ;; IPC de-prime (arc 278): migrated off the non-prime `:wat::test::run-hermetic`
 ;; (fork + OS-pipe scrape → :wat::kernel::RunResult) onto the PRIMED peer wire — a
-;; direct `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms …))`
+;; direct `(:wat::test::spawn-peer (:wat::spawn::process) (:wat::core::forms …))`
 ;; child + `(:wat::kernel::recv' p)`. `RunResult` is GONE from this file.
 ;;
 ;; Body: dim_count=1 → budget=floor(sqrt(1))=1; a Bundle with 2 atoms exceeds capacity
@@ -18,7 +18,7 @@
 ;; run-hermetic provided is preserved by spawn-program' :process.
 (:wat::core::defn :probe::plain-panic [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            ;; Config setters are load-time DIRECTIVES collected by the child's
            ;; entry-file pass — they MUST sit at the top level of the forms,

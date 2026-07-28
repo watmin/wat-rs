@@ -20,7 +20,7 @@
 (:wat::core::defn :my::test::recv-assert-fail []
   -> :wat::core::Result<wat::core::Vector<wat::core::i64>,wat::kernel::LociDiedError>
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let

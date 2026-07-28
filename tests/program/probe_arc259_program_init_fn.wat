@@ -7,7 +7,7 @@
 ;; peer reads user.program's port and sends it back.
 (:wat::core::defn :probe::compute-init [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program
+    [peer (:wat::test::spawn-peer
             (:wat::spawn::thread/init
               (:wat::core::fn [] -> :wat::core::Record (:user::MyEnv :port 8080)))
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
@@ -32,7 +32,7 @@
 ;; `Failure/message` (the init-fn's crash reason) as a VALUE the .rs asserts.
 (:wat::core::defn :probe::compute-error-init [] -> :wat::core::String
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program
+    [peer (:wat::test::spawn-peer
             (:wat::spawn::thread/init
               (:wat::core::fn [] -> :wat::core::Record
                 (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv))))
@@ -54,7 +54,7 @@
 ;; peer sends 1 if conforms?, else 0.
 (:wat::core::defn :probe::compute-default [] -> :wat::core::i64
   (:wat::core::let
-    [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
+    [peer (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::core::match
                 (:wat::kernel::send self

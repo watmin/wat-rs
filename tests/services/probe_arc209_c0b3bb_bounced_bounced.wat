@@ -10,7 +10,7 @@
 
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
-    [svc     (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc     (:wat::test::spawn-peer (:wat::spawn::process)
                (:wat::core::forms
                 (:wat::core::defn :user::serve
                   [self    <- :wat::kernel::Peer<wat::kernel::Address<wat::core::i64,wat::core::i64>,wat::core::i64>
@@ -49,7 +49,7 @@
      ;; A SEPARATE process child — its pid ≠ the owner's → NOT in the birth-seeded allow-set.
      ;; The owner hands the (leaked) service address DOWN to the stranger via its lineage channel.
      ;; stranger self-peer: S=i64 (would send up — never does), R=Address'<i64,i64> (receives cap).
-     stranger (:wat::kernel::spawn-program (:wat::spawn::process)
+     stranger (:wat::test::spawn-peer (:wat::spawn::process)
                 (:wat::core::forms
                   (:wat::core::defn :user::main [] -> :wat::core::nil
                     (:wat::core::let

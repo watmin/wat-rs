@@ -29,7 +29,7 @@
 ;; RunResult/stdout captured), so it is "hello-from-inside" without the outer quotes.
 (:wat::core::defn :t::test4-run-sandboxed [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello-from-inside"))))]
@@ -52,7 +52,7 @@
 ;; the parent recv's it as a decoded String Message ("hi", no EDN quotes).
 (:wat::core::defn :t::test6-run-ast-hello [] -> :wat::core::String
   (:wat::core::let
-    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hi"))))]

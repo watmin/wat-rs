@@ -23,7 +23,7 @@
 (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
     [p
-      (:wat::kernel::spawn-program (:wat::spawn::process)
+      (:wat::test::spawn-peer (:wat::spawn::process)
         (:wat::core::forms
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::test::assert-eq 1 2))))]

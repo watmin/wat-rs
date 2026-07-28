@@ -45,7 +45,7 @@
   (:wat::core::let
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::keyword :wat::core::nil)
      l    (:wat::spawn::Bound/listener pair)
-     svc  (:wat::kernel::spawn-program (:wat::spawn::thread)
+     svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::keyword,wat::core::nil>]
               -> :wat::core::nil
               (:wat::core::let
@@ -62,7 +62,7 @@
 ;; Same shape, forked child universe: listener' + self-peer + timer all built in the child.
 (:wat::core::defn :probe::process-timer-in-poll [] -> :wat::core::keyword
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program (:wat::spawn::process)
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
              (:wat::core::defn :probe::serve-proc
                [self  <- :wat::kernel::Peer<wat::core::keyword,wat::core::nil>

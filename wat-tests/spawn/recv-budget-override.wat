@@ -26,7 +26,7 @@
 (:wat::test::deftest :wat-tests::recv-budget::tiny-budget-rejects-oversized-message
   
   (:wat::core::let
-    [child (:wat::kernel::spawn-program (:wat::spawn::process/max-message-bytes 64)
+    [child (:wat::test::spawn-peer (:wat::spawn::process/max-message-bytes 64)
              (:wat::core::forms
                ;; double "x" 8× → 2^8 = 256-char String; println'd it is a
                ;; COMPLETE ('\n'-terminated) frame of ~258 bytes on the wire.

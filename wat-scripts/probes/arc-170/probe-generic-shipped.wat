@@ -16,7 +16,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
-     w (:wat::kernel::spawn-program (:wat::spawn::process)
+     w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat
            (:wat::kernel::fn-forms work :bracket::__work)
            (:wat::core::forms

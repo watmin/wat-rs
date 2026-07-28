@@ -3,14 +3,14 @@
 
 (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64>
   (:wat::core::let
-    [a (:wat::kernel::spawn-program (:wat::spawn::process)
+    [a (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::forms
             (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::let
                 [n (:wat::kernel::readln )
                  _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                 nil))))
-     b (:wat::kernel::spawn-program (:wat::spawn::process)
+     b (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::forms
             (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::let
