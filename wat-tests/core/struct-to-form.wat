@@ -26,7 +26,7 @@
                  [p (:my::Pair :a 7 :b 9)
                   form (:wat::core::struct->form p)
                   _roundtrip (:wat::eval-ast! form)]
-                 ()))
+                 nil))
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
@@ -60,4 +60,4 @@
     ;; so a clean RunResult IS the assertion. No further structural
     ;; inspection is available (show renders "<WatAST>" for all WatAST
     ;; values; eval-ast! would fail because :my::Foo is not declared).
-    (:wat::core::do form ())))
+    (:wat::core::do form nil)))

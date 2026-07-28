@@ -4,4 +4,4 @@
 ;; the fixture's claim is about the Battery PLUMBING (does the tuple's
 ;; wat_sources() fn get called, and does its content survive the round
 ;; trip), not about what the wat itself does.
-(:wat::core::defn :synthetic::alpha-noop [] -> :wat::core::nil ())
+(:wat::core::defn :synthetic::alpha-noop [] -> :wat::core::nil nil)

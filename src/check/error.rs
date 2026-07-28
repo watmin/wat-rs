@@ -157,6 +157,17 @@ pub enum CheckErrorKind {
     /// struct-less unit variant's hand-written pair list.
     #[to_edn(literal(primitive = ":()", fqdn = ":wat::core::nil"))]
     BareLegacyUnitType,
+    /// Arc 179 — bare `()` empty-list literal in VALUE position retired.
+    ///
+    /// Mirrors `BareLegacyUnitType` (the type-position sibling, arc 109
+    /// slice 1d) but at the value layer: `nil` is the sole unit value,
+    /// so an empty list literal used as an expression is no longer a
+    /// second spelling of it. `()` survives ONLY as empty-parameter-list
+    /// SYNTAX (`Fn()->T`, `(() -> T)`), which never reaches this arm —
+    /// the expression checker distinguishes value position from
+    /// parameter-list syntax structurally, not textually.
+    #[to_edn(literal(retired = "()", fqdn = ":wat::core::nil"))]
+    BareLegacyUnitValue,
     /// Arc 153 — `:wat::core::unit` retired in favor of `:wat::core::nil`.
     #[to_edn(literal(retired = ":wat::core::unit", fqdn = ":wat::core::nil"))]
     BareLegacyUnitName,
@@ -453,6 +464,16 @@ impl CheckErrorKind {
                 write!(
                     f,
                     " is retired (arc 109 slice 1d); canonical FQDN form is ':wat::core::nil' (arc 153 renamed unit -> nil). Substrate-provided primitives live under :wat::core::* (see arc 109 § A). The empty-tuple LITERAL VALUE `()` is unaffected; only the type-position spelling renames. Rename ':()' -> ':wat::core::nil' (or '()' -> 'wat::core::nil' inside parametrics) at the offending site."
+                )
+            }
+            CheckErrorKind::BareLegacyUnitValue => {
+                write!(f, "bare unit value '()'")?;
+                if let Some(s) = shown {
+                    write!(f, " at {}", s)?;
+                }
+                write!(
+                    f,
+                    " is retired (arc 179); `nil` is the sole unit value. An empty list literal `()` in expression position is no longer a second spelling of unit. `()` survives ONLY as empty-parameter-list syntax (e.g. ':wat::core::Fn()->T', '(() -> T)'), which is a distinct grammatical position from a value expression and is unaffected by this error. Rename '()' -> 'nil' at the offending site."
                 )
             }
             CheckErrorKind::BareLegacyUnitName => {

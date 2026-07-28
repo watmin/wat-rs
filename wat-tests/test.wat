@@ -158,7 +158,7 @@
                 (:wat::test::assert-contains a "sigma")
                 (:wat::test::assert-contains
                             a "min-sigma-to-pass")
-                ()))
+                nil))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "actual slot empty — explanation should populate it"
                      :wat::core::None :wat::core::None)))))
@@ -173,7 +173,7 @@
   ;; arc 278 IPC de-prime: run-hermetic → primed peer wire (spawn-program' :process + recv').
   ;; On the wire each printed value crosses DECODED (native String "alpha"/"beta"), not a
   ;; scraped EDN stdout line ("\"alpha\""); the old assert-stdout-is over captured lines
-  ;; becomes assert-eq over the two received Messages. The trailing () returns nil → Closed.
+  ;; becomes assert-eq over the two received Messages. The trailing nil returns nil → Closed.
   (:wat::core::let
     [p (:wat::kernel::spawn-program (:wat::spawn::process)
          (:wat::core::forms
@@ -181,7 +181,7 @@
              (:wat::core::do
                (:wat::kernel::println "alpha")
                (:wat::kernel::println "beta")
-               ()))))
+               nil))))
      m1 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)

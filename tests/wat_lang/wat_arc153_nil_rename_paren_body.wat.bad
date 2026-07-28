@@ -1,0 +1,9 @@
+;; tests/wat_lang/wat_arc153_nil_rename_paren_body.wat.bad — arc 179 NEGATIVE fixture.
+;;
+;; Arc 153 minted `probe-nil-paren` to prove a `()` body unifies with a
+;; `-> :wat::core::nil` signature (the empty-list literal WAS a second spelling of
+;; the unit value). Arc 179 retires that claim: `nil` is the sole unit value; `()`
+;; in value position is now a located check error (BareLegacyUnitValue). This file
+;; is the INVERTED regression gate for that original claim — see
+;; tests/wat_lang/wat_arc153_nil_rename.rs::mixed_empty_list_body_with_nil_sig_now_rejected.
+(:wat::core::defn :t::probe-nil-paren [] -> :wat::core::nil ())

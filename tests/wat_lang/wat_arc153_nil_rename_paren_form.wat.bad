@@ -1,0 +1,9 @@
+;; tests/wat_lang/wat_arc153_nil_rename_paren_form.wat.bad — arc 179 NEGATIVE fixture.
+;;
+;; Arc 153 minted `nil-form-paren` alongside `nil-form-nil` to prove `()` at value
+;; position type-checks and evaluates to the same singleton as `nil` (parity between
+;; the two spellings). Arc 179 retires that parity: `nil` is the sole unit value; `()`
+;; in value position is now a located check error (BareLegacyUnitValue). This file is
+;; the INVERTED regression gate for that original claim — see
+;; tests/wat_lang/wat_arc153_nil_rename.rs::value_position_empty_list_now_rejected.
+(:wat::core::defn :t::nil-form-paren [] -> :wat::core::nil ())

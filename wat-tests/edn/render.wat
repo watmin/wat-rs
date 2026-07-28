@@ -26,9 +26,13 @@
     (:wat::test::assert-eq s "\"hello\"")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-unit
-  
+
+  ;; Arc 179: `()` retired as a value spelling — `nil` is the sole unit
+  ;; value. Re-pointed from `(:wat::edn::write ())` to `(:wat::edn::write nil)`;
+  ;; the coverage (the unit value renders as EDN `nil`) is unchanged, only
+  ;; the retired spelling used to construct that value is.
   (:wat::core::let
-    [s (:wat::edn::write ())]
+    [s (:wat::edn::write nil)]
     (:wat::test::assert-eq s "nil")))
 
 ;; ─── Vec ─────────────────────────────────────────────────────────

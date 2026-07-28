@@ -1,0 +1,24 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/BareLegacyUnitValue {
+      :message "bare unit value '()' is retired (arc 179); `nil` is the sole unit value. An empty list literal `()` in expression position is no longer a second spelling of unit. `()` survives ONLY as empty-parameter-list syntax (e.g. ':wat::core::Fn()->T', '(() -> T)'), which is a distinct grammatical position from a value expression and is unaffected by this error. Rename '()' -> 'nil' at the offending site."
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc153_nil_rename_paren_body.wat.bad"
+        :line 9
+        :col 61
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 9
+            :col 63
+          }
+        ]
+      }
+      :causes []
+      :retired "()"
+      :fqdn ":wat::core::nil"
+    }
+  ]
+}

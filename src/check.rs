@@ -2046,9 +2046,9 @@ pub(crate) fn infer(
                 }
             }
         }
-        WatAST::List(items, _) => {
+        WatAST::List(items, list_span) => {
             // 236.2: infer_list now returns CheckResult; drain into local_errors.
-            match infer_list(items, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            match infer_list(items, list_span, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                 Some(ty) => {
                     if local_errors.is_empty() {
                         CheckResult::ok(ty)
@@ -2287,17 +2287,26 @@ fn infer_err_constructor(
 
 fn infer_list(
     items: &[WatAST],
+    list_span: &Span,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // `()` — empty list — is the unit value. Type :() per the
-    // existing TypeExpr::Tuple([]) encoding.
+    // Arc 179 — `()` in VALUE position is retired. `nil` is the sole unit
+    // value; an empty list literal is no longer a second spelling of it.
+    // `()` survives only as empty-parameter-list SYNTAX (`Fn()->T`,
+    // `(() -> T)`), which is parsed to a distinct AST shape and never
+    // reaches this arm — this is expression position specifically.
     let head = match items.first() {
         Some(h) => h,
-        None => return CheckResult::ok(TypeExpr::Tuple(vec![])),
+        None => {
+            return CheckResult::errs(vec![CheckError {
+                span: list_span.clone(),
+                kind: CheckErrorKind::BareLegacyUnitValue,
+            }]);
+        }
     };
 
     if let WatAST::Keyword(k, head_span) = head {

@@ -10,7 +10,7 @@
 ;; returns cleanly once the signal cascade sets it.
 (:wat::core::defn :demo::loop [] -> :wat::core::nil
   (:wat::core::if (:wat::kernel::stopped?)
-    ()                                       ; observed stop → return clean
+    nil                                      ; observed stop → return clean
     (:demo::loop)))                          ; tight poll loop
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

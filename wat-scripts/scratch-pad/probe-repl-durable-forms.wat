@@ -40,4 +40,7 @@
      (:wat::service::Outcome::Reply s
        (:probe::Repl::EvalResponse::Ok (:probe::Repl::EvalRequest/src req))))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil ())
+;; Arc 179: `()` retired as a value; the original no-op body was `()`. A bare
+;; `nil` body trips the pre-existing UselessMain wall (src/freeze.rs:1433),
+;; which `()` had been silently dodging by not being a `WatAST::NilLit` node.
+(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "probe-repl-durable-forms"))

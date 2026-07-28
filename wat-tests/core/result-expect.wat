@@ -50,7 +50,7 @@
                  (:wat::core::Result/expect
                    res
                    "expected Ok value")]
-               ())
+               nil)
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)

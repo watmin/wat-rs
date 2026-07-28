@@ -96,7 +96,7 @@
            ;; The class guard fires before the nil is reached — that's the point;
            ;; the crash reaches the parent's recv' as Lost before the completion send'.
            (:wat::core::do
-             (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) ())
+             (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) nil)
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
@@ -157,7 +157,7 @@
            (:wat::core::do
              (:wat::core::let
                [p (:test::rd::Pt :x 3 :y 4)]
-               (:wat::core::do (:wat::holon::to-holon p) ()))
+               (:wat::core::do (:wat::holon::to-holon p) nil))
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)

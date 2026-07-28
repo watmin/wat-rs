@@ -13,9 +13,21 @@
 //!      value position parses as a Keyword; the substrate's
 //!      `infer` arm types it as the singleton (internally
 //!      `TypeExpr::Tuple(vec![])`); the runtime's `eval` arm
-//!      returns `Value::Unit`. The empty-list literal `()` at
-//!      value position continues to evaluate to `Value::Unit`
-//!      too -- both spellings produce the same singleton.
+//!      returns `Value::Unit`. Originally the empty-list literal
+//!      `()` at value position ALSO evaluated to `Value::Unit` --
+//!      both spellings produced the same singleton.
+//!
+//! ## Arc 179 — `()` retired at value position
+//!
+//! Arc 179 (`docs/arc/2026/05/179-unit-vs-nil-distinction/DESIGN.md`) retires the
+//! `()`-as-unit-value parity slice 1a minted: `nil` is now the SOLE unit value, and
+//! an empty-list literal in value position is a located check error
+//! (`CheckErrorKind::BareLegacyUnitValue`). `()` survives only as empty-parameter-list
+//! SYNTAX (`Fn()->T`), never as a value. The `probe-nil-paren` / `nil-form-paren`
+//! declarations this file originally carried moved to dedicated NEGATIVE fixtures
+//! (`wat_arc153_nil_rename_paren_body.wat.bad`, `wat_arc153_nil_rename_paren_form.wat.bad`);
+//! `mixed_empty_list_body_with_nil_sig_now_rejected` and
+//! `value_position_empty_list_now_rejected` below are the INVERTED regression gate.
 //!
 //! ## Slice 2 closure — substrate retirement
 //!
@@ -108,12 +120,20 @@ fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     );
 }
 
-// --- 5. Mixed: () body, :wat::core::nil sig ----------------------------
+// --- 5. Mixed: () body, :wat::core::nil sig — ARC 179 INVERTED --------
 
 #[test]
-fn mixed_empty_list_body_with_nil_sig_unifies() {
-    // `()` body with `-> :wat::core::nil` sig — both produce Tuple(vec![]).
-    startup_beside(file!()).expect("startup should succeed for () body with nil sig");
+fn mixed_empty_list_body_with_nil_sig_now_rejected() {
+    // Arc 153 (original claim, now retired): `()` body unified with a
+    // `-> :wat::core::nil` sig because both produced Tuple(vec![]) — parity between
+    // the two spellings. Arc 179 retires that parity: `nil` is the sole unit value;
+    // `()` in value position is now a located check error (BareLegacyUnitValue).
+    let err = startup_err_file("tests/wat_lang/wat_arc153_nil_rename_paren_body.wat.bad");
+    wat::assert_edn_matches_file!(
+        err,
+        "wat_arc153_nil_rename__paren_body_err.edn",
+        "expected BareLegacyUnitValue to fire on () body against a nil-typed signature"
+    );
 }
 
 // --- 6. Reverse mixed: :wat::core::nil body, retired :unit sig --------
@@ -140,12 +160,20 @@ fn value_position_nil_evaluates_to_value_unit() {
     startup_beside(file!()).expect("startup should succeed for nil value form");
 }
 
-// --- 8. Value-position parity: () still evaluates to Value::Unit -------
+// --- 8. Value-position: () is now REJECTED — ARC 179 INVERTED ----------
 
 #[test]
-fn value_position_empty_list_still_evaluates_to_unit() {
-    // `()` at value position still type-checks as the nil singleton.
-    startup_beside(file!()).expect("startup should succeed for () as value");
+fn value_position_empty_list_now_rejected() {
+    // Arc 153 (original claim, now retired): `()` at value position type-checked
+    // as the nil singleton, same as `nil`. Arc 179 retires that parity: `nil` is
+    // the sole unit value; `()` in value position is now a located check error
+    // (BareLegacyUnitValue) instead of a silent second spelling of unit.
+    let err = startup_err_file("tests/wat_lang/wat_arc153_nil_rename_paren_form.wat.bad");
+    wat::assert_edn_matches_file!(
+        err,
+        "wat_arc153_nil_rename__paren_form_err.edn",
+        "expected BareLegacyUnitValue to fire on () in value position"
+    );
 }
 
 // --- 9. Narrow special-case: other keywords still typed normally -------
