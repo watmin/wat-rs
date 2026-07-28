@@ -739,6 +739,122 @@ pub use crate::value::{Provenance, TrackedValue, ValueSnapshot};
 // RuntimeError(25+)/RuntimeErrorKind(22)/EvalBreak(3)/EvalSignal(3) → RE-EXPORT.
 pub use crate::value::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 
+/// Arc 170 #13 — which of the three `register_defclause` effects a given call
+/// lands. See [`register_defclause`]'s doc comment for the full shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClauseRegPhase {
+    /// Pre-resolve: register the stub `Function` (0-arg, nil body) so the
+    /// checker sees the defclause name as callable and does not report
+    /// `UnknownCallee`. Does NOT touch `runtime_def_values`.
+    Stub,
+    /// Post-resolve / freeze (or eval-time, e.g. a REPL-typed defclause):
+    /// register the real `ClauseSet` into `runtime_def_values`, removing any
+    /// stub `Function` registered by a prior `Stub` call.
+    Runtime,
+}
+
+/// Arc 170 #13 — the ONE door for defclause registration.
+///
+/// `parse_defclause_form` used to be called from four sites in this file,
+/// each re-deriving its own subset of THREE effects:
+///   1. the stub `Function` in `sym.functions` (so the checker resolves
+///      recursive/forward calls to the defclause name before the real
+///      ClauseSet exists);
+///   2. the real `ClauseSet` (as `Value::wat__core__clauses`) into
+///      `sym.runtime_def_values`, removing the stub;
+///   3. the `binding_metadata` insert for the defclause's optional
+///      `{...}` metadata-map (e.g. `{:restricted-to […]}`), stored exactly
+///      as `def`/`defn` do so the EXISTING `walk_for_restricted_call`
+///      walker (`check.rs`, reading `SymbolTable.binding_metadata` via
+///      `CheckEnv::from_symbols`) enforces it with NO change to the
+///      enforcement mechanism itself.
+///
+/// Two of the four original sites dropped effect 3 — a stdlib defclause's
+/// metadata never reached `binding_metadata`, and neither did a defclause
+/// registered purely at eval time (e.g. a future REPL). This function is the
+/// one place that answers "what does registering a defclause mean?"; the
+/// four original call sites now just call it with the right `privilege` +
+/// `phase` and their locations do not move (freeze-ordering is unchanged).
+///
+/// `privilege` selects ONLY the reserved-prefix behaviour — already a
+/// parameter of `parse_defclause_form`, and the `is_reserved_prefix` guard
+/// on stub creation below that stdlib bypasses (`allow_reserved`). It does
+/// not get its own copy of the registration logic.
+///
+/// `phase` selects which of effects 1/2 land (see [`ClauseRegPhase`]).
+/// Effect 3 (the metadata insert) is UNCONDITIONAL on both `privilege` AND
+/// `phase` — it lands whichever phase actually calls this function. This is
+/// deliberate, not an oversight: the User Stub phase (`register_defines`)
+/// runs before `check_program` for file-loaded user source, so metadata
+/// landing there is sufficient for that path; but stdlib's Runtime phase
+/// (`register_stdlib_runtime_defs`) and a future eval-time/REPL defclause
+/// (`register_runtime_defs_form`) each reach this function ONLY via the
+/// Runtime phase, with no preceding Stub-phase call for that same form — if
+/// the metadata insert lived in the Stub arm only, both of those paths would
+/// drop the metadata-map exactly as they did before this collapse. Landing
+/// it in both phases is idempotent (same key, same map — a re-insert is a
+/// harmless no-op) and is what closes the REPL-time gap the brief calls out
+/// alongside the stdlib one ("Same class, next door").
+pub fn register_defclause(
+    form: &WatAST,
+    privilege: crate::resolve::Privilege,
+    phase: ClauseRegPhase,
+    sym: &mut SymbolTable,
+) -> Result<String, RuntimeError> {
+    let (name, cs) = parse_defclause_form(form, privilege)?;
+
+    // Effect 3 — the metadata-map binding. Unconditional on privilege and on
+    // phase: a defclause is a defclause, and where its form was loaded from is
+    // not a property its metadata knows about. Stored exactly as `def`/`defn`
+    // do, so the EXISTING `walk_for_restricted_call` enforces `{:restricted-to
+    // […]}` with no change to the enforcement mechanism.
+    //
+    // This insert is load-bearing and PROVEN so: deleting it turns
+    // `defclause_metadata_gap_stdlib_registered_restricted_to_enforced`
+    // (check.rs) RED. Verified by hand, 2026-07-28, in both directions.
+    if let Some(meta) = &cs.metadata {
+        if !meta.is_empty() {
+            sym.binding_metadata.insert(name.clone(), meta.clone());
+        }
+    }
+
+    match phase {
+        ClauseRegPhase::Stub => {
+            // Effect 1 — the stub Function. The reserved-prefix guard is
+            // user-path behaviour; stdlib deliberately bypasses it
+            // (allow_reserved), since stdlib defclauses live under the
+            // reserved `:wat::core::` namespace by construction.
+            let reserved_ok = matches!(privilege, crate::resolve::Privilege::Stdlib)
+                || !crate::resolve::is_reserved_prefix(&name);
+            if reserved_ok && !sym.functions.contains_key(&name) {
+                // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
+                let stub_body = WatAST::NilLit(form.span().clone());
+                let stub_fn = Arc::new(Function {
+                    name: Some(name.clone()),
+                    params: vec![],
+                    type_params: vec![],
+                    param_types: vec![],
+                    ret_type: crate::types::TypeExpr::Tuple(vec![]),
+                    rest_param: None,
+                    rest_param_type: None,
+                    body: FunctionBody::Wat(Arc::new(stub_body)),
+                    closed_env: None,
+                });
+                sym.functions.insert(name.clone(), stub_fn);
+            }
+        }
+        ClauseRegPhase::Runtime => {
+            // Effect 2 — the real ClauseSet into runtime_def_values,
+            // replacing any stub registered by a prior Stub-phase call.
+            let value = Value::wat__core__clauses(cs.clone());
+            sym.functions.remove(&name); // remove stub if pre-registered
+            sym.runtime_def_values.insert(name.clone(), value);
+        }
+    }
+
+    Ok(name)
+}
+
 /// Walk `forms`, register every `(:wat::core::define ...)` into `sym`,
 /// and return the remaining (non-define) forms in order. Dupe
 /// registration halts with [`RuntimeError::DuplicateDefine`].
@@ -896,35 +1012,16 @@ pub fn register_defines(
                 // check_program) reported an unrelated "unresolved reference" at
                 // every CALL site instead — the wrong form never ruined itself
                 // at the place it was written. See defclause metadata-map probes.
-                let (name, cs) = crate::runtime::parse_defclause_form(&form, crate::resolve::Privilege::User)?;
-                if !crate::resolve::is_reserved_prefix(&name)
-                    && !sym.functions.contains_key(&name)
-                {
-                    // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
-                    let stub_body = WatAST::NilLit(form.span().clone());
-                    let stub_fn = Arc::new(Function {
-                        name: Some(name.clone()),
-                        params: vec![],
-                        type_params: vec![],
-                        param_types: vec![],
-                        ret_type: crate::types::TypeExpr::Tuple(vec![]),
-                        rest_param: None,
-                        rest_param_type: None,
-                        body: FunctionBody::Wat(Arc::new(stub_body)),
-                        closed_env: None,
-                    });
-                    sym.functions.insert(name.clone(), stub_fn);
-                }
-                // Metadata-map on the defclause (e.g. `{:restricted-to [...]}`) —
-                // store it exactly as def/defn do, so the EXISTING restriction-check
-                // walker (`walk_for_restricted_call` in check.rs, which reads
-                // `SymbolTable.binding_metadata` via `CheckEnv::from_symbols`) enforces
-                // it with no change to the enforcement mechanism itself.
-                if let Some(meta) = &cs.metadata {
-                    if !meta.is_empty() {
-                        sym.binding_metadata.insert(name, meta.clone());
-                    }
-                }
+                //
+                // Arc 170 #13 — the ONE door (`register_defclause`) owns the
+                // stub-Function + binding_metadata effects for the Stub phase;
+                // see its doc comment for the full three-effect/two-phase shape.
+                crate::runtime::register_defclause(
+                    &form,
+                    crate::resolve::Privilege::User,
+                    crate::runtime::ClauseRegPhase::Stub,
+                    sym,
+                )?;
             }
             rest.push(form);
         } else {
@@ -1067,23 +1164,17 @@ pub fn register_stdlib_runtime_defs(
         };
         match head {
             ":wat::core::defclause" => {
-                let (name, cs) = parse_defclause_form(form, crate::resolve::Privilege::Stdlib)?;
-                // A defclause's metadata-map binds the SAME way whether the form
-                // came from the stdlib or from user source — where a form was
-                // loaded from is not a property its metadata knows about. This
-                // mirrors the user arm in `register_defines` verbatim, so the
-                // existing restriction-check walker (`walk_for_restricted_call`,
-                // reading `binding_metadata` via `CheckEnv::from_symbols`)
-                // enforces `{:restricted-to […]}` on a stdlib defclause with no
-                // change to the enforcement mechanism.
-                if let Some(meta) = &cs.metadata {
-                    if !meta.is_empty() {
-                        sym.binding_metadata.insert(name.clone(), meta.clone());
-                    }
-                }
-                let value = Value::wat__core__clauses(cs);
-                sym.functions.remove(&name); // remove stub if pre-registered
-                sym.runtime_def_values.insert(name, value);
+                // Arc 170 #13 — the ONE door. A defclause's metadata-map binds
+                // the SAME way whether the form came from the stdlib or from
+                // user source — where a form was loaded from is not a property
+                // its metadata knows about; `register_defclause` stores it
+                // unconditionally on privilege AND phase (see its doc comment).
+                register_defclause(
+                    form,
+                    crate::resolve::Privilege::Stdlib,
+                    ClauseRegPhase::Runtime,
+                    sym,
+                )?;
             }
             // Arc 293.4c — stdlib extend-type: branch on surface vs. protocol (mirrors user path).
             // Arc 278 BRIEF-STONE-extend-user-checked — the surface-inheriting registration
@@ -1157,24 +1248,20 @@ pub fn register_stdlib_runtime_defs(
 /// The stub has 0 params and unit return type — same shape as the user-side stubs
 /// in `register_defines`. The real ClauseSet lands in `runtime_def_values` via
 /// `register_runtime_defs` at freeze time.
+///
+/// Arc 170 #13 — delegates to the ONE door (`register_defclause`, Stub phase).
+/// This loop runs over EVERY stdlib residue form, not just defclauses (see the
+/// call site in `freeze/env.rs`), so a parse failure here (non-defclause form,
+/// or a genuinely malformed defclause) is swallowed exactly as it always was —
+/// `register_stdlib_runtime_defs` (the Runtime phase, which runs later and IS
+/// `?`-propagating) is where a malformed stdlib defclause actually surfaces.
 pub fn preregister_stdlib_defclause_stub(form: &WatAST, sym: &mut SymbolTable) {
-    if let Ok((name, _cs)) = parse_defclause_form(form, crate::resolve::Privilege::Stdlib) {
-        if !sym.functions.contains_key(&name) {
-            let stub_body = WatAST::NilLit(form.span().clone());
-            let stub_fn = Arc::new(Function {
-                name: Some(name.clone()),
-                params: vec![],
-                type_params: vec![],
-                param_types: vec![],
-                ret_type: crate::types::TypeExpr::Tuple(vec![]),
-                rest_param: None,
-                rest_param_type: None,
-                body: FunctionBody::Wat(Arc::new(stub_body)),
-                closed_env: None,
-            });
-            sym.functions.insert(name, stub_fn);
-        }
-    }
+    let _ = register_defclause(
+        form,
+        crate::resolve::Privilege::Stdlib,
+        ClauseRegPhase::Stub,
+        sym,
+    );
 }
 
 /// Stdlib-registration variant of [`register_defines`] that bypasses
@@ -2264,11 +2351,21 @@ fn register_runtime_defs_form(
         // Stone 237.3: also remove the resolver-stub from sym.functions (if present)
         // so dispatch falls through to runtime_def_values and picks up the real
         // ClauseSet rather than the 0-param stub.
+        //
+        // Arc 170 #13 — the ONE door (`register_defclause`, Runtime phase). This
+        // is also the EVAL-TIME path (a defclause typed at the REPL reaches
+        // registration only here, with no prior Stub-phase call), so the door's
+        // metadata insert being unconditional on phase is what makes a
+        // REPL-defined `{:restricted-to […]}` defclause bind its metadata at
+        // all — previously this site stored only `runtime_def_values` and
+        // dropped the metadata-map.
         ":wat::core::defclause" => {
-            let (name, cs) = parse_defclause_form(form, crate::resolve::Privilege::User)?;
-            let value = Value::wat__core__clauses(cs);
-            sym.functions.remove(&name); // remove stub if pre-registered (Stone 237.3)
-            sym.runtime_def_values.insert(name, value);
+            register_defclause(
+                form,
+                crate::resolve::Privilege::User,
+                ClauseRegPhase::Runtime,
+                sym,
+            )?;
         }
         // Arc 232 Stone 232.1 — `:wat::core::extend-type` at top-level.
         // Shape: (:wat::core::extend-type :T :P (method-impl ...) ...)

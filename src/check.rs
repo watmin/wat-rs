@@ -19102,8 +19102,12 @@ fn register_builtins(env: &mut CheckEnv) {
 mod tests {
     use super::*;
     use crate::macros::{expand_all, register_defmacros, MacroRegistry};
-    use crate::runtime::{register_defines, Environment, SymbolTable};
+    use crate::resolve::Privilege;
+    use crate::runtime::{
+        register_defclause, register_defines, ClauseRegPhase, Environment, SymbolTable,
+    };
     use crate::types::{parse_type_expr, register_types, TypeEnv};
+    use crate::value::{RuntimeError, RuntimeErrorKind};
     use std::sync::OnceLock;
 
     /// The stdlib is always part of the language. Test harnesses
@@ -19149,6 +19153,152 @@ mod tests {
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(rest_post_types, &mut sym).expect("register defines");
         check_program(&rest, &sym, &types)
+    }
+
+    // ─── Arc 170 #13 — the ONE door (register_defclause) gates ────────────
+    //
+    // `wat/*.wat` cannot be touched by this stone (out of scope; the real
+    // corpus carries no `:restricted-to` defclause today), so these gates
+    // register a FABRICATED stdlib-privilege defclause directly via
+    // `register_defclause(.., Privilege::Stdlib, ..)` — the exact function
+    // the real stdlib pipeline calls (`freeze/env.rs` steps 6a + 7.6) — on
+    // top of the real stdlib `SymbolTable`/`TypeEnv` from `stdlib_loaded()`.
+    // This exercises the STDLIB path, not just the user path a user-only
+    // gate would be blind to (the case this stone's bug lived in).
+
+    /// Mirrors the REAL two-phase stdlib registration
+    /// (`preregister_stdlib_defclause_stub` then `register_stdlib_runtime_defs`,
+    /// both delegating to `register_defclause` post-collapse) for a single
+    /// hand-written defclause form, then registers + checks `caller_src` as
+    /// user source on top of it — exactly as `check()` above does, plus the
+    /// stdlib defclause pre-registration step.
+    fn check_with_stdlib_defclause(
+        defclause_src: &str,
+        caller_src: &str,
+    ) -> Result<(), CheckErrors> {
+        let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
+        let defclause_forms = crate::parse_all!(defclause_src).expect("parse defclause ok");
+        assert_eq!(defclause_forms.len(), 1, "expected exactly one defclause form");
+        let mut sym = stdlib_sym.clone();
+        register_defclause(&defclause_forms[0], Privilege::Stdlib, ClauseRegPhase::Stub, &mut sym)
+            .expect("stdlib defclause stub-phase registers");
+        register_defclause(&defclause_forms[0], Privilege::Stdlib, ClauseRegPhase::Runtime, &mut sym)
+            .expect("stdlib defclause runtime-phase registers");
+
+        let caller_forms = crate::parse_all!(caller_src).expect("parse caller ok");
+        let mut macros = stdlib_macros.clone();
+        let expanded = expand_all(caller_forms, &mut macros, &Environment::new(), &sym)
+            .expect("expand caller");
+        let mut types = stdlib_types.clone();
+        let rest_post_types =
+            register_types(expanded, &mut types).expect("register caller types");
+        let rest = register_defines(rest_post_types, &mut sym).expect("register caller defines");
+        check_program(&rest, &sym, &types)
+    }
+
+    /// **The acceptance-condition gate.** A defclause registered with
+    /// `Privilege::Stdlib` (mirroring `wat/spawn.wat`'s `spawn-program`)
+    /// carrying `{:restricted-to […]}` must have its metadata-map reach
+    /// `binding_metadata` exactly as a user `def`/`defn`'s does, so the
+    /// EXISTING `walk_for_restricted_call` walker enforces it. Before the
+    /// 170 #13 collapse this was measured CLEAN (no error at all) for a
+    /// stdlib defclause — `register_stdlib_runtime_defs`/
+    /// `preregister_stdlib_defclause_stub` dropped the metadata-map. A
+    /// caller OUTSIDE the whitelist must be rejected with a LOCATED
+    /// `DefRestrictedCallerNotAllowed`.
+    #[test]
+    fn defclause_metadata_gap_stdlib_registered_restricted_to_enforced() {
+        let errors = check_with_stdlib_defclause(
+            "(:wat::core::defclause :probe::gap-guarded\n\
+             \x20 {:restricted-to [:wat::kernel::]}\n\
+             \x20 ([a <- :wat::core::i64] -> :wat::core::i64 a))",
+            "(:wat::core::defn :user::caller\n\
+             \x20 [x <- :wat::core::i64]\n\
+             \x20 -> :wat::core::i64\n\
+             \x20 (:probe::gap-guarded x))",
+        )
+        .expect_err(
+            "a stdlib-registered defclause's {:restricted-to […]} must be enforced \
+             against a caller outside the whitelist — this is the metadata gap 170 #13 closes",
+        );
+        assert_eq!(errors.0.len(), 1, "expected exactly one CheckError; got {:?}", errors.0);
+        match &errors.0[0].kind {
+            CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes } => {
+                assert_eq!(callee, ":probe::gap-guarded");
+                assert_eq!(enclosing_fn, ":user::caller");
+                assert_eq!(prefixes, &vec![":wat::kernel::".to_string()]);
+            }
+            other => panic!("expected DefRestrictedCallerNotAllowed; got {:?}", other),
+        }
+    }
+
+    /// Deleted RED probe `probe3-non-keyword-key.wat` (recovered from
+    /// `b64b57a4`), re-homed as a Rust gate per the brief's "Also in this
+    /// stone." A non-keyword metadata-map key must fail AT THE DEFINITION
+    /// (a located `MalformedForm` from registration itself), never surface
+    /// downstream as an unrelated unresolved-reference at the call site.
+    #[test]
+    fn defclause_malformed_metadata_non_keyword_key_errors_at_definition() {
+        let (stdlib_sym, ..) = stdlib_loaded();
+        let src = "(:wat::core::defclause :probe::guarded\n\
+                    \x20 {\"not-a-keyword\" [:wat::kernel::]}\n\
+                    \x20 ([a <- :wat::core::i64] -> :wat::core::i64 a))\n\
+                    \n\
+                    (:wat::core::defn :user::caller\n\
+                    \x20 [x <- :wat::core::i64]\n\
+                    \x20 -> :wat::core::i64\n\
+                    \x20 (:probe::guarded x))";
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut sym = stdlib_sym.clone();
+        let err: RuntimeError = register_defines(forms, &mut sym)
+            .expect_err("a non-keyword metadata-map key must be rejected at registration");
+        assert!(
+            matches!(err.kind, RuntimeErrorKind::MalformedForm { .. }),
+            "expected MalformedForm; got {:?}",
+            err.kind
+        );
+        // Located at the metadata-map (line 2 of `src`), NOT at the call
+        // site (line 8) — the pre-170#13 defect (`if let Ok(...) = ...`)
+        // silently skipped registration, so this surfaced instead as an
+        // unrelated unresolved-reference at the CALL.
+        assert_eq!(
+            err.span.line, 2,
+            "MalformedForm must be located at the defclause's metadata-map; got span {:?}",
+            err.span
+        );
+    }
+
+    /// Deleted RED probe `probe4-unexpected-extra-form.wat` (recovered from
+    /// `b64b57a4`). An unexpected extra form in the position right after the
+    /// name (neither a metadata-map, `-> :T` sugar, nor a valid clause) must
+    /// ALSO fail AT THE DEFINITION with a located `MalformedForm`.
+    #[test]
+    fn defclause_unexpected_extra_form_errors_at_definition() {
+        let (stdlib_sym, ..) = stdlib_loaded();
+        let src = "(:wat::core::defclause :probe::guarded\n\
+                    \x20 :not-a-clause-or-metadata\n\
+                    \x20 ([a <- :wat::core::i64] -> :wat::core::i64 a))\n\
+                    \n\
+                    (:wat::core::defn :user::caller\n\
+                    \x20 [x <- :wat::core::i64]\n\
+                    \x20 -> :wat::core::i64\n\
+                    \x20 (:probe::guarded x))";
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut sym = stdlib_sym.clone();
+        let err: RuntimeError = register_defines(forms, &mut sym)
+            .expect_err("an unexpected extra form must be rejected at registration");
+        assert!(
+            matches!(err.kind, RuntimeErrorKind::MalformedForm { .. }),
+            "expected MalformedForm; got {:?}",
+            err.kind
+        );
+        // Located at the extra form itself (line 2 of `src`), NOT at the
+        // call site (line 8).
+        assert_eq!(
+            err.span.line, 2,
+            "MalformedForm must be located at the unexpected extra form; got span {:?}",
+            err.span
+        );
     }
 
     // ─── Arity checking ─────────────────────────────────────────────────
