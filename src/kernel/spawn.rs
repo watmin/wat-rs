@@ -163,9 +163,21 @@ pub const ADDRESS_TYPE_PATH: &str = ":wat::kernel::Address";
 /// `Crashed(envelope_string)`; a clean exit (Err EOF too) → `Disconnected`.
 #[derive(Debug)]
 pub enum PeerRecvError {
-    /// The Ok channel closed without data — child exited cleanly or substrate
-    /// shutdown fired.
+    /// The Ok channel closed without data — the child exited cleanly.
+    ///
+    /// Arc 170: this used to ALSO mean "or substrate shutdown fired", and that fusion
+    /// was the defect. `comms::RecvError` distinguishes `Shutdown` from `Disconnected`
+    /// deliberately (`comms/mod.rs` says so in as many words); a wildcard in
+    /// `peer.rs` erased the distinction here, so a reader parked on a live peer during
+    /// a stop was told **its peer had closed** — false, and the lie pointed every
+    /// investigation at the channel layer instead of the lifecycle.
     Disconnected,
+    /// A stop was requested while this read was parked. The peer is NOT dead and the
+    /// channel is NOT closed — the reader was woken so it could reach its own decision
+    /// point (`stopped?`) and choose. Surfaces as `RecvOutcome::Lost` carrying the
+    /// already-existing `:wat::kernel::LociDiedError::Shutdown`, which had no reachable
+    /// producer before this.
+    Shutdown,
     /// The Err channel delivered a crash reason — child wrote the reason via
     /// `err_tx.send()` before calling `_exit(1)`. The String is the full
     /// `#wat.kernel/ProcessPanics [...]` envelope text.

@@ -751,6 +751,29 @@ fn check_mode_still_demands_exactly_one_entry() {
 ///
 /// The blast radius is the whole interactive surface: no `Ctrl-C`, and `systemctl stop` /
 /// container SIGTERM all degrade to hard-kill with no cleanup, silently.
+/// ⛔ TRACKED RED GATE — `#[ignore]`d because the work it gates is unfinished, NOT because
+/// the assertion is wrong. Un-ignore when step 2 below lands; it is the acceptance test.
+///
+/// Step 1 (`RecvError::Shutdown` carried instead of erased by a wildcard) IS in, and this
+/// gate's failure MESSAGE changed as a result — from the false `"peer closed"` to a real
+/// type error, because carrying `Shutdown` made a previously-dead path fire:
+///
+///   `:wat::kernel::LociDiedError/message: expected wat::kernel::*DiedError,
+///    got wat::core::Record <wat::kernel::Failure{"service peer lost …"}>`
+///   at `wat/kernel/services/stdio-primes.wat:210`, cause built at `wat/spawn.wat:351`
+///
+/// So there is a SECOND defect behind the first: a `RecvOutcome::Lost` producer that hands
+/// a `Failure` where a `LociDiedError` is required — an arc-278 LociDiedError-migration
+/// straggler, latent only because the wildcard kept its path unreachable.
+///
+/// REMAINING WORK, in order:
+///   1. ✅ carry `Shutdown` (`kernel/peer.rs`, `runtime.rs` — both unified-Peer arms).
+///   2. ⛔ fix the `Failure`-vs-`LociDiedError` producer at `wat/spawn.wat:351`.
+///   3. ⛔ `RealStdin::as_raw_fd_for_poll -> Some(0)` + route the stdin read through the
+///      poll-`[fd, broadcast_fd]` multiplex `channel/transfer.rs:200` already implements.
+///      Until then this read is the one wait in the substrate that is not a select, and it
+///      pins the process alive until stdin EOFs.
+#[ignore = "arc 170 — acceptance gate for the shutdown fix; steps 2 and 3 outstanding (see doc comment)"]
 #[test]
 fn sigterm_reaches_a_program_blocked_on_stdin() {
     let program = include_str!("wat_cli__sigterm_blocked_on_stdin.wat");

@@ -109,17 +109,37 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
     /// channel:
     /// - `Ok(reason)` → `Err(PeerRecvError::Crashed(reason))` — genuine panic,
     ///   reason sent before `crash_tx` dropped.
+    /// - `Err(Shutdown)` → `Err(PeerRecvError::Shutdown)` — a stop was requested; the
+    ///   peer is ALIVE and the channel is open.
     /// - `Err(_)` → `Err(PeerRecvError::Disconnected)` — clean exit or RAII
     ///   drain (crash_tx dropped without sending).
     ///
     /// `drain_and_join` does NOT call `recv` — it drops input + joins — so
     /// the RAII path is unaffected.
+    ///
+    /// # Arc 170 — why `Shutdown` is matched before the wildcard
+    ///
+    /// Both arms below used to be `Err(_) => Disconnected`, which erased
+    /// `RecvError::Shutdown` — the variant `comms/mod.rs` builds expressly "to
+    /// distinguish `RecvError::Shutdown` from `RecvError::Disconnected`". A reader
+    /// parked on a healthy peer during a stop was therefore told **its peer had
+    /// closed**, and `stdio-write-out` faithfully reported "peer closed" for a peer
+    /// that was fine. That lie pointed every investigation at the channel layer while
+    /// the actual event was a lifecycle signal — it is what a months-long `sigterm`
+    /// flake was made of.
+    ///
+    /// A wildcard that erases a variant the enum was built to distinguish is the same
+    /// defect class as flattening a structured error into a String: a distinction
+    /// destroyed at a boundary.
     pub fn recv(&self) -> Result<O, crate::kernel::spawn::PeerRecvError> {
+        use crate::comms::RecvError;
         use crate::kernel::spawn::PeerRecvError;
         match self.output.recv() {
             Ok(v) => Ok(v),
+            Err(RecvError::Shutdown) => Err(PeerRecvError::Shutdown),
             Err(_) => match self.crash.recv() {
                 Ok(reason) => Err(PeerRecvError::Crashed(reason)),
+                Err(RecvError::Shutdown) => Err(PeerRecvError::Shutdown),
                 Err(_) => Err(PeerRecvError::Disconnected),
             },
         }

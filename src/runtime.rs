@@ -22375,6 +22375,27 @@ fn recv_outcome_lost(reason: String, types: Option<&crate::types::TypeEnv>) -> V
     }))
 }
 
+/// `RecvOutcome::Lost [LociDiedError::Shutdown]` — a stop was requested while this read
+/// was parked. Arc 170.
+///
+/// The peer is ALIVE; nothing about the channel is wrong. Reported as `Lost` rather than
+/// `Closed` because `Closed` means a genuine clean EOF and this is not one — saying
+/// `Closed` here is the false "peer closed" that a months-long `sigterm` flake was made
+/// of. `LociDiedError::Shutdown` has existed since the LociDiedError stone (`types.rs`,
+/// beside `Disconnected`) and had NO reachable producer until now: the wat-visible name
+/// for this fact was minted, then orphaned by a wildcard two layers down.
+fn recv_outcome_shutdown() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "Lost".into(),
+        fields: vec![Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::LociDiedError".into(),
+            variant_name: "Shutdown".into(),
+            fields: vec![],
+        }))],
+    }))
+}
+
 /// Turn a peer's crash-channel `reason` into the single
 /// `:wat::kernel::LociDiedError` that `RecvOutcome::Lost` carries (arc 278 the
 /// LociDiedError stone).
@@ -25426,6 +25447,9 @@ fn eval_peer_recv_prime(
                                         recv_outcome_lost(crash_reason, sym.types().map(|a| a.as_ref()))
                                     }
                                     PeerRecvError::Disconnected => recv_outcome_closed(),
+                                    // A stop was requested; the peer is alive. NOT Closed —
+                                    // Closed means a genuine clean EOF (arc 170).
+                                    PeerRecvError::Shutdown => recv_outcome_shutdown(),
                                 }
                             }
                         }),
@@ -25481,6 +25505,9 @@ fn eval_peer_recv_prime(
                                     recv_outcome_lost(crash_reason, sym.types().map(|a| a.as_ref()))
                                 }
                                 Err(PeerRecvError::Disconnected) => recv_outcome_closed(),
+                                // A stop was requested; the peer is alive. NOT Closed —
+                                // Closed means a genuine clean EOF (arc 170).
+                                Err(PeerRecvError::Shutdown) => recv_outcome_shutdown(),
                             })
                         }
                         // arc 292 L3 — timers are select'-only; recv' is not supported.
@@ -25546,7 +25573,17 @@ fn eval_peer_recv_prime(
                                     crate::comms::RecvError::PeerCrashed => {
                                         recv_outcome_lost(e.to_string(), sym.types().map(|a| a.as_ref()))
                                     }
-                                    // Genuine clean close (Disconnected/Shutdown/FrameTooLarge).
+                                    // Arc 170 — a stop was requested; the peer is ALIVE and the
+                                    // channel is open. This arm used to be folded into the
+                                    // wildcard below under the comment "genuine clean close",
+                                    // which is what reported "peer closed" for a healthy peer and
+                                    // is what a months-long sigterm flake was made of.
+                                    crate::comms::RecvError::Shutdown => recv_outcome_shutdown(),
+                                    // Genuine clean close (Disconnected).
+                                    // NOTE: FrameTooLarge still lands here and is ALSO not a clean
+                                    // close — an over-budget frame reported as EOF. Arc 278 minted
+                                    // the Rejected path for it; out of scope for this fix, named
+                                    // rather than silently inherited.
                                     _ => recv_outcome_closed(),
                                 }),
                             }
@@ -25561,6 +25598,9 @@ fn eval_peer_recv_prime(
                                 crate::comms::RecvError::PeerCrashed => {
                                     recv_outcome_lost(e.to_string(), sym.types().map(|a| a.as_ref()))
                                 }
+                                // Arc 170 — see the socket-tier arm above: a stop request is not
+                                // a close, and calling it one is the lie this fix removes.
+                                crate::comms::RecvError::Shutdown => recv_outcome_shutdown(),
                                 _ => recv_outcome_closed(),
                             },
                         }),
