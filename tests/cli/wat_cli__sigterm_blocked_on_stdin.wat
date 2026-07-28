@@ -15,7 +15,13 @@
       (:wat::core::do
         (:wat::kernel::println text)
         (:demo::loop)))
-    (:wat::kernel::ReadFrameOutcome::Eof ())))
+    (:wat::kernel::ReadFrameOutcome::Eof nil)
+    ;; THE ARM THIS TEST EXISTS FOR — a stop arrived while parked in the read. Returning
+    ;; cleanly here IS the contract: SIGTERM is a flag the program observes, not a kill.
+    ;; Before the stdin read joined the lock-step there was no way to reach this point at
+    ;; all: the read was a bare `read(2)`, so the signal could not be observed and the
+    ;; parked thread pinned the process alive until stdin EOF'd.
+    (:wat::kernel::ReadFrameOutcome::Shutdown nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

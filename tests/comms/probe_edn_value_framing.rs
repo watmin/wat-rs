@@ -171,7 +171,10 @@ fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
     ];
     let mut iter = lines.iter();
     let result = read_framed_edn(
-        |_span| Ok(iter.next().map(|s| s.to_string())),
+        |_span| Ok(match iter.next() {
+            Some(s) => wat::edn_shim::NextLine::Line(s.to_string()),
+            None => wat::edn_shim::NextLine::Eof,
+        }),
         wat::rust_caller_span!(),
         64, // tiny cap — 64 bytes
     )
@@ -202,7 +205,10 @@ fn read_framed_edn_tiny_cap_passes_small_value() {
     let lines: Vec<&str> = vec!["{:a 1 :b 2}"];
     let mut iter = lines.iter();
     let result = read_framed_edn(
-        |_span| Ok(iter.next().map(|s| s.to_string())),
+        |_span| Ok(match iter.next() {
+            Some(s) => wat::edn_shim::NextLine::Line(s.to_string()),
+            None => wat::edn_shim::NextLine::Eof,
+        }),
         wat::rust_caller_span!(),
         64, // tiny cap — still fits
     )

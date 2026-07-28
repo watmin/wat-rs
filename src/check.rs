@@ -8501,7 +8501,10 @@ fn infer_kernel_readln_prime(
 /// 2-arg form: uses the supplied i64 cap, forwarded from StdInService/handle
 /// when a caller-supplied cap flows through readln' → StdInService::Req.
 ///
-/// Return type: `:Option<String>` in both cases.
+/// Return type: `:wat::io::ReadFrameOutcome` in both cases (arc 170 — was
+/// `:Option<String>`; a process-wide stop request needed a third outcome
+/// `Option<String>` could not express — see the type's registration in
+/// `src/types.rs`).
 fn infer_ioreader_read_frame(
     head_span: &Span,
     args: &[WatAST],
@@ -8529,15 +8532,12 @@ fn infer_ioreader_read_frame(
     if args.len() == 2 {
         let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     }
-    // Return type is always Option<String>.
-    let opt_str = TypeExpr::Parametric {
-        head: "wat::core::Option".into(),
-        args: vec![TypeExpr::Path(":wat::core::String".into())],
-    };
+    // Return type is always :wat::io::ReadFrameOutcome (arc 170).
+    let outcome_ty = TypeExpr::Path(":wat::io::ReadFrameOutcome".into());
     if local_errors.is_empty() {
-        CheckResult::ok(opt_str)
+        CheckResult::ok(outcome_ty)
     } else {
-        CheckResult::partial_with(opt_str, local_errors)
+        CheckResult::partial_with(outcome_ty, local_errors)
     }
 }
 
@@ -14567,7 +14567,11 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![ioreader_ty()],
-            ret: opt_string_ty(),
+            // Arc 170 — was `opt_string_ty()`; a process-wide stop request
+            // needed a third outcome `Option<String>` couldn't express. The
+            // 2-arg-form special-case arm (`infer_ioreader_read_frame`
+            // above) returns the same type.
+            ret: TypeExpr::Path(":wat::io::ReadFrameOutcome".into()),
             rest_param_type: None,
         },
     );

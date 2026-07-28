@@ -74,6 +74,12 @@
         (:wat::core::match resp
           ((:wat::kernel::StdIn::ReadLineResponse::Line line) line)
           ((:wat::kernel::StdIn::ReadLineResponse::Eof) "EOF")
+          ;; Arc 170 stdin-joins-the-lock-step — a stop request is its OWN outcome, so it
+          ;; reaches every consumer as a located non-exhaustive error rather than silently
+          ;; folding into ::Eof. This probe never stops mid-read, so the arm is unreachable
+          ;; here; it is written distinctly ("STOP", not "EOF") so a future run that DOES
+          ;; hit it reports what happened instead of a plausible lie.
+          ((:wat::kernel::StdIn::ReadLineResponse::Shutdown) "STOP")
           ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap) "RTL")
           ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))

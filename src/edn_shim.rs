@@ -1505,15 +1505,43 @@ pub enum FramedRead {
     /// value. The `usize` is the byte count at the point of rejection.
     /// Indicates a broken or malicious peer that never terminates its frame.
     TooLarge(usize),
+    /// Arc 170 — a process-wide stop was requested while waiting on a line.
+    /// NOT an `Eof` (the writer didn't close) and NOT an error (nothing is
+    /// wrong with the stream) — its own outcome, carried up rather than
+    /// erased by the `Ok(None) | Err(_)` wildcard this replaces. Mirrors
+    /// `RecvOutcome::Shutdown` (`channel/transfer.rs`), the accepted shape
+    /// for this same defect class one layer over.
+    /// PROVISIONAL name — flagged for the intueri naming cast.
+    Shutdown,
+}
+
+/// What a single `next_line` call passed to [`read_framed_edn`] reports.
+/// Distinct from a plain `Result<Option<String>, RuntimeError>` so a caller
+/// doing OS-level poll-multiplexing (see `channel/transfer.rs`'s
+/// `LineResult`, the exemplar this mirrors) can report "a stop was
+/// requested" without it collapsing into `Eof` at the very first hop.
+/// Rust-internal glue — not a wat-visible type, so not part of the
+/// intueri naming cast — but named to match the outcome it feeds.
+pub enum NextLine {
+    /// One physical line, without its trailing `\n`.
+    Line(String),
+    /// Clean EOF.
+    Eof,
+    /// A process-wide stop was requested before a line arrived.
+    Shutdown,
 }
 
 /// Accumulate physical lines from `next_line` until the buffer forms a
 /// complete EDN value, then return it as a `FramedRead::Frame`.
 ///
 /// Each call to `next_line(span)` must return:
-/// - `Ok(Some(line))` — one line WITHOUT its trailing `\n`
-/// - `Ok(None)` — EOF
-/// - `Err(e)` — a read error (treated as EOF / disconnect)
+/// - `Ok(NextLine::Line(line))` — one line WITHOUT its trailing `\n`
+/// - `Ok(NextLine::Eof)` — EOF
+/// - `Ok(NextLine::Shutdown)` — a stop was requested; nothing is wrong with
+///   the stream (arc 170 — carried through to `FramedRead::Shutdown`,
+///   never collapsed into `Eof`)
+/// - `Err(e)` — a read error (treated as EOF / disconnect — unchanged from
+///   before arc 170; a genuine I/O error is not a stop request)
 ///
 /// Internally accumulates bytes and routes through [`next_complete_frame`]
 /// (the one frame-finder) so the framing logic is shared with the comms
@@ -1532,12 +1560,12 @@ pub enum FramedRead {
 /// memory.
 pub fn read_framed_edn<F>(mut next_line: F, span: Span, max_bytes: usize) -> Result<FramedRead, RuntimeError>
 where
-    F: FnMut(Span) -> Result<Option<String>, RuntimeError>,
+    F: FnMut(Span) -> Result<NextLine, RuntimeError>,
 {
     let mut buf: Vec<u8> = Vec::new();
     loop {
         match next_line(span.clone()) {
-            Ok(Some(line)) => {
+            Ok(NextLine::Line(line)) => {
                 buf.extend_from_slice(line.as_bytes());
                 buf.push(b'\n');
                 match next_complete_frame(&buf, max_bytes) {
@@ -1551,7 +1579,13 @@ where
                     FrameScan::Malformed(msg) => return Ok(FramedRead::Malformed(msg)),
                 }
             }
-            Ok(None) | Err(_) => {
+            // Arc 170 — the stop request gets its OWN arm, matched explicitly
+            // BEFORE it could ever reach a wildcard. This is the fix: the prior
+            // shape here was `Ok(None) | Err(_)`, which is exactly the erasing
+            // wildcard `kernel/peer.rs`'s `Thread::recv` was fixed to stop doing
+            // for `RecvError::Shutdown` one layer over.
+            Ok(NextLine::Shutdown) => return Ok(FramedRead::Shutdown),
+            Ok(NextLine::Eof) | Err(_) => {
                 if buf.is_empty() {
                     return Ok(FramedRead::Eof);
                 } else {

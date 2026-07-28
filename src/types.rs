@@ -1046,6 +1046,43 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![("text".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
             EnumVariant::Unit("Eof".into()),
+            // Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
+            // while `stdio-read-frame` (`stdio-primes.wat`) was blocked waiting on
+            // the StdIn service. NOT an `Eof` (the peer didn't close) and NOT an
+            // error — its own outcome, matching `StdIn::ReadLineResponse::Shutdown`
+            // one layer below. PROVISIONAL variant name — intueri's to rule; a
+            // clearly-provisional placeholder per the brief.
+            EnumVariant::Unit("Shutdown".into()),
+        ],
+    }));
+
+    // Arc 170 stdin-joins-the-lock-step — :wat::io::ReadFrameOutcome (PROVISIONAL
+    // name — intueri's to rule) — what `:wat::io::IOReader/read-frame` returns.
+    //
+    // The raw-IOReader-level sibling of `:wat::kernel::ReadFrameOutcome` above: this
+    // one is what the verb hands back DIRECTLY (see `eval_ioreader_read_frame`,
+    // `src/io.rs`); `:wat::kernel::ReadFrameOutcome` is the higher, caller-facing
+    // outcome the StdIn *service* (`stdin-svc` in `stdio-primes.wat`) builds from its
+    // own `StdIn::ReadLineResponse` reply. Two different enums at two different
+    // layers, deliberately — the brief's "rooms 4 and 6" are not the same room.
+    //
+    // Was `Option<String>` before this arc: `Frame(Some(text))` / `Eof(None)`. A
+    // process-wide stop request is neither — `Option<String>` had no third state to
+    // carry it, so this dedicated enum replaces it. See `eval_ioreader_read_frame`'s
+    // doc comment (`src/io.rs`) for the poll that produces `Shutdown`.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::io::ReadFrameOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Impure, // an I/O outcome
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Frame".into(),
+                fields: vec![("text".into(), TypeExpr::Path(":wat::core::String".into()))],
+            },
+            EnumVariant::Unit("Eof".into()),
+            // PROVISIONAL — "a stop was requested; nothing is wrong with the
+            // stream" (the brief's pinned contract). Intueri's to name/shape.
+            EnumVariant::Unit("Shutdown".into()),
         ],
     }));
 

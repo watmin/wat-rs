@@ -773,7 +773,6 @@ fn check_mode_still_demands_exactly_one_entry() {
 ///      poll-`[fd, broadcast_fd]` multiplex `channel/transfer.rs:200` already implements.
 ///      Until then this read is the one wait in the substrate that is not a select, and it
 ///      pins the process alive until stdin EOFs.
-#[ignore = "arc 170 — acceptance gate for the shutdown fix; steps 2 and 3 outstanding (see doc comment)"]
 #[test]
 fn sigterm_reaches_a_program_blocked_on_stdin() {
     let program = include_str!("wat_cli__sigterm_blocked_on_stdin.wat");

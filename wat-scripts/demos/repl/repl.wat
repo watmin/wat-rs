@@ -107,7 +107,12 @@
     ((:wat::kernel::ReadFrameOutcome::Frame text)
       (:repl::eval-and-loop defs text))
     ;; the honest stop — and this time the comment is true
-    (:wat::kernel::ReadFrameOutcome::Eof ())))
+    (:wat::kernel::ReadFrameOutcome::Eof nil)
+    ;; Arc 170 — a process-wide stop (SIGTERM/SIGINT) arrived while parked
+    ;; here waiting on the next line. Same clean-exit shape as ::Eof: this
+    ;; loop's only job is to stop reading, and both outcomes agree on that.
+    ;; PROVISIONAL variant name — intueri's to rule.
+    (:wat::kernel::ReadFrameOutcome::Shutdown nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:repl::turn (:wat::core::Vector :wat::WatAST)))

@@ -57,8 +57,10 @@ pub trait WatReader: Send + Sync + std::fmt::Debug {
 
     /// Arc 170 Phase 2 — return the raw FD this reader is backed by,
     /// for OS-level multiplex via poll(2). Default `None` for
-    /// non-FD-backed readers (RealStdin, StringIoReader). Override
-    /// in PipeReader to return `Some(self.fd.as_raw_fd())`.
+    /// non-FD-backed readers (StringIoReader). Override in PipeReader
+    /// to return `Some(self.fd.as_raw_fd())`, and in RealStdin to
+    /// return `Some(0)` (it wraps `std::io::Stdin`, which is fd 0 —
+    /// see the arc 170 stdin-joins-the-lockstep fix).
     fn as_raw_fd_for_poll(&self) -> Option<i32> {
         None
     }
@@ -180,6 +182,17 @@ impl WatReader for RealStdin {
         // probably a portability bug, but the no-op matches Rust's
         // `Stdin::rewind` absence.
         Ok(())
+    }
+
+    /// Arc 170 — stdin joins the lock-step. `RealStdin` wraps `std::io::Stdin`,
+    /// which is always fd 0; reporting `None` here (the old behavior) is what
+    /// took stdin out of the substrate's poll-multiplex and left its read as
+    /// a bare blocking `read(2)` — the one wait that could not observe a stop
+    /// request. `Some(0)` lets `eval_ioreader_read_frame` (this module) poll
+    /// `[0, SHUTDOWN_BROADCAST_READ_FD]` before every physical-line read,
+    /// exactly as `channel/transfer.rs`'s `PipeFd` path already does.
+    fn as_raw_fd_for_poll(&self) -> Option<i32> {
+        Some(0)
     }
 }
 
@@ -879,14 +892,30 @@ pub fn eval_ioreader_read_line(
     )))
 }
 
-/// `(:wat::io::IOReader/read-frame <reader>)` → `:Option<String>`.
-/// `(:wat::io::IOReader/read-frame <reader> <max-bytes :i64>)` → `:Option<String>`.
+/// `(:wat::io::IOReader/read-frame <reader>)` → `:wat::io::ReadFrameOutcome`.
+/// `(:wat::io::IOReader/read-frame <reader> <max-bytes :i64>)` → `:wat::io::ReadFrameOutcome`.
 ///
 /// Accumulates physical lines from `reader` (via `read_line`) until the
 /// buffer forms a complete EDN value, then returns
-/// `Some(trimmed-frame-string)`.  Returns `None` on clean EOF (no bytes
-/// consumed). Surfaces a `RuntimeError` if the frame is `Truncated`
-/// (EOF mid-frame) or `Malformed` (syntax error in the accumulated buffer).
+/// `ReadFrameOutcome::Frame(trimmed-frame-string)`. Returns
+/// `ReadFrameOutcome::Eof` on clean EOF (no bytes consumed), and
+/// `ReadFrameOutcome::Shutdown` (PROVISIONAL name — intueri's to rule) if a
+/// process-wide stop was requested while waiting. Surfaces a `RuntimeError`
+/// if the frame is `Truncated` (EOF mid-frame) or `Malformed` (syntax error
+/// in the accumulated buffer).
+///
+/// Arc 170 — before every physical-line read, polls `reader`'s fd (when
+/// `as_raw_fd_for_poll` reports one — true for `RealStdin` as of this arc,
+/// and for `PipeReader`) against `SHUTDOWN_BROADCAST_READ_FD`, exactly as
+/// `channel/transfer.rs`'s `PipeFd` recv path already does. Shutdown wins
+/// ties. This is the fix that lets a program blocked in `read-frame` on
+/// real stdin observe SIGTERM instead of pinning the process alive until
+/// stdin EOFs.
+///
+/// `Option<String>` could not carry the third ("a stop was requested, and
+/// nothing is wrong with the stream") outcome, so this verb's return type
+/// changed from `Option<String>` to the dedicated `ReadFrameOutcome` enum —
+/// see its scheme in `src/check.rs`.
 ///
 /// Optional second argument: explicit max-bytes cap (i64). When absent the
 /// cap defaults to `DEFAULT_MAX_FRAME_BYTES` (512 KiB). The 2-arg form is
@@ -941,13 +970,86 @@ pub fn eval_ioreader_read_frame(
     } else {
         DEFAULT_MAX_FRAME_BYTES
     };
-    match read_framed_edn(|span| reader.read_line(span), list_span.clone(), cap)? {
+    // Arc 170 — poll the reader's fd (if it has one) against the shutdown
+    // broadcast fd before every physical-line read, exactly as
+    // `channel/transfer.rs`'s `PipeFd` recv path (`read_one_line`) already
+    // does for the peer-to-peer wire. `RealStdin` now reports `Some(0)`
+    // (see its `as_raw_fd_for_poll` impl, this module), so this is the
+    // read that brings stdin into the lock-step.
+    let pipe_fd_opt = reader.as_raw_fd_for_poll();
+    let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(
+        std::sync::atomic::Ordering::SeqCst,
+    );
+    use crate::edn_shim::NextLine;
+    let next_line = |span: Span| -> Result<NextLine, RuntimeError> {
+        if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
+            loop {
+                let mut fds = [
+                    libc::pollfd {
+                        fd: pfd,
+                        events: libc::POLLIN | libc::POLLHUP,
+                        revents: 0,
+                    },
+                    libc::pollfd {
+                        fd: broadcast_fd,
+                        events: libc::POLLHUP,
+                        revents: 0,
+                    },
+                ];
+                let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+                if n < 0 {
+                    // EINTR → retry; other errors fall through to read_line.
+                    let err = std::io::Error::last_os_error();
+                    if err.kind() == std::io::ErrorKind::Interrupted {
+                        continue;
+                    }
+                    break; // non-EINTR error — proceed to read_line
+                }
+                if n == 0 {
+                    // timeout=-1 should never produce n=0; defensively retry.
+                    continue;
+                }
+                // Shutdown wins ties per Slice B discipline (matches
+                // channel/transfer.rs's read_one_line exactly).
+                if fds[1].revents != 0 {
+                    return Ok(NextLine::Shutdown);
+                }
+                if fds[0].revents != 0 {
+                    break;
+                }
+            }
+        }
+        match reader.read_line(span)? {
+            Some(line) => Ok(NextLine::Line(line)),
+            None => Ok(NextLine::Eof),
+        }
+    };
+    match read_framed_edn(next_line, list_span.clone(), cap)? {
         FramedRead::Frame(buf) => {
             // Trim the trailing newline that read_framed_edn appends.
             let s = buf.trim_end_matches('\n').to_string();
-            Ok(Value::Option(Arc::new(Some(Value::String(Arc::new(s))))))
+            Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
+                type_path: ":wat::io::ReadFrameOutcome".into(),
+                variant_name: "Frame".into(),
+                fields: vec![Value::String(Arc::new(s))],
+            })))
         }
-        FramedRead::Eof => Ok(Value::Option(Arc::new(None))),
+        FramedRead::Eof => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
+            type_path: ":wat::io::ReadFrameOutcome".into(),
+            variant_name: "Eof".into(),
+            fields: vec![],
+        }))),
+        // Arc 170 — the whole point: a stop request is NOT an EOF and NOT an
+        // error, so it gets its own outcome here rather than being folded
+        // into `Eof` (which would report a stop as a clean writer-closed
+        // and is the precise defect this brief exists to remove) or an
+        // `Err` (which would report it as a malfunction it isn't).
+        // PROVISIONAL variant name — intueri's to rule.
+        FramedRead::Shutdown => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
+            type_path: ":wat::io::ReadFrameOutcome".into(),
+            variant_name: "Shutdown".into(),
+            fields: vec![],
+        }))),
         FramedRead::Truncated(partial) => Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::MalformedForm {
