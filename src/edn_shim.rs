@@ -1511,7 +1511,14 @@ pub enum FramedRead {
     /// erased by the `Ok(None) | Err(_)` wildcard this replaces. Mirrors
     /// `RecvOutcome::Shutdown` (`channel/transfer.rs`), the accepted shape
     /// for this same defect class one layer over.
-    /// PROVISIONAL name — flagged for the intueri naming cast.
+    /// Named `Shutdown`, not `Stopped`: ruled by the arc-170 intueri cast —
+    /// this is a Rust-internal type, and Rust's vocabulary for this fact is
+    /// uniformly `shutdown` (`trigger_shutdown`, `RecvError::Shutdown`,
+    /// `SHUTDOWN_BROADCAST_READ_FD`). Only the wat-visible siblings
+    /// (`:wat::io::IOReader::ReadFrameOutcome::Stopped` and
+    /// `:wat::kernel::ReadFrameOutcome::Stopped`) were renamed — see
+    /// `src/io.rs`'s `eval_ioreader_read_frame`, the ONE site where this
+    /// Rust variant crosses into the wat vocabulary.
     Shutdown,
 }
 
@@ -1521,8 +1528,11 @@ pub enum FramedRead {
 /// `LineResult`, the exemplar this mirrors) can report "a stop was
 /// requested" without it collapsing into `Eof` at the very first hop.
 /// Rust-internal glue — not a wat-visible type, so not part of the
-/// intueri naming cast — but named to match the outcome it feeds.
-pub enum NextLine {
+/// intueri naming cast for `Shutdown`/`Stopped`. Named `LineRead`, not
+/// `NextLine` (arc 170 rename brief): it names the REQUEST's answer, not
+/// the request itself, and `LineRead`/`FramedRead` pair exactly the way
+/// `LineResult`/`FramedRead`'s Rust-side siblings already do.
+pub enum LineRead {
     /// One physical line, without its trailing `\n`.
     Line(String),
     /// Clean EOF.
@@ -1535,9 +1545,9 @@ pub enum NextLine {
 /// complete EDN value, then return it as a `FramedRead::Frame`.
 ///
 /// Each call to `next_line(span)` must return:
-/// - `Ok(NextLine::Line(line))` — one line WITHOUT its trailing `\n`
-/// - `Ok(NextLine::Eof)` — EOF
-/// - `Ok(NextLine::Shutdown)` — a stop was requested; nothing is wrong with
+/// - `Ok(LineRead::Line(line))` — one line WITHOUT its trailing `\n`
+/// - `Ok(LineRead::Eof)` — EOF
+/// - `Ok(LineRead::Shutdown)` — a stop was requested; nothing is wrong with
 ///   the stream (arc 170 — carried through to `FramedRead::Shutdown`,
 ///   never collapsed into `Eof`)
 /// - `Err(e)` — a read error (treated as EOF / disconnect — unchanged from
@@ -1560,12 +1570,12 @@ pub enum NextLine {
 /// memory.
 pub fn read_framed_edn<F>(mut next_line: F, span: Span, max_bytes: usize) -> Result<FramedRead, RuntimeError>
 where
-    F: FnMut(Span) -> Result<NextLine, RuntimeError>,
+    F: FnMut(Span) -> Result<LineRead, RuntimeError>,
 {
     let mut buf: Vec<u8> = Vec::new();
     loop {
         match next_line(span.clone()) {
-            Ok(NextLine::Line(line)) => {
+            Ok(LineRead::Line(line)) => {
                 buf.extend_from_slice(line.as_bytes());
                 buf.push(b'\n');
                 match next_complete_frame(&buf, max_bytes) {
@@ -1584,8 +1594,8 @@ where
             // shape here was `Ok(None) | Err(_)`, which is exactly the erasing
             // wildcard `kernel/peer.rs`'s `Thread::recv` was fixed to stop doing
             // for `RecvError::Shutdown` one layer over.
-            Ok(NextLine::Shutdown) => return Ok(FramedRead::Shutdown),
-            Ok(NextLine::Eof) | Err(_) => {
+            Ok(LineRead::Shutdown) => return Ok(FramedRead::Shutdown),
+            Ok(LineRead::Eof) | Err(_) => {
                 if buf.is_empty() {
                     return Ok(FramedRead::Eof);
                 } else {

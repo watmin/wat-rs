@@ -111,8 +111,7 @@
     ;; Arc 170 — a process-wide stop (SIGTERM/SIGINT) arrived while parked
     ;; here waiting on the next line. Same clean-exit shape as ::Eof: this
     ;; loop's only job is to stop reading, and both outcomes agree on that.
-    ;; PROVISIONAL variant name — intueri's to rule.
-    (:wat::kernel::ReadFrameOutcome::Shutdown nil)))
+    (:wat::kernel::ReadFrameOutcome::Stopped nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:repl::turn (:wat::core::Vector :wat::WatAST)))

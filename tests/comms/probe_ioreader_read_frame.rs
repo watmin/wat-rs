@@ -2,8 +2,8 @@
 //!
 //! Verifies that `IOReader/read-frame` accumulates physical lines from an
 //! IOReader until they form a complete EDN value, returned as
-//! `:wat::io::ReadFrameOutcome::Frame(text)`, and that a clean EOF returns
-//! `:wat::io::ReadFrameOutcome::Eof`.
+//! `:wat::io::IOReader::ReadFrameOutcome::Frame(text)`, and that a clean EOF
+//! returns `:wat::io::IOReader::ReadFrameOutcome::Eof`.
 //!
 //! Arc 170 stdin-joins-the-lock-step: this verb's return changed from
 //! `Option<String>` to the dedicated `ReadFrameOutcome` enum, because a
@@ -34,7 +34,7 @@ use wat::value::TrackedValue;
 ///
 /// Writes a 4-line pretty-printed map to a StringIoReader, then calls
 /// `eval_ioreader_read_frame` directly via the Rust entry point.
-/// Expects `Value::Enum(":wat::io::ReadFrameOutcome", "Frame", [String])`.
+/// Expects `Value::Enum(":wat::io::IOReader::ReadFrameOutcome", "Frame", [String])`.
 #[test]
 fn read_frame_multiline_edn_map() {
     let world = startup_bare().expect("startup_bare should succeed");
@@ -58,7 +58,7 @@ fn read_frame_multiline_edn_map() {
 
     let result = eval_ioreader_read_frame(&[arg_ast], &env, sym, &wat::rust_caller_span!());
     match result {
-        Ok(Value::Enum(ev)) if ev.type_path == ":wat::io::ReadFrameOutcome" && ev.variant_name == "Frame" => {
+        Ok(Value::Enum(ev)) if ev.type_path == ":wat::io::IOReader::ReadFrameOutcome" && ev.variant_name == "Frame" => {
             match ev.fields.as_slice() {
                 [Value::String(s)] => {
                     assert_eq!(
@@ -98,7 +98,7 @@ fn read_frame_eof_returns_none() {
 
     let result = eval_ioreader_read_frame(&[arg_ast], &env, sym, &wat::rust_caller_span!());
     match result {
-        Ok(Value::Enum(ev)) if ev.type_path == ":wat::io::ReadFrameOutcome" && ev.variant_name == "Eof" => {}
+        Ok(Value::Enum(ev)) if ev.type_path == ":wat::io::IOReader::ReadFrameOutcome" && ev.variant_name == "Eof" => {}
         Ok(other) => panic!("read-frame on empty reader: expected ReadFrameOutcome::Eof; got: {:?}", other),
         Err(e) => panic!("read-frame on empty reader: unexpected error: {}", e),
     }

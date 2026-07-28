@@ -892,17 +892,16 @@ pub fn eval_ioreader_read_line(
     )))
 }
 
-/// `(:wat::io::IOReader/read-frame <reader>)` → `:wat::io::ReadFrameOutcome`.
-/// `(:wat::io::IOReader/read-frame <reader> <max-bytes :i64>)` → `:wat::io::ReadFrameOutcome`.
+/// `(:wat::io::IOReader/read-frame <reader>)` → `:wat::io::IOReader::ReadFrameOutcome`.
+/// `(:wat::io::IOReader/read-frame <reader> <max-bytes :i64>)` → `:wat::io::IOReader::ReadFrameOutcome`.
 ///
 /// Accumulates physical lines from `reader` (via `read_line`) until the
 /// buffer forms a complete EDN value, then returns
 /// `ReadFrameOutcome::Frame(trimmed-frame-string)`. Returns
 /// `ReadFrameOutcome::Eof` on clean EOF (no bytes consumed), and
-/// `ReadFrameOutcome::Shutdown` (PROVISIONAL name — intueri's to rule) if a
-/// process-wide stop was requested while waiting. Surfaces a `RuntimeError`
-/// if the frame is `Truncated` (EOF mid-frame) or `Malformed` (syntax error
-/// in the accumulated buffer).
+/// `ReadFrameOutcome::Stopped` if a process-wide stop was requested while
+/// waiting. Surfaces a `RuntimeError` if the frame is `Truncated` (EOF
+/// mid-frame) or `Malformed` (syntax error in the accumulated buffer).
 ///
 /// Arc 170 — before every physical-line read, polls `reader`'s fd (when
 /// `as_raw_fd_for_poll` reports one — true for `RealStdin` as of this arc,
@@ -980,8 +979,8 @@ pub fn eval_ioreader_read_frame(
     let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(
         std::sync::atomic::Ordering::SeqCst,
     );
-    use crate::edn_shim::NextLine;
-    let next_line = |span: Span| -> Result<NextLine, RuntimeError> {
+    use crate::edn_shim::LineRead;
+    let next_line = |span: Span| -> Result<LineRead, RuntimeError> {
         if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
             loop {
                 let mut fds = [
@@ -1012,7 +1011,7 @@ pub fn eval_ioreader_read_frame(
                 // Shutdown wins ties per Slice B discipline (matches
                 // channel/transfer.rs's read_one_line exactly).
                 if fds[1].revents != 0 {
-                    return Ok(NextLine::Shutdown);
+                    return Ok(LineRead::Shutdown);
                 }
                 if fds[0].revents != 0 {
                     break;
@@ -1020,22 +1019,31 @@ pub fn eval_ioreader_read_frame(
             }
         }
         match reader.read_line(span)? {
-            Some(line) => Ok(NextLine::Line(line)),
-            None => Ok(NextLine::Eof),
+            Some(line) => Ok(LineRead::Line(line)),
+            None => Ok(LineRead::Eof),
         }
     };
+    // This match is the ONE site where the Rust-side `FramedRead` vocabulary crosses
+    // into the wat-visible `:wat::io::IOReader::ReadFrameOutcome` vocabulary, and the
+    // names deliberately diverge here: `FramedRead::Shutdown` keeps Rust's uniform
+    // `shutdown` naming (it mirrors `channel/transfer.rs`'s `LineResult::Shutdown`,
+    // the file this poll was copied from), while the wat variant is `Stopped` — wat
+    // already has `(:wat::kernel::stopped?)` for this fact, and nothing is shutting
+    // down when this is produced, a stop was merely requested. Ruled by the arc-170
+    // intueri cast (2026-07-28): the rename boundary IS the Rust/wat boundary, which
+    // is exactly where the audience — and so the vocabulary — is allowed to change.
     match read_framed_edn(next_line, list_span.clone(), cap)? {
         FramedRead::Frame(buf) => {
             // Trim the trailing newline that read_framed_edn appends.
             let s = buf.trim_end_matches('\n').to_string();
             Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
-                type_path: ":wat::io::ReadFrameOutcome".into(),
+                type_path: ":wat::io::IOReader::ReadFrameOutcome".into(),
                 variant_name: "Frame".into(),
                 fields: vec![Value::String(Arc::new(s))],
             })))
         }
         FramedRead::Eof => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
-            type_path: ":wat::io::ReadFrameOutcome".into(),
+            type_path: ":wat::io::IOReader::ReadFrameOutcome".into(),
             variant_name: "Eof".into(),
             fields: vec![],
         }))),
@@ -1044,10 +1052,9 @@ pub fn eval_ioreader_read_frame(
         // into `Eof` (which would report a stop as a clean writer-closed
         // and is the precise defect this brief exists to remove) or an
         // `Err` (which would report it as a malfunction it isn't).
-        // PROVISIONAL variant name — intueri's to rule.
         FramedRead::Shutdown => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
-            type_path: ":wat::io::ReadFrameOutcome".into(),
-            variant_name: "Shutdown".into(),
+            type_path: ":wat::io::IOReader::ReadFrameOutcome".into(),
+            variant_name: "Stopped".into(),
             fields: vec![],
         }))),
         FramedRead::Truncated(partial) => Err(RuntimeError {

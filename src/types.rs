@@ -1012,7 +1012,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // multi-line forms are NOT supported. Accumulation is real, but only for input that
     // is well-formed-EDN-so-far (an unclosed `{`).
     //
-    // Two variants, and only two:
+    // Three variants:
     //   :Frame [text] — the raw frame text, UNDECODED. `readln` reads the same bytes and
     //                   then EDN-decodes them, which is right for a wire and wrong for a
     //                   human: a REPL user types `(:wat::core::+ 1 1)`, which is wat
@@ -1022,6 +1022,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                   the serve loop"); `stdio-read` then raised on it to preserve the
     //                   old fd-0 behavior for the 72 `readln` callers. That bank is what
     //                   made a REPL loop unable to stop cleanly. This verb spends it.
+    //   :Stopped []   — a process-wide stop was requested while `stdio-read-frame`
+    //                   (`stdio-primes.wat`) was blocked waiting on the StdIn service.
+    //                   NOT an `Eof` (the peer didn't close) and NOT an error — its own
+    //                   outcome, matching `StdIn::ReadLineResponse::Stopped` one layer
+    //                   below. Named `Stopped`, not `Shutdown`: wat already has a word
+    //                   for this fact — `(:wat::kernel::stopped?)` — and nothing is
+    //                   shutting down here, a stop was merely requested. Ruled by an
+    //                   intueri cast (2026-07-28, the "Stopped, not Shutdown" brief).
     //
     // It does NOT return the service's own `StdIn::ReadLineResponse`. That enum carries
     // `RequestTooLarge`/`RequestMalformed` because `defservice` MANDATES those on every
@@ -1049,15 +1057,16 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
             // while `stdio-read-frame` (`stdio-primes.wat`) was blocked waiting on
             // the StdIn service. NOT an `Eof` (the peer didn't close) and NOT an
-            // error — its own outcome, matching `StdIn::ReadLineResponse::Shutdown`
-            // one layer below. PROVISIONAL variant name — intueri's to rule; a
-            // clearly-provisional placeholder per the brief.
-            EnumVariant::Unit("Shutdown".into()),
+            // error — its own outcome, matching `StdIn::ReadLineResponse::Stopped`
+            // one layer below. Named by the arc-170 intueri cast, 2026-07-28: wat
+            // already has `(:wat::kernel::stopped?)` for this fact, so `Shutdown`
+            // (a second word for the same thing) was the synonym anti-pattern.
+            EnumVariant::Unit("Stopped".into()),
         ],
     }));
 
-    // Arc 170 stdin-joins-the-lock-step — :wat::io::ReadFrameOutcome (PROVISIONAL
-    // name — intueri's to rule) — what `:wat::io::IOReader/read-frame` returns.
+    // Arc 170 stdin-joins-the-lock-step — :wat::io::IOReader::ReadFrameOutcome — what
+    // `:wat::io::IOReader/read-frame` returns.
     //
     // The raw-IOReader-level sibling of `:wat::kernel::ReadFrameOutcome` above: this
     // one is what the verb hands back DIRECTLY (see `eval_ioreader_read_frame`,
@@ -1066,12 +1075,23 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // own `StdIn::ReadLineResponse` reply. Two different enums at two different
     // layers, deliberately — the brief's "rooms 4 and 6" are not the same room.
     //
+    // Owner-qualified (`IOReader::`), not bare `:wat::io::ReadFrameOutcome`: ruled by
+    // the same arc-170 intueri cast, because that bare name was structurally identical
+    // (same variants, same purity, same field name) to `:wat::kernel::ReadFrameOutcome`
+    // above — the only hand-written duplicate base name in the wat type vocabulary.
+    // `:wat::kernel::ReadFrameOutcome` keeps the short name (its verb is
+    // `:wat::kernel::read-frame`, so verb and outcome agree, and it's the surface wat
+    // programmers meet); this plumbing-layer one is owner-qualified instead, the same
+    // shape as `:wat::kernel::StdIn::ReadLineResponse`. A throwaway four-segment probe
+    // (register_builtin + construct/match from a `.wat` fixture) proved the mechanism
+    // resolves cleanly before this name shipped.
+    //
     // Was `Option<String>` before this arc: `Frame(Some(text))` / `Eof(None)`. A
     // process-wide stop request is neither — `Option<String>` had no third state to
     // carry it, so this dedicated enum replaces it. See `eval_ioreader_read_frame`'s
-    // doc comment (`src/io.rs`) for the poll that produces `Shutdown`.
+    // doc comment (`src/io.rs`) for the poll that produces `Stopped`.
     env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::io::ReadFrameOutcome".into(),
+        name: ":wat::io::IOReader::ReadFrameOutcome".into(),
         type_params: vec![],
         purity: Purity::Impure, // an I/O outcome
         variants: vec![
@@ -1080,9 +1100,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![("text".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
             EnumVariant::Unit("Eof".into()),
-            // PROVISIONAL — "a stop was requested; nothing is wrong with the
-            // stream" (the brief's pinned contract). Intueri's to name/shape.
-            EnumVariant::Unit("Shutdown".into()),
+            // "A stop was requested; nothing is wrong with the stream." Named
+            // `Stopped` (not `Shutdown`) by the same arc-170 intueri cast as the
+            // sibling above — see that comment for the full rationale.
+            EnumVariant::Unit("Stopped".into()),
         ],
     }));
 

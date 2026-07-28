@@ -90,9 +90,11 @@
      ;; Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested while
      ;; the read was blocked. NOT ::Eof (the peer didn't close) and NOT a
      ;; RequestMalformed/RequestTooLarge (nothing wrong with the request) — its own
-     ;; outcome, so a caller cannot mistake a stop for the writer hanging up.
-     ;; PROVISIONAL variant name — intueri's to rule.
-     :Shutdown        []
+     ;; outcome, so a caller cannot mistake a stop for the writer hanging up. Named
+     ;; `Stopped`, not `Shutdown`, by the arc-170 intueri cast (2026-07-28): wat
+     ;; already has `(:wat::kernel::stopped?)` for this fact, and nothing is
+     ;; shutting down here — a stop was merely requested.
+     :Stopped         []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
@@ -113,12 +115,12 @@
                             (:wat::kernel::StdIn::ReadLineRequest/max-buffer-bytes req))
          ;; a full line read → ::Line; EOF → the matchable ::Eof value (NOT a panic that
          ;; kills the serve loop — the no-hidden-failures upgrade). Arc 170: IOReader/read-frame's
-         ;; return became :wat::io::ReadFrameOutcome (was Option<String>) so a stop request could
-         ;; get its OWN outcome rather than being folded into ::Eof — ::Shutdown carries it
-         ;; straight through (PROVISIONAL name — intueri's to rule).
-         ((:wat::io::ReadFrameOutcome::Frame line) (:wat::kernel::StdIn::ReadLineResponse::Line line))
-         (:wat::io::ReadFrameOutcome::Eof          (:wat::kernel::StdIn::ReadLineResponse::Eof))
-         (:wat::io::ReadFrameOutcome::Shutdown     (:wat::kernel::StdIn::ReadLineResponse::Shutdown)))))])
+         ;; return became :wat::io::IOReader::ReadFrameOutcome (was Option<String>) so a stop
+         ;; request could get its OWN outcome rather than being folded into ::Eof — ::Stopped
+         ;; carries it straight through.
+         ((:wat::io::IOReader::ReadFrameOutcome::Frame line) (:wat::kernel::StdIn::ReadLineResponse::Line line))
+         (:wat::io::IOReader::ReadFrameOutcome::Eof          (:wat::kernel::StdIn::ReadLineResponse::Eof))
+         (:wat::io::IOReader::ReadFrameOutcome::Stopped      (:wat::kernel::StdIn::ReadLineResponse::Stopped)))))])
 
 ;; ─── freeze-bootstrap helper (arc 170 PHASE 1) ──────────────────────────────────────────────────
 ;; Called ONCE from Rust (src/freeze.rs `bootstrap_wat_vm_process`) via `apply_function` with the
@@ -267,7 +269,7 @@
         ;; reproduces the pre-arc-170 EOF-on-fd0 behavior for its 72 callers, and there
         ;; is no caller-facing value form for "raise" to hand a stop through), but the
         ;; message must NOT say "EOF" — that is the exact defect this brief removes.
-        ((:wat::kernel::StdIn::ReadLineResponse::Shutdown)
+        ((:wat::kernel::StdIn::ReadLineResponse::Stopped)
           (:wat::kernel::assertion-failed! "readln: a stop was requested while blocked reading stdin" :wat::core::None :wat::core::None))
         ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap2)
           (:wat::kernel::assertion-failed! "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))
@@ -304,10 +306,10 @@
           ;; pre-built EnumValue via the SymbolTable's unit_variants table
           :wat::kernel::ReadFrameOutcome::Eof)
         ;; Arc 170 — carried straight through, not collapsed into ::Eof. Same bare-keyword
-        ;; shape as ::Eof (both are Rust builtin-registered unit variants). PROVISIONAL
-        ;; variant name on both sides — intueri's to rule.
-        ((:wat::kernel::StdIn::ReadLineResponse::Shutdown)
-          :wat::kernel::ReadFrameOutcome::Shutdown)
+        ;; shape as ::Eof (both are Rust builtin-registered unit variants). Named `Stopped`
+        ;; on both sides by the arc-170 intueri cast — see StdIn::ReadLineResponse above.
+        ((:wat::kernel::StdIn::ReadLineResponse::Stopped)
+          :wat::kernel::ReadFrameOutcome::Stopped)
         ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap2)
           (:wat::kernel::assertion-failed! "read-frame: stdin request framing rejected (RequestTooLarge) — unreachable for a kernel-built request" :wat::core::None :wat::core::None))
         ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
@@ -322,7 +324,7 @@
       ;; the cause's own message — nothing is erased, unlike the `_ => Closed` this arc
       ;; removed, which replaced a distinction with silence.
       (:wat::core::match cause
-        (:wat::kernel::LociDiedError::Shutdown :wat::kernel::ReadFrameOutcome::Shutdown)
+        (:wat::kernel::LociDiedError::Shutdown :wat::kernel::ReadFrameOutcome::Stopped)
         (_ (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None))))

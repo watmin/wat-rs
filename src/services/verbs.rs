@@ -221,13 +221,15 @@ pub fn eval_kernel_epprintln(
 /// bodies, before the restricted-call walker runs). The restriction is conventional: write `readln`.
 /// `(:wat::kernel::read-frame)` → `:wat::kernel::ReadFrameOutcome`. Arc 170.
 ///
-/// The honest read: one EDN frame's RAW TEXT, plus EOF as a matchable value. Both were
+/// The honest read: one EDN frame's RAW TEXT, plus EOF and a stop request, both as
+/// matchable values (`:wat::kernel::ReadFrameOutcome::Eof` / `::Stopped`). All three were
 /// already in the StdIn service and discarded by the wrappers above it — `readln'`
 /// unconditionally EDN-decodes (`verbs.rs`, `decode_trusted_wire`), and `stdio-read`
-/// raises on `::Eof` to preserve pre-arc-170 fd-0 behavior for its 72 callers. Neither
-/// is wrong for a wire; both are wrong for a human at a prompt, who types wat source
-/// (`(:wat::core::+ 1 1)`) rather than an EDN literal, and who expects Ctrl-D to end a
-/// session rather than raise a `LociDiedError/Panic` cascade.
+/// raises on both `::Eof` and `::Stopped` to preserve pre-arc-170 fd-0 behavior for its 72
+/// callers. None of the three is wrong for a wire; all three are wrong for a human at a
+/// prompt, who types wat source (`(:wat::core::+ 1 1)`) rather than an EDN literal, who
+/// expects Ctrl-D to end a session rather than raise a `LociDiedError/Panic` cascade, and
+/// who expects SIGTERM to stop the loop rather than pin the process alive.
 ///
 /// Zero-arg by choice. `readln` carries a `:max-buffer-bytes` knob; this does not, and
 /// uses the same `MAX-READLN-BYTES` default, because a second ambient read verb with its

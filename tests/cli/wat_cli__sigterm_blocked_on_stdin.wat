@@ -21,7 +21,7 @@
     ;; Before the stdin read joined the lock-step there was no way to reach this point at
     ;; all: the read was a bare `read(2)`, so the signal could not be observed and the
     ;; parked thread pinned the process alive until stdin EOF'd.
-    (:wat::kernel::ReadFrameOutcome::Shutdown nil)))
+    (:wat::kernel::ReadFrameOutcome::Stopped nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

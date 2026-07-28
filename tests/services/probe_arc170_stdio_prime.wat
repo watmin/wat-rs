@@ -79,7 +79,7 @@
           ;; folding into ::Eof. This probe never stops mid-read, so the arm is unreachable
           ;; here; it is written distinctly ("STOP", not "EOF") so a future run that DOES
           ;; hit it reports what happened instead of a plausible lie.
-          ((:wat::kernel::StdIn::ReadLineResponse::Shutdown) "STOP")
+          ((:wat::kernel::StdIn::ReadLineResponse::Stopped) "STOP")
           ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap) "RTL")
           ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))

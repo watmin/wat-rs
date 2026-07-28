@@ -8501,7 +8501,7 @@ fn infer_kernel_readln_prime(
 /// 2-arg form: uses the supplied i64 cap, forwarded from StdInService/handle
 /// when a caller-supplied cap flows through readln' → StdInService::Req.
 ///
-/// Return type: `:wat::io::ReadFrameOutcome` in both cases (arc 170 — was
+/// Return type: `:wat::io::IOReader::ReadFrameOutcome` in both cases (arc 170 — was
 /// `:Option<String>`; a process-wide stop request needed a third outcome
 /// `Option<String>` could not express — see the type's registration in
 /// `src/types.rs`).
@@ -8532,8 +8532,8 @@ fn infer_ioreader_read_frame(
     if args.len() == 2 {
         let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     }
-    // Return type is always :wat::io::ReadFrameOutcome (arc 170).
-    let outcome_ty = TypeExpr::Path(":wat::io::ReadFrameOutcome".into());
+    // Return type is always :wat::io::IOReader::ReadFrameOutcome (arc 170).
+    let outcome_ty = TypeExpr::Path(":wat::io::IOReader::ReadFrameOutcome".into());
     if local_errors.is_empty() {
         CheckResult::ok(outcome_ty)
     } else {
@@ -14571,7 +14571,7 @@ fn register_builtins(env: &mut CheckEnv) {
             // needed a third outcome `Option<String>` couldn't express. The
             // 2-arg-form special-case arm (`infer_ioreader_read_frame`
             // above) returns the same type.
-            ret: TypeExpr::Path(":wat::io::ReadFrameOutcome".into()),
+            ret: TypeExpr::Path(":wat::io::IOReader::ReadFrameOutcome".into()),
             rest_param_type: None,
         },
     );
@@ -17290,7 +17290,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 170 — `:wat::kernel::read-frame` — the raw-frame sibling of `readln'`.
     // Unlike `readln'` its return is CONCRETE, not `:T`: `readln'` reads whatever the
     // self-describing EDN wire says, so its type is only knowable at the call site,
-    // whereas this one always answers the same two-variant outcome. Zero params — the
+    // whereas this one always answers the same three-variant outcome (Frame / Eof /
+    // Stopped). Zero params — the
     // cap is the shared stdin default, not a knob (see the verb's own doc for why a
     // second ambient read verb does not get a second knob surface).
     env.register(
