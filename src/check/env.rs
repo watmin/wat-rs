@@ -494,6 +494,7 @@ mod tests {
             name: ":my::op".into(),
             clauses: vec![clause],
             shared_return: None,
+            metadata: None,
         });
         let mut sym = SymbolTable::new();
         sym.runtime_def_values.insert(":my::op".into(), Value::wat__core__clauses(cs));

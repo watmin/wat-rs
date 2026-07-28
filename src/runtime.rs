@@ -882,24 +882,47 @@ pub fn register_defines(
                 //
                 // Mirror pattern from try_parse_fn_shape_def (arc 166) + the
                 // preregister_fn_defs_in_do (arc 170 Gap C) stubs.
-                if let Ok((name, _cs)) = crate::runtime::parse_defclause_form(&form, crate::resolve::Privilege::User) {
-                    if !crate::resolve::is_reserved_prefix(&name)
-                        && !sym.functions.contains_key(&name)
-                    {
-                        // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
-                        let stub_body = WatAST::NilLit(form.span().clone());
-                        let stub_fn = Arc::new(Function {
-                            name: Some(name.clone()),
-                            params: vec![],
-                            type_params: vec![],
-                            param_types: vec![],
-                            ret_type: crate::types::TypeExpr::Tuple(vec![]),
-                            rest_param: None,
-                            rest_param_type: None,
-                            body: FunctionBody::Wat(Arc::new(stub_body)),
-                            closed_env: None,
-                        });
-                        sym.functions.insert(name, stub_fn);
+                //
+                // The head keyword already matched `:wat::core::defclause` above,
+                // so this form is UNAMBIGUOUSLY committed to being a defclause
+                // declaration — there is no other parser downstream that would
+                // give a malformed form a second chance. A parse failure here
+                // (e.g. a malformed metadata-map, or any unexpected extra form
+                // in the name/metadata position) MUST propagate as a located
+                // RuntimeError at THIS definition site via `?`. Previously this
+                // was `if let Ok(...) = ...` — a parse failure silently skipped
+                // registration (no stub, no binding_metadata), so the name never
+                // existed anywhere and the resolver (step 7, which runs before
+                // check_program) reported an unrelated "unresolved reference" at
+                // every CALL site instead — the wrong form never ruined itself
+                // at the place it was written. See defclause metadata-map probes.
+                let (name, cs) = crate::runtime::parse_defclause_form(&form, crate::resolve::Privilege::User)?;
+                if !crate::resolve::is_reserved_prefix(&name)
+                    && !sym.functions.contains_key(&name)
+                {
+                    // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
+                    let stub_body = WatAST::NilLit(form.span().clone());
+                    let stub_fn = Arc::new(Function {
+                        name: Some(name.clone()),
+                        params: vec![],
+                        type_params: vec![],
+                        param_types: vec![],
+                        ret_type: crate::types::TypeExpr::Tuple(vec![]),
+                        rest_param: None,
+                        rest_param_type: None,
+                        body: FunctionBody::Wat(Arc::new(stub_body)),
+                        closed_env: None,
+                    });
+                    sym.functions.insert(name.clone(), stub_fn);
+                }
+                // Metadata-map on the defclause (e.g. `{:restricted-to [...]}`) —
+                // store it exactly as def/defn do, so the EXISTING restriction-check
+                // walker (`walk_for_restricted_call` in check.rs, which reads
+                // `SymbolTable.binding_metadata` via `CheckEnv::from_symbols`) enforces
+                // it with no change to the enforcement mechanism itself.
+                if let Some(meta) = &cs.metadata {
+                    if !meta.is_empty() {
+                        sym.binding_metadata.insert(name, meta.clone());
                     }
                 }
             }
@@ -6346,6 +6369,34 @@ pub fn parse_defclause_form(
         return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(name) }.into());
     }
 
+    // Optional metadata-map, mirroring def/defn: `(:wat::core::defclause :name
+    // {meta} [-> :T] clause ...)`. Detected structurally via `is_metadata_map`
+    // (accepts both the native `WatAST::Map` literal and the legacy
+    // `:wat::core::HashMap` constructor-call List shape) so it can never be
+    // confused with a `-> :T` sugar pair or a clause list (a clause is always
+    // a `WatAST::List` starting with a `WatAST::Vector` args-list — neither
+    // shape `is_metadata_map` accepts unless it is literally the HashMap
+    // constructor form). Consumed BEFORE the `-> :T` detection below, so
+    // `-> :T` sugar still works with or without a preceding metadata-map.
+    let (metadata, items) = if items.len() > 2 && items[2].is_metadata_map() {
+        let meta = try_parse_metadata_map(&items[2]).ok_or_else(|| RuntimeError {
+            span: items[2].span().clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: HEAD.into(),
+                reason: "defclause metadata-map has a non-keyword key — every key in \
+                    `{...}` must be a keyword (e.g. `{:restricted-to [...]}`)".into(),
+            },
+        })?;
+        let mut rest = Vec::with_capacity(items.len() - 1);
+        rest.push(items[0].clone());
+        rest.push(items[1].clone());
+        rest.extend_from_slice(&items[3..]);
+        (Some(meta), std::borrow::Cow::Owned(rest))
+    } else {
+        (None, std::borrow::Cow::Borrowed(items.as_slice()))
+    };
+    let items: &[WatAST] = &items;
+
     // Detect Option A: `-> :T` after the name keyword.
     let (shared_return, clause_offset) = {
         let after_name = &items[2..];
@@ -6384,6 +6435,7 @@ pub fn parse_defclause_form(
             name,
             clauses,
             shared_return,
+            metadata,
         }),
     ))
 }

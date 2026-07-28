@@ -443,11 +443,33 @@ pub struct ClauseSet {
     /// Optional metadata-map, mirroring `def`/`defn`'s binding-level metadata
     /// (e.g. `{:restricted-to [<prefix-kw>…]}`). `Some(map)` when a `{...}`
     /// form immediately follows the defclause name; `None` when absent.
-    /// Consumed by `register_defines` (runtime.rs), which inserts it into
-    /// `SymbolTable.binding_metadata` under the clause's FQDN — exactly as
-    /// `def`/`defn` already do — so the EXISTING restriction-check walker
-    /// (`walk_for_restricted_call` / `extract_prefix_list_from_metadata` in
-    /// check.rs) enforces it with no change.
+    ///
+    /// ⚠ REACHES USER DEFCLAUSES ONLY — a STDLIB defclause's metadata is
+    /// parsed, carried here, and then DROPPED. Two registration paths exist and
+    /// only one stores it:
+    ///
+    /// - USER forms → `register_defines` (runtime.rs, the `:wat::core::defclause`
+    ///   arm) inserts it into `SymbolTable.binding_metadata` under the clause's
+    ///   FQDN, exactly as `def`/`defn` do, so the EXISTING restriction-check
+    ///   walker (`walk_for_restricted_call` / `extract_prefix_list_from_metadata`
+    ///   in check.rs) enforces it with no change. **Works.**
+    /// - STDLIB forms → `register_stdlib_runtime_defs` (runtime.rs, called from
+    ///   `freeze/env.rs` step 7.6) parses the form, holds this field on the
+    ///   `ClauseSet`, and writes ONLY `runtime_def_values`. It never touches
+    ///   `binding_metadata`, so the whitelist is never consulted. **Silently
+    ///   inert.**
+    ///
+    /// MEASURED, not inferred (2026-07-28): `{:restricted-to [:wat::]}` placed on
+    /// the stdlib defclause `:wat::spawn::runner-count` (`wat/spawn.wat`), rebuilt,
+    /// and called from a `:user::` fn — `wat --check` returned CLEAN, exit 0. The
+    /// identical shape on a USER defclause is rejected with a located
+    /// `DefRestrictedCallerNotAllowed`.
+    ///
+    /// Do NOT put `{:restricted-to […]}` on a stdlib defclause expecting a wall
+    /// until the stdlib path stores this field — it would read as a guarded form
+    /// and guard nothing (arc 278 R55/R57: a declared wall that enforces nothing
+    /// is the masking class). Tracked as the blocker for arc 170 closure #13
+    /// (the `spawn-program` IPC wall).
     pub metadata: Option<HashMap<String, WatAST>>,
 }
 
