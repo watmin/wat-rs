@@ -48,7 +48,7 @@
           ;; sentinel makes a RED name exactly which non-Panic death surfaced instead.
           ((:wat::kernel::LociDiedError::RuntimeError _m) "WRONG:RuntimeError")
           (:wat::kernel::LociDiedError::Disconnected "WRONG:Disconnected")
-          (:wat::kernel::LociDiedError::Shutdown "WRONG:Shutdown")
+          (:wat::kernel::LociDiedError::Stopped "WRONG:Stopped")
           ((:wat::kernel::LociDiedError::StartupError _m) "WRONG:StartupError")
           ((:wat::kernel::LociDiedError::EntryFormFailure _m) "WRONG:EntryFormFailure")
           ((:wat::kernel::LociDiedError::MainSignature _m) "WRONG:MainSignature")

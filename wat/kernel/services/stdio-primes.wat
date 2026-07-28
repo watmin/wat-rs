@@ -317,14 +317,14 @@
     ((:wat::kernel::RecvOutcome::Lost cause)
       ;; Arc 170 — a stop is NOT a death. The client's `recv'` wakes on the shutdown
       ;; broadcast BEFORE the service's own read does, so the stop arrives here first,
-      ;; as `Lost(LociDiedError::Shutdown)`. Raising on it would re-lose, at the last
+      ;; as `Lost(LociDiedError::Stopped)`. Raising on it would re-lose, at the last
       ;; hop, exactly what the whole chain below was rebuilt to carry.
       ;;
       ;; The `_` is a genuine death defaulting to a visible chosen death, and it CARRIES
       ;; the cause's own message — nothing is erased, unlike the `_ => Closed` this arc
       ;; removed, which replaced a distinction with silence.
       (:wat::core::match cause
-        (:wat::kernel::LociDiedError::Shutdown :wat::kernel::ReadFrameOutcome::Stopped)
+        (:wat::kernel::LociDiedError::Stopped :wat::kernel::ReadFrameOutcome::Stopped)
         (_ (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None))))

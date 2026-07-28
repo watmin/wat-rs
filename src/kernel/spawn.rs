@@ -175,7 +175,7 @@ pub enum PeerRecvError {
     /// A stop was requested while this read was parked. The peer is NOT dead and the
     /// channel is NOT closed — the reader was woken so it could reach its own decision
     /// point (`stopped?`) and choose. Surfaces as `RecvOutcome::Lost` carrying the
-    /// already-existing `:wat::kernel::LociDiedError::Shutdown`, which had no reachable
+    /// already-existing `:wat::kernel::LociDiedError::Stopped`, which had no reachable
     /// producer before this.
     Shutdown,
     /// The Err channel delivered a crash reason — child wrote the reason via

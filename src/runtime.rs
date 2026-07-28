@@ -5708,7 +5708,7 @@ fn dispatch_keyword_head_value(
                                                     // distinction `kernel/peer.rs` was just fixed to carry.
                                                     //
                                                     // Emits: (match _cause
-                                                    //          (LociDiedError::Shutdown LociDiedError::Shutdown)
+                                                    //          (LociDiedError::Stopped LociDiedError::Stopped)
                                                     //          (_ LociDiedError::Disconnected))
                                                     //
                                                     // The `_` here is deliberate INFORMATION HIDING at a trust
@@ -5721,8 +5721,8 @@ fn dispatch_keyword_head_value(
                                                         WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                                         WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
                                                         WatAST::List(vec![
-                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Shutdown".into(), span.clone()),
-                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Shutdown".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
                                                         ], span.clone()),
                                                         WatAST::List(vec![
                                                             WatAST::Symbol(Identifier::bare("_"), span.clone()),
@@ -22137,16 +22137,20 @@ fn thread_died_error_runtime(message: String) -> Value {
     }))
 }
 
-/// Build a `:wat::kernel::ThreadDiedError::Shutdown`
+/// Build a `:wat::kernel::LociDiedError::Stopped`
 /// (unit variant) enum value (arc 170 Slice A).
-/// Produced when the process-wide shutdown signal fires during recv.
+/// Produced when the process-wide shutdown signal fires during recv — the
+/// wat-visible variant is `Stopped` (arc-170 intueri cast: nothing on the wat
+/// side is "shutting down", a stop was merely requested), while the Rust
+/// signal that triggers it keeps its own uniform `shutdown` vocabulary, hence
+/// this fn's name.
 /// Distinguishable from ChannelDisconnected: the channel partner did
-/// NOT drop — the process is terminating.
+/// NOT drop — the process is stopping.
 #[allow(dead_code)] // Slice B wires this; unreachable in Slice A.
 fn thread_died_error_shutdown() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "Shutdown".into(),
+        variant_name: "Stopped".into(),
         fields: vec![],
     }))
 }
@@ -22467,9 +22471,10 @@ fn eval_died_error_message(
                 "Disconnected" => {
                     Ok(Value::String(Arc::new("disconnected".to_string())))
                 }
-                // arc 170 Slice A — process-wide shutdown fired during recv.
-                "Shutdown" => {
-                    Ok(Value::String(Arc::new("process shutdown".to_string())))
+                // arc 170 Slice A — a stop was requested during recv. Wat-visible name is
+                // "Stopped" (arc-170 intueri cast RULING A), not Rust's "shutdown".
+                "Stopped" => {
+                    Ok(Value::String(Arc::new("process stopped".to_string())))
                 }
                 _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
@@ -22573,9 +22578,10 @@ fn eval_died_error_to_failure(
                 "Disconnected" => {
                     Ok(message_only_failure("disconnected".to_string()))
                 }
-                // arc 170 Slice A — process-wide shutdown fired during recv.
-                "Shutdown" => {
-                    Ok(message_only_failure("process shutdown".to_string()))
+                // arc 170 Slice A — a stop was requested during recv. Wat-visible name is
+                // "Stopped" (arc-170 intueri cast RULING A), not Rust's "shutdown".
+                "Stopped" => {
+                    Ok(message_only_failure("process stopped".to_string()))
                 }
                 _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
@@ -22647,13 +22653,16 @@ fn recv_outcome_lost(reason: String, types: Option<&crate::types::TypeEnv>) -> V
     }))
 }
 
-/// `RecvOutcome::Lost [LociDiedError::Shutdown]` — a stop was requested while this read
-/// was parked. Arc 170.
+/// `RecvOutcome::Lost [LociDiedError::Stopped]` — a stop was requested while this read
+/// was parked. Arc 170. Wat-visible variant is `Stopped`, not `Shutdown` (arc-170 intueri
+/// cast RULING A) — this fn's Rust name keeps Rust's own uniform `shutdown` vocabulary
+/// since it mirrors the Rust-side signal that triggers it; only the constructed value's
+/// `variant_name` crosses into the wat vocabulary.
 ///
 /// The peer is ALIVE; nothing about the channel is wrong. Reported as `Lost` rather than
 /// `Closed` because `Closed` means a genuine clean EOF and this is not one — saying
 /// `Closed` here is the false "peer closed" that a months-long `sigterm` flake was made
-/// of. `LociDiedError::Shutdown` has existed since the LociDiedError stone (`types.rs`,
+/// of. `LociDiedError::Stopped` has existed since the LociDiedError stone (`types.rs`,
 /// beside `Disconnected`) and had NO reachable producer until now: the wat-visible name
 /// for this fact was minted, then orphaned by a wildcard two layers down.
 fn recv_outcome_shutdown() -> Value {
@@ -22662,7 +22671,7 @@ fn recv_outcome_shutdown() -> Value {
         variant_name: "Lost".into(),
         fields: vec![Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::kernel::LociDiedError".into(),
-            variant_name: "Shutdown".into(),
+            variant_name: "Stopped".into(),
             fields: vec![],
         }))],
     }))

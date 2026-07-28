@@ -1110,11 +1110,11 @@ mod beta0_wire_tests {
         // (arc 278: the bare `Vector<LociDiedError>` death chain is exactly such a
         // self-describing tagged line; the old `#wat.kernel/ProcessPanics` wrapper
         // was annihilated.)
-        let tagged = "#wat.kernel.LociDiedError/Shutdown []".to_string();
-        assert_eq!(tagged.to_wire(), "#wat.kernel.LociDiedError/Shutdown []");
+        let tagged = "#wat.kernel.LociDiedError/Stopped []".to_string();
+        assert_eq!(tagged.to_wire(), "#wat.kernel.LociDiedError/Stopped []");
         assert_eq!(
-            String::from_wire("#wat.kernel.LociDiedError/Shutdown []").unwrap(),
-            "#wat.kernel.LociDiedError/Shutdown []"
+            String::from_wire("#wat.kernel.LociDiedError/Stopped []").unwrap(),
+            "#wat.kernel.LociDiedError/Stopped []"
         );
     }
 }

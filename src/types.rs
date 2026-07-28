@@ -1202,7 +1202,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                              for a plain `panic!()`.
     //   RuntimeError(message)    — a type/arity/etc. error surfaced at run.
     //   Disconnected             — the wire dropped (was ChannelDisconnected).
-    //   Shutdown                 — shutdown signal mid-recv, any locus.
+    //   Stopped                  — a stop was requested mid-recv, any locus (arc 170 intueri
+    //                              cast: wat's word for this fact, not Rust's "shutdown").
     //   StartupError(message)    — the locus didn't come up (fork/exec fail,
     //                              or a remote ECONNREFUSED).
     //   EntryFormFailure(message)— the peer program's entry form was malformed.
@@ -1238,8 +1239,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // Reconciled: the two dead enums' ChannelDisconnected → Disconnected
             // (the wire dropped — loci-agnostic; "channel" was thread-tier vocab).
             EnumVariant::Unit("Disconnected".into()),
-            // arc 170 Slice A — shutdown signal fired during recv, any locus.
-            EnumVariant::Unit("Shutdown".into()),
+            // arc 170 Slice A — a stop was requested during recv, any locus. Renamed
+            // Shutdown -> Stopped by the arc-170 intueri cast (RULING A): the wat-visible
+            // layer says "stopped", never "shutdown" — nothing is shutting down when this
+            // fires, a stop was merely requested. Rust's own vocabulary (`trigger_shutdown`,
+            // `RecvError::Shutdown`, …) is UNCHANGED; only this wat-visible variant moves.
+            EnumVariant::Unit("Stopped".into()),
             // arc 170 slice 1i — structured exit variants for all peer death
             // paths. extract-panics / the recv' Lost decoder use the TypeEnv to
             // reconstruct these from EDN on round-trip; they must be registered
