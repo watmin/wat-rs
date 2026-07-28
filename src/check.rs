@@ -6900,6 +6900,12 @@ const MUST_USE_PARAMETRIC_HEADS: &[&str] = &[
     "wat::spawn::ServiceEvent",
     "wat::kernel::AcceptOutcome",
     "wat::kernel::ConnectOutcome",
+    // `:wat::kernel::ReadlnOutcome<T>` (arc 170 #24 — the readln wall's twin gate).
+    // #24 made `readln` return a matchable outcome instead of RAISING on Eof/Stopped;
+    // that closed the *raise* mask but not the *swallow*. A FACED readln (matched over
+    // Datum/Eof/Stopped) has type `T` or a joined arm type, never `ReadlnOutcome<T>`,
+    // so this fires ONLY on a raw dropped readln — both discard doors.
+    "wat::kernel::ReadlnOutcome",
 ];
 
 /// True when `ty` (already `apply_subst`-resolved) names a must-use type —
@@ -6928,6 +6934,8 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
         ("accept'", "Accepted/Closed/Failed")
     } else if ty_name.contains("ConnectOutcome") {
         ("connect'", "Connected/Refused/Rejected/Failed")
+    } else if ty_name.contains("ReadlnOutcome") {
+        ("readln", "Datum/Eof/Stopped")
     } else {
         ("send'", "Sent/Closed/Lost")
     };
