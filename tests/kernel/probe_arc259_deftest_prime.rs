@@ -17,24 +17,9 @@
 //!
 //! WAT fixtures: tests/kernel/probe_arc259_deftest_prime_{passing,failing}.wat
 
-use wat::freeze::startup_from_file;
-use wat::runtime::apply_function;
+use wat::freeze::DeftestOutcome;
+use wat::value::Value;
 
-/// Build a world from the fixture; eval the named test fn and return the eval Result's
-/// text on Err (or `None` on Ok).
-fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
-    let world = startup_from_file(path)
-        .expect("startup should succeed (deftest' macro must exist + expand)");
-    let func = world
-        .symbols()
-        .get(name)
-        .unwrap_or_else(|| panic!("no {name} in {path:?}"))
-        .clone();
-    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("{e:?}")),
-    }
-}
 
 /// A PASSING `deftest'` — its fn RETURNS `:wat::kernel::RunResult::Passed`.
 ///
@@ -49,23 +34,58 @@ fn deftest_prime_passing_returns() {
         .expect_passed("a passing deftest' must return RunResult::Passed");
 }
 
-/// A FAILING `deftest'` — its fn RAISES, and the raise carries the assertion message (surfaced
-/// over the pipe by the S3.5a-0 IPC fix). The test runner's `Ok(Err)` arm reports exactly this.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
+/// A FAILING `deftest` — its fn RETURNS `RunResult::Failed` carrying the assertion message.
+///
+/// This test used to assert the OPPOSITE: `Ok(()) => panic!("a failing deftest' must RAISE")`,
+/// against a hand-typed rust-debug golden of the raise. Both halves are superseded.
+///
+/// Arc 278 R55 (the no-hidden-failures LAW reaching its own VERIFIER) made the harness
+/// value-based precisely because a raise UNWINDS PAST the reader: `deftest`/`run-thread` now
+/// RETURN the verdict, never raise to signal it. So `Ok(...)` is the correct outcome and a
+/// raise would be the bug — the assertion was inverted relative to the shipped contract. And
+/// the golden compared `format!("{:?}", ..)` text, which arc 296 flipped to EDN.
+///
+/// Both are cured the same way as the arc-198 restriction goldens: read the VERDICT, assert
+/// the STRUCTURE. This goes RED if a failing deftest stops reporting its failure, or reports
+/// the wrong message — and does NOT go red when a rendering changes.
 #[test]
-fn deftest_prime_failing_raises_with_message() {
-    let r = run_test_fn(
-        "tests/kernel/probe_arc259_deftest_prime_failing.wat",
-        ":user::failing",
-    );
-    match r {
-        Ok(()) => panic!("a failing deftest' must RAISE; it returned Ok"),
-        Err(text) => {
+fn deftest_prime_failing_returns_failed_with_message() {
+    let world = wat::freeze::startup_from_file("tests/kernel/probe_arc259_deftest_prime_failing.wat")
+        .expect("startup should succeed (the deftest macro must exist + expand)");
+    match wat::freeze::deftest_verdict(&world, ":user::failing") {
+        DeftestOutcome::Failed { failure } => {
+            let msg = failure_message(&failure);
             assert_eq!(
-                text,
-                "RuntimeError { span: Span { file: \"tests/kernel/probe_arc259_deftest_prime_failing.wat\", line: 4, col: 1, end_line: 5, end_col: 95 }, kind: MalformedForm { head: \":wat::kernel::recv\", reason: \"#wat.kernel/AssertionFailure {:thread \\\"wat-thread-peer::<anon>\\\" :message \\\"DEFTEST-FAIL-SENTINEL\\\" :location {:file \\\"wat/spawn.wat\\\" :line 199 :col 5} :actual nil :expected nil :frames [{:callee :<fn@tests/kernel/probe_arc259_deftest_prime_failing.wat:4:1> :at {:file \\\"wat/spawn.wat\\\" :line 199 :col 5}}] :upstream-chain nil}\" } }",
-                "failing deftest' must surface assertion message through pipe model"
+                msg, "DEFTEST-FAIL-SENTINEL",
+                "a failing deftest must surface its assertion message in RunResult::Failed"
             );
         }
+        DeftestOutcome::Passed => {
+            panic!("a failing deftest must return RunResult::Failed; got Passed")
+        }
+        DeftestOutcome::DidNotRun { error } => panic!(
+            "a failing deftest must RETURN a verdict, not raise (arc 278 R55 — a raise \
+             unwinds past the reader); got: {error:?}"
+        ),
+    }
+}
+
+/// A `:wat::kernel::Failure`'s field[0] is its `error` (a `:wat::core::Fault`), whose field[0]
+/// is the message String. Mirrors `probe_arc278_eprintln_terminal.rs`.
+fn failure_message(failure: &Value) -> String {
+    let f = match failure {
+        Value::Aggregate(f) => f,
+        other => panic!("RunResult::Failed must carry a Failure record; got {other:?}"),
+    };
+    assert_eq!(
+        f.class, "wat::kernel::Failure",
+        "RunResult::Failed must carry a :wat::kernel::Failure; got class {:?}", f.class
+    );
+    match &f.fields[0] {
+        Value::Aggregate(err) => match &err.fields[0] {
+            Value::String(s) => (**s).clone(),
+            other => panic!("Failure.error.message is not a String; got {other:?}"),
+        },
+        other => panic!("Failure.error (field[0]) is not an Aggregate; got {other:?}"),
     }
 }

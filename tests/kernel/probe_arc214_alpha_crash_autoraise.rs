@@ -41,7 +41,7 @@
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout, `--test-threads=1`.
 #[test]
-#[ignore = "process-tier FM-2-bis probe (arc 214 1b-ii-α): run via setsid timeout 180 cargo test --release --test kernel probe_arc214_alpha_crash_autoraise -- --ignored --test-threads=1"]
+#[ignore = "UNWRITTEN (arc 214 1b-ii-α): the body is unimplemented!() — running this out-of-band panics, it does not measure. Not a concurrency quarantine. Unlock: the io_uring Err arm carrying the crash reason; then assert the exact DivisionByZero crash EDN."]
 fn alpha_recv_prime_autoraises_child_crash_reason() {
     unimplemented!("arc 214 1b-ii-α: io_uring Err arm carries crash reason; on unlock assert_eq! the exact DivisionByZero crash EDN");
 }

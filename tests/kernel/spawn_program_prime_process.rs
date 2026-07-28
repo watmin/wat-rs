@@ -336,7 +336,7 @@ fn spawn_program_prime_process_helper_round_trip() {
 /// Run via:
 ///   cargo test --test kernel spawn_program_prime_process_error_emits_diagnostic -- --ignored
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
+#[ignore = "UNWRITTEN (arc 214 1b-ii-α): the body is unimplemented!() — running this out-of-band panics, it does not measure. Not a concurrency quarantine. Unlock: assert the exact process crash diagnostic EDN."]
 fn spawn_program_prime_process_error_emits_diagnostic() {
     unimplemented!("arc 214 1b-ii-α: on unlock assert_eq! the exact process crash diagnostic EDN");
 }
@@ -354,7 +354,7 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
 /// Run via:
 ///   cargo test --test kernel spawn_program_prime_process_runtime_error_emits_diagnostic -- --ignored
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
+#[ignore = "UNWRITTEN (arc 214 1b-ii-α): the body is unimplemented!() — running this out-of-band panics, it does not measure. Not a concurrency quarantine. Unlock: assert the exact runtime-error crash diagnostic EDN."]
 fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
     unimplemented!("arc 214 1b-ii-α: on unlock assert_eq! the exact runtime-error crash diagnostic EDN");
 }
