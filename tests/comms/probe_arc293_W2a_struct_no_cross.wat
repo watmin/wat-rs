@@ -71,7 +71,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::core::let [_ (:wat::kernel::readln )] nil))))
+             (:wat::core::let [_ (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))] nil))))
      _ (:wat::core::match (:wat::kernel::send p (:w2a::R :val 42))
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)

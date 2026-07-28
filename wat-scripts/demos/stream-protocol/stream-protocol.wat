@@ -74,7 +74,7 @@
   [acc <- :wat::core::String
    n   <- :wat::core::i64]
   -> :wat::core::String
-  (:wat::core::match (:wat::kernel::readln)
+  (:wat::core::match (:wat::core::match (:wat::kernel::readln) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
 
     ;; A payload frame: accept it, ack it, keep going.
     ((:proto::Frame::Chunk text)

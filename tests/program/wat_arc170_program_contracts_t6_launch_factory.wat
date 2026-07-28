@@ -11,7 +11,7 @@
   (:wat::core::let
     [main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
-                    [n    (:wat::kernel::readln )
+                    [n    (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                      _out (:wat::kernel::println
                             (:wat::core::i64::+ n ~offset))]
                     nil))

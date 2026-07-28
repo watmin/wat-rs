@@ -110,25 +110,63 @@ fn write_via_stderr(op: &'static str, span: &Span, sym: &SymbolTable, line: Stri
 /// Read one raw line via the primed `StdIn` service (the caller decodes it). EOF / RequestTooLarge /
 /// lost / closed surface as a raise from the wat `stdio-read` helper (EOF reproduces the old terminal
 /// behaviour). Returns the newline-trimmed line String.
-fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) -> Result<String, RuntimeError> {
+fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) -> Result<ReadLine, RuntimeError> {
     let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
         span: span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
     })?;
     let addr = primed.stdin_addr.clone();
     let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-in", |io: &ThreadIO| &io.stdin_peer)?;
-    let read_fn = sym.get(":wat::kernel::stdio-read").ok_or_else(|| RuntimeError {
+    // Arc 170 closure #24 — route through `stdio-read-frame`, the HONEST sibling, and hand
+    // its outcome back for the caller to face.
+    //
+    // This used to call `:wat::kernel::stdio-read`, which is the same function modulo the
+    // collapse: identical match structure, except it turned `Eof` and `Stopped` into
+    // `assertion-failed!` and returned a bare String. Its own comment conceded the cost —
+    // "the matchable ::Eof variant is BANKED, not yet exposed to the 72 readln callers …
+    // there is no caller-facing value form for 'raise' to hand a stop through". Keeping
+    // both would have been two spellings of one read, one of them lying; `stdio-read` is
+    // retired instead.
+    let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError {
         span: span.clone(),
-        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read".into()),
+        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into()),
     })?.clone();
-    match apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())? {
-        Value::String(s) => Ok((*s).clone()),
+    let outcome = apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())?;
+    match &outcome {
+        Value::Enum(e) if e.type_path == ":wat::kernel::ReadFrameOutcome" => match e.variant_name.as_str() {
+            "Frame" => match e.fields.first() {
+                Some(Value::String(s)) => Ok(ReadLine::Text((**s).clone())),
+                other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: op.into(),
+                    expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(
+                        other.unwrap_or(&Value::Unit),
+                    )),
+                } }),
+            },
+            "Eof" => Ok(ReadLine::Eof),
+            "Stopped" => Ok(ReadLine::Stopped),
+            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("unknown ReadFrameOutcome variant `{other}`"),
+            } }),
+        },
         other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: ":wat::core::String",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+            expected: ":wat::kernel::ReadFrameOutcome",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
         } }),
     }
+}
+
+/// What `read_via_stdin` saw — the raw-text tier of the read, before decoding.
+///
+/// `Text` is decoded by the caller into the consumer's `T`; `Eof`/`Stopped` carry
+/// straight through to `ReadlnOutcome` without ever becoming a raise.
+enum ReadLine {
+    Text(String),
+    Eof,
+    Stopped,
 }
 
 /// `(:wat::kernel::println v)` → `:wat::core::nil`. Serialize `v` to compact EDN and write-line it via
@@ -325,11 +363,39 @@ pub fn eval_kernel_readln_prime(
     // Read one line via the primed StdIn service, then decode via the SELF-DESCRIBING wire — no
     // target type; the EDN's own tags/notation reconstruct the exact Value (int→i64, float→f64),
     // exactly as recv'/select' decode a peer message (unchanged from the old readln' contract).
-    let line = read_via_stdin(OP, list_span, sym, cap)?;
-    crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref())).map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("readln EDN decode failed: {}", e),
-        } }
+    // Arc 170 closure #24 — readln RETURNS `:wat::kernel::ReadlnOutcome<T>`; it no longer
+    // raises on Eof or on a stop. Decoding happens ONLY in the happy arm: `Eof`/`Stopped`
+    // are not values to decode, they are outcomes to hand the caller. A decode FAILURE
+    // stays a raise — that is a malformed wire, a genuine fault, not an outcome.
+    Ok(match read_via_stdin(OP, list_span, sym, cap)? {
+        ReadLine::Text(line) => {
+            let v = crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()))
+                .map_err(|e| RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("readln EDN decode failed: {}", e),
+                    },
+                })?;
+            Value::Enum(Arc::new(crate::value::value::EnumValue {
+                type_path: ":wat::kernel::ReadlnOutcome".into(),
+                variant_name: "Datum".into(),
+                fields: vec![v],
+            }))
+        }
+        ReadLine::Eof => {
+            Value::Enum(Arc::new(crate::value::value::EnumValue {
+                type_path: ":wat::kernel::ReadlnOutcome".into(),
+                variant_name: "Eof".into(),
+                fields: vec![],
+            }))
+        }
+        ReadLine::Stopped => {
+            Value::Enum(Arc::new(crate::value::value::EnumValue {
+                type_path: ":wat::kernel::ReadlnOutcome".into(),
+                variant_name: "Stopped".into(),
+                fields: vec![],
+            }))
+        }
     })
 }

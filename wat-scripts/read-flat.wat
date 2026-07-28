@@ -10,4 +10,4 @@
 ;;     | cargo wat ./wat-scripts/read-flat.wat
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:wat::kernel::readln )))
+  (:wat::kernel::println (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))))

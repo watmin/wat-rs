@@ -7,7 +7,7 @@
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let
-                  [n (:wat::kernel::readln )
+                  [n (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                    _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                   nil))))
      _   (:wat::core::match (:wat::kernel::send peer 41) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))

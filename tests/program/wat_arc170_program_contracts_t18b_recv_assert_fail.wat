@@ -24,7 +24,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [n (:wat::kernel::readln )
+               [n (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                 ;; assert-eq: n=2 vs expected=3 — this fails, child panics
                 _ (:wat::test::assert-eq n 3)
                 ;; println never reached (child already dead):

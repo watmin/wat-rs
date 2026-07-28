@@ -809,3 +809,155 @@
                     all-edits (:wat::fix::rename-exact-edits-walk forms old new lines)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
+
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;;  THE WRAP FAMILY — wrap every call to a verb in an outcome `match`.
+;;
+;;  WHY THIS EXISTS. Four codemods had hand-copied the same ~60 lines before this was
+;;  lifted, and two of them said so in their own headers ("mirrored from …"):
+;;    wrap-client-method-match-in-recvoutcome · wrap-connect-prime-in-connectoutcome
+;;    read-string-to-outcome · readln-to-outcome
+;;  Every outcome wall this substrate has built (recv'/send'/close'/accept'/connect'/
+;;  read-string/readln) ends in the SAME corpus migration: a verb that used to RAISE now
+;;  returns a matchable outcome, so every call site must face it. That migration is one
+;;  shape, and it belongs in the toolkit, not copied into the next codemod.
+;;
+;;  A NEW OUTCOME WALL'S CODEMOD IS NOW ONE CALL:
+;;
+;;    (:wat::fix::wrap-calls-in-match src
+;;      ":wat::kernel::readln"                          ;; head — EXACT, never the prime
+;;      "ReadlnOutcome::"                               ;; idempotency marker in arm heads
+;;      "(:wat::core::match "                            ;; inserted BEFORE the call
+;;      " ((…::Datum __d) __d) (…::Eof …) (…::Stopped …))")  ;; inserted AFTER it
+;;
+;;  IDEMPOTENT BY CONSTRUCTION: a `match` whose arm heads already contain `needle` is our
+;;  own prior output, so its SCRUTINEE is skipped — but its ARMS are still walked, so a
+;;  call nested inside an arm body is still reached. Re-run = 0 edits (proven, not asserted).
+;;
+;;  EXACT, NEVER PREFIX: `calls-to?` compares the whole head name, so `:foo` can never
+;;  match `:foo'`. A `\b`-style match reads a prime as a non-prime — the trap this arc's
+;;  record names four separate times.
+;; ══════════════════════════════════════════════════════════════════════════════════════
+
+;; Edit — one span splice: (offset, chars-to-replace, replacement-text).
+;; A 0-length edit is an INSERT. Collected ascending, applied high-offset-first so a low
+;; splice never shifts a pending higher one.
+(:wat::core::typealias :wat::fix::Edit :(wat::core::i64,wat::core::i64,wat::core::String))
+
+;; kw-name — a keyword node's name; "" for anything else (so callers never branch on kind).
+(:wat::core::defn :wat::fix::kw-name [n <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
+    (:wat::core::ast-name n) ""))
+
+;; head-name — a LIST's head-keyword name; "" for a non-list or a non-keyword head.
+(:wat::core::defn :wat::fix::head-name [node <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::empty? ch) "" (:wat::fix::kw-name (:wat::core::first ch))))
+    ""))
+
+;; calls-to? — is this node a call to EXACTLY `head`? (whole-name equality, never a prefix)
+(:wat::core::defn :wat::fix::calls-to?
+  [node <- :wat::WatAST  head <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::= (:wat::fix::head-name node) head))
+
+;; node-start-offset / node-end-offset — a node's span endpoints as flat char offsets.
+(:wat::core::defn :wat::fix::node-start-offset
+  [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::i64
+  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+
+(:wat::core::defn :wat::fix::node-end-offset
+  [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::i64
+  (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
+
+;; arm-head-name — a match arm is `(pattern body…)`. A TAGGED-variant pattern is a list
+;; `(:Enum::Variant binder…)`; a UNIT-variant pattern is a BARE keyword. Handles both.
+(:wat::core::defn :wat::fix::arm-head-name [arm <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "list")
+    (:wat::core::let [ch (:wat::core::ast->children arm)]
+      (:wat::core::if (:wat::core::empty? ch)
+        ""
+        (:wat::core::let [pat (:wat::core::first ch)]
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind pat) "list")
+            (:wat::core::let [pch (:wat::core::ast->children pat)]
+              (:wat::core::if (:wat::core::empty? pch) "" (:wat::fix::kw-name (:wat::core::first pch))))
+            (:wat::fix::kw-name pat)))))
+    ""))
+
+;; arm-heads-contain? — does ANY arm's head name contain `needle`?
+(:wat::core::defn :wat::fix::arm-heads-contain?
+  [arms <- :wat::core::Vector<wat::WatAST>  needle <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
+      (:wat::core::if acc true
+        (:wat::core::string::contains? (:wat::fix::arm-head-name arm) needle)))
+    false arms))
+
+;; wrapped-in-match? — a `match` whose arm heads already mention `needle`: our prior output.
+(:wat::core::defn :wat::fix::wrapped-in-match?
+  [node <- :wat::WatAST  needle <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::fix::head-name node) ":wat::core::match")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
+        false
+        (:wat::fix::arm-heads-contain? (:wat::core::into [] (:wat::core::drop ch 2)) needle)))
+    false))
+
+;; wrap-edits — the two inserts that bracket one call: `before` at its start, `after` at its end.
+(:wat::core::defn :wat::fix::wrap-edits
+  [node <- :wat::WatAST  before <- :wat::core::String  after <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::Vector :wat::fix::Edit
+    (:wat::core::Tuple (:wat::fix::node-start-offset node lines) 0 before)
+    (:wat::core::Tuple (:wat::fix::node-end-offset   node lines) 0 after)))
+
+;; wrap-node-edits — one node's edits plus its descendants'.
+;; The idempotency cut lives HERE, not in the matcher: for an already-wrapped match we skip
+;; child[1] (the scrutinee we produced last run) and walk the rest, so a call nested inside an
+;; ARM body is still reachable. Skipping the whole node would strand those.
+(:wat::core::defn :wat::fix::wrap-node-edits
+  [node <- :wat::WatAST  head <- :wat::core::String  needle <- :wat::core::String
+   before <- :wat::core::String  after <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::if (:wat::fix::wrapped-in-match? node needle)
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::fix::wrap-seq-edits
+        (:wat::core::concat
+          (:wat::core::into [] (:wat::core::take ch 1))
+          (:wat::core::into [] (:wat::core::drop ch 2)))
+        head needle before after lines))
+    (:wat::core::let
+      [this (:wat::core::if (:wat::fix::calls-to? node head)
+              (:wat::fix::wrap-edits node before after lines)
+              (:wat::core::Vector :wat::fix::Edit))]
+      (:wat::core::if (:wat::fix::structural? node)
+        (:wat::core::concat this
+          (:wat::fix::wrap-seq-edits (:wat::core::ast->children node) head needle before after lines))
+        this))))
+
+(:wat::core::defn :wat::fix::wrap-seq-edits
+  [items <- :wat::core::Vector<wat::WatAST>  head <- :wat::core::String  needle <- :wat::core::String
+   before <- :wat::core::String  after <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::Vector<wat::fix::Edit>  it <- :wat::WatAST]
+      -> :wat::core::Vector<wat::fix::Edit>
+      (:wat::core::concat acc (:wat::fix::wrap-node-edits it head needle before after lines)))
+    (:wat::core::Vector :wat::fix::Edit)
+    items))
+
+;; wrap-calls-in-match — THE ENTRY POINT. src in, migrated src out; comment- and
+;; layout-faithful (it splices the ORIGINAL text at spans, it does not re-print the tree).
+(:wat::core::defn :wat::fix::wrap-calls-in-match
+  [src <- :wat::core::String  head <- :wat::core::String  needle <- :wat::core::String
+   before <- :wat::core::String  after <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::let
+    [lines (:wat::core::string::split src "\n")
+     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
+     eds   (:wat::fix::wrap-seq-edits forms head needle before after lines)
+     rev   (:wat::core::reverse (:wat::core::sort eds))]
+    (:wat::fix::fix-text-apply src rev)))

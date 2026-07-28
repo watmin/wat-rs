@@ -177,7 +177,7 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)) m)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::kernel::readln )
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                     m     (:user::build-map
                             (:wat::core::HashMap :wat::core::String :wat::core::Vector<wat::core::String>)
                             paths)]

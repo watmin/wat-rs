@@ -1065,6 +1065,48 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // Arc 170 closure #24 — :wat::kernel::ReadlnOutcome<T> — what `readln` returns.
+    //
+    // The THIRD outcome at this seam, and deliberately not either of the other two.
+    // `IOReader::ReadFrameOutcome` and `kernel::ReadFrameOutcome` both carry RAW TEXT;
+    // `readln` sits one level above them and hands back a DECODED value whose type flows
+    // from the consumer (the arc-258/R54 `-> :T` annihilation: "readln reads what the
+    // self-describing EDN wire says; the decoded value's type flows from the consumer").
+    // So its payload cannot be `String` — it is the caller's `T`.
+    //
+    // WHY IT EXISTS. `readln` was the last IPC verb still RAISING. Every other one got its
+    // outcome wall this arc (recv'/send'/close'/accept'/connect'), because a raise in a
+    // language with no try/catch UNWINDS PAST THE READER — R53's `VERBO MEO CAPTVS`. The
+    // wat `stdio-read` collapsed `Eof` and `Stopped` into `assertion-failed!` and said so
+    // in its own comment: "the matchable ::Eof variant is BANKED, not yet exposed to the
+    // 72 readln callers … there is no caller-facing value form for 'raise' to hand a stop
+    // through". This is that value form; the bank is spent.
+    //
+    // `T` is generic exactly as `RecvOutcome<O>`'s `O` is, and for the same reason —
+    // the payload's type is the consumer's, not ours. That precedent is what makes this
+    // mechanism already proven rather than newly invented.
+    //
+    // Impure for `RecvOutcome<O>`'s reason exactly: `T` may itself be a live resource.
+    //
+    // ⚠ `Datum` is PROVISIONAL — arc 170 closure #26 casts intueri over this whole
+    // surface (`StdIn::ReadLineResponse` / `read-line` / `:Line`) and this variant name
+    // rides with it. Named `Datum` and not `Value` to avoid colliding with
+    // `:wat::core::Value`, the universal top; not `Line`, which is taken one layer down
+    // for the raw text and would re-tell the frame-vs-line lie the 2026-07-28 cast caught.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::ReadlnOutcome".into(),
+        type_params: vec!["T".into()],
+        purity: Purity::Impure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Datum".into(),
+                fields: vec![("v".into(), TypeExpr::Path("T".into()))],
+            },
+            EnumVariant::Unit("Eof".into()),
+            EnumVariant::Unit("Stopped".into()),
+        ],
+    }));
+
     // Arc 170 stdin-joins-the-lock-step — :wat::io::IOReader::ReadFrameOutcome — what
     // `:wat::io::IOReader/read-frame` returns.
     //

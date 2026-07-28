@@ -8494,11 +8494,28 @@ fn infer_kernel_readln_prime(
 
     // The decoded value's type is a fresh var pinned by the consumer — the
     // self-describing wire reconstructs the exact value at runtime (mirror recv').
+    //
+    // Arc 170 closure #24 — readln returns `:wat::kernel::ReadlnOutcome<T>`, not a bare
+    // `T`. It was the LAST IPC verb still RAISING on Eof and on a stop; every sibling
+    // (recv'/send'/close'/accept'/connect') already hands its failure back as a matchable
+    // value, because a raise in a language with no try/catch unwinds PAST the reader
+    // (R53 `VERBO MEO CAPTVS`).
+    //
+    // `T` stays a FRESH var — the consumer still determines the decoded type, exactly as
+    // before. It is simply one layer in now: it flows through `ReadlnOutcome::Datum`'s
+    // payload rather than being the whole result. Proven to still bind by probe before
+    // this shipped; `RecvOutcome<O>` is the same mechanism and the precedent that made it
+    // safe to reach for.
     let t = fresh.fresh();
+    // Colon-free head, exactly as `infer_recv_prime` spells `wat::kernel::RecvOutcome`.
+    let outcome = TypeExpr::Parametric {
+        head: "wat::kernel::ReadlnOutcome".into(),
+        args: vec![t],
+    };
     if local_errors.is_empty() {
-        CheckResult::ok(t)
+        CheckResult::ok(outcome)
     } else {
-        CheckResult::partial_with(t, local_errors)
+        CheckResult::partial_with(outcome, local_errors)
     }
 }
 
