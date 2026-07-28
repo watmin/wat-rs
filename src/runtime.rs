@@ -1068,6 +1068,19 @@ pub fn register_stdlib_runtime_defs(
         match head {
             ":wat::core::defclause" => {
                 let (name, cs) = parse_defclause_form(form, crate::resolve::Privilege::Stdlib)?;
+                // A defclause's metadata-map binds the SAME way whether the form
+                // came from the stdlib or from user source — where a form was
+                // loaded from is not a property its metadata knows about. This
+                // mirrors the user arm in `register_defines` verbatim, so the
+                // existing restriction-check walker (`walk_for_restricted_call`,
+                // reading `binding_metadata` via `CheckEnv::from_symbols`)
+                // enforces `{:restricted-to […]}` on a stdlib defclause with no
+                // change to the enforcement mechanism.
+                if let Some(meta) = &cs.metadata {
+                    if !meta.is_empty() {
+                        sym.binding_metadata.insert(name.clone(), meta.clone());
+                    }
+                }
                 let value = Value::wat__core__clauses(cs);
                 sym.functions.remove(&name); // remove stub if pre-registered
                 sym.runtime_def_values.insert(name, value);
