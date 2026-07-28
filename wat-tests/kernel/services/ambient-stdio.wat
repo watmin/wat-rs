@@ -34,7 +34,7 @@
 ;; value crosses DECODED (native String "hello", not the scraped EDN line
 ;; "\"hello\"" the byte-stream model produced). recv' → Message[m]; m == "hello".
 (:wat::test::time-limit "15000ms")
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-string
 
   (:wat::core::let
@@ -54,7 +54,7 @@
 ;; Non-string Ts cross the wire through the same peer pipeline — the i64 42
 ;; arrives DECODED as the native i64 42 (not the decimal EDN line "42").
 (:wat::test::time-limit "15000ms")
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-i64
 
   (:wat::core::let
@@ -81,7 +81,7 @@
 ;; capture, which the wire model drops. A Message (no crash) is the failure —
 ;; a terminal eprintln must never let a following form (or a value) through.
 (:wat::test::time-limit "15000ms")
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-eprintln-string
 
   (:wat::core::let
@@ -106,7 +106,7 @@
 ;; drains the peer honestly until it closes → Ok[["first" "second"]] (decoded
 ;; native Strings), or Err[cause] if the peer died (surfaced, never swallowed).
 (:wat::test::time-limit "15000ms")
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-twice
 
   (:wat::core::let
@@ -131,7 +131,7 @@
 ;; symmetric wire EDN encode/decode. Bounded I/O: one send' → one output →
 ;; child exits (Closed → recv-all' returns Ok).
 (:wat::test::time-limit "15000ms")
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-readln-echo
 
   (:wat::core::let

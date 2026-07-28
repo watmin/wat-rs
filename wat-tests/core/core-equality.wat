@@ -85,18 +85,25 @@
 ;; type — no promotion). run-hermetic-with-prelude registers the helper
 ;; in the child prelude; the call with mismatched types errors at freeze.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-rejects-f64-arg
-  
-  ;; prelude-free (arc 278 — prelude annihilated): the check-time type error rides INLINE
-  ;; in the hermetic child's body. `=` unifies its args to the SAME type; i64 3 vs f64 3.0
-  ;; is a mismatch with no promotion path → the child fails its own startup check → recv'
-  ;; returns Lost → RunResult::Failed. No child-local helper needed.
-  (:wat::core::match (:wat::test::run-hermetic (:wat::core::= 3 3.0))
-    ((:wat::kernel::RunResult::Failed _f) nil)
-    (:wat::kernel::RunResult::Passed
+
+;; Arc 300 Stone C5 — mixed-numeric `=` is WELL-FORMED at check, and evaluates
+;; category-aware: `(= 3 3.0)` checks clean and evaluates to FALSE (an i64 and an f64 are
+;; never the same value), while `(= 1 1N)` is true. C5 reversed 237.8a's cross-numeric
+;; check-reject because the checker was the OUTLIER — eval already computed these and clj
+;; computes them, so a real program was rejected at check for something that would have run.
+;;
+;; This test previously asserted the 237.8a reject. C5's Rooms listed the Rust-side
+;; siblings to flip (probe_arc237_8a / probe_arc237_8b) and they were flipped; THIS one was
+;; invisible to that sweep because it sat under an arc-170 `ignore` marker. A suppressed
+;; test is invisible to the migration that owns it — it kept accusing the substrate of a
+;; defect the substrate does not have. Flipped now to the shipped contract.
+(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-mixed-numeric-is-false
+
+  (:wat::core::match (:wat::test::run-hermetic (:wat::test::assert-false (:wat::core::= 3 3.0)))
+    (:wat::kernel::RunResult::Passed nil)
+    ((:wat::kernel::RunResult::Failed _f)
       (:wat::kernel::assertion-failed!
-        "expected check-time error: i64 3 = f64 3.0 (mismatched types under =)"
+        "expected mixed-numeric = to check clean and evaluate FALSE (arc 300 C5 + C4 category-aware =)"
         :wat::core::None :wat::core::None))))
 
 ;; ─── REJECTION: direct cross-type = → check-time type error ─────────────
@@ -106,7 +113,7 @@
 ;; The poly_eq_mixed_promotes Rust test (which expected "equal") was in the
 ;; 13-failing list — the correct new behaviour is rejection.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
   
   (:wat::core::let

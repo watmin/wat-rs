@@ -36,7 +36,7 @@
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::test::test-assert-eq-fail-populates-message
   
   ;; arc 170 #13 — the IPC wall. This test observes a FAILING child, which is why it
@@ -64,7 +64,7 @@
   
   (:wat::test::assert-contains "the quick brown fox" "quick"))
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::test::test-assert-contains-fail-populates-actual
   
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
@@ -115,7 +115,7 @@
 ;; payload's `actual` slot. We grep for each named field; their
 ;; presence is what matters, not exact numeric values (those depend
 ;; on the encoder's d at run time).
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::test::test-assert-coincident-fail-renders-explanation
   
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
@@ -160,7 +160,7 @@
 
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-tests::test::test-assert-stdout-is-matches
   
   ;; arc 278 IPC de-prime: run-hermetic → primed peer wire (spawn-program' :process + recv').
@@ -213,7 +213,7 @@
 ;; chosen to match (or, in the fail case, NOT match) the emitted line behaves
 ;; identically whether or not the trailing crash envelope is present.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-tests::test::test-assert-stderr-matches-pass
   
   ;; arc 278 IPC de-prime: run-hermetic → primed peer wire (spawn-program' :process + recv').
@@ -258,7 +258,7 @@
 ;; tooling needed to verify safe deletion). Original test purpose
 ;; ("test the legacy STRING-entry path") retired during arc 170 slice 4a-β
 ;; when the legacy :wat::test::run path was swept to canonical macros.
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-tests::test::test-run-string-entry-path
   
   ;; Arc 170 slice 4a-β: this test originally exercised the legacy
@@ -291,7 +291,7 @@
 ;; tooling needed to verify safe deletion). Original test purpose
 ;; ("test the legacy AST-via-program path") retired during arc 170 slice 4a-β
 ;; when the legacy :wat::test::run-ast path was swept to canonical macros.
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest-hermetic :wat-tests::test::test-run-ast-via-program
   
   ;; arc 278 IPC de-prime: run-hermetic → primed peer wire. The printed value crosses

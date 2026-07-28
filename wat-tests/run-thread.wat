@@ -23,7 +23,7 @@
 
 ;; ─── Ok-path: passing assertion inside run-thread ─────────────────────
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::test::run-thread-ok-path
   
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
@@ -52,7 +52,7 @@
 
 ;; ─── Err-path: failing assertion inside run-thread ────────────────────
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::test::run-thread-err-path
   
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').

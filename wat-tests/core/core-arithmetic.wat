@@ -219,7 +219,7 @@
 ;; error; poly_div_f64_zero_errors was in the 13-failing list in the retired
 ;; Rust file — that behaviour is intentionally NOT mirrored here.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
   
   (:wat::core::let
@@ -255,7 +255,7 @@
 ;; Mirrors the behaviour asserted (negatively) by the retired Rust tests
 ;; poly_add_i64_f64_promotes_to_f64, poly_add_f64_i64_promotes_to_f64, etc.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-add-rejected
   
   (:wat::core::let
@@ -279,7 +279,7 @@
 ;; Mirrors poly_add_string_rejected_at_check. String is not a numeric type;
 ;; no defclause clause matches (String, String) for arithmetic.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-arithmetic::string-add-rejected
   
   (:wat::core::let
@@ -306,7 +306,7 @@
 ;; The test was previously `:NoMatchingClause`; intent (cross-type rejected)
 ;; is unchanged; error kind changed to TypeMismatch.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
   
   (:wat::core::let
@@ -330,7 +330,7 @@
 ;; Mirrors slice4_variadic_sub_zero_ary_errors and
 ;; slice4_variadic_div_zero_ary_errors. Neither - nor / has a 0-ary clause.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
   
   (:wat::core::let
@@ -349,7 +349,7 @@
           "expected NoMatchingClause for 0-ary (-)"
           :wat::core::None :wat::core::None)))))
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
   
   (:wat::core::let
@@ -376,16 +376,21 @@
 ;; run-hermetic-with-prelude registers the helper in the child's prelude so
 ;; it is visible to user::main in the forked subprocess.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::core-arithmetic::typed-f64-lt-rejects-i64-arg
+
+(:wat::test::deftest :wat-tests::core::core-arithmetic::typed-mixed-numeric-lt-is-true
   
-  ;; prelude-free (arc 278 — prelude annihilated): the check-time type error rides INLINE
-  ;; in the hermetic child's body. `<` unifies its args to the SAME type; f64 2.5 vs i64 1
-  ;; is a mismatch with no promotion path → the child fails its own startup check → recv'
-  ;; returns Lost → RunResult::Failed. No child-local helper needed.
-  (:wat::core::match (:wat::test::run-hermetic (:wat::core::< 1 2.5))
-    ((:wat::kernel::RunResult::Failed _f) nil)
-    (:wat::kernel::RunResult::Passed
+  ;; Arc 300 Stone C5 — mixed-numeric ORDERING is WELL-FORMED at check and evaluates to the
+  ;; numeric-value comparison: `(< 1 2.5)` => true. C5 reversed 237.8a's cross-numeric
+  ;; check-reject because the checker was the OUTLIER — eval already computed these and clj
+  ;; computes them, so a real program was rejected at check for something that would have run.
+  ;;
+  ;; This test previously asserted the 237.8a reject. C5's Rooms listed the Rust-side
+  ;; siblings to flip (probe_arc237_8a / probe_arc237_8b) and they were flipped; THIS one was
+  ;; invisible to that sweep because it sat under an arc-170 `ignore` marker. A suppressed
+  ;; test is invisible to the migration that owns it. Flipped now to the shipped contract.
+  (:wat::core::match (:wat::test::run-hermetic (:wat::test::assert-true (:wat::core::< 1 2.5)))
+    (:wat::kernel::RunResult::Passed nil)
+    ((:wat::kernel::RunResult::Failed _f)
       (:wat::kernel::assertion-failed!
-        "expected check-time error: i64 1 < f64 2.5 (mismatched types under <)"
+        "expected mixed-numeric < to check clean and evaluate TRUE (arc 300 C5)"
         :wat::core::None :wat::core::None))))

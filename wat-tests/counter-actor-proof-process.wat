@@ -72,7 +72,7 @@
    (:wat::core::defn :counter-proc/get
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Get))
+     (:wat::core::match (:wat::kernel::send peer! :counter::Request::Get)
        (:wat::kernel::SendOutcome::Sent
          (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
@@ -86,7 +86,7 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/increment
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>
@@ -106,12 +106,12 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/reset
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Reset))
+     (:wat::core::match (:wat::kernel::send peer! :counter::Request::Reset)
        (:wat::kernel::SendOutcome::Sent
          (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
@@ -125,12 +125,12 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/shutdown
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Shutdown))
+     (:wat::core::match (:wat::kernel::send peer! :counter::Request::Shutdown)
        (:wat::kernel::SendOutcome::Sent
          (:wat::core::match (:wat::kernel::recv peer!)
            ((:wat::kernel::RecvOutcome::Message resp)
@@ -144,9 +144,9 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :counter-actor::process-proof
   
   ;; ─── Test body ───────────────────────────────────────────────────────

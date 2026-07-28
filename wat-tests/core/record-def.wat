@@ -86,7 +86,7 @@
 ;; :test::rd::Pt/x (which takes :wat::core::Record) passes type-check. The
 ;; runtime class guard fires because Box is not Pt.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::record-def::class-guard-panics-got-class
   
   (:wat::core::let
@@ -145,7 +145,7 @@
 ;; Base record has no holon_form; to-holon fires a MalformedForm RuntimeError.
 ;; run-thread catches the panic; match on failure; assert Some.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-tests::core::record-def::base-to-holon-errors
   
   (:wat::core::let

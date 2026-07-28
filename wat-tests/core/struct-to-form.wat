@@ -14,7 +14,7 @@
   [a <- :wat::core::i64
    b <- :wat::core::i64])
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   
   (:wat::core::let
