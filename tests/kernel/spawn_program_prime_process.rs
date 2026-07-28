@@ -29,9 +29,26 @@
 
 use std::sync::Arc;
 
-use wat::freeze::startup_beside;
+use wat::freeze::{startup_bare, startup_beside, FrozenWorld};
 use wat::kernel::spawn::{PeerRecvError, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
 use wat::rust_deps::marshal::{downcast_ref_opaque, rust_opaque_arc};
+
+/// A stdlib-loaded world for the direct `spawn_process_peer` calls below.
+///
+/// These probes used a bare `SymbolTable::new()`. That was sufficient when they
+/// were written, but arc 209 C0b.3b-c gave `spawn_process_peer` an owner-side
+/// post-spawn hook which CONSTRUCTS `(:wat::spawn::ProcessLaunch' pid)` — a wat
+/// aggregate ctor that only exists once the stdlib is registered. Against an
+/// empty table that ctor is genuinely unknown, so every one of these probes died
+/// on `UnknownFunction` at the hook, reporting a missing name when the real gap
+/// was a missing UNIVERSE. Their sibling process probes never saw it because they
+/// go through `startup_from_source`/`startup_beside`, which load the stdlib.
+///
+/// `startup_bare()` is the sanctioned stdlib-only world (same helper
+/// `bootstrap_wat_vm_process` uses); its `symbols()` is the table the hook needs.
+fn stdlib_world() -> FrozenWorld {
+    startup_bare().expect("startup_bare must succeed")
+}
 
 // ─── Shared test helpers ──────────────────────────────────────────────────────
 
@@ -154,7 +171,8 @@ fn empty_env_expr() -> String {
 fn spawn_program_prime_process_echo_round_trip() {
     let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
-    let sym = wat::runtime::SymbolTable::new();
+    let world = stdlib_world();
+    let sym = world.symbols();
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
@@ -206,7 +224,8 @@ fn spawn_program_prime_process_echo_round_trip() {
 fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
-    let sym = wat::runtime::SymbolTable::new();
+    let world = stdlib_world();
+    let sym = world.symbols();
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
@@ -263,7 +282,8 @@ fn spawn_program_prime_process_helper_round_trip() {
     // symbol registration. Prove the server executes correctly end-to-end.
     let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
-    let sym = wat::runtime::SymbolTable::new();
+    let world = stdlib_world();
+    let sym = world.symbols();
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =

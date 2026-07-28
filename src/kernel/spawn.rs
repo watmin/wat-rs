@@ -951,6 +951,9 @@ pub fn spawn_process_peer(
     // Arc 209 C0b.3b-c — owner-side post-spawn hook. Build ProcessLaunch{pid}
     // and apply the hook for effects before returning the wrapped peer.
     // Uses the same format→parse_one!→eval pattern as spawn_thread_peer.
+    // `ProcessLaunch'` (PRIMED) is deliberate: arc 294 9a flipped aggregates so the BARE
+    // name is the kwargs macro and the PRIME is the generated-only POSITIONAL ctor. This
+    // is a positional one-arg construction, so the prime is the correct callee.
     let launch_src = format!("(:wat::spawn::ProcessLaunch' {child_pid})");
     let launch_ast = crate::parse_one!(&launch_src)
         .expect("arc 209 C0b.3b-c: ProcessLaunch ctor form parses");
