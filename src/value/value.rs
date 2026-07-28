@@ -440,6 +440,15 @@ pub struct ClauseSet {
     pub clauses: Vec<Clause>,
     /// `Some(T)` when the top-level `-> :T` sugar was used (Option A).
     pub shared_return: Option<TypeExpr>,
+    /// Optional metadata-map, mirroring `def`/`defn`'s binding-level metadata
+    /// (e.g. `{:restricted-to [<prefix-kw>…]}`). `Some(map)` when a `{...}`
+    /// form immediately follows the defclause name; `None` when absent.
+    /// Consumed by `register_defines` (runtime.rs), which inserts it into
+    /// `SymbolTable.binding_metadata` under the clause's FQDN — exactly as
+    /// `def`/`defn` already do — so the EXISTING restriction-check walker
+    /// (`walk_for_restricted_call` / `extract_prefix_list_from_metadata` in
+    /// check.rs) enforces it with no change.
+    pub metadata: Option<HashMap<String, WatAST>>,
 }
 
 // ─── end Stone 237.2 structs ──────────────────────────────────────────────────
