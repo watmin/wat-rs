@@ -417,7 +417,13 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
         .arg(&path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // Arc 170 — was `Stdio::null()`. A test that DISCARDS the reason for its own failure is a
+        // mask, and this one masked the reason it exists to prove: wat writes a structured
+        // `#wat.kernel/…` diagnostic to stderr immediately before a non-zero exit, and routing it
+        // to /dev/null left every failure reporting only `got Some(2)` — an exit code with no
+        // cause attached. This failure has flipped state five times in one day; the reason is the
+        // only thing that can close it, and it was being thrown away at the source.
+        .stderr(Stdio::piped())
         .spawn()
         .expect("spawn wat");
 
@@ -446,6 +452,13 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
         libc::kill(cli_pid, libc::SIGTERM);
     }
 
+    // Drain the child's stderr BEFORE wait(): it is a pipe now, and the reason wat writes on its
+    // way out is the only evidence that can close this. Read to EOF, which the child's exit gives us.
+    let mut child_stderr = String::new();
+    if let Some(mut e) = child.stderr.take() {
+        use std::io::Read;
+        let _ = e.read_to_string(&mut child_stderr);
+    }
     let status = child.wait().expect("wait wat-cli");
     let code = status.code();
     let _ = std::fs::remove_file(&path);
@@ -461,8 +474,10 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
         code,
         Some(0),
         "polling contract: cli should exit 0 after child observes stopped? \
-         and returns clean; got {:?}",
-        code
+         and returns clean; got {:?}\n\
+         ── child stderr (the reason; empty means it died without writing one) ──\n{}",
+        code,
+        if child_stderr.trim().is_empty() { "<empty>" } else { child_stderr.trim() }
     );
 }
 
@@ -715,5 +730,84 @@ fn check_mode_still_demands_exactly_one_entry() {
         output.status.code(),
         Some(64),
         "--check with two entries must be EX_USAGE"
+    );
+}
+
+/// Arc 170 — SIGTERM must reach a program parked in a READ, not only one spinning on
+/// `stopped?`.
+///
+/// `sigterm_to_cli_cascades_via_polling_contract` (above) proves the contract for a COMPUTE
+/// loop, which reaches its own poll unaided. This proves it where the program is blocked in
+/// `read-frame` — the shape of every interactive wat program: the REPL, the stdio-service
+/// demo, `repl-daemon`.
+///
+/// MEASURED at HEAD, by hand, before this test existed: such a program survives SIGTERM AND
+/// SIGINT and requires SIGKILL. Ctrl-C does not work. The cause is that `RealStdin`
+/// (`src/io.rs`) reports `as_raw_fd_for_poll() -> None` although it wraps fd 0, so its read is
+/// a bare blocking `read(2)` — the one wait in the substrate that is not a select. Every other
+/// wait (admin, clients, timers, lifeline, and a spawned child's `PipeReader` stdin) is
+/// multiplexed; `channel/transfer.rs` even implements the exact poll-`[fd, broadcast_fd]`
+/// pattern this read needs.
+///
+/// The blast radius is the whole interactive surface: no `Ctrl-C`, and `systemctl stop` /
+/// container SIGTERM all degrade to hard-kill with no cleanup, silently.
+#[test]
+fn sigterm_reaches_a_program_blocked_on_stdin() {
+    let program = include_str!("wat_cli__sigterm_blocked_on_stdin.wat");
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let mut child = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn wat");
+
+    // Lock-step: READY means the program has reached its read and is parked there. The stdin
+    // pipe is held open and deliberately never written, so the read cannot complete on its own
+    // — the only thing that can end this process is the signal.
+    use std::io::{BufRead, BufReader};
+    let stdout = child.stdout.take().expect("child stdout");
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+    reader.read_line(&mut line).expect("read READY");
+    assert_eq!(line.trim().trim_matches('"'), "READY", "expected READY; got {line:?}");
+
+    unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGTERM) };
+
+    // Poll rather than block: a FAILING run here means the process ignores the signal
+    // forever, and a bare wait() would hang the suite instead of reporting.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let status = loop {
+        match child.try_wait().expect("try_wait") {
+            Some(s) => break Some(s),
+            None if std::time::Instant::now() >= deadline => break None,
+            None => std::thread::sleep(std::time::Duration::from_millis(25)),
+        }
+    };
+    let mut child_stderr = String::new();
+    if let Some(mut e) = child.stderr.take() {
+        use std::io::Read;
+        let _ = e.read_to_string(&mut child_stderr);
+    }
+    if status.is_none() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let _ = std::fs::remove_file(&path);
+
+    let status = status.expect(
+        "the program IGNORED SIGTERM while blocked in read-frame and had to be SIGKILLed. \
+         A wait that is not a select cannot observe a stop request — see this test's module \
+         docs for the site (RealStdin::as_raw_fd_for_poll returning None).",
+    );
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "a program blocked in a read must observe the stop request and return cleanly; got {:?}\n\
+         ── child stderr ──\n{}",
+        status.code(),
+        if child_stderr.trim().is_empty() { "<empty>" } else { child_stderr.trim() }
     );
 }
