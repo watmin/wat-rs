@@ -68,7 +68,8 @@ use crate::stdlib::StdlibError;
 use crate::resolve::ResolveError;
 use crate::runtime::{
     apply_function, EvalBreak, Environment,
-    FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
+    Function, FunctionBody, RuntimeError, RuntimeErrorKind,
+    SymbolTable, TrackedValue, Value,
 };
 use crate::value::EncodingCtx;
 use crate::types::{TypeEnv, TypeError, TypeExpr};
@@ -108,20 +109,99 @@ pub struct BootstrapArgs<'a> {
 /// Join errors in Drop are logged to stderr via `eprintln!` and do not
 /// propagate (Drop cannot return Result). They are diagnostic noise on
 /// the shutdown path — the process is already tearing down.
+/// One process-lifetime stdio service `ProcessRuntime` holds: its display name (used in
+/// `StopAccepted`/`StopFailure`), its Handle (kept alive — dropping it, on an ordinary return, is
+/// what signals the service to `:Shutdown`), and its resolved `<fqdn>/stop` caller (used by
+/// [`ProcessRuntime::ask_stop_and_collect_failures`] on a SIGTERM return, while this thread —
+/// the SAME one that constructed the Handle via `start-primed-stdio` — still owns it).
+struct StopTarget {
+    name: &'static str,
+    handle: Value,
+    stop_fn: Arc<Function>,
+}
+
 pub struct ProcessRuntime {
     /// The frozen SymbolTable augmented with the primed-stdio carrier (`sym.primed_stdio()`).
     /// Use for `apply_function(fn, args, runtime.symbols(), ...)`.
     sym: SymbolTable,
-    /// Arc 170 stdio-as-defservice — the three PRIMED stdio defservices' `Handle` values
-    /// (`:wat::kernel::{stdin,stdout,stderr}-svc`), each carrying its admin lineage `Peer'`. Held for
-    /// the process lifetime so the services stay alive; they drop with this struct's field teardown
-    /// (after the Drop body), which signals the three idle serve loops to `:Shutdown` (wat-managed
-    /// threads — no Rust join needed). Order: stdin, stdout, stderr.
+    /// Arc 170 stdio-as-defservice — the three PRIMED stdio defservices, each carrying its admin
+    /// lineage `Peer'` (`:wat::kernel::{stdin,stdout,stderr}-svc`) and its resolved `/stop` caller.
+    /// Held for the process lifetime so the services stay alive; each Handle drops with this
+    /// struct's field teardown (after the Drop body), which signals the three idle serve loops to
+    /// `:Shutdown` (wat-managed threads — no Rust join needed). Order: stdin, stdout, stderr —
+    /// matches `ask_stop_and_collect_failures`'s announce order.
+    stop_targets: Vec<StopTarget>,
+}
+
+impl ProcessRuntime {
+    /// Arc 170 "stopping is a protocol", builder ruling: MAIN creates the stdio services
+    /// (`bootstrap_wat_vm_process` → `start-primed-stdio` runs on whichever thread calls it), so
+    /// MAIN stops them — `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds each Handle's admin
+    /// `Peer'` to that construction thread; only it may legally `send'`/`recv'` on it. Called from
+    /// `invoke_user_main_orchestrated`, on `:user::main`'s way out, ONLY when `KERNEL_STOPPED` is
+    /// true, while `self` (hence the Handles) is still alive — i.e. on THIS SAME thread, which is
+    /// exactly the one `ThreadOwnedCell` requires.
     ///
-    /// Held-for-lifetime (RAII): the value IS the liveness; no field is read (the addresses are reached
-    /// via `sym.primed_stdio()`). `allow(dead_code)` marks the intentional hold.
-    #[allow(dead_code)]
-    primed_stdio_handles: Vec<Value>,
+    /// Mirrors the deleted worker-thread version exactly in shape: announce `StopAccepted` once
+    /// (naming every target — there is no Weak/upgrade filtering to do anymore, `self` owns them
+    /// outright, so all three are always live at this point) via the primed StdOut service, then
+    /// ask each target's `<fqdn>/stop` and await its `Status::Stopped`. NO TIMEOUT (contract rule
+    /// 2/3) — a service that never answers hangs this call, visibly, exactly as the announce
+    /// already named it. `catch_unwind` on both: a lost/closed peer's failure arrives as
+    /// `std::panic::panic_any` via `:wat::kernel::assertion-failed!`
+    /// (`src/assertion.rs::eval_kernel_assertion_failed`), never a returned `Err` — ground-truthed
+    /// by hand (see the arc 170 report). Every failure — announce or ask — is collected, never
+    /// discarded (builder ruling: "any failure must be loud and obvious"); the caller publishes
+    /// the result via `crate::runtime::publish_stop_failures` for the exit path
+    /// (`src/distribution/mod.rs`) to report.
+    pub(crate) fn ask_stop_and_collect_failures(&self) -> Vec<Value> {
+        let mut failures: Vec<Value> = Vec::new();
+
+        let service_names: Vec<Value> = self
+            .stop_targets
+            .iter()
+            .map(|t| Value::String(Arc::new(t.name.to_string())))
+            .collect();
+        let stop_accepted = Value::Aggregate(Arc::new(crate::runtime::AggregateValue::record(
+            "wat::kernel::StopAccepted".to_string(),
+            Arc::new(vec![Value::Vec(Arc::new(service_names))]),
+        )));
+        let edn = crate::edn_shim::value_to_edn_with(&stop_accepted, self.sym.types().map(|t| t.as_ref()));
+        let mut line = wat_edn::write(&edn);
+        line.push('\n');
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::services::verbs::write_via_stdout(
+                ":wat::kernel::stop-protocol",
+                &crate::rust_caller_span!(),
+                &self.sym,
+                line,
+            )
+        })) {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => failures.push(crate::runtime::stop_failure_value("stdout-svc", &e)),
+            Err(payload) => {
+                failures.push(crate::runtime::stop_failure_from_panic("stdout-svc", &*payload))
+            }
+        }
+
+        for target in &self.stop_targets {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                apply_function(
+                    Arc::clone(&target.stop_fn),
+                    vec![target.handle.clone()],
+                    &self.sym,
+                    crate::rust_caller_span!(),
+                )
+            })) {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => failures.push(crate::runtime::stop_failure_value(target.name, &e)),
+                Err(payload) => {
+                    failures.push(crate::runtime::stop_failure_from_panic(target.name, &*payload))
+                }
+            }
+        }
+        failures
+    }
 }
 
 impl ProcessRuntime {
@@ -141,6 +221,8 @@ impl Drop for ProcessRuntime {
         // idle serve loops (wat-managed threads; no Rust `JoinHandle` to join). The services are idle
         // in `poll'`, so shutdown wakes them cleanly — no deadlock.
         let _ = crate::services::uninstall_thread_io();
+        // No `ProcessRuntime` is alive anymore — see `STDIO_BOOTSTRAPPED`'s doc (`src/runtime.rs`).
+        crate::runtime::clear_stdio_bootstrapped();
     }
 }
 
@@ -261,15 +343,57 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     });
     sym.set_primed_stdio(primed);
 
+    // Arc 170 "stopping is a protocol", builder-corrected: MAIN creates these services
+    // (`start-primed-stdio` above runs on THIS thread), so MAIN — and only main — may later ask
+    // them to stop (`ThreadOwnedCell`, `src/rust_deps/custodia.rs`, binds a Handle's admin
+    // `Peer'` to whichever OS thread constructed it; `ProcessRuntime::ask_stop_and_collect_failures`
+    // is what runs the ask, from `invoke_user_main_orchestrated`, on this SAME thread). Resolve
+    // each `<fqdn>/stop` caller ONCE, here, against the augmented `sym` (it also serves the
+    // `StopAccepted` announce, which needs `sym.primed_stdio()`) and stash it alongside its Handle
+    // — no reason to re-look-up either at ask time.
+    let resolve_stop_fn = |fqdn_base: &str| -> Result<Arc<Function>, RuntimeError> {
+        let name = format!("{fqdn_base}/stop");
+        match sym.get(&name) {
+            Some(f) => Ok(f.clone()),
+            None => Err(RuntimeError {
+                span: crate::rust_caller_span!(),
+                kind: RuntimeErrorKind::UnknownFunction(name),
+            }),
+        }
+    };
+    let stop_targets = vec![
+        StopTarget {
+            name: "stdin-svc",
+            handle: stdin_handle.clone(),
+            stop_fn: resolve_stop_fn(":wat::kernel::stdin-svc")?,
+        },
+        StopTarget {
+            name: "stdout-svc",
+            handle: stdout_handle.clone(),
+            stop_fn: resolve_stop_fn(":wat::kernel::stdout-svc")?,
+        },
+        StopTarget {
+            name: "stderr-svc",
+            handle: stderr_handle.clone(),
+            stop_fn: resolve_stop_fn(":wat::kernel::stderr-svc")?,
+        },
+    ];
+
     // Install a fresh (empty) ThreadIO for this (main) thread so its stdio verbs can `connect'` + cache
     // a client peer to the primed services. Done AFTER `set_primed_stdio` so the carrier is live.
     crate::services::install_thread_io(crate::services::new_thread_io());
 
+    // Arc 170 — tell the shutdown worker a `ProcessRuntime` (hence Handles main might ask to
+    // stop) now exists, so it defers `trigger_shutdown()` to main instead of racing it. Cleared
+    // by `ProcessRuntime::Drop`. See `STDIO_BOOTSTRAPPED`'s doc (`src/runtime.rs`).
+    crate::runtime::set_stdio_bootstrapped();
+
     Ok(ProcessRuntime {
         sym,
         // stdin, stdout, stderr — held alive for the process lifetime (the verbs reach the addresses
-        // via `sym.primed_stdio()`; these Handles keep the services alive).
-        primed_stdio_handles: vec![stdin_handle, stdout_handle, stderr_handle],
+        // via `sym.primed_stdio()`; these Handles keep the services alive) AND, on a SIGTERM return,
+        // the targets `ask_stop_and_collect_failures` asks to stop before this struct drops them.
+        stop_targets,
     })
 }
 
@@ -1165,6 +1289,41 @@ fn invoke_user_main_orchestrated(
         ),
         None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing }),
     };
+
+    // Arc 170 "stopping is a protocol", builder ruling — MAIN creates the stdio services, so MAIN
+    // stops them, on its way out, ONLY when a stop was actually requested (`KERNEL_STOPPED`, set
+    // synchronously by the signal handler): an ordinary return never asks anything, it falls
+    // straight through to the same `drop(runtime)` below it always has. This MUST run before
+    // `drop(runtime)` — `ask_stop_and_collect_failures` needs the Handles alive, and it needs to
+    // run on THIS thread specifically (see its own doc for why). Failures are published for the
+    // exit path (`src/distribution/mod.rs`, right after `invoke_user_main` returns) to report.
+    if crate::runtime::KERNEL_STOPPED.load(std::sync::atomic::Ordering::SeqCst) {
+        let failures = runtime.ask_stop_and_collect_failures();
+        if !failures.is_empty() {
+            crate::runtime::publish_stop_failures(failures);
+        }
+        // NOW it is safe: the ask-then-await is fully done, so severing `SHUTDOWN_TX_PTR` cannot
+        // race any of its `recv'`s anymore.
+        //
+        // WHY THIS ORDERING IS IRREDUCIBLE (and not just tidier): the sever races the ask from
+        // BOTH ends, so no amount of making the ASKER cascade-blind would fix it. The asker's
+        // `recv'` selecting the shutdown arm over a real reply is only half. The other half is
+        // that the sever kills the COUNTERPARTY: a service's serve loop blocks in `select'`, and
+        // `comms::thread::Select::select` registers `shutdown_rx()` as an INTERNAL arm that
+        // returns `Shutdown` *regardless of which user receivers are pending* — so a severed
+        // service wakes and exits WITHOUT ever draining the `Admin::Stop` sitting in its queue,
+        // and the ask then blocks forever on a reply from a service that is already gone. That
+        // turns a race into a deterministic hang. Hence: the sever cannot precede the ask under
+        // any receiver-side change; it must simply come after. Something has to know when that
+        // moment is, which is what `STDIO_BOOTSTRAPPED` exists to say.
+        //
+        // This is the thread-tier sever the shutdown worker used
+        // to fire immediately (racing the ask, ground-truthed by hand — see the arc 170 report);
+        // it is deferred here, to run exactly once, after the ask, so any OTHER thread-tier
+        // recv/select blocked elsewhere in this process (a wat program's own spawned threads, not
+        // part of the primed-stdio trio) still gets woken before the process exits.
+        crate::runtime::trigger_shutdown();
+    }
 
     // Steps 6–8: cleanup runs in ProcessRuntime::drop when `runtime`
     // goes out of scope here. Drop order: deregister → uninstall

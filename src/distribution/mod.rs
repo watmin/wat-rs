@@ -413,7 +413,32 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         crate::freeze::invoke_user_main(&world, Vec::new())
     }));
-    let code = crate::process::finish_in_process(&world, outcome);
+    let mut code = crate::process::finish_in_process(&world, outcome);
+
+    // Arc 170 "stopping is a protocol" — builder ruling: "any failure must be loud and obvious."
+    // MAIN itself (this same thread — `invoke_user_main` → `invoke_user_main_orchestrated`,
+    // `src/freeze.rs`) ran the ask-then-await and published any `StopFailure`s BEFORE returning
+    // here — see `ProcessRuntime::ask_stop_and_collect_failures` for why it has to be main and not
+    // the shutdown worker (`ThreadOwnedCell` ownership). No join needed anymore: the publish, if
+    // any, already happened synchronously, on this thread, before `invoke_user_main` returned —
+    // unlike the retired worker-thread version, there is no OTHER thread to wait for here.
+    if crate::runtime::KERNEL_STOPPED.load(std::sync::atomic::Ordering::SeqCst) {
+        let failures = crate::runtime::take_stop_failures();
+        if !failures.is_empty() {
+            // The one channel this belongs on: stderr is the dying-declaration channel
+            // (`emit_panic_envelope`, `src/process/stdio.rs`), written only immediately before a
+            // non-zero exit — and this write IS immediately before one. Exit 0 would claim the
+            // stop was clean when it was not.
+            let stop_failed = crate::runtime::stop_failed_value(failures);
+            let edn = crate::edn_shim::value_to_edn_with(&stop_failed, Some(world.types()));
+            let line = format!("{}\n", wat_edn::write(&edn));
+            crate::process::stdio::emit_panic_envelope(&line);
+            if code == crate::process::EXIT_SUCCESS {
+                code = crate::process::EXIT_RUNTIME_ERROR;
+            }
+        }
+    }
+
     ExitCode::from(code as u8)
 }
 

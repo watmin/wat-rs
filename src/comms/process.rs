@@ -63,7 +63,9 @@
 //! Event masks match the substrate's existing PipeFd convention
 //! (typed_channel.rs:329-368):
 //!   - data fd: `POLLIN | POLLHUP` (data ready OR EOF)
-//!   - broadcast fd: `POLLHUP` (worker dropped write-end on shutdown)
+//!   - broadcast fd: `POLLIN | POLLHUP` (arc 170 Phase 1 — worker writes a
+//!     wake byte, POLLIN, then drops the write-end, POLLHUP; today the drop
+//!     still immediately follows the write, so either bit means shutdown)
 //!
 //! Bootstrap fallback: when `SHUTDOWN_BROADCAST_READ_FD == -1` (pre-init
 //! or test bypass), the cascade-poll step is skipped and recv falls back
@@ -948,9 +950,10 @@ enum PollOutcome {
     /// Data fd's POLL_ADD fired (POLLIN or POLLHUP for EOF).
     /// Caller follows with an io_uring Read on the data fd.
     DataReady,
-    /// Broadcast fd's POLL_ADD fired (POLLHUP — worker dropped
-    /// the write-end on substrate shutdown). Caller returns
-    /// `Err(RecvError)`.
+    /// Broadcast fd's POLL_ADD fired (POLLIN — worker wrote a wake byte —
+    /// or POLLHUP — worker dropped the write-end; arc 170 Phase 1: today
+    /// the drop still immediately follows the write, so either means
+    /// substrate shutdown). Caller returns `Err(RecvError)`.
     Shutdown,
 }
 
@@ -962,9 +965,10 @@ enum PollOutcome {
 /// Stone E-1: ring is now a persistent kernel resource borrowed from
 /// the calling Receiver. Per-call `IoUring::new(4)` is retired.
 ///
-/// Event masks match `src/typed_channel.rs:329-368` discipline:
+/// Event masks:
 ///   - data fd: POLLIN | POLLHUP (data ready OR peer-closed)
-///   - broadcast fd: POLLHUP (worker dropped write-end)
+///   - broadcast fd: POLLIN | POLLHUP (arc 170 Phase 1 — wake byte OR
+///     write-end drop; either currently means shutdown)
 ///
 /// Returns `Err(RecvError)` on io_uring submission/wait failure or
 /// on a CQE error (`cqe.result() < 0`).
@@ -987,7 +991,10 @@ fn wait_for_data_or_cascade(
 
     let poll_broadcast = opcode::PollAdd::new(
         types::Fd(broadcast_fd),
-        libc::POLLHUP as u32,
+        // Arc 170 Phase 1 — broadcast means WAKE (POLLIN, a written byte) as
+        // well as SEVER (POLLHUP, the drop that still immediately follows
+        // the write today).
+        (libc::POLLIN | libc::POLLHUP) as u32,
     )
     .build()
     .user_data(BROADCAST_TOKEN);
@@ -1536,7 +1543,10 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                 if let Some(broadcast_fd) = broadcast_opt {
                     let poll_broadcast = opcode::PollAdd::new(
                         types::Fd(broadcast_fd),
-                        libc::POLLHUP as u32,
+                        // Arc 170 Phase 1 — broadcast means WAKE (POLLIN, a
+                        // written byte) as well as SEVER (POLLHUP, the drop
+                        // that still immediately follows the write today).
+                        (libc::POLLIN | libc::POLLHUP) as u32,
                     )
                     .build()
                     .user_data(BROADCAST_TOKEN);
@@ -1749,7 +1759,10 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                 if let Some(broadcast_fd) = broadcast_opt {
                     let poll_broadcast = opcode::PollAdd::new(
                         types::Fd(broadcast_fd),
-                        libc::POLLHUP as u32,
+                        // Arc 170 Phase 1 — broadcast means WAKE (POLLIN, a
+                        // written byte) as well as SEVER (POLLHUP, the drop
+                        // that still immediately follows the write today).
+                        (libc::POLLIN | libc::POLLHUP) as u32,
                     )
                     .build()
                     .user_data(BROADCAST_TOKEN);

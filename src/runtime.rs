@@ -48,7 +48,7 @@ use num_rational::BigRational;
 use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::os::fd::FromRawFd;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use wat_macros::restricted_to;
@@ -67,12 +67,36 @@ use wat_macros::restricted_to;
 /// mutates at runtime under kernel control.
 pub static KERNEL_STOPPED: AtomicBool = AtomicBool::new(false);
 
-/// Set the kernel stop flag to `true`. Called by the wat CLI's
-/// signal handler. After `true` is set, any user program polling
-/// `(:wat::kernel::stopped?)` will observe it and can begin clean
-/// shutdown.
+/// Set the kernel stop flag to `true` AND wake the shutdown worker.
+/// Called by the wat CLI's SIGINT/SIGTERM signal handlers (and by
+/// `compose.rs`'s external-crate equivalent). After `true` is set, any
+/// user program polling `(:wat::kernel::stopped?)` will observe it and
+/// can begin clean shutdown.
+///
+/// Arc 170 "stopping is a protocol" Phase 3 — the wake-pipe write used to
+/// live in `substrate_on_stop_signal` (`src/process/child.rs`) alongside
+/// this store, making that handler the one signal handler in the file
+/// that did two things instead of one. Moved here so the handler itself
+/// is a single call — matching `sigusr1`/`sigusr2`/`sighup`'s shape
+/// (`set_kernel_sigusr1` et al., each one atomic store) — while the wake
+/// behaviour itself is preserved exactly, just relocated. Still fully
+/// async-signal-safe to call from a signal handler: an `AtomicBool::store`
+/// and a `libc::write` to an already-open pipe fd are both on the POSIX
+/// async-signal-safe list (signal-safety(7)); nothing added here changes
+/// that. `SHUTDOWN_WAKE_WRITE_FD == -1` (shutdown infra not yet
+/// initialized, e.g. a bare unit test calling this directly) is a safe
+/// no-op — the guard below short-circuits before the write.
 pub fn request_kernel_stop() {
     KERNEL_STOPPED.store(true, Ordering::SeqCst);
+    let fd = SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
+    if fd >= 0 {
+        let byte: u8 = b'!';
+        // SAFETY: libc::write is async-signal-safe per signal-safety(7).
+        // `fd` is either -1 (guarded above) or a valid write end of the
+        // wake pipe, set before the first signal handler can fire
+        // (init_shutdown_signal() runs at bootstrap, before any user code).
+        unsafe { libc::write(fd, &byte as *const u8 as *const libc::c_void, 1) };
+    }
 }
 
 /// Reset the kernel stop flag. Used only by test harnesses that
@@ -412,25 +436,66 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
                 })
                 .collect();
             // Block forever (timeout = -1). EINTR retries; any FD ready
-            // (POLLIN or POLLHUP) → break and trigger_shutdown.
+            // (POLLIN or POLLHUP) → break.
             loop {
                 let n = unsafe {
                     libc::poll(pollfds.as_mut_ptr(), pollfds.len() as _, -1)
                 };
                 if n > 0 {
-                    break; // some FD ready — fire shutdown
+                    break; // some FD ready — wake
                 }
                 // n == 0 cannot happen with timeout=-1 in normal operation;
                 // n < 0 is typically EINTR (signal interrupted poll). Retry.
             }
-            // Wake received. Trigger shutdown in normal context.
-            trigger_shutdown();
-            // Phase 2 — propagate shutdown to tier-2 PipeFd consumers by
-            // dropping the broadcast write-end OwnedFd. All readers see POLLHUP.
-            // OwnedFd::drop calls libc::close(2) unconditionally — including on
-            // panic — so POLLHUP is guaranteed regardless of the exit path.
-            drop(broadcast_w_fd);
-            // Worker exits — its job is done; subsequent attempts are no-ops.
+            // Wake received.
+            //
+            // Arc 170 "stopping is a protocol", builder-corrected ordering — the worker MEASURES
+            // and WAKES; it does not transition. This file's own signal doctrine ("the kernel
+            // MEASURES; userland owns the transitions") applied to the SIGNAL HANDLER from the
+            // start; it now applies to the worker too. An earlier revision of this stone had the
+            // worker itself announce (`StopAccepted`) and ask each held service to stop — WRONG:
+            // `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds a Handle's admin `Peer'` to
+            // whichever OS thread constructed it (main, via `bootstrap_wat_vm_process` →
+            // `start-primed-stdio`); only THAT thread may legally `send'`/`recv'` on it. The
+            // worker is a different OS thread and can never satisfy that check — every ask from
+            // here failed, always, silently swallowed until the fix that stopped discarding the
+            // error surfaced it (see the arc 170 report). The announce and the ask-then-await now
+            // run on MAIN — `ProcessRuntime::ask_stop_and_collect_failures` (`src/freeze.rs`),
+            // called from `invoke_user_main_orchestrated` on `:user::main`'s way out, while main
+            // still owns the Handles.
+            //
+            // The wake byte is simultaneously the reason-free notice (contract rule 4: a client
+            // never learns a service's crash/stop reason; `POLLIN` carries none) AND the unblock
+            // that lets main be the one to act: Phase 1's `POLLIN | POLLHUP` split (readers no
+            // longer wait for `POLLHUP`-only) means this write alone reaches every process-tier
+            // reader — including main's own blocked `readln` / `read-frame` — WITHOUT tearing
+            // anything down. Main's read returns `Stopped`, not `Disconnected`; `:user::main`
+            // observes `(stopped?)` and returns normally, still holding its Handles, still able
+            // to ask them to stop.
+            let wake_byte: [u8; 1] = [0];
+            unsafe {
+                libc::write(broadcast_w_fd.as_raw_fd(), wake_byte.as_ptr() as *const _, 1);
+            }
+            // Ground truth (driven by hand, not assumed — see the arc 170 report): calling
+            // `trigger_shutdown()` here unconditionally, immediately after the wake byte,
+            // reproduces the ORIGINAL bug on the very first try — main's ask-then-await
+            // (`ProcessRuntime::ask_stop_and_collect_failures`, `src/freeze.rs`) sends
+            // `Admin::Stop` down a THREAD-TIER `Peer'`, whose `recv'` for `Status::Stopped` is
+            // cascade-aware (`comms::thread::Receiver::recv`, selects against `shutdown_rx()`).
+            // If `SHUTDOWN_TX_PTR` is already dropped by the time that `recv'` runs, crossbeam's
+            // `select!` can pick the disconnected shutdown arm over the real (already-sent, real)
+            // reply — every ask spuriously fails with "process shutdown" (`RecvOutcome::Shutdown`)
+            // instead of the true `Status::Stopped`. So this call is conditional: only when NO
+            // `ProcessRuntime` is alive to race (`stdio_bootstrapped() == false` — a bare
+            // library/test caller that spawned the shutdown infra directly, e.g.
+            // `tests/process/shutdown_cascade_memory.rs`'s probes, which have no Handles to ask
+            // and legitimately need their OWN blocked thread-tier recvs woken NOW). When a
+            // `ProcessRuntime` IS alive, this is main's job, AFTER its ask completes —
+            // `invoke_user_main_orchestrated` (`src/freeze.rs`) calls `trigger_shutdown()` itself,
+            // once `ask_stop_and_collect_failures` has returned.
+            if !stdio_bootstrapped() {
+                trigger_shutdown();
+            }
         })
         .expect("wat-shutdown-worker thread spawn failed");
 
@@ -459,6 +524,187 @@ pub fn trigger_shutdown() {
         // same pointer.
         unsafe { drop(Box::from_raw(ptr)) };
     }
+}
+
+// ── Arc 170 "stopping is a protocol" — no silent drop on the stop path ─────
+//
+// Builder ruling: "any failure must be loud and obvious." A failed announce
+// or a failed ask is collected here (never discarded with `let _ =`) and
+// reported by the exit path (`src/distribution/mod.rs`) once `:user::main`
+// returns — as registered EDN (`StopFailed`) on stderr, immediately before a
+// non-zero exit. No new channel: `StopFailed`/`StopFailure` are registered
+// kernel records (`src/types.rs`), and stderr is the SAME dying-declaration
+// channel `emit_panic_envelope` (`src/process/stdio.rs`) already writes on.
+//
+// Correction (builder-ruled): the announce + the ask-then-await themselves do
+// NOT live here anymore. `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds
+// each Handle's admin `Peer'` to whichever thread constructed it —
+// `bootstrap_wat_vm_process`, always the caller's own thread (main, in the
+// CLI). The shutdown worker is a DIFFERENT OS thread, so it can never
+// legally ask; only MAIN can. See `ProcessRuntime::ask_stop_and_collect_failures`
+// (`src/freeze.rs`) for where the announce/ask actually run now — main, on
+// `:user::main`'s way out, while it still owns the Handles. What remains
+// here is thread-agnostic: building the registered `Fault`/`StopFailure`/
+// `StopFailed` values, and the single-slot publish/take hand-off the exit
+// path uses to read what main collected (kept as a plain global, not
+// threaded through `invoke_user_main`'s signature — dozens of test callers
+// use that signature directly and don't care about this).
+
+/// Convert a `RuntimeError` into a `:wat::core::Fault` (`wat/core.wat`) — the canonical minimal
+/// record that structurally satisfies the `:wat::core::Error` surface: `message`, `location` (a
+/// `:wat::kernel::Location`, via [`value_from_span`]), `causes` (empty — a Fault is a leaf).
+/// Chosen over round-tripping `RuntimeError`'s own `WatError::error_edn()` through `edn_to_value`,
+/// which would require every possible `RuntimeErrorKind` variant tag to be independently
+/// EDN-decodable; `Fault` is already a single, simple, always-registered record.
+pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
+    use crate::to_edn::WatError;
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::core::Fault".to_string(),
+        Arc::new(vec![
+            Value::String(Arc::new(err.message())),
+            value_from_span(err.span.clone()),
+            Value::Vec(Arc::new(Vec::new())),
+        ]),
+    )))
+}
+
+/// Build one `:wat::kernel::StopFailure` — the service's display name + its structured cause.
+pub(crate) fn stop_failure_value(service: &str, err: &RuntimeError) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::kernel::StopFailure".to_string(),
+        Arc::new(vec![
+            Value::String(Arc::new(service.to_string())),
+            fault_from_runtime_error(err),
+        ]),
+    )))
+}
+
+/// Convert a caught panic payload into a `:wat::core::Fault`. Ground truth, verified by hand
+/// (not assumed): `:wat::kernel::assertion-failed!` — the arm the generated `<fqdn>/stop` caller's
+/// `RecvOutcome::Lost`/`Closed` branches raise on (`wat/service.wat` ~:1479), and the arm
+/// `stdio-write-out` raises on a lost/closed StdOut peer — is `std::panic::panic_any`
+/// (`src/assertion.rs::eval_kernel_assertion_failed`), NOT a returned `Err`. A real broken-pipe
+/// stop failure was driven by hand to find this (see the arc 170 report): `apply_function` never
+/// returned `Err` for it at all — it unwound. Without this arm, `stop_failure_value` alone would
+/// silently miss the exact failure class it exists to report — this stone's whole point.
+///
+/// Downcast order mirrors `finish_forked_child`'s existing panic-payload handling
+/// (`src/process/verbs.rs`): `AssertionPayload` (carries its own message + location) → `String` /
+/// `&str` (a bare panic message, no location — falls back to this call site) → an opaque fallback.
+pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> Value {
+    if let Some(p) = payload.downcast_ref::<crate::assertion::AssertionPayload>() {
+        let span = p.location.clone().unwrap_or_else(|| crate::rust_caller_span!());
+        Value::Aggregate(Arc::new(AggregateValue::record(
+            "wat::core::Fault".to_string(),
+            Arc::new(vec![
+                Value::String(Arc::new(p.message.clone())),
+                value_from_span(span),
+                Value::Vec(Arc::new(Vec::new())),
+            ]),
+        )))
+    } else {
+        let message = if let Some(s) = payload.downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = payload.downcast_ref::<&str>() {
+            (*s).to_string()
+        } else {
+            "<unknown panic payload>".to_string()
+        };
+        Value::Aggregate(Arc::new(AggregateValue::record(
+            "wat::core::Fault".to_string(),
+            Arc::new(vec![
+                Value::String(Arc::new(message)),
+                value_from_span(crate::rust_caller_span!()),
+                Value::Vec(Arc::new(Vec::new())),
+            ]),
+        )))
+    }
+}
+
+/// Build one `:wat::kernel::StopFailure` from a caught panic (see [`fault_from_panic_payload`]).
+pub(crate) fn stop_failure_from_panic(service: &str, payload: &(dyn std::any::Any + Send)) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::kernel::StopFailure".to_string(),
+        Arc::new(vec![
+            Value::String(Arc::new(service.to_string())),
+            fault_from_panic_payload(payload),
+        ]),
+    )))
+}
+
+/// Build `:wat::kernel::StopFailed { :services [...] }` from main's collected failures.
+/// `pub(crate)` — the exit path (`src/distribution/mod.rs`) calls this after
+/// [`take_stop_failures`] to build the value it serializes to stderr.
+pub(crate) fn stop_failed_value(failures: Vec<Value>) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::kernel::StopFailed".to_string(),
+        Arc::new(vec![Value::Vec(Arc::new(failures))]),
+    )))
+}
+
+/// Main's collected `StopFailure` values, published ONCE (if non-empty) by
+/// `ProcessRuntime::ask_stop_and_collect_failures` (`src/freeze.rs`), read ONCE by the exit path
+/// (`src/distribution/mod.rs`) right after `invoke_user_main` returns. `null` = no failures were
+/// recorded — either no stop ever happened, or one happened with nothing to report.
+///
+/// Same-thread hand-off now (both the write and the read happen on main, in the same call chain,
+/// with no other thread able to observe or race this slot in between) — kept as a global rather
+/// than threaded through `invoke_user_main`'s return type because that signature is public API
+/// dozens of tests call directly and don't care about this.
+static STOP_FAILURES_PTR: std::sync::atomic::AtomicPtr<Vec<Value>> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+/// Publish main's collected failures. Called at most once per `:user::main` return that observed
+/// `KERNEL_STOPPED`.
+pub(crate) fn publish_stop_failures(failures: Vec<Value>) {
+    let boxed = Box::into_raw(Box::new(failures));
+    let old = STOP_FAILURES_PTR.swap(boxed, Ordering::SeqCst);
+    if !old.is_null() {
+        unsafe { drop(Box::from_raw(old)) };
+    }
+}
+
+/// Take the collected stop failures (swap-to-null; idempotent — a second call sees null and
+/// returns empty). See [`STOP_FAILURES_PTR`]'s doc.
+pub(crate) fn take_stop_failures() -> Vec<Value> {
+    let ptr = STOP_FAILURES_PTR.swap(std::ptr::null_mut(), Ordering::SeqCst);
+    if ptr.is_null() {
+        Vec::new()
+    } else {
+        // SAFETY: ptr was Box::into_raw'd in publish_stop_failures and is no longer
+        // reachable via STOP_FAILURES_PTR after this swap.
+        *unsafe { Box::from_raw(ptr) }
+    }
+}
+
+/// `true` while a `ProcessRuntime` (`src/freeze.rs`) is alive in this process — i.e. there are
+/// Handles main might be about to (or already) ask to stop. Set by `bootstrap_wat_vm_process`
+/// once the Handles are ready; cleared by `ProcessRuntime::Drop`.
+///
+/// The shutdown worker consults this exactly once, right after writing the wake byte, to decide
+/// whether it is safe to call [`trigger_shutdown`] itself: ground-truthed by hand (see the arc 170
+/// report) that calling it unconditionally there races main's ask-then-await and turns every ask
+/// into a spurious "process shutdown" failure — so the worker only fires it when `false` (no
+/// `ProcessRuntime` alive to race, e.g. a bare library/test caller with its own blocked
+/// thread-tier recvs and nothing to ask). When `true`, `invoke_user_main_orchestrated`
+/// (`src/freeze.rs`) calls `trigger_shutdown()` itself, AFTER `ask_stop_and_collect_failures`
+/// returns — which is what makes it safe.
+static STDIO_BOOTSTRAPPED: AtomicBool = AtomicBool::new(false);
+
+/// Mark a `ProcessRuntime` as alive. Called once by `bootstrap_wat_vm_process` after the primed
+/// stdio Handles are ready.
+pub(crate) fn set_stdio_bootstrapped() {
+    STDIO_BOOTSTRAPPED.store(true, Ordering::SeqCst);
+}
+
+/// Mark no `ProcessRuntime` as alive. Called by `ProcessRuntime::Drop`.
+pub(crate) fn clear_stdio_bootstrapped() {
+    STDIO_BOOTSTRAPPED.store(false, Ordering::SeqCst);
+}
+
+/// Read whether a `ProcessRuntime` is currently alive. See [`STDIO_BOOTSTRAPPED`]'s doc.
+fn stdio_bootstrapped() -> bool {
+    STDIO_BOOTSTRAPPED.load(Ordering::SeqCst)
 }
 
 // ── End arc 170 Slice A shutdown infrastructure ────────────────────────────

@@ -223,7 +223,10 @@ pub fn typed_recv(
                             },
                             libc::pollfd {
                                 fd: broadcast_fd,
-                                events: libc::POLLHUP,
+                                // Arc 170 Phase 1 — broadcast means WAKE (POLLIN, a
+                                // written byte) as well as SEVER (POLLHUP, the drop
+                                // that still immediately follows the write today).
+                                events: libc::POLLIN | libc::POLLHUP,
                                 revents: 0,
                             },
                         ];

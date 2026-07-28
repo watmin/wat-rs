@@ -1435,6 +1435,66 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
+    // :wat::kernel::StopAccepted — arc 170 "stopping is a protocol" Phase 2. The shutdown worker's
+    // one notice, emitted exactly once on STDOUT (via the primed StdOut service, never a raw fd-1
+    // write or eprintln — eprintln is wat's PANIC channel and a graceful stop is not a death) BEFORE
+    // it asks any held service to stop. `services` names exactly the process-lifetime services being
+    // asked (its held stdio Handles that were still live at the moment of the ask — an already-gone
+    // Handle is silently omitted, never listed). Pure — crosses no live resource, pure EDN data,
+    // rendering as `#wat.kernel/StopAccepted {:services [...]}`.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+        name: ":wat::kernel::StopAccepted".into(),
+        type_params: vec![],
+        fields: vec![
+            (
+                "services".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
+                },
+            ),
+        ],
+        restrictions: None,
+    }));
+
+    // :wat::kernel::StopFailure — one service's failed stop, inside a `StopFailed`. `cause` carries
+    // the STRUCTURED `:wat::core::Error` the failure already is (see `runtime.rs`'s
+    // `fault_from_runtime_error`, which builds it as a `:wat::core::Fault` — the canonical minimal
+    // record that structurally satisfies the `:wat::core::Error` surface, `wat/core.wat`) — never a
+    // stringly message, never a bespoke `StopFailureCause` enum. Registered BEFORE `StopFailed` (which
+    // holds `Vector<StopFailure>`), matching the Frame/Location-before-AssertionFailure ordering above.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+        name: ":wat::kernel::StopFailure".into(),
+        type_params: vec![],
+        fields: vec![
+            ("service".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("cause".into(), TypeExpr::Path(":wat::core::Error".into())),
+        ],
+        restrictions: None,
+    }));
+
+    // :wat::kernel::StopFailed — arc 170 "stopping is a protocol", the builder's silent-drop-annihilation
+    // ruling. The shutdown worker no longer discards an ask's (or the `StopAccepted` announce's) error —
+    // every failure on the stop path is collected into this record and, once `:user::main` returns,
+    // reported LOUDLY: emitted as registered EDN on STDERR (the dying-declaration channel — a graceful
+    // stop that failed is no longer graceful) immediately before a non-zero exit
+    // (`src/distribution/mod.rs`, beside the existing `emit_structured_exit` call). An empty collection
+    // means nothing changes — exit as it always did.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+        name: ":wat::kernel::StopFailed".into(),
+        type_params: vec![],
+        fields: vec![
+            (
+                "services".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::StopFailure".into())],
+                },
+            ),
+        ],
+        restrictions: None,
+    }));
+
     // :wat::kernel::RecvOutcome<O> — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
     // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader

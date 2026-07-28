@@ -71,7 +71,12 @@ fn eprintln_terminate(reason: String) -> ! {
 /// `sym.primed_stdio()`, get/connect this thread's cached client `Peer'`, then apply the wat
 /// `stdio-write-out` helper (which surfaces RequestTooLarge / lost / closed as a raise). The line is
 /// emitted + acked on success.
-fn write_via_stdout(op: &'static str, span: &Span, sym: &SymbolTable, line: String) -> Result<(), RuntimeError> {
+///
+/// `pub(crate)` (arc 170 "stopping is a protocol") — the shutdown worker (`src/runtime.rs`) reuses
+/// this exact path to emit its one `#wat.kernel/StopAccepted {…}` notice on STDOUT rather than
+/// touching fd 1 directly: `stdout-svc` owns a DUP of fd 1 (`wat/kernel/services/stdio-primes.wat`),
+/// so a second independent writer on the same real fd would tear the service's own output.
+pub(crate) fn write_via_stdout(op: &'static str, span: &Span, sym: &SymbolTable, line: String) -> Result<(), RuntimeError> {
     let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
         span: span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },

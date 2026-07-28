@@ -4,9 +4,6 @@
 //! sequence (5-step: silent panic hook / setpgid / fd close-sweep /
 //! shutdown-signal registration / signal-handler installation).
 
-use std::sync::atomic::Ordering;
-
-
 // ─── Arc 106 — substrate-level signal handlers for fork children ─────
 //
 // Wat programs in forked children must observe SIGTERM / SIGINT /
@@ -27,25 +24,18 @@ use std::sync::atomic::Ordering;
 // handlers after its exec (`distribution::spawned_runtime`), on its own
 // fresh statics.
 
+// Arc 170 "stopping is a protocol" Phase 3 — the handler measures, it does
+// not transition, same shape as its three siblings below: one call. The
+// wake-pipe write (needed so the shutdown worker's poll(2) wakes and can
+// run the ask-then-await-Stopped protocol before severing anything — see
+// runtime.rs's shutdown worker) used to live here inline, making this the
+// one handler that did two things. It moved into `request_kernel_stop`
+// itself (`src/runtime.rs`), which stays exactly as async-signal-safe as
+// this call site was — `AtomicBool::store` and `libc::write` to an
+// already-open pipe fd are both on the POSIX async-signal-safe list
+// (signal-safety(7)); relocating them changed nothing about that.
 extern "C" fn substrate_on_stop_signal(_sig: libc::c_int) {
-    // Arc 106 — flip the kernel stop flag (existing, async-signal-safe:
-    // AtomicBool::store uses a single atomic instruction).
     crate::runtime::request_kernel_stop();
-    // Arc 170 Slice B — wake the shutdown worker via the wake pipe so
-    // blocked crossbeam recvs are unblocked (via SHUTDOWN_RX Disconnected).
-    // ONLY libc::write is called here — it is on the POSIX async-signal-safe
-    // list per signal-safety(7). crossbeam::Sender::send is NOT async-signal-safe
-    // and must NOT be called from a signal handler. The worker thread reads the
-    // byte and calls trigger_shutdown() in normal (non-signal) context.
-    let fd = crate::runtime::SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
-    if fd >= 0 {
-        let byte: u8 = b'!';
-        // Safety: libc::write is async-signal-safe per signal-safety(7).
-        // `fd` is a valid write end of the wake pipe, set before the first
-        // signal handler can fire (init_shutdown_signal() is called at
-        // bootstrap, before any user code runs).
-        unsafe { libc::write(fd, &byte as *const u8 as *const libc::c_void, 1) };
-    }
 }
 
 extern "C" fn substrate_on_sigusr1(_sig: libc::c_int) {
@@ -72,8 +62,14 @@ extern "C" fn substrate_on_sighup(_sig: libc::c_int) {
 /// set and there is nothing inherited to flip. Each process owns its flags
 /// because each process IS its own image, not because a copy was made.
 ///
-/// Must be async-signal-safe. The handlers do exactly one atomic
-/// store; nothing else.
+/// Must be async-signal-safe. Each handler body is exactly one call —
+/// `substrate_on_sigusr1`/`substrate_on_sigusr2`/`substrate_on_sighup` each
+/// call a `set_kernel_*` that is one atomic store; `substrate_on_stop_signal`
+/// calls `request_kernel_stop`, which is an atomic store plus an
+/// async-signal-safe wake-pipe write (arc 170 "stopping is a protocol"
+/// Phase 3) — still one call at this handler's own level, and the handler
+/// itself performs no other work. The kernel MEASURES; userland owns the
+/// transitions.
 pub fn install_substrate_signal_handlers() {
     unsafe {
         libc::signal(
