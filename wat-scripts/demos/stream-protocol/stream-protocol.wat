@@ -70,11 +70,26 @@
 ;; Reassembly is CONCATENATION, not per-frame parsing — a frame boundary may fall
 ;; anywhere, mid-form or mid-token, and the reader never needs to understand the
 ;; content. Whatever the section means is decided once, after the marker.
+;; This reader is BOUNDED, not a loop: it is promised exactly one section,
+;; closed by a `SectionDone` marker, and it returns the assembled `String` to
+;; its caller. Unlike a loop that is content to end whenever the peer stops
+;; talking, an end-of-input (or a stop) that arrives BEFORE that marker means
+;; the section was cut off mid-flight — the caller can never learn how long it
+;; was meant to be, so returning a partial result would silently pass off a
+;; truncated read as a complete one. That is a real protocol violation, so
+;; dying here — loudly, and naming which of the two ways the stream went
+;; missing — is the correct behaviour.
 (:wat::core::defn :proto::read-section
   [acc <- :wat::core::String
    n   <- :wat::core::i64]
   -> :wat::core::String
-  (:wat::core::match (:wat::core::match (:wat::kernel::readln) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+  (:wat::core::match
+    (:wat::core::match (:wat::kernel::readln)
+      ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
+      (:wat::kernel::ReadlnOutcome::Eof
+        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stream ended before a SectionDone marker" :wat::core::None :wat::core::None))
+      (:wat::kernel::ReadlnOutcome::Stopped
+        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stop requested before a SectionDone marker" :wat::core::None :wat::core::None)))
 
     ;; A payload frame: accept it, ack it, keep going.
     ((:proto::Frame::Chunk text)

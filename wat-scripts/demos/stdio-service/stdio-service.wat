@@ -61,24 +61,38 @@
 (:wat::core::defn :repl::serve
   [count <- :wat::core::i64]
   -> :wat::core::nil
-  (:wat::core::match (:wat::core::match (:wat::kernel::readln) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+  (:wat::core::match (:wat::kernel::readln)
 
-    ;; Mutate: fold the delta into the state and carry it forward.
-    ((:repl::Cmd::Bump by)
-      (:wat::core::let [next (:wat::core::i64::+ count by)]
-        (:wat::kernel::println (:repl::Reply::Value next))
-        (:repl::serve next)))
+    ;; A frame arrived — decode it to `:repl::Cmd` and dispatch. This inner match
+    ;; is the whole non-terminal body: every arm ends in a tail call carrying the
+    ;; next state.
+    ((:wat::kernel::ReadlnOutcome::Datum __datum)
+      (:wat::core::match __datum
 
-    ;; Read: reply with the current state, carry it unchanged.
-    ((:repl::Cmd::Show)
-      (:wat::core::do
-        (:wat::kernel::println (:repl::Reply::Value count))
-        (:repl::serve count)))
+        ;; Mutate: fold the delta into the state and carry it forward.
+        ((:repl::Cmd::Bump by)
+          (:wat::core::let [next (:wat::core::i64::+ count by)]
+            (:wat::kernel::println (:repl::Reply::Value next))
+            (:repl::serve next)))
 
-    ;; Terminate: say goodbye and RETURN. No tail call — the loop ends here, and
-    ;; the caller (`:user::main`) returns nil, so the process exits 0.
-    ((:repl::Cmd::Quit)
-      (:wat::kernel::println (:repl::Reply::Bye count)))))
+        ;; Read: reply with the current state, carry it unchanged.
+        ((:repl::Cmd::Show)
+          (:wat::core::do
+            (:wat::kernel::println (:repl::Reply::Value count))
+            (:repl::serve count)))
+
+        ;; Terminate: say goodbye and RETURN. No tail call — the loop ends here, and
+        ;; the caller (`:user::main`) returns nil, so the process exits 0.
+        ((:repl::Cmd::Quit)
+          (:wat::kernel::println (:repl::Reply::Bye count)))))
+
+    ;; The client closed the conversation — the same terminal shape as `Quit`,
+    ;; just without a goodbye to send. Returning nil ends the process cleanly.
+    (:wat::kernel::ReadlnOutcome::Eof     nil)
+
+    ;; A process-wide stop was requested — the same clean end, named distinctly
+    ;; so a reader can tell "the client hung up" from "we were told to stop".
+    (:wat::kernel::ReadlnOutcome::Stopped nil)))
 
 ;; ── main is one tail call ─────────────────────────────────────────────────────
 ;;
