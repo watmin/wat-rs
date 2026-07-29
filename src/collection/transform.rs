@@ -290,7 +290,7 @@ pub(crate) fn eval_vec_sort_by(
                 func.clone(),
                 vec![x.clone(), y.clone()],
                 sym,
-                crate::rust_caller_span!(),
+                call_span.clone(),
             ).map_err(EvalBreak::from)?;
             match v {
                 Value::bool(b) => Ok(b),
@@ -451,21 +451,21 @@ pub(crate) fn eval_vec_foldl(
             StreamContainer::Vector => {
                 let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 for x in xs.iter() {
-                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             StreamContainer::PersistentVector => {
                 let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 for x in pv.iter() {
-                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             StreamContainer::List => {
                 let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
                 for x in xs.iter() {
-                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
@@ -520,7 +520,7 @@ pub(crate) fn eval_vec_foldr(
             StreamContainer::Vector => {
                 let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 for x in xs.iter().rev() {
-                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
@@ -528,7 +528,7 @@ pub(crate) fn eval_vec_foldr(
                 let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 let elems: Vec<&Value> = pv.iter().collect();
                 for x in elems.into_iter().rev() {
-                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
@@ -536,7 +536,7 @@ pub(crate) fn eval_vec_foldr(
                 let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
                 let elems: Vec<&Value> = xs.iter().collect();
                 for x in elems.into_iter().rev() {
-                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
@@ -717,7 +717,7 @@ pub(crate) fn eval_vec_find_last_index(
             func.clone(),
             vec![x.clone()],
             sym,
-            crate::rust_caller_span!(),
+            call_span.clone(),
         )?;
         match result {
             Value::bool(true) => last_idx = Some(i as i64),
@@ -776,7 +776,7 @@ pub(crate) fn eval_vec_map_with_index(
             func.clone(),
             vec![x.clone(), Value::i64(i as i64)],
             sym,
-            crate::rust_caller_span!(),
+            call_span.clone(),
         )?);
     }
     Ok(Value::Vec(Arc::new(out)))

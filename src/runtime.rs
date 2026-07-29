@@ -5992,6 +5992,10 @@ fn dispatch_keyword_head_value(
                             // Stone 255.1a — Native builtins carry no span; use crate::rust_caller_span!().
                             let outer_define_span = match &outer_func.body {
                                 FunctionBody::Wat(ast) => ast.span().clone(),
+                                // rune:lint(span-substitution) — outer_define_span names WHERE the
+                                // shadowed outer binding was DEFINED, not where this call happened;
+                                // a Native builtin has no wat definition site to point at, so
+                                // list_span (the call site) would misattribute the definition.
                                 FunctionBody::Native => crate::rust_caller_span!(),
                             };
                             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::SandboxScopeLeak {
@@ -10452,7 +10456,7 @@ fn eval_struct_to_form(
     // name is now the kwargs companion macro, so generated/machinery code must use the
     // positional PRIME (mirrors the `encode_struct` fix in closure_extract.rs).
     let constructor = format!(":{}'", s.class);
-    let span = crate::rust_caller_span!();
+    let span = list_span.clone();
     let mut items = Vec::with_capacity(s.fields.len() + 1);
     items.push(WatAST::Keyword(constructor, span.clone()));
     for f in s.fields.iter() {
@@ -11102,7 +11106,7 @@ fn eval_lookup_define(
             // Slice 2 populates the SpecialForm registry; until then
             // this arm is unreachable. Sentinel emission keeps the
             // dispatch structurally complete.
-            let span = crate::rust_caller_span!();
+            let span = list_span.clone();
             let sentinel = WatAST::List(
                 vec![
                     WatAST::Keyword(":wat::core::__internal/special-form".into(), span.clone()),
@@ -17252,7 +17256,7 @@ fn eval_hologram_get(
         }
     };
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let span = crate::rust_caller_span!();
+    let span = list_span.clone();
     let result = store.with_ref(OP, |s| {
         s.get(&probe, sym, span.clone(), &ctx.encoders)
     })??;
@@ -17296,7 +17300,7 @@ fn eval_hologram_find(
         }
     };
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let span = crate::rust_caller_span!();
+    let span = list_span.clone();
     let result = store.with_ref(OP, |s| {
         s.find(&probe, sym, span.clone(), &ctx.encoders)
     })??;
@@ -17682,11 +17686,13 @@ fn eval_algebra_bundle(
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
     // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
     // Records auto-extract their hologram at the coerce boundary.
-    // crate::rust_caller_span!() per arc 138 discipline (we have Value, not WatAST).
+    // Per-element WatAST span is gone by this point (we have Value, not
+    // WatAST — arc 138 discipline); fall back to the Bundle call's own
+    // span, which is real user source rather than a Rust line.
     let children: Vec<HolonAST> = list
         .iter()
         .map(|v| {
-            coerce_to_holon_ast(":wat::holon::Bundle list element", v.clone(), &crate::rust_caller_span!())
+            coerce_to_holon_ast(":wat::holon::Bundle list element", v.clone(), list_span)
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
 
@@ -18445,11 +18451,11 @@ fn pair_values_to_vectors(
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
-                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "Vector pair with matching dimensions",
                     got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-                    // arc 138: no — takes Value pair, no AST in scope
+                    // arc 138: no per-arg AST span (takes a Value pair) — list_span (the call site) used instead
                 } }.into());
             }
             Ok((va.as_ref().clone(), vb.as_ref().clone()))
@@ -18473,11 +18479,11 @@ fn pair_values_to_vectors(
             let vb = encode(&b, &enc.vm, &enc.scalar);
             Ok((va, vb))
         }
-        (a, _) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+        (a, _) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::HolonAST, wat::core::Record, or wat::holon::Vector",
             got: Box::new(ValueSnapshot::of(&a)),
-            // arc 138: no — takes Value pair, no AST in scope
+            // arc 138: no per-arg AST span (takes a Value pair) — list_span (the call site) used instead
         } }.into()),
     }
 }
@@ -18756,10 +18762,10 @@ fn coincident_of_two_values(
     op: &'static str,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    // arc 138: no span — values produced by evaluation; no AST args in scope
-    let unknown = crate::rust_caller_span!();
-    let atom_a = to_holon_inner(value_a, &unknown)?;
-    let atom_b = to_holon_inner(value_b, &unknown)?;
+    // arc 138: no per-arg AST span — values produced by evaluation; fall
+    // back to list_span (the call site), which is real user source.
+    let atom_a = to_holon_inner(value_a, list_span)?;
+    let atom_b = to_holon_inner(value_b, list_span)?;
     let holon_a = require_holon(op, atom_a)?;
     let holon_b = require_holon(op, atom_b)?;
     let ctx = require_encoding_ctx(op, sym, list_span)?;
@@ -18859,7 +18865,7 @@ fn eval_form_digest_coincident_shared(
         let algo_a = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim())
-            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_a = parse_and_run(&src_a, env, sym)?;
 
         // Side B — 4-arg block [4..8).
@@ -18871,7 +18877,7 @@ fn eval_form_digest_coincident_shared(
         let algo_b = parse_verify_algo_keyword(&args[5], "digest-", op)?;
         let hex_b = resolve_verify_payload(&args[6], &args[7], env, sym)?;
         crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim())
-            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_b = parse_and_run(&src_b, env, sym)?;
 
         coincident_of_two_values(value_a, value_b, sym, op, list_span)
@@ -18944,7 +18950,7 @@ fn eval_form_signed_coincident_shared(
         let pk_a = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast_a = parse_program(&src_a, op)?;
         crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim())
-            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_a = run_program(&ast_a, env, sym)?;
 
         // Side B — 6-arg block [6..12).
@@ -18958,7 +18964,7 @@ fn eval_form_signed_coincident_shared(
         let pk_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
         let ast_b = parse_program(&src_b, op)?;
         crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim())
-            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_b = run_program(&ast_b, env, sym)?;
 
         coincident_of_two_values(value_a, value_b, sym, op, list_span)
@@ -19189,11 +19195,11 @@ fn eval_holon_vector_bytes(
     }
     let v = require_vector(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let dim = v.dimensions();
-    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
         op: OP.into(),
         expected: "Vector with dim representable as u32",
         got: Box::new(ValueSnapshot::unavailable("oversized Vector dim")),
-        // arc 138: no — dim comes from Vector value, not AST
+        // arc 138: no per-value AST span — dim comes from Vector value, not AST; list_span (call site) used instead
     } })?;
     // 4-byte dim header + ceil(dim/4) data bytes.
     let data_len = dim.div_ceil(4);
@@ -19210,14 +19216,14 @@ fn eval_holon_vector_bytes(
                 1 => 0b01,
                 -1 => 0b10,
                 other => {
-                    return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "Vector cell in {-1, 0, +1}",
                         got: Box::new(ValueSnapshot::described(
                             "wat::core::i64",
                             format!("cell value out of ternary range ({})", other),
                         )),
-                        // arc 138: no — cell value from Vector data, not AST
+                        // arc 138: no per-value AST span — cell value from Vector data, not AST; list_span (call site) used instead
                     } }.into());
                 }
             };
@@ -19272,11 +19278,11 @@ fn eval_holon_bytes_vector(
         match v {
             Value::u8(b) => bytes.push(*b),
             other => {
-                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<u8>",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — element from Vec value, not AST
+                    // arc 138: no per-value AST span — element from Vec value, not AST; list_span (call site) used instead
                 } }.into());
             }
         }
@@ -19462,11 +19468,11 @@ fn eval_holon_vector_bind(
     let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?.value_owned())?;
     let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?.value_owned())?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-bind".into(),
             expected: "Vector pair with matching dimensions",
             got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-            // arc 138: no — dimensions from Vector values, not AST
+            // arc 138: no per-value AST span — dimensions from Vector values, not AST; list_span (call site) used instead
         } }.into());
     }
     let result = holon::primitives::Primitives::bind(&va, &vb);
@@ -19521,11 +19527,11 @@ fn eval_holon_vector_bundle(
     let d = owned[0].dimensions();
     for v in &owned[1..] {
         if v.dimensions() != d {
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of Vectors with matching dimensions",
                 got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector in Vec")),
-                // arc 138: no — dimensions from Vector values, not AST
+                // arc 138: no per-value AST span — dimensions from Vector values, not AST; list_span (call site) used instead
             } }.into());
         }
     }
@@ -19557,11 +19563,11 @@ fn eval_holon_vector_blend(
     let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
     let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?.value_owned(), list_span)?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
             expected: "Vector pair with matching dimensions",
             got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-            // arc 138: no — dimensions from Vector values, not AST
+            // arc 138: no per-value AST span — dimensions from Vector values, not AST; list_span (call site) used instead
         } }.into());
     }
     let result = holon::primitives::Primitives::blend_weighted(&va, &vb, w1, w2);
@@ -20836,7 +20842,7 @@ fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Valu
             } }.into());
         }
     };
-    let span = crate::rust_caller_span!();
+    let span = list_span.clone();
     let form = WatAST::List(
         vec![
             WatAST::Keyword(":wat::kernel::Frame'".into(), span.clone()),  // rune:lint(retired-name) — positional constructor idiom: Frame is the record, Frame' builds one
@@ -23718,7 +23724,7 @@ fn eval_walk(
                     step_value,
                 ],
                 sym,
-                crate::rust_caller_span!(),
+                list_span.clone(),
             )?;
             // Visitor must return :wat::eval::WalkStep<A> as a
             // tagged-enum value. Read the variant + fields.
@@ -24424,7 +24430,7 @@ fn step_if(
             _ => {
                 let new_cond = step_to_watast(cond, env, sym)?;
                 let new_items = vec![
-                    WatAST::Keyword(":wat::core::if".into(), crate::rust_caller_span!()),
+                    WatAST::Keyword(":wat::core::if".into(), list_span.clone()),
                     new_cond,
                     args[1].clone(),
                     args[2].clone(),
@@ -24539,7 +24545,7 @@ fn step_let(
         let new_rhs = step_to_watast(rhs, env, sym)?;
         let new_args = rebuild_let_with_first_rhs(&args[0], &pairs, &new_rhs)?;
         let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::let".into(), crate::rust_caller_span!()),
+            WatAST::Keyword(":wat::core::let".into(), list_span.clone()),
             new_args,
         ];
         new_items.extend(body_forms.iter().cloned());
@@ -24572,7 +24578,7 @@ fn step_let(
     }
     let rebuilt_bindings = WatAST::Vector(flat, bindings_form_span.clone());
     let mut new_items: Vec<WatAST> = vec![
-        WatAST::Keyword(":wat::core::let".into(), crate::rust_caller_span!()),
+        WatAST::Keyword(":wat::core::let".into(), list_span.clone()),
         rebuilt_bindings,
     ];
     new_items.extend(new_body_forms.into_iter());
@@ -24596,7 +24602,7 @@ fn synthesize_let_body(forms: &[WatAST], outer_span: &Span) -> WatAST {
         return forms[0].clone();
     }
     let mut do_items: Vec<WatAST> = Vec::with_capacity(forms.len() + 1);
-    do_items.push(WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()));
+    do_items.push(WatAST::Keyword(":wat::core::do".into(), outer_span.clone()));
     do_items.extend(forms.iter().cloned());
     WatAST::List(do_items, outer_span.clone())
 }
@@ -24659,7 +24665,7 @@ fn step_do(
     if !is_step_canonical(head) {
         let new_head = step_to_watast(head, env, sym)?;
         let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()),
+            WatAST::Keyword(":wat::core::do".into(), list_span.clone()),
             new_head,
         ];
         new_items.extend(args[1..].iter().cloned());
@@ -24667,7 +24673,7 @@ fn step_do(
     }
     // Head canonical — discard it; rebuild do form starting at args[1].
     let mut new_items: Vec<WatAST> = vec![
-        WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()),
+        WatAST::Keyword(":wat::core::do".into(), list_span.clone()),
     ];
     new_items.extend(args[1..].iter().cloned());
     Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
@@ -24697,7 +24703,7 @@ fn step_match(
     if !is_match_canonical(scrut) {
         let new_scrut = step_to_watast(scrut, env, sym)?;
         let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::match".into(), crate::rust_caller_span!()),
+            WatAST::Keyword(":wat::core::match".into(), list_span.clone()),
             new_scrut,
         ];
         new_items.extend(args[1..].iter().cloned());
@@ -25102,7 +25108,7 @@ fn eval_form_digest_shared(
         let algo = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim())
-            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         parse_and_run(&source, env, sym)
     })())
 }
@@ -25170,7 +25176,7 @@ fn eval_form_signed_shared(
         let pk_b64 = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast = parse_program(&source, op)?;
         crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
-            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         run_program(&ast, env, sym)
     })())
 }

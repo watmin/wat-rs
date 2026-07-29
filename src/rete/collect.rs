@@ -68,7 +68,7 @@ pub(crate) fn eval_collect_rules(
     let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
     for name in &names {
         let kw = if name.starts_with(':') { name.clone() } else { format!(":{name}") };
-        let call = WatAST::List(vec![WatAST::Keyword(kw, crate::rust_caller_span!())], crate::rust_caller_span!());
+        let call = WatAST::List(vec![WatAST::Keyword(kw, list_span.clone())], list_span.clone());
         let rule = crate::runtime::eval_inner(&call, env, sym)?.value_owned();
         out = out.push_back(rule);
     }

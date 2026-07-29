@@ -900,11 +900,11 @@ pub(crate) fn eval_step_payload(
                 // Rebuild (:op a' b') as a WatAST — the substituted constraint form.
                 let substituted = WatAST::List(
                     vec![
-                        WatAST::Keyword(op_str.to_string(), crate::rust_caller_span!()),
+                        WatAST::Keyword(op_str.to_string(), list_span.clone()),
                         a_ast,
                         b_ast,
                     ],
-                    crate::rust_caller_span!(),
+                    list_span.clone(),
                 );
                 constraints_pv = constraints_pv.push_back(Value::wat__WatAST(Arc::new(substituted)));
             }

@@ -1595,8 +1595,7 @@ pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, Runt
     let ret = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
-        // arc 138: no span — OS syscall error; no AST context available at the point of failure
-        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("pipe2(2) syscall failed: {}", err)
         } });
@@ -1792,16 +1791,14 @@ pub fn eval_io_read_file(
     let op = ":wat::io::read-file";
     arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
-    // arc 138: no span — host configuration error; no WatAST context at loader-lookup depth
-    let loader = sym.source_loader().ok_or_else(|| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+    let loader = sym.source_loader().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: op.into(),
         reason: "no SourceLoader attached to SymbolTable; \
                  the host must provide one (FsLoader / ScopedLoader / InMemoryLoader)"
             .into()
     } })?;
     let loaded = loader.fetch_source_file(&path, None).map_err(|e| {
-        // arc 138: no span — OS/path error from loader; path is a plain String after eval
-        RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("loader fetch_source_file({path:?}): {e}")
         } }
@@ -1826,7 +1823,7 @@ pub fn eval_io_list_dir(
     arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let read_dir_iter = std::fs::read_dir(path.as_str()).map_err(|e| {
-        RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("read_dir({path:?}): {e}")
         } }
@@ -1834,7 +1831,7 @@ pub fn eval_io_list_dir(
     let mut entries: Vec<Value> = Vec::new();
     for entry_result in read_dir_iter {
         let entry = entry_result.map_err(|e| {
-            RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+            RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("read_dir entry error: {e}")
             } }
