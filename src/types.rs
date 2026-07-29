@@ -1025,13 +1025,13 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   :Stopped []   — a process-wide stop was requested while `stdio-read-frame`
     //                   (`stdio.wat`) was blocked waiting on the StdIn service.
     //                   NOT an `Eof` (the peer didn't close) and NOT an error — its own
-    //                   outcome, matching `StdIn::ReadLineResponse::Stopped` one layer
+    //                   outcome, matching `StdIn::ReadFrameResponse::Stopped` one layer
     //                   below. Named `Stopped`, not `Shutdown`: wat already has a word
     //                   for this fact — `(:wat::kernel::stopped?)` — and nothing is
     //                   shutting down here, a stop was merely requested. Ruled by an
     //                   intueri cast (2026-07-28, the "Stopped, not Shutdown" brief).
     //
-    // It does NOT return the service's own `StdIn::ReadLineResponse`. That enum carries
+    // It does NOT return the service's own `StdIn::ReadFrameResponse`. That enum carries
     // `RequestTooLarge`/`RequestMalformed` because `defservice` MANDATES those on every
     // serviceable op-Response — but this op's request is one i64 the kernel itself
     // builds, so neither can fire. Handing a caller an exhaustive match with two dead
@@ -1057,7 +1057,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
             // while `stdio-read-frame` (`stdio.wat`) was blocked waiting on
             // the StdIn service. NOT an `Eof` (the peer didn't close) and NOT an
-            // error — its own outcome, matching `StdIn::ReadLineResponse::Stopped`
+            // error — its own outcome, matching `StdIn::ReadFrameResponse::Stopped`
             // one layer below. Named by the arc-170 intueri cast, 2026-07-28: wat
             // already has `(:wat::kernel::stopped?)` for this fact, so `Shutdown`
             // (a second word for the same thing) was the synonym anti-pattern.
@@ -1089,7 +1089,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Impure for `RecvOutcome<O>`'s reason exactly: `T` may itself be a live resource.
     //
     // ⚠ `Datum` is PROVISIONAL — arc 170 closure #26 casts intueri over this whole
-    // surface (`StdIn::ReadLineResponse` / `read-line` / `:Line`) and this variant name
+    // surface (`StdIn::ReadFrameResponse` / `read-frame` / `:Frame`) and this variant name
     // rides with it. Named `Datum` and not `Value` to avoid colliding with
     // `:wat::core::Value`, the universal top; not `Line`, which is taken one layer down
     // for the raw text and would re-tell the frame-vs-line lie the 2026-07-28 cast caught.
@@ -1114,7 +1114,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // one is what the verb hands back DIRECTLY (see `eval_ioreader_read_frame`,
     // `src/io.rs`); `:wat::kernel::ReadFrameOutcome` is the higher, caller-facing
     // outcome the StdIn *service* (`stdin-svc` in `stdio.wat`) builds from its
-    // own `StdIn::ReadLineResponse` reply. Two different enums at two different
+    // own `StdIn::ReadFrameResponse` reply. Two different enums at two different
     // layers, deliberately — the brief's "rooms 4 and 6" are not the same room.
     //
     // Owner-qualified (`IOReader::`), not bare `:wat::io::ReadFrameOutcome`: ruled by
@@ -1124,7 +1124,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:wat::kernel::ReadFrameOutcome` keeps the short name (its verb is
     // `:wat::kernel::read-frame`, so verb and outcome agree, and it's the surface wat
     // programmers meet); this plumbing-layer one is owner-qualified instead, the same
-    // shape as `:wat::kernel::StdIn::ReadLineResponse`. A throwaway four-segment probe
+    // shape as `:wat::kernel::StdIn::ReadFrameResponse`. A throwaway four-segment probe
     // (register_builtin + construct/match from a `.wat` fixture) proved the mechanism
     // resolves cleanly before this name shipped.
     //

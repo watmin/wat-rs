@@ -8,10 +8,10 @@
 //!   - `primed_stdout_write_line_lands_bytes` — start `stdout-svc` on a pipe write-fd, `connect'`,
 //!     `write-line` two lines; the exact bytes land on the pipe read-end (the fd was born inside the
 //!     service's kernel `::init` via `IOWriter/from-fd`, dup-then-own).
-//!   - `primed_stdin_read_line_returns_line` — feed one line into a pipe, start `stdin-svc` on the
-//!     read-fd, `read-line` → `ReadLineResponse::Line "…"`.
-//!   - `primed_stdin_eof_is_matchable` — close the write-end (no writers → EOF), `read-line` →
-//!     `ReadLineResponse::Eof` (the no-hidden-failures upgrade: EOF is a MATCHABLE value, not a panic
+//!   - `primed_stdin_read_frame_returns_frame` — feed one line into a pipe, start `stdin-svc` on the
+//!     read-fd, `read-frame` → `ReadFrameResponse::Frame "…"`.
+//!   - `primed_stdin_eof_is_matchable` — close the write-end (no writers → EOF), `read-frame` →
+//!     `ReadFrameResponse::Eof` (the no-hidden-failures upgrade: EOF is a MATCHABLE value, not a panic
 //!     that kills the serve loop — R55/R57).
 //!
 //! The wat driver logic lives in the co-located fixture `probe_arc170_stdio_prime.wat`
@@ -175,7 +175,7 @@ fn primed_stdout_batched_over_512kib_lands_all_bytes() {
 }
 
 #[test]
-fn primed_stdin_read_line_returns_line() {
+fn primed_stdin_read_frame_returns_frame() {
     let world = startup_beside(file!()).expect("arc 170 fixture freezes");
     let run_stdin = world
         .symbols()
@@ -199,9 +199,9 @@ fn primed_stdin_read_line_returns_line() {
         Value::String(s) => assert_eq!(
             s.as_str(),
             "stdin-line-1",
-            "primed StdIn read-line must return the fed line (newline-trimmed)"
+            "primed StdIn read-frame must return the fed line (newline-trimmed)"
         ),
-        other => panic!("expected ReadLineResponse::Line \"stdin-line-1\"; got {other:?}"),
+        other => panic!("expected ReadFrameResponse::Frame \"stdin-line-1\"; got {other:?}"),
     }
     // keep `w` open across the call (else a premature EOF); drop at scope end.
     drop(w);
@@ -219,7 +219,7 @@ fn primed_stdin_eof_is_matchable() {
 
     let (r, w) = make_pipe();
     // Close the write-end BEFORE the read → no writers → the service's read-frame sees EOF, which
-    // surfaces as the matchable ReadLineResponse::Eof (NOT a panic that kills the serve loop).
+    // surfaces as the matchable ReadFrameResponse::Eof (NOT a panic that kills the serve loop).
     drop(w);
     let got = apply_function(
         run_stdin,
@@ -232,9 +232,9 @@ fn primed_stdin_eof_is_matchable() {
         Value::String(s) => assert_eq!(
             s.as_str(),
             "EOF",
-            "primed StdIn EOF must surface as the matchable ReadLineResponse::Eof value"
+            "primed StdIn EOF must surface as the matchable ReadFrameResponse::Eof value"
         ),
-        other => panic!("expected ReadLineResponse::Eof (\"EOF\"); got {other:?}"),
+        other => panic!("expected ReadFrameResponse::Eof (\"EOF\"); got {other:?}"),
     }
     drop(r);
 }

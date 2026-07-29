@@ -15,9 +15,9 @@
 //!   - `println`/`pprintln` → write-line via `StdOut`, return `nil`; RequestTooLarge/lost/closed SURFACE.
 //!   - `eprintln`/`epprintln` → write-line via `StdErr`, then TERMINATE (the death split — the write
 //!     is the service's act, the terminate is the verb's own, exactly as before).
-//!   - `readln'` → read-line via `StdIn`; the raw line is decoded through the self-describing EDN wire
+//!   - `readln'` → read-frame via `StdIn`; the raw frame is decoded through the self-describing EDN wire
 //!     here (unchanged); EOF reproduces the old terminal behaviour (the helper raises); the matchable
-//!     `ReadLineResponse::Eof` variant is BANKED, not exposed to the 72 callers.
+//!     `ReadFrameResponse::Eof` variant is BANKED, not exposed to the 72 callers.
 //!
 //! COEXIST: the old `spawn_service_peer` path + `RuntimeServices` (`*_ctrl`) + the `*_reply_rx`
 //! ThreadIO fields stay bootstrapped-but-idle; Phase 3 deletes them.
@@ -110,7 +110,7 @@ fn write_via_stderr(op: &'static str, span: &Span, sym: &SymbolTable, line: Stri
 /// Read one raw line via the primed `StdIn` service (the caller decodes it). EOF / RequestTooLarge /
 /// lost / closed surface as a raise from the wat `stdio-read` helper (EOF reproduces the old terminal
 /// behaviour). Returns the newline-trimmed line String.
-fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) -> Result<ReadLine, RuntimeError> {
+fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) -> Result<ReadFrame, RuntimeError> {
     let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
         span: span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
@@ -135,7 +135,7 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
     match &outcome {
         Value::Enum(e) if e.type_path == ":wat::kernel::ReadFrameOutcome" => match e.variant_name.as_str() {
             "Frame" => match e.fields.first() {
-                Some(Value::String(s)) => Ok(ReadLine::Text((**s).clone())),
+                Some(Value::String(s)) => Ok(ReadFrame::Text((**s).clone())),
                 other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
@@ -144,8 +144,8 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
                     )),
                 } }),
             },
-            "Eof" => Ok(ReadLine::Eof),
-            "Stopped" => Ok(ReadLine::Stopped),
+            "Eof" => Ok(ReadFrame::Eof),
+            "Stopped" => Ok(ReadFrame::Stopped),
             other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("unknown ReadFrameOutcome variant `{other}`"),
@@ -163,7 +163,7 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
 ///
 /// `Text` is decoded by the caller into the consumer's `T`; `Eof`/`Stopped` carry
 /// straight through to `ReadlnOutcome` without ever becoming a raise.
-enum ReadLine {
+enum ReadFrame {
     Text(String),
     Eof,
     Stopped,
@@ -258,7 +258,7 @@ pub fn eval_kernel_epprintln(
 /// Arc 170 Strike 3 — reads via the primed `StdIn` service (was: the `stdin_ctrl` Req path). The raw
 /// line is decoded through the SELF-DESCRIBING EDN wire here (unchanged contract — readln returns the
 /// parsed Value, not a String). EOF reproduces the old terminal behaviour (the `stdio-read` helper
-/// raises on `ReadLineResponse::Eof`); the matchable `Eof` variant is BANKED, not exposed to callers.
+/// raises on `ReadFrameResponse::Eof`); the matchable `Eof` variant is BANKED, not exposed to callers.
 ///
 /// `readln'` is intentionally NOT `#[restricted_to]` (the `readln` macro expands to it inside user fn
 /// bodies, before the restricted-call walker runs). The restriction is conventional: write `readln`.
@@ -368,7 +368,7 @@ pub fn eval_kernel_readln_prime(
     // are not values to decode, they are outcomes to hand the caller. A decode FAILURE
     // stays a raise — that is a malformed wire, a genuine fault, not an outcome.
     Ok(match read_via_stdin(OP, list_span, sym, cap)? {
-        ReadLine::Text(line) => {
+        ReadFrame::Text(line) => {
             let v = crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()))
                 .map_err(|e| RuntimeError {
                     span: list_span.clone(),
@@ -383,14 +383,14 @@ pub fn eval_kernel_readln_prime(
                 fields: vec![v],
             }))
         }
-        ReadLine::Eof => {
+        ReadFrame::Eof => {
             Value::Enum(Arc::new(crate::value::value::EnumValue {
                 type_path: ":wat::kernel::ReadlnOutcome".into(),
                 variant_name: "Eof".into(),
                 fields: vec![],
             }))
         }
-        ReadLine::Stopped => {
+        ReadFrame::Stopped => {
             Value::Enum(Arc::new(crate::value::value::EnumValue {
                 type_path: ":wat::kernel::ReadlnOutcome".into(),
                 variant_name: "Stopped".into(),

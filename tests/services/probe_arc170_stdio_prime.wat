@@ -69,19 +69,19 @@
          ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))]
-    (:wat::core::match (:wat::kernel::StdIn/read-line c (:wat::kernel::StdIn::ReadLineRequest :max-buffer-bytes 524288))
+    (:wat::core::match (:wat::kernel::StdIn/read-frame c (:wat::kernel::StdIn::ReadFrameRequest :max-buffer-bytes 524288))
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp
-          ((:wat::kernel::StdIn::ReadLineResponse::Line line) line)
-          ((:wat::kernel::StdIn::ReadLineResponse::Eof) "EOF")
+          ((:wat::kernel::StdIn::ReadFrameResponse::Frame line) line)
+          ((:wat::kernel::StdIn::ReadFrameResponse::Eof) "EOF")
           ;; Arc 170 stdin-joins-the-lock-step — a stop request is its OWN outcome, so it
           ;; reaches every consumer as a located non-exhaustive error rather than silently
           ;; folding into ::Eof. This probe never stops mid-read, so the arm is unreachable
           ;; here; it is written distinctly ("STOP", not "EOF") so a future run that DOES
           ;; hit it reports what happened instead of a plausible lie.
-          ((:wat::kernel::StdIn::ReadLineResponse::Stopped) "STOP")
-          ((:wat::kernel::StdIn::ReadLineResponse::RequestTooLarge b cap) "RTL")
-          ((:wat::kernel::StdIn::ReadLineResponse::RequestMalformed mpath mexpected mgot)
+          ((:wat::kernel::StdIn::ReadFrameResponse::Stopped) "STOP")
+          ((:wat::kernel::StdIn::ReadFrameResponse::RequestTooLarge b cap) "RTL")
+          ((:wat::kernel::StdIn::ReadFrameResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "read-line: peer closed" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None)))))

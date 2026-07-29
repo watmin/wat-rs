@@ -810,6 +810,62 @@
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 
+;; ── rename-symbol-exact — the SYMBOL-kind sibling of rename-keyword-exact. A defsurface
+;; `:features` member and a defservice `:impls` arm both spell their op HEAD as a bare
+;; SYMBOL (e.g. `read-frame`), never a keyword — `rename-keyword-exact`/`-prefix` only ever
+;; match `ast-kind == "keyword"` leaves (see head-keyword?/type-shaped-keyword? above), so an
+;; op-name rename needs this alongside the keyword-rename pairs to reach those two sites.
+;; Purely additive: mirrors rename-keyword-exact's shape (read-string -> ast->children -> an
+;; edits walk -> reverse -> fix-text-apply) exactly; the only difference is the leaf predicate
+;; checks `ast-kind == "symbol"` instead of `"keyword"`. Renames a symbol leaf ONLY when its
+;; FULL name EQUALS `old` (whole-name equality, no boundary walk) — idempotent by construction
+;; once `new` no longer contains `old` as its full name. Does not touch rename-keyword-exact/
+;; rename-keyword-prefix or any existing call site.
+(:wat::core::defn :wat::fix::rename-symbol-exact-edits-walk
+  [items <- :wat::core::Vector<wat::WatAST>
+   old   <- :wat::core::String
+   new   <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [h  (:wat::core::first items)
+                      tl (:wat::core::rest items)]
+      (:wat::core::concat
+        (:wat::fix::rename-symbol-exact-edits h old new lines)
+        (:wat::fix::rename-symbol-exact-edits-walk tl old new lines)))))
+
+;; rename-symbol-exact-edits — for a symbol leaf whose full name EQUALS old, emit one
+;; whole-token replace edit (off, length(old), new). Structural nodes recurse; every other
+;; leaf (keyword/int/float/bool/string/nil): no edit.
+(:wat::core::defn :wat::fix::rename-symbol-exact-edits
+  [node  <- :wat::WatAST
+   old   <- :wat::core::String
+   new   <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::fix::structural? node)
+    (:wat::fix::rename-symbol-exact-edits-walk (:wat::core::ast->children node) old new lines)
+    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
+      (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
+        (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Tuple off (:wat::core::string::length old) new)))
+        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
+      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+
+(:wat::core::defn :wat::fix::rename-symbol-exact
+  [old <- :wat::core::String
+   new <- :wat::core::String
+   src <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+                    tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+                    forms     (:wat::core::ast->children tree)
+                    all-edits (:wat::fix::rename-symbol-exact-edits-walk forms old new lines)
+                    rev-edits (:wat::core::reverse all-edits)]
+    (:wat::fix::fix-text-apply src rev-edits)))
+
 ;; ══════════════════════════════════════════════════════════════════════════════════════
 ;;  THE WRAP FAMILY — wrap every call to a verb in an outcome `match`.
 ;;
