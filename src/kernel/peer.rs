@@ -93,12 +93,16 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
     /// Send a value to the spawned thread.
     ///
     /// Returns `Err(SendError(value))` if the thread has exited and its
-    /// receiver end has been dropped (channel disconnected), or if the
-    /// input has already been drained (peer closed).
+    /// receiver end has been dropped (channel disconnected). A drained
+    /// (`input == None`) peer is unreachable here — see the `None` arm.
     pub fn send(&self, value: I) -> Result<(), SendError<I>> {
         match self.input.as_ref() {
             Some(tx) => tx.send(value),
-            None => Ok(()), // already drained — worker exited, silently drop
+            None => unreachable!(
+                "Thread::send on a drained peer — `close` takes the peer OUT of the cell \
+                 (runtime.rs, opt_peer.take()) BEFORE draining, so a drained-but-cellular \
+                 peer cannot exist; the outer `None => send_outcome_closed()` answers first"
+            ),
         }
     }
 
