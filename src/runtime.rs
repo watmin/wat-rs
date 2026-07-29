@@ -9447,14 +9447,16 @@ fn eval_or(
 /// spelling per slice 1f's vec→Vector playbook completed.
 fn eval_tuple_ctor(
     args: &[WatAST],
-    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: leaf helper — its MalformedForm raise uses `rust_caller_span!()` (arc 138)
+    list_span: &Span,
 
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+        // The user's own `(:wat::core::Tuple …)` form — `list_span` was a parameter the whole
+        // time. The prior "arc 138: no span — leaf helper" was false, and the rune that cited
+        // `rust_caller_span!()` as being "located elsewhere" was citing the harm as the cure.
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::Tuple".into(),
             reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into()
         } }.into());

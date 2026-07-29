@@ -46,7 +46,7 @@ pub(crate) fn eval_bytes_to_hex(
     bs: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — located elsewhere: the arg type error locates at `bs.span()`; the element-range raise uses `rust_caller_span!()`
+    span: &Span,
 
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes::to-hex";
@@ -70,12 +70,14 @@ pub(crate) fn eval_bytes_to_hex(
             Value::u8(b) => *b,
             other => {
                 return Err(RuntimeError {
-                    span: crate::rust_caller_span!(),
+                    // No per-ELEMENT AST exists (the element came from a Vec value), but the
+                    // CALL's span does — and "this Bytes::to-hex call got a bad element" is a
+                    // location the author can act on. A Rust line is not.
+                    span: span.clone(),
                     kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "wat::core::Bytes (Vec<u8>)",
                         got: Box::new(ValueSnapshot::of(&other)),
-                        // arc 138: no — element from Vec value, not AST
                     },
                 }
                 .into());

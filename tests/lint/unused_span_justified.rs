@@ -23,9 +23,21 @@
 //! Each ignored-span site carries a co-located (same-line) `// rune:lint(unused-span) — <reason>`
 //! stating why the drop is safe. Two honest reasons earn standing:
 //!   • **infallible** — the fn has no error path (`infallible — no error path`).
-//!   • **located elsewhere** — every error already uses a real span (a per-arg `arg.span()`, a
-//!     threaded inner span, `rust_caller_span!()` on a leaf helper, or the error is a *value*
-//!     located at the caller's match). The rune states WHERE.
+//!   • **located elsewhere** — every error already uses a real WAT span (a per-arg `arg.span()`,
+//!     a threaded inner span, or the error is a *value* located at the caller's match). The rune
+//!     states WHERE.
+//!
+//! ⛔ `rust_caller_span!()` DOES NOT EARN STANDING, and offering it here was a contradiction this
+//! lint carried from the start: the scope paragraph above names pointing at *"a
+//! `rust_caller_span!()` Rust line instead of their `.wat`"* as the HARM, and the exemption list
+//! then offered that same thing as the cure. A rule cannot forbid something and accept it as its
+//! own justification. Two sites leaned on it — `eval_tuple_ctor` and `eval_bytes_to_hex` — and
+//! both turned out to be FIXES, not exemptions: each had the span as a parameter and raised at a
+//! Rust line anyway.
+//!
+//! That pairing is also this lint's blind spot, now named. A site that BOTH ignores its span param
+//! AND substitutes a Rust one slips `span_substitution_justified` too, because that lint requires a
+//! USED param. Neither wall saw the intersection — and this rune reason is what made it invisible.
 //! A site whose error is genuinely **unlocated** (the `_span` was available and would improve it)
 //! does NOT earn a rune — it gets FIXED (thread the span into the error, rename `_span`→`span`),
 //! so it no longer matches this lint at all. A rune reason of "we drop the location but ignore it"
@@ -106,9 +118,11 @@ fn ignored_spans_are_justified() {
            • RUNE (earned): the drop is safe — add a co-located, same-line\n\
              `// rune:lint(unused-span) — <reason>`. Honest reasons:\n\
                - `infallible — no error path`\n\
-               - `located elsewhere` — every error already uses a real span (`arg.span()`, a\n\
-                 threaded inner span, `rust_caller_span!()` on a leaf helper, or the error is a\n\
-                 VALUE located at the caller's match). State WHERE.\n\
+               - `located elsewhere` — every error already uses a real WAT span (`arg.span()`,\n\
+                 a threaded inner span, or the error is a VALUE located at the caller's\n\
+                 match). State WHERE.\n\
+         `rust_caller_span!()` does NOT earn standing: a Rust line is the HARM this lint names,\n\
+         not a location. A site that ignores its span AND raises at a Rust line is a FIX.\n\
          A rune of \"drops the location but we ignore it\" does NOT earn its standing — that site is\n\
          a FIX, not a rune (excusare — the reason must earn it). For a single-line signature, break\n\
          the `_…span: &Span` param onto its own line to carry the rune.\n\
