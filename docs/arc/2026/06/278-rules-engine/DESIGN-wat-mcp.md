@@ -75,7 +75,7 @@ Nothing is redefined per call: a definition made in one `tools/call` is live for
 (`runtime.rs:5307`); the read half never was. Everything else is composition.
 
 ```
-(:wat::edn::read-json <json-string>) -> :wat::edn::ReadJsonOutcome
+(:wat::edn::read-json <json-string>) -> :wat::edn::ReadJsonOutcome<T>
 ```
 
 Structurally the twin of `eval_edn_read` (`edn_shim.rs:162`) — parse, then
@@ -88,8 +88,8 @@ server — the exact failure `read-string` was converted to fix (`types.rs:952`:
 the REPL sends ESC (0x1B) … the raise unwound THROUGH the loop and killed the session"*).
 
 ```clojure
-(:wat::core::defenum :wat::edn::ReadJsonOutcome :wat::enum::Pure
-  :Value     [value <- :wat::core::Value]
+(:wat::core::defenum :wat::edn::ReadJsonOutcome<T> :wat::enum::Pure
+  :Value     [value <- :T]
   :Malformed [cause <- :wat::core::Error])
 ```
 
@@ -101,11 +101,17 @@ hands them arms nobody branches on. Discrimination lives in the navigable causes
 pre-LAW shape. `read-string` was converted; `edn::read` was not. Converting it is its own strike
 with its own blast radius. This doc only refuses to add a second raiser.
 
-**CRUX-1 (open, resolved by Stone 1's gate):** the `:Value` payload type. `edn::read` returns typed
-via the registry; `edn::read-foreign` returns dynamic `ForeignRecord`/`ForeignVariant` for unknown
-tags. An MCP envelope is plain JSON (objects, strings, ints), so the typed path should suffice —
-but **whether a bare JSON object is field-addressable from wat must be PROVEN before Stone 2 is
-briefed.** Do not brief a protocol on an unproven decode.
+**CRUX-1 — RESOLVED by Stone 1's gate (`b9d48a65`).** A JSON object decodes to a String-keyed
+`HashMap` (wat-edn mints a keyword only when a JSON string opens with `:`, and MCP envelope keys
+never do), and it IS field-addressable: `(:wat::core::HashMap/get m "edn")` → `"42"`, measured.
+
+**PARAMETRIC, and the first draft of this doc was not — that error is instructive.** It specified
+`:Value [value <- :wat::core::Value]`, the universal top, where UP is free and DOWN is CHECKED (R7).
+The payload could be produced and never consumed; `HashMap/get` correctly refused an opaque `Value`
+receiver, and the rider building it hit that wall and STOPPED. The fix was the idiom three lines
+away in the same file: `edn::read` and `read-foreign` both declare a fresh type var so "the caller's
+binding unifies with whatever dynamic value shape lands". The Rust side needed no change — only the
+DECLARED type was wrong. **A type in a design is a claim and owes the same evidence as any other.**
 
 ## THE MCP SURFACE
 
@@ -142,7 +148,22 @@ mirrors `eval_edn_read`; outcome mirrors `ReadOutcome`.
    what resolves CRUX-1); a MALFORMED line returns `::Malformed` and **the caller survives** —
    proven by evaluating a form afterwards, not by the absence of a crash.
 
-**Stone 2 — `wat/mcp.wat`.** A stdlib MODULE exposing `(:mcp::serve defs)`, no `:user::main` — the
+**Stone 2a — `value_to_json_natural` must learn `Nature::Record`.** MEASURED
+(`edn_shim.rs:2651`): it matches `Nature::Struct` ONLY, so a record falls through to the
+`#tag`/`body` sentinel and `:`-prefixed keys — the wrong shape for a harness. That is backwards:
+arc 300 made RECORDS the guaranteed-pure-data aggregate, and a natural-JSON writer exists to serve
+exactly that. Two gated sites in one fn (`:2651` value match, `:2655` type lookup).
+
+> **Why not just use a `defstruct`** — it emits the right JSON today (measured), and it would be a
+> LIE. Structs are for aggregates that can hold RESOURCES (rust opaques, sockets, fds); records are
+> guaranteed pure data (builder, 2026-07-29). A JSON-RPC reply is pure data. Using a
+> resource-capable aggregate because its serializer happens to work would type-check, serialize
+> correctly, and misstate what the value IS.
+
+ - RED gate: a nested record tree containing a vector-of-records emits BARE keys at every level;
+   the existing struct path stays byte-identical (it is already correct — do not regress it).
+
+**Stone 2b — `wat/mcp.wat`.** A stdlib MODULE exposing `(:mcp::serve defs)`, no `:user::main` — the
 same split `wat/repl.wat` uses, for the same reason (a stdlib file declaring `:user::main` hands
 one to every wat program).
  - RED gate: a scripted transcript — `initialize` → `tools/list` → `tools/call eval` ×2 →
