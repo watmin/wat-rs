@@ -134,7 +134,7 @@ pub fn scope_divergent_binder<'a>(
     let my_name = ident.as_str();
     for k in local_keys {
         // Extract name part: everything before the first SOH separator.
-        let name_part = k.splitn(2, '\u{1}').next().unwrap_or(k);
+        let name_part = k.split('\u{1}').next().unwrap_or(k);
         if name_part == my_name && k != me_ref {
             return Some(k.to_owned());
         }

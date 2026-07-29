@@ -84,7 +84,7 @@ fn select_prime_flood_no_deadlock() {
                         ev.variant_name
                     );
                     // fields[0] = idx (i64)
-                    assert!(ev.fields.len() >= 1, "Lost must have idx field");
+                    assert!(!ev.fields.is_empty(), "Lost must have idx field");
                     assert_eq!(
                         ev.fields[0],
                         Value::i64(0),

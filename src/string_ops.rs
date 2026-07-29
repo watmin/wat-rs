@@ -464,7 +464,7 @@ pub fn eval_string_join(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
@@ -499,7 +499,7 @@ pub fn eval_string_join(
                 return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                    got: Box::new(crate::runtime::ValueSnapshot::of(other))
                 } });
             }
         }
@@ -570,7 +570,7 @@ pub fn eval_string_interpolate(
 
     // args[1..]: must be an even count of (keyword, value) pairs.
     let rest = &args[1..];
-    if rest.len() % 2 != 0 {
+    if !rest.len().is_multiple_of(2) {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: "trailing kwargs must be :name value pairs — odd count".into(),
@@ -599,7 +599,7 @@ pub fn eval_string_interpolate(
             } }),
         };
         // Value: eval then render unquoted.
-        let rendered = render_unquoted(eval(val_arg, env, sym)?.value_owned(), OP, &val_arg.span())?;
+        let rendered = render_unquoted(eval(val_arg, env, sym)?.value_owned(), OP, val_arg.span())?;
         kwargs.insert(key_name, rendered);
         i += 2;
     }
@@ -849,7 +849,7 @@ pub fn eval_uuid_typed_v5(
         _ => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::Uuid".into(),
+                expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&ns_val))
             } });
         }
@@ -859,7 +859,7 @@ pub fn eval_uuid_typed_v5(
         _ => {
             return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String".into(),
+                expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&name_val))
             } });
         }
@@ -896,7 +896,7 @@ pub fn eval_uuid_typed_from_string(
         _ => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String".into(),
+                expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&s_val))
             } });
         }
@@ -936,7 +936,7 @@ pub fn eval_uuid_typed_to_string(
         _ => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::Uuid".into(),
+                expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
             } });
         }
@@ -972,7 +972,7 @@ pub fn eval_uuid_version(
         _ => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::Uuid".into(),
+                expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
             } });
         }
@@ -1008,7 +1008,7 @@ pub fn eval_uuid_rfc4122_variant(
         _ => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::Uuid".into(),
+                expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
             } });
         }
@@ -1069,7 +1069,7 @@ pub fn eval_char_of(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -1176,7 +1176,7 @@ fn one_string(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len()
@@ -1204,7 +1204,7 @@ fn two_strings(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len()

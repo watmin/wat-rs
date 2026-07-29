@@ -914,7 +914,7 @@ pub fn register_defines(
             };
             match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
                 crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                    return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) });
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path.clone(), func);
@@ -947,7 +947,7 @@ pub fn register_defines(
             };
             match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
                 crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                    return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) });
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path, func);
@@ -1295,9 +1295,7 @@ pub fn register_stdlib_defines(
             // None for variadic forms (allow_rest_binder=false). This branch handles them:
             // parse with allow_rest_binder=true, set rest_param + rest_param_type on the Function.
             // Stdlib is PRIVILEGED — reserved-prefix gate bypassed.
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
-            }
+            sym.functions.entry(path).or_insert(func);
             rest.push(form);
         } else if let Some((alias, target)) = parse_defalias_form(&form) {
             // Stone 241.12 — stdlib defalias native registration.
@@ -1562,9 +1560,7 @@ pub fn register_aggregate_methods(
             // re-walk, not an error. The TypeEnv is the authoritative collision
             // check for aggregate *types*; this loop only mints derived functions
             // from already-registered types, so re-minting the identical ctor is safe.
-            if !sym.functions.contains_key(&ctor_name) {
-                sym.functions.insert(ctor_name, Arc::new(ctor_func));
-            }
+            sym.functions.entry(ctor_name).or_insert_with(|| Arc::new(ctor_func));
         }
 
         // Emit ONE accessor per OWN field with the correct absolute index.
@@ -1663,9 +1659,7 @@ pub fn register_aggregate_methods(
             // Same collision policy as the ctor mint above — silent-skip on a
             // same-aggregate re-walk (e.g. a forked bracket worker re-registering
             // its shipped surface-forms).
-            if !sym.functions.contains_key(&accessor_path) {
-                sym.functions.insert(accessor_path, Arc::new(accessor_func));
-            }
+            sym.functions.entry(accessor_path).or_insert_with(|| Arc::new(accessor_func));
         }
     }
     Ok(())
@@ -1725,11 +1719,11 @@ pub fn register_enum_methods(
                     let key = format!("{}::{}", enum_def.name, variant_name);
                     if sym.unit_variants.contains_key(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
-                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(key) });
                     }
                     if sym.functions.contains_key(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
-                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(key) });
                     }
                     sym.unit_variants.insert(
                         key,
@@ -1784,7 +1778,7 @@ pub fn register_enum_methods(
                         || sym.unit_variants.contains_key(&constructor_path)
                     {
                         // arc 138: no span — synthesized enum tagged-variant.
-                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) });
                     }
                     sym.functions
                         .insert(constructor_path, Arc::new(func));
@@ -1857,7 +1851,7 @@ pub fn register_newtype_methods(
         };
         if sym.functions.contains_key(&constructor_path) {
             // arc 138: no span — synthesized newtype constructor.
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) });
         }
         sym.functions.insert(constructor_path, Arc::new(new_func));
 
@@ -1886,7 +1880,7 @@ pub fn register_newtype_methods(
         };
         if sym.functions.contains_key(&accessor_path) {
             // arc 138: no span — synthesized newtype accessor.
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) });
         }
         sym.functions.insert(accessor_path, Arc::new(accessor_func));
     }
@@ -1989,7 +1983,7 @@ pub fn register_type_predicates(
 
         if sym.functions.contains_key(&predicate_name) {
             // Collision: a user-defined function already occupies this name.
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(predicate_name) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(predicate_name) });
         }
         sym.functions.insert(predicate_name, Arc::new(pred_func));
     }
@@ -2078,7 +2072,7 @@ pub fn preregister_acronyms(
         match &items[0] {
             WatAST::Keyword(k, _) if k.as_str() == ":wat::core::string::declare-acronyms" => {
                 if let Ok((ns, acronyms)) = parse_declare_acronyms_form(form) {
-                    sym.acronym_registry.entry(ns).or_insert_with(Vec::new).extend(acronyms);
+                    sym.acronym_registry.entry(ns).or_default().extend(acronyms);
                 }
             }
             _ => continue,
@@ -2506,7 +2500,7 @@ fn register_defalias(
     match crate::resolve::gate(alias, privilege, existing) {
         crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => return Ok(()),
         crate::resolve::Registration::Reserved => {
-            return Err(RuntimeError { span, kind: RuntimeErrorKind::ReservedPrefix(alias.to_string()) }.into());
+            return Err(RuntimeError { span, kind: RuntimeErrorKind::ReservedPrefix(alias.to_string()) });
         }
         crate::resolve::Registration::Insert => {}
     }
@@ -2691,7 +2685,7 @@ fn preregister_struct_accessors_from_form(
     };
     match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
         crate::resolve::Registration::Reserved => {
-            return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
+            return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) });
         }
         crate::resolve::Registration::Insert => {
             sym.functions.insert(
@@ -2752,7 +2746,7 @@ fn preregister_struct_accessors_from_form(
             };
             match crate::resolve::gate(&accessor_path, privilege, acc_existing) {
                 crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(accessor_path) }.into());
+                    return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(accessor_path) });
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(
@@ -2865,7 +2859,7 @@ fn preregister_enum_constructors_from_form(
         };
         match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
             crate::resolve::Registration::Reserved => {
-                return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
+                return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) });
             }
             crate::resolve::Registration::Insert => {
                 sym.functions.insert(
@@ -3152,9 +3146,7 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     .ok()?;
     // Only handle variadic forms here; non-variadic should have been caught by
     // try_parse_fn_shape_def (which runs first). Guard defensively.
-    if spec.rest_param.is_none() {
-        return None;
-    }
+    spec.rest_param.as_ref()?;
     let (fixed_idents, fixed_param_types): (Vec<crate::scope::Identifier>, Vec<crate::types::TypeExpr>) =
         spec.fixed_params.into_iter().unzip();
     let fixed_params: Vec<crate::scope::Identifier> = fixed_idents.clone();
@@ -3384,7 +3376,7 @@ fn preregister_fn_defs_in_do(
             };
             match crate::resolve::gate(&path, privilege, existing) {
                 crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError { span: child.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                    return Err(RuntimeError { span: child.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(path) });
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path.clone(), func);
@@ -3458,7 +3450,7 @@ fn preregister_fn_defs_in_let(
             };
             match crate::resolve::gate(&path, privilege, existing) {
                 crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError { span: child.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                    return Err(RuntimeError { span: child.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(path) });
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path.clone(), func);
@@ -3694,7 +3686,7 @@ pub(crate) fn is_type_var_path(p: &str) -> bool {
     if s.contains("::") || s.contains('.') {
         return false;
     }
-    s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase())
+    s.chars().find(|c| c.is_alphabetic()).is_some_and(|c| c.is_uppercase())
 }
 
 /// Stone 251.7 — collect free type-variable names from a function signature.
@@ -3845,7 +3837,7 @@ fn eval_tail(
             let callee = eval_inner(&items[0], env, sym)?.value_owned();
             match callee {
                 Value::wat__core__fn(f) => emit_tail_call(f, args, env, sym, list_span),
-                other => apply_value(&other, args, env, sym).map_err(EvalBreak::from),
+                other => apply_value(&other, args, env, sym),
             }
         }
         // Literal head (int/float/bool/string) — not callable; let
@@ -4327,17 +4319,17 @@ fn eval_list(
     // The bare forms continue to work at runtime; type-check time
     // surfaces the migration hint via Pattern 2 poison.
     match head {
-        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
-        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
-        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
+        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym).map(TrackedValue::from),
+        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym).map(TrackedValue::from),
+        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym).map(TrackedValue::from),
         _ => {}
     }
     match head {
         // dispatch_keyword_head now returns TrackedValue (propagates producer provenance).
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym).map(TrackedValue::from),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym).map(TrackedValue::from),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym).map(TrackedValue::from),
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
             // Arc 233 Stone 233.2.k: keep TrackedValue so NotCallable errors
@@ -4443,7 +4435,7 @@ fn dispatch_keyword_head(
         _ => {}
     }
     // All other arms: dispatch through value-returning inner and wrap.
-    dispatch_keyword_head_value(head, args, list_span, env, sym).map(|v| TrackedValue::from(v))
+    dispatch_keyword_head_value(head, args, list_span, env, sym).map(TrackedValue::from)
 }
 
 // Inner dispatch: returns Result<Value, EvalBreak>.
@@ -6012,7 +6004,7 @@ fn dispatch_keyword_head_value(
                             }
                             other_val => {
                                 return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NotCallable {
-                                    got: Box::new(ValueSnapshot::of(&other_val))
+                                    got: Box::new(ValueSnapshot::of(other_val))
                                 } }.into());
                             }
                         }
@@ -6252,14 +6244,14 @@ fn parse_defclause_clause(
                     "each defclause clause must be a list `([args] -> :Ret body)` or `([args] body)` (with shared return); got {}",
                     other.variant_name()
                 )
-            } }.into());
+            } });
         }
     };
     if items.is_empty() {
         return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: head.into(),
             reason: "defclause clause must not be empty".into()
-        } }.into());
+        } });
     }
 
     // items[0] must be the args-vector.
@@ -6272,7 +6264,7 @@ fn parse_defclause_clause(
                     "defclause clause must start with args-vector `[name <- :T ...]`; got {}",
                     other.variant_name()
                 )
-            } }.into());
+            } });
         }
     };
 
@@ -6346,7 +6338,7 @@ fn parse_defclause_clause(
             return Err(RuntimeError { span: rest[gpos].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
                 reason: "defclause clause has `:guard` after `:ensure` — fixed order is: args → :guard? → :ensure? → body".into()
-            } }.into());
+            } });
         }
     }
 
@@ -6355,7 +6347,7 @@ fn parse_defclause_clause(
         return Err(RuntimeError { span: rest[spos].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: head.into(),
             reason: "defclause clause has multiple `:guard` keywords — only one `:guard` per clause is permitted (compose multiple conditions with :and)".into()
-        } }.into());
+        } });
     }
 
     // --- Phase 2: Extract :guard expression ---
@@ -6365,7 +6357,7 @@ fn parse_defclause_clause(
             return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
                 reason: "`:guard` keyword must be followed by a guard expression".into()
-            } }.into());
+            } });
         }
         Some(Arc::new(rest[expr_pos].clone()))
     } else {
@@ -6379,7 +6371,7 @@ fn parse_defclause_clause(
             return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
                 reason: "`:ensure` keyword must be followed by a :fn form".into()
-            } }.into());
+            } });
         }
         Some(Arc::new(rest[fn_pos].clone()))
     } else {
@@ -6393,7 +6385,7 @@ fn parse_defclause_clause(
             return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
                 reason: "defclause clause `->` must be followed by a return type keyword".into()
-            } }.into());
+            } });
         }
         match &rest[type_pos] {
             WatAST::Keyword(k, _) => parse_type_keyword(k)?,
@@ -6404,7 +6396,7 @@ fn parse_defclause_clause(
                         "defclause clause `->` must be followed by a return type keyword; got {}",
                         other.variant_name()
                     )
-                } }.into());
+                } });
             }
         }
     } else {
@@ -6415,7 +6407,7 @@ fn parse_defclause_clause(
                 return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: head.into(),
                     reason: "defclause clause missing `-> :RetType`; either add per-clause `-> :T` or provide a top-level shared return type".into()
-                } }.into());
+                } });
             }
         }
     };
@@ -6447,7 +6439,7 @@ fn parse_defclause_clause(
         return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: head.into(),
             reason: "defclause clause must have a body expression".into()
-        } }.into());
+        } });
     }
     let body_ast = synthesize_fn_body(&body_items);
 
@@ -6478,7 +6470,7 @@ pub fn parse_defclause_form(
         _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: "expected list".into()
-        } }.into()),
+        } }),
     };
     // items[0] = :wat::core::defclause keyword
     // items[1] = :name keyword
@@ -6491,7 +6483,7 @@ pub fn parse_defclause_form(
                 "expected (:wat::core::defclause :name [-> :T] clause ...); got {} elements",
                 items.len()
             )
-        } }.into());
+        } });
     }
 
     // items[1] must be the name keyword.
@@ -6504,7 +6496,7 @@ pub fn parse_defclause_form(
                     "defclause first arg must be a keyword name (e.g. `:my::name`); got {}",
                     other.variant_name()
                 )
-            } }.into());
+            } });
         }
     };
 
@@ -6520,7 +6512,7 @@ pub fn parse_defclause_form(
         ),
         crate::resolve::Registration::Reserved
     ) {
-        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(name) }.into());
+        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(name) });
     }
 
     // Optional metadata-map, mirroring def/defn: `(:wat::core::defclause :name
@@ -6574,7 +6566,7 @@ pub fn parse_defclause_form(
         return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: "defclause must have at least one clause".into()
-        } }.into());
+        } });
     }
 
     let mut clauses = Vec::with_capacity(clause_items.len());
@@ -6617,7 +6609,7 @@ pub(crate) fn parse_extend_type_form(
         _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: "expected list".into()
-        } }.into()),
+        } }),
     };
     // items[0] = :wat::core::extend-type
     // items[1] = :T type name keyword
@@ -6630,21 +6622,21 @@ pub(crate) fn parse_extend_type_form(
                 "expected (:wat::core::extend-type :T :P (method-impl ...) ...); got {} elements",
                 items.len()
             )
-        } }.into());
+        } });
     }
     let type_name = match &items[1] {
         WatAST::Keyword(k, _) => k.clone(),
         other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!("extend-type first arg must be a keyword type name; got {}", other.variant_name())
-        } }.into()),
+        } }),
     };
     let protocol_name_raw = match &items[2] {
         WatAST::Keyword(k, _) => k.clone(),
         other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!("extend-type second arg must be a keyword protocol name; got {}", other.variant_name())
-        } }.into()),
+        } }),
     };
     // Arc 170 C2 — split a parametric protocol/surface target (`:Holds<wat::core::i64>`)
     // into the BARE name (`:probe::Holds`, matching how the surface is registered in
@@ -6667,13 +6659,13 @@ pub(crate) fn parse_extend_type_form(
             other => return Err(RuntimeError { span: impl_span, kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("each method impl must be a list `(method-name [args] body)`; got {}", other.variant_name())
-            } }.into()),
+            } }),
         };
         if impl_items.len() < 3 {
             return Err(RuntimeError { span: impl_span, kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method impl must have at least 3 elements `(name [args] body)`; got {}", impl_items.len())
-            } }.into());
+            } });
         }
         let method_name = match &impl_items[0] {
             WatAST::Symbol(s, _) => {
@@ -6687,7 +6679,7 @@ pub(crate) fn parse_extend_type_form(
             other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method impl first element must be a Symbol method name; got {}", other.variant_name())
-            } }.into()),
+            } }),
         };
         // Parse the impl as a defclause clause. The argspec in extend-type impls uses
         // bare binders WITHOUT type annotations (self, loudness — no `<-` triples).
@@ -6701,7 +6693,7 @@ pub(crate) fn parse_extend_type_form(
             other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method impl `{}` second element must be an args Vector; got {}", method_name, other.variant_name())
-            } }.into()),
+            } }),
         };
         // Collect bare symbol param names. extend-type impls do NOT carry type annotations
         // (the types live in the surface member sig). Each arg must be a bare Symbol.
@@ -6719,7 +6711,7 @@ pub(crate) fn parse_extend_type_form(
                         "method impl `{}` arg must be a bare Symbol (no type annotation in extend-type); got {}",
                         method_name, other.variant_name()
                     )
-                } }.into()),
+                } }),
             }
         }
         let args = crate::argspec::ArgSpec { fixed_params, rest_param: None };
@@ -6729,7 +6721,7 @@ pub(crate) fn parse_extend_type_form(
             return Err(RuntimeError { span: impl_span, kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method impl `{}` must have a body expression", method_name)
-            } }.into());
+            } });
         }
         // Arc 293.4c — strip optional `-> :RetType` from the body so that surface
         // extend-type impls like `(tag [self] -> :wat::core::i64 42)` work correctly.
@@ -6757,7 +6749,7 @@ pub(crate) fn parse_extend_type_form(
             return Err(RuntimeError { span: impl_span, kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method impl `{}` must have a body expression after `-> :T`", method_name)
-            } }.into());
+            } });
         }
         let body_ast = synthesize_fn_body(&body_forms);
         let clause = crate::value::Clause {
@@ -6793,7 +6785,7 @@ pub(crate) fn parse_derive_form(form: &WatAST) -> Result<(String, String), Runti
         _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: "expected list".into()
-        } }.into()),
+        } }),
     };
     // items[0] = :wat::core::derive
     // items[1] = :Child keyword
@@ -6805,21 +6797,21 @@ pub(crate) fn parse_derive_form(form: &WatAST) -> Result<(String, String), Runti
                 "expected (:wat::core::derive :Child :Parent); got {} elements",
                 items.len()
             )
-        } }.into());
+        } });
     }
     let child = match &items[1] {
         WatAST::Keyword(k, _) => k.clone(),
         other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!("derive first arg must be a keyword child type name; got {}", other.variant_name())
-        } }.into()),
+        } }),
     };
     let parent = match &items[2] {
         WatAST::Keyword(k, _) => k.clone(),
         other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!("derive second arg must be a keyword parent type name; got {}", other.variant_name())
-        } }.into()),
+        } }),
     };
     Ok((child, parent))
 }
@@ -7093,7 +7085,7 @@ fn eval_call_to_defclause_with_vals(
     }
 
     // No clause matched (arity + type + guard all fell through).
-    let called_args: Vec<ValueSnapshot> = vals.iter().map(|v| ValueSnapshot::of(v)).collect();
+    let called_args: Vec<ValueSnapshot> = vals.iter().map(ValueSnapshot::of).collect();
     Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NoMatchingClause {
         name: cs.name.clone(),
         called_arity,
@@ -7120,7 +7112,7 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
             // defensive). Mirrors the `_ => true` arm below.
             let s = p.strip_prefix(':').unwrap_or(p);
             let is_type_var = !s.contains("::") && !s.contains('.')
-                && s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase());
+                && s.chars().find(|c| c.is_alphabetic()).is_some_and(|c| c.is_uppercase());
             if is_type_var {
                 return true;
             }
@@ -7392,7 +7384,7 @@ fn bind_let_binding(
                     return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::let".into(),
                         expected: "wat::core::Struct",
-                        got: Box::new(ValueSnapshot::of(&other))
+                        got: Box::new(ValueSnapshot::of(other))
                     } }.into());
                 }
             };
@@ -7593,7 +7585,7 @@ fn destructure_tuple(
         other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Tuple",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -8796,7 +8788,7 @@ fn eval_apply(
             return Err(RuntimeError { span: spread_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::Vector",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -8866,7 +8858,7 @@ fn eval_apply(
             }
             other_val => {
                 return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::NotCallable {
-                    got: Box::new(ValueSnapshot::of(&other_val))
+                    got: Box::new(ValueSnapshot::of(other_val))
                 } }.into());
             }
         }
@@ -9797,7 +9789,7 @@ where
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(i64, i64)",
-            got: Box::new(ValueSnapshot::of(&a))
+            got: Box::new(ValueSnapshot::of(a))
         } }.into()),
     }
 }
@@ -9820,7 +9812,7 @@ where
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(f64, f64)",
-            got: Box::new(ValueSnapshot::of(&a))
+            got: Box::new(ValueSnapshot::of(a))
         } }.into()),
     }
 }
@@ -9848,7 +9840,7 @@ where
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(bigint, bigint)",
-            got: Box::new(ValueSnapshot::of(&a))
+            got: Box::new(ValueSnapshot::of(a))
         } }.into()),
     }
 }
@@ -9877,7 +9869,7 @@ where
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(rational, rational)",
-            got: Box::new(ValueSnapshot::of(&a))
+            got: Box::new(ValueSnapshot::of(a))
         } }.into()),
     }
 }
@@ -10438,7 +10430,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
         Value::wat__WatAST(a) => Ok((*a).clone()),
         Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "primitive (i64/f64/bool/String/keyword/nil) or :wat::WatAST",
             got: Box::new(ValueSnapshot::of(&other))
@@ -11747,7 +11739,7 @@ fn eval_rename_callable_name(
     // Destructure the signature head; children[0] is the name Keyword.
     // Preserve the compound kind (List for fn/primitive signatures, Vector for
     // macro argspecs) so the rebuilt head round-trips faithfully.
-    let children = require_ast_children(OP, &*ast_arc, &args[0].span())?;
+    let children = require_ast_children(OP, &ast_arc, args[0].span())?;
     if children.is_empty() {
         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -11850,7 +11842,7 @@ fn eval_extract_arg_names(
             } }.into());
         }
     };
-    let children = require_ast_children(OP, &*ast_arc, &args[0].span())?;
+    let children = require_ast_children(OP, &ast_arc, args[0].span())?;
 
     let mut names: Vec<Value> = Vec::new();
     // Skip children[0] (function name keyword); walk from index 1.
@@ -11944,7 +11936,7 @@ fn eval_extract_arg_types(
             } }.into());
         }
     };
-    let children = require_ast_children(OP, &*ast_arc, &args[0].span())?;
+    let children = require_ast_children(OP, &ast_arc, args[0].span())?;
 
     let mut types: Vec<Value> = Vec::new();
     // Skip children[0] (function name keyword); walk from index 1.
@@ -12195,7 +12187,7 @@ fn eval_bundle_children(
             } }.into());
         }
     };
-    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    let children = require_bundle(OP, &holon_arc, args[0].span())?;
     let out: Vec<Value> = children
         .iter()
         .map(|child| Value::holon__HolonAST(Arc::new(child.clone())))
@@ -12241,7 +12233,7 @@ fn eval_bundle_first(
             } }.into());
         }
     };
-    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    let children = require_bundle(OP, &holon_arc, args[0].span())?;
     let first = children.first().ok_or_else(|| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
         op: OP.into(),
         expected: "Bundle with at least one child",
@@ -12830,7 +12822,7 @@ fn eval_f64_reduce(
             return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Vec<f64>",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
         None => return Ok(Value::Option(Arc::new(None))),
@@ -12843,7 +12835,7 @@ fn eval_f64_reduce(
                 return Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "Vec<f64>",
-                    got: Box::new(ValueSnapshot::of(&other))
+                    got: Box::new(ValueSnapshot::of(other))
                 } }.into());
             }
         }
@@ -15361,7 +15353,7 @@ fn eval_kwargs_construct(
     // `build_insert_fact` uses (`matcher.rs`): an even count of args whose every
     // slot-0-of-pair is a keyword is kwargs; anything else is positional.
     let is_kwargs = rest.len() >= 2
-        && rest.len() % 2 == 0
+        && rest.len().is_multiple_of(2)
         && rest.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
 
     if is_kwargs {
@@ -15473,12 +15465,12 @@ fn project_surface_attrs(
 
 /// Parse the two-arg form `(verb x :S)` for the three projection verbs.
 /// Returns `(x_val, surface_name_keyword, surface_def)`.
-fn parse_projection_args<'a>(
+fn parse_projection_args(
     op: &'static str,
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
-    sym: &'a SymbolTable,
+    sym: &SymbolTable,
 ) -> Result<(Value, String, crate::types::SurfaceDef), EvalBreak> {
     if args.len() != 2 {
         return Err(RuntimeError {
@@ -15535,7 +15527,7 @@ fn eval_to_core_record(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &'static str = ":wat::core::to-record";
+    const OP: &str = ":wat::core::to-record";
     let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
     let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
     let class = format!("{}$core-record", surface_kw.trim_start_matches(':'));
@@ -15550,7 +15542,7 @@ fn eval_to_holon_record(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &'static str = ":wat::holon::to-record";
+    const OP: &str = ":wat::holon::to-record";
     let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
     let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
     let class = format!("{}$holon-record", surface_kw.trim_start_matches(':'));
@@ -16057,18 +16049,18 @@ fn eval_extract_classifier(
     match arg_val {
         // Arc 293.R2.1 — Aggregate carries class (colon-free); return as String.
         Value::Aggregate(a) => {
-            return Ok(Value::String(Arc::new(a.class.clone())));
+            Ok(Value::String(Arc::new(a.class.clone())))
         }
         Value::holon__HolonAST(h) => {
-            let result = extract_classifier(&*h).map(|s| Value::String(Arc::new(s)));
-            return Ok(Value::Option(Arc::new(result)));
+            let result = extract_classifier(&h).map(|s| Value::String(Arc::new(s)));
+            Ok(Value::Option(Arc::new(result)))
         }
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST or wat::core::Record",
                 got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
+            } }.into())
         }
     }
 }
@@ -16102,7 +16094,7 @@ fn eval_bind_left(
             } }.into());
         }
     };
-    let result = bind_left(&*holon_arc)
+    let result = bind_left(&holon_arc)
         .map(|h| Value::holon__HolonAST(Arc::new(h)));
     Ok(Value::Option(Arc::new(result)))
 }
@@ -16136,7 +16128,7 @@ fn eval_bind_right(
             } }.into());
         }
     };
-    let result = bind_right(&*holon_arc)
+    let result = bind_right(&holon_arc)
         .map(|h| Value::holon__HolonAST(Arc::new(h)));
     Ok(Value::Option(Arc::new(result)))
 }
@@ -17638,8 +17630,8 @@ fn eval_algebra_bind(
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
     // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
     // Records flow through natively; auto-dispatch extracts the hologram at the boundary.
-    let a = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned(), &args[0].span())?;
-    let b = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned(), &args[1].span())?;
+    let a = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned(), args[0].span())?;
+    let b = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned(), args[1].span())?;
 
     // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
     // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
@@ -19323,7 +19315,7 @@ fn eval_holon_bytes_vector(
                 return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<u8>",
-                    got: Box::new(ValueSnapshot::of(&other)),
+                    got: Box::new(ValueSnapshot::of(other)),
                     // arc 138: no per-value AST span — element from Vec value, not AST; list_span (call site) used instead
                 } }.into());
             }
@@ -20549,7 +20541,7 @@ fn apply_tracked_callee(
         .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     apply_function(func, vals, sym, crate::rust_caller_span!())
-        .map(|v| TrackedValue::from(v))
+        .map(TrackedValue::from)
         .map_err(EvalBreak::from)
 }
 
@@ -20564,7 +20556,7 @@ fn apply_value(
         other => {
             // arc 138: no span — apply_value receives a Value not a WatAST; callee span not in scope
             return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::NotCallable {
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into())
         }
     };
@@ -20657,7 +20649,7 @@ pub fn apply_function(
                         },
                         expected: fixed_arity,
                         got: actual_arity
-                    } }.into());
+                    } });
                 }
             }
             Some(_) => {
@@ -20669,7 +20661,7 @@ pub fn apply_function(
                         },
                         expected: fixed_arity,
                         got: actual_arity
-                    } }.into());
+                    } });
                 }
             }
         }
@@ -21850,7 +21842,7 @@ fn eval_stat_mean(
                 return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<f64>",
-                    got: Box::new(ValueSnapshot::of(&other)),
+                    got: Box::new(ValueSnapshot::of(other)),
                     // arc 138: no — iterating over Vec<Value>; no per-element AST span
                 } }.into());
             }
@@ -21891,7 +21883,7 @@ fn eval_stat_variance(
                 return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<f64>",
-                    got: Box::new(ValueSnapshot::of(&other)),
+                    got: Box::new(ValueSnapshot::of(other)),
                     // arc 138: no — iterating over Vec<Value>; no per-element AST span
                 } }.into());
             }
@@ -24653,7 +24645,7 @@ fn step_let(
         WatAST::Keyword(":wat::core::let".into(), list_span.clone()),
         rebuilt_bindings,
     ];
-    new_items.extend(new_body_forms.into_iter());
+    new_items.extend(new_body_forms);
     Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
 }
 
@@ -26608,7 +26600,7 @@ fn eval_peer_select_prime(
                                 fields: vec![Value::i64(peer_idx)],
                             })),
                         };
-                        return Ok(event);
+                        Ok(event)
                     }
                     Ok(edn_str) => {
                         // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
@@ -27725,10 +27717,8 @@ fn eval_poll_prime(
                                 variant_name: "Rejected".into(),
                                 fields: vec![
                                     Value::i64(peer_idx),
-                                    message_only_failure(format!(
-                                        "request too large — exceeded this service's \
-                                         max-frame-bytes limit; request rejected, connection closed"
-                                    )),
+                                    message_only_failure("request too large — exceeded this service's \
+                                         max-frame-bytes limit; request rejected, connection closed".to_string()),
                                 ],
                             })),
                             // Genuine clean EOF (Disconnected / Shutdown), a reason-free abnormal
@@ -27926,7 +27916,7 @@ fn eval_poll_prime(
                                                             variant_name: "Rejected".into(),
                                                             fields: vec![
                                                                 Value::i64(pidx),
-                                                                message_only_failure(format!("request too large — exceeded this service's max-frame-bytes limit; request rejected, connection closed")),
+                                                                message_only_failure("request too large — exceeded this service's max-frame-bytes limit; request rejected, connection closed".to_string()),
                                                             ],
                                                         })),
                                                         Err(_) => Value::Enum(Arc::new(

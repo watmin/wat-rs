@@ -678,9 +678,9 @@ impl CheckErrorKind {
                     prefix,
                     name,
                     // ref_key is "name" for bare or "name\u{1}scopes" for scoped; extract scope part
-                    ref_key.splitn(2, '\u{1}').nth(1).unwrap_or(""),
+                    ref_key.split_once('\u{1}').map(|x| x.1).unwrap_or(""),
                     name,
-                    binder_key.splitn(2, '\u{1}').nth(1).unwrap_or(""),
+                    binder_key.split_once('\u{1}').map(|x| x.1).unwrap_or(""),
                 )
             }
         }

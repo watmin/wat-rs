@@ -177,11 +177,10 @@ fn probe_4_environment_lookup_returns_tracked_value() {
     // Arc 233 Stone 233.2.e: lookup takes head_span; use unknown span for this
     // test since we only care that nonexistent lookup returns None.
     let unknown_span = wat::rust_caller_span!();
-    let result: Option<TrackedValue> = env.lookup("nonexistent_binding", &unknown_span).map(|tv| {
+    let result: Option<TrackedValue> = env.lookup("nonexistent_binding", &unknown_span).inspect(|tv| {
         // Coerce reference to owned if lookup returns &TrackedValue
         // (sonnet picks Owned vs Reference shape).
-        let _: &TrackedValue = &tv;
-        tv
+        let _: &TrackedValue = tv;
     });
 
     assert!(result.is_none(), "lookup of nonexistent binding should return None");

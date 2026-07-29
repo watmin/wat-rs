@@ -100,7 +100,7 @@ fn probe_3_zero_value_tracked_construction_sites_in_src() {
                 continue; // skip comments + doc-comments
             }
             if line.contains("Value::Tracked {")
-                && (line.contains("inner: Box::new") || look_ahead_for_box_new(&contents, lineno))
+                && (line.contains("inner: Box::new") || look_ahead_for_box_new(contents, lineno))
             {
                 total_construction_sites += 1;
                 offending.push((

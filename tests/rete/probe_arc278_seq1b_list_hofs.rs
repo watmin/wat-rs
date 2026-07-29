@@ -32,7 +32,7 @@ fn check(src: &str) -> Result<(), String> {
 /// Build a world from one probe `defn`, start it (TYPE-CHECK fires here), then eval `call`.
 // rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
 fn eval_probe(defn: &str, call: &str) -> Result<Value, String> {
-    let world = format!("{defn}");
+    let world = defn.to_string();
     let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup (type-check): {e:?}"))?;
     let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;

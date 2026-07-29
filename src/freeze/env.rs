@@ -239,7 +239,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         symbols
             .binding_metadata
             .entry(name)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .extend(meta);
     }
 

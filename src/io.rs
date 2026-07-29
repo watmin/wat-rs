@@ -136,7 +136,7 @@ impl WatReader for RealStdin {
                 buf.truncate(k);
                 Ok(Some(buf))
             }
-            Err(e) => Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::read".into(),
                 reason: format!("stdin read: {}", e)
             } }),
@@ -147,7 +147,7 @@ impl WatReader for RealStdin {
         use std::io::Read;
         let mut buf = Vec::new();
         let mut guard = self.inner.lock();
-        guard.read_to_end(&mut buf).map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.read_to_end(&mut buf).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::read-all".into(),
             reason: format!("stdin read: {}", e)
         } })?;
@@ -169,7 +169,7 @@ impl WatReader for RealStdin {
                 }
                 Ok(Some(buf))
             }
-            Err(e) => Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::read-line".into(),
                 reason: format!("stdin read-line: {}", e)
             } }),
@@ -212,7 +212,7 @@ impl WatWriter for RealStdout {
     fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write(bytes).map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stdout write: {}", e)
         } })
@@ -221,7 +221,7 @@ impl WatWriter for RealStdout {
     fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write_all(bytes).map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write_all(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stdout write-all: {}", e)
         } })
@@ -230,7 +230,7 @@ impl WatWriter for RealStdout {
     fn flush(&self, span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.flush().map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.flush().map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stdout flush: {}", e)
         } })
@@ -253,7 +253,7 @@ impl WatWriter for RealStderr {
     fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write(bytes).map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stderr write: {}", e)
         } })
@@ -262,7 +262,7 @@ impl WatWriter for RealStderr {
     fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write_all(bytes).map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write_all(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stderr write-all: {}", e)
         } })
@@ -271,7 +271,7 @@ impl WatWriter for RealStderr {
     fn flush(&self, span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.flush().map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        guard.flush().map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stderr flush: {}", e)
         } })
@@ -356,7 +356,7 @@ impl WatReader for StringIoReader {
                 }
                 match String::from_utf8(b) {
                     Ok(s) => Ok(Some(s)),
-                    Err(e) => Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                    Err(e) => Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e)
                     } }),
@@ -488,7 +488,7 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::read".into(),
                     reason: format!("pipe read: {}", err)
                 } });
@@ -517,7 +517,7 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::read-all".into(),
                     reason: format!("pipe read: {}", err)
                 } });
@@ -545,7 +545,7 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::read-line".into(),
                     reason: format!("pipe read: {}", err)
                 } });
@@ -559,7 +559,7 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    .map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                    .map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e)
                     } });
@@ -570,7 +570,7 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    .map_err(|e| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                    .map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e)
                     } });
@@ -580,7 +580,7 @@ impl WatReader for PipeReader {
     }
 
     fn rewind(&self, span: Span) -> Result<(), RuntimeError> {
-        Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::io::rewind".into(),
             reason: "pipe fds are not rewindable".into()
         } })
@@ -635,7 +635,7 @@ impl WatWriter for PipeWriter {
         loop {
             let raw = self.fd.load(Ordering::SeqCst);
             if raw < 0 {
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: "pipe write: writer is closed".into()
                 } });
@@ -710,7 +710,7 @@ impl WatWriter for PipeWriter {
                     if fds[1].revents != 0 {
                         // Not writable AND a stop is pending → this write would block
                         // indefinitely. That is the hang; surface it as a named value.
-                        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::WriteStopped });
+                        return Err(RuntimeError { span, kind: RuntimeErrorKind::WriteStopped });
                     }
                 }
             }
@@ -726,7 +726,7 @@ impl WatWriter for PipeWriter {
                     // top, which re-checks closed state and re-polls.
                     continue;
                 }
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: format!("pipe write: {}", err)
                 } });
@@ -740,7 +740,7 @@ impl WatWriter for PipeWriter {
         while !remaining.is_empty() {
             let n = self.write(remaining, span.clone())?;
             if n == 0 {
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::write-all".into(),
                     reason: "pipe write returned 0 bytes".into()
                 } });
@@ -797,7 +797,7 @@ fn arity(op: &str, args: &[WatAST], n: usize, list_span: &Span) -> Result<(), Ru
 fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
     match tv.value_owned() {
         Value::io__IOReader(r) => Ok(r),
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -808,7 +808,7 @@ fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatRe
 fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
     match tv.value_owned() {
         Value::io__IOWriter(w) => Ok(w),
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -819,7 +819,7 @@ fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWr
 fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeError> {
     match tv.value_owned() {
         Value::i64(n) => Ok(n),
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "i64",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -830,7 +830,7 @@ fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeErro
 fn expect_string(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<String>, RuntimeError> {
     match tv.value_owned() {
         Value::String(s) => Ok(s),
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -850,14 +850,14 @@ fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, Runt
                         return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "u8",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                            got: Box::new(crate::runtime::ValueSnapshot::of(other))
                         } });
                     }
                 }
             }
             Ok(out)
         }
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Vec<u8>",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))

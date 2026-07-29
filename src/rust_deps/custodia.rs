@@ -54,7 +54,7 @@ impl<T: Send> ThreadOwnedCell<T> {
     fn ensure_owner(&self, op: &'static str, span: crate::span::Span) -> Result<(), RuntimeError> {
         let current = std::thread::current().id();
         if current != self.owner {
-            return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "thread-owned value crossed thread boundary \
@@ -204,7 +204,7 @@ impl<T: Send> OwnedMoveCell<T> {
         }
         // Safety: the swap succeeded, so this thread holds exclusive
         // access until the function returns.
-        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
+        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: "owned-move handle payload was unexpectedly None".into()
         } })

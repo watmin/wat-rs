@@ -274,7 +274,7 @@ mod tests {
     fn lower_score_sorts_first() {
         let a = Remedy { form: "beta".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()), note: None };
         let b = Remedy { form: "alpha".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
-        let mut v = vec![a, b];
+        let mut v = [a, b];
         v.sort();
         assert_eq!(v[0].score(), 1);
     }
@@ -283,7 +283,7 @@ mod tests {
     fn lex_tiebreaker_on_equal_score() {
         let a = Remedy { form: "zeta".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let b = Remedy { form: "alpha".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
-        let mut v = vec![a, b];
+        let mut v = [a, b];
         v.sort();
         assert_eq!(v[0].form, "alpha");
     }

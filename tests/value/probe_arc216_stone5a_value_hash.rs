@@ -344,5 +344,5 @@ fn probe_10_non_atomizable_fn_panics() {
     // Verify the impl compiles and the trait bounds are satisfied:
     let v = Value::i64(42);
     let h = hash_value(&v);
-    assert!(h > 0 || h == 0, "probe 10 placeholder: hash impl compiles and runs");
+    assert!(h >= 0, "probe 10 placeholder: hash impl compiles and runs");
 }

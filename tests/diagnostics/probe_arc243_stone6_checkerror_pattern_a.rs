@@ -24,7 +24,6 @@
 use std::sync::Arc;
 use wat::check::{CheckError, CheckErrorKind};
 use wat::span::Span;
-use wat_edn;
 
 /// Contract 1: CheckError carries `span: Span` at the outer struct level —
 /// every variant inherits the location discipline by construction.

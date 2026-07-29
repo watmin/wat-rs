@@ -357,7 +357,7 @@ pub fn rust_opaque_arc(
     match v {
         Value::RustOpaque(inner) => {
             if inner.type_path != expected_path {
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
                     got: Box::new(crate::runtime::ValueSnapshot::unavailable(inner.type_path))
@@ -365,7 +365,7 @@ pub fn rust_opaque_arc(
             }
             Ok(Arc::clone(inner))
         }
-        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: Box::new(crate::runtime::ValueSnapshot::of(other))
@@ -391,7 +391,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
         } });
     }
     inner.payload.downcast_ref::<T>().ok_or_else(|| {
-        RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
+        RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("payload downcast failed — shim author misalignment"))

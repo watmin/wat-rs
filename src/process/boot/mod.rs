@@ -576,188 +576,6 @@ fn _every_boot_reply_variant_is_covered(r: &BootReply) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn frames_round_trip_through_the_wire() {
-        for f in [
-            BootFrame::Chunk { text: "(:user::main)".into() },
-            BootFrame::Chunk { text: "with \"quotes\" and\nnewlines".into() },
-            BootFrame::SubstrateDone,
-            BootFrame::ProgramDone,
-        ] {
-            let wire = f.to_wire();
-            assert!(
-                !wire.contains('\n'),
-                "an encoded frame must carry no RAW newline — the wire is \
-                 newline-framed, so a raw newline would split one frame into two: {wire:?}"
-            );
-            assert_eq!(BootFrame::from_wire(&wire).expect("decode"), f);
-        }
-    }
-
-    #[test]
-    fn ack_round_trips() {
-        assert_eq!(BootReply::from_wire(&BootReply::Ack.to_wire()).expect("decode"), BootReply::Ack);
-    }
-
-    #[test]
-    fn an_unknown_tag_is_refused_not_guessed() {
-        // A DIFFERENTIAL, not a substring check: the only difference between these
-        // two lines is the tag name, so a refusal of the second can be attributed
-        // to the tag and nothing else.
-        assert!(
-            BootFrame::from_wire("#wat.boot/ProgramDone {}").is_ok(),
-            "the control must decode — otherwise the negative case proves nothing"
-        );
-        assert!(
-            BootFrame::from_wire("#wat.boot/Sideways {}").is_err(),
-            "an unrecognised tag must be refused; a child must never improvise"
-        );
-        // And a tag from another namespace is refused too, so `Chunk` alone is not
-        // a password.
-        assert!(BootFrame::from_wire("#other.ns/Chunk {:text \"x\"}").is_err());
-    }
-
-    #[test]
-    fn an_ack_that_is_not_an_ack_is_refused() {
-        // The child answering a frame with anything else means it did not accept
-        // it — the parent must not read that as success.
-        assert!(BootReply::from_wire("#wat.boot/ProgramDone {}").is_err());
-    }
-
-    #[test]
-    fn chunking_never_exceeds_the_frame_budget() {
-        // A payload well past one frame, with multibyte characters at the split
-        // points to prove the codepoint guard holds.
-        let payload: String = "λ(:demo::x 1)".repeat(200_000);
-        let frames = chunk_payload(&payload).expect("chunk");
-        assert!(frames.len() > 1, "a large payload must span frames");
-        for f in &frames {
-            assert!(
-                f.to_wire().len() <= MAX_BOOT_FRAME_BYTES,
-                "every encoded frame must fit the budget"
-            );
-        }
-        // Reassembly is concatenation — the whole point.
-        let rejoined: String = frames
-            .iter()
-            .map(|f| match f {
-                BootFrame::Chunk { text } => text.as_str(),
-                _ => panic!("chunk_payload emits only Chunks"),
-            })
-            .collect();
-        assert_eq!(rejoined, payload, "concatenation must reproduce the payload exactly");
-    }
-
-    /// The transport, driven end-to-end over a REAL pipe pair.
-    ///
-    /// A writer sends a chunked section plus its marker; a `BootReader` reassembles
-    /// it and acks each frame. This is the mechanism the handshake rests on, proven
-    /// before either side of the fork is rewired.
-    #[test]
-    fn a_section_round_trips_over_a_real_pipe_with_acks() {
-        // data: writer → reader.   ack: reader → writer.
-        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
-        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
-        use std::os::fd::AsRawFd;
-
-        // A payload big enough to span frames, with multibyte characters so a
-        // boundary can land mid-codepoint if the chunker is wrong.
-        let payload: String = "λ(:demo::form 1)".repeat(80_000);
-        let frames = chunk_payload(&payload).expect("chunk");
-        assert!(frames.len() > 1, "the payload must span frames for this to prove anything");
-
-        let data_w_fd = data_w.as_raw_fd();
-        let ack_r_fd = ack_r.as_raw_fd();
-        let expected_acks = frames.len() + 1; // every chunk, plus the marker
-
-        // The writer runs on another thread because mini-TCP BLOCKS it: it waits
-        // for each ack before sending the next frame, exactly as the parent will.
-        let writer = std::thread::spawn(move || {
-            let mut acks = BootReader::new(ack_r_fd);
-            for f in frames {
-                write_boot_line(data_w_fd, &f.to_wire()).expect("write chunk");
-                let line = acks.read_line().expect("ack read").expect("ack present");
-                assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
-            }
-            write_boot_line(data_w_fd, &BootFrame::ProgramDone.to_wire()).expect("write marker");
-            let line = acks.read_line().expect("final ack read").expect("final ack present");
-            assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
-            expected_acks
-        });
-
-        let mut reader = BootReader::new(data_r.as_raw_fd());
-        let got = reader
-            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
-            .expect("read_section");
-
-        let acked = writer.join().expect("writer thread");
-        assert_eq!(acked, expected_acks, "every frame AND the marker must be acked");
-        assert_eq!(got, payload, "concatenation must reproduce the payload to the byte");
-    }
-
-    /// A stream that stops before its marker is a NAMED failure, never an empty
-    /// success — the parent going away mid-handshake is exactly the hidden-failure
-    /// shape this arc exists to kill.
-    #[test]
-    fn a_section_that_ends_before_its_marker_is_a_named_failure() {
-        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
-        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
-        use std::os::fd::AsRawFd;
-
-        write_boot_line(
-            data_w.as_raw_fd(),
-            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
-        )
-        .expect("write chunk");
-        drop(data_w); // EOF before the marker — the peer vanished.
-        // ack_r stays ALIVE: the reader still acks the chunk it did receive, and
-        // dropping the read end would make that ack fail with EPIPE — surfacing a
-        // write error instead of the truncation this test is about.
-        let _ack_r_held = ack_r;
-
-        let mut reader = BootReader::new(data_r.as_raw_fd());
-        assert!(
-            reader
-                .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
-                .is_err(),
-            "a section whose marker never arrives must NOT read as an empty success"
-        );
-    }
-
-    /// The control for the truncation test: the SAME stream, with its marker,
-    /// reads clean. Without this the negative case only proves "something failed."
-    #[test]
-    fn the_same_section_with_its_marker_reads_clean() {
-        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
-        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
-        use std::os::fd::AsRawFd;
-        let _ack_r_held = ack_r;
-
-        write_boot_line(
-            data_w.as_raw_fd(),
-            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
-        )
-        .expect("write chunk");
-        write_boot_line(data_w.as_raw_fd(), &BootFrame::ProgramDone.to_wire())
-            .expect("write marker");
-
-        let mut reader = BootReader::new(data_r.as_raw_fd());
-        let got = reader
-            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
-            .expect("a terminated section must read clean");
-        assert_eq!(got, "(:demo::x 1)");
-    }
-
-    #[test]
-    fn an_empty_payload_produces_no_frames() {
-        assert!(chunk_payload("").expect("chunk").is_empty());
-    }
-}
-
 // ─── The substrate section's payload: Config ─────────────────────────────────
 
 /// `Config` on the wire, as EDN.
@@ -942,4 +760,186 @@ pub(crate) fn wire_to_config(
         redef_allowed: boolean("redef-allowed")?,
         eval_redef_allowed: boolean("eval-redef-allowed")?,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frames_round_trip_through_the_wire() {
+        for f in [
+            BootFrame::Chunk { text: "(:user::main)".into() },
+            BootFrame::Chunk { text: "with \"quotes\" and\nnewlines".into() },
+            BootFrame::SubstrateDone,
+            BootFrame::ProgramDone,
+        ] {
+            let wire = f.to_wire();
+            assert!(
+                !wire.contains('\n'),
+                "an encoded frame must carry no RAW newline — the wire is \
+                 newline-framed, so a raw newline would split one frame into two: {wire:?}"
+            );
+            assert_eq!(BootFrame::from_wire(&wire).expect("decode"), f);
+        }
+    }
+
+    #[test]
+    fn ack_round_trips() {
+        assert_eq!(BootReply::from_wire(&BootReply::Ack.to_wire()).expect("decode"), BootReply::Ack);
+    }
+
+    #[test]
+    fn an_unknown_tag_is_refused_not_guessed() {
+        // A DIFFERENTIAL, not a substring check: the only difference between these
+        // two lines is the tag name, so a refusal of the second can be attributed
+        // to the tag and nothing else.
+        assert!(
+            BootFrame::from_wire("#wat.boot/ProgramDone {}").is_ok(),
+            "the control must decode — otherwise the negative case proves nothing"
+        );
+        assert!(
+            BootFrame::from_wire("#wat.boot/Sideways {}").is_err(),
+            "an unrecognised tag must be refused; a child must never improvise"
+        );
+        // And a tag from another namespace is refused too, so `Chunk` alone is not
+        // a password.
+        assert!(BootFrame::from_wire("#other.ns/Chunk {:text \"x\"}").is_err());
+    }
+
+    #[test]
+    fn an_ack_that_is_not_an_ack_is_refused() {
+        // The child answering a frame with anything else means it did not accept
+        // it — the parent must not read that as success.
+        assert!(BootReply::from_wire("#wat.boot/ProgramDone {}").is_err());
+    }
+
+    #[test]
+    fn chunking_never_exceeds_the_frame_budget() {
+        // A payload well past one frame, with multibyte characters at the split
+        // points to prove the codepoint guard holds.
+        let payload: String = "λ(:demo::x 1)".repeat(200_000);
+        let frames = chunk_payload(&payload).expect("chunk");
+        assert!(frames.len() > 1, "a large payload must span frames");
+        for f in &frames {
+            assert!(
+                f.to_wire().len() <= MAX_BOOT_FRAME_BYTES,
+                "every encoded frame must fit the budget"
+            );
+        }
+        // Reassembly is concatenation — the whole point.
+        let rejoined: String = frames
+            .iter()
+            .map(|f| match f {
+                BootFrame::Chunk { text } => text.as_str(),
+                _ => panic!("chunk_payload emits only Chunks"),
+            })
+            .collect();
+        assert_eq!(rejoined, payload, "concatenation must reproduce the payload exactly");
+    }
+
+    /// The transport, driven end-to-end over a REAL pipe pair.
+    ///
+    /// A writer sends a chunked section plus its marker; a `BootReader` reassembles
+    /// it and acks each frame. This is the mechanism the handshake rests on, proven
+    /// before either side of the fork is rewired.
+    #[test]
+    fn a_section_round_trips_over_a_real_pipe_with_acks() {
+        // data: writer → reader.   ack: reader → writer.
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+
+        // A payload big enough to span frames, with multibyte characters so a
+        // boundary can land mid-codepoint if the chunker is wrong.
+        let payload: String = "λ(:demo::form 1)".repeat(80_000);
+        let frames = chunk_payload(&payload).expect("chunk");
+        assert!(frames.len() > 1, "the payload must span frames for this to prove anything");
+
+        let data_w_fd = data_w.as_raw_fd();
+        let ack_r_fd = ack_r.as_raw_fd();
+        let expected_acks = frames.len() + 1; // every chunk, plus the marker
+
+        // The writer runs on another thread because mini-TCP BLOCKS it: it waits
+        // for each ack before sending the next frame, exactly as the parent will.
+        let writer = std::thread::spawn(move || {
+            let mut acks = BootReader::new(ack_r_fd);
+            for f in frames {
+                write_boot_line(data_w_fd, &f.to_wire()).expect("write chunk");
+                let line = acks.read_line().expect("ack read").expect("ack present");
+                assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
+            }
+            write_boot_line(data_w_fd, &BootFrame::ProgramDone.to_wire()).expect("write marker");
+            let line = acks.read_line().expect("final ack read").expect("final ack present");
+            assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
+            expected_acks
+        });
+
+        let mut reader = BootReader::new(data_r.as_raw_fd());
+        let got = reader
+            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .expect("read_section");
+
+        let acked = writer.join().expect("writer thread");
+        assert_eq!(acked, expected_acks, "every frame AND the marker must be acked");
+        assert_eq!(got, payload, "concatenation must reproduce the payload to the byte");
+    }
+
+    /// A stream that stops before its marker is a NAMED failure, never an empty
+    /// success — the parent going away mid-handshake is exactly the hidden-failure
+    /// shape this arc exists to kill.
+    #[test]
+    fn a_section_that_ends_before_its_marker_is_a_named_failure() {
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+
+        write_boot_line(
+            data_w.as_raw_fd(),
+            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
+        )
+        .expect("write chunk");
+        drop(data_w); // EOF before the marker — the peer vanished.
+        // ack_r stays ALIVE: the reader still acks the chunk it did receive, and
+        // dropping the read end would make that ack fail with EPIPE — surfacing a
+        // write error instead of the truncation this test is about.
+        let _ack_r_held = ack_r;
+
+        let mut reader = BootReader::new(data_r.as_raw_fd());
+        assert!(
+            reader
+                .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+                .is_err(),
+            "a section whose marker never arrives must NOT read as an empty success"
+        );
+    }
+
+    /// The control for the truncation test: the SAME stream, with its marker,
+    /// reads clean. Without this the negative case only proves "something failed."
+    #[test]
+    fn the_same_section_with_its_marker_reads_clean() {
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+        let _ack_r_held = ack_r;
+
+        write_boot_line(
+            data_w.as_raw_fd(),
+            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
+        )
+        .expect("write chunk");
+        write_boot_line(data_w.as_raw_fd(), &BootFrame::ProgramDone.to_wire())
+            .expect("write marker");
+
+        let mut reader = BootReader::new(data_r.as_raw_fd());
+        let got = reader
+            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .expect("a terminated section must read clean");
+        assert_eq!(got, "(:demo::x 1)");
+    }
+
+    #[test]
+    fn an_empty_payload_produces_no_frames() {
+        assert!(chunk_payload("").expect("chunk").is_empty());
+    }
 }

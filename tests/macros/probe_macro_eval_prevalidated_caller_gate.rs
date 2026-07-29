@@ -59,7 +59,7 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
         let p = entry.expect("dir entry").path();
         if p.is_dir() {
             collect_rs(&p, out);
-        } else if p.extension().map_or(false, |e| e == "rs") {
+        } else if p.extension().is_some_and(|e| e == "rs") {
             out.push(p);
         }
     }

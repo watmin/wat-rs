@@ -124,7 +124,7 @@ fn c03_the_whole_corpus_crosses_the_wire() {
                 if !p.ends_with("target") {
                     collect(&p, out);
                 }
-            } else if p.extension().map_or(false, |x| x == "wat") {
+            } else if p.extension().is_some_and(|x| x == "wat") {
                 out.push(p);
             }
         }

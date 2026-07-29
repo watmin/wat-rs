@@ -173,7 +173,7 @@ pub fn eval_edn_read(
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                got: Box::new(crate::runtime::ValueSnapshot::of(other))
             } });
         }
     };
@@ -876,7 +876,7 @@ pub fn eval_with_children(
         WatAST::Vector(_, span) => WatAST::Vector(kids, span.clone()),
         WatAST::Set(_, span) => WatAST::Set(kids, span.clone()),
         WatAST::Map(_, span) => {
-            if kids.len() % 2 != 0 {
+            if !kids.len().is_multiple_of(2) {
                 return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!("Map rebuild needs an even child count (k/v interleaved); got {}", kids.len()),
@@ -2891,7 +2891,7 @@ fn tagged_to_value(
         let entries = match body {
             Edn::Map(e) => e,
             _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(
-                format!("wat.core/PersistentMap body must be a map, got non-map")
+                "wat.core/PersistentMap body must be a map, got non-map".to_string()
             ) }),
         };
         let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
@@ -2914,7 +2914,7 @@ fn tagged_to_value(
         let items = match body {
             Edn::Vector(xs) => xs,
             _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(
-                format!("wat.core/PersistentVector body must be a vector, got non-vector")
+                "wat.core/PersistentVector body must be a vector, got non-vector".to_string()
             ) }),
         };
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
@@ -4084,7 +4084,7 @@ fn edn_to_holon_ast_natural(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, Ed
         // Nil, Char, Symbol, BigInt, BigDec, Inst, Set) doesn't
         // correspond to a HolonAST shape in the natural form.
         // arc 138: no span — edn_to_holon_ast_natural walks parsed OwnedValue, no WatAST
-        _ => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("natural-form HolonAST read can't lift this EDN shape; expected primitive leaf or #wat-edn.holon/* tagged composite")) }),
+        _ => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("natural-form HolonAST read can't lift this EDN shape; expected primitive leaf or #wat-edn.holon/* tagged composite".to_string()) }),
     }
 }
 

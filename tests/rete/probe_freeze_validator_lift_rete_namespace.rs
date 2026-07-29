@@ -22,8 +22,7 @@ use wat::freeze::{startup_beside, StartupError};
 #[test]
 fn corrupt_defrule_through_full_pipeline_surfaces_as_validator_error_with_rete_namespace_intact() {
     let err = startup_beside(file!())
-        .err()
-        .expect("the injected bare-keyword clause must be a located freeze error");
+        .expect_err("the injected bare-keyword clause must be a located freeze error");
     let boxed = match err {
         StartupError::Validator(e) => e,
         other => {

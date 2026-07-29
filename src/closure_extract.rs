@@ -1247,7 +1247,7 @@ fn record_dep_dependency(
             state
                 .dep_edges
                 .entry(consumer)
-                .or_insert_with(BTreeSet::new)
+                .or_default()
                 .insert(name.to_string());
         }
     }
@@ -1323,7 +1323,7 @@ fn record_dep_dependency(
     state
         .dep_edges
         .entry(name.to_string())
-        .or_insert_with(BTreeSet::new);
+        .or_default();
 }
 
 fn record_type_dependency(
@@ -1339,7 +1339,7 @@ fn record_type_dependency(
     state
         .type_edges
         .entry(name.to_string())
-        .or_insert_with(BTreeSet::new);
+        .or_default();
 }
 
 fn record_type_dependency_by_name(state: &mut ExtractState<'_>, name: &str) {
@@ -1493,7 +1493,7 @@ fn extract_user_types_to_fixpoint(
                 state
                     .type_edges
                     .entry(name.clone())
-                    .or_insert_with(BTreeSet::new)
+                    .or_default()
                     .insert(dep_ty_name.clone());
             }
         }

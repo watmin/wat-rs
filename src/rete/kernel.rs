@@ -520,7 +520,7 @@ fn sorted_node_ids(network: &Value) -> Vec<i64> {
 }
 
 /// Look up a node by id from the network PersistentMap.
-fn get_node<'a>(network: &'a Value, node_id: i64) -> Option<&'a Value> {
+fn get_node(network: &Value, node_id: i64) -> Option<&Value> {
     match network {
         Value::wat__core__PersistentMap(m) => m.get(&Value::i64(node_id)),
         _ => None,
@@ -1094,17 +1094,14 @@ pub(crate) fn eval_fire_once_native(
 /// derived facts.
 fn collect_derived(production_pm: &Value) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
-    match production_pm {
-        Value::wat__core__PersistentMap(m) => {
-            for (_k, v) in m.iter() {
-                if let Value::wat__core__PersistentVector(pv) = v {
-                    for fact in pv.iter() {
-                        out.push(fact.clone());
-                    }
+    if let Value::wat__core__PersistentMap(m) = production_pm {
+        for (_k, v) in m.iter() {
+            if let Value::wat__core__PersistentVector(pv) = v {
+                for fact in pv.iter() {
+                    out.push(fact.clone());
                 }
             }
         }
-        _ => {}
     }
     out
 }

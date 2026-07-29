@@ -1543,7 +1543,7 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
             // `collect_free_type_vars::is_type_var` in runtime.rs).
             let s = p.strip_prefix(':').unwrap_or(p.as_str());
             !s.contains("::") && !s.contains('.')
-                && s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase())
+                && s.chars().find(|c| c.is_alphabetic()).is_some_and(|c| c.is_uppercase())
         },
         // Type variables (Var) — unresolved; conservatively allow
         TypeExpr::Var(_) => true,
@@ -3093,7 +3093,7 @@ fn infer_list(
                 // resolution in the local environment) but do not
                 // constrain its type — any keyword or function-valued
                 // keyword is accepted.
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -3119,7 +3119,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Path(":wat::core::String".into());
@@ -3146,7 +3146,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Path(":wat::WatAST".into());
@@ -3165,7 +3165,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     // Arc 278 query (a) de-mask — the `query` macro (wat/rete.wat) emits a
                     // LITERAL PRIME type-ref keyword (`:Foo'`) as this arg. A literal keyword
@@ -3224,7 +3224,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -3251,7 +3251,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -3277,7 +3277,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -3303,7 +3303,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -3436,7 +3436,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -3460,7 +3460,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
@@ -3486,7 +3486,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                         let resolved = apply_subst(&arg_ty, subst);
                         // Arc 258 cascade — accept any subtype of :wat::core::Record or
@@ -3525,7 +3525,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
@@ -7758,7 +7758,7 @@ fn collect_splice_defs_ctx(
                     // current type. If types differ, infer_def already emitted
                     // DefRedefTypeChange; don't overwrite.
                     let prior_str = env.get_defined_value_type(&name)
-                        .map(|t| format_type(t))
+                        .map(format_type)
                         .unwrap_or_default();
                     let new_str = format_type(&ty);
                     if prior_str == new_str {
@@ -9944,7 +9944,7 @@ fn infer_send_prime(
                 );
             }
         };
-    if let Err(_) = unify(&payload_ty, &i_ty, subst, env.types()) {
+    if unify(&payload_ty, &i_ty, subst, env.types()).is_err() {
         local_errors.push(CheckError {
             span: args[1].span().clone(),
             kind: CheckErrorKind::TypeMismatch {
@@ -10025,7 +10025,7 @@ fn infer_try_send_prime(
                 );
             }
         };
-    if let Err(_) = unify(&payload_ty, &i_ty, subst, env.types()) {
+    if unify(&payload_ty, &i_ty, subst, env.types()).is_err() {
         local_errors.push(CheckError {
             span: args[1].span().clone(),
             kind: CheckErrorKind::TypeMismatch {
@@ -11428,7 +11428,7 @@ fn infer_kwargs_construct_check(
     let rest = &args[1..];
     // Same kwargs-vs-positional test the eval arm + `build_insert_fact` use.
     let is_kwargs = rest.len() >= 2
-        && rest.len() % 2 == 0
+        && rest.len().is_multiple_of(2)
         && rest.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
 
     // Build the value ASTs in DECLARED order (the prime ctor takes positional values).
@@ -13149,7 +13149,7 @@ fn infer_string_interpolate(
     // args[1..]: (keyword, value) pairs. Validate keyword slots structurally;
     // value slots accept any renderable type — do NOT reject.
     let rest = &args[1..];
-    if rest.len() % 2 != 0 {
+    if !rest.len().is_multiple_of(2) {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::core::string::interpolate".into(),
             expected: args.len() + 1,
@@ -13823,7 +13823,7 @@ fn unify_union_union(
     // Build a HashSet keyed on format_type strings from u1's members,
     // then probe u2's members — O(n+m) instead of O(n×m).
     let set1: std::collections::HashSet<String> =
-        members1.iter().map(|m| format_type(m)).collect();
+        members1.iter().map(format_type).collect();
     if members2.iter().any(|m| set1.contains(&format_type(m))) {
         return Ok(());
     }

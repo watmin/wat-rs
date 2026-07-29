@@ -640,8 +640,8 @@ fn t17_match_wildcard_does_not_surface_as_free() {
     );
     match (parent_v, fresh_v) {
         (Value::bool(a), Value::bool(b)) => {
-            assert_eq!(a, true);
-            assert_eq!(b, true);
+            assert!(a);
+            assert!(b);
         }
         other => panic!("expected bool match; got {:?}", other),
     }
@@ -653,8 +653,8 @@ fn t17_match_wildcard_does_not_surface_as_free() {
     );
     match (parent_v, fresh_v) {
         (Value::bool(a), Value::bool(b)) => {
-            assert_eq!(a, false);
-            assert_eq!(b, false);
+            assert!(!a);
+            assert!(!b);
         }
         other => panic!("expected bool match; got {:?}", other),
     }

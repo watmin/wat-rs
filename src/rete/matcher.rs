@@ -771,7 +771,7 @@ pub(crate) fn eval_step_payload(
 
     // ── Get Session.network (fields[0]) + look up AlphaNode ─────────────
     let network = match &session_val {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.get(0).cloned(),
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.first().cloned(),
         _ => None,
     };
     let network = match network {

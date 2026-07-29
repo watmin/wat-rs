@@ -105,7 +105,7 @@ fn probe_3_assertion_failed_with_optional_fields() {
 #[test]
 fn probe_4_tuple_variant_serializes() {
     let span = Span::new(Arc::new("test.wat".to_string()), 9, 4);
-    let err = RuntimeError { span: span, kind: RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()) };
+    let err = RuntimeError { span, kind: RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()) };
 
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);

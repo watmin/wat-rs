@@ -151,7 +151,7 @@ fn probe_4_nested_tuple_roundtrip() {
                     2,
                     "nested Tuple: inner Tuple (element 0 of outer) must have length 2"
                 );
-                assert_eq!(inner_items.get(0), Some(&Value::i64(1)), "nested Tuple: inner[0] = 1");
+                assert_eq!(inner_items.first(), Some(&Value::i64(1)), "nested Tuple: inner[0] = 1");
                 assert_eq!(inner_items.get(1), Some(&Value::i64(2)), "nested Tuple: inner[1] = 2");
             }
             other => panic!("probe_4: outer[0] should be Tuple; got {:?}", other),
@@ -179,7 +179,7 @@ fn probe_5_tuple_containing_vec_roundtrip() {
                     3,
                     "Tuple containing Vec: inner Vec (element 0) must have length 3"
                 );
-                assert_eq!(inner_v.get(0), Some(&Value::i64(1)), "Tuple containing Vec: inner Vec[0] = 1");
+                assert_eq!(inner_v.first(), Some(&Value::i64(1)), "Tuple containing Vec: inner Vec[0] = 1");
             }
             other => panic!("probe_5: outer[0] should be Vec; got {:?}", other),
         },

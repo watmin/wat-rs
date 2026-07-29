@@ -23,7 +23,6 @@ use std::sync::Arc;
 use wat::channel::{receiver_from_pipe, typed_recv, RecvOutcome};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::runtime::Value;
-use wat_edn;
 
 fn os_pipe() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
     let mut fds = [0i32; 2];

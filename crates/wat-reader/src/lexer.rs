@@ -1267,9 +1267,8 @@ mod tests {
         // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
         // Only the same-type variants (op'f64'f64, op'i64'i64) remain
         // as lexer-level test coverage.
-        for kw in &[
-            ":wat::core::op'f64'f64",
-        ] {
+        {
+            let kw = &":wat::core::op'f64'f64";
             assert_eq!(
                 lex_tokens(kw).unwrap(),
                 vec![Token::Keyword((*kw).into())]

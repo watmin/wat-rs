@@ -197,7 +197,7 @@ mod tests {
         // match levenshtein's char-based distance. needle = 6 chars; threshold = 2.
         // candidate at distance 1 must be admitted.
         let needle = "éééééé"; // 6 chars
-        let candidates = vec!["éééééx"]; // 1 substitution = distance 1
+        let candidates = ["éééééx"]; // 1 substitution = distance 1
         let results = nearest_matches(needle, candidates.iter().copied());
         assert!(!results.is_empty(), "candidate at distance 1 must pass threshold for needle of 6 chars");
     }
