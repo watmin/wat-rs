@@ -1,9 +1,19 @@
 # Arc 170 — Program entry-point contracts + `:user::main` argv
 
-**Status:** IN FLIGHT. DESIGN settled 2026-05-09. Slice 1 + 2 closed.
-Slice 3 in flight with substantial sub-slice work.
+**Status:** **CLOSED 2026-07-29** — see [`INSCRIPTION.md`](./INSCRIPTION.md). Closure condition
+(`wat --repl`) shipped `568cdf82`; all seven `CLOSURE-BACKLOG.md` items closed; floor 4183/4183.
+The closing realization is `PER PORTAM COGITAMVS` in `INTERSTITIAL-REALIZATIONS.md`.
 
-**Current state (2026-05-13):**
+> ⚠ **Everything below this line is the 2026-05-13/14 state and is HISTORICAL.** It is kept
+> because a DESIGN is a living document and its record of what was believed mid-arc is worth
+> preserving — but do not act on it. In particular the "CURRENT BLOCKER (Phase 2b): Gap J" below
+> is DEAD: the branch is *named* after that deadlock, and it was killed at the root by putting an
+> `execve` on every fork (`5078ce28`), which is what made this arc closable and the merge to `main`
+> possible. The clippy closure precondition stated below was measured at close and **rescoped by
+> the builder** — the INSCRIPTION records the measurement, the ruling, and that driving clippy to
+> zero is the immediate next unit of work.
+
+**Historical state (2026-05-13):**
 - Slice 1 (closure extraction) + Slice 2 (substrate consumer) ✅ shipped
 - Slice 3 phases C (Layer 1 `run-hermetic`) + D (Layer 2 `run-hermetic-with-io`) ✅ shipped
 - Slice 3 Gap A (keyword reflection) + Gap B (Sender/close) ✅ shipped

@@ -1,5 +1,11 @@
 # Arc 170 — CLOSURE BACKLOG
 
+> ⚠ **SUPERSEDED — arc 170 is CLOSED, 2026-07-29. ALL SEVEN items are closed; #1 `wat --repl`,
+> the closure condition, shipped at `568cdf82`. See [`INSCRIPTION.md`](./INSCRIPTION.md) for the
+> close, and `PER PORTAM COGITAMVS` in `INTERSTITIAL-REALIZATIONS.md` for what it meant.**
+> Everything below is the live board as it stood on 2026-07-28, kept as the record of the last
+> mile. Do not read the "ONE remains" line as current.
+
 Six tracked items. Opened 2026-07-28, at the builder's direction, after the
 "stopping is a protocol" stone landed green (lock-step restored; the stop asks
 each service, awaits `Status::Stopped`, and severs last).
