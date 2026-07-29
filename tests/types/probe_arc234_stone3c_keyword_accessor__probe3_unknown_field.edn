@@ -1,0 +1,13 @@
+#wat.runtime/UnknownField {
+  :message      "unknown field 'nonexistent' on record myapp::Voltage; available: [magnitude]"
+  :location     #wat.core/Span {
+                  :file "tests/types/probe_arc234_stone3c_keyword_accessor.wat"
+                  :line 20
+                  :col  57
+                  :end  #wat.core.Option/Some [#wat.core/Pos {:line 20 :col 73}]
+                }
+  :causes       []
+  :record-class "myapp::Voltage"
+  :field        "nonexistent"
+  :available    ["magnitude"]
+}
