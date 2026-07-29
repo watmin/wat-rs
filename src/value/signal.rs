@@ -383,6 +383,21 @@ pub enum RuntimeErrorKind {
     /// `MacroError` — surfaced without "runtime::eval failed:" prefix noise.
     /// Macro-body-only: evaluated at expand time (step 4), never post-expansion.
     MacroAbort { message: String },
+    /// Arc 170 closure #5 "the writer joins the lock-step" — `PipeWriter::write`
+    /// polled `[fd, SHUTDOWN_BROADCAST_READ_FD]` before a write attempt (mirroring
+    /// `channel/transfer.rs`'s read-side `read_one_line`) and the broadcast fired
+    /// first. NOT an I/O error — the peer/pipe may be perfectly healthy; the write
+    /// was preempted by a process-wide stop request. Kept distinct from the
+    /// `MalformedForm` a genuine `write(2)` failure (EPIPE, etc.) produces so a
+    /// caller CAN tell "stopped" apart from "broken" once something reads this
+    /// field. Today `channel/transfer.rs`'s `typed_send` PipeFd arm still folds
+    /// this into `SendOutcome::Disconnected` (unchanged from every other
+    /// pipe-write failure) — distinguishing it there needs a `SendOutcome::
+    /// Shutdown` variant, which cascades to `kernel/address.rs`'s
+    /// `ThreadAddress::connect` and has no honest landing spot in `ConnectFail`
+    /// without extending the arc 278 "connect' OUTCOME WALL"; a design call
+    /// left to a follow-up (see `typed_send`'s PipeFd match arm for the detail).
+    WriteStopped,
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError.
@@ -596,6 +611,9 @@ impl RuntimeErrorKind {
                 )
             }
             RuntimeErrorKind::MacroAbort { message } => write!(f, "{}{}", prefix, message),
+            RuntimeErrorKind::WriteStopped => {
+                write!(f, "{}write stopped: a process-wide shutdown was requested", prefix)
+            }
         }
     }
 }

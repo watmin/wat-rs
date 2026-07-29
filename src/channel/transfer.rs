@@ -86,10 +86,20 @@ pub fn typed_send(
             payload.push('\n');
             match writer.write_all(payload.as_bytes(), span) {
                 Ok(()) => SendOutcome::Ok,
-                // Pipe writes fail with EPIPE when the reader is
-                // closed; surface uniformly as Disconnected so the
-                // wat-level Result.Err shape is consistent across
-                // transports.
+                // Arc 170 closure #5 — STOP-2: a `WriteStopped` error (the
+                // shutdown broadcast winning the poll in `PipeWriter::write`,
+                // src/io.rs) lands here too and is folded into Disconnected,
+                // UNCHANGED from today's behavior for every other pipe-write
+                // failure (EPIPE, etc.). This is deliberately NOT distinguished
+                // yet: doing so needs a `SendOutcome::Shutdown` variant, and
+                // that cascades to `kernel/address.rs`'s `ThreadAddress::connect`
+                // (the sole other match site over this enum), whose `ConnectFail`
+                // (the arc 278 "connect' OUTCOME WALL": Refused/Rejected/Failed)
+                // has no non-fabricated variant for "the process is stopping" —
+                // extending that wall is a design call outside this brief's
+                // scope (BRIEF-writer-joins-the-lockstep.md STOP-2). Reported,
+                // not routed around; not a regression (this exact wildcard
+                // already existed for every other pipe-write failure).
                 Err(_) => SendOutcome::Disconnected,
             }
         }

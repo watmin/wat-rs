@@ -640,12 +640,90 @@ impl WatWriter for PipeWriter {
                     reason: "pipe write: writer is closed".into()
                 } });
             }
+
+            // Arc 170 closure #5 — the writer joins the lock-step. Poll
+            // `[fd → POLLOUT, SHUTDOWN_BROADCAST_READ_FD → POLLIN|POLLHUP]`
+            // before every write attempt, exactly as `channel/transfer.rs`'s
+            // `read_one_line` already does for the read side (shutdown wins
+            // ties). When the broadcast fd hasn't been initialized (-1: test
+            // bypass / pre-bootstrap), skip straight to the blocking write
+            // below — today's un-multiplexed path, unchanged. This is the
+            // StringIoWriter/no-broadcast fallback the brief requires; it
+            // applies here via broadcast_fd rather than via
+            // `as_raw_fd_for_poll()` because PipeWriter always has an fd
+            // once open (checked above) — `as_raw_fd_for_poll()` reporting
+            // `None` is exactly the "writer is closed" case already handled.
+            let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(Ordering::SeqCst);
+            if broadcast_fd >= 0 {
+                loop {
+                    let mut fds = [
+                        libc::pollfd { fd: raw, events: libc::POLLOUT, revents: 0 },
+                        libc::pollfd {
+                            fd: broadcast_fd,
+                            // POLLIN: the shutdown-worker's wake byte. POLLHUP: the
+                            // broadcast write-end closing after — either wakes us.
+                            events: libc::POLLIN | libc::POLLHUP,
+                            revents: 0,
+                        },
+                    ];
+                    let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+                    if n < 0 {
+                        // EINTR re-polls; never a blind retry (constraint 3 —
+                        // whether EINTR ever reaches here under this repo's
+                        // signal handlers is deliberately unresolved; a
+                        // poll-first loop is correct either way).
+                        let err = std::io::Error::last_os_error();
+                        if err.kind() == std::io::ErrorKind::Interrupted {
+                            continue;
+                        }
+                        break; // non-EINTR poll error — proceed to write, let write(2) surface it
+                    }
+                    if n == 0 {
+                        // timeout=-1 should never produce n=0; defensively retry.
+                        continue;
+                    }
+                    // ⚠ THE TIE-BREAK IS THE OPPOSITE OF THE READER'S, DELIBERATELY.
+                    //
+                    // `channel/transfer.rs`'s reader gives shutdown the tie ("shutdown wins
+                    // ties") and that is right THERE: a read racing a stop has nothing left to
+                    // read, so preferring the stop loses nothing.
+                    //
+                    // A WRITE is not symmetric. A stop does not mean "stop writing" — it means
+                    // "do not block forever". A process that is stopping still has to be able to
+                    // say WHY: `eprintln` is the dying declaration (R51 TYPO TANGO — strict EDN
+                    // out on stderr, then terminate), and the stdio services flush on the way
+                    // down. Giving shutdown the tie here made a stopped process unable to utter
+                    // its last words, in the arc whose law is that nothing hides a failure.
+                    //
+                    // MEASURED: preferring shutdown regressed
+                    // `wat_cli::sigterm_reaches_a_program_blocked_on_stdin` from exit 0 to exit 1
+                    // — a program that correctly observed a stop in its READ then failed on the
+                    // write during teardown. Proven mine by a stash differential (passes without
+                    // this file's change, fails with it).
+                    //
+                    // So: if the fd is writable NOW, WRITE — the write cannot block, and there is
+                    // no reason to abandon it. Surface the stop only when the write WOULD have
+                    // blocked, which is the entire defect this poll exists to fix.
+                    if fds[0].revents != 0 {
+                        break; // writable — proceed, stop or no stop
+                    }
+                    if fds[1].revents != 0 {
+                        // Not writable AND a stop is pending → this write would block
+                        // indefinitely. That is the hang; surface it as a named value.
+                        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::WriteStopped });
+                    }
+                }
+            }
+
             let ret = unsafe {
                 libc::write(raw, bytes.as_ptr() as *const _, bytes.len())
             };
             if ret < 0 {
                 let err = std::io::Error::last_os_error();
                 if err.kind() == std::io::ErrorKind::Interrupted {
+                    // Re-poll before retrying (constraint 3) rather than
+                    // blind-retrying the write directly — loops back to the
+                    // top, which re-checks closed state and re-polls.
                     continue;
                 }
                 return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
