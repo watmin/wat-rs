@@ -215,7 +215,9 @@ fn key_rename_span_rust_caller_emits_renamed_key() {
     assert!(edn.contains(":call-span"), ":call-span must be emitted; got: {}", edn);
     // File must be a real Rust source path.
     // rune:lint(loose-assert) — variable Rust source path embedded in rust_caller_span!() span; path prefix presence is the contract
-    assert!(edn.contains("\"wat-rs/src/"), ":call-span file must be real Rust path; got: {}", edn);
+    // A real Rust path is one ENDING in `.rs` — wat sources are `.wat`. The old check keyed on a
+    // `wat-rs/` prefix that `rust_caller_span!()` used to glue on; the suffix is the honest test.
+    assert!(edn.contains(".rs\""), ":call-span file must be real Rust path; got: {}", edn);
     // The non-span field must still appear.
     // rune:lint(loose-assert) — EDN embeds rust_caller_span!() making full assert_eq! infeasible; non-span field presence is the contract
     assert!(edn.contains(r#":name "foo""#), ":name must be present; got: {}", edn);
@@ -325,7 +327,7 @@ fn secondary_span_primary_rust_caller_secondary_known() {
     // rune:lint(loose-assert) — EDN embeds rust_caller_span!() (variable Rust file/line/col); key presence is the contract
     assert!(edn.contains(":span"), "primary :span must be emitted; got: {}", edn);
     // rune:lint(loose-assert) — variable Rust source path from rust_caller_span!(); path prefix is the contract
-    assert!(edn.contains("\"wat-rs/src/"), "primary :span must be real Rust path; got: {}", edn);
+    assert!(edn.contains(".rs\""), "primary :span must be real Rust path; got: {}", edn);
     // Secondary span must appear with the known wat location.
     // rune:lint(loose-assert) — EDN embeds variable primary rust_caller_span!(); secondary known-span substring presence is the contract
     // Stone B: span fields emit #wat.core/Span tagged records; substring match on tag + file.
@@ -350,7 +352,7 @@ fn secondary_span_both_rust_caller_both_emit() {
     assert!(edn.contains(":span"), "primary :span must be emitted; got: {}", edn);
     // rune:lint(loose-assert) — EDN embeds two rust_caller_span!() values (variable file/line/col); key presence is the contract
     assert!(edn.contains(":outer-span"), ":outer-span must be emitted; got: {}", edn);
-    assert!(edn.matches("\"wat-rs/src/").count() >= 2, "both spans must have real Rust paths; got: {}", edn);
+    assert!(edn.matches(".rs\"").count() >= 2, "both spans must have real Rust paths; got: {}", edn);
     // Non-span field must appear.
     // rune:lint(loose-assert) — EDN embeds variable rust_caller_span!() values making full assert_eq! infeasible; non-span field presence is the contract
     assert!(edn.contains(r#":name "def""#), ":name must be present; got: {}", edn);

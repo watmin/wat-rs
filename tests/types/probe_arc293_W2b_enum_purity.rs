@@ -29,7 +29,7 @@ fn pure_enum_with_struct_field_rejected() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "wat-rs/src/check.rs", line: 13659, col: 43, end_line: 13659, end_col: 43 }, kind: ImpureVariantFieldInPureEnum { enum_name: ":w2b::BadEvt", variant: "Live", field: "c", field_ty: ":w2b::Conn" } })"#);
+            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "src/check.rs", line: 13659, col: 43, end_line: 13659, end_col: 43 }, kind: ImpureVariantFieldInPureEnum { enum_name: ":w2b::BadEvt", variant: "Live", field: "c", field_ty: ":w2b::Conn" } })"#);
         }
     }
 }

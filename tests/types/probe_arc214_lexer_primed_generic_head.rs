@@ -76,6 +76,6 @@ fn primed_two_param_with_space_fails_same_as_unprimed() {
     )
     .expect_err("whitespace inside <...> is a lex error by design (unprimed control)");
     let unprimed = format!("{}", unprimed);
-    assert_eq!(primed, "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 201: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace");
-    assert_eq!(unprimed, "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 178: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace");
+    assert_eq!(primed, "parse: crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 201: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace");
+    assert_eq!(unprimed, "parse: crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 178: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace");
 }

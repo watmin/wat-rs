@@ -685,10 +685,11 @@ mod tests {
         // Arc 298.2: rust_caller_span!() IS a real location — :span MUST be emitted.
         // rune:lint(loose-assert) — output is variable (rust_caller_span!() + nested ParseError location); :span key presence is the contract
         assert!(s.contains(":span"), "rust_caller_span!() must emit :span; got: {}", s);
-        // :span must reference a real Rust file (wat-rs/src/…), not <runtime>.
+        // :span must reference a real Rust file (a `.rs` path), not <runtime>. The suffix is
+        // the honest test; the old `wat-rs/` prefix was glue, not provenance.
         // rune:lint(loose-assert) — variable Rust source file path embedded in span (varies by build environment); path prefix presence is the contract
         assert!(
-            s.contains("\"wat-rs/src/"),
+            s.contains(".rs\""),
             ":span file must be a real Rust path; got: {}",
             s
         );

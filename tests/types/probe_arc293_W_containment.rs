@@ -26,7 +26,7 @@ fn a_record_cannot_declare_a_struct_field() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "wat-rs/src/check.rs", line: 13641, col: 35, end_line: 13641, end_col: 35 }, kind: ImpureFieldInPureAggregate { aggregate: ":w::Bad", field: "c", field_ty: ":w::Conn" } })"#);
+            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "src/check.rs", line: 13641, col: 35, end_line: 13641, end_col: 35 }, kind: ImpureFieldInPureAggregate { aggregate: ":w::Bad", field: "c", field_ty: ":w::Conn" } })"#);
         }
     }
 }

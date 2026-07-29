@@ -33927,7 +33927,7 @@ mod tests {
         let err_msg = format!("{}", result.unwrap_err());
         assert!(
             // rune:lint(loose-assert) — Display embeds a rust_caller_span!() from the test code
-            // (e.g. "wat-rs/src/runtime.rs:N:col:"); line shifts when lines are added above the
+            // (e.g. "src/runtime.rs:N:col:"); line shifts when lines are added above the
             // rust_caller_span!() call, making full assert_eq! infeasible; these N checks test
             // the stable message body only (class name + teaching text)
             err_msg.contains("base record")

@@ -103,7 +103,7 @@ fn char_literal_supplementary_plane_rejected() {
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 292: invalid character literal: \\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)",
+        "parse: crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 292: invalid character literal: \\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)",
         "error must be exact lex rejection golden"
     );
 }

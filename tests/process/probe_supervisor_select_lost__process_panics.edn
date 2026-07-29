@@ -10,7 +10,7 @@
       }]
       :frames [
         #wat.kernel/Frame {
-          :file #wat.core.Option/Some ["wat-rs/src/freeze.rs"]
+          :file #wat.core.Option/Some ["src/freeze.rs"]
           :line #wat.core.Option/Some [1014]
           :symbol #wat.core.Option/Some [":user::main"]
         }

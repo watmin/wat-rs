@@ -114,7 +114,7 @@ impl std::fmt::Display for Span {
 /// Rust panic prints a stack backtrace, stdlib frames carry
 /// `/rustc/.../library/core/.../function.rs:250:5` as their
 /// source location. wat does the same: runtime-initiated calls
-/// carry `wat-rs/src/<file>.rs:<line>:<col>` so a wat author
+/// carry `src/<file>.rs:<line>:<col>` so a wat author
 /// debugging the runtime knows exactly which Rust file invoked
 /// their wat.
 ///
@@ -125,7 +125,7 @@ impl std::fmt::Display for Span {
 macro_rules! rust_caller_span {
     () => {
         $crate::span::Span::new(
-            ::std::sync::Arc::new(format!("wat-rs/{}", file!())),
+            ::std::sync::Arc::new(file!().to_string()),
             line!() as i64,
             column!() as i64,
         )

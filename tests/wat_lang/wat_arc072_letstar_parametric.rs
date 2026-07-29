@@ -71,7 +71,7 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
     let err_msg = format!("{}", err);
     assert_eq!(
         err_msg,
-        "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 236: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace",
+        "parse: crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 236: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace",
         "expected exact lex-layer diagnostic for whitespace inside unclosed bracket"
     );
 }

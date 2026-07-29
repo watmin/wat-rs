@@ -15,7 +15,7 @@ pub use wat_reader::span::*;
 macro_rules! rust_caller_span {
     () => {
         $crate::span::Span::new(
-            ::std::sync::Arc::new(format!("wat-rs/{}", file!())),
+            ::std::sync::Arc::new(file!().to_string()),
             line!() as i64,
             column!() as i64,
         )
