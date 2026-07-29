@@ -101,16 +101,47 @@ unsafe impl Send for ExecPlan {}
 impl ExecPlan {
     /// Build the plan — ALL allocation happens here, in the parent.
     ///
-    /// argv is `[exe]` and nothing more. A spawned runtime takes no command
-    /// line: it is told what to do over the wire, and `(:wat::runtime::argv)`
-    /// is empty in a child by contract. The environment is inherited verbatim
-    /// so config-by-env keeps working.
-    pub(crate) fn build() -> std::io::Result<Self> {
+    /// `label` is arc 170 closure #6's `ps`-visible identity: the `edn::write`
+    /// rendering of the spawner's `user.program` record (e.g. `#my.app/CounterSvc
+    /// {}`, `#wat.brackets/Worker {:id 3}`), or `None` when the caller declared no
+    /// identity. When present it becomes argv\[1\]; `None` leaves argv exactly
+    /// `[exe]`, unchanged from before this field existed.
+    ///
+    /// ⛔ THE WALL — the label DESCRIBES, it must never ROUTE.
+    /// `distribution::mod::run_with_args`'s rejection of a `--forms-server`
+    /// flag (arc 170 step 4; see the comment there — *"a flag would be public
+    /// user surface for an internal mechanism: typeable at a shell and visible
+    /// in `ps`, and it would be a CLAIM where this is a WITNESS"*) is the same
+    /// reasoning applied to a flag; a label is the identical trap in a
+    /// friendlier costume. fd 3 ([`LIFELINE_FD`]) stays the SOLE gate for "was
+    /// I spawned" — `spawned_runtime::was_spawned()` reads only that fd, and
+    /// `run_with_args` checks it BEFORE argv is ever parsed for a Mode.
+    /// Nothing may ever parse argv\[1\] to decide behavior: a shell invocation
+    /// with a forged `#ns/Thing {}` argument and no fd 3 must be
+    /// indistinguishable from any other bogus argv\[1\] (it falls through to
+    /// the ordinary CLI parser, is read as an entry-file path exactly like any
+    /// other string, and fails to load — see
+    /// `tests/process/wat_arc170_closure6_label_wall.rs`). Never add a branch
+    /// that inspects this string.
+    ///
+    /// A spawned runtime still takes no COMMAND LINE in the sense that matters:
+    /// it is told what to do over the wire, and `(:wat::runtime::argv)` is
+    /// empty in a child by contract (`spawned_runtime::serve` calls
+    /// `set_argv(Vec::new())` unconditionally, never reading OS argv — the
+    /// label and the ambient argv are disjoint by code path, gated below). The
+    /// environment is inherited verbatim so config-by-env keeps working.
+    pub(crate) fn build(label: Option<&str>) -> std::io::Result<Self> {
         let exe_path = runtime_binary()?;
         let exe = CString::new(exe_path.as_os_str().as_encoded_bytes())
             .map_err(|_| std::io::Error::other("executable path contains a NUL byte"))?;
 
-        let argv: Vec<CString> = vec![exe.clone()];
+        let mut argv: Vec<CString> = vec![exe.clone()];
+        if let Some(l) = label {
+            argv.push(
+                CString::new(l.as_bytes())
+                    .map_err(|_| std::io::Error::other("identity label contains a NUL byte"))?,
+            );
+        }
         let envp: Vec<CString> = std::env::vars_os()
             .filter_map(|(k, v)| {
                 let mut kv = k.into_encoded_bytes();

@@ -1787,7 +1787,16 @@
      ;; arc 291 kwargs-start: flip to Form A all-kwargs; locus-sym shared with body for hygiene.
      start-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
      start-body    `(:wat::core::let
-                      [~lr-sym (~launch-head-kw ~locus-sym
+                      [~lr-sym (~launch-head-kw
+                                 ;; arc 170 closure #6 — label this service's process locus
+                                 ;; with its own fqdn (the closed `:wat::process::Service`
+                                 ;; identity, wat/process.wat); a no-op for a thread locus
+                                 ;; (with-label's ThreadOpts arm). `fqdn-base` is the
+                                 ;; params-stripped BASE name — a runtime-name-string keyword,
+                                 ;; same convention as `::Handle{p}`'s sibling names.
+                                 (:wat::spawn::with-label ~locus-sym
+                                   (:wat::process::Service :name
+                                     (:wat::core::keyword/from-string ~fqdn-base)))
                                  (~admin-init-kw ~@init-arg-names)
                                  (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
@@ -1813,7 +1822,11 @@
      ;; All init binders are spliced in; resume re-accepts all live operating-inputs.
      resume-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
      resume-body    `(:wat::core::let
-                       [~lr-sym (~launch-head-kw ~locus-sym
+                       [~lr-sym (~launch-head-kw
+                                  ;; arc 170 closure #6 — see start-body's identical wrap.
+                                  (:wat::spawn::with-label ~locus-sym
+                                    (:wat::process::Service :name
+                                      (:wat::core::keyword/from-string ~fqdn-base)))
                                   (~admin-resume-kw ~@init-arg-names)
                                   (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                   (:wat::core::keyword/from-string ~serve-name-str)

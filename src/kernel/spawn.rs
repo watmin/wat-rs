@@ -481,12 +481,12 @@ pub fn eval_kernel_spawn_process_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-process";
-    if args.len() != 4 {
+    if args.len() != 5 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 4,
+                expected: 5,
                 got: args.len(),
             },
         }
@@ -548,8 +548,27 @@ pub fn eval_kernel_spawn_process_prime(
         }
     };
 
+    // arg 4: identity — Option<Record>, the ps-visible label (arc 170 closure #6). Unlike
+    // env-fn (a source string the CHILD evals), this is a VALUE the parent already holds —
+    // it never needed the child's world, so it reaches ExecPlan::build() directly. `None`
+    // means "no identity declared" (today's bare `wat` argv, unchanged).
+    let identity = match eval_inner(&args[4], env, sym)?.value_owned() {
+        Value::Option(opt) => (*opt).clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[4].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Option<Record> value (identity label) for process tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
     // Delegate to the shared process-tier spawn logic.
-    spawn_process_peer(forms, post_spawn_fn, env_fn, max_frame_bytes, sym, list_span).map_err(Into::into)
+    spawn_process_peer(forms, post_spawn_fn, env_fn, max_frame_bytes, identity, sym, list_span).map_err(Into::into)
 }
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
@@ -779,11 +798,19 @@ pub fn spawn_thread_peer(
 ///
 /// `ProcessPeerBundle` wrapped in `Arc<ThreadOwnedCell<...>>` →
 /// `Value::RustOpaque(PROCESS_PEER_TYPE_PATH)`.
+///
+/// `identity` is arc 170 closure #6's `ps`-visible label — `Some(record)` when
+/// the caller declared one (`ProcessOpts::identity`), `None` for "no identity
+/// declared" (the ordinary bare `wat` argv). Unlike `env_fn` (a source string
+/// the CHILD evaluates against its own frozen world), the identity is a VALUE
+/// the parent already holds in full — it is rendered to EDN here, parent-side,
+/// and crosses straight into `ExecPlan::build()`.
 pub fn spawn_process_peer(
     forms: Vec<WatAST>,
     post_spawn_fn: Arc<Function>,
     env_fn: String,
     max_frame_bytes: usize,
+    identity: Option<Value>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
@@ -862,11 +889,21 @@ pub fn spawn_process_peer(
     let boot_write_fd = input_tx.raw_fds()[0];
     let boot_ack_fd = output_rx.raw_fds()[0];
 
+    // Arc 170 closure #6 — the ps-visible label. DESCRIBES only, never ROUTES
+    // (see ExecPlan::build's wall doc). Rendered here, parent-side, with the
+    // caller's own type registry (sym.types()) so a record's fields carry
+    // their declared names, not positional `:field-N` fallback. Only the
+    // INNER record is rendered (never the Option wrapper) — `Some(r) => "#ns/
+    // Name {...}"`, `None => no label at all`.
+    let label: Option<String> = identity.as_ref().map(|record| {
+        crate::edn_shim::value_to_edn_string_with(record, sym.types().map(|a| a.as_ref()))
+    });
+
     // Arc 170 step 4 — the exec payload, built HERE in the parent. Everything
     // the child needs is allocated before the clone, so the window between
     // `clone3` and `execve` can touch nothing but raw syscalls. See
     // `process::exec_plan`'s module doc for why that rule is absolute.
-    let exec_plan = crate::process::exec_plan::ExecPlan::build().map_err(|e| RuntimeError {
+    let exec_plan = crate::process::exec_plan::ExecPlan::build(label.as_deref()).map_err(|e| RuntimeError {
         span: list_span.clone(),
         kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),

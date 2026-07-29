@@ -9556,9 +9556,9 @@ fn infer_spawn_thread_prime(
     }
 }
 
-/// Type-check `(:wat::kernel::spawn-process forms post-spawn-fn env-fn max-message-bytes)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-process forms post-spawn-fn env-fn max-message-bytes identity)` — arc 259 Stone S2c-i.
 ///
-/// Four positional args:
+/// Five positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
 ///   returns `Process'<I,O>` with independent fresh vars. Uses
 ///   `infer_process_prog_type` (the shared projection helper).
@@ -9570,6 +9570,11 @@ fn infer_spawn_thread_prime(
 /// - `args[3]`: max-message-bytes; an `:wat::core::i64` per-receiver frame-size
 ///   budget extracted from `ProcessOpts/max-message-bytes`; inferred only (runtime
 ///   validates the value is an i64).
+/// - `args[4]`: label; arc 170 closure #6's ps-visible identity —
+///   `Option<:wat::core::Record>` extracted from `ProcessOpts/label`; inferred
+///   only (runtime validates it is an Option, and renders the inner record to EDN
+///   with the caller's own type registry — see `kernel::spawn::spawn_process_peer`).
+///   A VALUE, unlike env-fn's source string — it never needed the child's world.
 ///
 /// No tier keyword, no env arg.
 fn infer_spawn_process_prime(
@@ -9582,12 +9587,12 @@ fn infer_spawn_process_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::spawn-process";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 4 {
+    if args.len() != 5 {
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(),
-                expected: 4,
+                expected: 5,
                 got: args.len(),
             },
         });
@@ -9612,6 +9617,10 @@ fn infer_spawn_process_prime(
 
     // arg 3: max-message-bytes — an i64 budget; infer only (runtime validates it's an i64).
     let _ = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg 4: identity — Option<Record> ps-visible label; infer only (runtime validates it's
+    // an Option and renders the inner record, if any, to EDN).
+    let _ = infer(&args[4], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // Delegate to the shared process-projection helper (same logic as spawn-program' :process).
     let (val, mut proj_errs) = infer_process_prog_type(&args[0], env, locals, fresh, subst).into_parts();

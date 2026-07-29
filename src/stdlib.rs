@@ -139,6 +139,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/capability.wat",
         source: include_str!("../wat/capability.wat"),
     },
+    // Arc 170 closure #6 — :wat::process::Bracket / :wat::process::Service, the closed set
+    // of ps-visible spawned-process identities (the label `:wat::spawn::ProcessOpts/label`
+    // rides). Loaded AFTER Record.wat (uses :wat::core::defrecord), BEFORE wat/spawn.wat's
+    // two consumers (wat/bracket.wat, wat/service.wat) that construct these types.
+    WatSource {
+        path: "wat/process.wat",
+        source: include_str!("../wat/process.wat"),
+    },
     // Arc 259 (The Forced Hand) — the host opts for spawn-program (the Keymaker):
     // ThreadOpts / ProcessOpts / RemoteOpts + their constructors. Loaded AFTER
     // Record.wat (uses :wat::core::defrecord).

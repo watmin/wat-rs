@@ -630,7 +630,11 @@
                  -> :wat::kernel::Peer<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>
                (:wat::core::let
                  [work-fn (worker-init i)                          ;; per-runner setup, once
-                  p (:wat::spawn::Locus/spawn-runner locus work-fn)
+                  ;; arc 170 closure #6 — label THIS runner with its own index before spawning
+                  ;; it (the ps-visible `#wat.process/Bracket {:id N}`, wat/process.wat); a
+                  ;; no-op for a thread locus (with-label's ThreadOpts arm).
+                  locus-i (:wat::spawn::with-label locus (:wat::process::Bracket :id i))
+                  p (:wat::spawn::Locus/spawn-runner locus-i work-fn)
                   ;; GRANT-BOOT: if the far end is a process (peer-pid → Some pid), grant that
                   ;; kernel-vouched pid — a SINGLE typed call (a no-op for a plain pool: its
                   ;; grant-fn ignores both args). BEFORE the first item is sent, so the grant

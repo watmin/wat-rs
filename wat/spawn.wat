@@ -56,11 +56,30 @@
 ;; `map`/`each` themselves (wat/bracket.wat's `map-worker`, absorbing the former `uses'`), not a
 ;; field baked into the locus opts. A locus is once again just "where to execute" (thread vs
 ;; process) — the pool coordinator decides what to provision, per call, not the key.
+;; `label` — arc 170 closure #6: the ps-visible identity. Named `label`, not
+;; `identity` — cast + builder-ratified: `exec_plan.rs:29-35` rejects a
+;; `--forms-server` routing flag because it would be "a CLAIM where this is a
+;; WITNESS"; `identity` reads as a claim, `label` reads as a witness. THE NAME
+;; CARRIES THE INVARIANT. `Option`, not a bare Record — "no label declared" is
+;; a real state (a test harness spawning a bare program) and `None` must mean
+;; NO label at all (today's bare `wat` line), never an empty `{}` that says
+;; nothing. Set ONCE at spawn time, fixed for the process's whole lifetime
+;; (builder ruling: "these would be fixed at boot — the procs are purpose
+;; built"). It is a VALUE, unlike `env-fn` (a source string the CHILD evals in
+;; a world that does not exist parent-side — see the arc 170 closure #6 STOP
+;; that killed evaluating env-fn parent-side) — the label is a static fact the
+;; SPAWNER already knows, so it reaches `ExecPlan::build()` directly.
+;; DESCRIBES only; never ROUTES — see `:wat::spawn::with-label` and
+;; `src/process/exec_plan.rs`'s wall doc. The record's TYPE is a closed set
+;; the substrate owns (`:wat::process::Bracket` | `:wat::process::Service`,
+;; wat/process.wat) — no caller mints its own tag, so `ps` output stays a set
+;; an operator can learn once and match exhaustively.
 (:wat::core::defstruct :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64
-   runner-count      <- :wat::core::i64])
+   runner-count      <- :wat::core::i64
+   label             <- (:wat::core::Option :wat::core::Record)])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
@@ -105,31 +124,35 @@
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
-    :runner-count (:wat::program::cpu-count)))
+    :runner-count (:wat::program::cpu-count)
+    :label :wat::core::None))
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count)))
+  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count) :label :wat::core::None))
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn s
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
-    :runner-count (:wat::program::cpu-count)))
+    :runner-count (:wat::program::cpu-count)
+    :label :wat::core::None))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes n
-    :runner-count (:wat::program::cpu-count)))
+    :runner-count (:wat::program::cpu-count)
+    :label :wat::core::None))
 
 (:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
-    :runner-count n))
+    :runner-count n
+    :label :wat::core::None))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
@@ -293,9 +316,11 @@
   ;; after the child is forked, with a ProcessLaunch{pid} carrying the child pid.
   ;; The locus's env-fn (extracted via ProcessOpts/env-fn) is a source string the child
   ;; evals in its own frozen world to produce user.program.
+  ;; The locus's label (extracted via ProcessOpts/label) is arc 170 closure #6's
+  ;; ps-visible identity — a VALUE (unlike env-fn), read straight off the locus.
   ([locus <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process<I,O>
-    (:wat::kernel::spawn-process prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus) (:wat::spawn::ProcessOpts/max-message-bytes locus))))
+    (:wat::kernel::spawn-process prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus) (:wat::spawn::ProcessOpts/max-message-bytes locus) (:wat::spawn::ProcessOpts/label locus))))
 
 ;; ── Locus — the locus-agnostic service-launch surface (arc 209 host-parity-4a) ─
 ;;
@@ -348,6 +373,50 @@
    (spawn-runner<D,I,O,W> [self    <- :wat::spawn::Locus
                            work-fn <- :W]
      -> :wat::kernel::Peer<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>)])
+
+;; ── with-label — attach the ps-visible identity to a locus (arc 170 closure #6) ──
+;; Locus-agnostic so both a defservice's `start`/`resume` and bracket's `map-worker`
+;; can set a label without knowing the concrete locus type. ThreadOpts arm is a
+;; no-op (a thread peer shares the parent's `ps` line — there is nothing to label,
+;; and ThreadOpts carries no `label` field). ProcessOpts arm rebuilds with
+;; `:label (Some r)`, overwriting whatever was there (last call wins — matches
+;; "fixed at boot", since nothing calls this after a locus is actually spawned).
+;; The INTENDED vocabulary is the two substrate-owned identity types
+;; (`:wat::process::Bracket` | `:wat::process::Service`, wat/process.wat) — SHAPE 2 was
+;; ratified over SHAPE 1 precisely so `ps` output is a set an operator learns once and
+;; matches exhaustively.
+;;
+;; ⚠ THAT RESTRICTION IS A CONVENTION HERE, NOT A WALL — say so rather than let a comment
+;; claim a guarantee the code does not make. NOTHING closes the set today: `:R` is a
+;; wildcard at runtime dispatch (`is_type_var` -> `return true`, runtime.rs) and a free
+;; type-var to the checker, and `ProcessOpts/label` is `(Option Record)` — the record-TOP,
+;; which by construction admits every record. So ANY record type-checks and dispatches as a
+;; ps label; `ps` output is, as it stands, the OPEN set SHAPE 1 was rejected for.
+;; PROVEN, not asserted: wat-scripts/scratch-pad/probe-label-closed-set.wat mints a rogue
+;; `:probe::Rogue` record, hands it to this clause, and type-checks GREEN. That probe is the
+;; live witness — it goes RED the day the set is genuinely closed, which is its whole job.
+;;
+;; `r`'s param type is the bare type-var `:R`, NOT `:wat::core::Record` — a runtime-dispatch
+;; gap, grounded, not a style choice: `defclause`'s dispatcher (`value_matches_type_by_name`,
+;; runtime.rs) matches a concrete-record-typed param against the value's EXACT `class`
+;; (`bare_p == a.class`), the same rule that lets it discriminate `:user::Tag`-shaped clauses
+;; — it does NOT walk the assignability/subtype lattice the STATIC checker does. Declaring
+;; this param `:wat::core::Record` type-checks fine (the checker DOES know Bracket/Service are
+;; Record subtypes) but then fails EVERY call at runtime (`Bracket`/`Service` != the literal
+;; string `"wat::core::Record"`). A bare type-var is a WILDCARD at runtime dispatch by the
+;; same function (`is_type_var` arm) — exactly the posture `process-work-forms`'s generic `:W`
+;; clause already relies on (bracket.wat) — so dispatch here rests entirely on the FIRST
+;; param (the locus's concrete type), which is the one that actually needs to discriminate.
+;; DESCRIBES only, never crosses as anything but inert EDN (see ProcessOpts' `label` field doc).
+(:wat::core::defclause :wat::spawn::with-label
+  ([locus <- :wat::spawn::ThreadOpts   _r <- :R] -> :wat::spawn::Locus locus)
+  ([locus <- :wat::spawn::ProcessOpts  r  <- :R] -> :wat::spawn::Locus
+    (:wat::spawn::ProcessOpts
+      :post-spawn-fn     (:wat::spawn::ProcessOpts/post-spawn-fn locus)
+      :env-fn            (:wat::spawn::ProcessOpts/env-fn locus)
+      :max-message-bytes (:wat::spawn::ProcessOpts/max-message-bytes locus)
+      :runner-count      (:wat::spawn::ProcessOpts/runner-count locus)
+      :label             (:wat::core::Some r))))
 
 ;; ── Arc 278 Strike A — the ONE canonical Failure constructor ─────────────────
 ;; `:wat::kernel::Failure` is canonically a Record (Nature::Record, pure EDN — arc 293.W.2b:
