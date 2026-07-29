@@ -994,6 +994,49 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // Arc 278 Stone 1 (`wat --mcp`) — :wat::edn::ReadJsonOutcome<T> — what
+    // `:wat::edn::read-json` returns.
+    //
+    // `:wat::edn::read-json`'s input arrives from a REMOTE, UNTRUSTED harness over stdio (the
+    // MCP JSON-RPC transport), so a malformed byte must not be able to raise: exactly the failure
+    // `:wat::core::read-string` was converted to fix above — one bad byte unwinding a raise
+    // THROUGH the loop and killing the session. Mirrors `:wat::core::ReadOutcome` variant-for-
+    // variant, including WHY the cause is the structural `:wat::core::Error` and not a
+    // JSON-specific enum: `wat_edn::JsonError`'s variants in every caller's exhaustive match would
+    // be arms nobody branches on. Discrimination lives in the navigable causes tree.
+    //
+    // PARAMETRIC over `T` — CORRECTED from a first pass that declared `:Value`'s payload as the
+    // bare `:wat::core::Value` (the universal top, arc 278 R7). That was wrong: UP is free, DOWN is
+    // CHECKED, so a `:wat::core::Value` payload can be PRODUCED but never CONSUMED — no accessor
+    // (`HashMap/get`, a Struct/Record field, …) type-checks against an opaque `Value` receiver, by
+    // design (measured: `HashMap/get` on a decoded JSON object refused with "expected
+    // HashMap<?,?>; got :wat::core::Value"). `T` is generic exactly as `ReadlnOutcome<T>`'s `T` is
+    // (immediately above) and for the same reason — the payload's type is the CALLER's, driven by
+    // the annotated binding, not ours to fix in advance.
+    //
+    //   :Value     [value <- T] — the decoded value, at the caller's chosen type
+    //   :Malformed [cause]      — the JSON text did not parse (or did not decode)
+    //
+    // Pure, and for `ReadOutcome`'s stated reason: the payload holds no fd and no peer (T here is
+    // ordinary decoded data — a String/HashMap/record — never a live resource, unlike
+    // `ReadlnOutcome<T>`'s T which can be), and `:wat::core::Error` is Record-natured. Marking it
+    // Impure would bar it from pure aggregates and the wire for nothing.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::edn::ReadJsonOutcome".into(),
+        type_params: vec!["T".into()],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Value".into(),
+                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Malformed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
+            },
+        ],
+    }));
+
     // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
     //
     // A FRAME, not a line, and the name is load-bearing: `read_framed_edn`

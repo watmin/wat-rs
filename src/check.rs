@@ -17145,6 +17145,30 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 Stone 1 (`wat --mcp`) — `(:wat::edn::read-json s)` → `:wat::edn::ReadJsonOutcome<T>`.
+    // The JSON-input twin of `:wat::edn::read`: parses JSON (not EDN) text via
+    // `wat_edn::from_json_string`, then the same typed `edn_to_value` decode. TOTAL — see
+    // `ReadJsonOutcome` in `types.rs` for why (this verb's input arrives from a remote,
+    // untrusted harness over stdio, so a malformed byte must not be able to raise).
+    //
+    // POLYMORPHIC-fresh-var payload, mirroring `:wat::edn::read`/`read-foreign` immediately below
+    // (`ret: t_var()`) — CORRECTED from a first pass that fixed `:Value`'s payload at the bare
+    // `:wat::core::Value` (the universal top). That is a produce-only type (UP is free, DOWN is
+    // checked — arc 278 R7), so nothing could ever read a field back out of it; measured directly
+    // (`HashMap/get` on the decoded value refused to type-check). `T` here flows from the caller's
+    // annotated binding, exactly as `ReadlnOutcome<T>`'s `T` does.
+    env.register(
+        ":wat::edn::read-json".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::edn::ReadJsonOutcome".into(),
+                args: vec![t_var()],
+            },
+            rest_param_type: None,
+        },
+    );
     // Arc 251.5a-i — `(:wat::core::read-string s)` → `:wat::core::ReadOutcome`. The homoiconic
     // `read`: wat SOURCE text → forms-as-data (a WatAST::List of top-level forms),
     // WITHOUT eval. Distinct from `edn::read` (EDN parser) — this runs wat's own

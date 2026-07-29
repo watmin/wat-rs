@@ -7,13 +7,31 @@
 ;;     print  →  the outcome, as EDN (it already IS data; nothing formats it)
 ;;     loop   →  tail-invoke with defs GROWN if the line was a declaration, unchanged if not
 ;;
-;; The state split the whole design rests on:
-;;   :durable    `defs` — a `Vector<WatAST>`. Forms are PURE by nature (a tree of keywords
-;;               and literals holds no fd and no peer), so the definition set is data that
-;;               ships, hibernates, and replays.
-;;   :ephemeral  the live `Environment` — never rebuilt, and it does not need to be, because
-;;               `run_constrained(ast, env, sym)` has always taken `env` separately from the
-;;               symbol table. A bound service survives every re-freeze for free.
+;; THE STATE, and it is a LOOP PARAMETER — not a defservice.
+;;
+;; ⚠ This paragraph used to describe a `:durable` / `:ephemeral` split, i.e. defservice clause
+;; vocabulary, for a file that contains NO defservice: `:repl::turn`/`eval-and-loop`/`eval-form`
+;; are three plain `defn`s and `defs` is a tail-call parameter. That wording is a leftover from
+;; the earlier REPL demos, which WERE a spawned service you dialled — a design where the session
+;; genuinely crossed callers. The architecture changed; the comment did not, and it cost an hour
+;; of "is this a service or not" before anyone opened the file. Kept visible: a stale comment
+;; reads as grounded precisely because it is specific.
+;;
+;;   defs — a `Vector<WatAST>`, threaded through the tail call. Forms are PURE by nature (a tree
+;;          of keywords and literals holds no fd and no peer), so the definition set is data that
+;;          ships and replays. It lives for the process and dies with it.
+;;
+;; The live `Environment` is NOT in this file at all — it is Rust-side, threaded by
+;; `eval-with-defs!` (`run_constrained(ast, env, sym)` has always taken `env` separately from the
+;; symbol table), which is why a bound service survives every re-freeze for free.
+;;
+;; WHY NOT A SERVICE. The builder's own test (arc 278 R27) is whether state crosses CALLERS: a
+;; defservice exists so state can outlive and be reached by more than one of them — that is what
+;; the address and the actor-as-mutex are for. `defs` never crosses one. A single loop owns it
+;; from the first turn to EOF, and the stdio it reads and writes through
+;; (`stdin-svc`/`stdout-svc`, wat/kernel/services/stdio.wat) ARE services — the I/O is
+;; service-backed, the session is not. A defservice here would mint an address nobody dials and
+;; a mutex with nothing to serialize.
 ;;
 ;; WHY IT IS SLOW ON PURPOSE. Every turn re-derives the entire world from `defs`. That is
 ;; the R1/R9 dual-impl discipline: this is the correct-but-slow ORACLE. Its correctness is

@@ -4342,6 +4342,11 @@ fn dispatch_keyword_head(
         ":wat::core::keyword/from-string" => return eval_keyword_from_string(args, list_span, env, sym),
         ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
         ":wat::edn::read" => return crate::edn_shim::eval_edn_read(args, list_span, env, sym).map_err(Into::into),
+        // Arc 278 Stone 1 (`wat --mcp`) — the JSON-input twin of `edn::read`: parses JSON
+        // (not EDN) text and NEVER raises (matchable `ReadJsonOutcome`), because this verb's
+        // input arrives from a remote, untrusted harness over stdio. Producer (returns
+        // TrackedValue with RuntimeBuilt provenance).
+        ":wat::edn::read-json" => return crate::edn_shim::eval_edn_read_json(args, list_span, env, sym).map_err(Into::into),
         // Arc 278 Stone A — the DATA-MODE sibling: unknown tag → self-describing
         // dynamic value (ForeignRecord/ForeignVariant) instead of UnknownTag.
         // Producer (returns TrackedValue with RuntimeBuilt provenance).

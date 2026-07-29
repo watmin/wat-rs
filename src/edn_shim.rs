@@ -199,6 +199,112 @@ pub fn eval_edn_read(
     ))
 }
 
+// Arc 278 Stone 1 (`wat --mcp`) — the type path of `:wat::edn::ReadJsonOutcome` (registered in
+// `types.rs`, beside `:wat::core::ReadOutcome`).
+const READ_JSON_OUTCOME_TYPE: &str = ":wat::edn::ReadJsonOutcome";
+
+/// `ReadJsonOutcome::Value [value]` — the decoded value.
+fn read_json_outcome_value(value: Value) -> Value {
+    Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
+        type_path: READ_JSON_OUTCOME_TYPE.into(),
+        variant_name: "Value".into(),
+        fields: vec![value],
+    }))
+}
+
+/// `ReadJsonOutcome::Malformed [cause]` — the JSON text did not parse, or the parsed JSON did
+/// not decode to a runtime value.
+///
+/// `wat_edn::JsonError` (the error `from_json_string` raises) CANNOT impl `WatError`: it lives in
+/// the `wat-edn` crate, and the trait lives in `src/to_edn.rs` (the orphan rule forbids the
+/// reverse impl). The message is lifted through `FlatMessage` — the existing adapter for a
+/// genuinely flat, structure-free failure (`to_edn.rs:346`) — then decoded back to a typed
+/// `:wat::core::Error` via the IDENTICAL tail `read_outcome_malformed` uses below: the STRICT
+/// decode is preferred and the FOREIGN (data-mode) decode is the fallback for tags the type
+/// registry does not carry yet. Same reasoning as `read_outcome_malformed`: a structured
+/// diagnostic flattened into a String is the mask this arc exists to kill, and a lossy carrier is
+/// what makes that mask mandatory.
+fn read_json_outcome_malformed(
+    message: &str,
+    sym: &SymbolTable,
+    list_span: &crate::span::Span,
+) -> Value {
+    use crate::to_edn::WatError;
+    let flat = crate::to_edn::FlatMessage {
+        tag: "JsonReadError",
+        key: "reason",
+        message,
+    };
+    let cause_edn = wat_edn::write(&flat.error_edn());
+    let types = sym.types().map(|t| &**t);
+    let cause = decode_trusted_wire(&cause_edn, types)
+        .or_else(|_| {
+            wat_edn::parse_owned(&cause_edn)
+                .map_err(|_| ())
+                .and_then(|owned| edn_to_value_foreign(&owned, types).map_err(|_| ()))
+        })
+        .unwrap_or_else(|_| {
+            // A FlatMessage whose own EDN will not decode is itself a defect; report the
+            // headline as a minimal TRUE record rather than smuggling the tree back in as prose.
+            Value::Aggregate(std::sync::Arc::new(
+                crate::value::value::AggregateValue::record(
+                    "wat::core::Fault".into(),
+                    std::sync::Arc::new(vec![
+                        Value::String(std::sync::Arc::new(message.to_string())),
+                        crate::runtime::value_from_span(list_span.clone()),
+                        Value::Vec(std::sync::Arc::new(Vec::new())),
+                    ]),
+                ),
+            ))
+        });
+    Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
+        type_path: READ_JSON_OUTCOME_TYPE.into(),
+        variant_name: "Malformed".into(),
+        fields: vec![cause],
+    }))
+}
+
+/// `(:wat::edn::read-json s)` → `:wat::edn::ReadJsonOutcome`. Arc 278 Stone 1 (`wat --mcp`) —
+/// decodes a JSON string into a wat runtime Value: `wat_edn::from_json_string`
+/// (`crates/wat-edn/src/json.rs:225`, the JSON→EDN bridge) then `edn_to_value` (the same typed
+/// decode `:wat::edn::read` uses). TOTAL, never raises — see `ReadJsonOutcome` in `types.rs` for
+/// why: this verb's input arrives from a REMOTE, UNTRUSTED harness over stdio, so a malformed
+/// byte must not be able to end the session.
+pub fn eval_edn_read_json(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::edn::read-json";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    let types = sym.types().map(|a| a.as_ref());
+    let value = match wat_edn::from_json_string(&s) {
+        Ok(owned) => match edn_to_value(&owned, types) {
+            Ok(v) => read_json_outcome_value(v),
+            Err(e) => read_json_outcome_malformed(&e.to_string(), sym, list_span),
+        },
+        Err(e) => read_json_outcome_malformed(&e.to_string(), sym, list_span),
+    };
+    Ok(crate::value::TrackedValue::new(
+        value,
+        crate::value::Provenance::RuntimeBuilt {
+            producer: OP,
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
 /// `(:wat::edn::read-foreign s)` → `:T`. Arc 278 Stone A — the DATA-MODE sibling
 /// of [`eval_edn_read`]. Same String→`parse_owned`→decode path, but an UNKNOWN
 /// tag reconstructs a self-describing dynamic value (`ForeignRecord` for a map
