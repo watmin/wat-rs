@@ -4,9 +4,10 @@ Six tracked items. Opened 2026-07-28, at the builder's direction, after the
 "stopping is a protocol" stone landed green (lock-step restored; the stop asks
 each service, awaits `Status::Stopped`, and severs last).
 
-**Board state (2026-07-28, grounded against the disk at `db7cad6a`): items 2, 3
-and 5 are CLOSED.** Three remain: **#4** (mechanical), **#6** (needs the
-witness-not-claim wall), and **#1** — `wat --repl`, the closure condition.
+**Board state (2026-07-28, grounded against the disk at `357a223a`): items 2, 3,
+4 and 5 are CLOSED.** Two remain: **#6** (not ready — fails Simple until one
+probe answers whether the label leaks into `argv`), and **#1** — `wat --repl`,
+**the closure condition**.
 
 **Scope ruling (builder, 2026-07-28):** items 1–5 below **must be addressed**.
 Three further known-owed items were surfaced at the same time and **deliberately
@@ -137,6 +138,34 @@ diffed on a `/tmp` copy, idempotent, applied to every listed path.
 A **frame** can span several physical lines, so `read-line` and the `:Line`
 variant mumble about what they carry. Flagged at the intueri rename and
 explicitly held out of that brief's scope.
+
+**Status: ✅ CLOSED** — `357a223a`. intueri cast + builder-ratified; all four
+names were Level 1 (they lie). `read-line`→`read-frame`, `ReadLineRequest`→
+`ReadFrameRequest`, `ReadLineResponse`→`ReadFrameResponse`, `::Line`→`::Frame`.
+
+**★ It cost a toolkit gap, and closing that is the durable half.** `wat/fix.wat`'s
+rename walk only rewrote `ast-kind == "keyword"` leaves — so a `defsurface
+:features` member and a `defservice :impls` arm, which spell their op head as a
+bare **SYMBOL**, were skipped **SILENTLY**. The codemod reported success having
+done nothing at two sites; the first attempt half-landed and broke
+`wat::services` with `UnknownFunction`. `:wat::fix::rename-symbol-exact` closes
+it (purely additive — the keyword renames are untouched because recorded
+migrations call them). Four-questions ruled it over a hand-exception: 24t's
+hand-exception precedent is a file `read-string` **cannot parse**; this was a
+tool gap in a file that parses fine, and recording a tool gap as a permanent
+exception is a convention where a capability belongs.
+
+**Two things worth carrying to the next rename:**
+- **Study the lair first.** The board said 5 files, a naive grep said 22, and the
+  truth was that **`:wat::io::IOReader/read-line` is a DIFFERENT, correctly-named
+  verb** owning most hits. One glob would have renamed the honest one.
+- **`.wat` message strings still have NO WALL.** Seven stale strings the codemod
+  structurally cannot reach were swept by hand — including the header of the new
+  primitive itself, which used `read-line` as its worked example. The
+  retired-name lint (`tests/lint/retired_name_justified.rs`) covers
+  `src/**/*.rs` only.
+
+*(Historical, the condition this closed:)*
 
 **⚠ THE PATH MOVED.** `stdio-primes.wat` → **`wat/kernel/services/stdio.wat`**
 (`6e800f12` — the primes replaced the non-primes months ago; the filename was out
