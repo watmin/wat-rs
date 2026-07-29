@@ -1,13 +1,13 @@
 #wat.macro/ProgramBodyEvalFailed {
   :message "macro :wat::core::cond — program body eval failed"
   :location #wat.core/Span {
-    :file "wat/core.wat"
-    :line 1256
-    :col 15
+    :file "tests/wat_lang/wat_core_cond_no_else.wat.bad"
+    :line 5
+    :col 3
     :end #wat.core.Option/Some [
       #wat.core/Pos {
-        :line 1256
-        :col 62
+        :line 7
+        :col 36
       }
     ]
   }

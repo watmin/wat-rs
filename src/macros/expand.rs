@@ -663,23 +663,103 @@ pub(super) fn expand_macro_call(
     // covers both uniformly and matches "one push per macro invocation."
     let _mcs = crate::value::MacroCallSiteGuard::push(call_site_span.clone(), def.name.clone());
     let expanded = expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)?;
-    // Diagnostic fidelity (arc 209, C.1): bridge constructors (`keyword-node`/`symbol-node`/
-    // `read-string`, edn_shim) build `WatAST` nodes stamped with rust_caller_span!() (arc 298.2).
-    // `restamp_unknown_spans` is now a no-op identity (the sentinel is gone); the call is kept
-    // as a named hook for the future span-threading quality arc.
+    // Arc 170: a macro that rewrites a user's call (e.g. kwargs-lower rewriting
+    // `(svc/start …)` into `(svc/start$impl …)`) must not leave the template's OWN
+    // file/line as the only frame a user-facing failure can report. `restamp_unknown_spans`
+    // rewalks the expansion and repoints any node whose span still names a *different* file
+    // than the call site (i.e. it came from the macro's own definition, not from the user's
+    // spliced arguments) at the call site.
     Ok(restamp_unknown_spans(expanded, &call_site_span))
 }
 
-/// Arc 298.2: all spans are now real (`rust_caller_span!()` for synthetic
-/// nodes, parsed spans for source nodes). There is no sentinel to detect,
-/// so restamping is an identity operation — return the form unchanged.
+/// Arc 170: repoint every node in `form` whose span's file differs from
+/// `call_site`'s file at `call_site` itself.
 ///
-/// Previously walked the expansion replacing the unknown sentinel
-/// with the call-site span. With the sentinel gone, synthetic nodes carry an
-/// honest Rust caller location and real-span nodes keep their own; neither
-/// needs overwriting. The hook is kept as a named future-quality-arc anchor.
-fn restamp_unknown_spans(form: WatAST, _call_site: &Span) -> WatAST {
-    form
+/// A macro expansion is a mix of two kinds of nodes: template forms parsed from the
+/// macro's OWN definition file (e.g. `wat/core.wat`), and nodes spliced in from the
+/// user's arguments (`~`/`~@`) which already carry the user's real, precise spans. The
+/// former misattribute any failure inside them to the macro's definition site instead of
+/// the call the user actually wrote; the latter are already correct and more precise than
+/// the call site (e.g. a specific arg's line) and must be left alone. Comparing `file`
+/// (not the full span) is what distinguishes the two: a spliced argument lives in the
+/// caller's file already, a template form lives in the macro's file.
+///
+/// LIMITATION (write this down, do not let it be rediscovered): a macro DEFINED and
+/// USED in the same file is invisible to this check — `form`'s template-node spans and
+/// `call_site`'s span share a `file`, so no node is restamped. That is acceptable: the
+/// file is already correct in that case, and only the line/col may still point at the
+/// macro's definition rather than the specific call, which is a strictly smaller defect
+/// than the cross-file case this fixes (the file being entirely absent from the stack).
+///
+/// SECOND LIMITATION, discovered empirically (arc 170) and load-bearing for why this
+/// function does NOT recurse into a nested `(:wat::core::defmacro ...)` node's own
+/// children: kwargs-style `defn` expands into a `do` block that, among other things,
+/// *emits a companion `defmacro`* whose body is itself an unexpanded template (a thin
+/// forwarder to `:wat::core::kwargs-lower`). That nested body is DATA, not code executed
+/// as part of `defn`'s own expansion — it becomes the companion macro's `MacroDef.body`,
+/// to be walked and restamped again, fresh, against the companion macro's OWN call site
+/// the next time a user invokes it. If this function recursed into it here, the
+/// template's `wat/core.wat` spans would get restamped to `defn`'s call site (the
+/// `defn` invocation's line) — landing in the right FILE (defn and its companion macro
+/// share a file, the user's) but the WRONG LINE (the `defn` line, not the actual call
+/// site of the kwargs fn). Confirmed empirically: without this exclusion,
+/// `probe-call-site-kwargs.wat`'s kwargs frame reported the probe file at the `defn`
+/// line; with it, it reports the probe file at the actual call line. So: restamp a
+/// nested `defmacro` form's own span (it's still a real node in this expansion), but
+/// leave its subtree untouched — it belongs to a future, separate restamp pass.
+///
+/// Exhaustive over every `WatAST` variant on purpose — no `_ =>` catch-all — so a new
+/// variant added later fails to compile here instead of silently passing through
+/// unrestamped.
+fn restamp_unknown_spans(form: WatAST, call_site: &Span) -> WatAST {
+    fn restamp_span(span: &Span, call_site: &Span) -> Span {
+        if span.file != call_site.file {
+            call_site.clone()
+        } else {
+            span.clone()
+        }
+    }
+
+    match form {
+        WatAST::IntLit(v, s) => WatAST::IntLit(v, restamp_span(&s, call_site)),
+        WatAST::FloatLit(v, s) => WatAST::FloatLit(v, restamp_span(&s, call_site)),
+        WatAST::RationalLit(v, s) => WatAST::RationalLit(v, restamp_span(&s, call_site)),
+        WatAST::BigIntLit(v, s) => WatAST::BigIntLit(v, restamp_span(&s, call_site)),
+        WatAST::BoolLit(v, s) => WatAST::BoolLit(v, restamp_span(&s, call_site)),
+        WatAST::StringLit(v, s) => WatAST::StringLit(v, restamp_span(&s, call_site)),
+        WatAST::NilLit(s) => WatAST::NilLit(restamp_span(&s, call_site)),
+        WatAST::Keyword(v, s) => WatAST::Keyword(v, restamp_span(&s, call_site)),
+        WatAST::Symbol(v, s) => WatAST::Symbol(v, restamp_span(&s, call_site)),
+        WatAST::List(items, s) => {
+            let is_nested_defmacro = matches!(
+                items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::defmacro"
+            );
+            if is_nested_defmacro {
+                WatAST::List(items, restamp_span(&s, call_site))
+            } else {
+                WatAST::List(
+                    items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect(),
+                    restamp_span(&s, call_site),
+                )
+            }
+        }
+        WatAST::Vector(items, s) => WatAST::Vector(
+            items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect(),
+            restamp_span(&s, call_site),
+        ),
+        WatAST::Map(pairs, s) => WatAST::Map(
+            pairs
+                .into_iter()
+                .map(|(k, v)| (restamp_unknown_spans(k, call_site), restamp_unknown_spans(v, call_site)))
+                .collect(),
+            restamp_span(&s, call_site),
+        ),
+        WatAST::Set(items, s) => WatAST::Set(
+            items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect(),
+            restamp_span(&s, call_site),
+        ),
+    }
 }
 
 /// Dispatcher: inspect the template's top-level shape once and route to the
