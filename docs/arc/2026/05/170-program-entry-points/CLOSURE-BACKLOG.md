@@ -1,8 +1,12 @@
 # Arc 170 — CLOSURE BACKLOG
 
-Five tracked items. Opened 2026-07-28, at the builder's direction, after the
+Six tracked items. Opened 2026-07-28, at the builder's direction, after the
 "stopping is a protocol" stone landed green (lock-step restored; the stop asks
 each service, awaits `Status::Stopped`, and severs last).
+
+**Board state (2026-07-28, grounded against the disk at `db7cad6a`): items 2, 3
+and 5 are CLOSED.** Three remain: **#4** (mechanical), **#6** (needs the
+witness-not-claim wall), and **#1** — `wat --repl`, the closure condition.
 
 **Scope ruling (builder, 2026-07-28):** items 1–5 below **must be addressed**.
 Three further known-owed items were surfaced at the same time and **deliberately
@@ -51,9 +55,26 @@ with privileged tooling reachable; a gate proves it.
 
 ## 2. `readln` raises on a stop — needs an outcome-returning signature
 
-**Status:** open. Its own stone.
+**Status: ✅ CLOSED** — `591adcdf` (the wall + the 77-file corpus migration),
+`ac64e67e` (the must-use twin gate: a dropped `ReadlnOutcome` is a compile error
+in **both** discard doors), `f7d390ce` (the three readers' arms refined).
 
-`readln`'s callers still **raise** when a stop is requested mid-read. The message
+`:wat::kernel::ReadlnOutcome<T>::{Datum[v], Eof, Stopped}` is registered
+(`src/types.rs:1097`); `infer_kernel_readln_prime` returns it; the head joins
+`MUST_USE_PARAMETRIC_HEADS` with a verb-aware remedy naming `Datum/Eof/Stopped`
+(without it the fall-through taught `Sent/Closed/Lost` — the *send* wall's arms —
+on a readln). The migration rode a recorded codemod,
+`wat-scripts/fixes/readln-to-outcome.wat`, collapsed onto the **new generic**
+`:wat::fix::wrap-calls-in-match` (see "What `fix.wat` gained", below).
+
+**Ruled by the builder, and it shaped the migration:** *"my preference is we
+shield ourselves with verbosity — all code paths are immediately obvious at the
+call site."* So **no `expect` sugar** — every one of the 77 sites faces all three
+variants. Reaching for a sugar to shrink the site count is a difficulty argument,
+and difficulty is not a design axis.
+
+*(Historical, the condition this closed:)* `readln`'s callers used to **raise**
+when a stop was requested mid-read. The message
 is honest; the shape is wrong. A stop is a matchable value, not a raise that
 flees past the reader (R53 `VERBO MEO CAPTVS` — the recv' wall's whole point).
 
@@ -74,7 +95,10 @@ a variant, not a raise; the corpus migrated by codemod.
 
 ## 3. `LociDiedError::Shutdown` → `Stopped`
 
-**Status:** open. A wat-fix codemod.
+**Status: ✅ CLOSED** — `ff775663` (landed the same day this file was opened, at
+`03de6d44`; this entry was never updated). `:wat::kernel::LociDiedError` now
+carries `Stopped` (`src/types.rs:1289`), and the boundary held: Rust keeps
+`shutdown` uniformly.
 
 The wat-visible layer says **stopped**, not **shutdown** — ruled by the arc-170
 intueri cast (`BRIEF-stopped-not-shutdown-rename.md`, RULING A): nothing is
@@ -114,26 +138,62 @@ A **frame** can span several physical lines, so `read-line` and the `:Line`
 variant mumble about what they carry. Flagged at the intueri rename and
 explicitly held out of that brief's scope.
 
+**⚠ THE PATH MOVED.** `stdio-primes.wat` → **`wat/kernel/services/stdio.wat`**
+(`6e800f12` — the primes replaced the non-primes months ago; the filename was out
+of phase). The stdin half also moved: `services/stdin.wat` →
+**`wat/kernel/readln.wat`**, because that is what the file actually was — a
+`readln` macro and a constant, not a service.
+
+**Grounded scope: 59 sites / 5 files, all internal.** No user surface moves —
+`readln`/`println`/`eprintln` stay (ruled by the builder: *"that's the user
+interface for working with stdio — what we do under the hood i'm less concerned
+about"*). `:wat::fix::rename-keyword-exact` already exists.
+
+**The lie is in code, not just in a name:** `stdio.wat:114-121` calls
+`IOReader/read-frame` and relabels the result `::Line`. A frame relabelled as a
+line.
+
+**⚠ HEED 24t — a rename touches FIVE surfaces and a codemod reaches one and a
+half:** `.wat` keywords · keywords built inside STRING literals · the other
+`.wat.*` extensions (a `-name '*.wat'` glob silently excluded 243 files last
+time) · `src/**/*.rs` literals in BOTH the colon-prefixed and bare-parametric
+spellings · `tests/**/*.rs` goldens. That is what took 2530 → 20 → 3 → 0.
+**ENUMERATE EXTENSIONS; never one glob.**
+
 **Done looks like:** intueri cast on the verb + variant names; the ruling applied
-across `wat/kernel/services/stdio-primes.wat` and consumers.
+across `wat/kernel/services/stdio.wat` and consumers, all five surfaces reached.
 
 ---
 
 ## 5. `as_raw_fd_for_poll` on `WatWriter` has no poll caller
 
-**Status:** open. Grounded as real, unfixed.
+**Status: ✅ CLOSED** — `2bf589c8`. **The framing above was wrong in both
+directions, and grounding settled it: it was neither a gap nor dead surface.**
 
-`RealStdin` now reports `Some(0)` so the stdin read joins the poll multiplex
-(that landed with the stdin lock-step stone). The **writer** side declares a
-pollable fd that nothing polls — a hook with no consumer.
+`as_raw_fd_for_poll` has a **live consumer** — `src/freeze.rs:269-271` seeds the
+three stdio services from it. It is a hook whose *poll* consumer was never built.
+So the answer was: **build it, and the name becomes true.** `PipeWriter::write`
+now polls `[fd, broadcast_fd]` before every attempt; a blocked write can be
+stopped. Gate: `tests/channel/probe_arc170_writer_joins_lockstep.rs` — 3.006s
+(hung to the timeout) → 0.005s.
 
-**The question to settle before striking:** is this a *gap* (a writer that should
-be in the multiplex and is not) or *dead surface* (a hook that should be
-deleted)? Ground the writer's blocking behaviour under a stop before deciding —
-do not assume either way. Ground liveness by the **writer**, never a doc comment.
+**⚠ THE LESSON, and it cost a regression:** my brief's constraint said *"shutdown
+wins ties,"* lifted from the **reader** without asking whether it transfers. It
+does not. A READ racing a stop has nothing left to read; a **WRITE racing a stop
+may be the dying declaration** (R51 — `eprintln` is "the last thing I'll say").
+Preferring shutdown made a stopped process unable to say why it stopped, and
+regressed `wat_cli::sigterm_reaches_a_program_blocked_on_stdin` 0 → 1. Proven
+mine by a **stash differential** (passes without `src/io.rs`, fails with it) and
+reproduced **isolated**, which killed the load-flake hypothesis before it could
+comfort me. Corrected to the **opposite tie-break**: if writable now, write;
+surface the stop only when the write *would* block.
 
-**Done looks like:** either the writer joins the multiplex with a gate proving it,
-or the hook is annihilated.
+**A rule copied from a sibling subsystem owes the same grounding as a rule
+invented from scratch.**
+
+**⛔ AND IT LEFT A DECISION OWED — see "THE ONE DECISION", below.** The `#5` strike
+deliberately did NOT distinguish a stopped write from a disconnect;
+`src/channel/transfer.rs:87-100` carries its own tracking comment saying so.
 
 ---
 
@@ -193,6 +253,52 @@ Threading the identity down is the change.
 registered EDN; nothing reads it; a gate proves a child ignores it.
 
 ---
+
+## ⛔ THE ONE DECISION — owed to the builder, deliberately not settled alone
+
+**Can a stopped write be told apart from a disconnect, and where does it land?**
+
+`src/channel/transfer.rs:93` is `Err(_) => SendOutcome::Disconnected` — a wildcard
+that erases every distinct write failure into one variant. That is exactly the
+class 24x named at `src/kernel/peer.rs:118`, two hundred lines from where the
+reader now does it right.
+
+Killing it needs a `SendOutcome::Shutdown`, which cascades into
+`src/kernel/address.rs:139` — a match over `{Ok, Disconnected}` with no wildcard,
+whose `ConnectFail` offers only:
+
+- `Refused` — retryable, *"the server may come up"*
+- `Rejected` — identity mismatch, not retryable
+- `Failed` — an io error carrying its reason
+
+**None of those honestly means "this process is stopping."** Extending it reaches
+the wat-facing `ConnectOutcome` (the arc-278 `connect'` wall).
+
+**The cost, so it is visible:** a stop reaching `address.rs` today reports
+`Refused` — telling a dialer to **retry a process that is shutting down** — in
+the very arm whose own comment gets the outcome-wall discipline right. Not a
+regression (every write failure already landed there), but a live lie.
+
+## What `wat/fix.wat` gained — so the next wall is cheap
+
+**The wrap family**, lifted during #2 because four codemods had hand-copied the
+same ~60 lines (two admit it in their headers). Now first-class:
+
+`Edit` (the span-splice tuple, previously spelled out 45× in that file) ·
+`kw-name` · `head-name` · `calls-to?` (**EXACT** — a prime is never read as a
+non-prime) · `node-start-offset` / `node-end-offset` · `arm-head-name` (tagged
+AND bare-keyword unit patterns) · `arm-heads-contain?` · `wrapped-in-match?` ·
+**`wrap-calls-in-match`** as the entry point.
+
+A new outcome wall's codemod is now a header plus one call. Proven
+**byte-identical** to the hand-rolled codemod it replaced. ⚠ Adding a verb here
+re-bakes the stdlib — `cargo build --release` before any codemod sees it. ⚠ A
+typealias RHS needs its leading colon: `:(A,B,C)`, or `(A,B,C)` parses as
+`A<B,C>`.
+
+**Cleanup owed, any time:** retrofit `wrap-client-method-match-in-recvoutcome`,
+`wrap-connect-prime-in-connectoutcome` and `read-string-to-outcome` onto the
+generic. Prove each with the same byte-identical differential.
 
 ## Method, standing
 
