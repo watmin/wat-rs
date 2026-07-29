@@ -19,10 +19,30 @@
 ;;      /proc/<pid>/cmdline for the REAL OS argv the label produced.
 ;;   4. one line on stdin releases the outer, which drops the child peer (closing its
 ;;      input pipe → the child's own `readln` sees Eof → it exits cleanly) and exits 0.
+;; Mirrors EXACTLY what a real spawner does (bracket's map-worker, a defservice's
+;; start/resume): bind `(:wat::kernel::call-site)` in this fn's OWN body, so the label
+;; carries the position of whoever CALLED it — the `(:probe::labeled-locus)` line in
+;; `:user::main` below, not this fn's own lines. That makes the gate prove the capture
+;; mechanism end-to-end, through a real spawn into real `ps`, instead of only proving that
+;; a hand-built record renders.
+(:wat::core::defn :probe::labeled-locus [] -> :wat::spawn::Locus
+  (:wat::core::let
+    [origin (:wat::kernel::call-site)]
+    (:wat::spawn::with-label (:wat::spawn::process)
+      (:wat::process::Service
+        :name (:wat::core::keyword/from-string "my::demo::labeled-svc")
+        :file (:wat::kernel::Frame/file origin)
+        :line (:wat::kernel::Frame/line origin)))))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [locus (:wat::spawn::with-label (:wat::spawn::process)
-             (:wat::process::Service :name (:wat::core::keyword/from-string "my::demo::labeled-svc")))
+    ;; The harness locates the next line by its trailing marker and asserts the spawned
+    ;; child's ps label carries exactly it. A MARKER, not a source-text match: searching for
+    ;; the call form itself also matches the prose describing it (it did — the assertion
+    ;; caught it) and puts an inlined wat form in the .rs (no_inlined_wat_in_tests, which
+    ;; also fired). Move this call and the gate follows it; delete the marker and the gate
+    ;; fails loudly rather than silently asserting the wrong site.
+    [locus (:probe::labeled-locus) ;; <<origin-call>>
      p (:wat::test::spawn-peer locus
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -1,1 +1,3 @@
-#wat.process/Service {:name :my.demo/labeled-svc}
+#wat.process/Service {:name  :my.demo/labeled-svc
+                      :file  "{FILE}"
+                      :line  {LINE}}

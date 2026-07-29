@@ -620,7 +620,13 @@
    setup-carrier        <- :wat::core::Vector<D>]
   -> :wat::core::Vector<O>
   (:wat::core::let
-    [m  (:wat::core::length items)
+    [;; arc 170 closure #6 — the spawn ORIGIN for every runner's ps label. Captured HERE,
+     ;; in map-worker's own body, so `call-site` reports the CALLER of map-worker (the
+     ;; user's `bracket-map`/`each-worker` site). It must NOT be read inside the per-runner
+     ;; closure below: the innermost frame there is `mapv`'s invocation of the anon fn, not
+     ;; the user's call — which would label every process with this file instead of theirs.
+     origin (:wat::kernel::call-site)
+     m  (:wat::core::length items)
      rc (:wat::spawn::runner-count locus)
      n  (:wat::core::if (:wat::core::< rc m) rc m)
      ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Peer<...>> param
@@ -633,7 +639,11 @@
                   ;; arc 170 closure #6 — label THIS runner with its own index before spawning
                   ;; it (the ps-visible `#wat.process/Bracket {:id N}`, wat/process.wat); a
                   ;; no-op for a thread locus (with-label's ThreadOpts arm).
-                  locus-i (:wat::spawn::with-label locus (:wat::process::Bracket :id i))
+                  locus-i (:wat::spawn::with-label locus
+                            (:wat::process::Bracket
+                              :id   i
+                              :file (:wat::kernel::Frame/file origin)
+                              :line (:wat::kernel::Frame/line origin)))
                   p (:wat::spawn::Locus/spawn-runner locus-i work-fn)
                   ;; GRANT-BOOT: if the far end is a process (peer-pid → Some pid), grant that
                   ;; kernel-vouched pid — a SINGLE typed call (a no-op for a plain pool: its

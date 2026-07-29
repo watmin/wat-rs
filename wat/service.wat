@@ -1637,6 +1637,10 @@
      ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
      ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
+     ;; arc 170 closure #6 — binds `(:wat::kernel::call-site)` once in start/resume's own
+     ;; body, so the ps label carries the CALLER's source position (which start brought this
+     ;; process up), not this macro's fixed position in service.wat.
+     origin-sym    (:wat::core::symbol-node "origin")
      ;; arc 291 kwargs-start: locus-sym minted once so start-params + start-body (and resume pair)
      ;; share the same scope node — avoids HygieneScopeDivergence when kwargs-defn rebuilds $impl.
      locus-sym     (:wat::core::symbol-node "locus")
@@ -1787,16 +1791,22 @@
      ;; arc 291 kwargs-start: flip to Form A all-kwargs; locus-sym shared with body for hygiene.
      start-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
      start-body    `(:wat::core::let
-                      [~lr-sym (~launch-head-kw
+                      [~origin-sym (:wat::kernel::call-site)
+                       ~lr-sym (~launch-head-kw
                                  ;; arc 170 closure #6 — label this service's process locus
-                                 ;; with its own fqdn (the closed `:wat::process::Service`
-                                 ;; identity, wat/process.wat); a no-op for a thread locus
-                                 ;; (with-label's ThreadOpts arm). `fqdn-base` is the
-                                 ;; params-stripped BASE name — a runtime-name-string keyword,
-                                 ;; same convention as `::Handle{p}`'s sibling names.
+                                 ;; with its own fqdn + the START CALL SITE (the
+                                 ;; `:wat::process::Service` identity, wat/process.wat); a
+                                 ;; no-op for a thread locus (with-label's ThreadOpts arm).
+                                 ;; `fqdn-base` is the params-stripped BASE name — a
+                                 ;; runtime-name-string keyword, same convention as
+                                 ;; `::Handle{p}`'s sibling names. The name says WHICH
+                                 ;; service; the origin says which of possibly several
+                                 ;; starts brought THIS process up.
                                  (:wat::spawn::with-label ~locus-sym
-                                   (:wat::process::Service :name
-                                     (:wat::core::keyword/from-string ~fqdn-base)))
+                                   (:wat::process::Service
+                                     :name (:wat::core::keyword/from-string ~fqdn-base)
+                                     :file (:wat::kernel::Frame/file ~origin-sym)
+                                     :line (:wat::kernel::Frame/line ~origin-sym)))
                                  (~admin-init-kw ~@init-arg-names)
                                  (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
@@ -1822,11 +1832,14 @@
      ;; All init binders are spliced in; resume re-accepts all live operating-inputs.
      resume-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
      resume-body    `(:wat::core::let
-                       [~lr-sym (~launch-head-kw
+                       [~origin-sym (:wat::kernel::call-site)
+                        ~lr-sym (~launch-head-kw
                                   ;; arc 170 closure #6 — see start-body's identical wrap.
                                   (:wat::spawn::with-label ~locus-sym
-                                    (:wat::process::Service :name
-                                      (:wat::core::keyword/from-string ~fqdn-base)))
+                                    (:wat::process::Service
+                                      :name (:wat::core::keyword/from-string ~fqdn-base)
+                                      :file (:wat::kernel::Frame/file ~origin-sym)
+                                      :line (:wat::kernel::Frame/line ~origin-sym)))
                                   (~admin-resume-kw ~@init-arg-names)
                                   (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                   (:wat::core::keyword/from-string ~serve-name-str)

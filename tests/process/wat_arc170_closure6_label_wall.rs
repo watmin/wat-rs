@@ -131,10 +131,43 @@ fn label_present_child_argv_stays_empty_and_shows_in_real_proc_cmdline() {
         "a labeled process must show exactly [exe, label] in its real OS argv; got {argv_fields:?}"
     );
     assert_argv0_is_the_wat_binary(&argv_fields[0]);
-    // STRUCTURE-exact, not string-exact: `assert_edn_eq!` parses both sides, so this
-    // asserts the rendered label IS the declared `:wat::process::Service` value and
-    // stays honest across whitespace/field-order changes in the writer.
-    wat::assert_edn_eq!(argv_fields[1].clone(), SERVICE_LABEL_EDN);
+
+    // The golden is a TEMPLATE because the origin is machine- and edit-specific: `:file` is
+    // the canonicalized fixture path, `:line` is wherever `(:probe::labeled-locus)` is
+    // currently written. Both are DERIVED from the fixture here rather than hardcoded, so
+    // editing the fixture cannot silently rot this assertion into a lie — and neither is
+    // weakened to a `.contains`, which would stop proving the origin is the CALLER's
+    // position (the whole point) and start passing on any file and any line.
+    let fixture_path = std::fs::canonicalize(LABELED_FIXTURE)
+        .expect("canonicalize the labeled fixture");
+    let fixture_src = std::fs::read_to_string(LABELED_FIXTURE).expect("read the labeled fixture");
+    // Located by MARKER, not by matching the call's source text: the latter also matches
+    // the fixture's own prose about it (it did — this assertion caught it) and would put an
+    // inlined wat form in this .rs (no_inlined_wat_in_tests, which also fired).
+    let marker = "<<origin-call>>";
+    let marked: Vec<usize> = fixture_src
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| l.contains(marker))
+        .map(|(i, _)| i + 1)
+        .collect();
+    assert_eq!(
+        marked.len(),
+        1,
+        "the fixture must carry exactly ONE {marker} marker (found at lines {marked:?}); \
+         more than one and this test would silently assert against the wrong site"
+    );
+    // The marker is a TRAILING comment on the call line itself — no offset to drift.
+    let call_line = marked[0];
+
+    let expected = SERVICE_LABEL_EDN
+        .replace("{FILE}", &fixture_path.display().to_string())
+        .replace("{LINE}", &call_line.to_string());
+
+    // STRUCTURE-exact, not string-exact: `assert_edn_eq!` parses both sides, so this asserts
+    // the rendered label IS the declared value and stays honest across whitespace/field-order
+    // changes in the writer.
+    wat::assert_edn_eq!(argv_fields[1].clone(), &expected);
 }
 
 #[test]
