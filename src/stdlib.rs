@@ -437,6 +437,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/telemetry/span.wat",
         source: include_str!("../wat/telemetry/span.wat"),
     },
+    // wat/repl.wat — `:repl::turn`, the read/eval/print loop, as a stdlib MODULE. It defines
+    // no `:user::main`: the entry point is the CLI's `--repl` shim, so this file adds a
+    // LIBRARY (any program may `(:repl::turn defs)` to embed a loop seeded with its own
+    // definitions) rather than a program. Depends only on builtins — `eval-with-defs!`,
+    // `read-frame`, `println`, `read-string` — so it loads last with no eval-deps to satisfy.
+    WatSource {
+        path: "wat/repl.wat",
+        source: include_str!("../wat/repl.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

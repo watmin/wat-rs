@@ -1,0 +1,2 @@
+(:wat::core::defn :usr::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:usr::double 21)

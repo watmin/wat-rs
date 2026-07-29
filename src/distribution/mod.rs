@@ -135,6 +135,19 @@
 //! terminal — no pipe round-trip, no proxy.
 
 use std::process::ExitCode;
+
+/// The `--repl` ENTRY — a one-form shim, and deliberately nothing more.
+///
+/// The loop itself is `wat/repl.wat`, a stdlib module exposing `:repl::turn`. Only the entry
+/// point lives here, which is where an entry point belongs: a stdlib file that declared
+/// `:user::main` would hand one to EVERY wat program and collide with the author's own.
+///
+/// Splitting it this way makes the REPL a LIBRARY rather than a script — any program can
+/// `(:repl::turn defs)` to embed a loop seeded with its own definitions, which is the thing
+/// a REPL-as-a-file could never offer.
+const REPL_SOURCE: &str =
+    "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:repl::turn (:wat::core::Vector :wat::WatAST)))\n";
+const REPL_LABEL: &str = "<repl-entry>";
 use std::sync::Arc;
 
 mod spawned_runtime;
@@ -217,8 +230,13 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         argv::Mode::Check { entry_path, output_format } => {
             (entry_path.as_str(), *output_format, true)
         }
+        // The REPL's source is BAKED (see REPL_SOURCE); this label is what its spans carry,
+        // so a diagnostic from inside the loop names a real repo path rather than a
+        // `<repl>` sentinel the reader cannot open. Relative, hence reproducible.
+        argv::Mode::Repl => (REPL_LABEL, None, false),
         argv::Mode::Run { entry_path } => (entry_path.as_str(), None, false),
     };
+    let is_repl = matches!(mode, argv::Mode::Repl);
 
     // Arc 170 slice 1e (REALIZATIONS pass 7) — populate the process-wide argv
     // ambient, which `(:wat::runtime::argv)` reads from any depth in the wat
@@ -244,16 +262,29 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     set_argv(ambient_argv);
 
     // Read entry file. Diagnostics go straight to the real fd 2.
-    let source = match std::fs::read_to_string(entry_path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("wat: read {}: {}", entry_path, e);
-            return ExitCode::from(66); // EX_NOINPUT
+    //
+    // The REPL reads nothing: its program is compiled INTO the binary, so `wat --repl` works
+    // from any directory and from an installed binary with no repo on disk. Resolving
+    // REPL_LABEL against the filesystem instead would make the mode depend on where it was
+    // launched from — a shipped feature must not need its own source tree present.
+    let source = if is_repl {
+        REPL_SOURCE.to_string()
+    } else {
+        match std::fs::read_to_string(entry_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("wat: read {}: {}", entry_path, e);
+                return ExitCode::from(66); // EX_NOINPUT
+            }
         }
     };
-    let canonical = std::fs::canonicalize(entry_path)
-        .ok()
-        .map(|p| p.display().to_string());
+    let canonical = if is_repl {
+        Some(REPL_LABEL.to_string())
+    } else {
+        std::fs::canonicalize(entry_path)
+            .ok()
+            .map(|p| p.display().to_string())
+    };
 
     // Arc 115 slice 1 — `--check` short-circuit. Run startup_from_source
     // (parse + type-check + freeze); exit 0 on success, non-zero with a

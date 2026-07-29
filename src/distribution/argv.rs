@@ -40,6 +40,12 @@ pub(super) enum Mode {
         entry_path: String,
         output_format: Option<CheckOutputFormat>,
     },
+    /// `wat --repl` — the interactive read/eval/print loop. EXACTLY ZERO positionals:
+    /// the REPL's program is baked into the binary, so there is no entry file to name and a
+    /// trailing path would be a silent lie about what runs. This is the mode arc 170 split
+    /// the global arity check FOR (see the note above) — it joins as a variant carrying its
+    /// own contract, not as a special case threaded through Run's.
+    Repl,
     /// `wat <entry.wat> [args…]` — run the program. AT LEAST one positional;
     /// `positional[0]` is the entry and everything after it is the program's
     /// business, not the parser's. The trailing args are not carried in this
@@ -55,6 +61,7 @@ pub(super) enum Mode {
 /// Returns `Err(exit_code)` on a usage violation.
 pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
     let mut check_only = false;
+    let mut repl = false;
     let mut output_format: Option<CheckOutputFormat> = None;
     let mut positional: Vec<&str> = Vec::new();
     let mut iter = argv.iter().skip(1);
@@ -65,6 +72,7 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
             // in hand every remaining token belongs to the program — `wat
             // prog.wat --check` passes `--check` to the program, it does not
             // silently switch the cli into check mode.
+            "--repl" if positional.is_empty() => repl = true,
             "--check" if positional.is_empty() => check_only = true,
             "--check-output" if positional.is_empty() => {
                 match iter.next().map(String::as_str) {
@@ -91,10 +99,20 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
 
     let usage = |prog: &str| {
         eprintln!(
-            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]"
+            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]\n   or: {prog} --repl"
         );
         ExitCode::from(64) // EX_USAGE
     };
+
+    // REPL mode: exactly zero positionals. A path here means the caller asked for two
+    // different programs at once; refusing is the honest answer, not "run one and ignore the
+    // other". `--repl --check` is likewise a usage error: there is no entry file to check.
+    if repl {
+        if !positional.is_empty() || check_only || output_format.is_some() {
+            return Err(usage(prog));
+        }
+        return Ok(Mode::Repl);
+    }
 
     if check_only {
         // Check mode: exactly one.

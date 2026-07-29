@@ -29,15 +29,18 @@
 ;; worth having: a user's OWN macro that expands to a `def` is classified correctly, and
 ;; this file never learns it exists.
 ;;
-;;   run:  target/release/wat wat-scripts/demos/repl/repl.wat
+;;   run:  wat --repl
 ;;   then: type a form per line —
 ;;           (:wat::core::defn :usr::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
 ;;           (:usr::double 21)
 ;;
-;; KNOWN, and NOT papered over: EOF on stdin raises a `LociDiedError/Panic` cascade rather
-;; than stopping cleanly. That is a real substrate gap (`readln` has no matchable EOF), it
-;; is filed, and it is NOT worked around here — a `;; the honest stop` comment over a crash
-;; is exactly the lie this arc exists to kill. Ctrl-D ends the session loudly, for now.
+;; EOF STOPS CLEANLY. `read-frame` hands EOF back as a VALUE (`ReadFrameOutcome::Eof`), so
+;; Ctrl-D ends the session by returning, not by raising. This paragraph used to say the
+;; opposite — that EOF raised a `LociDiedError/Panic` cascade and `readln` had no matchable
+;; EOF — and it stayed here, false, after closures #2 and #4 gave the reader an outcome wall
+;; and the frame vocabulary. The BODY was migrated; this header was not. Kept visible because
+;; it is the exact defect class this arc hunts: a claim nothing contradicts, which reads as
+;; grounded precisely because it names a limitation instead of a capability.
 
 (:wat::core::defn :repl::eval-and-loop
   [defs <- :wat::core::Vector<wat::WatAST>
@@ -113,5 +116,11 @@
     ;; loop's only job is to stop reading, and both outcomes agree on that.
     (:wat::kernel::ReadFrameOutcome::Stopped nil)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:repl::turn (:wat::core::Vector :wat::WatAST)))
+;; NO `:user::main` HERE — deliberately. This is a stdlib MODULE, not a program: it exposes
+;; `:repl::turn` and nothing else runs on load. The entry point lives in the CLI's `--repl`
+;; mode, which is a one-form shim calling `:repl::turn` with an empty definition set. Putting
+;; a `:user::main` in a stdlib file would hand one to EVERY wat program and collide with the
+;; author's own; keeping the shim in the CLI is also just where an entry point belongs.
+;;
+;; The consequence worth having: the REPL is a LIBRARY. Any program can `(:repl::turn defs)`
+;; to embed a loop of its own, seeded with whatever definitions it likes.
