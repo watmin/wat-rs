@@ -4,10 +4,28 @@ Six tracked items. Opened 2026-07-28, at the builder's direction, after the
 "stopping is a protocol" stone landed green (lock-step restored; the stop asks
 each service, awaits `Status::Stopped`, and severs last).
 
-**Board state (2026-07-28, grounded against the disk at `357a223a`): items 2, 3,
-4 and 5 are CLOSED.** Two remain: **#6** (not ready — fails Simple until one
-probe answers whether the label leaks into `argv`), and **#1** — `wat --repl`,
-**the closure condition**.
+**Board state (2026-07-28, grounded against the disk at `5b7b58e4`): items 2, 3,
+4, 5 and 6 are CLOSED.** ONE remains: **#1** — `wat --repl`, **the closure
+condition**. Arc 170 closes on it.
+
+**#6 closed at `5b7b58e4`** (floor 4167/4167, weighed `--release` by the
+orchestrator's own re-run). The `argv`-leak question that held it is answered and
+gated: `spawned_runtime::serve` calls `set_argv(Vec::new())` unconditionally and
+never reads OS argv, so the label and the ambient argv are disjoint by code path
+— and the gate asserts it from the child's own mouth while reading the real
+`/proc/<pid>/cmdline`.
+
+**#6 shipped with ONE thing deliberately open, recorded so it is not discovered
+later as a surprise:** the two-type vocabulary (`:wat::process::Bracket` |
+`:wat::process::Service`) is a **CONVENTION, NOT A WALL**. Nothing closes the
+set — `:R` is a wildcard at runtime dispatch and free to the checker, and
+`ProcessOpts/label` is `(Option Record)`, the record-top — so any record
+type-checks as a label and `ps` output is an OPEN set. Proven, not asserted:
+`wat-scripts/scratch-pad/probe-label-closed-set.wat` hands a rogue record to the
+clause and type-checks GREEN; it is the live witness and goes RED the day the set
+is genuinely closed. Closing it structurally means an enum, which trades the
+readable field-map `ps` line (`{:id 0 :file … :line …}`) for a positional one
+(`[0 … …]`) — weighed, and the readable form kept.
 
 **Scope ruling (builder, 2026-07-28):** items 1–5 below **must be addressed**.
 Three further known-owed items were surfaced at the same time and **deliberately
