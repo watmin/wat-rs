@@ -35,6 +35,8 @@ use wat_edn::OwnedValue;
 /// `no_inlined_edn` rubric — a `{`-opening literal full of wat forms is exactly what those
 /// lints exist to keep out of `.rs`).
 const PERSIST_IN: &str = include_str!("wat_mcp__persist.jsonl");
+const MULTIFORM_IN: &str = include_str!("wat_mcp__multiform.jsonl");
+const TOPLEVEL_EXPR_IN: &str = include_str!("wat_mcp__toplevel_expr.jsonl");
 const RESET_IN: &str = include_str!("wat_mcp__reset.jsonl");
 const BAD_THEN_GOOD_IN: &str = include_str!("wat_mcp__bad_then_good.jsonl");
 
@@ -161,6 +163,57 @@ fn the_payload_is_edn_not_json() {
     // `--mcp` matches its oracle exactly. Capturing it rather than prefix-matching around it
     // means the day someone fixes the session-render path, this goes red and the correction is
     // deliberate instead of silent.
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn every_form_in_a_payload_takes_effect() {
+    // REGRESSION GATE for a shipped hidden failure: the first version evaluated only the
+    // FIRST form of a payload and silently dropped the rest, answering `nil` + `isError:
+    // false` — success — while the later definitions never existed. Nothing in the original
+    // suite could see it, because every fixture sent exactly one form (R59's third face: a
+    // gate whose success criteria never touch the mechanism).
+    let (out, code) = mcp(MULTIFORM_IN);
+    let r = replies(&out);
+    assert_eq!(r.len(), 3);
+    assert_eq!(r[0], ("nil".to_string(), false), "two declarations answer nil");
+    // Only a session where BOTH defns landed can answer 3. Restore
+    // `forms.into_iter().next()` in `eval_turn` and this goes red.
+    assert_eq!(
+        r[1],
+        ("3".to_string(), false),
+        "form 2 of the payload must take effect, not be dropped"
+    );
+    // …and a failure mid-payload is REPORTED, not swallowed behind an earlier success.
+    assert!(
+        r[2].1,
+        "a failing form later in the payload must surface: got {:?}",
+        r[2]
+    );
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn a_toplevel_let_or_do_answers_its_value() {
+    // `let` and `do` are EXPRESSIONS. A top-level one used to be classified
+    // `FormOutcome::Declared` — because one list was answering both "might this carry a def?"
+    // (yes, they splice) and "is this a declaration?" (no) — so its value was discarded:
+    // `--mcp` answered `nil`, `--repl` printed nothing. Reported by a zero-prior model driving
+    // this tool live, then reproduced in both modes.
+    //
+    // Restore `is_runtime_declaration_head` at either site in `eval_form_against_defs` and the
+    // first two of these go red. The third is the control that kept the bug hidden: a NESTED
+    // `let` always worked, which is why "let is broken" looked wrong on inspection.
+    let (out, code) = mcp(TOPLEVEL_EXPR_IN);
+    let r = replies(&out);
+    assert_eq!(r.len(), 3);
+    assert_eq!(r[0], ("1".to_string(), false), "a top-level let answers its body");
+    assert_eq!(r[1], ("3".to_string(), false), "a top-level do answers its last form");
+    assert_eq!(
+        r[2],
+        ("\"wat::core::i64\"".to_string(), false),
+        "the nested-let control must stay green"
+    );
     assert_eq!(code, Some(0));
 }
 

@@ -2130,8 +2130,10 @@ pub fn register_runtime_defs(
 /// (fails closed) rather than diverging.
 ///
 /// `do` / `let` are here because they SPLICE — either may contain a def in a
-/// nested position, so both are declaration-bearing even though neither is a
-/// declaration itself.
+/// nested position, so both are declaration-BEARING even though neither is a
+/// declaration itself. That distinction is load-bearing: see
+/// [`is_declaration_head`], which is the other question and must NOT be answered
+/// from this list.
 pub(crate) const RUNTIME_DECLARATION_HEADS: &[&str] = &[
     ":wat::config::set-redef!",
     ":wat::config::set-eval-redef!",
@@ -2142,18 +2144,51 @@ pub(crate) const RUNTIME_DECLARATION_HEADS: &[&str] = &[
     ":wat::core::extend-type",
 ];
 
+/// The heads that ARE a declaration, as opposed to merely CARRYING one.
+///
+/// `do` / `let` are deliberately ABSENT. They are expressions: a top-level
+/// `(let [x 1] x)` has the value `1`, and `(do 1 2 3)` has the value `3`.
+///
+/// ⚠ THIS SET EXISTS BECAUSE ONE LIST WAS ANSWERING TWO QUESTIONS, and the wrong
+/// answer was shipped. [`RUNTIME_DECLARATION_HEADS`] answers *"will
+/// `register_runtime_defs` walk into this looking for a def?"* — yes for `do`/`let`,
+/// because they splice. `:wat::eval-with-defs!` was asking that same list *"is this
+/// an expression whose value I should return?"* and getting the splice answer, so a
+/// top-level `let` or `do` was classified `FormOutcome::Declared` and its value
+/// DISCARDED — `wat --repl` printed nothing, `wat --mcp` answered `nil`. Reported
+/// live from a zero-prior model driving the MCP; reproduced by hand in both modes.
+///
+/// The old doc comment named its own defect two lines above the list it was wrong
+/// about (*"neither is a declaration itself"*) while the predicate returned true for
+/// both — the arc's recurring shape: live code plus a confident comment.
+const DECLARATION_HEADS: &[&str] = &[
+    ":wat::config::set-redef!",
+    ":wat::config::set-eval-redef!",
+    ":wat::core::def",
+    ":wat::core::defclause",
+    ":wat::core::extend-type",
+];
+
 /// Does this head name a form that [`register_runtime_defs`] will consume?
 ///
-/// The one authority on "is this residue form a declaration or an expression",
-/// used by `:wat::eval-with-defs!` to answer `FormOutcome::Declared` vs
-/// `::Evaluated`. It must be asked of a POST-MACRO-EXPANSION form: `defn` is a
-/// macro that expands to `def` (`wat/core.wat:1175`), so the raw surface head a
-/// user typed is not what lands in residue — which is exactly why an eval-time
-/// error cannot classify (`defn` fails eval as `unknown-function`, byte-identical
-/// to a typo; measured in
+/// A GATE on the walk — "might this form carry a def?" — NOT the answer to
+/// "is this a declaration": for that, ask [`is_declaration_head`]. It must be asked
+/// of a POST-MACRO-EXPANSION form: `defn` is a macro that expands to `def`
+/// (`wat/core.wat:1175`), so the raw surface head a user typed is not what lands in
+/// residue — which is exactly why an eval-time error cannot classify (`defn` fails
+/// eval as `unknown-function`, byte-identical to a typo; measured in
 /// `wat-scripts/scratch-pad/probe-repl-declaration-refusal.wat`).
 pub(crate) fn is_runtime_declaration_head(head: &str) -> bool {
     RUNTIME_DECLARATION_HEADS.contains(&head)
+}
+
+/// Is this residue form a declaration, rather than an expression whose value answers?
+///
+/// The authority `:wat::eval-with-defs!` asks to choose `FormOutcome::Declared` over
+/// `::Evaluated`. Same post-macro-expansion caveat as
+/// [`is_runtime_declaration_head`].
+pub(crate) fn is_declaration_head(head: &str) -> bool {
+    DECLARATION_HEADS.contains(&head)
 }
 
 /// Recursive helper for [`register_runtime_defs`]. Processes a single form.
@@ -23524,9 +23559,12 @@ pub(crate) fn eval_form_against_defs(
             _ => None,
         }
     };
+    // `is_declaration_head`, NOT `is_runtime_declaration_head` — the two answer different
+    // questions and this one needs "is it a declaration", not "might it carry one". Asking
+    // the wrong one classified a top-level `let`/`do` as Declared and threw its value away.
     let all_declarations = contributed
         .iter()
-        .all(|f| head_of(f).map(|h| is_runtime_declaration_head(&h)).unwrap_or(false));
+        .all(|f| head_of(f).map(|h| is_declaration_head(&h)).unwrap_or(false));
 
     register_runtime_defs(&world.program, env, &mut session_sym)?;
 
@@ -23537,9 +23575,13 @@ pub(crate) fn eval_form_against_defs(
     // An expression (possibly alongside declarations — a `do` can carry both). The
     // LAST contributed non-declaration form is the line's value, mirroring an
     // implicit-do: earlier forms run for effect, the last one answers.
+    //
+    // A `do`/`let` is RUN here (it is an expression), and its nested defs were already
+    // registered by `register_runtime_defs` above — registration precedes evaluation
+    // precisely so a form that both declares and computes sees its own declaration.
     let mut result = Value::Unit;
     for f in &contributed {
-        if head_of(f).map(|h| is_runtime_declaration_head(&h)).unwrap_or(false) {
+        if head_of(f).map(|h| is_declaration_head(&h)).unwrap_or(false) {
             continue;
         }
         match run_constrained(f, env, &session_sym) {

@@ -88,6 +88,27 @@ fn a_bad_line_does_not_end_the_session() {
 }
 
 #[test]
+fn a_toplevel_let_or_do_answers_its_value() {
+    // `let` and `do` are EXPRESSIONS, and a top-level one must PRINT its value. It did not:
+    // `RUNTIME_DECLARATION_HEADS` contains `do`/`let` because they SPLICE (either may carry a
+    // def), and `eval_form_against_defs` was asking that same list the different question "is
+    // this a declaration?" — so a top-level `let` was classified `FormOutcome::Declared` and
+    // the REPL printed NOTHING. Silence, in the mode whose entire purpose is to answer.
+    //
+    // Found by a zero-prior model driving `wat --mcp` (where the same misclassification
+    // surfaced as a literal `nil`), then reproduced here. The fix is in the SHARED core, so
+    // this gate and its `--mcp` twin must agree — that is the point of factoring the turn.
+    let (out, code) = repl(include_str!("wat_repl__toplevel_expr.wat"));
+    let mut lines = out.lines();
+    assert_eq!(lines.next(), Some("1"), "a top-level let answers its body");
+    assert_eq!(lines.next(), Some("3"), "a top-level do answers its last form");
+    // The control that kept the bug hidden for so long: a NESTED let always evaluated fine.
+    assert_eq!(lines.next(), Some("\"wat::core::i64\""));
+    assert_eq!(lines.next(), None);
+    assert_eq!(code, Some(0));
+}
+
+#[test]
 fn eof_stops_cleanly() {
     // Ctrl-D returns; it does not raise. Empty input is immediate EOF.
     let (out, code) = repl("");

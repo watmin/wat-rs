@@ -163,19 +163,40 @@ fn handle_tools_call(id: OwnedValue, req: &OwnedValue, session: &mut Session) ->
     }
 }
 
-/// The turn: parse the EDN, evaluate it against the session, render the answer as EDN.
-/// Returns `(edn_text, is_error)`.
+/// The turn: parse the payload, evaluate EVERY form in it against the session, render the
+/// last answer as EDN. Returns `(edn_text, is_error)`.
+///
+/// ⚠ THE BUG THIS SHAPE FIXES, kept visible because it is the class this arc exists to kill.
+/// The first version took `forms.into_iter().next()` — the FIRST form — and silently discarded
+/// the rest. A payload of two `defn`s answered `nil` with `isError: false`, i.e. SUCCESS, while
+/// the second definition never existed. A caller could not tell. Found by driving the live
+/// tool, not by the gate: all five tests sent one form per payload, so nothing in the suite
+/// ever depended on the mechanism — R59's third face, in the module that cites R59.
+///
+/// Forms run IN ORDER against a definition set that grows as they go, so a `defrecord` in the
+/// first form is in scope for the second. The LAST form's value is the answer, mirroring an
+/// implicit `do` — the same rule the turn already applies to a single form's residue.
+///
+/// A failure STOPS the sequence and is returned. Continuing past one would run later forms
+/// against a world that is not the one they were written for, and report a success built on it.
 fn eval_turn(src: &str, session: &mut Session) -> (String, bool) {
     let forms = match crate::parser::parse_all_with_file(src, "<mcp>") {
         Ok(f) => f,
         Err(e) => return (format!("{e}"), true),
     };
-    let form = match forms.into_iter().next() {
-        Some(f) => f,
-        // An empty payload is not a failure; it is a turn that said nothing.
-        None => return ("nil".to_string(), false),
-    };
+    // An empty payload is not a failure; it is a turn that said nothing.
+    let mut answer = ("nil".to_string(), false);
+    for form in forms {
+        answer = eval_one_form(form, session);
+        if answer.1 {
+            return answer;
+        }
+    }
+    answer
+}
 
+/// One form against the session — the whole of a turn when the payload holds a single form.
+fn eval_one_form(form: WatAST, session: &mut Session) -> (String, bool) {
     let outcome = match crate::runtime::eval_form_against_defs(
         &form,
         session.defs.clone(),
