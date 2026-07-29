@@ -770,7 +770,7 @@ pub fn startup_from_source(
     // Span file label: use the canonical path when known; fall back
     // to `<entry>` for in-memory / test sources. Arc 016 slice 1.
     let file_label = base_canonical.unwrap_or("<entry>");
-    let entry_forms = parse_all_with_file(entry_src, file_label)?;
+    let entry_forms = parse_all_with_file(entry_src, &crate::load::span_display_path(file_label))?;
     let world = startup_from_forms(entry_forms, base_canonical, loader)?;
     // Arc 170 — the `:user::main` wall. Imposed HERE (not in
     // `startup_from_forms`) because this is the chokepoint every real

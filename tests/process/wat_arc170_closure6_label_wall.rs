@@ -132,14 +132,17 @@ fn label_present_child_argv_stays_empty_and_shows_in_real_proc_cmdline() {
     );
     assert_argv0_is_the_wat_binary(&argv_fields[0]);
 
-    // The golden is a TEMPLATE because the origin is machine- and edit-specific: `:file` is
-    // the canonicalized fixture path, `:line` is wherever `(:probe::labeled-locus)` is
-    // currently written. Both are DERIVED from the fixture here rather than hardcoded, so
-    // editing the fixture cannot silently rot this assertion into a lie — and neither is
-    // weakened to a `.contains`, which would stop proving the origin is the CALLER's
-    // position (the whole point) and start passing on any file and any line.
-    let fixture_path = std::fs::canonicalize(LABELED_FIXTURE)
-        .expect("canonicalize the labeled fixture");
+    // The golden is a TEMPLATE because `:line` is edit-specific — wherever
+    // `(:probe::labeled-locus)` currently sits. It is DERIVED from the fixture below rather
+    // than hardcoded, so moving that call cannot silently rot this into a lie; and it is not
+    // weakened to a `.contains`, which would stop proving the origin is the CALLER's position
+    // (the whole point) and start passing on any file and any line.
+    //
+    // `:file` is no longer machine-specific: spans now carry the REPO-RELATIVE path
+    // (`load::span_display_path`), so the fixture constant IS the expected label verbatim.
+    // This assertion USED to canonicalize at test time to dodge an absolute path — that
+    // workaround is what the normalization retired.
+    let fixture_path = LABELED_FIXTURE;
     let fixture_src = std::fs::read_to_string(LABELED_FIXTURE).expect("read the labeled fixture");
     // Located by MARKER, not by matching the call's source text: the latter also matches
     // the fixture's own prose about it (it did — this assertion caught it) and would put an
@@ -161,7 +164,7 @@ fn label_present_child_argv_stays_empty_and_shows_in_real_proc_cmdline() {
     let call_line = marked[0];
 
     let expected = SERVICE_LABEL_EDN
-        .replace("{FILE}", &fixture_path.display().to_string())
+        .replace("{FILE}", fixture_path)
         .replace("{LINE}", &call_line.to_string());
 
     // STRUCTURE-exact, not string-exact: `assert_edn_eq!` parses both sides, so this asserts

@@ -495,7 +495,7 @@ fn process_single_load(
     visited.insert(fetched.canonical_path.clone());
     stack.push(fetched.canonical_path.clone());
 
-    let loaded_forms = parse_all_with_file(&fetched.source, &fetched.canonical_path).map_err(|err| LoadError {
+    let loaded_forms = parse_all_with_file(&fetched.source, &span_display_path(&fetched.canonical_path)).map_err(|err| LoadError {
         span: crate::rust_caller_span!(),
         kind: LoadErrorKind::Parse {
             path: fetched.canonical_path.clone(),
@@ -1032,6 +1032,38 @@ impl SourceLoader for InMemoryLoader {
             Some(contents) => Ok(contents.clone()),
             None => Err(LoadFetchError::NotFound(path.to_string())),
         }
+    }
+}
+
+/// The path a SPAN should carry for a source file.
+///
+/// IDENTITY and DISPLAY are different jobs and this splits them. `FsLoader`
+/// canonicalizes so "duplicate / cycle detection treats distinct spellings of the
+/// same file as the same file" — that must stay absolute and is untouched. A
+/// DIAGNOSTIC must not be absolute: a machine-specific path cannot be asserted
+/// exactly or baked into a golden. Measured cost before this existed — three tests
+/// carried `rune:lint(loose-assert)` reading "error span embeds an absolute
+/// machine-specific path (/home/…)", i.e. three exact assertions given up.
+///
+/// Renders relative to the current directory when the file lies underneath it,
+/// else leaves it absolute. Same split rustc makes.
+///
+/// DEPENDENCY, stated rather than assumed: a cwd-relative label is reproducible
+/// only if callers run from a stable directory. Cargo guarantees that for tests
+/// (cwd = crate root), which is what makes goldens safe. A tool invoked from
+/// elsewhere gets the absolute path — correct, since it is then the only
+/// unambiguous answer.
+pub fn span_display_path(path: &str) -> String {
+    let p = std::path::Path::new(path);
+    if !p.is_absolute() {
+        return path.to_string();
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => p
+            .strip_prefix(&cwd)
+            .map(|rel| rel.display().to_string())
+            .unwrap_or_else(|_| path.to_string()),
+        Err(_) => path.to_string(),
     }
 }
 
