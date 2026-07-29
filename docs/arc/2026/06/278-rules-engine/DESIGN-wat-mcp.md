@@ -138,41 +138,78 @@ mechanism.
 A JSON-RPC **error response** is reserved for envelope faults: malformed JSON, unknown method,
 unknown tool, missing `arguments.edn`.
 
-## STONES
+## STONES — ⚠ THE PLAN BELOW WAS SUPERSEDED BY THE BUILD. Read this block first.
 
-Each: RED gate first, then the strike, weighed by the orchestrator's own `--release` re-run.
+**SHIPPED. `wat --mcp` works end to end**, gated by `tests/cli/wat_mcp.rs` (5 tests), floor
+4180/4180 by the orchestrator's own `--release` re-run. What actually landed is SMALLER than the
+plan, and the difference is the point:
 
-**Stone 1 — `:wat::edn::read-json` + `ReadJsonOutcome`.** Registration mirrors `write-json`; impl
-mirrors `eval_edn_read`; outcome mirrors `ReadOutcome`.
- - RED gate: a well-formed JSON object decodes AND a nested field is readable from wat (this is
-   what resolves CRUX-1); a MALFORMED line returns `::Malformed` and **the caller survives** —
-   proven by evaluating a form afterwards, not by the absence of a crash.
+**Stone 1 — `:wat::edn::read-json` + `ReadJsonOutcome`. DONE (`b9d48a65`), as designed.**
 
-**Stone 2a — `value_to_json_natural` must learn `Nature::Record`.** MEASURED
-(`edn_shim.rs:2651`): it matches `Nature::Struct` ONLY, so a record falls through to the
-`#tag`/`body` sentinel and `:`-prefixed keys — the wrong shape for a harness. That is backwards:
-arc 300 made RECORDS the guaranteed-pure-data aggregate, and a natural-JSON writer exists to serve
-exactly that. Two gated sites in one fn (`:2651` value match, `:2655` type lookup).
+**Stone 2a — `value_to_json_natural` learns `Nature::Record`. NOT BUILT, and NOT NEEDED.** The
+measurement is real and stands (`wat-scripts/scratch-pad/probe-json-natural-record.wat`: a struct
+emits bare-keyed JSON, a record falls to the `#tag`/`body` sentinel) — it is a genuine substrate
+gap and `write-json-natural` has ZERO callers, which is why it sat unobserved. But it is **not on
+this path**, and thinking it was cost most of a session.
 
-> **Why not just use a `defstruct`** — it emits the right JSON today (measured), and it would be a
-> LIE. Structs are for aggregates that can hold RESOURCES (rust opaques, sockets, fds); records are
-> guaranteed pure data (builder, 2026-07-29). A JSON-RPC reply is pure data. Using a
-> resource-capable aggregate because its serializer happens to work would type-check, serialize
-> correctly, and misstate what the value IS.
+> **THE RULING THAT KILLED IT (builder, 2026-07-29):** *"edn string in, edn string out … the wat
+> side evals edn."* The payload is an EDN **string**. It arrives as a string, it leaves as a
+> string, and **no wat value is ever converted to JSON.** A record crossing the wire is EDN text —
+> `#some.ns/Rec {:field "val"}` — sitting inside a JSON string slot as characters. There is no
+> record-to-JSON problem because records never become JSON.
+>
+> The envelope is a CONSTANT with two holes (the echoed `id`, and `result.content[0].text`). It is
+> a template, not a structure to build. Stone 2a existed because a prior self assumed wat would
+> *assemble* the reply from wat aggregates — and it cannot anyway: `HashMap/assoc` is homogeneous
+> (measured, `probe-mcp-reply-emit.wat`), so a heterogeneous envelope is unbuildable as wat data.
 
- - RED gate: a nested record tree containing a vector-of-records emits BARE keys at every level;
-   the existing struct path stays byte-identical (it is already correct — do not regress it).
+**Stone 2b — `wat/mcp.wat`. NOT BUILT, and should not be.** There is no wat file. The loop is
+`src/distribution/mcp.rs`.
 
-**Stone 2b — `wat/mcp.wat`.** A stdlib MODULE exposing `(:mcp::serve defs)`, no `:user::main` — the
-same split `wat/repl.wat` uses, for the same reason (a stdlib file declaring `:user::main` hands
-one to every wat program).
- - RED gate: a scripted transcript — `initialize` → `tools/list` → `tools/call eval` ×2 →
-   `tools/call reset` → `tools/call eval` — compared as **structured goldens**, never `.contains`.
-   Must prove a definition from call N is visible at call N+1, and **invisible after `reset`**.
+> **WHY, and it is the substrate's own doctrine rather than convenience:** JSON is not EDN, and
+> wat's stdin/stdout are strict-EDN data channels by construction (R51, typed-Unix). A wat
+> `println` EDN-*encodes* what it is handed — printing a JSON frame delivers
+> `"{\"jsonrpc\":\"2.0\"…}"`, an escaped string literal, not a JSON object (MEASURED). That is the
+> channel correctly refusing a foreign format. The bridge therefore belongs at the transport,
+> beside argv and the frame reader.
+>
+> The SEMANTICS are not duplicated: `runtime::eval_form_against_defs` (factored out of
+> `:wat::eval-with-defs!`) is called by both the wat verb and the MCP loop, so `--repl` and `--mcp`
+> cannot drift on classification, on which arm grows the definition set, or on what a failure is.
 
-**Stone 3 — `Mode::Mcp` + shim.** Copies `Mode::Repl` (`argv.rs`, `mod.rs`): zero positionals, a
-one-form entry calling `:mcp::serve`.
- - RED gate: `wat --mcp` end-to-end over a real pipe; `--mcp <path>` is EX_USAGE 64.
+**Stone 3 — `Mode::Mcp`. DONE**, mirroring `Mode::Repl`: zero positionals, `--mcp <path>` is
+EX_USAGE 64.
+
+### The gate, and why it is not vacuous
+`definitions_persist_across_turns` · `reset_empties_the_session` (asserts the call works BEFORE and
+fails AFTER, so a no-op reset cannot pass) · `a_failed_evaluation_is_not_fatal` ·
+`the_payload_is_edn_not_json` (structural `.edn` golden) · `mcp_rejects_a_positional`.
+**PROVEN by a deliberate break** (R59 `NISI FRANGAS, NIHIL PROBAS`): cutting the one line
+`session.defs.push(form)` turned 3 of the 5 RED, including the load-bearing one.
+
+### ⚠ A DEFECT FOUND BY THE GATE — the session render loses record field names
+A record returned from a session comes back `#usr/Point {:field-0 3 :field-1 4}` — the declared
+`:x`/`:y` are gone. MEASURED as a SESSION-path defect, not a record-path one, and **inherited, not
+introduced**:
+
+```
+ordinary program :  #usr/Point {:x 3 :y 4}       ← correct
+session (--repl) :  #usr/Point {:field-0 3 :field-1 4}
+```
+
+`field-N` is the fallback when the type is absent from the `TypeEnv` (`edn_shim.rs:3635`). The
+value is produced inside the per-turn frozen world — which knows the type — and rendered later
+against a symbol table that never saw the `defrecord`. So it is a **shipped defect in `wat --repl`**
+(arc 170's closure condition) that `--mcp` inherits faithfully. It matters more here: a human can
+shrug at `:field-0`; an LLM has been handed a shape it cannot write back. The fix belongs in the
+session path so both modes get it, and it touches `eval_form_against_defs`'s contract — the
+builder's call, tracked, not taken unilaterally. The golden
+(`tests/cli/wat_mcp__record.edn`) captures the current behaviour deliberately, so the day it is
+fixed the gate goes red and the correction is explicit rather than silent.
+
+### Still standing on a claim, not a run
+`PROTOCOL_VERSION` and the `result` envelope shape come from the MCP specification and have **not**
+been measured against a live harness. Pointing a real client at it is what settles them.
 
 ## WHAT MAKES THE GATES NON-VACUOUS
 

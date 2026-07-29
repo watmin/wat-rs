@@ -148,10 +148,14 @@ use std::process::ExitCode;
 const REPL_SOURCE: &str =
     "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:repl::turn (:wat::core::Vector :wat::WatAST)))\n";
 const REPL_LABEL: &str = "<repl-entry>";
+/// `--mcp` has no entry file either — the loop is Rust (see `mcp.rs`), and this is what any
+/// diagnostic reaching a span from that path carries.
+const MCP_LABEL: &str = "<mcp-entry>";
 use std::sync::Arc;
 
 mod spawned_runtime;
 mod argv;
+mod mcp;
 mod battery;
 mod check_output;
 mod staleness;
@@ -234,6 +238,9 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         // so a diagnostic from inside the loop names a real repo path rather than a
         // `<repl>` sentinel the reader cannot open. Relative, hence reproducible.
         argv::Mode::Repl => (REPL_LABEL, None, false),
+        // MCP never reaches the source-reading path below — it drives its own loop and has
+        // no entry file. The label is what its diagnostics carry.
+        argv::Mode::Mcp => (MCP_LABEL, None, false),
         argv::Mode::Run { entry_path } => (entry_path.as_str(), None, false),
     };
     let is_repl = matches!(mode, argv::Mode::Repl);
@@ -260,6 +267,13 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         }
     }
     set_argv(ambient_argv);
+
+    // MCP short-circuits here: it reads JSON-RPC frames and drives the turn itself, so it
+    // never wants the entry-file read, the `:user::main` invocation, or the signal wiring
+    // below. argv is set first so a form evaluated in a session still sees the ambient.
+    if matches!(mode, argv::Mode::Mcp) {
+        return mcp::serve();
+    }
 
     // Read entry file. Diagnostics go straight to the real fd 2.
     //

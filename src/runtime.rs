@@ -23430,6 +23430,29 @@ fn eval_form_with_defs(
         }
     };
 
+    eval_form_against_defs(&form, defs, env, sym)
+}
+
+/// The turn itself, with the wat-verb's argument handling stripped off — see
+/// [`eval_form_with_defs`] above for the full rationale, which applies unchanged.
+///
+/// It is split out because the verb is not the only caller. `wat --mcp` drives the same
+/// read/eval/print/loop from Rust (`distribution/mcp.rs`): a JSON-RPC frame is not EDN, so
+/// the loop cannot live on wat's stdio channels (R51 — a wat `println` EDN-encodes what it
+/// is handed, which would deliver an escaped string literal to the harness instead of a
+/// JSON object). The SEMANTICS must not fork with the transport, so both modes call this
+/// one function and the classification lives in exactly one place.
+///
+/// The outcome comes back as the wat `FormOutcome` enum value rather than a Rust enum. That
+/// is deliberate for now: the wat value IS the shipped contract, four arms that `wat --repl`
+/// already gates, and a parallel Rust enum would be a second definition of the same thing
+/// free to drift from it. A Rust caller reads `EnumValue::variant_name`.
+pub(crate) fn eval_form_against_defs(
+    form: &WatAST,
+    defs: Vec<WatAST>,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     // The session's Config rides through, so a caller is not made to re-declare
     // `set-dims!` on every line. Same source the spawn path uses (kernel/spawn.rs).
     let inherit: Option<crate::config::Config> =
@@ -23468,7 +23491,7 @@ fn eval_form_with_defs(
     };
 
     let mut program = defs;
-    program.push((*form).clone());
+    program.push(form.clone());
     let world = match freeze_forms(program) {
         Ok(w) => w,
         Err(e) => return Ok(form_outcome_check_failed(&e, sym)),

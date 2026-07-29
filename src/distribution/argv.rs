@@ -46,6 +46,23 @@ pub(super) enum Mode {
     /// the global arity check FOR (see the note above) — it joins as a variant carrying its
     /// own contract, not as a special case threaded through Run's.
     Repl,
+    /// `wat --mcp` — the MCP server: JSON-RPC 2.0 over stdio, one tool (`eval`). EXACTLY
+    /// ZERO positionals, for `--repl`'s reason: the program is baked in, so a trailing path
+    /// would be a silent lie about what runs.
+    ///
+    /// Semantically this IS `--repl` — read, eval against the accumulated definition set,
+    /// print, loop. The only difference is the codec at each end: a JSON-RPC frame arrives
+    /// carrying an EDN string, and a JSON-RPC frame leaves carrying an EDN string. The
+    /// payload is EDN in both directions and is never converted to JSON — it rides inside a
+    /// JSON string slot as characters.
+    ///
+    /// WHY THE LOOP IS DRIVEN IN RUST rather than by a `wat/mcp.wat`: JSON is not EDN, and
+    /// wat's stdin/stdout are strict-EDN data channels by construction (R51, typed-Unix). A
+    /// wat `println` of a JSON frame EDN-ENCODES it — the harness would receive an escaped
+    /// string literal, not a JSON object (measured). That is the channel correctly refusing
+    /// to carry a foreign format, not a gap to work around, so the bridge belongs where the
+    /// other transport concerns already live: beside argv and the frame reader.
+    Mcp,
     /// `wat <entry.wat> [args…]` — run the program. AT LEAST one positional;
     /// `positional[0]` is the entry and everything after it is the program's
     /// business, not the parser's. The trailing args are not carried in this
@@ -62,6 +79,7 @@ pub(super) enum Mode {
 pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
     let mut check_only = false;
     let mut repl = false;
+    let mut mcp = false;
     let mut output_format: Option<CheckOutputFormat> = None;
     let mut positional: Vec<&str> = Vec::new();
     let mut iter = argv.iter().skip(1);
@@ -73,6 +91,7 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
             // prog.wat --check` passes `--check` to the program, it does not
             // silently switch the cli into check mode.
             "--repl" if positional.is_empty() => repl = true,
+            "--mcp" if positional.is_empty() => mcp = true,
             "--check" if positional.is_empty() => check_only = true,
             "--check-output" if positional.is_empty() => {
                 match iter.next().map(String::as_str) {
@@ -99,10 +118,20 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
 
     let usage = |prog: &str| {
         eprintln!(
-            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]\n   or: {prog} --repl"
+            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]\n   or: {prog} --repl\n   or: {prog} --mcp"
         );
         ExitCode::from(64) // EX_USAGE
     };
+
+    // MCP mode: exactly zero positionals, same contract as --repl and for the same reason.
+    // `--mcp --repl` is a usage error rather than a precedence rule — two different programs
+    // were asked for, and picking one silently is the dishonest answer.
+    if mcp {
+        if !positional.is_empty() || check_only || output_format.is_some() || repl {
+            return Err(usage(prog));
+        }
+        return Ok(Mode::Mcp);
+    }
 
     // REPL mode: exactly zero positionals. A path here means the caller asked for two
     // different programs at once; refusing is the honest answer, not "run one and ignore the
