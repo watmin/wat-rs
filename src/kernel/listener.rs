@@ -216,17 +216,6 @@ impl CommListener for CrossbeamListener {
         let resp_tx = match resp_tx_val {
             Value::wat__kernel__Sender(arc) => match Arc::try_unwrap(arc) {
                 Ok(SenderInner::Comms { sender, .. }) => sender,
-                Ok(_) => {
-                    return Err(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "connect-request tx is not a comms (thread-tier) sender"
-                                .into(),
-                        },
-                    }
-                    .into());
-                }
                 Err(_) => {
                     return Err(RuntimeError {
                         span: span.clone(),

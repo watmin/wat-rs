@@ -2,7 +2,7 @@
 //! four constructors. Lifted verbatim from `src/typed_channel.rs` at Stone 6.1;
 //! behavior identical.
 
-use crate::io::{WatReader, WatWriter};
+use crate::io::WatReader;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -32,17 +32,6 @@ pub enum SenderInner {
         sender: crate::comms::thread::Sender<crate::runtime::Value>,
         /// Arc 170 slice 3 Gap B — set by `crate::channel::sender_close`;
         /// checked by `typed_send` before each send attempt.
-        closed: AtomicBool,
-    },
-    /// Tier 2 — linux-fd pipe with EDN encoding on send. The
-    /// inner `Arc<dyn WatWriter>` is the same shape `Process.stdin`
-    /// has carried since arc 103 (PipeWriter from an OwnedFd).
-    PipeFd {
-        writer: Arc<dyn WatWriter>,
-        /// Arc 170 slice 3 Gap B — set by `crate::channel::sender_close`;
-        /// checked by `typed_send` before each send attempt. For PipeFd,
-        /// `sender_close` also calls `writer.close()` which releases
-        /// the underlying fd so the peer reader sees EOF.
         closed: AtomicBool,
     },
 }
@@ -82,16 +71,6 @@ pub fn receiver_from_comms(
     rx: crate::comms::thread::Receiver<crate::runtime::Value>,
 ) -> crate::runtime::Value {
     crate::runtime::Value::wat__kernel__Receiver(Arc::new(ReceiverInner::Comms(rx)))
-}
-
-/// Ergonomic constructor for a tier-2 (pipe-fd) Sender `Value`.
-/// The wrapped writer encodes typed `Value`s as line-delimited EDN
-/// on each send.
-pub fn sender_from_pipe(writer: Arc<dyn WatWriter>) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::PipeFd {
-        writer,
-        closed: AtomicBool::new(false),
-    }))
 }
 
 /// Ergonomic constructor for a tier-2 (pipe-fd) Receiver `Value`.

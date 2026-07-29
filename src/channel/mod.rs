@@ -74,7 +74,7 @@ pub mod transfer;
 // Flat pub-use re-exports so every public name is reachable at
 // crate::channel::X (callers never need to know which sub-module holds what).
 pub use inner::{SenderInner, ReceiverInner, sender_from_comms, receiver_from_comms,
-    sender_from_pipe, receiver_from_pipe};
+    receiver_from_pipe};
 pub use transfer::{SendOutcome, RecvOutcome, typed_send, sender_close, typed_recv,
-    try_as_comms_receiver, make_pipe_channel_pair,
+    try_as_comms_receiver,
     make_thread_peer_pair_for_test};

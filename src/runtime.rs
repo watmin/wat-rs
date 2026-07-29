@@ -21440,15 +21440,6 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
         Value::wat__kernel__Sender(arc) => {
             match Arc::try_unwrap(arc) {
                 Ok(crate::channel::SenderInner::Comms { sender, .. }) => sender,
-                Ok(_) => {
-                    return Err(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "connect-request tx is not a comms (thread-tier) sender".into(),
-                        },
-                    }.into());
-                }
                 Err(_) => {
                     return Err(RuntimeError {
                         span: span.clone(),

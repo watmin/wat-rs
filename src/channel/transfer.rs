@@ -47,17 +47,17 @@ pub enum RecvOutcome {
 /// Send a typed `Value` through a transport-polymorphic Sender.
 ///
 /// - Tier 1 (Crossbeam): zero-copy enqueue.
-/// - Tier 2 (PipeFd): EDN-encode + append `'\n'` + write to fd.
-///   The `types` registry is consulted by `value_to_edn_with` so
-///   tagged structs / enums round-trip with their type names.
 ///
-/// Span is used for error reporting on pipe-write failures (so
-/// the caller's source span surfaces in the diagnostic).
+/// `types` and `span` are unused now that `SenderInner` has a single
+/// (Comms) variant — the pipe-fd send arm that consumed them was
+/// annihilated (arc 278, dead-send-half cut). Kept in the signature
+/// unchanged: `typed_send` still has a live caller at
+/// `kernel/address.rs` that passes both.
 pub fn typed_send(
     sender: &SenderInner,
     value: crate::runtime::Value,
-    types: Option<&crate::types::TypeEnv>,
-    span: Span,
+    _types: Option<&crate::types::TypeEnv>,
+    _span: Span,
 ) -> SendOutcome {
     match sender {
         SenderInner::Comms { sender: tx, closed } => {
@@ -76,55 +76,27 @@ pub fn typed_send(
                 Err(_) => SendOutcome::Disconnected,
             }
         }
-        SenderInner::PipeFd { writer, closed } => {
-            // Arc 170 slice 3 Gap B — check closed flag before write.
-            if closed.load(Ordering::Acquire) {
-                return SendOutcome::Disconnected;
-            }
-            let edn = crate::edn_shim::value_to_edn_with(&value, types);
-            let mut payload = wat_edn::write(&edn);
-            payload.push('\n');
-            match writer.write_all(payload.as_bytes(), span) {
-                Ok(()) => SendOutcome::Ok,
-                // Arc 170 closure #5 — STOP-2: a `WriteStopped` error (the
-                // shutdown broadcast winning the poll in `PipeWriter::write`,
-                // src/io.rs) lands here too and is folded into Disconnected,
-                // UNCHANGED from today's behavior for every other pipe-write
-                // failure (EPIPE, etc.). This is deliberately NOT distinguished
-                // yet: doing so needs a `SendOutcome::Shutdown` variant, and
-                // that cascades to `kernel/address.rs`'s `ThreadAddress::connect`
-                // (the sole other match site over this enum), whose `ConnectFail`
-                // (the arc 278 "connect' OUTCOME WALL": Refused/Rejected/Failed)
-                // has no non-fabricated variant for "the process is stopping" —
-                // extending that wall is a design call outside this brief's
-                // scope (BRIEF-writer-joins-the-lockstep.md STOP-2). Reported,
-                // not routed around; not a regression (this exact wildcard
-                // already existed for every other pipe-write failure).
-                Err(_) => SendOutcome::Disconnected,
-            }
-        }
     }
 }
 
 /// Arc 170 slice 3 Gap B — signal end-of-stream on the send side
 /// without dropping the Sender Value.
 ///
-/// Sets the `closed` flag to `true` (idempotent). For Crossbeam
+/// Sets the `closed` flag to `true` (idempotent). For Comms
 /// senders, the flag is sufficient — subsequent `typed_send` calls
-/// check it and return `SendOutcome::Disconnected`. For PipeFd
-/// senders, also calls `writer.close()` which releases the
-/// underlying fd via `libc::close(2)` so the peer reader sees EOF
-/// on its next read (the same `PipeWriter::close` that
-/// `IOWriter/close` calls, per `src/io.rs:665`).
+/// check it and return `SendOutcome::Disconnected`.
 ///
 /// Calling `sender_close` twice is safe (idempotent): the second
-/// call finds the flag already set; for PipeFd the `PipeWriter::close`
-/// impl atomically swaps fd to -1 and no-ops if already -1.
+/// call finds the flag already set.
+///
+/// `span` is unused now that `SenderInner` has a single (Comms)
+/// variant — the pipe-fd close arm that consumed it was annihilated
+/// (arc 278, dead-send-half cut). Kept in the signature unchanged.
 ///
 /// Returns `Ok(())` always — callers convert to `Value::Unit` (nil).
 pub fn sender_close(
     sender: &SenderInner,
-    span: Span,
+    _span: Span,
 ) -> Result<(), crate::value::RuntimeError> {
     match sender {
         SenderInner::Comms { closed, .. } => {
@@ -137,16 +109,6 @@ pub fn sender_close(
             // flag gates all future typed_send calls immediately.
             closed.store(true, Ordering::SeqCst);
             Ok(())
-        }
-        SenderInner::PipeFd { writer, closed } => {
-            // Set the flag first so typed_send stops immediately.
-            closed.store(true, Ordering::SeqCst);
-            // Release the fd — the peer reader's next read sees EOF.
-            // PipeWriter::close is idempotent (atomically swaps fd
-            // to -1; no-op if already -1). Errors from close(2) are
-            // advisory; PipeWriter::close discards them — same policy
-            // as IOWriter/close.
-            writer.close(span)
         }
     }
 }
@@ -345,40 +307,6 @@ pub fn try_as_comms_receiver(
         ReceiverInner::Comms(rx) => Some(rx),
         ReceiverInner::PipeFd(_) => None,
     }
-}
-
-/// Allocate a tier-2 (pipe-fd-backed) typed-channel pair for
-/// substrate-internal use.
-///
-/// Creates an OS pipe via `pipe(2)`; wraps the write end as a
-/// PipeFd-backed `Sender<T>` Value and the read end as a PipeFd-
-/// backed `Receiver<T>` Value. Bytes flowing through the pipe are
-/// EDN-encoded by the substrate; user code sees typed Values.
-///
-/// Returns the pair as a `(Sender<T>, Receiver<T>)` tuple Value
-/// — the same shape the tier-1 (thread) pair constructor returns.
-/// `T` is phantom at the runtime layer; the type checker enforces
-/// homogeneity per FOUNDATION.
-///
-/// `op` is the caller's wat-level op name for diagnostic
-/// attribution (matches the `make-pipe` convention used by
-/// fork.rs / spawn.rs).
-///
-/// Slice 1c surface — Rust-internal helper. The wat-level verb
-/// that wires this to a wat-callable (e.g., `make-pipe-channel`)
-/// is slice-2 territory if a real consumer demands it; today's
-/// users come through `spawn-process` (slice 2) which constructs
-/// the Process<I,O> typed-channel handles internally.
-pub fn make_pipe_channel_pair(
-    op: &'static str,
-) -> Result<(crate::runtime::Value, crate::runtime::Value), crate::value::RuntimeError> {
-    use crate::channel::inner::{sender_from_pipe, receiver_from_pipe};
-    let (read_fd, write_fd) = crate::process::make_pipe(op)?;
-    let writer: Arc<dyn crate::io::WatWriter> =
-        Arc::new(crate::io::PipeWriter::from_owned_fd(write_fd));
-    let reader: Arc<dyn crate::io::WatReader> =
-        Arc::new(crate::io::PipeReader::from_owned_fd(read_fd));
-    Ok((sender_from_pipe(writer), receiver_from_pipe(reader)))
 }
 
 /// Arc 170 Stone C1 — substrate-internal test fixture. Constructs two
