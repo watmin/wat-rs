@@ -713,7 +713,7 @@ pub(crate) fn eval_step_payload(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::step-payload'";
+    const OP: &str = ":wat::rete::step-payload'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
 
     if args.len() != 5 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {

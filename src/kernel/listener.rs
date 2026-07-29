@@ -132,7 +132,7 @@ impl CommListener for CrossbeamListener {
             // a reason → AcceptOutcome::Failed[cause].
             crate::channel::RecvOutcome::DecodeError(msg) => {
                 return Ok(Err(AcceptFail::Failed(format!(
-                    "accept': rendezvous recv decode error: {}",
+                    "accept: rendezvous recv decode error: {}",
                     msg
                 ))));
             }
@@ -356,7 +356,7 @@ impl CommListener for SocketListener {
             // AcceptOutcome::Failed[cause], not a raise the server loop unwinds past.
             let outcome = match sel.select() {
                 Ok(o) => o,
-                Err(e) => return Ok(Err(AcceptFail::Failed(format!("accept' select: {}", e)))),
+                Err(e) => return Ok(Err(AcceptFail::Failed(format!("accept select: {}", e)))),
             };
             match outcome {
                 crate::comms::SelectOutcome::Listener => {
@@ -378,7 +378,7 @@ impl CommListener for SocketListener {
                                 Ok(c) => c,
                                 Err(e) => {
                                     return Ok(Err(AcceptFail::Failed(format!(
-                                        "accept' (process tier): peer_cred on accepted socket: {}",
+                                        "accept (process tier): peer_cred on accepted socket: {}",
                                         e
                                     ))));
                                 }
@@ -423,7 +423,7 @@ impl CommListener for SocketListener {
                     return Ok(Err(AcceptFail::Closed));
                 }
                 crate::comms::SelectOutcome::Recv { .. } => {
-                    unreachable!("accept' Select has no receivers")
+                    unreachable!("accept Select has no receivers")
                 }
             }
         }

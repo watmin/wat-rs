@@ -144,9 +144,9 @@ pub struct PrimedStdio {
 impl std::fmt::Debug for PrimedStdio {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PrimedStdio")
-            .field("stdin_addr", &"<Address'> (arc 170 primed stdin-svc; via sym.primed_stdio())")
-            .field("stdout_addr", &"<Address'> (arc 170 primed stdout-svc; via sym.primed_stdio())")
-            .field("stderr_addr", &"<Address'> (arc 170 primed stderr-svc; via sym.primed_stdio())")
+            .field("stdin_addr", &"<Address> (arc 170 primed stdin-svc; via sym.primed_stdio())")
+            .field("stdout_addr", &"<Address> (arc 170 primed stdout-svc; via sym.primed_stdio())")
+            .field("stderr_addr", &"<Address> (arc 170 primed stderr-svc; via sym.primed_stdio())")
             .finish()
     }
 }

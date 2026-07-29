@@ -545,7 +545,7 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::take"
         | ":wat::core::drop"
         | ":wat::core::reverse"
-        | ":wat::core::sort'"
+        | ":wat::core::sort'"  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
         | ":wat::core::find-last-index"
 
         // ── Arc 118.2a — the clojure-named lazy/eager HOF surface (wat/seq.wat).

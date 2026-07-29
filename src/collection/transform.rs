@@ -257,7 +257,7 @@ pub(crate) fn eval_vec_sort_by(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::sort'";
+    const OP: &str = ":wat::core::sort'";  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
     if args.len() != 2 {
         return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),

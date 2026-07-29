@@ -2393,7 +2393,7 @@ fn synthesize_surface_protocol(
                     head: ":wat::core::defsurface".to_string(),
                     reason: format!(
                         "op `{}` in surface {}: `:max-request-bytes N` is MANDATORY on a \
-                         serviceable (`:nature :Peer'`) op — a wire op must explicitly declare \
+                         serviceable (`:nature :Peer`) op — a wire op must explicitly declare \
                          its request-byte budget, never ride the silent {}-byte default (arc \
                          278 #16 Stone 16.3). Add `:max-request-bytes <N>` after the op's \
                          `-> :Response` in its `:features` clause.",

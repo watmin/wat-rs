@@ -320,7 +320,7 @@ pub fn eval_kernel_readln_prime(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::readln'";
+    const OP: &str = ":wat::kernel::readln'";  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
     use crate::runtime::eval;
 
     // Arc 258 — `-> :T` is illegal on readln'; the arrow is a function-return annotation only. readln

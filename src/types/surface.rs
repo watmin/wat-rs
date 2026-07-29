@@ -701,7 +701,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
-                    "a :nature :Peer' surface must declare :messages (its own request/response \
+                    "a :nature :Peer surface must declare :messages (its own request/response \
                      protocol records/enums) so a :satisfies service ships them across a process \
                      fork; surface {} has no :messages",
                     name

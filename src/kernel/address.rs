@@ -137,7 +137,7 @@ impl CommAddress for ThreadAddress {
             // past. The thread-tier twin of the process tier's ECONNREFUSED.
             crate::channel::SendOutcome::Disconnected => {
                 return Ok(Err(ConnectFail::Refused(
-                    "connect': rendezvous send failed — listener was dropped (no listener)".into(),
+                    "connect: rendezvous send failed — listener was dropped (no listener)".into(),
                 )));
             }
         }

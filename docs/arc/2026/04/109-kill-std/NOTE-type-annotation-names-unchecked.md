@@ -123,3 +123,72 @@ a bare `schemes.insert` with no duplicate gate — a real silent resurrection pa
 - 278 R7 — why `:wat::core::Value` is unregistered *by design* (exemption 2).
 - `docs/arc/2026/06/278-rules-engine/DESIGN-reserved-prefix-one-gate.md` — ADJACENT ONLY: it polices
   who may **define** a reserved name, never whether a **reference** resolves.
+
+---
+
+## ADDENDUM 2026-07-28 — the silence was hit as an INSTRUMENT FAILURE, and the builder's ruling: **check must do more**
+
+> **Builder, this session:** *"check doesn't do enough... we need it to do more."*
+
+This note filed the gap as *"a silence, not an unsoundness."* Both halves still hold — and the
+silence has now **cost something measurable**, which is the part worth recording.
+
+### How it surfaced — `--check` was briefed as an existence arbiter and could not discriminate
+
+Building the retired-name lint (`BRIEF-retired-name-lint.md`, arc 170), a rider had to answer one
+question per site: **does this name still exist?** The brief handed it the obvious cheap arbiter —
+`target/release/wat --check` a one-line fixture using the plain name, ~0.2s, resolves-vs-`UnknownFunction`.
+
+**It does not discriminate.** Re-proven by my own run this session, and it is *wider* than the
+non-parametric case this note already documents:
+
+```clojure
+[n <- :wat::kernel::TotallyBogus<wat::core::i64>]   ;; a bogus PARAMETRIC HEAD   => exit 0
+[n <- :wat::kernel::RecvOutcome'<wat::core::i64>]   ;; a RETIRED PRIME spelling  => exit 0
+[n <- :s::NopeDoesNotExist]                         ;; this note's own case      => exit 0
+```
+
+The retired prime is the one that stings: the *exact* question the tool was asking — *"is this
+spelling still a name?"* — returns the same answer for a live name and a dead one.
+
+### The escalation this justifies
+
+A silence in the checker is not merely a missed diagnostic. It means **the substrate has no
+queryable answer to "does this name exist?"** — so every tool that needs that answer must route
+*around* the checker. That is the cost, and it is not hypothetical: it happened, in a brief I wrote,
+and the rider had to find another way.
+
+### What it used instead — recorded so nobody re-derives it, and its fragility named
+
+The rider fell back to the **registration tables themselves** — grepping `env.register(…)` and the
+`check.rs`/`runtime.rs` dispatch match arms — cross-checked against
+**`wat-scripts/fixes/reclaim-ipc-prime-names.wat`**, the recorded 0z codemod, which names exactly the
+24 retired names *and* documents the primes deliberately excluded from that rename.
+
+That is strictly stronger than `--check` and it is ground truth today. **It is also the wrong shape
+to depend on:** a recorded migration is a *historical artifact*, not a registry. It is correct until
+the next rename, at which point it silently stops being the answer — the same rot this arc exists to
+kill. Recording it as the current best instrument, not as the design.
+
+### ★ THE DECOMPOSITION — two positions, and only one of them is the checker's job
+
+The session separated a thing this note had held as one:
+
+| position | example | can a checker see it? | the wall |
+|---|---|---|---|
+| **ANNOTATION** | `[n <- :s::Nope]`, `-> :s::Nope<T>` | **yes** — it is a parsed `TypeExpr` | **the stone this note is about** (extend `query-type-safe` part 3 by one position; carry the three exemptions above) |
+| **STRING LITERAL** | `"a send' outcome must be faced"` | **never** — it is opaque text to every pass | **a lint** |
+
+The second row is why the checker doing more would still not have covered today's work: a name in a
+message string is invisible to the type system by construction. That wall **shipped today** —
+`tests/lint/retired_name_justified.rs` — and it is the same shape as `unused_span_justified.rs`: for
+emitted and embedded text, **the wall sits on the source, not on the checker** (the 24y meta-finding:
+*wat's SURFACE is hardened; the RUST that implements and generates wat is not*).
+
+So "check must do more" is the **annotation** stone, and it is now the only half still open. It does
+not subsume the lint, and the lint does not discharge it.
+
+### Blast radius — still UNMEASURED, and still do not guess
+
+The sizing instrument this note already prescribes (a one-off walk of every annotation, reporting
+which names resolve to nothing) has **not** been run. Run it before committing to the stone.

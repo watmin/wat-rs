@@ -4665,20 +4665,20 @@ fn dispatch_keyword_head_value(
         // (:wat::rete::fire-once' <session>) → :wat::rete::Session
         // Observationally equivalent to the wat oracle's fire-once: same derived facts.
         // Mutates a native WorkingMemory (sealed; never escapes to wat); returns a frozen Session.
-        ":wat::rete::fire-once'" => crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym),
+        ":wat::rete::fire-once'" => crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
         // (:wat::rete::fire-rules' <session>) → :wat::rete::Session
         // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
         // multi-round cascade (derived facts re-enter the network until no new fact is produced).
         // Returns a Session with facts = input only (derived live in production-memory).
-        ":wat::rete::fire-rules'" => crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym),
+        ":wat::rete::fire-rules'" => crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
         // (:wat::rete::fire-rules-explain' <session>) → :wat::rete::Explained
-        ":wat::rete::fire-rules-explain'" => crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym),
+        ":wat::rete::fire-rules-explain'" => crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         // Arc 278 Stone P12c — per-edge explain payload builder.
         // (:wat::rete::step-payload' session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
-        ":wat::rete::step-payload'" => crate::rete::matcher::eval_step_payload(args, list_span, env, sym),
+        ":wat::rete::step-payload'" => crate::rete::matcher::eval_step_payload(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         ":wat::rete::collect-rules" => crate::rete::collect::eval_collect_rules(args, list_span, env, sym),
         // Arc 278 Stone 6a — the rete condition fence: two orthogonal classifiers, each default-deny
         // + transitive over user-fn bodies. A rete condition must be (pure AND deterministic).
@@ -5132,7 +5132,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::range" => crate::collection::transform::eval_vec_range(args, list_span, env, sym),
         ":wat::core::take" => crate::collection::transform::eval_vec_take(args, list_span, env, sym),
         ":wat::core::drop" => crate::collection::transform::eval_vec_drop(args, list_span, env, sym),
-        ":wat::core::sort'" => crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym),
+        ":wat::core::sort'" => crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym),  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
         ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
         ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
@@ -5395,7 +5395,7 @@ fn dispatch_keyword_head_value(
         // Arc 255 escape-hatch — readln' is the kernel-restricted positional prime
         // that the readln defmacro expands to. The macro forwards the `-> :T`
         // annotation intact; the prime carries an optional leading cap (i64).
-        ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
         // Arc 170 — the raw-frame sibling: undecoded text + EOF as a matchable value.
         ":wat::kernel::read-frame" => crate::services::eval_kernel_read_frame(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
@@ -20839,7 +20839,7 @@ fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Valu
     let span = crate::rust_caller_span!();
     let form = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::Frame'".into(), span.clone()),
+            WatAST::Keyword(":wat::kernel::Frame'".into(), span.clone()),  // rune:lint(retired-name) — positional constructor idiom: Frame is the record, Frame' builds one
             // Arc 109 — Frame's fields are concrete (non-`Option`); the ctor
             // form supplies bare values, never `(Some …)`/`None` wrappers.
             // file: "<file>"
@@ -21343,7 +21343,7 @@ fn eval_connect_prime(
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Address'<S,R>",
+                    expected: "Address<S,R>",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             }.into());
@@ -21526,7 +21526,7 @@ fn eval_accept_prime(
             span: args[0].span().clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Listener'<S,R> (unified Listener entity from listener')",
+                expected: "Listener<S,R> (unified Listener entity from listener)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         }
@@ -21589,7 +21589,7 @@ fn eval_allow_prime(
                     span: args[0].span().clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: "allow' is a process-tier service gate; \
+                        reason: "allow is a process-tier service gate; \
                                  a thread listener's handle IS the grant"
                             .into(),
                     },
@@ -21601,7 +21601,7 @@ fn eval_allow_prime(
             span: args[0].span().clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Listener'<S,R> (unified Listener entity from listener')",
+                expected: "Listener<S,R> (unified Listener entity from listener)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         }
@@ -21664,7 +21664,7 @@ fn eval_deny_prime(
                     span: args[0].span().clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: "deny' is a process-tier service gate; \
+                        reason: "deny is a process-tier service gate; \
                                  a thread listener's handle IS the grant"
                             .into(),
                     },
@@ -21676,7 +21676,7 @@ fn eval_deny_prime(
             span: args[0].span().clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Listener'<S,R> (unified Listener entity from listener')",
+                expected: "Listener<S,R> (unified Listener entity from listener)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         }
@@ -25493,7 +25493,7 @@ fn eval_peer_send_prime(
                     None => send_outcome_closed(),
                     Some(peer) => match peer.send(payload_val) {
                         Ok(()) => send_outcome_sent(),
-                        Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                        Err(_) => send_outcome_lost("send: peer disconnected".into()),
                     },
                 })
             })
@@ -25524,7 +25524,7 @@ fn eval_peer_send_prime(
                     Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                         Ok(match bundle.peer.send(edn_str.clone()) {
                             Ok(()) => send_outcome_sent(),
-                            Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                            Err(_) => send_outcome_lost("send: peer disconnected".into()),
                         })
                     }
                     // arc 292 L3 — timers are select'-only; send' is not supported. Not a
@@ -25534,7 +25534,7 @@ fn eval_peer_send_prime(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: "cannot send to a timer peer (timers are select'-only)".into(),
+                            reason: "cannot send to a timer peer (timers are select-only)".into(),
                         },
                     }
                     .into()),
@@ -25573,14 +25573,14 @@ fn eval_peer_send_prime(
                         );
                         match peer.send_wire(wire) {
                             Ok(()) => send_outcome_sent(),
-                            Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                            Err(_) => send_outcome_lost("send: peer disconnected".into()),
                         }
                     }
                     Some(peer) => {
                         // Thread-tier: pass Value in-process, no serialisation.
                         match peer.send(payload_val) {
                             Ok(()) => send_outcome_sent(),
-                            Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                            Err(_) => send_outcome_lost("send: peer disconnected".into()),
                         }
                     }
                 })
@@ -25592,7 +25592,7 @@ fn eval_peer_send_prime(
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
+                expected: "peer (Thread<I,O> | Process<I,O> | Peer<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -25657,7 +25657,7 @@ fn eval_peer_try_send_prime(
                                 crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                                 crate::kernel::peer::TrySendResult::Full => try_send_outcome_would_block(),
                                 crate::kernel::peer::TrySendResult::Disconnected => {
-                                    try_send_outcome_lost("try-send': peer disconnected".into())
+                                    try_send_outcome_lost("try-send: peer disconnected".into())
                                 }
                             }
                         }
@@ -25665,7 +25665,7 @@ fn eval_peer_try_send_prime(
                             crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                             crate::kernel::peer::TrySendResult::Full => try_send_outcome_would_block(),
                             crate::kernel::peer::TrySendResult::Disconnected => {
-                                try_send_outcome_lost("try-send': peer disconnected".into())
+                                try_send_outcome_lost("try-send: peer disconnected".into())
                             }
                         },
                     }
@@ -25677,7 +25677,7 @@ fn eval_peer_try_send_prime(
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (unified Peer'<S,R>)",
+                expected: "peer (unified Peer<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -25764,7 +25764,7 @@ fn eval_peer_pid(
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                expected: "peer (Thread<I,O> | Process<I,O>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -25848,8 +25848,8 @@ fn eval_peer_recv_prime(
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
-                    "recv' takes exactly one argument (peer); got {}. \
-                     `-> :T` is a function-return annotation only — it is illegal on recv'. \
+                    "recv takes exactly one argument (peer); got {}. \
+                     `-> :T` is a function-return annotation only — it is illegal on recv. \
                      The type flows from the consumer or the self-describing EDN wire.",
                     args.len()
                 ),
@@ -25940,7 +25940,7 @@ fn eval_peer_recv_prime(
                                     sym.types().map(|a| a.as_ref()),
                                 ) {
                                     Ok(v) => recv_outcome_message(v),
-                                    Err(e) => recv_outcome_lost(format!("recv' EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
+                                    Err(e) => recv_outcome_lost(format!("recv EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
                                 },
                                 // The crash reason is the full `#wat.kernel/ProcessPanics [...]`
                                 // envelope text — carried as the Lost cause's Failure/message.
@@ -25959,7 +25959,7 @@ fn eval_peer_recv_prime(
                             span: list_span.clone(),
                             kind: RuntimeErrorKind::MalformedForm {
                                 head: OP.into(),
-                                reason: "recv' on a timer peer is not supported; place it in a select' set".into(),
+                                reason: "recv on a timer peer is not supported; place it in a select set".into(),
                             },
                         }
                         .into()),
@@ -26004,7 +26004,7 @@ fn eval_peer_recv_prime(
                                     sym.types().map(|a| a.as_ref()),
                                 ) {
                                     Ok(v) => recv_outcome_from_decoded(v, sym.types().map(|a| a.as_ref())),
-                                    Err(e) => recv_outcome_lost(format!("recv' EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
+                                    Err(e) => recv_outcome_lost(format!("recv EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
                                 }),
                                 Err(e) => Ok(match &e {
                                     // A raw wire failure carries its real reason.
@@ -26056,7 +26056,7 @@ fn eval_peer_recv_prime(
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
+                expected: "peer (Thread<I,O> | Process<I,O> | Peer<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -26190,7 +26190,7 @@ fn eval_peer_close_prime(
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: "close' on a timer peer is not supported (it is consumed by select')".into(),
+                        reason: "close on a timer peer is not supported (it is consumed by select)".into(),
                     },
                 })),
             }
@@ -26199,7 +26199,7 @@ fn eval_peer_close_prime(
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                expected: "peer (Thread<I,O> | Process<I,O>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -26241,8 +26241,8 @@ fn eval_peer_select_prime(
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
-                    "select' takes one peer vector (fan-in); got {} args. \
-                     The 3-arg service multiplexer is poll'.",
+                    "select takes one peer vector (fan-in); got {} args. \
+                     The 3-arg service multiplexer is poll.",
                     args.len()
                 ),
             },
@@ -26284,7 +26284,7 @@ fn eval_peer_select_prime(
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                    expected: "peer (Thread<I,O> | Process<I,O>)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             }
@@ -26320,7 +26320,7 @@ fn eval_peer_select_prime(
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
-                                "peers[{}] has wrong tier (expected Thread'): {:?}",
+                                "peers[{}] has wrong tier (expected Thread): {:?}",
                                 i,
                                 ValueSnapshot::of(other)
                             ),
@@ -26404,7 +26404,7 @@ fn eval_peer_select_prime(
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "select' interrupted by shutdown".into(),
+                    reason: "select interrupted by shutdown".into(),
                 },
             }
             .into()),
@@ -26438,7 +26438,7 @@ fn eval_peer_select_prime(
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
-                                "peers[{}] has wrong tier (expected Process'): {:?}",
+                                "peers[{}] has wrong tier (expected Process): {:?}",
                                 i,
                                 ValueSnapshot::of(other)
                             ),
@@ -26503,7 +26503,7 @@ fn eval_peer_select_prime(
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: format!("select' io_uring error: {}", io_err),
+                    reason: format!("select io_uring error: {}", io_err),
                 },
             })
         })? {
@@ -26549,7 +26549,7 @@ fn eval_peer_select_prime(
                                 span: list_span.clone(),
                                 kind: RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
-                                    reason: format!("select' EDN decode failed: {}", e),
+                                    reason: format!("select EDN decode failed: {}", e),
                                 },
                             })
                         })?;
@@ -26566,12 +26566,12 @@ fn eval_peer_select_prime(
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "select' interrupted by shutdown".into(),
+                    reason: "select interrupted by shutdown".into(),
                 },
             }
             .into()),
             crate::comms::SelectOutcome::Listener =>
-                unreachable!("process-tier 1-arg select' has no listener arm"),
+                unreachable!("process-tier 1-arg select has no listener arm"),
         }
     } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
         // ── Bare Peer' (a provisioned connection — no spawned worker behind it) ──
@@ -26600,7 +26600,7 @@ fn eval_peer_select_prime(
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
-                                "peers[{}] has wrong tier (expected Peer'): {:?}",
+                                "peers[{}] has wrong tier (expected Peer): {:?}",
                                 i,
                                 ValueSnapshot::of(other)
                             ),
@@ -26666,7 +26666,7 @@ fn eval_peer_select_prime(
                                     kind: RuntimeErrorKind::MalformedForm {
                                         head: OP.into(),
                                         reason: format!(
-                                            "peers[{}]: mixed-tier select' set (a non-crossbeam peer \
+                                            "peers[{}]: mixed-tier select set (a non-crossbeam peer \
                                              among crossbeam peers) is not a representable-good state",
                                             i
                                         ),
@@ -26702,12 +26702,12 @@ fn eval_peer_select_prime(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: "select' interrupted by shutdown".into(),
+                            reason: "select interrupted by shutdown".into(),
                         },
                     }
                     .into()),
                     crate::comms::SelectOutcome::Listener =>
-                        unreachable!("thread-tier Peer' Select has no listener arm"),
+                        unreachable!("thread-tier Peer Select has no listener arm"),
                 }
             }
             crate::comms::ReactorClass::Fd => {
@@ -26736,7 +26736,7 @@ fn eval_peer_select_prime(
                                     kind: RuntimeErrorKind::MalformedForm {
                                         head: OP.into(),
                                         reason: format!(
-                                            "peers[{}]: mixed-tier select' set (a non-socket peer \
+                                            "peers[{}]: mixed-tier select set (a non-socket peer \
                                              among socket peers) is not a representable-good state",
                                             i
                                         ),
@@ -26759,7 +26759,7 @@ fn eval_peer_select_prime(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: format!("select' (process tier) io_uring error: {}", io_err),
+                            reason: format!("select (process tier) io_uring error: {}", io_err),
                         },
                     })
                 })? {
@@ -26772,7 +26772,7 @@ fn eval_peer_select_prime(
                                         span: list_span.clone(),
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
-                                            reason: "select' (process tier): peer message is not valid UTF-8".into(),
+                                            reason: "select (process tier): peer message is not valid UTF-8".into(),
                                         },
                                     })
                                 })?;
@@ -26785,7 +26785,7 @@ fn eval_peer_select_prime(
                                         span: list_span.clone(),
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
-                                            reason: format!("select' (process tier) EDN decode failed: {}", e),
+                                            reason: format!("select (process tier) EDN decode failed: {}", e),
                                         },
                                     })
                                 })?;
@@ -26807,12 +26807,12 @@ fn eval_peer_select_prime(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: "select' interrupted by shutdown".into(),
+                            reason: "select interrupted by shutdown".into(),
                         },
                     }
                     .into()),
                     crate::comms::SelectOutcome::Listener =>
-                        unreachable!("process-tier peers-only select' has no listener arm"),
+                        unreachable!("process-tier peers-only select has no listener arm"),
                 }
             }
         }
@@ -26821,7 +26821,7 @@ fn eval_peer_select_prime(
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<I,O>)",
+                expected: "peer (Thread<I,O> | Process<I,O> | Peer<I,O>)",
                 got: Box::new(ValueSnapshot::unavailable(first_type_path)),
             },
         }
@@ -27170,7 +27170,7 @@ fn eval_poll_prime(
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Peer'<_,_> (self-peer, the owner/supervisor link)",
+                    expected: "Peer<_,_> (self-peer, the owner/supervisor link)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             }
@@ -27188,7 +27188,7 @@ fn eval_poll_prime(
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "poll': self-peer already closed".into(),
+                    reason: "poll: self-peer already closed".into(),
                 },
             }
             .into());
@@ -27214,7 +27214,7 @@ fn eval_poll_prime(
                 span: args[1].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Listener'<S,R> (unified Listener entity from listener')",
+                    expected: "Listener<S,R> (unified Listener entity from listener)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             }
@@ -27232,7 +27232,7 @@ fn eval_poll_prime(
                 span: args[2].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Vector<Peer'<I,O>> (connected client peers)",
+                    expected: "Vector<Peer<I,O>> (connected client peers)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             }
@@ -27263,7 +27263,7 @@ fn eval_poll_prime(
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
-                            "poll': peers[{}] must be a Peer' (connected client); got {:?}",
+                            "poll: peers[{}] must be a Peer (connected client); got {:?}",
                             i,
                             ValueSnapshot::of(other)
                         ),
@@ -27291,7 +27291,7 @@ fn eval_poll_prime(
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
-                    "poll': listener tier ({:?}) does not match self-peer tier ({:?}) — \
+                    "poll: listener tier ({:?}) does not match self-peer tier ({:?}) — \
                      mixed-tier service is not a representable-good state",
                     listener_class, self_peer_class
                 ),
@@ -27306,7 +27306,7 @@ fn eval_poll_prime(
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: format!("poll': client peer already closed (index {})", i),
+                        reason: format!("poll: client peer already closed (index {})", i),
                     },
                 }
                 .into());
@@ -27319,7 +27319,7 @@ fn eval_poll_prime(
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
-                                "poll': peers[{}] tier ({:?}) does not match self-peer tier \
+                                "poll: peers[{}] tier ({:?}) does not match self-peer tier \
                                  ({:?}) — mixed-tier service is not a representable-good state",
                                 i, client_class, self_peer_class
                             ),
@@ -27379,7 +27379,7 @@ fn eval_poll_prime(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: "select' interrupted by shutdown".into(),
+                            reason: "select interrupted by shutdown".into(),
                         },
                     }
                     .into());
@@ -27412,7 +27412,7 @@ fn eval_poll_prime(
                                 span: list_span.clone(),
                                 kind: RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
-                                    reason: "poll': listener recv failed — address was dropped"
+                                    reason: "poll: listener recv failed — address was dropped"
                                         .into(),
                                 },
                             })
@@ -27456,7 +27456,7 @@ fn eval_poll_prime(
                     }
                 }
                 crate::comms::SelectOutcome::Listener => {
-                    unreachable!("thread-tier poll' Select has no listener arm")
+                    unreachable!("thread-tier poll Select has no listener arm")
                 }
             };
             Ok(event_value)
@@ -27528,7 +27528,7 @@ fn eval_poll_prime(
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: format!("poll' (process tier) io_uring error: {}", io_err),
+                        reason: format!("poll (process tier) io_uring error: {}", io_err),
                     },
                 })
             })? {
@@ -27537,7 +27537,7 @@ fn eval_poll_prime(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: "poll' interrupted by substrate shutdown".into(),
+                            reason: "poll interrupted by substrate shutdown".into(),
                         },
                     }
                     .into());
@@ -27557,7 +27557,7 @@ fn eval_poll_prime(
                                         span: list_span.clone(),
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
-                                            reason: "poll' (process tier): admin message is not valid UTF-8".into(),
+                                            reason: "poll (process tier): admin message is not valid UTF-8".into(),
                                         },
                                     })
                                 })?;
@@ -27571,7 +27571,7 @@ fn eval_poll_prime(
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
                                             reason: format!(
-                                                "poll' (process tier): admin message decode failed: {}",
+                                                "poll (process tier): admin message decode failed: {}",
                                                 e
                                             ),
                                         },
@@ -27605,7 +27605,7 @@ fn eval_poll_prime(
                                         span: list_span.clone(),
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
-                                            reason: "poll' (process tier): client message is not valid UTF-8".into(),
+                                            reason: "poll (process tier): client message is not valid UTF-8".into(),
                                         },
                                     })
                                 })?;
@@ -27634,7 +27634,7 @@ fn eval_poll_prime(
                                         fields: vec![
                                             Value::i64(peer_idx),
                                             message_only_failure(format!(
-                                                "poll' (process tier): client message decode failed: {}",
+                                                "poll (process tier): client message decode failed: {}",
                                                 e
                                             )),
                                         ],
@@ -27696,7 +27696,7 @@ fn eval_poll_prime(
                                     kind: RuntimeErrorKind::MalformedForm {
                                         head: OP.into(),
                                         reason: format!(
-                                            "poll' (process tier): peer_cred on accepted socket: {}",
+                                            "poll (process tier): peer_cred on accepted socket: {}",
                                             e
                                         ),
                                     },
@@ -27721,7 +27721,7 @@ fn eval_poll_prime(
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
                                             reason: format!(
-                                                "poll' (process tier): wrap socket stream \
+                                                "poll (process tier): wrap socket stream \
                                                  failed: {}",
                                                 e
                                             ),
@@ -27764,7 +27764,7 @@ fn eval_poll_prime(
                                         kind: RuntimeErrorKind::MalformedForm {
                                             head: OP.into(),
                                             reason: format!(
-                                                "poll' (process tier) re-poll after \
+                                                "poll (process tier) re-poll after \
                                                  WouldBlock: {}",
                                                 io_err
                                             ),
@@ -27787,7 +27787,7 @@ fn eval_poll_prime(
                                                     span: list_span.clone(),
                                                     kind: RuntimeErrorKind::MalformedForm {
                                                         head: OP.into(),
-                                                        reason: "poll' interrupted by substrate \
+                                                        reason: "poll interrupted by substrate \
                                                                  shutdown (re-poll)"
                                                             .into(),
                                                     },
@@ -27815,7 +27815,7 @@ fn eval_poll_prime(
                                                                     span: list_span.clone(),
                                                                     kind: RuntimeErrorKind::MalformedForm {
                                                                         head: OP.into(),
-                                                                        reason: "poll' (process tier re-poll): client message is not valid UTF-8".into(),
+                                                                        reason: "poll (process tier re-poll): client message is not valid UTF-8".into(),
                                                                     },
                                                                 })
                                                             })?;
@@ -27843,7 +27843,7 @@ fn eval_poll_prime(
                                                                     variant_name: "Malformed".into(),
                                                                     fields: vec![
                                                                         Value::i64(pidx),
-                                                                        message_only_failure(format!("poll' (process tier re-poll): client message decode failed: {}", e)),
+                                                                        message_only_failure(format!("poll (process tier re-poll): client message decode failed: {}", e)),
                                                                     ],
                                                                 })),
                                                             }
@@ -27885,7 +27885,7 @@ fn eval_poll_prime(
                                     kind: RuntimeErrorKind::MalformedForm {
                                         head: OP.into(),
                                         reason: format!(
-                                            "poll' (process tier): non-blocking accept \
+                                            "poll (process tier): non-blocking accept \
                                              failed: {}",
                                             e
                                         ),

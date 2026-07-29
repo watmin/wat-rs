@@ -2683,7 +2683,7 @@ fn infer_list(
             // :max-buffer-bytes kwarg is supplied; no Rust default in readln'.
             // The checker runs against the EXPANDED form (macros expand before check),
             // so this arm fires when the readln macro emits a readln' call.
-            ":wat::kernel::readln'" => {
+            ":wat::kernel::readln'" => {  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
                 let (val, mut errs) = infer_kernel_readln_prime(
                     head_span, args, env, locals, fresh, subst,
                 ).into_parts();
@@ -6927,17 +6927,17 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
     // Verb-aware remedy: recv' faces Message/Closed/Lost; poll'/select' face the ServiceEvent
     // variants; send'/try-send' face Sent/(WouldBlock/)Closed/Lost.
     let (verb, arms) = if ty_name.contains("RecvOutcome") {
-        ("recv'", "Message/Closed/Lost")
+        ("recv", "Message/Closed/Lost")
     } else if ty_name.contains("ServiceEvent") {
-        ("poll'/select'", "Message/Closed/Lost/Malformed/Rejected")
+        ("poll/select", "Message/Closed/Lost/Malformed/Rejected")
     } else if ty_name.contains("AcceptOutcome") {
-        ("accept'", "Accepted/Closed/Failed")
+        ("accept", "Accepted/Closed/Failed")
     } else if ty_name.contains("ConnectOutcome") {
-        ("connect'", "Connected/Refused/Rejected/Failed")
+        ("connect", "Connected/Refused/Rejected/Failed")
     } else if ty_name.contains("ReadlnOutcome") {
         ("readln", "Datum/Eof/Stopped")
     } else {
-        ("send'", "Sent/Closed/Lost")
+        ("send", "Sent/Closed/Lost")
     };
     errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
         head: form.into(),
@@ -8451,7 +8451,7 @@ fn infer_kernel_readln_prime(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::readln'";
+    const OP: &str = ":wat::kernel::readln'";  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
     let mut local_errors: Vec<CheckError> = Vec::new();
 
     // Arc 258 — `-> :T` on readln' is illegal; the arrow is a function-return
@@ -8466,12 +8466,12 @@ fn infer_kernel_readln_prime(
             "`-> :T` is a function-return annotation only — it is illegal on readln'. \
              readln reads what the self-describing EDN wire says (records-are-EDN); the \
              decoded value's type flows from the consumer. Use (readln) or \
-             (readln :max-buffer-bytes N) with no ascription."
+             (readln :max-buffer-bytes N) with no ascription."  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
                 .into()
         } else {
             format!(
                 "readln' takes exactly one argument (cap-i64); got {}. \
-                 Use (readln' <cap>) with no ascription.",
+                 Use (readln' <cap>) with no ascription.",  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
                 args.len()
             )
         };
@@ -8835,9 +8835,9 @@ fn check_wire_peer_purity_span(
             kind: CheckErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
-                    "a wire peer (Peer'<I,O>) carries only pure data — type {} is not \
+                    "a wire peer (Peer<I,O>) carries only pure data — type {} is not \
                      pure (§7 purity wall). If this peer is used only within a thread \
-                     (in-locus, shared memory), use ThreadSelfPeer'<I,O> — any I/O types \
+                     (in-locus, shared memory), use ThreadSelfPeer<I,O> — any I/O types \
                      are allowed in-locus. If this peer must cross a process boundary \
                      (wire), redesign I/O types to use records, scalars, or pure enums \
                      (no Sender/Receiver/handle fields).",
@@ -9129,7 +9129,7 @@ fn infer_connect_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "addr".into(),
-                expected: "Address'<S,R>".into(),
+                expected: "Address<S,R>".into(),
                 got: format_type(&addr_reduced),
             } });
             let s2 = fresh.fresh();
@@ -9194,7 +9194,7 @@ fn infer_accept_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener'<S,R>".into(),
+                expected: "Listener<S,R>".into(),
                 got: format_type(&other),
             } });
             let s = fresh.fresh();
@@ -9243,7 +9243,7 @@ fn infer_allow_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener'<S,R>".into(),
+                expected: "Listener<S,R>".into(),
                 got: format_type(&other),
             } });
         }
@@ -9306,7 +9306,7 @@ fn infer_deny_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener'<S,R>".into(),
+                expected: "Listener<S,R>".into(),
                 got: format_type(&other),
             } });
         }
@@ -9449,9 +9449,9 @@ fn infer_thread_prog_type(
                 kind: CheckErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
-                        "spawn-program' :thread expects a self-peer prog \
-                         [ThreadSelfPeer'<S,R>] -> nil (arc 293.W.2d) or \
-                         [Peer'<S,R>] -> nil (for pure I/O only); got {}",
+                        "spawn-program :thread expects a self-peer prog \
+                         [ThreadSelfPeer<S,R>] -> nil (arc 293.W.2d) or \
+                         [Peer<S,R>] -> nil (for pure I/O only); got {}",
                         format_type(other)
                     ),
                     remedies: vec![],
@@ -9753,7 +9753,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R> | ThreadSelfPeer'<S,R>)".into(),
+                    expected: "peer (Thread<I,O> | Process<I,O> | Peer<S,R> | ThreadSelfPeer<S,R>)".into(),
                     got: format_type(&other),
                 },
             });
@@ -10063,14 +10063,14 @@ fn infer_recv_prime(
     if args.len() >= 2 {
         let maybe_arrow = matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->");
         let reason = if maybe_arrow {
-            "`-> :T` is a function-return annotation only — it is illegal on recv'. \
-             The type flows from the consumer (e.g. connect') or the self-describing EDN wire. \
-             Use (recv' peer) with no ascription."
+            "`-> :T` is a function-return annotation only — it is illegal on recv. \
+             The type flows from the consumer (e.g. connect) or the self-describing EDN wire. \
+             Use (recv peer) with no ascription."
                 .into()
         } else {
             format!(
-                "recv' takes exactly one argument (peer); got {}. \
-                 Use (recv' peer) with no ascription.",
+                "recv takes exactly one argument (peer); got {}. \
+                 Use (recv peer) with no ascription.",
                 args.len()
             )
         };
@@ -10195,7 +10195,7 @@ fn infer_close_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread'<I,O> | Process'<I,O>)".into(),
+                    expected: "peer (Thread<I,O> | Process<I,O>)".into(),
                     got: format_type(other),
                 },
             });
@@ -10320,8 +10320,8 @@ fn infer_select_prime(
             kind: CheckErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
-                    "select' takes one peer vector (fan-in); got {} args. \
-                     The 3-arg service multiplexer is poll'.",
+                    "select takes one peer vector (fan-in); got {} args. \
+                     The 3-arg service multiplexer is poll.",
                     args.len()
                 ),
                 remedies: vec![],
@@ -10364,7 +10364,7 @@ fn infer_select_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector of Thread'<I,O> | Process'<I,O> | Peer'<I,O> peers".into(),
+                    expected: "Vector of Thread<I,O> | Process<I,O> | Peer<I,O> peers".into(),
                     got: format_type(other),
                 },
             });
@@ -10398,7 +10398,7 @@ fn infer_select_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector of Thread'<I,O> | Process'<I,O> | Peer'<I,O> peers".into(),
+                    expected: "Vector of Thread<I,O> | Process<I,O> | Peer<I,O> peers".into(),
                     got: format_type(other),
                 },
             });
@@ -10511,7 +10511,7 @@ fn infer_poll_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector<Peer'<I,O>> (connected client peers)".into(),
+                    expected: "Vector<Peer<I,O>> (connected client peers)".into(),
                     got: format_type(other),
                 },
             });
@@ -10538,7 +10538,7 @@ fn infer_poll_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers element".into(),
-                    expected: "Peer'<I,O>".into(),
+                    expected: "Peer<I,O>".into(),
                     got: format_type(other),
                 },
             });
@@ -17313,7 +17313,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // are intentionally minimal; the real shape is `([cap-i64]? -> :T) -> :T`
     // which is not expressible in the fixed-arity TypeScheme.
     env.register(
-        ":wat::kernel::readln'".into(),
+        ":wat::kernel::readln'".into(),  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![],
@@ -18152,7 +18152,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 251: wat-level `sort` and `sort-by` defclauses in core.wat wrap this primitive.
     // The user owns asc vs desc via the predicate. Common Lisp tradition.
     env.register(
-        ":wat::core::sort'".into(),
+        ":wat::core::sort'".into(),  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![
@@ -19029,7 +19029,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::rete::fire-once' <session: :wat::rete::Session>) → :wat::rete::Session
     // Observationally equivalent to the wat oracle's fire-once: same derived facts.
     env.register(
-        ":wat::rete::fire-once'".into(),
+        ":wat::rete::fire-once'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
@@ -19043,7 +19043,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
     // multi-round cascade. Returns Session with facts = input only (derived in production-memory).
     env.register(
-        ":wat::rete::fire-rules'".into(),
+        ":wat::rete::fire-rules'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
@@ -19056,7 +19056,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::rete::fire-rules-explain' <session: :wat::rete::Session>) → :wat::rete::Explained
     // EPHEMERAL result — re-derived per explain; never serialized.
     env.register(
-        ":wat::rete::fire-rules-explain'".into(),
+        ":wat::rete::fire-rules-explain'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
@@ -19070,7 +19070,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Reuses resolve_operand + the clause classifier from matcher.rs (faithful by construction).
     // EPHEMERAL — called from the explain walk in rete.wat; never serialized.
     env.register(
-        ":wat::rete::step-payload'".into(),
+        ":wat::rete::step-payload'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         TypeScheme {
             type_params: vec![],
             params: vec![
@@ -19805,7 +19805,7 @@ mod tests {
         };
         assert!(
             unify(&thread, &process, &mut s, &TypeEnv::with_builtins()).is_err(),
-            "Thread' and Process' must NOT unify — tier homogeneity preserved"
+            "Thread and Process must NOT unify — tier homogeneity preserved"
         );
     }
 

@@ -1067,7 +1067,7 @@ pub(crate) fn eval_fire_once_native(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::fire-once'";
+    const OP: &str = ":wat::rete::fire-once'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -2142,7 +2142,7 @@ fn native_stratify_fix(
             return Err(RuntimeError {
                 span: crate::rust_caller_span!(),
                 kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::rete::fire-rules'".into(),
+                    head: ":wat::rete::fire-rules'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                     reason: "stratify: negation cycle detected — rule set is not stratifiable".into(),
                 },
             }
@@ -2441,7 +2441,7 @@ pub(crate) fn eval_fire_rules_native(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::fire-rules'";
+    const OP: &str = ":wat::rete::fire-rules'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -2529,7 +2529,7 @@ pub(crate) fn eval_fire_rules_explain(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::fire-rules-explain'";
+    const OP: &str = ":wat::rete::fire-rules-explain'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),

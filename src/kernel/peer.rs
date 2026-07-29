@@ -487,12 +487,12 @@ pub(crate) fn broadcast_peer_crashed_best_effort(clients: &crate::value::Value) 
         let Ok(cell) = crate::rust_deps::marshal::downcast_ref_opaque::<crate::kernel::spawn::PeerCell>(
             inner,
             crate::kernel::spawn::PEER_TYPE_PATH,
-            "serve-dispatch-op'-broadcast",
+            "serve-dispatch-op-broadcast",
             crate::rust_caller_span!(),
         ) else {
             continue;
         };
-        let _ = cell.with_ref("serve-dispatch-op'-broadcast", |opt_peer| {
+        let _ = cell.with_ref("serve-dispatch-op-broadcast", |opt_peer| {
             if let Some(peer) = opt_peer {
                 peer.notify_peer_crashed_best_effort();
             }
