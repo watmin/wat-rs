@@ -1,0 +1,82 @@
+;; proc-identity-vocabulary.wat.intueri — arc 170 closure #6.
+;;
+;; THE PROBLEM: `ps` shows N identical `wat` processes. An operator staring at a
+;; leak or a hang cannot tell a bracket worker from a service. Each spawned
+;; runtime should carry its identity on the proc line, as the EDN it already is:
+;;
+;;     /usr/local/bin/wat <LABEL>
+;;
+;; ── WHAT IS ALREADY RULED (do NOT propose changing these) ────────────────────
+;;
+;; · The label is a WITNESS, never a CLAIM. It DESCRIBES; it must never ROUTE.
+;;   fd 3 (LIFELINE_FD) stays the sole gate for "was I spawned"
+;;   (`exec_plan.rs:29-35` already rejects a `--forms-server` flag for exactly
+;;   this reason). Nothing may ever parse the label.
+;; · It is FIXED AT BOOT — identity, not state. Set once, immutable for life.
+;; · It rides a new `identity` field on `:wat::spawn::ProcessOpts`, supplied by
+;;   the caller, `Option`-typed: `:None` => NO label, today's bare `wat` line.
+;; · Rendering is the substrate's uniform EDN rule, not a choice:
+;;   record -> `#ns/Name {field-map}`; a no-field record renders `{}`.
+;;   Consequence kept deliberately: `ps` output is readable by `edn::read`.
+;;
+;; ── THE SLOT TO NAME, AND IT IS A SHAPE QUESTION FIRST ───────────────────────
+;;
+;; Two shapes are in play. They are NOT spelling variants — they differ in who
+;; owns the type and whether `ps` output is a closed set.
+
+;; ── SHAPE 1 — the tag VARIES; each caller mints its own identity type ────────
+;;     /usr/local/bin/wat #wat.brackets/Worker {:id 3}
+;;     /usr/local/bin/wat #my.app/CounterSvc {}
+;; The service's own type IS the tag. Maximally specific per process; but every
+;; service that wants to be visible must define a record type for the purpose,
+;; and `ps` output is an OPEN set (any tag may appear).
+
+;; ── SHAPE 2 — a CLOSED set of two substrate-owned types, varying part as data ─
+;;     /usr/local/bin/wat #wat.process/Bracket {:id 3}
+;;     /usr/local/bin/wat #wat.process/Service {:name :my::app::CounterSvc}
+;; Two types the substrate owns. No caller defines anything to be visible, and
+;; `ps` output is a CLOSED set a reader can match exhaustively.
+;;
+;; ★ IF SHAPE 2: the carrier of `:name` is its own question. Written as a
+;;   String (`{:name ":my::app::CounterSvc"}`) it is a stringly-typed name, and
+;;   this substrate keeps killing those. A keyword is the candidate. Weigh it.
+;;
+;; ★ AND IF SHAPE 2: `:wat::process::` DOES NOT EXIST in the tree today (grep:
+;;   zero hits). Minting a namespace is a real cost — weigh whether an existing
+;;   one already speaks. Live neighbours: `:wat::spawn::` (ProcessOpts,
+;;   ThreadOpts, PeerKind — "where and how to execute"), `:wat::program::`
+;;   (Env, PeerKind — "what a running program knows about itself"),
+;;   `:wat::bracket::` (the worker pool). `:wat::program::` in particular
+;;   already owns "facts about this process".
+
+;; ── THE FORMS, so the names are judged where they are READ ───────────────────
+
+;; the field the label rides (ruled; only its TYPE-ARG name is in question)
+(:wat::core::defstruct :wat::spawn::ProcessOpts
+  [post-spawn-fn     <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
+   env-fn            <- :wat::core::String
+   identity          <- (:wat::core::Option :wat::core::Record)   ;; <- the slot
+   max-message-bytes <- :wat::core::i64
+   runner-count      <- :wat::core::i64])
+
+;; SHAPE 2's two types, if chosen — name the TYPES, the NAMESPACE, and the FIELDS
+(:wat::core::defrecord :wat::process::Bracket [id   <- :wat::core::i64])
+(:wat::core::defrecord :wat::process::Service [name <- :wat::core::String])
+
+;; ── WHAT THE READER OF `ps` ACTUALLY SEES (the real use site) ────────────────
+;;
+;;   $ ps -o args= -C wat
+;;   /usr/local/bin/wat
+;;   /usr/local/bin/wat #wat.process/Bracket {:id 0}
+;;   /usr/local/bin/wat #wat.process/Bracket {:id 1}
+;;   /usr/local/bin/wat #wat.process/Service {:name :my::app::CounterSvc}
+;;
+;; The first line is a spawn with `:None`. Judge the names as a COLUMN of these,
+;; scanned by an operator under pressure — not as declarations in isolation.
+;;
+;; ── ALSO NAME ────────────────────────────────────────────────────────────────
+;; · the `identity` FIELD on ProcessOpts — does it say what it is, beside
+;;   `env-fn` / `post-spawn-fn` / `runner-count`? (candidates: identity, label,
+;;   proc-identity, badge, …). Note it must not be confused with `user.program`
+;;   on `:wat::program::Env`, which is a CHILD-computed value — a different
+;;   question entirely, and conflating the two is what STOPPED the first strike.
