@@ -532,7 +532,7 @@ impl FrozenWorld {
         let env = crate::runtime::Environment::new();
         crate::runtime::register_runtime_defs(&program, &env, &mut symbols)
             .map_err(|e| match e {
-                EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+                EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
                 // A Signal at the freeze boundary is an interpreter bug.
                 // TryPropagate/OptionPropagate are eliminated BEFORE this
                 // path: the checker rejects top-level `?`/option-propagation

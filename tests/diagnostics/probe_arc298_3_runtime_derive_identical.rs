@@ -431,8 +431,8 @@ fn probe_service_not_running() {
 fn probe_edn_coerce_mismatch() {
     let err = make(RuntimeErrorKind::EdnCoerceMismatch {
         op: ":wat::kernel::readln".into(),
-        expected: ":user::Point".into(),
-        got: "Map".into(),
+        expected: Box::new(":user::Point".into()),
+        got: Box::new("Map".into()),
         path: "x.y".into(),
     });
     wat::assert_edn_eq!(
@@ -448,8 +448,8 @@ fn probe_edn_coerce_mismatch() {
 fn probe_edn_coerce_mismatch_empty_path() {
     let err = make(RuntimeErrorKind::EdnCoerceMismatch {
         op: ":wat::kernel::readln".into(),
-        expected: ":user::Point".into(),
-        got: "Integer".into(),
+        expected: Box::new(":user::Point".into()),
+        got: Box::new("Integer".into()),
         path: "".into(),
     });
     wat::assert_edn_eq!(
@@ -483,7 +483,7 @@ fn probe_no_matching_clause() {
         name: ":user::process".into(),
         called_arity: 1,
         called_args: vec![ValueSnapshot::of(&Value::i64(42))],
-        attempted_clauses: vec![
+        attempted_clauses: Box::new(vec![
             ClauseAttempt {
                 clause_index: 0,
                 declared_arity: 2,
@@ -500,7 +500,7 @@ fn probe_no_matching_clause() {
                     got: "i64".into(),
                 },
             },
-        ],
+        ]),
     });
     wat::assert_edn_eq!(
         write(&err),
@@ -525,7 +525,7 @@ fn probe_postcondition_failed() {
         clause_index: 0,
         ensure_expr_snapshot: "(> result 0)".into(),
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
-        ensure_span,
+        ensure_span: Box::new(ensure_span),
     });
     wat::assert_edn_eq!(
         write(&err),

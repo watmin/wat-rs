@@ -4282,7 +4282,7 @@ pub fn eval(
 ) -> Result<TrackedValue, RuntimeError> {
     match eval_inner(ast, env, sym) {
         Ok(v) => Ok(v),
-        Err(EvalBreak::Diagnostic(e)) => Err(e),
+        Err(EvalBreak::Diagnostic(e)) => Err(*e),
         // A signal escaping through the public eval boundary is an interpreter
         // bug — apply_function should catch signals before they reach here.
         // Convert to a diagnostic so external callers get a RuntimeError.
@@ -4411,23 +4411,23 @@ fn dispatch_keyword_head(
         ":wat::core::macro-error" => {
             let v = match crate::edn_shim::require_one_arg(":wat::core::macro-error", args, env, sym, list_span) {
                 Ok(v) => v,
-                Err(e) => return Err(EvalBreak::Diagnostic(e)),
+                Err(e) => return Err(EvalBreak::Diagnostic(Box::new(e))),
             };
             let message = match &v {
                 Value::String(s) => (**s).clone(),
-                other => return Err(EvalBreak::Diagnostic(RuntimeError {
+                other => return Err(EvalBreak::Diagnostic(Box::new(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::macro-error".into(),
                         expected: ":wat::core::String",
                         got: Box::new(ValueSnapshot::of(other)),
                     },
-                })),
+                }))),
             };
-            return Err(EvalBreak::Diagnostic(RuntimeError {
+            return Err(EvalBreak::Diagnostic(Box::new(RuntimeError {
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::MacroAbort { message },
-            }));
+            })));
         }
         // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
         // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
@@ -7066,7 +7066,7 @@ fn eval_call_to_defclause_with_vals(
                         clause_index: clause_idx,
                         ensure_expr_snapshot,
                         returned_value: Box::new(ValueSnapshot::of(&result)),
-                        ensure_span,
+                        ensure_span: Box::new(ensure_span),
                     } }.into());
                 }
                 other => {
@@ -7090,7 +7090,7 @@ fn eval_call_to_defclause_with_vals(
         name: cs.name.clone(),
         called_arity,
         called_args,
-        attempted_clauses: attempted
+        attempted_clauses: Box::new(attempted)
     } }.into())
 }
 
@@ -20732,7 +20732,7 @@ pub fn apply_function(
             Err(EvalBreak::Signal(EvalSignal::OptionPropagate)) => {
                 return Ok(Value::Option(Arc::new(None)));
             }
-            Err(EvalBreak::Diagnostic(other)) => return Err(other),
+            Err(EvalBreak::Diagnostic(other)) => return Err(*other),
         }
     }
 }
@@ -28337,13 +28337,13 @@ mod tests {
         // Users commit to the numeric tier at the call site; users who
         // want float math reach for the :wat::core::f64 namespace ops.
         let err = eval_expr("(:wat::core::i64::* 3 2.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
     fn f64_mul_refuses_i64_arg() {
         let err = eval_expr("(:wat::core::f64::* 3.0 2)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -28358,7 +28358,7 @@ mod tests {
     fn divide_by_zero_errors() {
         assert!(matches!(
             eval_expr("(:wat::core::i64::/ 5 0)"),
-            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::DivisionByZero }))
+            Err(EvalBreak::Diagnostic(e)) if matches!(e.kind, RuntimeErrorKind::DivisionByZero)
         ));
     }
 
@@ -28497,13 +28497,16 @@ mod tests {
     fn f64_round_rejects_negative_digits() {
         let err = eval_expr("(:wat::core::f64::round 15.0 -1)").unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. }) => {
-                assert_eq!(head, ":wat::core::f64::round");
-                assert_eq!(
-                    reason,
-                    "`digits` must be non-negative; got -1. Negative digits (round to nearest 10 / 100 / ...) has no load-bearing use case today"
-                );
-            }
+            EvalBreak::Diagnostic(e) => match e.kind {
+                RuntimeErrorKind::MalformedForm { head, reason, .. } => {
+                    assert_eq!(head, ":wat::core::f64::round");
+                    assert_eq!(
+                        reason,
+                        "`digits` must be non-negative; got -1. Negative digits (round to nearest 10 / 100 / ...) has no load-bearing use case today"
+                    );
+                }
+                other => panic!("expected MalformedForm, got {:?}", other),
+            },
             other => panic!("expected MalformedForm, got {:?}", other),
         }
     }
@@ -28511,7 +28514,7 @@ mod tests {
     #[test]
     fn f64_round_arity_mismatch() {
         let err = eval_expr("(:wat::core::f64::round 1.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── f64::max / min / abs / clamp + math::exp (arc 046) ───────────────
@@ -28558,7 +28561,7 @@ mod tests {
     #[test]
     fn f64_abs_rejects_i64() {
         let err = eval_expr("(:wat::core::f64::abs 5)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -28597,10 +28600,13 @@ mod tests {
     fn f64_clamp_rejects_lo_greater_than_hi() {
         let err = eval_expr("(:wat::core::f64::clamp 0.0 1.0 -1.0)").unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. }) => {
-                assert_eq!(head, ":wat::core::f64::clamp");
-                assert_eq!(reason, "lo must be ≤ hi and neither may be NaN; got lo=1, hi=-1");
-            }
+            EvalBreak::Diagnostic(e) => match e.kind {
+                RuntimeErrorKind::MalformedForm { head, reason, .. } => {
+                    assert_eq!(head, ":wat::core::f64::clamp");
+                    assert_eq!(reason, "lo must be ≤ hi and neither may be NaN; got lo=1, hi=-1");
+                }
+                other => panic!("expected MalformedForm, got {:?}", other),
+            },
             other => panic!("expected MalformedForm, got {:?}", other),
         }
     }
@@ -28608,7 +28614,7 @@ mod tests {
     #[test]
     fn f64_clamp_arity_mismatch() {
         let err = eval_expr("(:wat::core::f64::clamp 1.0 0.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
@@ -28702,9 +28708,9 @@ mod tests {
         // handlers also reject wrong-type inputs defensively. Call
         // through the raw dispatch to bypass check.
         let err = eval_expr("(:wat::core::i64::to-string 2.5)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
         let err = eval_expr(r#"(:wat::core::f64::to-string "abc")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     // ─── Comparison ─────────────────────────────────────────────────────
@@ -28782,7 +28788,7 @@ mod tests {
     fn if_non_bool_rejected() {
         assert!(matches!(
             eval_expr("(:wat::core::if 42 1 2)"),
-            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::BadCondition { .. }, .. }))
+            Err(EvalBreak::Diagnostic(e)) if matches!(e.kind, RuntimeErrorKind::BadCondition { .. })
         ));
     }
 
@@ -28846,7 +28852,7 @@ mod tests {
             r#"(:wat::core::defn :wat::holon::Bogus [x <- :wat::core::i64] -> :wat::core::i64 x)"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::ReservedPrefix(_) })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ReservedPrefix(_))));
     }
 
     #[test]
@@ -28873,7 +28879,7 @@ mod tests {
     fn undefined_function_errors() {
         assert!(matches!(
             eval_expr("(:my::app::missing 1)"),
-            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::UnknownFunction(_) }))
+            Err(EvalBreak::Diagnostic(e)) if matches!(e.kind, RuntimeErrorKind::UnknownFunction(_))
         ));
     }
 
@@ -29005,7 +29011,7 @@ mod tests {
             r#"(:wat::holon::Bundle (:wat::holon::to-holon "a"))"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     // ─── Program-level integration ──────────────────────────────────────
@@ -29180,8 +29186,8 @@ mod tests {
         let err = eval_expr("(:wat::core::quote 1 2)").unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { op, expected: 1, got: 2, .. }, .. })
-                if op == ":wat::core::quote"
+            EvalBreak::Diagnostic(e)
+                if matches!(&e.kind, RuntimeErrorKind::ArityMismatch { op, expected: 1, got: 2, .. } if op == ":wat::core::quote")
         ));
     }
 
@@ -29281,7 +29287,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, .. }, .. }) if op == ":wat::holon::from-holon"
+            EvalBreak::Diagnostic(e) if matches!(&e.kind, RuntimeErrorKind::TypeMismatch { op, .. } if op == ":wat::holon::from-holon")
         ));
     }
 
@@ -29464,7 +29470,7 @@ mod tests {
         // Arc 225 Stone 225.1 — to-holon lifts string primitive.
         let ast = crate::parse_one!(r#"(:wat::holon::dot (:wat::holon::to-holon "a"))"#).unwrap();
         let err = eval_inner(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // Arc 294.a — UPDATED: dot now accepts any EdnRepresentable value by lifting via
@@ -29848,7 +29854,7 @@ mod tests {
             1024,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
@@ -30279,7 +30285,7 @@ mod tests {
         let err = eval_inner(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::NoEncodingCtx { op, .. }, .. }) if op == ":wat::holon::cosine"
+            EvalBreak::Diagnostic(e) if matches!(&e.kind, RuntimeErrorKind::NoEncodingCtx { op, .. } if op == ":wat::holon::cosine")
         ));
     }
 
@@ -30371,7 +30377,7 @@ mod tests {
         // Arity fires BEFORE the EvalError wrap — structural /
         // caller-syntactic error, not a runtime evaluation failure.
         let err = eval_expr(r#"(:wat::eval-edn! "foo" "bar")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -30642,11 +30648,11 @@ mod tests {
         reset_user_signals();
         assert!(matches!(
             eval_expr("(:wat::kernel::sigusr1? 1)"),
-            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
+            Err(EvalBreak::Diagnostic(e)) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })
         ));
         assert!(matches!(
             eval_expr("(:wat::kernel::reset-sigusr1! true)"),
-            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
+            Err(EvalBreak::Diagnostic(e)) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })
         ));
     }
 
@@ -30684,14 +30690,14 @@ mod tests {
     #[test]
     fn first_refuses_non_tuple() {
         let err = eval_with_binding("(:wat::core::first v)", "v", Value::i64(42)).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
     fn first_index_out_of_range_on_empty_tuple() {
         let t = Value::Tuple(Arc::new(vec![]));
         let err = eval_with_binding("(:wat::core::first t)", "t", t).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -30713,7 +30719,7 @@ mod tests {
         "#;
         let p = pair(Value::i64(1), Value::i64(2));
         let err = eval_with_binding(src, "p", p).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -30722,7 +30728,7 @@ mod tests {
             (:wat::core::let [[a b] v] a)
         "#;
         let err = eval_with_binding(src, "v", Value::i64(42)).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     // ─── Vector primitives (Round 4a) ───────────────────────────────
@@ -31036,7 +31042,7 @@ mod tests {
     #[test]
     fn rest_of_empty_errors() {
         let err = eval_expr("(:wat::core::rest (:wat::core::Vector :i64))").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -31079,7 +31085,7 @@ mod tests {
     #[test]
     fn hashmap_constructor_odd_arity_errors() {
         let err = eval_expr(r#"(:wat::core::HashMap :String :i64 "a" 1 "b")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -31165,7 +31171,7 @@ mod tests {
         // MalformedForm (no-arm-match from define-dispatch, arc 146 slice 3).
         let err = eval_expr(r#"(:wat::core::get 42 "k")"#).unwrap_err();
         assert!(
-            matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })),
+            matches!(&err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })),
             "expected TypeMismatch (eval_get else-arm); got {:?}",
             err
         );
@@ -31233,7 +31239,7 @@ mod tests {
     #[test]
     fn assoc_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::assoc 42 "k" 1)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -31242,7 +31248,7 @@ mod tests {
             r#"(:wat::core::assoc (:wat::core::HashMap :String :i64) "k")"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── Vec concat (arc 059, arc 146 slice 4) ───────────────────────────
@@ -31342,14 +31348,14 @@ mod tests {
             r#"(:wat::core::concat (:wat::core::Vector :i64 1) 42)"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
     fn concat_zero_arg_rejected() {
         // Post-slice-4 the alias has arity 2; zero-arg → ArityMismatch.
         let err = eval_expr(r#"(:wat::core::concat)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── HashMap completion (arc 058) — dissoc / keys / values ───────────
@@ -31412,7 +31418,7 @@ mod tests {
     #[test]
     fn dissoc_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::dissoc 42 "k")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -31421,7 +31427,7 @@ mod tests {
             r#"(:wat::core::dissoc (:wat::core::HashMap :String :i64))"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
@@ -31474,7 +31480,7 @@ mod tests {
     #[test]
     fn keys_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::keys 42)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -31483,7 +31489,7 @@ mod tests {
             r#"(:wat::core::keys (:wat::core::HashMap :String :i64) "extra")"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
@@ -31532,7 +31538,7 @@ mod tests {
     #[test]
     fn values_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::values 42)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -31541,7 +31547,7 @@ mod tests {
             r#"(:wat::core::values (:wat::core::HashMap :String :i64) "extra")"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── empty? polymorphism extension (arc 058) ─────────────────────────
@@ -31661,8 +31667,7 @@ mod tests {
             (:wat::core::assoc xs 1 99))"#;
         let err = eval_expr(src).unwrap_err();
         assert!(
-            matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { ref op, .. }, .. })
-                     if op == ":wat::core::assoc"),
+            matches!(&err, EvalBreak::Diagnostic(e) if matches!(&e.kind, RuntimeErrorKind::TypeMismatch { op, .. } if op == ":wat::core::assoc")),
             "expected :wat::core::assoc TypeMismatch on Vec; got {:?}",
             err
         );
@@ -31859,7 +31864,7 @@ mod tests {
                 (:wat::core::fn [x <- :i64] -> :i64 x)))
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -31975,7 +31980,7 @@ mod tests {
     #[test]
     fn drop_refuses_non_handle() {
         let err = eval_expr("(:wat::kernel::drop 42)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     // ─── spawn + join + join-result deleted in arc 114 ─────────────────
@@ -32122,13 +32127,13 @@ mod tests {
     #[test]
     fn vector_bytes_arity_mismatch() {
         let err = eval_expr("(:wat::holon::vector-bytes)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
     fn bytes_vector_arity_mismatch() {
         let err = eval_expr("(:wat::holon::bytes-vector)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
@@ -32259,13 +32264,13 @@ mod tests {
     #[test]
     fn bytes_to_hex_arity_mismatch() {
         let err = eval_expr("(:wat::core::Bytes::to-hex)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
     fn bytes_from_hex_arity_mismatch() {
         let err = eval_expr("(:wat::core::Bytes::from-hex)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── show — polymorphic rendering (arc 064) ─────────────────────────
@@ -32384,7 +32389,7 @@ mod tests {
     #[test]
     fn show_arity_mismatch() {
         let err = eval_expr("(:wat::core::show)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── leaf / from-wat (arc 065; renamed from-watast → from-wat at arc 225) ──────────────────────────────────
@@ -32424,13 +32429,16 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, .. }, .. }) => {
-                assert_eq!(op, ":wat::holon::leaf");
-                assert_eq!(
-                    expected,
-                    "primitive (i64/f64/bool/String/keyword/nil); use :wat::holon::Atom to wrap a HolonAST, :wat::holon::from-wat to lower a quoted form, :wat::holon::to-holon for other types"
-                );
-            }
+            EvalBreak::Diagnostic(e) => match e.kind {
+                RuntimeErrorKind::TypeMismatch { op, expected, .. } => {
+                    assert_eq!(op, ":wat::holon::leaf");
+                    assert_eq!(
+                        expected,
+                        "primitive (i64/f64/bool/String/keyword/nil); use :wat::holon::Atom to wrap a HolonAST, :wat::holon::from-wat to lower a quoted form, :wat::holon::to-holon for other types"
+                    );
+                }
+                other => panic!("expected TypeMismatch, got {:?}", other),
+            },
             other => panic!("expected TypeMismatch, got {:?}", other),
         }
     }
@@ -32502,13 +32510,16 @@ mod tests {
         // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let err = eval_expr("(:wat::holon::from-wat 42)").unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, .. }, .. }) => {
-                assert_eq!(op, ":wat::holon::from-wat");
-                assert_eq!(
-                    expected,
-                    ":wat::WatAST (typically from :wat::core::quote); use :wat::holon::Atom for HolonAST inputs, :wat::holon::to-holon for other types, :wat::holon::leaf for primitives"
-                );
-            }
+            EvalBreak::Diagnostic(e) => match e.kind {
+                RuntimeErrorKind::TypeMismatch { op, expected, .. } => {
+                    assert_eq!(op, ":wat::holon::from-wat");
+                    assert_eq!(
+                        expected,
+                        ":wat::WatAST (typically from :wat::core::quote); use :wat::holon::Atom for HolonAST inputs, :wat::holon::to-holon for other types, :wat::holon::leaf for primitives"
+                    );
+                }
+                other => panic!("expected TypeMismatch, got {:?}", other),
+            },
             other => panic!("expected TypeMismatch, got {:?}", other),
         }
     }
@@ -32553,14 +32564,14 @@ mod tests {
     #[test]
     fn leaf_arity_mismatch() {
         let err = eval_expr("(:wat::holon::leaf)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
     fn from_watast_arity_mismatch() {
         // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let err = eval_expr("(:wat::holon::from-wat)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     // ─── eval-ast! returns bare Value (arc 102 — reverts arc 066's wrap) ──
@@ -32945,7 +32956,7 @@ mod tests {
         let err = eval_expr("(:wat::eval-step!)").unwrap_err();
         // arity is checked BEFORE the wrap_as_eval_result block, so
         // it surfaces as an EvalBreak::Diagnostic.
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -33474,7 +33485,7 @@ mod tests {
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -33487,7 +33498,7 @@ mod tests {
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::MalformedForm { .. })));
     }
 
     #[test]
@@ -33574,13 +33585,13 @@ mod tests {
     #[test]
     fn math_ln_wrong_arity() {
         let err = eval_expr("(:wat::std::math::ln 1.0 2.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::ArityMismatch { .. })));
     }
 
     #[test]
     fn math_ln_refuses_non_number() {
         let err = eval_expr(r#"(:wat::std::math::ln "nope")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     #[test]
@@ -33589,7 +33600,7 @@ mod tests {
             (:wat::kernel::HandlePool::new 42 (:wat::core::Vector :i64))
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind, RuntimeErrorKind::TypeMismatch { .. })));
     }
 
     // queue roundtrip across threads — covered by tests/wat_spawn_fn.rs
@@ -33635,9 +33646,12 @@ mod tests {
         let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
-            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::SandboxScopeLeak { offending_name, .. }, .. })) => {
-                assert_eq!(offending_name, ":my::helper");
-            }
+            Err(EvalBreak::Diagnostic(e)) => match e.kind {
+                RuntimeErrorKind::SandboxScopeLeak { offending_name, .. } => {
+                    assert_eq!(offending_name, ":my::helper");
+                }
+                other => panic!("expected SandboxScopeLeak; got {:?}", other),
+            },
             Err(other) => panic!(
                 "expected SandboxScopeLeak; got {:?}", other
             ),
@@ -33665,12 +33679,15 @@ mod tests {
         let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
-            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::UnknownFunction(name) })) => {
-                assert_eq!(name, ":totally::made::up::name");
-            }
-            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::SandboxScopeLeak { .. }, .. })) => panic!(
-                "SandboxScopeLeak misfired on a genuinely-unknown name"
-            ),
+            Err(EvalBreak::Diagnostic(e)) => match e.kind {
+                RuntimeErrorKind::UnknownFunction(name) => {
+                    assert_eq!(name, ":totally::made::up::name");
+                }
+                RuntimeErrorKind::SandboxScopeLeak { .. } => panic!(
+                    "SandboxScopeLeak misfired on a genuinely-unknown name"
+                ),
+                other => panic!("expected UnknownFunction; got {:?}", other),
+            },
             other => panic!("expected UnknownFunction; got {:?}", other),
         }
     }
@@ -33690,9 +33707,12 @@ mod tests {
         let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
-            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::UnknownFunction(name) })) => {
-                assert_eq!(name, ":my::helper");
-            }
+            Err(EvalBreak::Diagnostic(e)) => match e.kind {
+                RuntimeErrorKind::UnknownFunction(name) => {
+                    assert_eq!(name, ":my::helper");
+                }
+                other => panic!("expected UnknownFunction; got {:?}", other),
+            },
             other => panic!("expected UnknownFunction; got {:?}", other),
         }
     }

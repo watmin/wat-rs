@@ -116,7 +116,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     let mut macro_sym = SymbolTable::default();
     preregister_acronyms(&post_macro_reg, &mut macro_sym)
         .map_err(|e| match e {
-            EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+            EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
             EvalBreak::Signal(_) => unreachable!(
                 "interpreter bug: eval-loop control signal escaped to freeze layer"
             ),
@@ -248,7 +248,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //       covers eval-time).
     preregister_acronyms(&residue, &mut symbols)
         .map_err(|e| match e {
-            EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+            EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
             EvalBreak::Signal(_) => unreachable!(
                 "interpreter bug: eval-loop control signal escaped to freeze layer"
             ),

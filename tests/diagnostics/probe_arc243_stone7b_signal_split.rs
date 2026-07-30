@@ -53,7 +53,7 @@ fn signal_enum_holds_the_trio() {
 /// (user-directed `Diagnostic`, evaluator-directed `Signal`).
 #[test]
 fn evalbreak_wraps_diagnostic_and_signal() {
-    let diag: EvalBreak = EvalBreak::Diagnostic(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing });
+    let diag: EvalBreak = EvalBreak::Diagnostic(Box::new(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing }));
     let signal: EvalBreak = EvalBreak::Signal(EvalSignal::OptionPropagate);
 
     assert!(matches!(diag, EvalBreak::Diagnostic(_)));

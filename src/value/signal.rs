@@ -69,7 +69,12 @@ impl fmt::Display for EvalSignal {
 pub enum EvalBreak {
     /// A genuine runtime diagnostic — carries a source location and
     /// surfaces to user code as an error.
-    Diagnostic(RuntimeError),
+    ///
+    /// Boxed (arc 109, BRIEF-evalbreak-width): an inline RuntimeError made
+    /// EvalBreak 128 bytes — exactly clippy's result_large_err threshold —
+    /// earning 979 warnings. Boxed, EvalBreak is 80 (set by EvalSignal), so
+    /// its width no longer tracks RuntimeErrorKind's widest variant.
+    Diagnostic(Box<RuntimeError>),
     /// An eval-loop control signal — TCO / Result/try / Option/try
     /// propagation. Caught at function boundaries; never surfaces to
     /// user code.
@@ -78,7 +83,7 @@ pub enum EvalBreak {
 
 impl From<RuntimeError> for EvalBreak {
     fn from(e: RuntimeError) -> Self {
-        EvalBreak::Diagnostic(e)
+        EvalBreak::Diagnostic(Box::new(e))
     }
 }
 
@@ -319,8 +324,15 @@ pub enum RuntimeErrorKind {
     /// without a target-T annotation); see `crate::edn_shim`.
     EdnCoerceMismatch {
         op: String,
-        expected: String,
-        got: String,
+        // Arc 109 kill-std stone (BRIEF-runtime-error-width): boxed to bring the
+        // variant from 96 to 64 bytes. `Box<String>` keeps `ToEdn` automatic via
+        // the blanket `impl<T: ToEdn> ToEdn for Box<T>` (wat-edn/src/lib.rs) —
+        // no derive/via changes, byte-identical EDN (`(**self).to_edn()` ==
+        // `self.to_edn()`). `op` stays a bare `String` (matches the op-field
+        // convention on every other op-carrying variant); `path` keeps its
+        // existing `via` and stays unboxed.
+        expected: Box<String>,
+        got: Box<String>,
         #[to_edn(via = crate::runtime_error_edn::edn_path_segments)]
         path: String,
     },
@@ -355,7 +367,14 @@ pub enum RuntimeErrorKind {
         called_arity: usize,
         called_args: Vec<ValueSnapshot>,
         /// Structured per-clause failure reasons (Stone 237.4 promotion).
-        attempted_clauses: Vec<ClauseAttempt>,
+        ///
+        /// Arc 109 kill-std stone (BRIEF-runtime-error-width): boxed to bring
+        /// the variant from 80 to 64 bytes (`Vec<ClauseAttempt>` 24 -> `Box<Vec<
+        /// ClauseAttempt>>` 8), via the same blanket `Box<T: ToEdn>` forwarding
+        /// as `EdnCoerceMismatch`'s boxed strings — byte-identical EDN. Boxed
+        /// (not `called_args`) because it is the rich, secondary diagnostic
+        /// payload — the same role `MacroExpansionFailed.cause` plays.
+        attempted_clauses: Box<Vec<ClauseAttempt>>,
     },
 
     /// Stone 237.4 — postcondition failure for a defclause clause whose
@@ -375,7 +394,13 @@ pub enum RuntimeErrorKind {
         ensure_expr_snapshot: String,
         returned_value: Box<ValueSnapshot>,
         /// Span of the `:ensure :fn` declaration.
-        ensure_span: Span,
+        ///
+        /// Arc 109 kill-std stone (BRIEF-runtime-error-width): boxed
+        /// (48 -> 8 bytes) — this single field alone brings the variant from
+        /// 112 to 72 bytes (measured). `Span: ToEdn` (wat-reader derive), so
+        /// `Box<Span>` gets `ToEdn` for free via the same blanket forwarding
+        /// impl; byte-identical EDN.
+        ensure_span: Box<Span>,
     },
     /// Arc 258 Stone 258.2b — a `(:wat::core::macro-error "msg")` call aborting
     /// macro expansion with a user diagnostic. Returned as `Err` (not panic) so
