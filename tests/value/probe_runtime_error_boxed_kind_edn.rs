@@ -1,0 +1,77 @@
+//! Disconfirming probe — arc 109 stone B (`BRIEF-runtime-error-constructor.md`).
+//!
+//! **The one non-trivial claim stone B rests on:** moving `RuntimeError.kind` from
+//! `RuntimeErrorKind` to `Box<RuntimeErrorKind>` leaves the structured error EDN
+//! **byte-identical**, so the ~1438-site sweep can never change what a caller sees.
+//!
+//! Grounding, so the claim is mechanism and not hope: `RuntimeError`'s `ToEdn` is
+//! HAND-WRITTEN (`src/runtime_error_edn.rs:64-83`) and reads its kind through a plain
+//! method call — `let kind_val = self.kind.to_edn();`. Rust auto-derefs a `Box<T>`
+//! receiver, and `wat-edn` carries a blanket forwarding `impl<T: ToEdn> ToEdn for Box<T>`
+//! (`crates/wat-edn/src/lib.rs:217`), so BOTH resolutions produce the same `OwnedValue`.
+//! Nothing in the wrapper touches the field's storage; it re-tags and appends `:span`.
+//!
+//! This probe pins that empirically rather than by reading: it renders the SAME kind
+//! value through both an owned and a boxed access path and asserts the two EDN strings
+//! are equal. It is written to go RED if a future `ToEdn for Box<T>` ever stops being a
+//! transparent forward — which is the only way stone B's sweep could silently change
+//! output.
+//!
+//! Deliberately NOT asserted here: `size_of` (that is the width gate's job,
+//! `probe_runtime_error_width.rs`) and the goldens (`probe_arc298_3_runtime_derive_identical`
+//! owns those). This probe carries exactly one claim.
+
+use wat::to_edn::ToEdn;
+use wat::value::signal::{RuntimeError, RuntimeErrorKind};
+
+/// Build a kind with real payload — a variant that carries data, so the EDN body is
+/// non-trivial and a lost/reordered field would show up as a difference.
+fn sample_kind() -> RuntimeErrorKind {
+    RuntimeErrorKind::EdnCoerceMismatch {
+        op: "probe-op".to_string(),
+        expected: Box::new("wat::core::i64".to_string()),
+        got: Box::new("wat::core::String".to_string()),
+        path: "field/inner".to_string(),
+    }
+}
+
+#[test]
+fn boxed_kind_renders_identical_edn_to_owned_kind() {
+    let owned = sample_kind();
+    let boxed: Box<RuntimeErrorKind> = Box::new(sample_kind());
+
+    // The exact expression `RuntimeError::to_edn` uses on its kind field, both ways.
+    let via_owned = format!("{:?}", owned.to_edn());
+    let via_boxed = format!("{:?}", boxed.to_edn());
+
+    assert_eq!(
+        via_owned, via_boxed,
+        "Box<RuntimeErrorKind>::to_edn() diverged from RuntimeErrorKind::to_edn(). \
+         Stone B's 1438-site sweep assumes the blanket `impl<T: ToEdn> ToEdn for Box<T>` \
+         is a transparent forward; if that stopped holding, boxing `kind` would silently \
+         change every structured runtime error a caller sees"
+    );
+}
+
+#[test]
+fn whole_runtime_error_edn_is_reachable_through_the_kind_field() {
+    // Guards the OTHER half: that RuntimeError's hand-written wrapper actually reads the
+    // kind through the field (so the forwarding above is on the real path), and that it
+    // appends the span. If the wrapper is ever rewritten to bypass the field, this goes
+    // red and stone B's reasoning must be re-grounded rather than assumed.
+    let err = RuntimeError {
+        span: wat::rust_caller_span!(),
+        kind: sample_kind(),
+    };
+    let rendered = format!("{:?}", err.to_edn());
+    assert!(
+        rendered.contains("span"),
+        "RuntimeError::to_edn() no longer appends :span — the wrapper changed shape; \
+         re-ground stone B's byte-identical claim. Got: {rendered}"
+    );
+    assert!(
+        rendered.contains("probe-op"),
+        "RuntimeError::to_edn() no longer surfaces the kind's own fields, so the kind is \
+         not being read through the field this stone boxes. Got: {rendered}"
+    );
+}
