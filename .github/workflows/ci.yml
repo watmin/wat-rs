@@ -12,8 +12,35 @@ jobs:
   test:
     name: build + nextest
     runs-on: ubuntu-latest
+
+    # `holon` is a SIBLING path dependency (Cargo.toml: `holon = { path = "../holon-rs" }`),
+    # so the runner has to reproduce the local layout — the two repos side by side. The
+    # default checkout puts wat-rs AT $GITHUB_WORKSPACE, which makes `../holon-rs` resolve
+    # outside the workspace, and actions/checkout cannot write above $GITHUB_WORKSPACE.
+    # So both repos are checked out into subdirectories instead, and every `run:` step
+    # works from wat-rs/. Without this the job died at `cargo metadata` — before compiling
+    # anything — so NEITHER the test gate nor clippy below has ever actually executed.
+    defaults:
+      run:
+        working-directory: wat-rs
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout wat-rs
+        uses: actions/checkout@v4
+        with:
+          path: wat-rs
+
+      # The VSA substrate wat is built on: public, unpublished (no crates.io release),
+      # consumed as a path dep and used ~1438× across src/ — there is no build-without-holon
+      # path, and it is not feature-gated. Folding holon into wat itself is the eventual
+      # plan; until then this checkout is what makes `../holon-rs` resolve in CI the way it
+      # does on a dev machine. Tracks holon-rs's default branch, matching local reality
+      # (whatever is in ../holon-rs); add `ref: <sha>` here to pin instead.
+      - name: Checkout holon-rs (sibling path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: watmin/holon-rs
+          path: holon-rs
 
       - name: Install Rust toolchain (+ clippy, rustfmt)
         uses: dtolnay/rust-toolchain@stable
@@ -28,6 +55,8 @@ jobs:
 
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wat-rs
 
       # The authoritative test gate — the WHOLE workspace (default-members), not just
       # the `wat` substrate crate. Arc-290: widened from `-p wat` so sibling crates
@@ -38,7 +67,11 @@ jobs:
       - name: Test (nextest)
         run: cargo nextest run --profile ci --release
 
-      # clippy is informational for now (the tree still carries known cruft);
-      # tighten to `-- -D warnings` once the warning floor is driven to zero.
+      # Clippy stays informational for THIS run only — the checkout fix above is the first
+      # time this step has ever executed, so it needs one honest reading before it is armed.
+      # The local floor is zero (`cargo clippy --release --workspace --all-targets`, arc 278
+      # stones A–E). Arming is `--all-targets -- -D warnings` — --all-targets because that is
+      # the surface the 1874 → 0 campaign was measured against; the narrower form silently
+      # exempts tests and examples.
       - name: Clippy
         run: cargo clippy --release --workspace
