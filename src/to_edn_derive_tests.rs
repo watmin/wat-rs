@@ -48,18 +48,18 @@ use std::borrow::Cow;
 /// Field-level via helper: takes `&Vec<(usize, Vec<String>)>` (a type without
 /// `ToEdn`) and returns a custom `OwnedValue`. Demonstrates that `via` lifts the
 /// `ToEdn` constraint on the field type.
-fn toy_transform(xs: &Vec<(usize, Vec<String>)>) -> OwnedValue {
+fn toy_transform(xs: &[(usize, Vec<String>)]) -> OwnedValue {
     OwnedValue::String(Cow::Owned(format!("count={}", xs.len())))
 }
 
 /// Variant-level via helper: returns `Some([a, b])` when `a` is non-empty,
 /// `None` otherwise. The `None` branch causes the `:hints` key to be elided
 /// entirely from the EDN output.
-fn toy_hints(a: &String, b: &String) -> Option<Vec<String>> {
+fn toy_hints(a: &str, b: &str) -> Option<Vec<String>> {
     if a.is_empty() {
         None
     } else {
-        Some(vec![a.clone(), b.clone()])
+        Some(vec![a.to_string(), b.to_string()])
     }
 }
 
@@ -376,7 +376,7 @@ enum TupleVariantTest {
 }
 
 /// Via helper for F2: returns the string length as an integer OwnedValue.
-fn toy_tuple_via(s: &String) -> OwnedValue {
+fn toy_tuple_via(s: &str) -> OwnedValue {
     OwnedValue::Integer(s.len() as i64)
 }
 

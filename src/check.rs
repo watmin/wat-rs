@@ -395,7 +395,7 @@ pub(crate) fn type_error_remedies(callee: &str) -> Vec<crate::remedy::Remedy> {
 /// as `&String` references from the destructured pattern):
 /// `args(callee, expected, got)`.
 pub(crate) fn type_error_remedies_via(
-    callee: &String,
+    callee: &str,
 ) -> Option<wat_edn::OwnedValue> {
     Some(crate::remedy::remedies_to_edn(&type_error_remedies(callee)))
 }

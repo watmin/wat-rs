@@ -53,7 +53,7 @@ pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
 /// Used as `#[to_edn(via = crate::runtime_error_edn::edn_path_segments)]`
 /// on `EdnCoerceMismatch.path` so the wire form stays `["seg1" "seg2"]`
 /// rather than `"seg1.seg2"` — matching the hand-written serializer.
-pub(crate) fn edn_path_segments(path: &String) -> OwnedValue {
+pub(crate) fn edn_path_segments(path: &str) -> OwnedValue {
     OwnedValue::Vector(
         path.split('.').filter(|s| !s.is_empty()).map(|s| str_val(s)).collect(),
     )
