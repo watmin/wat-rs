@@ -3710,7 +3710,6 @@ pub fn value_to_edn_with(
         Value::wat__core__fn(_) => opaque_nil("wat-edn.opaque", "fn"),
         Value::wat__kernel__Sender(_) => opaque_nil("wat-edn.opaque", "Sender"),
         Value::wat__kernel__Receiver(_) => opaque_nil("wat-edn.opaque", "Receiver"),
-        Value::wat__kernel__ProgramHandle(_) => opaque_nil("wat-edn.opaque", "ProgramHandle"),
         Value::wat__kernel__HandlePool { name, .. } => OwnedValue::Tagged(
             Tag::ns("wat-edn.opaque", "HandlePool"),
             Box::new(OwnedValue::String(std::borrow::Cow::Owned(

@@ -1,5 +1,30 @@
 # BRIEF — the `spawn-program'` OUTCOME WALL (peer-lifecycle Strike 5 — the LAST wall, the landing)
 
+> ## ⛔ PARTIALLY SUPERSEDED (2026-07-30) — read this before acting on anything below
+>
+> **Phase 0 is DONE and went further than planned.** 24r–24t annihilated the non-primes, deleted the
+> concrete `Thread`/`Process`/`ThreadPeer`/`ProcessPeer` types, and ran the 0z reclaim. **STOP-1**
+> (which verbs are prime vs non-prime) and **STOP-4** (the concrete structs) are therefore **moot**.
+>
+> **Phase 1 — `Demise` — is CANCELLED.** Builder ruling, 2026-07-30: *"a locus only ever sends —
+> main returns nil… locus are essentially `:user::main` in their own context… they have no meaningful
+> ret val."* So `Returned[v]` has no subject, and `Errored`/`Panicked` duplicate what
+> `recv'` → `Lost[LociDiedError]` already carries structurally. **Demise has no job.** The name-vacating
+> Phase 1 existed to accomplish is done by DELETION instead — see **`BRIEF-vacate-spawn-outcome.md`**.
+>
+> The load-bearing error was 24m's *"the INTERNAL one-shot `SpawnOutcome` channel SURVIVES → Demise is
+> a rename-on-remainder."* It does not survive. 24m conflated *the death path survives* (**true** —
+> `kernel/spawn.rs:717/730` → `runtime.rs:22716`) with *the `SpawnOutcome` channel survives*
+> (**false** — zero constructors at all three levels).
+>
+> **Phase 2 — the `SpawnOutcome` creation wall — STANDS, and its name set is still ratified.** But its
+> ROOMS and COUNTS below are stale (measured 2026-07-30): the enum is at `value.rs:1102` not `:1093`;
+> "the 26 `SpawnOutcome::` refs" is **1**, a doc comment; `eval_kernel_process_join_result` /
+> `eval_kernel_thread_join_result` **no longer exist**; `types.rs:1527/1575` now hold arc-170's
+> `StopAccepted`/`StopFailed`. **Re-draw Phase 2's rooms before striking it.**
+>
+> Kept whole per `IGNEM OLEO NON AQVA` — the reasoning that led here is the record; correct forward.
+
 > **The work in one paragraph.** `spawn-program'` (and its prime siblings) is the last peer verb still
 > returning a bare concrete `Thread'`/`Process'` and RAISING its *creation* failures. This strike does two
 > weldings at once: (1) **thread/process/remote all become one `Peer'<I,O>`** — the unification the rest of

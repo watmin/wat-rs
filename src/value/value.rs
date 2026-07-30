@@ -150,23 +150,6 @@ pub enum Value {
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
     /// [`Value::Unit`] — tuples start at arity 1.
     Tuple(Arc<Vec<Value>>),
-    /// A program's handle — `:ProgramHandle<R>` per FOUNDATION.
-    /// Pre-arc-112 the wait mechanism was thread-only (a one-shot
-    /// crossbeam result channel); arc 112 lifts the inner repr to
-    /// an enum so the SAME wat-level type can carry either an
-    /// in-thread receiver (the classic spawn / spawn-program path)
-    /// OR a forked-process pidfd (the spawn-process path). Returned
-    /// by `:wat::kernel::spawn` (InThread) and stored as the
-    /// internal wait field of `:wat::kernel::Process<I,O>` (InThread
-    /// or Forked depending on whether the Process came from
-    /// spawn-program' or spawn-process). Consumed by
-    /// `:wat::kernel::join` / `:wat::kernel::join-result` (operating
-    /// on the bare handle from `spawn` — InThread arm only) and
-    /// `:wat::kernel::Process/join-result` (operating on a Process —
-    /// dispatches on either variant). The InThread arm preserves
-    /// arc 060's catch_unwind contract; the Forked arm wraps
-    /// waitpid + exit-code interpretation.
-    wat__kernel__ProgramHandle(Arc<ProgramHandleInner>),
     /// A claim-or-panic handle pool — `:HandlePool<T>` per FOUNDATION.
     /// Backing: a bounded crossbeam channel pre-filled with N handles
     /// and its sender dropped immediately, so `is_empty` means the
@@ -579,7 +562,7 @@ where
 /// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
 /// `wat__core__fn`, `wat__core__clauses` (pointer-equality like fn),
 /// `wat__kernel__Sender`, `wat__kernel__Receiver`,
-/// `wat__kernel__ProgramHandle`, `wat__kernel__HandlePool`, `wat__kernel__ChildHandle`,
+/// `wat__kernel__HandlePool`, `wat__kernel__ChildHandle`,
 /// `RustOpaque`, `io__IOReader`, `io__IOWriter`,
 /// `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
 impl PartialEq for Value {
@@ -675,9 +658,6 @@ impl PartialEq for Value {
             (Value::wat__core__fn(a), Value::wat__core__fn(b)) => Arc::ptr_eq(a, b),
             (Value::wat__kernel__Sender(a), Value::wat__kernel__Sender(b)) => Arc::ptr_eq(a, b),
             (Value::wat__kernel__Receiver(a), Value::wat__kernel__Receiver(b)) => {
-                Arc::ptr_eq(a, b)
-            }
-            (Value::wat__kernel__ProgramHandle(a), Value::wat__kernel__ProgramHandle(b)) => {
                 Arc::ptr_eq(a, b)
             }
             (Value::wat__kernel__HandlePool { rx: a, .. }, Value::wat__kernel__HandlePool { rx: b, .. }) => {
@@ -903,11 +883,6 @@ impl std::hash::Hash for Value {
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::wat__kernel__ProgramHandle(_) => unreachable!(
-                "Value::wat__kernel__ProgramHandle is not atomizable; is_atomizable predicate in \
-                 src/check.rs should have rejected this. If you see this panic, \
-                 the predicate has drifted."
-            ),
             Value::wat__kernel__HandlePool { .. } => unreachable!(
                 "Value::wat__kernel__HandlePool is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
@@ -1088,67 +1063,6 @@ pub struct ForeignVariantValue {
     pub fields: Vec<Value>,
 }
 
-/// Outcome of a spawned thread's eval, carried on the
-/// [`Value::wat__kernel__ProgramHandle`] one-shot channel. Arc 060
-/// extends the channel from `Result<Value, EvalBreak>` to this
-/// three-state enum so `:wat::kernel::join-result` can discriminate
-/// `Panic` (thread eval unwound; `catch_unwind` caught the payload)
-/// from `RuntimeErr` (eval returned `Err` normally) at the wat
-/// surface. The legacy `:wat::kernel::join` verb still panics the
-/// caller on either failure mode (with a `RuntimeError` carrying the
-/// captured message), preserving its "I trust this thread" semantic.
-// rune:solvere(historical-shape) — SpawnOutcome + ProgramHandleInner are spawn-domain types kept as Value-payload here transitionally; they relocate to the spawn/ home at its migration stone (SCOUT-LIFT-MAP), resolving the asymmetry with fork::ChildHandle (imported from its domain module).
-#[derive(Debug)]
-pub enum SpawnOutcome {
-    /// Spawned function returned a Value normally.
-    Ok(Value),
-    /// Spawned function returned an `Err` from a Result-typed eval
-    /// path (or any other RuntimeError surfaced by the eval).
-    RuntimeErr(crate::value::RuntimeError),
-    /// Spawned function panicked; `catch_unwind` caught the payload.
-    /// `message` is always populated (formatted from whatever the
-    /// payload carried). `assertion` is `Some(...)` when the panic
-    /// was an `AssertionPayload` (arc 016 + 064 — assert-eq's rich
-    /// actual/expected/location/frames info); `None` for plain
-    /// `panic!()` payloads. Arc 105c preserves arc 064's promise
-    /// that assert-eq failures route their structured fields
-    /// through run-sandboxed; widening this variant from a bare
-    /// String was the minimum substrate change to make that work.
-    Panic {
-        message: String,
-        assertion: Option<crate::assertion::AssertionPayload>,
-    },
-}
-
-/// Internal repr of a [`Value::wat__kernel__ProgramHandle`] (arc
-/// 112 unification). Two variants discriminate the wait mechanism:
-///
-/// - [`Self::InThread`] — the classic in-thread spawn / spawn-program
-///   path. The handle owns one end of a one-shot crossbeam channel
-///   the spawned thread sends its [`SpawnOutcome`] on. Wait =
-///   `recv` on the channel; produces `ThreadDiedError` variants on
-///   failure.
-/// - [`Self::Forked`] — the spawn-process path. The handle owns an
-///   `Arc<ChildHandle>` (libc pid + reaped flag + cached exit).
-///   Wait = `waitpid` on the pid; produces `ProcessDiedError`
-///   variants synthesized from the exit code + (in slice 2b) any
-///   captured stderr framing.
-///
-/// The wat-level type is `:wat::kernel::ProgramHandle<R>` regardless
-/// of variant; bare `:wat::kernel::join-result` operates only on the
-/// InThread arm and returns `Result<R, ThreadDiedError>`. The new
-/// `:wat::kernel::Process/join-result` (arc 112) operates on either
-/// arm via the Process struct's internal handle, returning
-/// `Result<(), ProcessDiedError>`. The Forked arm of a bare-handle
-/// `join-result` call is a usage error today (the handle would have
-/// to come from a Process/join field accessor); slice 2a routes
-/// the canonical Process wait path through Process/join-result.
-#[derive(Debug)]
-pub enum ProgramHandleInner {
-    InThread(crate::comms::thread::Receiver<SpawnOutcome>),
-    Forked(Arc<ChildHandle>),
-}
-
 // ─── BRIEF-key-eligibility-wall — the wall: "interior-mutable AND hashable" ──
 // ─── is unrepresentable ───────────────────────────────────────────────────
 
@@ -1180,11 +1094,9 @@ pub enum NotAKeyReason {
     /// Carries interior mutability (an `AtomicBool`, `UnsafeCell`, `OnceLock`, …) reachable
     /// from the value, so a hash taken now may not hold later. Verified by reading the
     /// wrapped type's own field list, not merely by its `Hash` arm — `wat__kernel__Sender`
-    /// (`SenderInner::Comms.closed: AtomicBool`), `wat__kernel__ChildHandle` /
-    /// `wat__kernel__ProgramHandle` (`ChildHandle.reaped: AtomicBool` +
-    /// `cached_exit: OnceLock<i64>`, the latter reached transitively via
-    /// `ProgramHandleInner::Forked`), and the five `Arc<ThreadOwnedCell<_>>` ML types
-    /// (`ThreadOwnedCell.cell: UnsafeCell<T>`, directly).
+    /// (`SenderInner::Comms.closed: AtomicBool`), `wat__kernel__ChildHandle`
+    /// (`ChildHandle.reaped: AtomicBool` + `cached_exit: OnceLock<i64>`), and the five
+    /// `Arc<ThreadOwnedCell<_>>` ML types (`ThreadOwnedCell.cell: UnsafeCell<T>`, directly).
     InteriorMutable,
     /// An opaque handle whose identity is pointer-based (`Arc::ptr_eq`), not structural —
     /// no interior-mutable field is provable from this crate's own struct definitions
@@ -1440,14 +1352,6 @@ value_key_eligibility_table! {
         type_name: "wat::kernel::ChildHandle",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
         gate: [ TypeExpr::Path(":wat::kernel::ChildHandle".to_string()) ]
-    },
-    // `ProgramHandleInner::Forked(Arc<ChildHandle>)` reaches the same AtomicBool/OnceLock
-    // transitively (src/value/value.rs `ProgramHandleInner`'s own doc comment names it:
-    // "Arc<ChildHandle> (libc pid + reaped flag + cached exit)").
-    Value::wat__kernel__ProgramHandle(_) => {
-        type_name: "wat::kernel::ProgramHandle",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
-        gate: [ TypeExpr::Path(":wat::kernel::ProgramHandle".to_string()) ]
     },
     // The five `Arc<ThreadOwnedCell<_>>` ML types: `ThreadOwnedCell.cell: UnsafeCell<T>`
     // (src/rust_deps/custodia.rs) is direct, unconditional interior mutability.
@@ -1720,7 +1624,6 @@ impl Value {
             Value::Option(_) => self.type_name().to_string(),
             Value::Result(_) => self.type_name().to_string(),
             Value::Tuple(_) => self.type_name().to_string(),
-            Value::wat__kernel__ProgramHandle(_) => self.type_name().to_string(),
             Value::wat__kernel__HandlePool { .. } => self.type_name().to_string(),
             Value::wat__kernel__ChildHandle(_) => self.type_name().to_string(),
             Value::Vector(_) => self.type_name().to_string(),

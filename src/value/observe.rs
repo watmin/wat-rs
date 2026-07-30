@@ -414,7 +414,6 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::wat__core__fn(_) => "<fn>".to_string(),
         Value::wat__kernel__Sender(_) => "<Sender>".to_string(),
         Value::wat__kernel__Receiver(_) => "<Receiver>".to_string(),
-        Value::wat__kernel__ProgramHandle(_) => "<ProgramHandle>".to_string(),
         Value::wat__kernel__HandlePool { name, .. } => {
             format!("<HandlePool {:?}>", name)
         }

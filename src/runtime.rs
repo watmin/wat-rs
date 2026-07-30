@@ -710,9 +710,10 @@ fn stdio_bootstrapped() -> bool {
 // ── End arc 170 Slice A shutdown infrastructure ────────────────────────────
 
 // Stone 251.2e — Value cluster (Value enum + Clause/ClauseSet/ClauseAttempt/ClauseFailureReason
-// + StructValue/EnumValue/SpawnOutcome/ProgramHandleInner + all impls) moved to
-// src/value/value.rs. Re-exported here for zero-churn (Value used ×2156 internally).
-pub use crate::value::{Value, AggregateValue, HolonForm, EnumValue, SpawnOutcome, ProgramHandleInner,
+// + StructValue/EnumValue + all impls) moved to src/value/value.rs. Re-exported here for
+// zero-churn (Value used ×2156 internally). SpawnOutcome/ProgramHandleInner moved here too but
+// were purged in arc 278's vacate-spawn-outcome strike (a locus has no return value).
+pub use crate::value::{Value, AggregateValue, HolonForm, EnumValue,
     Clause, ClauseSet, ClauseAttempt, ClauseFailureReason};
 use crate::types::Nature;
 
@@ -7226,7 +7227,6 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::wat__stream__Stream(_) => ":wat::stream::Stream",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
         Value::wat__kernel__Receiver(_) => ":wat::kernel::Receiver",
-        Value::wat__kernel__ProgramHandle(_) => ":wat::kernel::ProgramHandle",
         Value::wat__kernel__HandlePool { .. } => ":wat::kernel::HandlePool",
         Value::wat__kernel__ChildHandle(_) => ":wat::kernel::ChildHandle",
         // Arc 232 Stone 232.1 — registry carriers (not dispatch-callable at runtime).
@@ -9906,7 +9906,6 @@ pub fn value_is_hashable(v: &Value) -> bool {
         Value::wat__core__fn(_)
             | Value::wat__kernel__Sender(_)
             | Value::wat__kernel__Receiver(_)
-            | Value::wat__kernel__ProgramHandle(_)
             | Value::wat__kernel__HandlePool { .. }
             | Value::wat__kernel__ChildHandle(_)
             | Value::RustOpaque(_)
@@ -21957,7 +21956,13 @@ fn eval_handle_pool_finish(
 // Process<I,O> in-thread driver from arc 103a). The retired bare-
 // spawn impl is gone; the type-checker poisons every call site
 // pre-runtime so this layer is unreachable. See arc 114
-// INSCRIPTION for the contract retirement.
+// INSCRIPTION for the contract retirement. Arc 278's vacate-spawn-
+// outcome strike purged the SpawnOutcome/ProgramHandleInner types
+// themselves: a locus (`:user::main`) has no meaningful return
+// value — it communicates only by channel — so the "spawn a fn,
+// get a Value back" chain those types existed to carry had zero
+// producers left; its death-reason job was already carried
+// structurally by `recv'` -> `Lost[LociDiedError]`.
 
 /// Coerce a `catch_unwind` panic payload to a printable String —
 /// same shape Rust's default panic hook does, plus an
@@ -21987,8 +21992,8 @@ pub(crate) fn format_panic_payload(payload: &Box<dyn std::any::Any + Send>) -> S
     "panic with non-string payload".to_string()
 }
 
-/// Owning extraction. Arc 105c: `SpawnOutcome::Panic` widened to
-/// carry both the message string AND the structured
+/// Owning extraction. Arc 105c widened the panic-payload extraction
+/// to carry both the message string AND the structured
 /// `AssertionPayload` (when present) so arc 064's "assert-eq
 /// surfaces actual / expected through run-sandboxed" promise
 /// survives the substrate-shrinkage cleanup.

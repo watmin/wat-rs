@@ -6,9 +6,10 @@
 //! Convergence by per-finding fix-verification + excusare rune-confirmation + orchestrator drift
 //! greps (caught 15 stale check.rs:NNNN citations + an incomplete de-deferral the casts walked past).
 //!
-//! Runes (all excusare-warranted): solvere(historical-shape)×2 — the extract_classifier back-arc +
-//! SpawnOutcome/ProgramHandleInner placement, transitional, resolving at the algebra/ + spawn/
-//! migration stones (SCOUT-LIFT-MAP); solvere(load-bearing-coupling) — Config on EncodingCtx (sole
+//! Runes (all excusare-warranted): solvere(historical-shape) — the extract_classifier back-arc
+//! (SpawnOutcome/ProgramHandleInner, the other historical-shape subject this rune once covered,
+//! was purged in arc 278's vacate-spawn-outcome strike: a locus has no return value, so the
+//! arc-060 join-result chain had no job left); solvere(load-bearing-coupling) — Config on EncodingCtx (sole
 //! config-inheritance carrier into spawned sub-programs); purgare(future-fixture) — eval_redef_allowed
 //! write-only scaffolding.
 //!
@@ -42,6 +43,6 @@ pub(crate) use frame::{FrameGuard, replace_top_frame, MacroCallSiteGuard, curren
 pub use observe::{Provenance, TrackedValue, ValueSnapshot};
 pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
-pub use value::{Value, AggregateValue, HolonForm, EnumValue, SpawnOutcome, ProgramHandleInner,
+pub use value::{Value, AggregateValue, HolonForm, EnumValue,
     Clause, ClauseSet, ClauseAttempt, ClauseFailureReason,
     ExtendDef, KeyEligibility, NotAKeyReason};

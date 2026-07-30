@@ -28,7 +28,9 @@
 ;;                       Replaces arc-110-era `:wat::kernel::Sent`.
 ;;
 ;; Sister to the `Stream<T>` tuple alias of `(Receiver<T>, ProgramHandle<()>)`
-;; that once lived in stream.wat (annihilated — arc 118). These three
+;; that once lived in stream.wat (annihilated — arc 118; ProgramHandle itself
+;; fully purged in arc 278's vacate-spawn-outcome strike — a locus has no
+;; meaningful return value). These three
 ;; live in the `:wat::kernel::` namespace because they name kernel
 ;; substrate concepts — bare channel ends and the pair, before any
 ;; program / producer is wired around them.
