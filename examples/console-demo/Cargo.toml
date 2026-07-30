@@ -11,3 +11,9 @@ path = "src/main.rs"
 
 [dependencies]
 wat = { path = "../.." }
+
+# Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
+# FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`
+# inside [package] parses as `package.lints` and cargo silently discards it.
+[lints]
+workspace = true

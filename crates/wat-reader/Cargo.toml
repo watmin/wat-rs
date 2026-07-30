@@ -21,3 +21,9 @@ inventory = "0.3"
 # version drift between the two layers.
 num-rational.workspace = true
 num-bigint.workspace = true
+
+# Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
+# FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`
+# inside [package] parses as `package.lints` and cargo silently discards it.
+[lints]
+workspace = true

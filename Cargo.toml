@@ -26,6 +26,30 @@ default-members = [
     "examples/console-demo",
 ]
 
+# clippy — declared ONCE here, exactly like `uuid` below, and for the same reason: a
+# single site means drift is unrepresentable. Every member writes `lints.workspace = true`
+# and inherits this.
+#
+# `deny`, not `warn`: a clippy finding is a FAILURE, the same weight as a red test — not
+# advice to scroll past. Arc 278 stones A–E drove this floor 1874 → 0, and a floor you
+# have to *remember* to check is a convention, which is the rung that rots. Putting it in
+# the manifest means every invocation inherits it — your shell, a rider's shell, CI — with
+# no `-D warnings` flag to forget. The wrong state stops being warned about and starts
+# being uncompilable-under-clippy.
+#
+# Scope is `clippy::all` ONLY (correctness/suspicious/style/complexity/perf) — the exact
+# set the campaign measured. `pedantic`/`nursery` are opt-in, noisy, and would reopen a
+# large count for no gain. `priority = -1` keeps this a GROUP default so an individual
+# lint can still be overridden above it later without a fight.
+#
+# The accepted cost, named: a toolchain bump can introduce a new lint that fires here and
+# breaks the build until it is handled. That is the same bargain `-D warnings` makes, and
+# it fails LOUDLY — which is the side of the trade this arc's law wants. There is no
+# rust-toolchain.toml pin, so the toolchain floats; pinning it is the other half of this
+# conversation if determinism is wanted.
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+
 # uuid — declared ONCE here; every crate that needs it writes `uuid.workspace = true`
 # and inherits this version + features. Single version site → drift is unrepresentable
 # (a crate that inherits cannot also name a version). v4/v5 unconditional: arc 296 killed
@@ -202,3 +226,9 @@ path = "tests/wat_lang/mod.rs"
 [[test]]
 name = "cli"
 path = "tests/cli/mod.rs"
+
+# Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
+# FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`
+# inside [package] parses as `package.lints` and cargo silently discards it.
+[lints]
+workspace = true
