@@ -208,8 +208,13 @@ fn named_string_field(body: &wat_edn::OwnedValue, key: &str) -> Result<String, R
 }
 
 impl BootReply {
-    pub(crate) fn to_wire(&self) -> String {
-        wat_edn::write(&wat_edn::ToEdn::to_edn(self))
+    /// `self` by value, not `&self` — `BootReply` is `Copy` (a fieldless-plus-`Ack`
+    /// enum), so borrowing costs a pointer to save nothing. This is an INHERENT
+    /// method, not an impl of the `to_wire` trait in `crate::comms`, so its
+    /// signature is ours to choose; the trait's `&self` shape is correct for the
+    /// large payload types that implement it, and is not a constraint here.
+    pub(crate) fn to_wire(self) -> String {
+        wat_edn::write(&wat_edn::ToEdn::to_edn(&self))
     }
 
     /// Decode the child's reply. Anything that is not an `Ack` means the child did

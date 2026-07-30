@@ -361,11 +361,38 @@ impl ProcessPeerBundle {
 /// docs/arc/2026/06/292-timer-peer-time-as-select/DESIGN.md (D5).
 pub enum ProcessSelectable {
     /// A spawned child process and its channels.
-    Spawned(ProcessPeerBundle),
+    ///
+    /// **Boxed** (arc 109, the clippy campaign). `ProcessPeerBundle` is 696 bytes
+    /// because it holds TWO `Receiver`s and each embeds a persistent
+    /// `RefCell<IoUring>` by value (Stone E-1 — the ring is kept alive so a `recv`
+    /// does not pay setup). An enum is as wide as its widest variant, so unboxed
+    /// this made every `Timer` — which needs 336 — cost 696, and these are held one
+    /// per entry in the set `poll'` watches.
+    ///
+    /// Boxing moves the bundle behind a pointer: the enum drops to the `Timer`
+    /// arm's width and each variant pays only what it carries. The cost is one hop
+    /// to reach a bundle that is already making syscalls.
+    ///
+    /// Deliberately NOT boxed: the `IoUring` inside `Receiver`. That would add an
+    /// indirection to every read on the hot path to save memory on a handle —
+    /// the wrong trade, and not what the lint is asking for.
+    ///
+    /// `ProcessPeerBundle`'s field declaration order is load-bearing (drop order:
+    /// `peer` before `_lifeline_w`, or the child is signalled to exit before its
+    /// channels close, racing a pending send). Boxing preserves field order inside
+    /// the box, so that invariant is untouched — but do not reorder while in here.
+    Spawned(Box<ProcessPeerBundle>),
     /// arc 292 L3 — a one-shot timerfd-backed timer peer. No child process,
     /// no error channel. Fires exactly once after the duration, delivering the
     /// encoded msg frame. Only valid in `select'`; send'/recv'/close' reject it.
-    Timer(crate::comms::process::Receiver<String>),
+    ///
+    /// **Boxed for the same reason as `Spawned`, and boxing only one was not
+    /// enough**: `large_enum_variant` fires on the DIFFERENCE between variants, and
+    /// a lone `Receiver` is itself 336 bytes (one embedded `RefCell<IoUring>`). With
+    /// only `Spawned` boxed the enum still cost 336 — the lint simply named the
+    /// other side. Boxed on both, each variant is a pointer and the enum is the
+    /// tag plus one word.
+    Timer(Box<crate::comms::process::Receiver<String>>),
 }
 
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
@@ -957,7 +984,7 @@ pub fn spawn_process_peer(
     // Wrapped in Option so close' can `.take()` the bundle (consuming it for
     // `close()+wait`) while send'/recv' detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
-    let wrapped = Arc::new(ThreadOwnedCell::new(Some(ProcessSelectable::Spawned(bundle))));
+    let wrapped = Arc::new(ThreadOwnedCell::new(Some(ProcessSelectable::Spawned(Box::new(bundle)))));
     Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, wrapped))
 }
 
