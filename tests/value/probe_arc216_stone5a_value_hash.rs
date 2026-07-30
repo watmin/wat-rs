@@ -40,6 +40,14 @@ fn probe_1_self_equality_i64() {
 }
 
 #[test]
+#[expect(
+    clippy::approx_constant,
+    reason = "3.14 here is an ARBITRARY f64, not an approximation of pi — this probe tests that \
+              `hash_value` is stable and `PartialEq` reflexive for the f64 variant, and any \
+              finite float would do. Substituting `std::f64::consts::PI` would obscure that the \
+              value is incidental. `#[expect]` so that if the literal is ever changed to \
+              something clippy does not flag, this attribute reports itself stale."
+)]
 fn probe_1_self_equality_f64() {
     let v = Value::f64(3.14);
     assert_eq!(hash_value(&v), hash_value(&v), "f64 hash must be stable");

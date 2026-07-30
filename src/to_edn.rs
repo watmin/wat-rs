@@ -273,6 +273,15 @@ pub(crate) fn error_edn_of(e: &impl WatError) -> OwnedValue {
 /// `cause.error_edn()` auto-derefs through the Box.
 ///
 /// Signature matches the `via` contract: `fn(&Box<T>) -> OwnedValue`.
+#[expect(
+    clippy::borrowed_box,
+    reason = "The `&Box<T>` is REQUIRED, not incidental — see the doc comment above. This is a \
+              `via` target for the ToEdn derive, which passes `&self.field` where the field is \
+              `Box<T>`; that is a `&Box<T>` and does not coerce to `&T`. Taking `&T` as clippy \
+              suggests makes the function uncallable from the derive it exists to serve. \
+              `#[expect]` so that if the derive is ever taught to deref before calling `via`, \
+              this attribute reports itself stale and the signature can be narrowed then."
+)]
 pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
     cause.error_edn()
 }

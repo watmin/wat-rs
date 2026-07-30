@@ -1614,6 +1614,17 @@ fn find_process_join_before_drain(
     None
 }
 
+#[expect(
+    clippy::only_used_in_recursion,
+    reason = "`accessors` is an ACCUMULATOR threaded down the walk: each level appends what it \
+              finds and passes the same buffer on, so the parameter is read only by the \
+              recursive call by construction. Removing it would mean hoisting the buffer to \
+              caller-managed state or a struct field, which trades a visible parameter for \
+              hidden state — the opposite of what this walker's contract wants. `#[expect]` \
+              rather than `#[allow]` so that if the shape ever changes and the lint stops \
+              firing, clippy reports THIS attribute as stale instead of leaving a dead \
+              exemption behind."
+)]
 fn collect_process_calls(
     node: &WatAST,
     joins: &mut Vec<(String, Span)>,
@@ -7982,6 +7993,16 @@ fn validate_def_positions_in_forms(
 /// non-splice wrapper name through recursive descent. When a `def` is
 /// found in a non-top-level position, `wrapper` names the nearest
 /// enclosing non-splice form.
+#[expect(
+    clippy::only_used_in_recursion,
+    reason = "`ctx`, `wrapper` and `errors` are all threaded DOWN the form tree: `ctx`/`wrapper` \
+              carry the enclosing position so a nested `def` can name what encloses it, and \
+              `errors` is the shared accumulator every level appends to. Each is therefore read \
+              only by the recursive call. Removing them would push the enclosing-position \
+              context into caller state and lose exactly the information the diagnostic exists \
+              to report. `#[expect]` so a future reshape that drops the recursion surfaces this \
+              attribute as stale rather than silently keeping a dead exemption."
+)]
 fn validate_def_position_with_wrapper(
     form: &WatAST,
     ctx: DefCtx,
@@ -9729,6 +9750,15 @@ fn infer_kernel_fn_forms(
 /// `ThreadSelfPeer'<I,O>` is in-locus (any I/O). The ops are purity-blind here.
 ///
 /// On failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Each parameter is a distinct axis this projection needs and none can be derived \
+              from another: the arg forms, the head span for the diagnostic's location, the op \
+              name for its wording, and the check environment. Bundling them into a params \
+              struct for two call sites would add a type whose only job is to be destructured \
+              immediately — indirection with no reader. `#[expect]` so that if the signature \
+              ever shrinks below the threshold, this attribute reports itself stale."
+)]
 fn project_peer_io(
     args: &[WatAST],
     head_span: &Span,
@@ -11542,6 +11572,13 @@ fn infer_kwargs_construct_check(
 /// Validates: arity == 2; args[0] (`x`) satisfies the surface named by args[1] (`:S`,
 /// a literal keyword); returns the specific backing-type path (`TypeExpr::Path`).
 /// If `x` does not satisfy `S`, emits a TypeMismatch.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Same shape as `project_peer_io` above: callee, suffix, span, args and environment \
+              are independent inputs, each needed verbatim to build the TypeMismatch this can \
+              emit. A params struct for two callers is indirection without a reader. `#[expect]` \
+              so a future narrowing surfaces this attribute as stale."
+)]
 fn infer_projection_verb_check(
     callee: &str,
     suffix: &str,

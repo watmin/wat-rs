@@ -138,6 +138,15 @@ fn def_redef_forbidden_strict_default() {
 // ─── Runtime resolution — 3 tests ────────────────────────────────────────
 
 #[test]
+#[expect(
+    clippy::approx_constant,
+    reason = "The 3.14159 literal IS the subject under test, not a sloppy pi. This probe runs a \
+              wat program that `def`s pi as 3.14159 and asserts the value resolves back through \
+              the runtime; the expected value must therefore match what the wat source declares. \
+              Substituting `std::f64::consts::PI` would compare against a DIFFERENT number and \
+              break the very round-trip being verified. `#[expect]` so that if the fixture's \
+              literal ever changes, this attribute reports itself stale."
+)]
 fn def_runtime_pi_resolves_to_value() {
     match run_beside(":t::test-pi") {
         Value::f64(x) => {
