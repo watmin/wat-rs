@@ -53,25 +53,46 @@ fn boxed_kind_renders_identical_edn_to_owned_kind() {
     );
 }
 
+/// A second, distinct kind — so "does the wrapper read the field?" can be asked by
+/// DIFFERENCE rather than by inspecting rendered text for a substring.
+fn other_kind() -> RuntimeErrorKind {
+    RuntimeErrorKind::EdnCoerceMismatch {
+        op: "other-op".to_string(),
+        expected: Box::new("wat::core::bool".to_string()),
+        got: Box::new("wat::core::nil".to_string()),
+        path: "different/path".to_string(),
+    }
+}
+
 #[test]
 fn whole_runtime_error_edn_is_reachable_through_the_kind_field() {
-    // Guards the OTHER half: that RuntimeError's hand-written wrapper actually reads the
-    // kind through the field (so the forwarding above is on the real path), and that it
-    // appends the span. If the wrapper is ever rewritten to bypass the field, this goes
-    // red and stone B's reasoning must be re-grounded rather than assumed.
-    let err = RuntimeError {
-        span: wat::rust_caller_span!(),
-        kind: sample_kind(),
-    };
-    let rendered = format!("{:?}", err.to_edn());
-    assert!(
-        rendered.contains("span"),
-        "RuntimeError::to_edn() no longer appends :span — the wrapper changed shape; \
-         re-ground stone B's byte-identical claim. Got: {rendered}"
+    // Guards the OTHER half: that `RuntimeError`'s hand-written wrapper actually reads its
+    // kind THROUGH the field, so the Box-forwarding proven above sits on the real path. If
+    // the wrapper is ever rewritten to bypass the field, this goes red and stone B's
+    // byte-identical claim must be re-grounded rather than assumed.
+    //
+    // Asked by DIFFERENCE, deliberately: two errors that share a span but carry different
+    // kinds must render differently. If the wrapper ignored the field, both would render
+    // identically and this fails. That is an exact comparison of whole values — never a
+    // substring check on a Debug string, which would pass on reordered or truncated output
+    // (the `no_loose_string_assert` lint is right about that, and this probe's first draft
+    // was wrong).
+    let span = wat::rust_caller_span!();
+    let a = format!("{:?}", RuntimeError::new(span.clone(), sample_kind()).to_edn());
+    let b = format!("{:?}", RuntimeError::new(span.clone(), other_kind()).to_edn());
+    assert_ne!(
+        a, b,
+        "two RuntimeErrors with the same span but DIFFERENT kinds rendered identical EDN, \
+         so RuntimeError::to_edn() is not reading its kind through the field this stone \
+         boxes — stone B's byte-identical claim no longer rests on anything"
     );
-    assert!(
-        rendered.contains("probe-op"),
-        "RuntimeError::to_edn() no longer surfaces the kind's own fields, so the kind is \
-         not being read through the field this stone boxes. Got: {rendered}"
+
+    // And the wrapper must ADD to the kind's own rendering (it re-tags and appends :span),
+    // so the whole error cannot render identically to its bare kind. Also exact.
+    let bare_kind = format!("{:?}", sample_kind().to_edn());
+    assert_ne!(
+        a, bare_kind,
+        "RuntimeError::to_edn() rendered identically to its bare kind, so the wrapper is no \
+         longer appending the span — its shape changed and stone B must be re-grounded"
     );
 }

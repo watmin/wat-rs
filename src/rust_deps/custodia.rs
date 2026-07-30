@@ -54,7 +54,7 @@ impl<T: Send> ThreadOwnedCell<T> {
     fn ensure_owner(&self, op: &'static str, span: crate::span::Span) -> Result<(), RuntimeError> {
         let current = std::thread::current().id();
         if current != self.owner {
-            return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "thread-owned value crossed thread boundary \
@@ -62,7 +62,7 @@ impl<T: Send> ThreadOwnedCell<T> {
                     self.owner,
                     current
                 )
-            } });
+            }));
         }
         Ok(())
     }
@@ -197,16 +197,16 @@ impl<T: Send> OwnedMoveCell<T> {
     /// caller receives `RuntimeError::MalformedForm`.
     pub fn take(&self, op: &'static str, span: crate::span::Span) -> Result<T, RuntimeError> {
         if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: "owned-move handle already consumed".into()
-            } });
+            }));
         }
         // Safety: the swap succeeded, so this thread holds exclusive
         // access until the function returns.
-        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: "owned-move handle payload was unexpectedly None".into()
-        } })
+        }))
     }
 }

@@ -105,8 +105,27 @@ impl fmt::Display for EvalBreak {
 /// (freeze-pair variants `UserMainMissing` / `EvalVerificationFailed`);
 /// `Display` / EDN elide unknown spans.
 pub struct RuntimeError {
-    pub span: Span,
-    pub kind: RuntimeErrorKind,
+    span: Span,
+    kind: RuntimeErrorKind,
+}
+
+impl RuntimeError {
+    /// The ONE door for construction.
+    pub fn new(span: Span, kind: RuntimeErrorKind) -> Self {
+        Self { span, kind }
+    }
+    /// The ONE door for reading the kind.
+    pub fn kind(&self) -> &RuntimeErrorKind {
+        &self.kind
+    }
+    /// The ONE door for taking the kind by value.
+    pub fn into_kind(self) -> RuntimeErrorKind {
+        self.kind
+    }
+    /// Span stays readable; it is not what stone B2 boxes.
+    pub fn span(&self) -> &Span {
+        &self.span
+    }
 }
 
 /// Variant data for [`RuntimeError`]. Spans live in the outer struct; variants

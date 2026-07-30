@@ -33,11 +33,11 @@ pub(crate) fn eval_vec_reverse(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::reverse".into(),
             expected: 1,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
@@ -68,11 +68,11 @@ pub(crate) fn eval_vec_reverse(
             StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
                 unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream"),
         },
-        _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::reverse".into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&v))
-        } }.into()),
+        }).into()),
     }
 }
 
@@ -86,11 +86,11 @@ pub(crate) fn eval_vec_range(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::range".into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?.value_owned())?;
     let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -120,22 +120,19 @@ pub(crate) fn eval_vec_take(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::take";
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
-    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError {
-        span: args[0].span().clone(),
-        kind: RuntimeErrorKind::TypeMismatch {
+    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
             got: Box::new(ValueSnapshot::of(&coll)),
-        },
-    }))?;
+        })))?;
     Ok(Value::wat__stream__Stream(lazy_take_stream(source, n)))
 }
 
@@ -180,22 +177,19 @@ pub(crate) fn eval_vec_drop(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::drop";
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
-    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError {
-        span: args[0].span().clone(),
-        kind: RuntimeErrorKind::TypeMismatch {
+    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
             got: Box::new(ValueSnapshot::of(&coll)),
-        },
-    }))?;
+        })))?;
     Ok(Value::wat__stream__Stream(lazy_drop_stream(source, n)))
 }
 
@@ -259,11 +253,11 @@ pub(crate) fn eval_vec_sort_by(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::sort'";  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     // Arc 247: fn-first — (sort' cmp xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -271,11 +265,11 @@ pub(crate) fn eval_vec_sort_by(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+            }).into());
         }
     };
     let mut sorted: Vec<Value> = (*xs).clone();
@@ -294,11 +288,11 @@ pub(crate) fn eval_vec_sort_by(
             ).map_err(EvalBreak::from)?;
             match v {
                 Value::bool(b) => Ok(b),
-                other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                other => Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "bool",
                     got: Box::new(ValueSnapshot::of(&other)),
-                } }.into()),
+                }).into()),
             }
         };
         let ab = match call(a, b) {
@@ -356,11 +350,11 @@ pub(crate) fn eval_vec_map(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::map";
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     // Arc 247: fn-first — (map f xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -368,21 +362,18 @@ pub(crate) fn eval_vec_map(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+            }).into());
         }
     };
-    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError {
-        span: args[1].span().clone(),
-        kind: RuntimeErrorKind::TypeMismatch {
+    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
             got: Box::new(ValueSnapshot::of(&coll)),
-        },
-    }))?;
+        })))?;
     Ok(Value::wat__stream__Stream(lazy_map_stream(func, source)))
 }
 
@@ -423,11 +414,11 @@ pub(crate) fn eval_vec_foldl(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldl".into(),
             expected: 3,
             got: args.len()
-        } }.into());
+        }).into());
     }
     // Arc 247: fn-first — (foldl f init xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -436,11 +427,11 @@ pub(crate) fn eval_vec_foldl(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldl".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+            }).into());
         }
     };
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
@@ -473,11 +464,11 @@ pub(crate) fn eval_vec_foldl(
             StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
                 unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream"),
         },
-        _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldl".into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
-        } }.into()),
+        }).into()),
     }
 }
 
@@ -492,11 +483,11 @@ pub(crate) fn eval_vec_foldr(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldr".into(),
             expected: 3,
             got: args.len()
-        } }.into());
+        }).into());
     }
     // Arc 247: fn-first — (foldr f init xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -505,11 +496,11 @@ pub(crate) fn eval_vec_foldr(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldr".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+            }).into());
         }
     };
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
@@ -544,11 +535,11 @@ pub(crate) fn eval_vec_foldr(
             StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
                 unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream"),
         },
-        _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldr".into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
-        } }.into()),
+        }).into()),
     }
 }
 
@@ -573,11 +564,11 @@ pub(crate) fn eval_vec_zip(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::zip".into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?.value_owned())?;
     let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -605,11 +596,11 @@ pub(crate) fn eval_vec_window(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::window".into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?.value_owned())?;
     let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -642,11 +633,11 @@ pub(crate) fn eval_vec_remove_at(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::remove-at".into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?.value_owned())?;
     let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -670,11 +661,11 @@ pub(crate) fn eval_vec_last(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::last".into(),
             expected: 1,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?.value_owned())?;
     Ok(Value::Option(Arc::new(xs.last().cloned())))
@@ -693,22 +684,22 @@ pub(crate) fn eval_vec_find_last_index(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::find-last-index";
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+            }).into());
         }
     };
     let mut last_idx: Option<i64> = None;
@@ -723,11 +714,11 @@ pub(crate) fn eval_vec_find_last_index(
             Value::bool(true) => last_idx = Some(i as i64),
             Value::bool(false) => {}
             other => {
-                return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "bool (predicate result)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                } }.into());
+                }).into());
             }
         }
     }
@@ -749,11 +740,11 @@ pub(crate) fn eval_vec_map_with_index(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::map-with-index".into(),
             expected: 2,
             got: args.len()
-        } }.into());
+        }).into());
     }
     // NB: arg order here is (xs f) — the collection leads. This diverges from the fn-first
     // HOF family (arc 247: map/filter/foldl/foldr all take (f xs)). Do NOT copy the extraction
@@ -763,11 +754,11 @@ pub(crate) fn eval_vec_map_with_index(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::std::list::map-with-index".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+            }).into());
         }
     };
     let mut out = Vec::with_capacity(xs.len());

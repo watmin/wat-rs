@@ -50,7 +50,7 @@ fn int_modrem_division_by_zero() {
         "(:wat::core::mod 1 0)",
     ] {
         assert!(
-            matches!(eval_res(s), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind, RuntimeErrorKind::DivisionByZero)),
+            matches!(eval_res(s), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind(), RuntimeErrorKind::DivisionByZero)),
             "{s} must be a RuntimeErrorKind::DivisionByZero"
         );
     }
@@ -62,7 +62,7 @@ fn int_modrem_division_by_zero() {
 fn int_modrem_quot_min_overflows() {
     let s = "(:wat::core::quot -9223372036854775808 -1)";
     assert!(
-        matches!(eval_res(s), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind, RuntimeErrorKind::IntegerOverflow { .. })),
+        matches!(eval_res(s), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind(), RuntimeErrorKind::IntegerOverflow { .. })),
         "{s} must be a RuntimeErrorKind::IntegerOverflow (clj: (quot Long/MIN_VALUE -1) throws)"
     );
 }

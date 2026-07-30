@@ -29,7 +29,7 @@
 //!    lift together.
 
 use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
 fn freeze_ok_file(rel_path: &str) -> wat::freeze::FrozenWorld {
     startup_from_file(rel_path).unwrap_or_else(|e| {
@@ -87,17 +87,19 @@ fn probe_def_at_expression_position_emits_position_error_at_runtime() {
         .clone();
     let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
     match result {
-        Err(RuntimeError { span: _, kind: RuntimeErrorKind::DeclarationInExpressionPosition(ref head) }) => {
-            assert_eq!(
-                head, ":wat::core::def",
-                "expected head ':wat::core::def'; got: {}",
-                head
-            );
-        }
-        Err(other) => panic!(
-            "expected DeclarationInExpressionPosition; got: {:?}",
-            other
-        ),
+        Err(e) => match e.kind() {
+            RuntimeErrorKind::DeclarationInExpressionPosition(head) => {
+                assert_eq!(
+                    head, ":wat::core::def",
+                    "expected head ':wat::core::def'; got: {}",
+                    head
+                );
+            }
+            _ => panic!(
+                "expected DeclarationInExpressionPosition; got: {:?}",
+                e
+            ),
+        },
         Ok(v) => panic!(
             "expected runtime error; got Ok({:?})",
             v

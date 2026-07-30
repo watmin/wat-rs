@@ -136,10 +136,10 @@ impl WatReader for RealStdin {
                 buf.truncate(k);
                 Ok(Some(buf))
             }
-            Err(e) => Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::read".into(),
                 reason: format!("stdin read: {}", e)
-            } }),
+            })),
         }
     }
 
@@ -147,10 +147,10 @@ impl WatReader for RealStdin {
         use std::io::Read;
         let mut buf = Vec::new();
         let mut guard = self.inner.lock();
-        guard.read_to_end(&mut buf).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.read_to_end(&mut buf).map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::read-all".into(),
             reason: format!("stdin read: {}", e)
-        } })?;
+        }))?;
         Ok(buf)
     }
 
@@ -169,10 +169,10 @@ impl WatReader for RealStdin {
                 }
                 Ok(Some(buf))
             }
-            Err(e) => Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::read-line".into(),
                 reason: format!("stdin read-line: {}", e)
-            } }),
+            })),
         }
     }
 
@@ -212,28 +212,28 @@ impl WatWriter for RealStdout {
     fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write(bytes).map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stdout write: {}", e)
-        } })
+        }))
     }
 
     fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write_all(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write_all(bytes).map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stdout write-all: {}", e)
-        } })
+        }))
     }
 
     fn flush(&self, span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.flush().map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.flush().map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stdout flush: {}", e)
-        } })
+        }))
     }
 }
 
@@ -253,28 +253,28 @@ impl WatWriter for RealStderr {
     fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write(bytes).map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stderr write: {}", e)
-        } })
+        }))
     }
 
     fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.write_all(bytes).map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.write_all(bytes).map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stderr write-all: {}", e)
-        } })
+        }))
     }
 
     fn flush(&self, span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        guard.flush().map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        guard.flush().map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stderr flush: {}", e)
-        } })
+        }))
     }
 }
 
@@ -356,10 +356,10 @@ impl WatReader for StringIoReader {
                 }
                 match String::from_utf8(b) {
                     Ok(s) => Ok(Some(s)),
-                    Err(e) => Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                    Err(e) => Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e)
-                    } }),
+                    })),
                 }
             }
         }
@@ -488,10 +488,10 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::read".into(),
                     reason: format!("pipe read: {}", err)
-                } });
+                }));
             }
             if ret == 0 {
                 return Ok(None);
@@ -517,10 +517,10 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::read-all".into(),
                     reason: format!("pipe read: {}", err)
-                } });
+                }));
             }
             if ret == 0 {
                 return Ok(out);
@@ -545,10 +545,10 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::read-line".into(),
                     reason: format!("pipe read: {}", err)
-                } });
+                }));
             }
             if ret == 0 {
                 if bytes.is_empty() {
@@ -559,10 +559,10 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    .map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                    .map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e)
-                    } });
+                    }));
             }
             if one[0] == b'\n' {
                 if bytes.last() == Some(&b'\r') {
@@ -570,20 +570,20 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    .map_err(|e| RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                    .map_err(|e| RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e)
-                    } });
+                    }));
             }
             bytes.push(one[0]);
         }
     }
 
     fn rewind(&self, span: Span) -> Result<(), RuntimeError> {
-        Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+        Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
             head: ":wat::io::rewind".into(),
             reason: "pipe fds are not rewindable".into()
-        } })
+        }))
     }
 
     fn as_raw_fd_for_poll(&self) -> Option<i32> {
@@ -635,10 +635,10 @@ impl WatWriter for PipeWriter {
         loop {
             let raw = self.fd.load(Ordering::SeqCst);
             if raw < 0 {
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: "pipe write: writer is closed".into()
-                } });
+                }));
             }
 
             // Arc 170 closure #5 — the writer joins the lock-step. Poll
@@ -710,7 +710,7 @@ impl WatWriter for PipeWriter {
                     if fds[1].revents != 0 {
                         // Not writable AND a stop is pending → this write would block
                         // indefinitely. That is the hang; surface it as a named value.
-                        return Err(RuntimeError { span, kind: RuntimeErrorKind::WriteStopped });
+                        return Err(RuntimeError::new(span, RuntimeErrorKind::WriteStopped));
                     }
                 }
             }
@@ -726,10 +726,10 @@ impl WatWriter for PipeWriter {
                     // top, which re-checks closed state and re-polls.
                     continue;
                 }
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: format!("pipe write: {}", err)
-                } });
+                }));
             }
             return Ok(ret as usize);
         }
@@ -740,10 +740,10 @@ impl WatWriter for PipeWriter {
         while !remaining.is_empty() {
             let n = self.write(remaining, span.clone())?;
             if n == 0 {
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
                     head: ":wat::io::write-all".into(),
                     reason: "pipe write returned 0 bytes".into()
-                } });
+                }));
             }
             remaining = &remaining[n..];
         }
@@ -785,11 +785,11 @@ impl WatWriter for PipeWriter {
 
 fn arity(op: &str, args: &[WatAST], n: usize, list_span: &Span) -> Result<(), RuntimeError> {
     if args.len() != n {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: n,
             got: args.len()
-        } });
+        }));
     }
     Ok(())
 }
@@ -797,44 +797,44 @@ fn arity(op: &str, args: &[WatAST], n: usize, list_span: &Span) -> Result<(), Ru
 fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
     match tv.value_owned() {
         Value::io__IOReader(r) => Ok(r),
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }
 
 fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
     match tv.value_owned() {
         Value::io__IOWriter(w) => Ok(w),
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }
 
 fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeError> {
     match tv.value_owned() {
         Value::i64(n) => Ok(n),
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "i64",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }
 
 fn expect_string(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<String>, RuntimeError> {
     match tv.value_owned() {
         Value::String(s) => Ok(s),
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }
 
@@ -847,21 +847,21 @@ fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, Runt
                     Value::u8(b) => out.push(*b),
                     other => {
                         // arc 138: no span — Vec element iteration; per-element WatAST span unavailable; use form span
-                        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "u8",
                             got: Box::new(crate::runtime::ValueSnapshot::of(other))
-                        } });
+                        }));
                     }
                 }
             }
             Ok(out)
         }
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Vec<u8>",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }
 
@@ -913,10 +913,10 @@ pub fn eval_ioreader_read(
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let n = expect_i64(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     if n < 0 {
-        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("negative byte count: {}", n)
-        } });
+        }));
     }
     let result = reader.read(n as usize, list_span.clone())?;
     Ok(Value::Option(Arc::new(result.map(bytes_to_vec_u8_value))))
@@ -1008,16 +1008,13 @@ pub fn eval_ioreader_read_frame(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-frame";
     if args.is_empty() || args.len() > 2 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "expected 1 or 2 args (reader [max-bytes]); got {}",
                     args.len()
                 ),
-            },
-        });
+            }));
     }
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     use crate::edn_shim::{read_framed_edn, FramedRead, DEFAULT_MAX_FRAME_BYTES};
@@ -1025,23 +1022,17 @@ pub fn eval_ioreader_read_frame(
         match eval(&args[1], env, sym)?.value_owned() {
             Value::i64(n) if n > 0 => n as usize,
             Value::i64(n) => {
-                return Err(RuntimeError {
-                    span: args[1].span().clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
                         head: op.into(),
                         reason: format!("max-bytes must be positive; got {}", n),
-                    },
-                });
+                    }));
             }
             other => {
-                return Err(RuntimeError {
-                    span: args[1].span().clone(),
-                    kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
                         expected: "i64 max-bytes",
                         got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                    },
-                });
+                    }));
             }
         }
     } else {
@@ -1138,33 +1129,24 @@ pub fn eval_ioreader_read_frame(
             variant_name: "Stopped".into(),
             fields: vec![],
         }))),
-        FramedRead::Truncated(partial) => Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        FramedRead::Truncated(partial) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "EOF arrived mid-frame (truncated): {:?}",
                     partial
                 ),
-            },
-        }),
-        FramedRead::Malformed(msg) => Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+            })),
+        FramedRead::Malformed(msg) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("malformed EDN frame: {}", msg),
-            },
-        }),
-        FramedRead::TooLarge(n) => Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+            })),
+        FramedRead::TooLarge(n) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "EDN frame exceeded {} bytes without completing — message too large or never terminated",
                     n
                 ),
-            },
-        }),
+            })),
     }
 }
 
@@ -1222,11 +1204,11 @@ pub fn eval_iowriter_open_file(
     let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     let file = std::fs::OpenOptions::new()
@@ -1261,11 +1243,11 @@ pub fn eval_ioreader_open_file(
     let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     let file = std::fs::OpenOptions::new()
@@ -1303,11 +1285,11 @@ pub fn eval_iowriter_from_fd(
     let fd = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
         Value::i64(n) => n,
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::i64",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            } });
+            }));
         }
     };
     // dup(2): the service owns a PRIVATE copy of the fd; dropping the writer closes the dup only,
@@ -1315,10 +1297,10 @@ pub fn eval_iowriter_from_fd(
     let dup_fd = unsafe { libc::dup(fd as libc::c_int) };
     if dup_fd < 0 {
         let e = std::io::Error::last_os_error();
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("dup(2) on fd {fd} failed: {e}"),
-        } });
+        }));
     }
     // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
     let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
@@ -1343,20 +1325,20 @@ pub fn eval_ioreader_from_fd(
     let fd = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
         Value::i64(n) => n,
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::i64",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            } });
+            }));
         }
     };
     let dup_fd = unsafe { libc::dup(fd as libc::c_int) };
     if dup_fd < 0 {
         let e = std::io::Error::last_os_error();
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("dup(2) on fd {fd} failed: {e}"),
-        } });
+        }));
     }
     // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
     let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
@@ -1414,11 +1396,11 @@ fn snapshot_writer(
     // that defaults to returning NotSupported. StringIoWriter
     // overrides.
     // arc 138: no span — helper receives evaluated Arc<dyn WatWriter>, no WatAST; Value-only context
-    writer.snapshot().ok_or_else(|| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+    writer.snapshot().ok_or_else(|| RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
         head: op.into(),
         reason: "writer does not support snapshot (only StringIoWriter does)"
             .into()
-    } })
+    }))
 }
 
 // ─── IOWriter ops ────────────────────────────────────────────────────────
@@ -1595,10 +1577,10 @@ pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, Runt
     let ret = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("pipe2(2) syscall failed: {}", err)
-        } });
+        }));
     }
     // SAFETY: libc::pipe2 returned 0, so fds[0] (read) and fds[1]
     // (write) are freshly-opened fds we now own; wrapping each in
@@ -1654,10 +1636,10 @@ impl WatTempFile {
             Ok(f) => Ok(Self { inner: Some(f) }),
             // The wat call site's span (threaded from `eval_io_temp_file_new`) locates this OS
             // error at the user's `(:wat::io::TempFile/new)`, not at a coarse `rust_caller_span!()`.
-            Err(e) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempFile/new".into(),
                 reason: format!("create temp file: {e}")
-            } }),
+            })),
         }
     }
 
@@ -1665,10 +1647,10 @@ impl WatTempFile {
         match &self.inner {
             Some(f) => Ok(f.path().display().to_string()),
             // arc 138: no span — runtime invariant; no WatAST at this call depth
-            None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+            None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempFile/path".into(),
                 reason: "TempFile already dropped".into()
-            } }),
+            })),
         }
     }
 }
@@ -1685,10 +1667,10 @@ impl WatTempDir {
             Ok(d) => Ok(Self { inner: Some(d) }),
             // The wat call site's span (threaded from `eval_io_temp_dir_new`) locates this OS error
             // at the user's `(:wat::io::TempDir/new)`, not at a coarse `rust_caller_span!()`.
-            Err(e) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempDir/new".into(),
                 reason: format!("create temp dir: {e}")
-            } }),
+            })),
         }
     }
 
@@ -1696,10 +1678,10 @@ impl WatTempDir {
         match &self.inner {
             Some(d) => Ok(d.path().display().to_string()),
             // arc 138: no span — runtime invariant; no WatAST at this call depth
-            None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+            None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempDir/path".into(),
                 reason: "TempDir already dropped".into()
-            } }),
+            })),
         }
     }
 }
@@ -1791,17 +1773,17 @@ pub fn eval_io_read_file(
     let op = ":wat::io::read-file";
     arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
-    let loader = sym.source_loader().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+    let loader = sym.source_loader().ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
         head: op.into(),
         reason: "no SourceLoader attached to SymbolTable; \
                  the host must provide one (FsLoader / ScopedLoader / InMemoryLoader)"
             .into()
-    } })?;
+    }))?;
     let loaded = loader.fetch_source_file(&path, None).map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("loader fetch_source_file({path:?}): {e}")
-        } }
+        })
     })?;
     Ok(Value::String(Arc::new(loaded.source)))
 }
@@ -1823,18 +1805,18 @@ pub fn eval_io_list_dir(
     arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let read_dir_iter = std::fs::read_dir(path.as_str()).map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("read_dir({path:?}): {e}")
-        } }
+        })
     })?;
     let mut entries: Vec<Value> = Vec::new();
     for entry_result in read_dir_iter {
         let entry = entry_result.map_err(|e| {
-            RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("read_dir entry error: {e}")
-            } }
+            })
         })?;
         let full_path = entry.path().to_string_lossy().into_owned();
         entries.push(Value::String(Arc::new(full_path)));
@@ -1973,11 +1955,11 @@ mod pipe_tests {
     fn rewind_is_error() {
         let (_w, r) = make_pipe();
         let err = r.rewind(crate::rust_caller_span!()).expect_err("pipe rewind must error");
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, .. }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::MalformedForm { head, .. } => {
                 assert_eq!(head, ":wat::io::rewind");
             }
-            other => panic!("expected MalformedForm; got {:?}", other),
+            _ => panic!("expected MalformedForm; got {:?}", err),
         }
     }
 

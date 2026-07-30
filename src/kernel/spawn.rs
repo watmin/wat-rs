@@ -398,14 +398,11 @@ pub fn eval_kernel_spawn_thread_prime(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-thread";
     if args.len() != 3 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
                 expected: 3,
                 got: args.len(),
-            },
-        }
+            })
         .into());
     }
 
@@ -413,14 +410,11 @@ pub fn eval_kernel_spawn_thread_prime(
     let program_fn = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError {
-                span: args[0].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "fn value (program body) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -429,14 +423,11 @@ pub fn eval_kernel_spawn_thread_prime(
     let init_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError {
-                span: args[1].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "fn value (0-arg init-fn returning :wat::core::Record) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -445,14 +436,11 @@ pub fn eval_kernel_spawn_thread_prime(
     let post_spawn_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError {
-                span: args[2].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "fn value (1-arg post-spawn-fn receiving ThreadLaunch) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -482,14 +470,11 @@ pub fn eval_kernel_spawn_process_prime(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-process";
     if args.len() != 5 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
                 expected: 5,
                 got: args.len(),
-            },
-        }
+            })
         .into());
     }
 
@@ -504,14 +489,11 @@ pub fn eval_kernel_spawn_process_prime(
     let post_spawn_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError {
-                span: args[1].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "fn value (1-arg post-spawn-fn receiving ProcessLaunch) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -520,14 +502,11 @@ pub fn eval_kernel_spawn_process_prime(
     let env_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError {
-                span: args[2].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String value (env-fn source string) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -536,14 +515,11 @@ pub fn eval_kernel_spawn_process_prime(
     let max_frame_bytes = match eval_inner(&args[3], env, sym)?.value_owned() {
         Value::i64(n) => n as usize,
         other => {
-            return Err(RuntimeError {
-                span: args[3].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[3].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "i64 value (max-message-bytes budget) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -555,14 +531,11 @@ pub fn eval_kernel_spawn_process_prime(
     let identity = match eval_inner(&args[4], env, sym)?.value_owned() {
         Value::Option(opt) => (*opt).clone(),
         other => {
-            return Err(RuntimeError {
-                span: args[4].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[4].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Option<Record> value (identity label) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -738,13 +711,10 @@ pub fn spawn_thread_peer(
             }
             // crash_tx dropped here → crash channel EOFs (reason buffered if it was sent).
         })
-        .map_err(|e| RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("std::thread::Builder::spawn failed: {}", e),
-            },
-        })?;
+            }))?;
 
     // Build the parent-side Thread peer (input_tx + output_rx + crash_rx + JoinHandle).
     // input and join are Option so RAII Drop can drain_and_join idempotently
@@ -762,13 +732,10 @@ pub fn spawn_thread_peer(
     let launch_ast = crate::parse_one!("(:wat::spawn::ThreadLaunch')")  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
         .expect("arc 209 C0b.3b-c: ThreadLaunch ctor form parses");
     let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
-        .map_err(|e| RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("arc 209 C0b.3b-c: ThreadLaunch ctor eval failed: {e:?}"),
-            },
-        })?
+            }))?
         .value_owned();
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
@@ -820,23 +787,17 @@ pub fn spawn_process_peer(
     // input:  parent → child  (input_tx stays; input_rx goes to child)
     // output: child  → parent (output_tx goes to child; output_rx stays)
     let (input_tx, input_rx) = crate::comms::process::pair::<String>().map_err(|io_err| {
-        RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("comms::process::pair (input) failed: {}", io_err),
-            },
-        }
+            })
     })?;
 
     let (output_tx, output_rx) = crate::comms::process::pair_with_budget::<String>(max_frame_bytes).map_err(|io_err| {
-        RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("comms::process::pair_with_budget (output) failed: {}", io_err),
-            },
-        }
+            })
     })?;
 
     // ── Err channel pair (Stone 214 1b-ii-α — the 3rd comms::process channel) ──
@@ -846,13 +807,10 @@ pub fn spawn_process_peer(
     // holds `err_rx` on the bundle and selects over it (together with peer.output)
     // in `ProcessPeerBundle::recv()` — the 3rd arm of the cap-4 io_uring ring.
     let (err_tx, err_rx) = crate::comms::process::pair::<String>().map_err(|io_err| {
-        RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("comms::process::pair (err) failed: {}", io_err),
-            },
-        }
+            })
     })?;
 
     // ── Fork via spawn_lifelined_any ─────────────────────────────────────────
@@ -903,13 +861,10 @@ pub fn spawn_process_peer(
     // the child needs is allocated before the clone, so the window between
     // `clone3` and `execve` can touch nothing but raw syscalls. See
     // `process::exec_plan`'s module doc for why that rule is absolute.
-    let exec_plan = crate::process::exec_plan::ExecPlan::build(label.as_deref()).map_err(|e| RuntimeError {
-        span: list_span.clone(),
-        kind: RuntimeErrorKind::MalformedForm {
+    let exec_plan = crate::process::exec_plan::ExecPlan::build(label.as_deref()).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("could not build the exec plan: {e}"),
-        },
-    })?;
+        }))?;
     let child_stdio = [
         input_rx.raw_fds()[0],
         output_tx.raw_fds()[0],
@@ -937,13 +892,10 @@ pub fn spawn_process_peer(
         // closure and outlives the call (the call ends the process).
         unsafe { exec_plan.exec_in_child(child_stdio, lifeline_r_raw) }
     })
-    .map_err(|io_err| RuntimeError {
-        span: list_span.clone(),
-        kind: RuntimeErrorKind::MalformedForm {
+    .map_err(|io_err| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("spawn_lifelined_any failed: {}", io_err),
-        },
-    })?;
+        }))?;
 
     // ── PARENT BRANCH ─────────────────────────────────────────────────────────
 
@@ -995,13 +947,10 @@ pub fn spawn_process_peer(
     let launch_ast = crate::parse_one!(&launch_src)
         .expect("arc 209 C0b.3b-c: ProcessLaunch ctor form parses");
     let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
-        .map_err(|e| RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("arc 209 C0b.3b-c: ProcessLaunch ctor eval failed: {e:?}"),
-            },
-        })?
+            }))?
         .value_owned();
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 

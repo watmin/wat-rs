@@ -78,10 +78,7 @@ impl ArgSpecErrorKind {
 impl From<ArgSpecError> for crate::value::RuntimeError {
     fn from(e: ArgSpecError) -> Self {
         let reason = e.kind.reason();
-        crate::value::RuntimeError {
-            span: e.span,
-            kind: crate::value::RuntimeErrorKind::MalformedForm { head: e.head, reason },
-        }
+        crate::value::RuntimeError::new(e.span, crate::value::RuntimeErrorKind::MalformedForm { head: e.head, reason })
     }
 }
 

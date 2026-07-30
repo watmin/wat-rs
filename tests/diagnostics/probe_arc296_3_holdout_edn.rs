@@ -229,10 +229,7 @@ fn probe_5_every_startup_variant_is_structured_not_stringly() {
     // Runtime — arc 233 serializer.
     assert_structured(
         "Runtime",
-        StartupError::Runtime(Box::new(RuntimeError {
-            span: span(),
-            kind: RuntimeErrorKind::UnboundSymbol("x".into()),
-        })),
+        StartupError::Runtime(Box::new(RuntimeError::new(span(), RuntimeErrorKind::UnboundSymbol("x".into())))),
     );
 
     // Stdlib — omitted here: `StdlibError` lives in the `pub(crate) mod stdlib`

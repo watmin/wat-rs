@@ -105,13 +105,10 @@ pub(crate) fn cached_stdio_peer(
     // 2. No ThreadIO installed → the stdio services are not running on this thread.
     let installed = THREAD_IO.with(|cell| cell.borrow().is_some());
     if !installed {
-        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() } });
+        return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }));
     }
     // 3. connect' via the wat helper — NO ThreadIO borrow held across apply_function.
-    let connect_fn = sym.get(connect_helper).ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnknownFunction(connect_helper.into()),
-    })?.clone();
+    let connect_fn = sym.get(connect_helper).ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(connect_helper.into())))?.clone();
     let peer = crate::runtime::apply_function(connect_fn, vec![addr], sym, span.clone())?;
     // 4. Cache it (borrow_mut released immediately).
     THREAD_IO.with(|cell| {

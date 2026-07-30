@@ -168,18 +168,18 @@ fn keyword_value_to_registry_key(
             if let WatAST::Keyword(k, _) = ast.as_ref() {
                 Ok(k.clone())
             } else {
-                Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "keyword",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&v))
-                } })
+                }))
             }
         }
-        ref other => Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        ref other => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "keyword",
             got: Box::new(crate::runtime::ValueSnapshot::of(other))
-        } }),
+        })),
     }
 }
 
@@ -202,20 +202,20 @@ pub fn eval_string_pascal_to_kebab_in(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::pascal->kebab-in";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } });
+        }));
     }
     let ns = keyword_value_to_registry_key(OP, &args[0], env, sym)?;
     let s = match eval(&args[1], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
-        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     };
 
     // Look up the acronym set for this namespace.
@@ -305,20 +305,20 @@ pub fn eval_string_kebab_to_pascal_in(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::kebab->pascal-in";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } });
+        }));
     }
     let ns = keyword_value_to_registry_key(OP, &args[0], env, sym)?;
     let s = match eval(&args[1], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
-        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     };
 
     // Look up the acronym set for this namespace.
@@ -372,45 +372,45 @@ pub fn eval_string_subs(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(span, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len()
-        } });
+        }));
     }
     let s = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
-        other => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     };
     let start = match eval(&args[1], env, sym)?.value_owned() {
         Value::i64(n) => n,
-        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "i64",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     };
     let end = match eval(&args[2], env, sym)?.value_owned() {
         Value::i64(n) => n,
-        other => return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "i64",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     };
     let char_len = s.chars().count() as i64;
     if start < 0 || end < 0 || start > end || end > char_len {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "index out of range: start={start}, end={end}, char-length={char_len}; \
                  require 0 <= start <= end <= char-length"
             )
-        } });
+        }));
     }
     let result: String = s
         .chars()
@@ -436,10 +436,10 @@ pub fn eval_string_split(
     const OP: &str = ":wat::core::string::split";
     let (hay, sep) = two_strings(OP, args, env, sym, list_span)?;
     if sep.is_empty() {
-        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: "separator must not be empty".into()
-        } });
+        }));
     }
     let pieces: Vec<Value> = hay
         .split(sep.as_str())
@@ -464,30 +464,30 @@ pub fn eval_string_join(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(span, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } });
+        }));
     }
     let sep = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     let pieces = match eval(&args[1], env, sym)?.value_owned() {
         Value::Vec(items) => items,
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     let mut pieces_owned: Vec<String> = Vec::with_capacity(pieces.len());
@@ -496,11 +496,11 @@ pub fn eval_string_join(
             Value::String(s) => pieces_owned.push((**s).clone()),
             other => {
                 // Vec element iteration over Values — per-element WatAST span unavailable; list_span is the best available location
-                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other))
-                } });
+                }));
             }
         }
     }
@@ -522,11 +522,11 @@ pub fn render_unquoted(v: Value, op: &str, span: &Span) -> Result<String, Runtim
         Value::f64(f)     => Ok(f.to_string()),
         Value::bool(b)    => Ok(b.to_string()),
         Value::u8(n)      => Ok(n.to_string()),
-        other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String | i64 | f64 | bool | u8",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-        } }),
+        })),
     }
 }
 
@@ -551,30 +551,30 @@ pub fn eval_string_interpolate(
 
     // Need at least the template arg.
     if args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: 0,
-        } });
+        }));
     }
 
     // arg[0]: template — must eval to String.
     let tmpl = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
-        other => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-        } }),
+        })),
     };
 
     // args[1..]: must be an even count of (keyword, value) pairs.
     let rest = &args[1..];
     if !rest.len().is_multiple_of(2) {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: "trailing kwargs must be :name value pairs — odd count".into(),
-        } });
+        }));
     }
 
     // Build name→rendered map and track which keys were used.
@@ -592,11 +592,11 @@ pub fn eval_string_interpolate(
                     .unwrap_or(k.as_str())
                     .to_string()
             }
-            other => return Err(RuntimeError { span: key_arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => return Err(RuntimeError::new(key_arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword (e.g. :name)",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            } }),
+            })),
         };
         // Value: eval then render unquoted.
         let rendered = render_unquoted(eval(val_arg, env, sym)?.value_owned(), OP, val_arg.span())?;
@@ -626,10 +626,10 @@ pub fn eval_string_interpolate(
                     result.push('{');
                 } else if c == '}' {
                     // {} → empty placeholder name — error
-                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: "empty placeholder {} in template".into(),
-                    } });
+                    }));
                 } else {
                     // { followed by name char → enter name mode
                     mode_name = true;
@@ -642,10 +642,10 @@ pub fn eval_string_interpolate(
                     // }} → literal }
                     result.push('}');
                 } else {
-                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: "lone '}' in template — use '}}' for a literal brace".into(),
-                    } });
+                    }));
                 }
             } else {
                 // no pending
@@ -667,18 +667,18 @@ pub fn eval_string_interpolate(
                         result.push_str(val);
                         used.insert(name);
                     }
-                    None => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    None => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!("missing kwarg for placeholder {{{}}}", name),
-                    } }),
+                    })),
                 }
                 mode_name = false;
                 name_buf.clear();
             } else if c == '{' {
-                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: "'{' inside placeholder name — unclosed '{'?".into(),
-                } });
+                }));
             } else {
                 name_buf.push(c);
             }
@@ -688,31 +688,31 @@ pub fn eval_string_interpolate(
 
     // Finalize: check for dangling open/close pending or open name mode.
     if mode_name {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("unclosed placeholder '{{{}}}'", name_buf),
-        } });
+        }));
     }
     if pending_open {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: "lone '{' at end of template — use '{{' for a literal brace".into(),
-        } });
+        }));
     }
     if pending_close {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: "lone '}' at end of template — use '}}' for a literal brace".into(),
-        } });
+        }));
     }
 
     // Strict: every kwarg must have been referenced.
     for key in kwargs.keys() {
         if !used.contains(key) {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("unused kwarg :{}", key),
-            } });
+            }));
         }
     }
 
@@ -739,11 +739,11 @@ pub fn eval_string_concat(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::concat";
     if args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: 0
-        } });
+        }));
     }
     let mut total = 0usize;
     let mut pieces: Vec<Arc<String>> = Vec::with_capacity(args.len());
@@ -754,11 +754,11 @@ pub fn eval_string_concat(
                 pieces.push(s);
             }
             other => {
-                return Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-                } });
+                }));
             }
         }
     }
@@ -810,11 +810,11 @@ pub fn eval_uuid_typed_v4(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/v4";
     if !args.is_empty() {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 0,
             got: args.len()
-        } });
+        }));
     }
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v4()))
 }
@@ -832,36 +832,36 @@ pub fn eval_uuid_typed_v5(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/v5";
     if args.len() != 2 {
-        return Err(RuntimeError { span: if args.is_empty() {
+        return Err(RuntimeError::new(if args.is_empty() {
                 list_span.clone()
             } else {
                 args[0].span().clone()
-            }, kind: RuntimeErrorKind::ArityMismatch {
+            }, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
-        } });
+        }));
     }
     let ns_val = eval(&args[0], env, sym)?.value_owned();
     let name_val = eval(&args[1], env, sym)?.value_owned();
     let ns_uuid = match &ns_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&ns_val))
-            } });
+            }));
         }
     };
     let name_str = match &name_val {
         Value::String(s) => s.as_str().to_string(),
         _ => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&name_val))
-            } });
+            }));
         }
     };
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v5(ns_uuid, &name_str)))
@@ -880,25 +880,25 @@ pub fn eval_uuid_typed_from_string(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/from-string";
     if args.len() != 1 {
-        return Err(RuntimeError { span: if args.is_empty() {
+        return Err(RuntimeError::new(if args.is_empty() {
                 list_span.clone()
             } else {
                 args[0].span().clone()
-            }, kind: RuntimeErrorKind::ArityMismatch {
+            }, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     let s_val = eval(&args[0], env, sym)?.value_owned();
     let s = match &s_val {
         Value::String(s) => s.as_str().to_string(),
         _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&s_val))
-            } });
+            }));
         }
     };
     let result = if is_canonical_uuid_string(&s) {
@@ -920,25 +920,25 @@ pub fn eval_uuid_typed_to_string(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/to-string";
     if args.len() != 1 {
-        return Err(RuntimeError { span: if args.is_empty() {
+        return Err(RuntimeError::new(if args.is_empty() {
                 list_span.clone()
             } else {
                 args[0].span().clone()
-            }, kind: RuntimeErrorKind::ArityMismatch {
+            }, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     let u_val = eval(&args[0], env, sym)?.value_owned();
     let u = match &u_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
-            } });
+            }));
         }
     };
     Ok(Value::String(Arc::new(u.to_string())))
@@ -956,25 +956,25 @@ pub fn eval_uuid_version(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/version";
     if args.len() != 1 {
-        return Err(RuntimeError { span: if args.is_empty() {
+        return Err(RuntimeError::new(if args.is_empty() {
                 list_span.clone()
             } else {
                 args[0].span().clone()
-            }, kind: RuntimeErrorKind::ArityMismatch {
+            }, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     let u_val = eval(&args[0], env, sym)?.value_owned();
     let u = match &u_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
-            } });
+            }));
         }
     };
     Ok(Value::i64(u.get_version_num() as i64))
@@ -992,25 +992,25 @@ pub fn eval_uuid_rfc4122_variant(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/rfc4122-variant?";
     if args.len() != 1 {
-        return Err(RuntimeError { span: if args.is_empty() {
+        return Err(RuntimeError::new(if args.is_empty() {
                 list_span.clone()
             } else {
                 args[0].span().clone()
-            }, kind: RuntimeErrorKind::ArityMismatch {
+            }, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     let u_val = eval(&args[0], env, sym)?.value_owned();
     let u = match &u_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
-            } });
+            }));
         }
     };
     Ok(Value::bool(u.get_variant() == uuid::Variant::RFC4122))
@@ -1028,11 +1028,11 @@ pub fn eval_uuid_typed_nil(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/nil";
     if !args.is_empty() {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 0,
             got: args.len()
-        } });
+        }));
     }
     Ok(Value::wat__core__Uuid(uuid::Uuid::nil()))
 }
@@ -1069,52 +1069,52 @@ pub fn eval_char_of(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(span, RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     let val = eval(&args[0], env, sym)?.value_owned();
     let s = match val {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     let mut chars = s.chars();
     let c = match chars.next() {
         None => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: "expected a length-1 String; got empty string".into()
-            } });
+            }));
         }
         Some(c) => c,
     };
     if chars.next().is_some() {
         let len = s.chars().count();
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "expected a length-1 String; got length-{} string {:?}",
                 len, s
             )
-        } });
+        }));
     }
     if (c as u32) > 0xFFFF {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "supplementary-plane codepoint U+{:X} not supported; \
                  wat::core::char is BMP-only (U+0000–U+FFFF)",
                 c as u32
             )
-        } });
+        }));
     }
     Ok(Value::wat__core__Char(c))
 }
@@ -1155,10 +1155,10 @@ pub fn eval_regex_matches(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::regex::matches?";
     let (pattern, haystack) = two_strings(OP, args, env, sym, list_span)?;
-    let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+    let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: format!("invalid regex: {}", e)
-    } })?;
+    }))?;
     Ok(Value::bool(re.is_match(haystack.as_str())))
 }
 
@@ -1176,19 +1176,19 @@ fn one_string(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(span, RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }
 
@@ -1204,30 +1204,30 @@ fn two_strings(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(|| list_span.clone());
-        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(span, RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len()
-        } });
+        }));
     }
     let a = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     let b = match eval(&args[1], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
+            }));
         }
     };
     Ok((a, b))

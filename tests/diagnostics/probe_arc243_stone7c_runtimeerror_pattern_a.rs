@@ -28,13 +28,10 @@ use wat::span::Span;
 /// every variant inherits the location discipline by construction.
 #[test]
 fn runtimeerror_outer_span_field_required() {
-    let err = RuntimeError {
-        span: wat::rust_caller_span!(),
-        kind: RuntimeErrorKind::DivisionByZero,
-    };
+    let err = RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::DivisionByZero);
     // Universal span access — no exhaustive match across ~30 variants.
-    let _span: &Span = &err.span;
-    assert!(matches!(err.kind, RuntimeErrorKind::DivisionByZero));
+    let _span: &Span = &err.span();
+    assert!(matches!(err.kind(), RuntimeErrorKind::DivisionByZero));
 }
 
 /// Contract 2: RuntimeErrorKind variants do NOT carry per-variant span fields.
@@ -43,12 +40,9 @@ fn runtimeerror_outer_span_field_required() {
 #[test]
 fn runtimeerrorkind_variants_have_no_span_field() {
     let kind = RuntimeErrorKind::UnboundSymbol("x".to_string());
-    let err = RuntimeError {
-        span: wat::rust_caller_span!(),
-        kind,
-    };
-    let _span: &Span = &err.span;
-    assert!(matches!(err.kind, RuntimeErrorKind::UnboundSymbol(_)));
+    let err = RuntimeError::new(wat::rust_caller_span!(), kind);
+    let _span: &Span = &err.span();
+    assert!(matches!(err.kind(), RuntimeErrorKind::UnboundSymbol(_)));
 }
 
 /// Contract 3: Span access is universal — no exhaustive match across ~30
@@ -56,17 +50,11 @@ fn runtimeerrorkind_variants_have_no_span_field() {
 #[test]
 fn runtimeerror_span_access_is_single_path() {
     let errs: Vec<RuntimeError> = vec![
-        RuntimeError {
-            span: wat::rust_caller_span!(),
-            kind: RuntimeErrorKind::DivisionByZero,
-        },
-        RuntimeError {
-            span: wat::rust_caller_span!(),
-            kind: RuntimeErrorKind::UnboundSymbol("y".into()),
-        },
+        RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::DivisionByZero),
+        RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UnboundSymbol("y".into())),
     ];
     for err in &errs {
-        let _span: &Span = &err.span; // single-path access for EVERY kind
+        let _span: &Span = &err.span(); // single-path access for EVERY kind
     }
 }
 
@@ -75,10 +63,7 @@ fn runtimeerror_span_access_is_single_path() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn runtimeerror_freeze_pair_elides_unknown_span() {
-    let err = RuntimeError {
-        span: wat::rust_caller_span!(),
-        kind: RuntimeErrorKind::UserMainMissing,
-    };
+    let err = RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UserMainMissing);
     let rendered = err.to_string();
     assert_eq!(
         rendered,

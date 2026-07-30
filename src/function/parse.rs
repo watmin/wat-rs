@@ -226,10 +226,10 @@ pub(in crate::function) fn parse_fn_signature_prefix(
 pub(crate) fn parse_fn_signature(
     args: &[WatAST; 3],
 ) -> Result<(Vec<crate::scope::Identifier>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
-    let sig = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: false }).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
+    let sig = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: false }).map_err(|step| RuntimeError::new(step.span, RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
         reason: step.kind.reason()
-    } })?;
+    }))?;
     // Arc 170 — carry the binders THEMSELVES; flattening to env_key here is
     // what baked a scope id into a name and made a binder un-remappable.
     Ok((sig.params, sig.param_types, sig.ret_type))
@@ -251,10 +251,10 @@ pub(crate) fn parse_fn_signature(
 pub(crate) fn parse_fn_signature_with_rest(
     args: &[WatAST; 3],
 ) -> Result<ParsedFnSignature<crate::scope::Identifier>, RuntimeError> {
-    let sig = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: true }).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
+    let sig = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: true }).map_err(|step| RuntimeError::new(step.span, RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
         reason: step.kind.reason()
-    } })?;
+    }))?;
     // Arc 170 — binders carried whole (see parse_fn_signature); the caller
     // flattens the rest name to an env_key where `Function.rest_param` wants a
     // lookup key rather than a binder node.
@@ -330,9 +330,9 @@ mod tests {
             WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
-        let reason = match err {
-            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
-            other => panic!("expected MalformedForm, got {:?}", other),
+        let reason = match err.kind() {
+            crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. } => reason,
+            _ => panic!("expected MalformedForm, got {:?}", err),
         };
         // reason() for ArgsVecNotVector (lines 114-115) is "fn signature: expected a vector …"
         assert_eq!(reason, "fn signature: expected a vector `[name <- :T ...]` as the args-vector; got keyword");
@@ -349,9 +349,9 @@ mod tests {
         // `:Any` is a valid keyword syntactically but fails reject_any check.
         let sig = sig_vec_arrow_ret(":Any");
         let err = parse_fn_signature(&sig).unwrap_err();
-        let reason = match err {
-            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
-            other => panic!("expected MalformedForm, got {:?}", other),
+        let reason = match err.kind() {
+            crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. } => reason,
+            _ => panic!("expected MalformedForm, got {:?}", err),
         };
         // reason() for BadRetType (line 120): "invalid return type: {kind}"
         assert_eq!(reason, "invalid return type: :Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: :Any");
@@ -375,9 +375,9 @@ mod tests {
             Ok(_) => panic!("expected Err for non-Vector args-slot; got Ok"),
             Err(e) => e,
         };
-        let reason = match err {
-            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
-            other => panic!("expected MalformedForm, got {:?}", other),
+        let reason = match err.kind() {
+            crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. } => reason,
+            _ => panic!("expected MalformedForm, got {:?}", err),
         };
         assert_eq!(reason, "fn signature: expected a vector `[name <- :T ...]` as the args-vector; got int");
     }
@@ -395,9 +395,9 @@ mod tests {
             WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
-        let reason = match err {
-            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
-            other => panic!("expected MalformedForm, got {:?}", other),
+        let reason = match err.kind() {
+            crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. } => reason,
+            _ => panic!("expected MalformedForm, got {:?}", err),
         };
         assert_eq!(reason, "fn signature: expected `->` between args-vector and return type; got keyword");
     }

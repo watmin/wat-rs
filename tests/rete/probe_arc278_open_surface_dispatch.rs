@@ -52,10 +52,10 @@ fn open_surface_dispatch_unknown_class_is_runtime_no_match() {
     // A plain `defn` (not a deftest) whose raise IS the subject — the value verb.
     match call_beside_value(file!(), ":user::describe-unknown") {
         Err(err) => assert!(
-            matches!(err.kind, RuntimeErrorKind::NoMatchingClause { .. }),
+            matches!(err.kind(), RuntimeErrorKind::NoMatchingClause { .. }),
             "expected RuntimeErrorKind::NoMatchingClause (no clause of `:probe::describe` \
              recognizes the MongoReason class); got {:?}",
-            err.kind
+            err.kind()
         ),
         Ok(v) => panic!(
             "expected a runtime NoMatchingClause error (no clause dispatches MongoReason); \

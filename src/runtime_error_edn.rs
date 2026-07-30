@@ -67,14 +67,14 @@ impl crate::to_edn::ToEdn for RuntimeError {
     /// typed record replaces the hand-built `splice_span` helper).
     fn to_edn(&self) -> OwnedValue {
         use crate::to_edn::edn_kw;
-        let kind_val = self.kind.to_edn();
+        let kind_val = self.kind().to_edn();
         match kind_val {
             OwnedValue::Tagged(tag, body) => {
                 let mut fields = match *body {
                     OwnedValue::Map(f) => f,
                     other => vec![(edn_kw("body"), other)],
                 };
-                fields.push((edn_kw("span"), self.span.to_edn()));
+                fields.push((edn_kw("span"), self.span().to_edn()));
                 OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
             }
             other => other,
@@ -87,10 +87,10 @@ impl crate::to_edn::WatError for RuntimeError {
     /// (no `file:line` prefix — that lives in `:location`; no multi-line
     /// actual/expected detail — that lives in the structured variant fields).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::to_edn::first_line(self.kind().to_string())
     }
     fn location(&self) -> OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::to_edn::location_from_span(self.span())
     }
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])

@@ -151,7 +151,7 @@ fn probe_pipe_writer_joins_lockstep_on_shutdown() {
     match outcome {
         Err(e) => {
             assert!(
-                matches!(e.kind, RuntimeErrorKind::WriteStopped),
+                matches!(e.kind(), RuntimeErrorKind::WriteStopped),
                 "expected a NAMED stop (RuntimeErrorKind::WriteStopped); got: {:?}",
                 e
             );

@@ -288,10 +288,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // symbol_table.rs) — they never call the stdio verbs themselves.
     let start_helper = pre_sym
         .get(":wat::kernel::start-primed-stdio")
-        .ok_or_else(|| RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::start-primed-stdio".into()),
-        })?
+        .ok_or_else(|| RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UnknownFunction(":wat::kernel::start-primed-stdio".into())))?
         .clone();
     let handles_tuple = apply_function(
         start_helper,
@@ -305,16 +302,13 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let (stdin_handle, stdout_handle, stderr_handle) = match &handles_tuple {
         Value::Tuple(v) if v.len() == 3 => (v[0].clone(), v[1].clone(), v[2].clone()),
         other => {
-            return Err(RuntimeError {
-                span: crate::rust_caller_span!(),
-                kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                     head: "arc 170 start-primed-stdio".into(),
                     reason: format!(
                         "expected a 3-tuple of stdio Handles; got {:?}",
                         crate::runtime::ValueSnapshot::of(other)
                     ),
-                },
-            });
+                }));
         }
     };
 
@@ -324,16 +318,13 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let addr_of = |h: &Value, which: &str| -> Result<Value, RuntimeError> {
         match h {
             Value::Aggregate(a) if a.fields.len() >= 2 => Ok(a.fields[1].clone()),
-            other => Err(RuntimeError {
-                span: crate::rust_caller_span!(),
-                kind: RuntimeErrorKind::MalformedForm {
+            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                     head: format!("arc 170 primed {which} Handle"),
                     reason: format!(
                         "expected a ≥2-field Handle aggregate (handle, addr); got {:?}",
                         crate::runtime::ValueSnapshot::of(other)
                     ),
-                },
-            }),
+                })),
         }
     };
     let primed = Arc::new(crate::services::PrimedStdio {
@@ -355,10 +346,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         let name = format!("{fqdn_base}/stop");
         match sym.get(&name) {
             Some(f) => Ok(f.clone()),
-            None => Err(RuntimeError {
-                span: crate::rust_caller_span!(),
-                kind: RuntimeErrorKind::UnknownFunction(name),
-            }),
+            None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UnknownFunction(name))),
         }
     };
     let stop_targets = vec![
@@ -1171,43 +1159,34 @@ pub fn invoke_user_main_with_program(
 /// path (arc 213 / 3b-f) both call. Testable in-process against a world that defines the
 /// record type — exactly as it runs in the spawned universe.
 pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, RuntimeError> {
-    let ast = crate::parse_one!(src).map_err(|e| RuntimeError {
-        span: crate::rust_caller_span!(),
-        kind: RuntimeErrorKind::MalformedForm {
+    let ast = crate::parse_one!(src).map_err(|e| RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
             head: "env-fn".into(),
             reason: format!("arc 209 C0b.3b-e: env-fn parse error: {e:?}"),
-        },
-    })?;
+        }))?;
     let v = eval_in_frozen(&ast, world, &Environment::new())?.value_owned();
     match v {
         Value::wat__core__fn(f) => {
             let r = apply_function(f, vec![], world.symbols(), crate::rust_caller_span!())?;
             match r {
                 r @ Value::Aggregate(_) => Ok(r),
-                other => Err(RuntimeError {
-                    span: crate::rust_caller_span!(),
-                    kind: RuntimeErrorKind::MalformedForm {
+                other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                         head: "env-fn".into(),
                         reason: format!(
                             "arc 209 C0b.3b-e: env-fn fn returned a non-record; \
                              env-fn must produce a :wat::core::Record (any subtype); got: {:?}",
                             crate::runtime::ValueSnapshot::of(&other)
                         ),
-                    },
-                }),
+                    })),
             }
         }
         r @ Value::Aggregate(_) => Ok(r),
-        other => Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::MalformedForm {
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                 head: "env-fn".into(),
                 reason: format!(
                     "arc 209 C0b.3b-e: env-fn must produce a :wat::core::Record (any subtype); got: {:?}",
                     crate::runtime::ValueSnapshot::of(&other)
                 ),
-            },
-        }),
+            })),
     }
 }
 
@@ -1287,7 +1266,7 @@ fn invoke_user_main_orchestrated(
             runtime.symbols(),
             crate::rust_caller_span!(),
         ),
-        None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing }),
+        None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UserMainMissing)),
     };
 
     // Arc 170 "stopping is a protocol", builder ruling — MAIN creates the stdio services, so MAIN
@@ -1534,10 +1513,7 @@ pub fn eval_in_frozen(
     // the prime is reserved for GENERATED code. Mutation forms are refused on BOTH the
     // raw and the expanded form (a macro could expand to a def/defmacro).
     let expanded = crate::macros::expand_fully(ast.clone(), &frozen.macros, env, frozen.symbols())
-        .map_err(|e| RuntimeError {
-            span: ast.span().clone(),
-            kind: RuntimeErrorKind::MacroExpansionFailed { op: "eval_in_frozen".into(), cause: Box::new(e) },
-        })?;
+        .map_err(|e| RuntimeError::new(ast.span().clone(), RuntimeErrorKind::MacroExpansionFailed { op: "eval_in_frozen".into(), cause: Box::new(e) }))?;
     refuse_mutation_forms(&expanded)?;
     crate::runtime::eval(&expanded, env, frozen.symbols())
 }
@@ -1566,7 +1542,7 @@ pub fn eval_digest_in_frozen(
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
     crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
-        RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } }
+        RuntimeError::new(ast.span().clone(), RuntimeErrorKind::EvalVerificationFailed { err })
     })?;
     eval_in_frozen(ast, frozen, env)
 }
@@ -1596,7 +1572,7 @@ pub fn eval_signed_in_frozen(
     pubkey_b64: &str,
 ) -> Result<TrackedValue, RuntimeError> {
     crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(
-        |err| RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } },
+        |err| RuntimeError::new(ast.span().clone(), RuntimeErrorKind::EvalVerificationFailed { err }),
     )?;
     eval_in_frozen(ast, frozen, env)
 }
@@ -1614,9 +1590,9 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
     if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
-                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalForbidsMutationForm {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::EvalForbidsMutationForm {
                     head: head.clone()
-                } });
+                }));
             }
         }
     }
@@ -1911,7 +1887,7 @@ mod tests {
         "#;
         let world = startup(src).expect("startup");
         let err = invoke_user_main(&world, Vec::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::UserMainMissing, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::UserMainMissing));
     }
 
     // LocalCache stdlib-composition test retired in arc 013 slice 4b
@@ -1983,11 +1959,11 @@ mod tests {
         .unwrap();
         let env = Environment::new();
         let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { head, .. }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::EvalForbidsMutationForm { head, .. } => {
                 assert_eq!(head, ":wat::core::defstruct");
             }
-            other => panic!("expected EvalForbidsMutationForm, got {:?}", other),
+            _ => panic!("expected EvalForbidsMutationForm, got {:?}", err),
         }
     }
 
@@ -2003,7 +1979,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2019,7 +1995,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2033,7 +2009,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::core::defenum :evil::E :A :B)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2046,7 +2022,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2059,7 +2035,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2074,7 +2050,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2089,7 +2065,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2104,7 +2080,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2117,7 +2093,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::config::set-dims! 8192)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     #[test]
@@ -2139,7 +2115,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     // ─── Digest-verified eval ───────────────────────────────────────────
@@ -2181,11 +2157,11 @@ mod tests {
         let err =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", wrong)
                 .unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
             }
-            other => panic!("expected EvalVerificationFailed, got {:?}", other),
+            _ => panic!("expected EvalVerificationFailed, got {:?}", err),
         }
     }
 
@@ -2200,11 +2176,11 @@ mod tests {
         let err =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "md5", "abc123")
                 .unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(err, crate::hash::HashError::UnsupportedAlgorithm { .. }));
             }
-            other => panic!("expected EvalVerificationFailed, got {:?}", other),
+            _ => panic!("expected EvalVerificationFailed, got {:?}", err),
         }
     }
 
@@ -2264,11 +2240,11 @@ mod tests {
             &pk,
         )
         .unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
             }
-            other => panic!("expected SignatureMismatch, got {:?}", other),
+            _ => panic!("expected SignatureMismatch, got {:?}", err),
         }
     }
 
@@ -2289,14 +2265,14 @@ mod tests {
             "dummy",
         )
         .unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(
                     err,
                     crate::hash::HashError::UnsupportedSignatureAlgorithm { .. }
                 ));
             }
-            other => panic!("expected UnsupportedSignatureAlgorithm, got {:?}", other),
+            _ => panic!("expected UnsupportedSignatureAlgorithm, got {:?}", err),
         }
     }
 
@@ -2321,7 +2297,7 @@ mod tests {
         let err =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
                 .unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
     }
 
     // ─── Phase-order invariant: expand_all precedes register_defines ────────

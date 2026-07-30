@@ -39,7 +39,7 @@ fn i64_overflow_is_integer_overflow_not_wrap() {
         "(:wat::core::- -9223372036854775808 1)", // i64::MIN - 1
     ] {
         assert!(
-            matches!(eval_res(s), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind, RuntimeErrorKind::IntegerOverflow { .. })),
+            matches!(eval_res(s), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind(), RuntimeErrorKind::IntegerOverflow { .. })),
             "{s} must be a RuntimeErrorKind::IntegerOverflow, not a wrapped value"
         );
     }
@@ -50,11 +50,11 @@ fn i64_overflow_is_integer_overflow_not_wrap() {
 #[test]
 fn overflow_is_distinct_from_division_by_zero() {
     assert!(
-        matches!(eval_res("(:wat::core::+ 9223372036854775807 1)"), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind, RuntimeErrorKind::IntegerOverflow { .. })),
+        matches!(eval_res("(:wat::core::+ 9223372036854775807 1)"), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind(), RuntimeErrorKind::IntegerOverflow { .. })),
         "overflow must be IntegerOverflow"
     );
     assert!(
-        matches!(eval_res("(:wat::core::/ 1 0)"), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind, RuntimeErrorKind::DivisionByZero)),
+        matches!(eval_res("(:wat::core::/ 1 0)"), Err(EvalBreak::Diagnostic(ref e)) if matches!(e.kind(), RuntimeErrorKind::DivisionByZero)),
         "division-by-zero must stay its own distinct DivisionByZero kind"
     );
 }

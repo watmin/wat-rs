@@ -41,10 +41,10 @@ pub(crate) fn eval_fn(
     // Note: sister sequence in `src/function/infer.rs` (infer_fn).
     let sig_args = peel_metadata_preamble(args);
     if sig_args.len() < 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: FN_HEAD.into(),
             reason: format!("expected [name <- :T ...] -> :Ret body ...; got {} element(s)", sig_args.len())
-        } });
+        }));
     }
     let body = synthesize_fn_body(&sig_args[3..]);
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
@@ -88,9 +88,9 @@ mod tests {
         // Only 1 arg after the fn head has been stripped by the caller — too few.
         let args = &[WatAST::Vector(vec![], span.clone())];
         let err = eval_fn(args, &span, &env).unwrap_err();
-        let reason = match err {
-            RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
-            other => panic!("expected MalformedForm, got {:?}", other),
+        let reason = match err.kind() {
+            RuntimeErrorKind::MalformedForm { reason, .. } => reason,
+            _ => panic!("expected MalformedForm, got {:?}", err),
         };
         assert_eq!(reason, "expected [name <- :T ...] -> :Ret body ...; got 1 element(s)");
     }

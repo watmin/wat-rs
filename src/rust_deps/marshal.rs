@@ -63,11 +63,11 @@ impl FromWat for i64 {
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::i64(n) => Ok(*n),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -82,11 +82,11 @@ impl FromWat for f64 {
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::f64(x) => Ok(*x),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -101,11 +101,11 @@ impl FromWat for bool {
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::bool(b) => Ok(*b),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -120,11 +120,11 @@ impl FromWat for String {
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::String(s) => Ok((**s).clone()),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -141,11 +141,11 @@ impl FromWat for () {
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Unit => Ok(()),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "()",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -165,11 +165,11 @@ impl<T: FromWat> FromWat for Option<T> {
                 Some(x) => Ok(Some(T::from_wat(x, op, span)?)),
                 None => Ok(None),
             },
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Option",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -198,24 +198,24 @@ macro_rules! impl_tuple_marshaling {
                 match v {
                     Value::Tuple(items) => {
                         if items.len() != $arity {
-                            return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                            return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
                                     "expected tuple of arity {}; got arity {}",
                                     $arity,
                                     items.len()
                                 ) // arc 138 F4b: real threaded through
-                            } });
+                            }));
                         }
                         Ok((
                             $( $name::from_wat(&items[$idx], op, span)?, )+
                         ))
                     }
-                    other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
                         got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-                    } }),
+                    })),
                 }
             }
         }
@@ -248,11 +248,11 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
                 Ok(inner) => Ok(Ok(T::from_wat(inner, op, span)?)),
                 Err(inner) => Ok(Err(E::from_wat(inner, op, span)?)),
             },
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Result",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -272,11 +272,11 @@ impl<T: FromWat> FromWat for Vec<T> {
                 .iter()
                 .map(|x| T::from_wat(x, op, span))
                 .collect::<Result<Vec<_>, _>>(),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Vector",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
-            } }),
+            })),
         }
     }
 }
@@ -357,19 +357,19 @@ pub fn rust_opaque_arc(
     match v {
         Value::RustOpaque(inner) => {
             if inner.type_path != expected_path {
-                return Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
                     got: Box::new(crate::runtime::ValueSnapshot::unavailable(inner.type_path))
-                } });
+                }));
             }
             Ok(Arc::clone(inner))
         }
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: Box::new(crate::runtime::ValueSnapshot::of(other))
-        } }),
+        })),
     }
 }
 
@@ -384,18 +384,18 @@ pub fn downcast_ref_opaque<'a, T: Any>(
     span: crate::span::Span,
 ) -> Result<&'a T, RuntimeError> {
     if inner.type_path != expected_path {
-        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: Box::new(crate::runtime::ValueSnapshot::unavailable(inner.type_path))
-        } });
+        }));
     }
     inner.payload.downcast_ref::<T>().ok_or_else(|| {
-        RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("payload downcast failed — shim author misalignment"))
-        } }
+        })
     })
 }
 
@@ -491,7 +491,7 @@ mod tests {
         let v = Value::i64(5);
         let s = crate::rust_caller_span!();
         let err = <Vec<i64> as FromWat>::from_wat(&v, "test", &s).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::TypeMismatch { .. }));
     }
 
     #[test]
@@ -531,11 +531,11 @@ mod tests {
         let v: Value = (1i64, 2i64, 3i64).to_wat();
         let s = crate::rust_caller_span!();
         let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::MalformedForm { reason, .. } => {
                 assert_eq!(reason, "expected tuple of arity 2; got arity 3");
             }
-            other => panic!("expected MalformedForm, got {:?}", other),
+            _ => panic!("expected MalformedForm, got {:?}", err),
         }
     }
 
@@ -544,7 +544,7 @@ mod tests {
         let v = Value::i64(1);
         let s = crate::rust_caller_span!();
         let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::TypeMismatch { .. }));
     }
 
     #[test]
@@ -579,7 +579,7 @@ mod tests {
         let s = crate::rust_caller_span!();
         let err =
             <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test", &s).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::TypeMismatch { .. }));
     }
 
     #[test]
@@ -595,13 +595,13 @@ mod tests {
         let v = Value::String(Arc::new("not an i64".into()));
         let s = crate::rust_caller_span!();
         let err = i64::from_wat(&v, ":rust::test::method", &s).unwrap_err();
-        match err {
-            RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, got, .. }, .. } => {
+        match err.kind() {
+            RuntimeErrorKind::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
-                assert_eq!(expected, "i64");
+                assert_eq!(*expected, "i64");
                 assert_eq!(got.type_name, "wat::core::String");
             }
-            other => panic!("expected TypeMismatch, got {:?}", other),
+            _ => panic!("expected TypeMismatch, got {:?}", err),
         }
     }
 
@@ -623,7 +623,7 @@ mod tests {
         let s = crate::rust_caller_span!();
         let v = make_rust_opaque(":rust::test::A", A);
         let err = rust_opaque_arc(&v, ":rust::test::B", ":test", s).unwrap_err();
-        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
+        assert!(matches!(err.kind(), RuntimeErrorKind::TypeMismatch { .. }));
     }
 
     #[test]
@@ -638,9 +638,6 @@ mod tests {
         let inner = rust_opaque_arc(&v, ":rust::test::Mixed", ":test", s.clone()).unwrap();
         let result = downcast_ref_opaque::<ExpectedWrong>(&inner, ":rust::test::Mixed", ":test", s);
         assert!(result.is_err());
-        assert!(matches!(
-            result.err().unwrap(),
-            RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }
-        ));
+        assert!(matches!(result.err().unwrap().kind(), RuntimeErrorKind::TypeMismatch { .. }));
     }
 }

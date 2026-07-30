@@ -43,9 +43,9 @@ fn strict_read_still_errors_on_the_unknown_tag() {
     let err = call_beside_value(file!(), ":my::strict-errors")
         .expect_err("strict edn::read on an unknown tag must still raise, not decode");
     assert!(
-        matches!(err.kind, RuntimeErrorKind::MalformedForm { .. }),
+        matches!(err.kind(), RuntimeErrorKind::MalformedForm { .. }),
         "strict read must raise a MalformedForm carrying the unknown-tag reason (the floor); \
          got kind {:?}",
-        err.kind
+        err.kind()
     );
 }

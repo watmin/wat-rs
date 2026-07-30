@@ -105,12 +105,12 @@ pub(super) fn macro_eval_pre_validated(
     // Thread `e.span` (the runtime's precise failing-site span) into MacroError.
     // Arc 298.2: every span is real; always use e.span directly.
     crate::runtime::eval(form, env, sym).map_err(|e| {
-        let span = e.span.clone();
+        let span = e.span().clone();
         // Arc 258 Stone 258.2b: MacroAbort surfaces clean — user message only,
         // no "macro_eval: runtime::eval failed:" prefix noise.
         // Arc 296: non-MacroAbort failures carry the typed RuntimeError cause
         // instead of collapsing to a prose string.
-        match &e.kind {
+        match e.kind() {
             crate::runtime::RuntimeErrorKind::MacroAbort { message } => MacroError {
                 span,
                 kind: MacroErrorKind::MalformedTemplate { reason: message.clone() },

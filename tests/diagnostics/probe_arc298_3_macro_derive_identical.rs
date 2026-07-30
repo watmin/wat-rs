@@ -220,10 +220,7 @@ fn probe_program_body_eval_failed() {
 #[test]
 fn probe_macro_eval_runtime_failed() {
     let rt_span = Span::new(Arc::new("rt.wat".to_string()), 7, 3);
-    let cause = Box::new(RuntimeError {
-        span: rt_span,
-        kind: RuntimeErrorKind::UnboundSymbol("foo".into()),
-    });
+    let cause = Box::new(RuntimeError::new(rt_span, RuntimeErrorKind::UnboundSymbol("foo".into())));
     let err = make(MacroErrorKind::MacroEvalRuntimeFailed { cause });
     wat::assert_edn_eq!(
         write(&err),

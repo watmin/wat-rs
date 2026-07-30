@@ -145,30 +145,24 @@ impl CommListener for CrossbeamListener {
                 Err(arc) => (*arc).clone(),
             },
             other => {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
                             "connect-request must be a Tuple; got {:?}",
                             other.type_name()
                         ),
-                    },
-                }
+                    })
                 .into());
             }
         };
         if items.len() != 2 {
-            return Err(RuntimeError {
-                span: span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
                         "connect-request tuple must have 2 elements; got {}",
                         items.len()
                     ),
-                },
-            }
+                })
             .into());
         }
         let resp_tx_val = items.remove(1);
@@ -178,37 +172,28 @@ impl CommListener for CrossbeamListener {
             Value::wat__kernel__Receiver(arc) => match Arc::try_unwrap(arc) {
                 Ok(ReceiverInner::Comms(rx)) => rx,
                 Ok(_) => {
-                    return Err(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
+                    return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: "connect-request rx is not a comms (thread-tier) receiver"
                                 .into(),
-                        },
-                    }
+                        })
                     .into());
                 }
                 Err(_) => {
-                    return Err(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
+                    return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason:
                                 "connect-request rx has unexpected additional references".into(),
-                        },
-                    }
+                        })
                     .into());
                 }
             },
             other => {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: crate::runtime::RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(span.clone(), crate::runtime::RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "Receiver (connect-request req_rx)",
                         got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                    },
-                }
+                    })
                 .into());
             }
         };
@@ -217,26 +202,20 @@ impl CommListener for CrossbeamListener {
             Value::wat__kernel__Sender(arc) => match Arc::try_unwrap(arc) {
                 Ok(SenderInner::Comms { sender, .. }) => sender,
                 Err(_) => {
-                    return Err(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
+                    return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason:
                                 "connect-request tx has unexpected additional references".into(),
-                        },
-                    }
+                        })
                     .into());
                 }
             },
             other => {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: crate::runtime::RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(span.clone(), crate::runtime::RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "Sender (connect-request resp_tx)",
                         got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                    },
-                }
+                    })
                 .into());
             }
         };

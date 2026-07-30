@@ -108,11 +108,11 @@ pub(crate) fn require_one_arg(
     list_span: &crate::span::Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len()
-        } });
+        }));
     }
     eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
@@ -170,24 +170,24 @@ pub fn eval_edn_read(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other))
-            } });
+            }));
         }
     };
-    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: format!("EDN parse error: {e}")
-    } })?;
+    }))?;
     // Arc 233 Stone 233.2.c — wrap result in Tracked with RuntimeBuilt provenance
     // so that errors flowing from edn::read-produced Values surface the producer origin.
     let result = edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: e.to_string()
-        } }
+        })
     })?;
     // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
     Ok(crate::value::TrackedValue::new(
@@ -281,11 +281,11 @@ pub fn eval_edn_read_json(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     let types = sym.types().map(|a| a.as_ref());
@@ -324,22 +324,22 @@ pub fn eval_edn_read_foreign(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other))
-            } });
+            }));
         }
     };
-    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: format!("EDN parse error: {e}")
-    } })?;
+    }))?;
     let result = edn_to_value_foreign(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: e.to_string()
-        } }
+        })
     })?;
     Ok(crate::value::TrackedValue::new(
         result,
@@ -374,38 +374,38 @@ pub fn eval_foreign_record_get(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::ForeignRecord/get";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(), expected: 2, got: args.len()
-        } });
+        }));
     }
     let fr_v = eval(&args[0], env, sym).map(|tv| tv.value_owned())?;
     let key_v = eval(&args[1], env, sym).map(|tv| tv.value_owned())?;
     let fr = match &fr_v {
         Value::ForeignRecord(fr) => fr,
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::edn::ForeignRecord",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     let key = match &key_v {
         Value::wat__core__keyword(k) => foreign_key_name(k),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Keyword",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     match fr.fields.iter().find(|(k, _)| *k == key) {
         Some((_, v)) => Ok(v.clone()),
-        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("foreign record `{}` has no field `:{}`", fr.class, key),
-        } }),
+        })),
     }
 }
 
@@ -421,11 +421,11 @@ pub fn eval_foreign_record_class(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
         Value::ForeignRecord(fr) => Ok(Value::String(Arc::new(fr.class.clone()))),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignRecord",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     }
 }
 
@@ -446,11 +446,11 @@ pub fn eval_foreign_variant_variant(
         Value::ForeignVariant(fv) => {
             Ok(Value::wat__core__keyword(Arc::new(format!(":{}", fv.variant))))
         }
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignVariant",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     }
 }
 
@@ -466,11 +466,11 @@ pub fn eval_foreign_variant_enum_class(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
         Value::ForeignVariant(fv) => Ok(Value::String(Arc::new(fv.enum_class.clone()))),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignVariant",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     }
 }
 
@@ -487,11 +487,11 @@ pub fn eval_foreign_variant_fields(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
         Value::ForeignVariant(fv) => Ok(Value::Vec(Arc::new(fv.fields.clone()))),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignVariant",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     }
 }
 
@@ -569,11 +569,11 @@ pub fn eval_read_string(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     // Arc 170 — TOTAL. A parse failure is a matchable `ReadOutcome::Malformed`, never a raise:
@@ -623,11 +623,11 @@ pub fn eval_write_forms(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     let edn = crate::wat_edn_bridge::watast_to_edn(ast);
@@ -664,11 +664,11 @@ pub fn eval_ast_to_source(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     let mut out = String::new();
@@ -794,11 +794,11 @@ pub fn eval_ast_children(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } });
+            }));
         }
     };
     let wrap = |n: &WatAST| Value::wat__WatAST(std::sync::Arc::new(n.clone()));
@@ -838,36 +838,36 @@ pub fn eval_with_children(
 ) -> Result<crate::value::TrackedValue, RuntimeError> {
     const OP: &str = ":wat::core::with-children";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(), expected: 2, got: args.len(),
-        } });
+        }));
     }
     let template_v = eval(&args[0], env, sym)?.value_owned();
     let children_v = eval(&args[1], env, sym)?.value_owned();
     // template must be a forms-value
     let template: &WatAST = match &template_v {
         Value::wat__WatAST(a) => a.as_ref(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(), expected: ":wat::WatAST",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     };
     // children must be a Vec of forms-values; unwrap each to WatAST
     let child_vals: &Vec<Value> = match &children_v {
         Value::Vec(v) => v.as_ref(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(), expected: ":wat::core::Vector<:wat::WatAST>",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     };
     let mut kids: Vec<WatAST> = Vec::with_capacity(child_vals.len());
     for cv in child_vals.iter() {
         match cv {
             Value::wat__WatAST(a) => kids.push(a.as_ref().clone()),
-            other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(), expected: ":wat::WatAST (child)",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-            } }),
+            })),
         }
     }
     // rebuild the SAME KIND as the template, preserving its span
@@ -877,10 +877,10 @@ pub fn eval_with_children(
         WatAST::Set(_, span) => WatAST::Set(kids, span.clone()),
         WatAST::Map(_, span) => {
             if !kids.len().is_multiple_of(2) {
-                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!("Map rebuild needs an even child count (k/v interleaved); got {}", kids.len()),
-                } });
+                }));
             }
             let mut pairs = Vec::with_capacity(kids.len() / 2);
             let mut it = kids.into_iter();
@@ -892,10 +892,10 @@ pub fn eval_with_children(
         // a leaf has no children — rebuilding it with children is a contract violation
         leaf => {
             if !kids.is_empty() {
-                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!("leaf node has no children; cannot rebuild with {} child(ren)", kids.len()),
-                } });
+                }));
             }
             leaf.clone()
         }
@@ -917,8 +917,8 @@ pub fn eval_ast_kind(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let kind = match ast {
         WatAST::IntLit(..) => "int",
@@ -952,8 +952,8 @@ pub fn eval_ast_name(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let name: String = match ast {
         WatAST::Symbol(ident, _) => ident.as_str().to_string(),
@@ -963,10 +963,10 @@ pub fn eval_ast_name(
         // ast-name on a StringLit returns the string VALUE (unquoted content), matching the
         // natural meaning of "name" for literal nodes alongside Symbol/Keyword.
         WatAST::StringLit(s, _) => s.clone(),
-        _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: "ast-name requires a Symbol, Keyword, or StringLit node".to_string(),
-        } }),
+        })),
     };
     Ok(crate::value::TrackedValue::new(
         Value::String(std::sync::Arc::new(name)),
@@ -992,8 +992,8 @@ pub fn eval_ast_span(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let span = ast.span();
     #[allow(clippy::mutable_key_type)]
@@ -1026,8 +1026,8 @@ pub fn eval_ast_end_span(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let span = ast.span();
     #[allow(clippy::mutable_key_type)]
@@ -1059,8 +1059,8 @@ pub fn eval_symbol_node(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
         Value::String(s) => (**s).clone(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let node = WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!());
     Ok(crate::value::TrackedValue::new(
@@ -1086,8 +1086,8 @@ pub fn eval_fresh_symbol(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
         Value::String(s) => (**s).clone(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let ident = Identifier::bare(s).add_scope(crate::scope::fresh_scope());
     let node = WatAST::Symbol(ident, crate::rust_caller_span!());
@@ -1108,14 +1108,14 @@ pub fn eval_keyword_node(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
         Value::String(s) => (**s).clone(),
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     if !s.starts_with(':') {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("keyword-node requires a ':'-prefixed string; got {s:?}"),
-        } });
+        }));
     }
     let node = WatAST::Keyword(s, crate::rust_caller_span!());
     Ok(crate::value::TrackedValue::new(
@@ -1140,23 +1140,20 @@ pub fn eval_keyword_to_symbol(
     let kw: String = match &v {
         Value::wat__WatAST(a) => match a.as_ref() {
             WatAST::Keyword(s, _) => s.clone(),
-            _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: "keyword/to-symbol requires a Keyword node".to_string(),
-            } }),
+            })),
         },
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
-    let symbol_name = wat_keyword_to_clojure_symbol(&kw).ok_or_else(|| RuntimeError {
-        span: list_span.clone(),
-        kind: RuntimeErrorKind::MalformedForm {
+    let symbol_name = wat_keyword_to_clojure_symbol(&kw).ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "not a convertible call-head/reference keyword (bare data keyword or namespace-prefix marker): {kw:?}"
             ),
-        },
-    })?;
+        }))?;
     let node = WatAST::Symbol(Identifier::bare(symbol_name), crate::rust_caller_span!());
     Ok(crate::value::TrackedValue::new(
         Value::wat__WatAST(std::sync::Arc::new(node)),
@@ -1278,25 +1275,19 @@ pub fn eval_keyword_to_type_form(
     let kw: String = match &v {
         Value::wat__WatAST(a) => match a.as_ref() {
             WatAST::Keyword(s, _) => s.clone(),
-            _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: "keyword/to-type-form requires a Keyword node".to_string(),
-            } }),
+            })),
         },
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
-    let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError {
-        span: list_span.clone(),
-        kind: RuntimeErrorKind::MalformedForm {
+    let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("type-keyword parse failed: {:?}", e.kind),
-        },
-    })?;
-    let node = type_expr_to_clojure_form(&te).map_err(|reason| RuntimeError {
-        span: list_span.clone(),
-        kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
-    })?;
+        }))?;
+    let node = type_expr_to_clojure_form(&te).map_err(|reason| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm { head: OP.into(), reason }))?;
     Ok(crate::value::TrackedValue::new(
         Value::wat__WatAST(std::sync::Arc::new(node)),
         crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },

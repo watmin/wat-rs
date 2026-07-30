@@ -150,14 +150,11 @@ pub fn realize(
                 ).map_err(EvalBreak::from)?;
                 current = match result {
                     Value::wat__stream__Stream(s) => s,
-                    other => return Err(EvalBreak::from(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::TypeMismatch {
+                    other => return Err(EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                             op: ":wat::stream::lazy (thunk force)".into(),
                             expected: "wat::stream::Stream",
                             got: Box::new(crate::value::ValueSnapshot::of(&other)),
-                        },
-                    })),
+                        }))),
                 };
             }
             Stream::NativeThunk(cell) => {

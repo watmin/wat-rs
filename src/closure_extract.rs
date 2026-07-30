@@ -470,11 +470,11 @@ pub fn eval_kernel_fn_forms(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::fn-forms";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-        } });
+        }));
     }
 
     // arg 0: the fn value to reify. A runtime-computed keyword naming a
@@ -489,19 +489,19 @@ pub fn eval_kernel_fn_forms(
         Value::wat__core__keyword(k) => match sym.get(&k) {
             Some(func) => Value::wat__core__fn(func.clone()),
             None => {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "a keyword naming a registered fn (or a fn value)",
                     got: Box::new(ValueSnapshot::of(&Value::wat__core__keyword(k))),
-                } });
+                }));
             }
         },
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "fn value (:wat::core::fn) to reify",
                 got: Box::new(ValueSnapshot::of(&other)),
-            } });
+            }));
         }
     };
 
@@ -510,11 +510,11 @@ pub fn eval_kernel_fn_forms(
     let name: String = match eval(&args[1], env, sym)?.value_owned() {
         Value::wat__core__keyword(k) => (*k).clone(),
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword bind-name",
                 got: Box::new(ValueSnapshot::of(&other)),
-            } });
+            }));
         }
     };
 
@@ -523,16 +523,16 @@ pub fn eval_kernel_fn_forms(
     // through the world. `sym` is already the parent SymbolTable handed
     // in by the dispatch site (mirrors `eval_kernel_spawn_process`'s
     // `parent_symbols` = `sym` directly).
-    let parent_types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+    let parent_types = sym.types().ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: "fn-forms requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
-    } })?;
+    }))?;
 
     let pkg = extract_closure(&fn_value, None, sym, parent_types).map_err(|e| {
-        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: e.to_string(),
-        } }
+        })
     })?;
 
     let def_span = list_span.clone();

@@ -38,13 +38,10 @@ fn s1_macro_expansion_failed_carries_typed_cause_not_reason_string() {
         },
     };
 
-    let runtime_err = RuntimeError {
-        span: make_span(),
-        kind: RuntimeErrorKind::MacroExpansionFailed {
+    let runtime_err = RuntimeError::new(make_span(), RuntimeErrorKind::MacroExpansionFailed {
             op: ":wat::core::macroexpand-1".into(),
             cause: Box::new(inner_macro_err),
-        },
-    };
+        });
 
     let edn = runtime_err.to_edn();
     let s = wat_edn::write(&edn);
@@ -71,13 +68,10 @@ fn s1_macro_expansion_failed_fixpoint_site_carries_depth_exceeded_cause() {
         kind: MacroErrorKind::ExpansionDepthExceeded { limit: 512 },
     };
 
-    let runtime_err = RuntimeError {
-        span: make_span(),
-        kind: RuntimeErrorKind::MacroExpansionFailed {
+    let runtime_err = RuntimeError::new(make_span(), RuntimeErrorKind::MacroExpansionFailed {
             op: ":wat::core::macroexpand".into(),
             cause: Box::new(cause),
-        },
-    };
+        });
 
     let edn = runtime_err.to_edn();
     let s = wat_edn::write(&edn);
@@ -101,10 +95,7 @@ fn s1_macro_expansion_failed_fixpoint_site_carries_depth_exceeded_cause() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn s2_runtime_error_wire_edn_is_structured_not_prose() {
-    let runtime_err = RuntimeError {
-        span: make_span(),
-        kind: RuntimeErrorKind::UnboundSymbol("some-var".into()),
-    };
+    let runtime_err = RuntimeError::new(make_span(), RuntimeErrorKind::UnboundSymbol("some-var".into()));
 
     // to_wire_edn is what process_died_error_runtime_value calls.
     let wire_edn = wat::to_edn::to_wire_edn(&runtime_err);

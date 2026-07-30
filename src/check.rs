@@ -19311,18 +19311,18 @@ mod tests {
         let err: RuntimeError = register_defines(forms, &mut sym)
             .expect_err("a non-keyword metadata-map key must be rejected at registration");
         assert!(
-            matches!(err.kind, RuntimeErrorKind::MalformedForm { .. }),
+            matches!(err.kind(), RuntimeErrorKind::MalformedForm { .. }),
             "expected MalformedForm; got {:?}",
-            err.kind
+            err.kind()
         );
         // Located at the metadata-map (line 2 of `src`), NOT at the call
         // site (line 8) — the pre-170#13 defect (`if let Ok(...) = ...`)
         // silently skipped registration, so this surfaced instead as an
         // unrelated unresolved-reference at the CALL.
         assert_eq!(
-            err.span.line, 2,
+            err.span().line, 2,
             "MalformedForm must be located at the defclause's metadata-map; got span {:?}",
-            err.span
+            err.span()
         );
     }
 
@@ -19346,16 +19346,16 @@ mod tests {
         let err: RuntimeError = register_defines(forms, &mut sym)
             .expect_err("an unexpected extra form must be rejected at registration");
         assert!(
-            matches!(err.kind, RuntimeErrorKind::MalformedForm { .. }),
+            matches!(err.kind(), RuntimeErrorKind::MalformedForm { .. }),
             "expected MalformedForm; got {:?}",
-            err.kind
+            err.kind()
         );
         // Located at the extra form itself (line 2 of `src`), NOT at the
         // call site (line 8).
         assert_eq!(
-            err.span.line, 2,
+            err.span().line, 2,
             "MalformedForm must be located at the unexpected extra form; got span {:?}",
-            err.span
+            err.span()
         );
     }
 

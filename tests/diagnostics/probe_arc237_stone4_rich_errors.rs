@@ -87,39 +87,39 @@ fn guard_attempt() -> ClauseAttempt {
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_01_no_matching_clause_constructs_with_structured_attempts() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::NoMatchingClause {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {
         name: ":my::process".into(),
         called_arity: 1,
         called_args: vec![ValueSnapshot::of(&Value::i64(42))],
         attempted_clauses: Box::new(vec![arity_attempt(), type_attempt(), guard_attempt()])
-    } };
-    match err {
-        RuntimeError { kind: RuntimeErrorKind::NoMatchingClause { attempted_clauses, .. }, .. } => {
+    });
+    match err.kind() {
+        RuntimeErrorKind::NoMatchingClause { attempted_clauses, .. } => {
             assert_eq!(attempted_clauses.len(), 3, "three structured attempts");
         }
-        other => panic!("expected NoMatchingClause, got {:?}", other),
+        _ => panic!("expected NoMatchingClause, got {:?}", err),
     }
 }
 
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 #[test]
 fn probe_02_postcondition_failed_constructs_with_ensure_snapshot_and_dual_spans() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::PostconditionFailed {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::PostconditionFailed {
         defclause_name: ":my::positive".into(),
         clause_index: 0,
         ensure_expr_snapshot: "(:wat::core::fn [result <- :i64] -> :bool (> result 0))".into(),
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         ensure_span: Box::new(test_span()),
-    } };
-    match err {
-        RuntimeError { kind: RuntimeErrorKind::PostconditionFailed { ensure_expr_snapshot, .. }, .. } => {
+    });
+    match err.kind() {
+        RuntimeErrorKind::PostconditionFailed { ensure_expr_snapshot, .. } => {
             assert_eq!(
                 ensure_expr_snapshot,
                 "(:wat::core::fn [result <- :i64] -> :bool (> result 0))",
                 "ensure snapshot carries the :fn text"
             );
         }
-        other => panic!("expected PostconditionFailed, got {:?}", other),
+        _ => panic!("expected PostconditionFailed, got {:?}", err),
     }
 }
 
@@ -127,12 +127,12 @@ fn probe_02_postcondition_failed_constructs_with_ensure_snapshot_and_dual_spans(
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_03_no_matching_clause_edn_tag_clean() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::NoMatchingClause {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {
         name: ":my::process".into(),
         called_arity: 1,
         called_args: vec![ValueSnapshot::of(&Value::i64(42))],
         attempted_clauses: Box::new(vec![arity_attempt()])
-    } };
+    });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     wat::assert_edn_eq!(
@@ -146,13 +146,13 @@ fn probe_03_no_matching_clause_edn_tag_clean() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_04_postcondition_failed_edn_tag_clean() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::PostconditionFailed {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::PostconditionFailed {
         defclause_name: ":my::positive".into(),
         clause_index: 0,
         ensure_expr_snapshot: "(fn ...)".into(),
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         ensure_span: Box::new(test_span()),
-    } };
+    });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     wat::assert_edn_eq!(
@@ -200,13 +200,13 @@ fn probe_07_clause_attempt_guard_false() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_08_postcondition_edn_carries_ensure_and_returned() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::PostconditionFailed {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::PostconditionFailed {
         defclause_name: ":my::positive".into(),
         clause_index: 0,
         ensure_expr_snapshot: "ENSURE_MARKER_TEXT".into(),
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         ensure_span: Box::new(test_span()),
-    } };
+    });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     wat::assert_edn_eq!(
@@ -220,12 +220,12 @@ fn probe_08_postcondition_edn_carries_ensure_and_returned() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_09_no_matching_clause_edn_round_trips() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::NoMatchingClause {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {
         name: ":my::process".into(),
         called_arity: 1,
         called_args: vec![ValueSnapshot::of(&Value::i64(42))],
         attempted_clauses: Box::new(vec![arity_attempt(), type_attempt()])
-    } };
+    });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     wat::assert_edn_eq!(
@@ -245,7 +245,7 @@ fn probe_09_no_matching_clause_edn_round_trips() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_10_attempt_list_count_preserved_through_edn() {
-    let err = RuntimeError { span: test_span(), kind: RuntimeErrorKind::NoMatchingClause {
+    let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {
         name: ":my::process".into(),
         called_arity: 3,
         called_args: vec![
@@ -254,7 +254,7 @@ fn probe_10_attempt_list_count_preserved_through_edn() {
             ValueSnapshot::of(&Value::i64(3)),
         ],
         attempted_clauses: Box::new(vec![arity_attempt(), type_attempt(), guard_attempt()])
-    } };
+    });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     // All three failure-reason discriminants and clause indices in one golden.

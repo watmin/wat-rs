@@ -56,11 +56,11 @@ fn macroexpand_self_recursive_macro_fails_with_macro_expansion_failed() {
         Err(e) => {
             assert!(
                 matches!(
-                    &e.kind,
+                    e.kind(),
                     wat::RuntimeErrorKind::MacroExpansionFailed { .. }
                 ),
                 "expected MacroExpansionFailed; got: {:?}",
-                e.kind
+                e.kind()
             );
             // The message must include the dynamic limit so it scales with
             // EXPANSION_DEPTH_LIMIT (not a hardcoded "512").

@@ -71,16 +71,13 @@ pub(crate) fn eval_intrinsic_examples(
         for ex in entry.examples {
             // Parse `expr` into a quoted form — loud on failure.
             let expr_ast = parse_one_with_file(ex.expr, "<intrinsic-example>")
-                .map_err(|e| RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
+                .map_err(|e| RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                         head: ":wat::intrinsic::examples".into(),
                         reason: format!(
                             "intrinsic {} @example expr failed to parse: {:?}",
                             entry.name, e
                         ),
-                    },
-                })?;
+                    }))?;
             let expr_q = Value::wat__WatAST(Arc::new(expr_ast));
 
             // Parse `expected` only when this is a runnable example (`run=true`).
@@ -93,16 +90,13 @@ pub(crate) fn eval_intrinsic_examples(
                     Some(s) => {
                         let expected_ast =
                             parse_one_with_file(s, "<intrinsic-example-expected>").map_err(
-                                |e| RuntimeError {
-                                    span: span.clone(),
-                                    kind: RuntimeErrorKind::MalformedForm {
+                                |e| RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                                         head: ":wat::intrinsic::examples".into(),
                                         reason: format!(
                                             "intrinsic {} @example expected failed to parse: {:?}",
                                             entry.name, e
                                         ),
-                                    },
-                                },
+                                    }),
                             )?;
                         Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(expected_ast)))))
                     }
@@ -180,14 +174,11 @@ fn extract_fqdn(
             let v = crate::runtime::eval_inner(arg, env, sym)?.value_owned();
             match &v {
                 Value::wat__core__keyword(k) => Ok((**k).clone()),
-                other => Err(RuntimeError {
-                    span: arg.span().clone(),
-                    kind: RuntimeErrorKind::TypeMismatch {
+                other => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
                         expected: ":wat::core::keyword (an FQDN like :wat::core::Bytes::to-hex)",
                         got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-                    },
-                }
+                    })
                 .into()),
             }
         }
@@ -264,13 +255,10 @@ pub(crate) fn eval_show_source(
                 name
             ))))
         }
-        None => Err(RuntimeError {
-            span: fqdn.span().clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        None => Err(RuntimeError::new(fqdn.span().clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("no intrinsic or user form found for FQDN `{}`", name),
-            },
-        }
+            })
         .into()),
     }
 }
@@ -314,13 +302,10 @@ pub(crate) fn eval_render_doc(
     let entry = match crate::intrinsic::registry().lookup_entry(&name) {
         Some(e) => e,
         None => {
-            return Err(RuntimeError {
-                span: fqdn.span().clone(),
-                kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(fqdn.span().clone(), RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!("no registered intrinsic found for FQDN `{}`", name),
-                },
-            }
+                })
             .into());
         }
     };

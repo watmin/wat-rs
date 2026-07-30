@@ -33,10 +33,7 @@ fn probe_1_startup_error_to_edn_is_tagged() {
     //       cause: MacroError { MacroEvalRuntimeFailed {
     //         cause: RuntimeError::UnboundSymbol("str") }}}})
     let runtime_span = Span::new(Arc::new("test.wat".to_string()), 3, 5);
-    let runtime_err = RuntimeError {
-        span: runtime_span.clone(),
-        kind: RuntimeErrorKind::UnboundSymbol("str".into()),
-    };
+    let runtime_err = RuntimeError::new(runtime_span.clone(), RuntimeErrorKind::UnboundSymbol("str".into()));
 
     let inner_macro_err = MacroError {
         span: runtime_span.clone(),
@@ -94,10 +91,7 @@ fn probe_1_startup_error_to_edn_is_tagged() {
 #[test]
 fn probe_2_macro_error_to_edn_leaf_cause_is_not_string() {
     let runtime_span = Span::new(Arc::new("src/my-lib.wat".to_string()), 18, 3);
-    let runtime_err = RuntimeError {
-        span: runtime_span.clone(),
-        kind: RuntimeErrorKind::UnboundSymbol("str".into()),
-    };
+    let runtime_err = RuntimeError::new(runtime_span.clone(), RuntimeErrorKind::UnboundSymbol("str".into()));
 
     let inner = MacroError {
         span: runtime_span.clone(),
@@ -131,10 +125,7 @@ fn probe_2_macro_error_to_edn_leaf_cause_is_not_string() {
 #[test]
 fn probe_3_macro_eval_runtime_failed_variant_exists() {
     let span = Span::new(Arc::new("test.wat".to_string()), 5, 3);
-    let runtime_err = RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnboundSymbol("my-symbol".into()),
-    };
+    let runtime_err = RuntimeError::new(span.clone(), RuntimeErrorKind::UnboundSymbol("my-symbol".into()));
 
     let err = MacroError {
         span: span.clone(),
@@ -146,7 +137,7 @@ fn probe_3_macro_eval_runtime_failed_variant_exists() {
     // Verify the cause is recoverable.
     assert!(
         matches!(&err.kind, MacroErrorKind::MacroEvalRuntimeFailed { cause }
-            if matches!(&cause.kind, RuntimeErrorKind::UnboundSymbol(name) if name == "my-symbol")),
+            if matches!(cause.kind(), RuntimeErrorKind::UnboundSymbol(name) if name == "my-symbol")),
         "MacroEvalRuntimeFailed must carry the RuntimeError cause; got {:?}",
         err.kind
     );

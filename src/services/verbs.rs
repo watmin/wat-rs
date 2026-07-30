@@ -77,32 +77,20 @@ fn eprintln_terminate(reason: String) -> ! {
 /// touching fd 1 directly: `stdout-svc` owns a DUP of fd 1 (`wat/kernel/services/stdio.wat`),
 /// so a second independent writer on the same real fd would tear the service's own output.
 pub(crate) fn write_via_stdout(op: &'static str, span: &Span, sym: &SymbolTable, line: String) -> Result<(), RuntimeError> {
-    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
-    })?;
+    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }))?;
     let addr = primed.stdout_addr.clone();
     let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-out", |io: &ThreadIO| &io.stdout_peer)?;
-    let write_fn = sym.get(":wat::kernel::stdio-write-out").ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-write-out".into()),
-    })?.clone();
+    let write_fn = sym.get(":wat::kernel::stdio-write-out").ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-write-out".into())))?.clone();
     apply_function(write_fn, vec![peer, Value::String(Arc::new(line))], sym, span.clone())?;
     Ok(())
 }
 
 /// Route a formatted line to the primed `StdErr` service (mirror of [`write_via_stdout`], fd 2).
 fn write_via_stderr(op: &'static str, span: &Span, sym: &SymbolTable, line: String) -> Result<(), RuntimeError> {
-    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
-    })?;
+    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }))?;
     let addr = primed.stderr_addr.clone();
     let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-err", |io: &ThreadIO| &io.stderr_peer)?;
-    let write_fn = sym.get(":wat::kernel::stdio-write-err").ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-write-err".into()),
-    })?.clone();
+    let write_fn = sym.get(":wat::kernel::stdio-write-err").ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-write-err".into())))?.clone();
     apply_function(write_fn, vec![peer, Value::String(Arc::new(line))], sym, span.clone())?;
     Ok(())
 }
@@ -111,10 +99,7 @@ fn write_via_stderr(op: &'static str, span: &Span, sym: &SymbolTable, line: Stri
 /// lost / closed surface as a raise from the wat `stdio-read` helper (EOF reproduces the old terminal
 /// behaviour). Returns the newline-trimmed line String.
 fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) -> Result<ReadFrame, RuntimeError> {
-    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
-    })?;
+    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }))?;
     let addr = primed.stdin_addr.clone();
     let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-in", |io: &ThreadIO| &io.stdin_peer)?;
     // Arc 170 closure #24 — route through `stdio-read-frame`, the HONEST sibling, and hand
@@ -127,35 +112,32 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
     // there is no caller-facing value form for 'raise' to hand a stop through". Keeping
     // both would have been two spellings of one read, one of them lying; `stdio-read` is
     // retired instead.
-    let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into()),
-    })?.clone();
+    let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into())))?.clone();
     let outcome = apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())?;
     match &outcome {
         Value::Enum(e) if e.type_path == ":wat::kernel::ReadFrameOutcome" => match e.variant_name.as_str() {
             "Frame" => match e.fields.first() {
                 Some(Value::String(s)) => Ok(ReadFrame::Text((**s).clone())),
-                other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
                     got: Box::new(crate::runtime::ValueSnapshot::of(
                         other.unwrap_or(&Value::Unit),
                     )),
-                } }),
+                })),
             },
             "Eof" => Ok(ReadFrame::Eof),
             "Stopped" => Ok(ReadFrame::Stopped),
-            other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("unknown ReadFrameOutcome variant `{other}`"),
-            } }),
+            })),
         },
-        other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: ":wat::kernel::ReadFrameOutcome",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
-        } }),
+        })),
     }
 }
 
@@ -288,10 +270,10 @@ pub fn eval_kernel_read_frame(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::read-frame";
     if !args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("expected ({}) — no arguments; got {}", OP, args.len()),
-        } });
+        }));
     }
     read_frame_via_stdin(OP, list_span, sym)
 }
@@ -300,17 +282,11 @@ pub fn eval_kernel_read_frame(
 /// `ReadFrameOutcome` VALUE unchanged. Mirrors [`read_via_stdin`] exactly except that it
 /// does not demand a `String` back — the whole point is that the outcome survives.
 fn read_frame_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable) -> Result<Value, RuntimeError> {
-    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() },
-    })?;
+    let primed = sym.primed_stdio().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }))?;
     let addr = primed.stdin_addr.clone();
     let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-in", |io: &ThreadIO| &io.stdin_peer)?;
     let cap = crate::edn_shim::DEFAULT_MAX_FRAME_BYTES as i64;
-    let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into()),
-    })?.clone();
+    let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into())))?.clone();
     apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())
 }
 
@@ -326,37 +302,37 @@ pub fn eval_kernel_readln_prime(
     // Arc 258 — `-> :T` is illegal on readln'; the arrow is a function-return annotation only. readln
     // reads what the SELF-DESCRIBING EDN wire says. Shape: exactly one arg `[cap]`.
     if args.len() >= 2 && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->") {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "`-> :T` is a function-return annotation only — it is illegal on {}. \
                  readln reads what the self-describing EDN wire says; use ({} <cap>) with no ascription.",
                 OP, OP
             ),
-        } });
+        }));
     }
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("expected ({} <cap-i64>) — exactly 1 arg; got {}", OP, args.len()),
-        } });
+        }));
     }
 
     // Evaluate the cap arg.
     let cap = match eval(&args[0], env, sym)?.value_owned() {
         Value::i64(n) if n > 0 => n,
         Value::i64(n) => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("max-buffer-bytes must be a positive i64; got {}", n),
-            } });
+            }));
         }
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "i64 cap (max-buffer-bytes)",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            } });
+            }));
         }
     };
 
@@ -370,13 +346,10 @@ pub fn eval_kernel_readln_prime(
     Ok(match read_via_stdin(OP, list_span, sym, cap)? {
         ReadFrame::Text(line) => {
             let v = crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()))
-                .map_err(|e| RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
+                .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!("readln EDN decode failed: {}", e),
-                    },
-                })?;
+                    }))?;
             Value::Enum(Arc::new(crate::value::value::EnumValue {
                 type_path: ":wat::kernel::ReadlnOutcome".into(),
                 variant_name: "Datum".into(),

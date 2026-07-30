@@ -53,10 +53,7 @@ fn error_families_tag_under_their_phase_namespace() {
     );
 
     // RuntimeError → #wat.runtime/
-    let rt = RuntimeError {
-        span: make_span(),
-        kind: RuntimeErrorKind::UnboundSymbol("x".into()),
-    };
+    let rt = RuntimeError::new(make_span(), RuntimeErrorKind::UnboundSymbol("x".into()));
     let s = wat_edn::write(&rt.to_edn());
     wat::assert_edn_eq!(
         s,

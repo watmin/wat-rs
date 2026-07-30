@@ -55,10 +55,10 @@ fn return_type_of_unknown_type_raises_not_echoes() {
     match call_beside_value(file!(), ":user::return-type-of-unknown-raises") {
         Err(e) => {
             assert!(
-                matches!(&e.kind, RuntimeErrorKind::MalformedForm { .. }),
-                "expected RuntimeErrorKind::MalformedForm naming the unknown type; got {:?}", e.kind
+                matches!(e.kind(), RuntimeErrorKind::MalformedForm { .. }),
+                "expected RuntimeErrorKind::MalformedForm naming the unknown type; got {:?}", e.kind()
             );
-            let msg = format!("{}", e.kind);
+            let msg = format!("{}", e.kind());
             assert_eq!(
                 msg,
                 "malformed :wat::runtime::return-type-of form: unknown type: `:s::Nope'` (return-type-of: no such registered type)",

@@ -168,13 +168,13 @@ impl Hologram {
                 let pass_b = match pass {
                     Value::bool(b) => b,
                     other => {
-                        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                        return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: ":wat::holon::Hologram/find".into(),
                             reason: format!(
                                 "filter returned non-bool: {}",
                                 other.type_name()
                             )
-                        } })
+                        }))
                     }
                 };
                 if !pass_b {

@@ -436,20 +436,20 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
                         // arc 138: no span — Vec element iteration; per-element WatAST span unavailable; use form span
-                        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
                             got: Box::new(crate::runtime::ValueSnapshot::of(other))
-                        } });
+                        }));
                     }
                 }
             }
             Ok(out)
         }
-        other => Err(RuntimeError { span, kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
+        })),
     }
 }

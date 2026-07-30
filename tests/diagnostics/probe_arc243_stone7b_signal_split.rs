@@ -53,7 +53,7 @@ fn signal_enum_holds_the_trio() {
 /// (user-directed `Diagnostic`, evaluator-directed `Signal`).
 #[test]
 fn evalbreak_wraps_diagnostic_and_signal() {
-    let diag: EvalBreak = EvalBreak::Diagnostic(Box::new(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing }));
+    let diag: EvalBreak = EvalBreak::Diagnostic(Box::new(RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UserMainMissing)));
     let signal: EvalBreak = EvalBreak::Signal(EvalSignal::OptionPropagate);
 
     assert!(matches!(diag, EvalBreak::Diagnostic(_)));
@@ -65,7 +65,7 @@ fn evalbreak_wraps_diagnostic_and_signal() {
 /// `Result<_, RuntimeError>` (they never change signature; `?` converts).
 #[test]
 fn from_runtimeerror_lifts_to_evalbreak() {
-    let re = RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing };
+    let re = RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UserMainMissing);
     let lifted: EvalBreak = re.into();
     assert!(
         matches!(lifted, EvalBreak::Diagnostic(_)),
@@ -87,6 +87,6 @@ fn runtimeerror_is_diagnostic_only() {
     // A representative diagnostic still constructs on RuntimeError — proving the
     // diagnostic variants are untouched by the channel split (shape retrofit is
     // 243.7c). The signals are gone (Contract 1 owns them on EvalSignal).
-    let diag = RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing };
-    assert!(matches!(diag, RuntimeError { kind: RuntimeErrorKind::UserMainMissing, .. }));
+    let diag = RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UserMainMissing);
+    assert!(matches!(diag.kind(), RuntimeErrorKind::UserMainMissing));
 }

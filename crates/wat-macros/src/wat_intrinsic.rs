@@ -407,14 +407,11 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         quote! {
             if args.len() != #n {
                 return ::std::result::Result::Err(
-                    ::wat::value::RuntimeError {
-                        span: list_span.clone(),
-                        kind: ::wat::value::RuntimeErrorKind::ArityMismatch {
+                    ::wat::value::RuntimeError::new(list_span.clone(), ::wat::value::RuntimeErrorKind::ArityMismatch {
                             op: #fqdn.into(),
                             expected: #n,
                             got: args.len(),
-                        },
-                    }
+                        })
                     .into(),
                 );
             }

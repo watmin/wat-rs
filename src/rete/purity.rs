@@ -427,24 +427,18 @@ fn eval_axis_predicate(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch { op: op.into(), expected: 1, got: args.len() },
-        }
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch { op: op.into(), expected: 1, got: args.len() })
         .into());
     }
     let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let ast = match val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError {
-                span: args[0].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };

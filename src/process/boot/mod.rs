@@ -121,13 +121,10 @@ const TAG_PROGRAM_DONE: &str = "ProgramDone";
 const TAG_ACK: &str = "Ack";
 
 fn boot_err(reason: String) -> RuntimeError {
-    RuntimeError {
-        span: crate::rust_caller_span!(),
-        kind: RuntimeErrorKind::MalformedForm {
+    RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
             head: ":wat::process::boot".into(),
             reason,
-        },
-    }
+        })
 }
 
 impl BootFrame {

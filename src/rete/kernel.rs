@@ -87,14 +87,11 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
                 let node_id = match k {
                     Value::i64(n) => *n,
                     other => {
-                        return Err(RuntimeError {
-                            span: crate::rust_caller_span!(),
-                            kind: RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
                                 expected: "node-id key :wat::core::i64",
                                 got: Box::new(ValueSnapshot::of(other)),
-                            },
-                        }
+                            })
                         .into());
                     }
                 };
@@ -103,14 +100,11 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
                         pv.iter().cloned().collect::<Vec<Value>>()
                     }
                     other => {
-                        return Err(RuntimeError {
-                            span: crate::rust_caller_span!(),
-                            kind: RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
                                 expected: "memory value :wat::core::PersistentVector",
                                 got: Box::new(ValueSnapshot::of(other)),
-                            },
-                        }
+                            })
                         .into());
                     }
                 };
@@ -118,14 +112,11 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
             }
             Ok(out)
         }
-        other => Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (a session memory)",
                 got: Box::new(ValueSnapshot::of(other)),
-            },
-        }
+            })
         .into()),
     }
 }
@@ -155,14 +146,11 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
     let struct_form = match tok {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => return Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::rete::Token (a wat::core::Record)",
                 got: Box::new(ValueSnapshot::of(other)),
-            },
-        }.into()),
+            }).into()),
     };
     // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
     let matches_vec = match &struct_form[0] {
@@ -174,49 +162,37 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
                         let es = elems.as_slice();
                         let alpha_id = match &es[1] {
                             Value::i64(n) => *n,
-                            other => return Err(RuntimeError {
-                                span: crate::rust_caller_span!(),
-                                kind: RuntimeErrorKind::TypeMismatch {
+                            other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                                     op: OP.into(),
                                     expected: "match alpha-id :wat::core::i64",
                                     got: Box::new(ValueSnapshot::of(other)),
-                                },
-                            }.into()),
+                                }).into()),
                         };
                         out.push((es[0].clone(), alpha_id));
                     }
-                    other => return Err(RuntimeError {
-                        span: crate::rust_caller_span!(),
-                        kind: RuntimeErrorKind::TypeMismatch {
+                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "match entry :wat::core::Tuple",
                             got: Box::new(ValueSnapshot::of(other)),
-                        },
-                    }.into()),
+                        }).into()),
                 }
             }
             out
         }
-        other => return Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "token matches :wat::core::PersistentVector",
                 got: Box::new(ValueSnapshot::of(other)),
-            },
-        }.into()),
+            }).into()),
     };
     // Decode bindings: PM → HashTrieMapSync
     let bindings = match &struct_form[1] {
         Value::wat__core__PersistentMap(m) => m.clone(),
-        other => return Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "token bindings :wat::core::PersistentMap",
                 got: Box::new(ValueSnapshot::of(other)),
-            },
-        }.into()),
+            }).into()),
     };
     Ok(Token { matches: matches_vec, bindings })
 }
@@ -249,14 +225,11 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
-                    other => return Err(RuntimeError {
-                        span: crate::rust_caller_span!(),
-                        kind: RuntimeErrorKind::TypeMismatch {
+                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "node-id key :wat::core::i64",
                             got: Box::new(ValueSnapshot::of(other)),
-                        },
-                    }.into()),
+                        }).into()),
                 };
                 let tokens = match v {
                     Value::wat__core__PersistentVector(pv) => {
@@ -266,27 +239,21 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
                         }
                         ts
                     }
-                    other => return Err(RuntimeError {
-                        span: crate::rust_caller_span!(),
-                        kind: RuntimeErrorKind::TypeMismatch {
+                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "beta-memory value :wat::core::PersistentVector",
                             got: Box::new(ValueSnapshot::of(other)),
-                        },
-                    }.into()),
+                        }).into()),
                 };
                 out.insert(node_id, tokens);
             }
             Ok(out)
         }
-        other => Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (beta-memory)",
                 got: Box::new(ValueSnapshot::of(other)),
-            },
-        }.into()),
+            }).into()),
     }
 }
 
@@ -322,26 +289,20 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     let agg = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
         other => {
-            return Err(RuntimeError {
-                span: crate::rust_caller_span!(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::rete::Session (a wat::core::Record)",
                     got: Box::new(ValueSnapshot::of(other)),
-                },
-            }
+                })
             .into());
         }
     };
     if agg.class.as_str() != "wat::rete::Session" {
-        return Err(RuntimeError {
-            span: crate::rust_caller_span!(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::rete::Session",
                 got: Box::new(ValueSnapshot::of(session)),
-            },
-        }
+            })
         .into());
     }
     let sf = agg.fields.as_slice();
@@ -356,14 +317,11 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     let next_id    = match &sf[6] {
         Value::i64(n) => *n,
         other => {
-            return Err(RuntimeError {
-                span: crate::rust_caller_span!(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "next-id :wat::core::i64",
                     got: Box::new(ValueSnapshot::of(other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -1069,11 +1027,11 @@ pub(crate) fn eval_fire_once_native(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::fire-once'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-        } }.into());
+        }).into());
     }
 
     // Evaluate the session argument, then delegate to the pure single-pass fn.
@@ -2136,13 +2094,10 @@ fn native_stratify_fix(
             return Ok(type_strata);
         }
         if remaining <= 0 {
-            return Err(RuntimeError {
-                span: crate::rust_caller_span!(),
-                kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
                     head: ":wat::rete::fire-rules'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                     reason: "stratify: negation cycle detected — rule set is not stratifiable".into(),
-                },
-            }
+                })
             .into());
         }
         remaining -= 1;
@@ -2440,11 +2395,11 @@ pub(crate) fn eval_fire_rules_native(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::fire-rules'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-        } }.into());
+        }).into());
     }
 
     // Evaluate the session argument.
@@ -2528,11 +2483,11 @@ pub(crate) fn eval_fire_rules_explain(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::fire-rules-explain'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-        } }.into());
+        }).into());
     }
 
     // Evaluate the session argument (mirrors eval_fire_rules_native).

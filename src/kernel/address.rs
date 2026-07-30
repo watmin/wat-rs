@@ -183,13 +183,10 @@ impl CommAddress for SocketAddress {
         // `capability::registry::socket_address_wire_from_record`), so a `from_abstract_name`
         // failure here is an in-process substrate bug, NOT adversarial wire data (STOP-3,
         // grounded — the accept' malformed-connect-request precedent).
-        let sa = SocketAddr::from_abstract_name(&self.name).map_err(|e| RuntimeError {
-            span: span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
+        let sa = SocketAddr::from_abstract_name(&self.name).map_err(|e| RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("abstract addr for connect: {}", e),
-            },
-        })?;
+            }))?;
         // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: ECONNREFUSED / no listener →
         // ConnectOutcome::Refused (RETRYABLE transport), not a raise the dialer unwinds past.
         let stream = match UnixStream::connect_addr(&sa) {

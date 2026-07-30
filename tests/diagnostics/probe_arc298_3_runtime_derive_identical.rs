@@ -42,7 +42,7 @@ fn s() -> Span {
 }
 
 fn make(kind: RuntimeErrorKind) -> RuntimeError {
-    RuntimeError { span: s(), kind }
+    RuntimeError::new(s(), kind)
 }
 
 fn write(err: &RuntimeError) -> String {

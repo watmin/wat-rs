@@ -31,9 +31,9 @@ use wat::to_edn::ToEdn;
 fn probe_1_not_callable_serializes_to_tagged_edn() {
     let span = Span::new(Arc::new("test.wat".to_string()), 3, 7);
     let snap = ValueSnapshot::of(&Value::String(Arc::new("not-fn".to_string())));
-    let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::NotCallable {
+    let err = RuntimeError::new(span.clone(), RuntimeErrorKind::NotCallable {
         got: Box::new(snap)
-    } };
+    });
 
     // Arc 298.3: now calls the derive-generated ToEdn impl.
     let edn = err.to_edn();
@@ -60,11 +60,11 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
 fn probe_2_type_mismatch_carries_all_struct_fields() {
     let span = Span::new(Arc::new("test.wat".to_string()), 5, 12);
     let snap = ValueSnapshot::of(&Value::i64(42));
-    let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    let err = RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
         op: ":wat::core::+".into(),
         expected: "wat::core::i64",
         got: Box::new(snap)
-    } };
+    });
 
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
@@ -83,11 +83,11 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
 #[test]
 fn probe_3_assertion_failed_with_optional_fields() {
     let span = Span::new(Arc::new("test.wat".to_string()), 1, 1);
-    let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::AssertionFailed {
+    let err = RuntimeError::new(span.clone(), RuntimeErrorKind::AssertionFailed {
         message: "assertion fired".into(),
         actual: Some("42".into()),
         expected: None, // tests the Nil branch
-    } };
+    });
 
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
@@ -105,7 +105,7 @@ fn probe_3_assertion_failed_with_optional_fields() {
 #[test]
 fn probe_4_tuple_variant_serializes() {
     let span = Span::new(Arc::new("test.wat".to_string()), 9, 4);
-    let err = RuntimeError { span, kind: RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()) };
+    let err = RuntimeError::new(span, RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()));
 
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);

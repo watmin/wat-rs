@@ -69,14 +69,11 @@ pub(crate) fn eval_yields_witness(
     let func = match callable {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError {
-                span: span.clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::core::Fn(:wat::core::i64)->:wat::core::i64",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };

@@ -27,21 +27,21 @@ pub(crate) fn eval_collect_rules(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::collect-rules";
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-        } }.into());
+        }).into());
     }
     let ns_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let ns = match ns_val {
         Value::wat__core__keyword(k) => k,
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword (a namespace, e.g. :weather)",
                 got: Box::new(ValueSnapshot::of(&other)),
-            } }.into());
+            }).into());
         }
     };
     // Namespace boundary: "weather::" — the trailing "::" guards against ":weatherfoo::".

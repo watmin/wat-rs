@@ -84,11 +84,11 @@ pub(crate) fn eval_alpha_match(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::alpha-match";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-        } }.into());
+        }).into());
     }
 
     // Evaluate cond: must be Value::wat__WatAST wrapping a List.
@@ -96,11 +96,11 @@ pub(crate) fn eval_alpha_match(
     let cond_ast = match cond_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST (condition form from quote)",
                 got: Box::new(ValueSnapshot::of(&other)),
-            } }.into());
+            }).into());
         }
     };
 
@@ -114,11 +114,11 @@ pub(crate) fn eval_alpha_match(
     let fact = match fact_from_value(&fact_val) {
         Some(f) => f,
         None => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Record (a record fact)",
                 got: Box::new(ValueSnapshot::of(&fact_val)),
-            } }.into());
+            }).into());
         }
     };
 
@@ -475,32 +475,32 @@ pub(crate) fn build_insert_fact(
     let insert_items = match insert_form {
         WatAST::List(items, _) if !items.is_empty() => items,
         _ => {
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List (:wat::rete::insert <fact-form>)",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(insert_form.clone())))),
-            } }.into());
+            }).into());
         }
     };
     // Head must be the keyword :wat::rete::insert.
     let insert_head = match &insert_items[0] {
         WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert" => k.as_str(),
         other => {
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword :wat::rete::insert as form head",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
-            } }.into());
+            }).into());
         }
     };
     let _ = insert_head; // validated; not used further
     // Exactly 2 children: the :wat::rete::insert keyword + <fact-form>.
     if insert_items.len() != 2 {
-        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: insert_items.len(),
-        } }.into());
+        }).into());
     }
 
     // Extract the fact-form: <fact-form> = (:RecordType arg…) — a List with a keyword head.
@@ -508,22 +508,22 @@ pub(crate) fn build_insert_fact(
     let fact_items = match fact_form_ast {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => {
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "fact-form List (:RecordType arg…)",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{fact_form_ast:?}"))))),
-            } }.into());
+            }).into());
         }
     };
     // Head of fact-form must be a keyword naming the record type.
     let type_keyword = match &fact_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword (record type) as fact-form head",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
-            } }.into());
+            }).into());
         }
     };
     // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
@@ -553,11 +553,11 @@ pub(crate) fn build_insert_fact(
         match resolve_operand(arg, &[], &[], bindings) {
             Some(v) => fields.push(v),
             None => {
-                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var or literal) in RHS fact-form",
                     got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
-                } }.into());
+                }).into());
             }
         }
     }
@@ -584,11 +584,11 @@ pub(crate) fn eval_insert(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-        } }.into());
+        }).into());
     }
 
     // Evaluate arg[0]: must be Value::wat__WatAST wrapping a List.
@@ -596,11 +596,11 @@ pub(crate) fn eval_insert(
     let form_ast = match form_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST (insert form from quote)",
                 got: Box::new(ValueSnapshot::of(&other)),
-            } }.into());
+            }).into());
         }
     };
 
@@ -609,11 +609,11 @@ pub(crate) fn eval_insert(
     let bindings: rpds::HashTrieMapSync<Value, Value> = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::PersistentMap (token bindings)",
                 got: Box::new(ValueSnapshot::of(&other)),
-            } }.into());
+            }).into());
         }
     };
 
@@ -716,11 +716,11 @@ pub(crate) fn eval_step_payload(
     const OP: &str = ":wat::rete::step-payload'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
 
     if args.len() != 5 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 5,
             got: args.len(),
-        } }.into());
+        }).into());
     }
 
     // ── Evaluate all 5 arguments ──────────────────────────────────────────────
@@ -733,31 +733,31 @@ pub(crate) fn eval_step_payload(
     // ── Extract alpha_id ──────────────────────────────────────────────────────
     let alpha_id = match alpha_id_val {
         Value::i64(n) => n,
-        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::i64 (alpha-id)",
             got: Box::new(ValueSnapshot::of(&other)),
-        } }.into()),
+        }).into()),
     };
 
     // ── Extract the token bindings ────────────────────────────────────────────
     let token_bindings: rpds::HashTrieMapSync<Value, Value> = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
-        other => return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::PersistentMap (token bindings)",
             got: Box::new(ValueSnapshot::of(&other)),
-        } }.into()),
+        }).into()),
     };
 
     // ── Extract the supporting fact (sfact) + its field names ────────────────
     let sfact = match fact_from_value(&sfact_val) {
         Some(f) => f,
-        None => return Err(RuntimeError { span: args[3].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        None => return Err(RuntimeError::new(args[3].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record (supporting fact)",
             got: Box::new(ValueSnapshot::of(&sfact_val)),
-        } }.into()),
+        }).into()),
     };
     let type_key = format!(":{}", sfact.class_fqdn);
     // Arc 293.2b — Aggregate covers both record and struct field name lookup.
@@ -776,11 +776,11 @@ pub(crate) fn eval_step_payload(
     };
     let network = match network {
         Some(n) => n,
-        None => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        None => return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::rete::Session (record with network at field 0)",
             got: Box::new(ValueSnapshot::of(&session_val)),
-        } }.into()),
+        }).into()),
     };
 
     // Reuse kernel's get_node to look up the AlphaNode by id.
@@ -790,11 +790,11 @@ pub(crate) fn eval_step_payload(
     };
     let alpha_node_val = match alpha_node_val {
         Some(n) => n,
-        None => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        None => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "AlphaNode in network",
             got: Box::new(ValueSnapshot::of(&Value::i64(alpha_id))),
-        } }.into()),
+        }).into()),
     };
 
     // ── Extract AlphaNode.tests[0] — the full condition WatAST ───────────────
@@ -806,25 +806,25 @@ pub(crate) fn eval_step_payload(
                 Some(Value::wat__core__PersistentVector(pv)) => {
                     match pv.first() {
                         Some(Value::wat__WatAST(ast)) => (**ast).clone(),
-                        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: ":wat::WatAST in AlphaNode.tests[0]",
                             got: Box::new(ValueSnapshot::of(other.unwrap_or(&Value::Unit))),
-                        } }.into()),
+                        }).into()),
                     }
                 }
-                other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "PersistentVector at AlphaNode.tests (struct_form[1])",
                     got: Box::new(ValueSnapshot::of(other.unwrap_or(&Value::Unit))),
-                } }.into()),
+                }).into()),
             }
         }
-        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::rete::AlphaNode (record)",
             got: Box::new(ValueSnapshot::of(other)),
-        } }.into()),
+        }).into()),
     };
 
     // ── Classify the condition's clauses (REUSE the matcher's classifier) ─────
@@ -834,19 +834,19 @@ pub(crate) fn eval_step_payload(
         WatAST::List(items, _) if !items.is_empty() => {
             let head = match &items[0] {
                 WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
-                other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "keyword head in condition form",
                     got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
-                } }.into()),
+                }).into()),
             };
             (head, items[1..].to_vec())
         }
-        _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "List (condition form) in AlphaNode.tests[0]",
             got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(cond_ast)))),
-        } }.into()),
+        }).into()),
     };
 
     // pattern = the type FQDN (head keyword without leading ':').
@@ -980,14 +980,11 @@ pub(crate) fn eval_test_core(
     // Evaluate the predicate expr in the test env; result MUST be bool.
     match crate::runtime::eval_inner(expr, &test_env, sym)?.value_owned() {
         Value::bool(x) => Ok(x),
-        other => Err(RuntimeError {
-            span: expr.span().clone(),
-            kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(expr.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::bool (a where predicate must return bool)",
                 got: Box::new(ValueSnapshot::of(&other)),
-            },
-        }
+            })
         .into()),
     }
 }
@@ -1010,14 +1007,11 @@ pub(crate) fn eval_test(
 
     // Arity: exactly 2 args.
     if args.len() != 2 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
                 expected: 2,
                 got: args.len(),
-            },
-        }
+            })
         .into());
     }
 
@@ -1026,14 +1020,11 @@ pub(crate) fn eval_test(
     let expr_ast = match expr_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError {
-                span: args[0].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
@@ -1043,14 +1034,11 @@ pub(crate) fn eval_test(
     let map = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {
-            return Err(RuntimeError {
-                span: args[1].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::core::PersistentMap (the token's merged bindings)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                },
-            }
+                })
             .into());
         }
     };
