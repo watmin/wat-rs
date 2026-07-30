@@ -1,0 +1,61 @@
+# clippy configuration — arc 109 (kill-std), the clippy-to-zero campaign.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ignore-interior-mutability
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# `clippy::mutable_key_type` fires on every `HashMap<Value, _>` / `HashSet<Value>`
+# in this tree (15 distinct sites, 18 diagnostics). It is a FALSE POSITIVE, and
+# this entry states the one fact clippy cannot infer for itself.
+#
+# WHY CLIPPY FIRES. It reasons structurally over the type and finds interior
+# mutability reachable from `Value`:
+#
+#     Value -> Arc<SenderInner> -> SenderInner -> AtomicBool -> UnsafeCell<u8>
+#
+# (and, found by reading the wrapped structs directly rather than trusting that
+# one chain: `ChildHandle.reaped: AtomicBool` + `cached_exit: OnceLock<i64>`
+# reached transitively via `ProgramHandleInner::Forked`, plus the five
+# `Arc<ThreadOwnedCell<_>>` ML types, whose `UnsafeCell<T>` is direct.)
+#
+# WHY IT CANNOT BITE. Every variant carrying interior mutability is exactly a
+# variant that can never BE a key:
+#
+#   * `impl Hash for Value` gives them an `unreachable!()` arm carrying a
+#     predicate-citation message (`src/value/value.rs`).
+#   * `impl PartialEq for Value` compares them with `Arc::ptr_eq` — identity is
+#     pointer-based, so it is stable no matter what the interior mutates.
+#   * `is_atomizable` (`src/check.rs`) statically rejects them from key
+#     positions before any of this reaches runtime.
+#
+# So the hazard the lint exists to prevent — a key whose hash silently changes
+# while it sits in a map, stranding the entry — has no path to occur.
+#
+# WHAT MAKES THIS EXEMPTION HONEST, and the reason it was NOT shipped alongside
+# the finding. An exemption is only true while its premise holds. If a future
+# `Value` variant were both interior-mutable AND hashable, this line would
+# silently hide a real stranded-key bug — the exact defect the lint catches.
+# Until 2026-07-30 the only thing preventing that was a doc comment, which arc
+# 216 itself called an "honesty delta"
+# (`tests/value/probe_arc216_stone5a_value_hash.rs`).
+#
+# That gap is now closed by a WALL, and this entry rests on it:
+#
+#   * `KeyEligibility` (`src/value/value.rs`) has no constructor for
+#     "interior-mutable AND hashable" — the state cannot be written down.
+#   * `Value::key_eligibility()` is exhaustive with no wildcard, so a new variant
+#     cannot skip the classification without failing to compile.
+#   * `check::tests::every_interior_mutable_variant_is_rejected_as_a_key` binds
+#     that classification to `is_atomizable`, and it is PROVEN non-vacuous by a
+#     deliberate breach: flipping `Sender` to `Hashable` fires it by name
+#     (R59 NISI FRANGAS, NIHIL PROBAS).
+#
+# If that gate is ever weakened or deleted, this entry must go with it.
+#
+# Both spellings are listed because `Value` is defined at `wat::value::value` and
+# re-exported at the crate root (`src/lib.rs`); which one clippy resolves is a
+# detail of its path matching, not something to guess at.
+ignore-interior-mutability = [
+    "wat::value::value::Value",
+    "wat::Value",
+]
