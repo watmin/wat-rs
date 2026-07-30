@@ -48,17 +48,24 @@ jobs:
           components: clippy, rustfmt
 
       # nextest: prebuilt binary, installed into the ephemeral CI container in seconds.
-      #
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       # mold is NOT optional here: .cargo/config.toml (committed) pins
       # `rustflags = ["-C", "link-arg=-fuse-ld=mold"]` for this target, so without it
       # every link dies with `collect2: fatal error: cannot find 'ld'`. Installing it
       # beats stripping the flag — that config's own note explains why the link is the
       # lever (~250 test binaries, each statically linking the wat monolith), and a
       # 2-core runner needs that collapse more than a dev box does, not less.
-      - name: Install cargo-nextest + mold
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest,mold
+      #
+      # apt, not taiki-e/install-action: that action does NOT carry mold, and its
+      # cargo-binstall fallback resolves the name against crates.io — where `mold` is an
+      # unrelated Rust crate with no binary, so it fails with "no binaries specified nor
+      # inferred". The linker is a system package; install it as one.
+      - name: Install mold (the linker .cargo/config.toml pins)
+        run: sudo apt-get update && sudo apt-get install -y mold && mold --version
 
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
