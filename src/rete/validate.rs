@@ -324,12 +324,10 @@ fn validate_and_reorder_rule(mr: &mut [WatAST], types: &TypeEnv, errors: &mut Ve
     }
 
     // :then (mr[3] = (quote [<insert>…])) — validate + reorder in place.
-    if let Some(then_quote) = mr.get_mut(3) {
-        if let WatAST::List(quote_items, _) = then_quote {
-            if let Some(WatAST::Vector(then_forms, _)) = quote_items.get_mut(1) {
-                for insert_form in then_forms.iter_mut() {
-                    validate_and_reorder_then(insert_form, &rule_name, types, errors);
-                }
+    if let Some(WatAST::List(quote_items, _)) = mr.get_mut(3) {
+        if let Some(WatAST::Vector(then_forms, _)) = quote_items.get_mut(1) {
+            for insert_form in then_forms.iter_mut() {
+                validate_and_reorder_then(insert_form, &rule_name, types, errors);
             }
         }
     }

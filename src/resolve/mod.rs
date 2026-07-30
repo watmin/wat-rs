@@ -391,9 +391,10 @@ mod tests {
             WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
                 contains_symbol(items, text)
             }
-            WatAST::Map(pairs, _) => pairs
-                .iter()
-                .any(|(k, v)| contains_symbol(&[k.clone()], text) || contains_symbol(&[v.clone()], text)),
+            WatAST::Map(pairs, _) => pairs.iter().any(|(k, v)| {
+                contains_symbol(std::slice::from_ref(k), text)
+                    || contains_symbol(std::slice::from_ref(v), text)
+            }),
             _ => false,
         })
     }
@@ -405,9 +406,10 @@ mod tests {
             WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
                 contains_keyword(items, text)
             }
-            WatAST::Map(pairs, _) => pairs
-                .iter()
-                .any(|(k, v)| contains_keyword(&[k.clone()], text) || contains_keyword(&[v.clone()], text)),
+            WatAST::Map(pairs, _) => pairs.iter().any(|(k, v)| {
+                contains_keyword(std::slice::from_ref(k), text)
+                    || contains_keyword(std::slice::from_ref(v), text)
+            }),
             _ => false,
         })
     }

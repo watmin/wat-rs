@@ -2214,19 +2214,17 @@ fn register_runtime_defs_form(
         // Shape: (:wat::config::set-redef! <bool-literal>)
         ":wat::config::set-redef!" => {
             if items.len() == 2 {
-                match &items[1] {
-                    WatAST::BoolLit(b, _) => { sym.redef_allowed = *b; }
-                    _ => {} // malformed; check already caught it
-                }
+                if let WatAST::BoolLit(b, _) = &items[1] {
+                    sym.redef_allowed = *b;
+                } // malformed; check already caught it
             }
         }
         // Shape: (:wat::config::set-eval-redef! <bool-literal>)
         ":wat::config::set-eval-redef!" => {
             if items.len() == 2 {
-                match &items[1] {
-                    WatAST::BoolLit(b, _) => { sym.eval_redef_allowed = *b; }
-                    _ => {} // malformed; check already caught it
-                }
+                if let WatAST::BoolLit(b, _) = &items[1] {
+                    sym.eval_redef_allowed = *b;
+                } // malformed; check already caught it
             }
         }
         // Stone 241.14 — `:wat::core::def-restricted` runtime arm DELETED.

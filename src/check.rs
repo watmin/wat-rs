@@ -11781,19 +11781,13 @@ fn infer_polymorphic_time_arith(
 
     // Dispatch on RHS variant.
     let ty = match (op, &b_resolved) {
-        (":wat::time::-", Some(b))
-            if matches!(b, TypeExpr::Path(p) if p == ":wat::time::Instant") =>
-        {
+        (":wat::time::-", Some(TypeExpr::Path(p))) if p == ":wat::time::Instant" => {
             duration_ty
         }
-        (":wat::time::-", Some(b))
-            if matches!(b, TypeExpr::Path(p) if p == ":wat::time::Duration") =>
-        {
+        (":wat::time::-", Some(TypeExpr::Path(p))) if p == ":wat::time::Duration" => {
             instant_ty
         }
-        (":wat::time::+", Some(b))
-            if matches!(b, TypeExpr::Path(p) if p == ":wat::time::Duration") =>
-        {
+        (":wat::time::+", Some(TypeExpr::Path(p))) if p == ":wat::time::Duration" => {
             instant_ty
         }
         // RHS is something else — push a diagnostic, fall back to
@@ -12100,17 +12094,13 @@ fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
     // Records carry a pre-built holon_form; the runtime auto-dispatches via
     // pair_values_to_vectors (coerce_to_holon_ast pattern). Cosine and dot
     // accept records natively; the hologram property makes them VSA operands.
-    match t {
+    matches!(t,
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
                 || p == ":wat::holon::Vector"
                 || crate::types::is_subtype(p, ":wat::core::Record", types)
-                || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
-        {
-            true
-        }
-        _ => false,
-    }
+                || crate::types::is_subtype(p, ":wat::holon::Record", types)
+    )
 }
 
 /// Arc 052 — polymorphic two-arg holon-algebra inference.
@@ -12233,16 +12223,12 @@ fn infer_holon_bind(
 /// Arc 258 cascade — extended to accept any subtype of :wat::core::Record or
 /// :wat::holon::Record (specifically-typed records, e.g. :myapp::Voltage).
 fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
-    match t {
+    matches!(t,
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
                 || crate::types::is_subtype(p, ":wat::core::Record", types)
-                || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
-        {
-            true
-        }
-        _ => false,
-    }
+                || crate::types::is_subtype(p, ":wat::holon::Record", types)
+    )
 }
 
 /// Arc 254 Stone 254.1 — type-level portability predicate for channel payloads.

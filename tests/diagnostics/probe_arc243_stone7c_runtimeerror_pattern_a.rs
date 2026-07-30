@@ -30,7 +30,7 @@ use wat::span::Span;
 fn runtimeerror_outer_span_field_required() {
     let err = RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::DivisionByZero);
     // Universal span access — no exhaustive match across ~30 variants.
-    let _span: &Span = &err.span();
+    let _span: &Span = err.span();
     assert!(matches!(err.kind(), RuntimeErrorKind::DivisionByZero));
 }
 
@@ -41,7 +41,7 @@ fn runtimeerror_outer_span_field_required() {
 fn runtimeerrorkind_variants_have_no_span_field() {
     let kind = RuntimeErrorKind::UnboundSymbol("x".to_string());
     let err = RuntimeError::new(wat::rust_caller_span!(), kind);
-    let _span: &Span = &err.span();
+    let _span: &Span = err.span();
     assert!(matches!(err.kind(), RuntimeErrorKind::UnboundSymbol(_)));
 }
 
@@ -54,7 +54,7 @@ fn runtimeerror_span_access_is_single_path() {
         RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UnboundSymbol("y".into())),
     ];
     for err in &errs {
-        let _span: &Span = &err.span(); // single-path access for EVERY kind
+        let _span: &Span = err.span(); // single-path access for EVERY kind
     }
 }
 

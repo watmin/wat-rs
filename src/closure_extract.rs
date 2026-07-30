@@ -776,38 +776,36 @@ fn walk_free_symbols(
             // the plain-list recursive path would incorrectly treat them as
             // free symbols, causing UnresolvedSymbol failures at extraction
             // time. We walk only the type keyword children for type deps.
-            if let Some((head, rest)) = items.split_first() {
-                if let WatAST::Keyword(k, _) = head {
-                    match k.as_str() {
-                        ":wat::core::let" => {
-                            return walk_let_form(rest, locals, state);
-                        }
-                        ":wat::core::fn" => {
-                            return walk_fn_form(rest, locals, state);
-                        }
-                        // Stone 241.16 — `:wat::core::define` arm DELETED.
-                        // HARD CUT total (Stone 241.11 startup check + Stone 241.16 eval residue).
-                        // No define-headed form reaches closure extraction; arm is permanently unreachable.
-                        ":wat::core::match" => {
-                            return walk_match_form(rest, locals, state);
-                        }
-                        // Stone 241.8 — defstruct replaces struct (HARD CUT).
-                        ":wat::core::defstruct" => {
-                            return walk_struct_form(rest, state);
-                        }
-                        // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
-                        ":wat::core::structtype" => {
-                            return walk_struct_form(rest, state);
-                        }
-                        // Stone 241.9 — defenum replaces enum (HARD CUT).
-                        ":wat::core::defenum" => {
-                            return walk_defenum_form(rest, state);
-                        }
-                        ":wat::core::defmacro" => {
-                            return walk_defmacro_form(rest);
-                        }
-                        _ => {}
+            if let Some((WatAST::Keyword(k, _), rest)) = items.split_first() {
+                match k.as_str() {
+                    ":wat::core::let" => {
+                        return walk_let_form(rest, locals, state);
                     }
+                    ":wat::core::fn" => {
+                        return walk_fn_form(rest, locals, state);
+                    }
+                    // Stone 241.16 — `:wat::core::define` arm DELETED.
+                    // HARD CUT total (Stone 241.11 startup check + Stone 241.16 eval residue).
+                    // No define-headed form reaches closure extraction; arm is permanently unreachable.
+                    ":wat::core::match" => {
+                        return walk_match_form(rest, locals, state);
+                    }
+                    // Stone 241.8 — defstruct replaces struct (HARD CUT).
+                    ":wat::core::defstruct" => {
+                        return walk_struct_form(rest, state);
+                    }
+                    // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+                    ":wat::core::structtype" => {
+                        return walk_struct_form(rest, state);
+                    }
+                    // Stone 241.9 — defenum replaces enum (HARD CUT).
+                    ":wat::core::defenum" => {
+                        return walk_defenum_form(rest, state);
+                    }
+                    ":wat::core::defmacro" => {
+                        return walk_defmacro_form(rest);
+                    }
+                    _ => {}
                 }
             }
             // Plain list — recurse on every child.
@@ -1286,11 +1284,7 @@ fn record_dep_dependency(
                 let is_auto_ctor = {
                     let opt = state.parent_types.get(name)
                         .or_else(|| state.captured_types.get(name));
-                    match opt {
-                        Some(TypeDef::Aggregate(_)) => true,
-                        Some(TypeDef::Newtype(_)) => true,
-                        _ => false,
-                    }
+                    matches!(opt, Some(TypeDef::Aggregate(_)) | Some(TypeDef::Newtype(_)))
                 };
                 if is_auto_ctor { Some(name) } else { None }
             }
@@ -2354,14 +2348,12 @@ fn rewrite_with_scope(
 
         WatAST::List(items, span) => {
             // Recognize binding-introducing forms; preserve scope rules.
-            if let Some((head, _)) = items.split_first() {
-                if let WatAST::Keyword(k, _) = head {
-                    if k == ":wat::core::let" {
-                        return rewrite_let(items, by_name, locals, span.clone());
-                    }
-                    if k == ":wat::core::fn" {
-                        return rewrite_fn(items, by_name, locals, span.clone());
-                    }
+            if let Some((WatAST::Keyword(k, _), _)) = items.split_first() {
+                if k == ":wat::core::let" {
+                    return rewrite_let(items, by_name, locals, span.clone());
+                }
+                if k == ":wat::core::fn" {
+                    return rewrite_fn(items, by_name, locals, span.clone());
                 }
             }
             let new_items: Vec<WatAST> = items
