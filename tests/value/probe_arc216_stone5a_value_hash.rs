@@ -323,21 +323,38 @@ fn probe_10_non_atomizable_fn_panics() {
     // substrate type). We exercise the panic via a known non-atomizable variant
     // that IS constructible: Value::OnlineSubspace or similar ML types.
     //
-    // However, ThreadOwnedCell is also private. The only approach is to verify
-    // that the Hash impl's unreachable!() doc-comment accurately describes the
-    // predicate contract. We document this skip per BRIEF § Part E Probe 10:
+    // However, ThreadOwnedCell is also private. The only approach available at THIS
+    // layer (constructing a real Value and hashing it) is to verify that the Hash
+    // impl's unreachable!() doc-comment accurately describes the predicate contract.
+    // We document this skip per BRIEF § Part E Probe 10:
     // "document if Fn construction isn't accessible at this test layer."
     //
     // SKIP REASON: Value::wat__core__fn(Arc<Function>), Value::OnlineSubspace,
     // Value::Reckoner, etc. wrap private internal types (Function, ThreadOwnedCell)
-    // that have no public constructor outside of WAT eval. The unreachable!() arms
-    // are verified by the doc-comment contract: is_atomizable at check.rs:3623
-    // never admits these variants; if it ever does and the Hash impl isn't updated,
-    // the runtime panic fires with the predicate-citation message.
+    // that have no public constructor outside of WAT eval, so the unreachable!() Hash
+    // arms cannot be triggered by constructing a real Value at this layer.
     //
-    // This skip is an honesty delta: the unreachable!() arms exist in the impl
-    // and are verbally verified; the panic path itself cannot be unit-tested at
-    // this layer without test-infrastructure changes.
+    // Arc 109 BRIEF-key-eligibility-wall CLOSED this honesty delta at a DIFFERENT
+    // layer — not by constructing a Value, but by testing the checker on a type-name
+    // path (which needs no Value in hand at all). The predicate-drift risk this probe
+    // could only "verbally verify" is now a compile-enforced, RED-provable gate:
+    // `Value::key_eligibility()` (src/value/value.rs, the `value_key_eligibility_table!`
+    // macro) classifies every one of Value's 46 variants — no wildcard, so a new variant
+    // fails to COMPILE if left unclassified — and
+    // `check::tests::every_interior_mutable_variant_is_rejected_as_a_key`
+    // (src/check.rs, in-crate because it calls the crate-internal `is_atomizable`)
+    // asserts `Value::all_key_eligibility()`'s classification agrees with
+    // `is_atomizable`'s verdict for every variant, INCLUDING Sender/Receiver/fn — the
+    // exact variants this probe could not construct. Proven as a wall, not a claim: flipping
+    // `Sender`'s arm to `Hashable` sends that gate RED (`"Path(\":wat::kernel::Sender\") is
+    // declared Hashable but is_atomizable REJECTS it — a value the checker will not admit
+    // as a key is classified as one"`), and adding an unclassified `Value` variant fails
+    // the BUILD at both matches `value_key_eligibility_table!` generates.
+    //
+    // This skip is still an honesty delta AT THIS PROBE'S OWN LAYER (this file cannot
+    // construct a Sender/fn/ThreadOwnedCell Value to trigger the runtime panic directly)
+    // — but the invariant that used to rest on a doc comment alone now also rests on a
+    // gate that goes red when broken, not just on this probe's own construction limits.
     //
     // See SCORE-STONE-216.5a.md § Probe 10 skip documentation.
     let _ = "Probe 10 skip documented: non-atomizable types not constructible at test layer";

@@ -1149,86 +1149,508 @@ pub enum ProgramHandleInner {
     Forked(Arc<ChildHandle>),
 }
 
-impl Value {
-    /// **TRANSFORMS (clojure-ination):** keyword type-name strings
-    pub fn type_name(&self) -> &'static str {
-        match self {
-            // Arc 163 slice 3f — flip primitive arms to FQDN.
-            // Container arms (Vector/Option/Result/HashMap/HashSet/etc.)
-            // stay FQDN (slice 3e shipped them).
-            Value::bool(_) => "wat::core::bool",
-            Value::i64(_) => "wat::core::i64",
-            Value::u8(_) => "wat::core::u8",
-            Value::f64(_) => "wat::core::f64",
-            Value::String(_) => "wat::core::String",
-            Value::Vec(_) => "wat::core::Vector",
-            Value::Unit => "()",
-            Value::wat__core__keyword(_) => "wat::core::keyword",
-            Value::wat__core__fn(_) => "wat::core::fn",
-            Value::holon__HolonAST(_) => "wat::holon::HolonAST",
-            Value::wat__WatAST(_) => "wat::WatAST",
-            // Arc 170 slice 1c — both tier-1 (Crossbeam) and tier-2
-            // (PipeFd) backed senders / receivers report the same
-            // type_name. The wat-level type checker enforces the
-            // tier distinction structurally; runtime type_name names
-            // the user-visible kind, not the internal transport.
-            Value::wat__kernel__Sender(_) => "wat::kernel::Sender",
-            Value::wat__kernel__Receiver(_) => "wat::kernel::Receiver",
-            Value::wat__std__HashMap(_) => "wat::core::HashMap",
-            Value::wat__core__PersistentMap(_) => "wat::core::PersistentMap",
-            Value::wat__core__PersistentVector(_) => "wat::core::PersistentVector",
-            Value::wat__std__HashSet(_) => "wat::core::HashSet",
-            Value::RustOpaque(inner) => inner.type_path,
-            Value::io__IOReader(_) => "wat::io::IOReader",
-            Value::io__IOWriter(_) => "wat::io::IOWriter",
-            Value::Option(_) => "wat::core::Option",
-            Value::Result(_) => "wat::core::Result",
-            Value::Tuple(_) => "wat::core::Tuple",
-            Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
-            Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
-            Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
-            // Arc 293.R2.1 — Aggregate: nature gates the kind-string.
-            // Struct nature → "wat::core::Struct"; Record/HolonRecord → "wat::core::Record".
-            // Arc 293 S3-Nature-2 — `Peer` is never the nature of a constructed `AggregateValue`
-            // (a peer is a `RustOpaque`, not an aggregate); exhaustiveness only, unreachable at runtime.
-            Value::Aggregate(a) => match a.nature {
-                Nature::Struct => "wat::core::Struct",
-                Nature::Record | Nature::HolonRecord => "wat::core::Record",
-                Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
-            },
-            Value::Enum(_) => "wat::core::Enum",
-            // Arc 278 Stone A — foreign dynamic values report their own kind.
-            Value::ForeignRecord(_) => "wat::edn::ForeignRecord",
-            Value::ForeignVariant(_) => "wat::edn::ForeignVariant",
-            Value::Vector(_) => "wat::holon::Vector",
-            Value::OnlineSubspace(_) => "wat::holon::OnlineSubspace",
-            Value::Reckoner(_) => "wat::holon::Reckoner",
-            Value::Engram(_) => "wat::holon::Engram",
-            Value::EngramLibrary(_) => "wat::holon::EngramLibrary",
-            Value::Hologram(_) => "wat::holon::Hologram",
-            Value::Instant(_) => "wat::time::Instant",
-            Value::Duration(_) => "wat::time::Duration",
-            Value::wat__core__Uuid(_) => "wat::core::Uuid",
-            // Arc 220 — Stone 242.1 renamed the surface to `char`; this arm was
-            // half-propagated (still emitted capital). C1 fixes it.
-            Value::wat__core__Char(_) => "wat::core::char",
-            // Arc 300 stone B — Stone C1 lowercases the surface (Doctrine 2:
-            // scalar types are lowercase). Rust variant stays Capital.
-            Value::wat__core__Rational(_) => "wat::core::rational",
-            // Arc 300 stone C1 — lowercase from birth (Doctrine 2).
-            Value::wat__core__BigInt(_) => "wat::core::bigint",
-            // Arc 220 Stone 220.4
-            Value::wat__core__List(_) => "wat::core::List",
-            // Arc 118 — lazy seq.
-            Value::wat__stream__Stream(_) => "wat::stream::Stream",
-            // Arc 293.R2.1: wat__holon__Record and wat__core__Record removed; covered by Aggregate arm above.
-            // Stone 237.2 — multi-arity callable dispatcher.
-            Value::wat__core__clauses(_) => "wat::core::clauses",
-            // Arc 232 Stone 232.1 — extend-type registry carrier (not runtime-callable value).
-            Value::wat__core__extend_def(_) => "wat::core::extend-def",
-        }
-    }
+// ─── BRIEF-key-eligibility-wall — the wall: "interior-mutable AND hashable" ──
+// ─── is unrepresentable ───────────────────────────────────────────────────
 
+/// Whether a `Value` variant may be used as a hash key.
+///
+/// The wall: there is deliberately NO way to spell "carries interior mutability AND is
+/// hashable". That state has no constructor, so it cannot be written down — which is the
+/// point of this type existing at all rather than a bare `bool`. A `bool` would let someone
+/// write `true` for `Sender`; this shape means the wrong classification is unrepresentable,
+/// and the only way to mark something hashable is to assert it is pure data.
+///
+/// Ground truth for every variant is read off `impl Hash for Value` (the `unreachable!()`
+/// arms with their predicate-citation messages) and `impl PartialEq for Value` (the
+/// `Arc::ptr_eq` arms). See `key_eligibility()`, the exhaustive sibling of `type_name()`
+/// that assigns this per variant, and `all_key_eligibility()`, the gate-testable table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyEligibility {
+    /// Pure data. May be a key; `is_atomizable` MUST accept this variant's checker-facing
+    /// type.
+    Hashable,
+    /// Never a key. Its `Hash` arm is `unreachable!()` (or, for the recursive containers,
+    /// its checker type is rejected) and `is_atomizable` MUST reject it.
+    NeverAKey(NotAKeyReason),
+}
+
+/// Why a `Value` variant is `KeyEligibility::NeverAKey`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotAKeyReason {
+    /// Carries interior mutability (an `AtomicBool`, `UnsafeCell`, `OnceLock`, …) reachable
+    /// from the value, so a hash taken now may not hold later. Verified by reading the
+    /// wrapped type's own field list, not merely by its `Hash` arm — `wat__kernel__Sender`
+    /// (`SenderInner::Comms.closed: AtomicBool`), `wat__kernel__ChildHandle` /
+    /// `wat__kernel__ProgramHandle` (`ChildHandle.reaped: AtomicBool` +
+    /// `cached_exit: OnceLock<i64>`, the latter reached transitively via
+    /// `ProgramHandleInner::Forked`), and the five `Arc<ThreadOwnedCell<_>>` ML types
+    /// (`ThreadOwnedCell.cell: UnsafeCell<T>`, directly).
+    InteriorMutable,
+    /// An opaque handle whose identity is pointer-based (`Arc::ptr_eq`), not structural —
+    /// no interior-mutable field is provable from this crate's own struct definitions
+    /// (a `dyn Trait` payload is opaque by construction; a callable's identity is
+    /// intentionally pointer-based regardless of what its closed environment holds).
+    OpaqueHandle,
+    /// Structurally hashable in principle — the `Hash` arm is real, not `unreachable!()` —
+    /// but `is_atomizable` does not currently admit it. Covers both "deliberately excluded"
+    /// (arc 216 Stone 7's Tuple sibling `wat__core__List`, kept off the list on purpose per
+    /// its own doc comment) and "not yet taught to the checker" (`PersistentMap`/
+    /// `PersistentVector` — no `Parametric` arm in `is_atomizable` at all, unlike
+    /// `HashMap`/`HashSet`/`Vector`, which share the mechanism).
+    ExcludedByDesign,
+}
+
+/// Expands one row's `gate:` list into `(TypeExpr, KeyEligibility)` pairs.
+///
+/// **Two forms, and the DEFAULT is the one that cannot drift:**
+///
+/// - `gate: [ ty, ty ]` — each probe is paired with the row's own `key_eligibility`, so the
+///   gate necessarily asserts what `Value::key_eligibility()` actually returns. Flipping a
+///   row's classification moves both, and the gate goes red. **44 of 46 rows use this.**
+/// - `gate: [ ty => ke, … ]` — per-probe eligibility, for the two rows whose
+///   `key_eligibility` expression **binds pattern variables** (`Aggregate` matches on
+///   `a.nature`; `RustOpaque` reads `inner`) and therefore cannot be evaluated in the static
+///   table at all. Their probes are independent by necessity, not by convenience.
+///
+/// Reach for the second form ONLY when the first fails to compile because the row's
+/// eligibility is not pattern-independent. Using it to hand-write a probe that disagrees
+/// with the row's own classification re-opens exactly the drift this shape closes — a
+/// deliberate breach (flip a row to `Hashable`, watch the gate stay green) is how that gap
+/// was found in the first place.
+macro_rules! ke_gate_entries {
+    ($ke:expr, [ $( $ty:expr ),+ $(,)? ]) => { vec![ $( ($ty, $ke) ),+ ] };
+    ($ke:expr, [ $( $ty:expr => $gke:expr ),+ $(,)? ]) => { vec![ $( ($ty, $gke) ),+ ] };
+}
+
+/// Emits `Value::type_name()`, `Value::key_eligibility()`, and
+/// `Value::all_key_eligibility()` from ONE list — one row per `Value` variant — so a variant
+/// cannot appear in the type-name match and be missing from the key-eligibility match (STOP-2:
+/// two independently hand-maintained matches is a convention that can drift; one macro list is
+/// the wall). Each row supplies:
+///
+/// - `$pat` — the match pattern (reused verbatim in both matches).
+/// - `type_name` — `type_name()`'s existing arm body, moved here unchanged (PURE STRUCTURAL
+///   MOVE — no behavior change; see arc-109 BRIEF-key-eligibility-wall.md Room 1).
+/// - `key_eligibility` — the classification, read off the `Hash`/`PartialEq` ground truth.
+/// - `gate` — one or more `(TypeExpr, KeyEligibility)` checker-probe pairs. Almost always a
+///   single pair mirroring `type_name`/`key_eligibility` (with the type spelled as the
+///   `:`-prefixed path `is_atomizable` actually matches against — see `TypeExpr::Path`'s own
+///   doc comment: paths are ALWAYS written with the leading colon in this codebase). Three
+///   rows need more than a literal echo:
+///   - `Aggregate` contributes TWO probes (`Struct` and `Record`) because its eligibility is
+///     runtime-nature-dependent, not fixed per variant.
+///   - `Vec` / `wat__std__HashSet` / `wat__std__HashMap` / `Tuple` are recursively
+///     atomizable — `is_atomizable` only accepts them via `TypeExpr::Parametric` /
+///     `TypeExpr::Tuple` with an atomizable element, never via a bare `Path` — so their
+///     probes use a representative atomizable inner type (`:wat::core::i64`).
+///   - `wat__core__PersistentMap` / `wat__core__PersistentVector` probe with the SAME
+///     `Parametric` shape to prove the checker rejects them regardless (no arm for either
+///     head in `is_atomizable`, unlike their `HashMap`/`Vector` siblings).
+///   - `RustOpaque`'s `type_name` is a per-instance `&'static str` (`inner.type_path`), not a
+///     fixed literal — its probe uses a representative placeholder path, since every
+///     `:rust::*` opaque type is uniformly rejected regardless of which one it names.
+macro_rules! value_key_eligibility_table {
+    (
+        $(
+            $pat:pat => {
+                type_name: $tn:expr,
+                key_eligibility: $ke:expr,
+                gate: $gate:tt
+            }
+        ),+ $(,)?
+    ) => {
+        impl Value {
+            /// **TRANSFORMS (clojure-ination):** keyword type-name strings
+            pub fn type_name(&self) -> &'static str {
+                match self {
+                    $( $pat => $tn, )+
+                }
+            }
+
+            /// The wall (arc 109 BRIEF-key-eligibility-wall.md): whether `self`'s variant may
+            /// be used as a hash key. Exhaustive — no `_ =>` wildcard, ever (STOP-1). A new
+            /// `Value` variant that skips this classification fails to compile here, exactly
+            /// as it already fails to compile in `type_name()`.
+            pub fn key_eligibility(&self) -> KeyEligibility {
+                match self {
+                    $( $pat => $ke, )+
+                }
+            }
+
+            /// The gate-testable table: for every `Value` variant (and, where eligibility is
+            /// runtime-nature-dependent — `Aggregate` — every distinct sub-case), a
+            /// checker-facing `TypeExpr` paired with the eligibility `is_atomizable` MUST
+            /// agree with. A function, not a `const`/`static` — `TypeExpr::Path` owns a
+            /// `String`, which is not const-constructible.
+            pub fn all_key_eligibility() -> Vec<(TypeExpr, KeyEligibility)> {
+                // `.concat()` over per-row vecs rather than `Vec::new()` + `push` — the
+                // init-then-push form is what `clippy::vec_init_then_push` names, and this
+                // stone's contract is that it adds no warnings of its own.
+                let mut table: Vec<(TypeExpr, KeyEligibility)> = Vec::new();
+                $( table.extend(ke_gate_entries!($ke, $gate)); )+
+                table
+            }
+        }
+    };
+}
+
+value_key_eligibility_table! {
+    // ── Hashable: pure data, is_atomizable MUST accept ─────────────────────
+    Value::bool(_) => {
+        type_name: "wat::core::bool",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::bool".to_string()) ]
+    },
+    Value::i64(_) => {
+        type_name: "wat::core::i64",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::i64".to_string()) ]
+    },
+    Value::f64(_) => {
+        type_name: "wat::core::f64",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::f64".to_string()) ]
+    },
+    Value::String(_) => {
+        type_name: "wat::core::String",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::String".to_string()) ]
+    },
+    // Arc 220 Stone 220.4 — Vec is recursively atomizable (`is_atomizable`'s
+    // `Parametric { head: "wat::core::Vector", .. }` arm); bare-Path is not how the
+    // checker admits it, so the probe uses a representative atomizable element.
+    Value::Vec(_) => {
+        type_name: "wat::core::Vector",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::Vector".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            } => KeyEligibility::Hashable
+        ]
+    },
+    // Unit's checker-facing type is `:wat::core::nil` (see `WatAST::NilLit`'s checked type,
+    // `src/check.rs:1898`) — NOT `type_name()`'s runtime display label `"()"`. The two are an
+    // intentional, pre-existing divergence (display label vs. checker vocabulary), not a
+    // classification bug; the probe uses the checker's own string.
+    Value::Unit => {
+        type_name: "()",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::nil".to_string()) ]
+    },
+    Value::wat__core__keyword(_) => {
+        type_name: "wat::core::keyword",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::keyword".to_string()) ]
+    },
+    Value::holon__HolonAST(_) => {
+        type_name: "wat::holon::HolonAST",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::holon::HolonAST".to_string()) ]
+    },
+    Value::wat__WatAST(_) => {
+        type_name: "wat::WatAST",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::WatAST".to_string()) ]
+    },
+    // Arc 216 Stone 3 — HashMap recursively atomizable; same Parametric-probe reasoning as Vec.
+    Value::wat__std__HashMap(_) => {
+        type_name: "wat::core::HashMap",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::HashMap".to_string(),
+                args: vec![
+                    TypeExpr::Path(":wat::core::i64".to_string()),
+                    TypeExpr::Path(":wat::core::i64".to_string()),
+                ],
+            } => KeyEligibility::Hashable
+        ]
+    },
+    // Arc 216 Stone 1 — HashSet recursively atomizable; same Parametric-probe reasoning as Vec.
+    Value::wat__std__HashSet(_) => {
+        type_name: "wat::core::HashSet",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::HashSet".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            } => KeyEligibility::Hashable
+        ]
+    },
+    // Arc 216 Stone 7 — Tuple atomizable iff every element is; is_atomizable admits it via
+    // the dedicated `TypeExpr::Tuple` variant, not a bare Path or a Parametric head.
+    Value::Tuple(_) => {
+        type_name: "wat::core::Tuple",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".to_string())])
+                => KeyEligibility::Hashable
+        ]
+    },
+    // Arc 293.R2.1 — Aggregate: nature gates BOTH the kind-string and the eligibility.
+    // Struct nature → "wat::core::Struct" (NOT atomizable); Record/HolonRecord →
+    // "wat::core::Record" (atomizable via the hologram property, arc 234 Stone 234.5).
+    // Arc 293 S3-Nature-2 — `Peer` is never the nature of a constructed `AggregateValue`
+    // (a peer is a `RustOpaque`, not an aggregate); exhaustiveness only, unreachable at runtime.
+    Value::Aggregate(a) => {
+        type_name: match a.nature {
+            Nature::Struct => "wat::core::Struct",
+            Nature::Record | Nature::HolonRecord => "wat::core::Record",
+            Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
+        },
+        key_eligibility: match a.nature {
+            Nature::Struct => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+            Nature::Record | Nature::HolonRecord => KeyEligibility::Hashable,
+            Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
+        },
+        gate: [
+            TypeExpr::Path(":wat::core::Struct".to_string())
+                => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+            TypeExpr::Path(":wat::core::Record".to_string()) => KeyEligibility::Hashable,
+        ]
+    },
+    Value::wat__core__Uuid(_) => {
+        type_name: "wat::core::Uuid",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::Uuid".to_string()) ]
+    },
+    // Arc 220 — Stone 242.1 renamed the surface to `char`; this arm was
+    // half-propagated (still emitted capital). C1 fixes it.
+    Value::wat__core__Char(_) => {
+        type_name: "wat::core::char",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::core::char".to_string()) ]
+    },
+
+    // ── NeverAKey(InteriorMutable): interior-mutable field, proven by reading the ─────
+    // ── wrapped struct's own fields (not merely inferred from the Hash arm) ───────────
+    // Arc 170 slice 1c — `SenderInner::Comms.closed: AtomicBool` (src/channel/inner.rs).
+    // THE finding this stone rests on: the sole current cause of all 18 clippy
+    // `mutable_key_type` warnings.
+    Value::wat__kernel__Sender(_) => {
+        type_name: "wat::kernel::Sender",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::kernel::Sender".to_string()) ]
+    },
+    // `ChildHandle.reaped: AtomicBool` + `cached_exit: OnceLock<i64>` (src/process/handle.rs)
+    // — proven interior mutability, independent of (and not reported by) the Sender chain
+    // clippy currently surfaces.
+    Value::wat__kernel__ChildHandle(_) => {
+        type_name: "wat::kernel::ChildHandle",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::kernel::ChildHandle".to_string()) ]
+    },
+    // `ProgramHandleInner::Forked(Arc<ChildHandle>)` reaches the same AtomicBool/OnceLock
+    // transitively (src/value/value.rs `ProgramHandleInner`'s own doc comment names it:
+    // "Arc<ChildHandle> (libc pid + reaped flag + cached exit)").
+    Value::wat__kernel__ProgramHandle(_) => {
+        type_name: "wat::kernel::ProgramHandle",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::kernel::ProgramHandle".to_string()) ]
+    },
+    // The five `Arc<ThreadOwnedCell<_>>` ML types: `ThreadOwnedCell.cell: UnsafeCell<T>`
+    // (src/rust_deps/custodia.rs) is direct, unconditional interior mutability.
+    Value::OnlineSubspace(_) => {
+        type_name: "wat::holon::OnlineSubspace",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::holon::OnlineSubspace".to_string()) ]
+    },
+    Value::Reckoner(_) => {
+        type_name: "wat::holon::Reckoner",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::holon::Reckoner".to_string()) ]
+    },
+    Value::Engram(_) => {
+        type_name: "wat::holon::Engram",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::holon::Engram".to_string()) ]
+    },
+    Value::EngramLibrary(_) => {
+        type_name: "wat::holon::EngramLibrary",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::holon::EngramLibrary".to_string()) ]
+    },
+    Value::Hologram(_) => {
+        type_name: "wat::holon::Hologram",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
+        gate: [ TypeExpr::Path(":wat::holon::Hologram".to_string()) ]
+    },
+
+    // ── NeverAKey(OpaqueHandle): pointer-based identity (Arc::ptr_eq); no interior- ───
+    // ── mutable field provable from this crate's own struct definitions ───────────────
+    Value::wat__core__fn(_) => {
+        type_name: "wat::core::fn",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::core::fn".to_string()) ]
+    },
+    // Arc 170 slice 1c — Receiver is Sender's sibling but carries no AtomicBool of its own
+    // (`ReceiverInner::Comms`/`PipeFd` — no interior-mutable field at this level); it is
+    // NeverAKey because its `PartialEq` arm is `Arc::ptr_eq` (handle identity), not because
+    // of a proven interior-mutable field the way Sender is.
+    Value::wat__kernel__Receiver(_) => {
+        type_name: "wat::kernel::Receiver",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::kernel::Receiver".to_string()) ]
+    },
+    // `RustOpaqueInner.payload: Box<dyn Any + Send + Sync>` is erased — opaque by
+    // construction, so no interior-mutable field is provable here regardless of what a
+    // given shim's payload happens to hold. `type_name` is the per-instance `type_path`;
+    // EVERY `:rust::*` path is uniformly rejected by `is_atomizable` (no entry admits any
+    // of them), so the gate probes a representative placeholder rather than a real one.
+    Value::RustOpaque(inner) => {
+        type_name: inner.type_path,
+        // `inner` is read above in `type_name`'s match arm but not structurally needed
+        // in `key_eligibility`'s — both matches share this one `$pat`, so the binding
+        // would otherwise be unused in the latter; `let _ = inner;` reads it without
+        // changing behavior (every RustOpaque is uniformly OpaqueHandle regardless of
+        // which `:rust::*` type it names).
+        key_eligibility: { let _ = inner; KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle) },
+        gate: [
+            TypeExpr::Path(":wat::rust::__key_eligibility_probe__".to_string())
+                => KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle)
+        ]
+    },
+    Value::io__IOReader(_) => {
+        type_name: "wat::io::IOReader",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::io::IOReader".to_string()) ]
+    },
+    Value::io__IOWriter(_) => {
+        type_name: "wat::io::IOWriter",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::io::IOWriter".to_string()) ]
+    },
+    Value::wat__kernel__HandlePool { .. } => {
+        type_name: "wat::kernel::HandlePool",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::kernel::HandlePool".to_string()) ]
+    },
+    // Stone 237.2 — wat__core__clauses: Hash arm hashes the Arc pointer directly (real,
+    // not `unreachable!()`) but PartialEq is `Arc::ptr_eq` — identity is pointer-based,
+    // not structural, matching OpaqueHandle exactly even though its Hash arm never panics.
+    Value::wat__core__clauses(_) => {
+        type_name: "wat::core::clauses",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::core::clauses".to_string()) ]
+    },
+    // Arc 232 Stone 232.1 — extend_def: same real-pointer-hash-not-unreachable shape as
+    // wat__core__clauses. (Its `PartialEq` has no explicit arm at all — falls to the
+    // cross-variant `_ => false` catch-all, so it is not even reflexively `Arc::ptr_eq`-equal
+    // to itself; noted as an adjacent PartialEq-reflexivity observation, not a key-eligibility
+    // hazard — it is still uniformly rejected by `is_atomizable` either way.)
+    Value::wat__core__extend_def(_) => {
+        type_name: "wat::core::extend-def",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::core::extend-def".to_string()) ]
+    },
+    // Arc 118 — Stream: Hash arm IS `unreachable!()` (undecidable equality on potentially
+    // infinite seqs); PartialEq is `Arc::ptr_eq`. Classified OpaqueHandle (identity is
+    // pointer-based) rather than InteriorMutable — the exclusion reason is undecidability,
+    // not a proven mutable field.
+    Value::wat__stream__Stream(_) => {
+        type_name: "wat::stream::Stream",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
+        gate: [ TypeExpr::Path(":wat::stream::Stream".to_string()) ]
+    },
+
+    // ── NeverAKey(ExcludedByDesign): Hash arm is real/structural, but is_atomizable ────
+    // ── does not currently admit it ────────────────────────────────────────────────────
+    Value::u8(_) => {
+        type_name: "wat::core::u8",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::u8".to_string()) ]
+    },
+    // is_atomizable has no Parametric arm for either PersistentMap or PersistentVector
+    // (unlike HashMap/HashSet/Vector) — rejected regardless of element type.
+    Value::wat__core__PersistentMap(_) => {
+        type_name: "wat::core::PersistentMap",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::PersistentMap".to_string(),
+                args: vec![
+                    TypeExpr::Path(":wat::core::i64".to_string()),
+                    TypeExpr::Path(":wat::core::i64".to_string()),
+                ],
+            } => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign)
+        ]
+    },
+    Value::wat__core__PersistentVector(_) => {
+        type_name: "wat::core::PersistentVector",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::PersistentVector".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            } => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign)
+        ]
+    },
+    Value::Option(_) => {
+        type_name: "wat::core::Option",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::Option".to_string()) ]
+    },
+    Value::Result(_) => {
+        type_name: "wat::core::Result",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::Result".to_string()) ]
+    },
+    Value::Enum(_) => {
+        type_name: "wat::core::Enum",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::Enum".to_string()) ]
+    },
+    // Arc 278 Stone A — foreign dynamic values report their own kind.
+    Value::ForeignRecord(_) => {
+        type_name: "wat::edn::ForeignRecord",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::edn::ForeignRecord".to_string()) ]
+    },
+    Value::ForeignVariant(_) => {
+        type_name: "wat::edn::ForeignVariant",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::edn::ForeignVariant".to_string()) ]
+    },
+    Value::Vector(_) => {
+        type_name: "wat::holon::Vector",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::holon::Vector".to_string()) ]
+    },
+    Value::Instant(_) => {
+        type_name: "wat::time::Instant",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::time::Instant".to_string()) ]
+    },
+    Value::Duration(_) => {
+        type_name: "wat::time::Duration",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::time::Duration".to_string()) ]
+    },
+    // Arc 300 stone B — representation-only; not in is_atomizable.
+    Value::wat__core__Rational(_) => {
+        type_name: "wat::core::rational",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::rational".to_string()) ]
+    },
+    // Arc 300 stone C1 — full arithmetic type; still not in is_atomizable.
+    Value::wat__core__BigInt(_) => {
+        type_name: "wat::core::bigint",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::bigint".to_string()) ]
+    },
+    // Arc 220 Stone 220.4 — List hashes exactly like Vec (hash_sequence, real, recursive)
+    // but is deliberately excluded from is_atomizable (own doc comment: "not in
+    // is_atomizable") — the EDN-spec cross-type equality with Vec doesn't extend to
+    // checker admission.
+    Value::wat__core__List(_) => {
+        type_name: "wat::core::List",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::core::List".to_string()) ]
+    },
+}
+
+impl Value {
     /// The **declared** type FQDN for this value — the single authority for
     /// "what named type is this value an instance of?" (arc 237 Stone
     /// 237.5.fix-nominal-identity).

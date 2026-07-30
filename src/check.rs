@@ -1484,7 +1484,14 @@ fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
 /// Note: type variables (Var) and unknowns (None-resolved paths) return `true`
 /// — we cannot prove they're non-atomizable without more context, and the
 /// runtime is the honest fallback for unresolved generics.
-fn is_atomizable(ty: &TypeExpr) -> bool {
+///
+/// Arc 109 BRIEF-key-eligibility-wall — widened from private to `pub(crate)` so
+/// `Value::all_key_eligibility()`'s gate
+/// (`check::tests::every_interior_mutable_variant_is_rejected_as_a_key`, below — in-crate
+/// because an external `tests/` integration test cannot see a `pub(crate)` item) can bind
+/// the checker's verdict to `Value::key_eligibility()`'s classification. Still crate-internal —
+/// not `pub` — per the brief's explicit scope limit.
+pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Path(p) => matches!(
             p.as_str(),
@@ -19842,4 +19849,45 @@ mod tests {
         );
     }
 
+    // ─── Arc 109 BRIEF-key-eligibility-wall — the gate ─────────────────────────
+    //
+    // Binds `Value::key_eligibility()`'s classification (read off the `Hash`/`PartialEq`
+    // ground truth) to `is_atomizable`'s verdict (the checker's actual static gate). For
+    // EVERY variant — including the ones that cannot be constructed at this layer
+    // (`Function`/`ThreadOwnedCell` have no public constructor outside wat eval, arc 216's
+    // Probe 10 skip) — the checker's verdict must agree with the declared eligibility.
+    // No `Value` instance is ever constructed: `is_atomizable` answers on a type-name path,
+    // which is exactly why this gate succeeds where Probe 10 could not (see
+    // `probe_arc216_stone5a_value_hash.rs`'s probe_10 skip note).
+    //
+    // Lives here (an in-crate `#[cfg(test)]`, not `tests/value/`) because `is_atomizable`
+    // is `pub(crate)` per the brief's explicit scope limit ("do not make it `pub`") — an
+    // external integration test cannot see a `pub(crate)` item.
+    #[test]
+    fn every_interior_mutable_variant_is_rejected_as_a_key() {
+        use crate::value::{KeyEligibility, Value};
+
+        let table = Value::all_key_eligibility();
+        assert!(
+            table.len() >= 46,
+            "expected at least one gate probe per Value variant (46), got {}",
+            table.len()
+        );
+        for (ty, eligibility) in table {
+            let checker_accepts = is_atomizable(&ty);
+            match eligibility {
+                KeyEligibility::Hashable => assert!(
+                    checker_accepts,
+                    "{ty:?} is declared Hashable but is_atomizable REJECTS it — a value the \
+                     checker will not admit as a key is classified as one"
+                ),
+                KeyEligibility::NeverAKey(reason) => assert!(
+                    !checker_accepts,
+                    "{ty:?} is declared NeverAKey({reason:?}) but is_atomizable ACCEPTS it. \
+                     If this is InteriorMutable, that is the stranded-key bug clippy's \
+                     mutable_key_type exists to prevent, and it is now reachable"
+                ),
+            }
+        }
+    }
 }
