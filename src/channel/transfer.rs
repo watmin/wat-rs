@@ -329,8 +329,8 @@ pub fn try_as_comms_receiver(
 /// checker's `TypeEnv` only; the runtime ferries `Value`s.
 ///
 /// This helper is intentionally NOT exposed to wat user code — the
-/// user-facing path that builds peer pairs is `:wat::kernel::spawn-thread`
-/// + the arc-259 bracket (with the type-parameter mirror baked into the
+/// user-facing path that builds peer pairs is `:wat::kernel::spawn-thread` +
+/// the arc-259 bracket (with the type-parameter mirror baked into the
 /// expansion). Stone D's original `run-threads` bracket macro filled this
 /// role and has since been retired (dead code, superseded). Stone C1
 /// only needs in-Rust peer construction for the substrate-layer tests;

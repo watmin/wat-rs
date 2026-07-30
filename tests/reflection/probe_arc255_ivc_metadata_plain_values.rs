@@ -12,14 +12,14 @@
 //!
 //! THE CONTRACT (iv-c, locked-record-model §5):
 //!  - The baseline scalar fields are PLAIN wat values:
-//!      :name  -> Value::wat__core__keyword   :arity -> Value::i64
-//!      :pure / :deterministic -> Value::bool :doc/:added/:ret -> Value::String
+//!    :name  -> Value::wat__core__keyword   :arity -> Value::i64
+//!    :pure / :deterministic -> Value::bool :doc/:added/:ret -> Value::String
 //!  - The THREE closed-domain fields are `Value::Enum` (typo-proof; backed by
 //!    wat `defenum` + Rust enum mirror), rendering to EDN as a qualified
 //!    keyword (`:wat.runtime.Kind/Intrinsic`):
-//!      :kind       -> Value::Enum :wat::runtime::Kind / Intrinsic
-//!      :defined-in -> Value::Enum :wat::runtime::DefinedIn / Rust
-//!      :layer      -> Value::Enum :wat::runtime::Layer / Substrate
+//!    :kind       -> Value::Enum :wat::runtime::Kind / Intrinsic
+//!    :defined-in -> Value::Enum :wat::runtime::DefinedIn / Rust
+//!    :layer      -> Value::Enum :wat::runtime::Layer / Substrate
 //!  - NO value in the map is `Value::holon__HolonAST` (the cross-cutting RED).
 //!
 //! RED at HEAD: every value is `Value::holon__HolonAST` -> every assertion

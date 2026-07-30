@@ -14,6 +14,7 @@
 //! - Encode: `keyword_from_wat_path` — splits on last `::`, builds via
 //!   `Keyword::try_ns(ns, name)`.
 //! - Decode: `ns_to_wat_path` — rebuilds `:ns.sub/name` → `:ns::sub::name`.
+//!
 //! Do NOT hand-roll the `::` ↔ `.` / `/` translation.
 //!
 //! ## Arc 213 / BRIEF-213-SERIALIZER-BRIDGE context

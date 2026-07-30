@@ -10,6 +10,7 @@
 //!   - `core::Bytes::to-hex` carries a prose-only `///`; the macro `sniff_doc`s the
 //!     whole string into `:doc`. `metadata-of` emits `:doc` + the derived baseline
 //!     ONLY — no `:added`, no `:ret`.
+//!
 //! GREEN AFTER iv-b1: Bytes decorated to the full contract -> the macro parses +
 //!   carries the structured doc -> `metadata-of` emits `:added` and `:ret`.
 

@@ -4,6 +4,7 @@
 //!   1. call a generic surface method with EXPLICIT type-args — `(:P/m<T1,T2> recv …)`;
 //!   2. flow the method's type-params into the body as type-args to an intrinsic, so `:S`/`:R`
 //!      resolve to the INSTANTIATED types, not the literal `Path(":S")`.
+//!
 //! Generic FNS already do both (`foldl<T,Acc>`); generic METHODS (surface members) do not.
 //!
 //! GREEN as of Stone 6b-DEP (arc 272): `(:user::Mk/mk<wat::core::i64,wat::core::i64> …)` now strips

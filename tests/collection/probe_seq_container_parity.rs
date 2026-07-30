@@ -5,6 +5,7 @@
 //!   - `first`/`second`/`third` (infer_positional_accessor, check.rs) MISSING PersistentVector + WatAST::List
 //!   - `rest`                   (check.rs:5301)                       MISSING PersistentVector + WatAST::List
 //!   - `conj`                   (infer_conj, collection/infer.rs)     MISSING List
+//!
 //! The runtime (runtime.rs / collection/*.rs) handles all of these correctly. RED at HEAD: each probe defn's
 //! body type-errors → startup returns Err. GREEN when the checker arms are extended to equal the
 //! runtime's accepted container set. This pins checker≡runtime so any FUTURE one-sided arm goes red.

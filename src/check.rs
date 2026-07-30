@@ -12265,6 +12265,7 @@ fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
 ///   `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
 /// - `TypeExpr::Fn` — closures never cross universe boundaries.
 /// - `TypeExpr::Var` — unresolved type variable; conservatively impure.
+///
 /// (Arc 293.W.2b — renamed from `is_pure_type`; the cause is purity, not movement.)
 pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
     // Canonicalize: expand aliases and walk through any substitution.
@@ -13084,7 +13085,6 @@ fn infer_tuple_constructor(
 // `wat/core-aliases.wat`) maps `:wat::core::concat` to the per-Type
 // `:wat::core::Vector/concat` impl. Variadic 1+ arg shape collapsed
 // to honest binary; callers nest for >2 args (or fold).
-
 fn infer_string_concat(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: arg type errors locate at `arg.span()`, more precise than the coarse head span

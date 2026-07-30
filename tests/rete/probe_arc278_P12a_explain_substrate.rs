@@ -17,7 +17,7 @@ use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 /// 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
-/// fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
+///    fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
 #[test]
 fn fire_rules_explain_preserves_the_closure() {
     let n = call_beside_value(file!(), ":user::closure-fidelity-coldandwindy-count").expect("compute should run");
@@ -32,8 +32,8 @@ fn support_index_has_an_entry_per_derived_fact() {
 }
 
 /// 3. CHAINS CAPTURED — each entry's producing token carries its real `matches` support chain. Sum of chain
-/// lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
-/// has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
+///    lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
+///    has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
 #[test]
 fn support_tokens_carry_their_full_chains() {
     let n = call_beside_value(file!(), ":user::support-chains-total-length").expect("compute should run");

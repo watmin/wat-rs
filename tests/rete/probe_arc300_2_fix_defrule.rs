@@ -8,6 +8,7 @@
 //!   - a head-keyword Node (kind=keyword, "::", ¬post-arrow, ¬type-shaped) → HeadConv
 //!   - an arrow Node (kind=symbol, "<-"/"->")                              → ArrowConv
 //!   - a post-arrow / type-shaped keyword Node                            → TypeConv
+//!
 //! and that the facts carry the node's offset/len/name unchanged (the drive does the transform).
 //!
 //! The byte-identical golden reproduction is verified by running the DRIVE

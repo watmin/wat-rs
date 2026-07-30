@@ -26,8 +26,10 @@
 //! For each of the 10 predicates:
 //!   - Positive case: matching type → true
 //!   - Negative case: different type → false
+//!
 //! For the polymorphic `is?`:
 //!   - Positive + negative with class name as String
+//!
 //! Edge cases:
 //!   - Bare primitive (i64, String, bool) → all predicates return false (no classifier)
 //!   - Non-Bind top-level (bare Bundle via `Bundle` constructor) → all predicates return false

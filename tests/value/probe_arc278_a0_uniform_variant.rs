@@ -3,7 +3,7 @@
 //! One rule, no special cases:
 //!   - record          → `#ns/Type {field-map}` (map body)
 //!   - enum variant    → `#ns/Variant [field-vec]` (vector body, ANY arity:
-//!                        unit = `[]`, N fields = `[v0 v1 …]`)
+//!     unit = `[]`, N fields = `[v0 v1 …]`)
 //!   - `nil`           → the unit value (`Value::Unit`) ONLY — never a variant
 //!
 //! This RETIRES the arc-298.1 Option/Result direct-body special-case:

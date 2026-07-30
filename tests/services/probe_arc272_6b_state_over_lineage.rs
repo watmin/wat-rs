@@ -5,6 +5,7 @@
 //! initial `state0` from its owner. Already proven on disk, NOT re-probed here:
 //!   - the process `poll'` serve loop + owner-drop termination — `probe_arc209_c0b3aii_process_service_loop`.
 //!   - a record crossing the fork CHILD→PARENT over the lineage channel — `probe_arc272_6c2_record_ipc_derisk`.
+//!
 //! Every existing test sends child→parent over the lineage (the minted Address') and parent→child only
 //! over a SEPARATE socket. This probe isolates the missing direction: **parent→child over the lineage
 //! channel** — `(send' svc state0)` reaching the child's `(recv' self)`.

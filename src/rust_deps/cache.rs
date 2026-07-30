@@ -13,8 +13,8 @@
 //!
 //! `#[wat_dispatch]` annotates a Rust `impl` block, so the upstream
 //! `lru::LruCache<K,V>` can't be annotated directly (orphan rule + generics).
-//! [`WatCacheLru`] wraps a MONOMORPHIC `LruCache<Value, Value>`: `Value: Hash
-//! + Eq` is the storage contract, and the wat-level `<K,V>` are PHANTOM —
+//! [`WatCacheLru`] wraps a MONOMORPHIC `LruCache<Value, Value>`: `Value: Hash +
+//! Eq` is the storage contract, and the wat-level `<K,V>` are PHANTOM —
 //! declared via the attribute's `type_params = "K,V"` and enforced by the type
 //! checker, while the runtime transports any hashable `Value`. This is what
 //! keeps the primitive genuinely generic (`<keyword,i64>`, `<String,i64>`,

@@ -11,6 +11,7 @@
 //!   - per-op Request + Response records (Record::def)
 //!   - `Op::<Op>` variant WRAPS the Request (`req <- <Op>Request`)
 //!   - `Reply::<Op>` variant WRAPS the Response (`resp <- <Op>Response`)
+//!
 //! Wire = `Peer'<Reply, Op>` (server-side peer; mirrors c0b1b's `Peer'<reply, request>` order).
 //!
 //! THE GATE: defservice a counter, hand-drive the generated `serve` on a thread (C.3 adds the

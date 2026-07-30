@@ -5,6 +5,7 @@
 //!     — already exists, read via `(:wat::program::env)` (needs a seam-installed env);
 //!   - the LIVE verb `(:wat::program::cpu-count)` (always available; pool sizing)
 //!     — THIS stone.
+//!
 //! Like `(:wat::time::now)` (the live twin of the stamped `wat.started-at`), the verb
 //! needs NO installed program env — it answers `std::thread::available_parallelism()`
 //! directly, in ANY eval context. The brackets pool sizes its default runner count

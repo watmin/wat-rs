@@ -9,12 +9,12 @@
 //! Most fields are added in the SAME strike that builds their reader:
 //!   - `name` / `handler` → 255.1b-i/ii: the dispatch route (`lookup`).
 //!   - `arity`            → sniffed from the `#[wat_intrinsic]` fixed-arg signature;
-//!                          255.1b-iii: consumed by `metadata-of`'s intrinsic branch.
+//!     255.1b-iii: consumed by `metadata-of`'s intrinsic branch.
 //!   - `prose` / `added` / `ret` → parsed from the `///` via `wat-doc` by the macro
-//!                          (255.1b-iv-b1); consumed by `metadata-of`'s intrinsic branch.
+//!     (255.1b-iv-b1); consumed by `metadata-of`'s intrinsic branch.
 //!   - `purity` / `determinism` → DERIVED at the reflection site (namespace deriver
-//!                          via `is_effectful_op` + a small nondeterministic-set),
-//!                          not stored on the entry.
+//!     via `is_effectful_op` + a small nondeterministic-set),
+//!     not stored on the entry.
 //!
 //! **The one bounded exception (builder-sanctioned, 2026-06-21):** `args` /
 //! `examples` / `deprecated` / `see` are parsed + carried by the iv-b1 macro but

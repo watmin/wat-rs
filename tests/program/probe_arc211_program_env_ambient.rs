@@ -6,6 +6,7 @@
 //! via an ambient verb. The base carries two kernel-stamped fields:
 //!   - `wat.started-at`      : Instant — the CLI-boot instant, INHERITED unchanged down the spawn tree
 //!   - `wat.peer-started-at`: Instant — THIS frame's start, RE-STAMPED per peer (via `assoc`)
+//!
 //! User extension is the nested `user` field (later); brackets subtypes with
 //! `wat.worker-id` (#196). This probe is the FLOOR.
 //!

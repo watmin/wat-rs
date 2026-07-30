@@ -15,11 +15,11 @@
 //!   5.  newtype : is-Price? on a Price      → true
 //!   6.  newtype : is-Price? on a plain f64  → false   (nominally distinct from inner)
 //!   7.  UNION   : is-Shape? on a member (Circle) → true   ← THE PAYLOAD (conforms? unwraps
-//!                 union membership; `(= (type v) "Shape")` never could)
+//!       union membership; `(= (type v) "Shape")` never could)
 //!   8.  UNION   : is-Shape? on a member (Square) → true
 //!   9.  UNION   : is-Shape? on a non-member (i64) → false
 //!   10. record  : is-Circle? on a Circle    → true   (regression — exists via Record.wat;
-//!                 must stay green after its body switches to conforms?)
+//!       must stay green after its body switches to conforms?)
 //!
 //! Pre-stone: the four TypeEnv-form predicates (is-Point?/is-Color?/is-Price?/is-Shape?)
 //! do not exist → fail (UnknownFunction). is-Circle? (record) already exists → green.

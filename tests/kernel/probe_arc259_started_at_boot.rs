@@ -6,6 +6,7 @@
 //!     held in a pid-keyed process-global that re-captures across a fork (so a
 //!     `:process` peer measures its OWN boot, never the parent's stale value).
 //!   - `wat.peer-started-at` = `now` at the seam (this frame's entry).
+//!
 //! Their gap is the real boot→entry latency — and a program reads it with the
 //! Duration readout family (`(seconds (- peer-started-at started-at))`).
 //!

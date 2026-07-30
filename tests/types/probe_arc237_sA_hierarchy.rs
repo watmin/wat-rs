@@ -23,6 +23,7 @@
 //!   4.  leaf-safe — is_subtype(:bool,:i64) false (types with no edges)
 //!   5.  cycle rejected — register_subtype closing a cycle → Err
 //!   6.  built-in roots — is_subtype(:wat::holon::Record, :wat::core::Record) true; reverse false
+//!
 //!   wat-surface (`:wat::core::subtype?`, validation at the surface):
 //!   7.  (subtype? :wat::holon::Record :wat::core::Record) → true
 //!   8.  (subtype? :wat::core::Record :wat::holon::Record) → false   (directional)

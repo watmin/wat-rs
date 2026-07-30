@@ -9,8 +9,8 @@
 //!   - facts are plain typed records.
 //!   - (:wat::rete::defrule :ns::name :when [conditions] :then <pure-rhs>) — namespaced rule macro.
 //!   - condition = (:FactType <clause>...):
-//!       (?var <- :field)            bind/join  (fresh binds; bound ?var ⇒ cross-fact equality join on the field)
-//!       (:wat::core::<op> a b)      constraint (FQDN value op; operands ∈ {?var, :field, literal}, resolved purely)
+//!     (?var <- :field)            bind/join  (fresh binds; bound ?var ⇒ cross-fact equality join on the field)
+//!     (:wat::core::<op> a b)      constraint (FQDN value op; operands ∈ {?var, :field, literal}, resolved purely)
 //!   - :then = N inserts, nothing else. Each (:wat::rete::insert <fact>) declares a logical derived fact
 //!     (support = the firing token; auto-retracted if support vanishes); fact args may be pure exprs over the
 //!     bound ?vars. The engine COLLECTS the inserts at fire — pure: no IO, no retract, no insert-unconditional!,

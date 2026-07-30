@@ -260,8 +260,8 @@ pub(crate) fn shutdown_rx() -> Option<&'static ShutdownRx> {
     }
 }
 
-/// Heap-boxed Sender for the shutdown signal. AtomicPtr swap-to-null
-/// + Box::from_raw drop is the ZERO-MUTEX way to atomically drop the
+/// Heap-boxed Sender for the shutdown signal. AtomicPtr swap-to-null +
+/// Box::from_raw drop is the ZERO-MUTEX way to atomically drop the
 /// Sender (waking all SHUTDOWN_RX clones with Disconnected). Initialized
 /// via [`init_shutdown_signal`]; consumed by [`trigger_shutdown`].
 // rune:sequi(ambient-context) — ZERO-MUTEX shutdown cascade trigger; paired
@@ -7586,6 +7586,7 @@ fn destructure_tuple(
 ///   each name is BOTH the field-name AND the local binding-name.
 ///   RHS must be a struct-typed expression; each field name resolves
 ///   against the struct type's registered fields.
+///
 /// Arc 233 Stone 233.2.e: added per-name spans to all three variants so
 /// bind_let_binding can store binding_span in BoundEntry and env.lookup
 /// can construct SymbolBound provenance at lookup time.
@@ -8689,12 +8690,12 @@ fn eval_keyword_from_string(
 ///
 /// - `->`       : MUST be the `->` symbol (position 0; inline annotation marker).
 /// - `:T`       : MUST be a type keyword (position 1; declared return type).
-///                Consumed by the checker; runtime validates shape only.
+///   Consumed by the checker; runtime validates shape only.
 /// - `head`     : expression at position 2; evaluates to `:wat::core::keyword`
-///                (FQDN of callable) OR `:wat::core::fn` (Arc 009 lift / let-bound).
+///   (FQDN of callable) OR `:wat::core::fn` (Arc 009 lift / let-bound).
 /// - `a1..an`   : zero or more leading positional args (positions 3..n-1).
 /// - `args-vec` : LAST positional arg MUST be `:wat::core::Vector`; its
-///                elements are spread as trailing args. May be empty.
+///   elements are spread as trailing args. May be empty.
 ///
 /// Two head-dispatch paths:
 ///   • `Value::wat__core__fn`     — Arc 009 lift OR let-bound fn-value;
@@ -9322,6 +9323,7 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
 /// `values_compare` (which maps NaN→Equal via `unwrap_or`). IEEE 754 guarantees:
 /// - any ordered comparison involving NaN returns false
 /// - `a < NaN` = false, `NaN < a` = false, `NaN <= NaN` = false, etc.
+///
 /// This is correct per the DESIGN gate `gate_4b_f64_nan_ordering`.
 fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
     head: &str,
@@ -14110,6 +14112,7 @@ fn eval_type(
 /// - `Value::wat__std__HashMap(..)` → map entry count
 /// - `Value::wat__std__HashSet(..)` → set element count
 /// - `Value::wat__core__List(..)` → list element count
+///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_length(
     args: &[WatAST],
@@ -14186,6 +14189,7 @@ fn eval_length(
 /// - `Value::wat__std__HashMap(..)` → true iff map has no entries
 /// - `Value::wat__std__HashSet(..)` → true iff set has no elements
 /// - `Value::wat__core__List(..)` → true iff list has no elements
+///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_empty(
     args: &[WatAST],
@@ -14268,6 +14272,7 @@ fn eval_empty(
 /// - `Value::Vec(..)` → vector element membership (PartialEq scan)
 /// - `Value::wat__std__HashSet(..)` → set membership (Hash+Eq)
 /// - `Value::wat__std__HashMap(..)` → KEY membership (contains-key?, not value)
+///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_contains(
     args: &[WatAST],
@@ -14344,6 +14349,7 @@ fn eval_contains(
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → vector append (clone + push; functional, not mutating)
 /// - `Value::wat__std__HashSet(..)` → set insert (clone + insert; functional)
+///
 /// HashMap excluded — HashMap insertion requires key+value pair (`assoc`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_conj(
@@ -14398,6 +14404,7 @@ fn eval_conj(
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → `vector_get_inner` (index i64 → Option<T>; inner already wraps in Value::Option)
 /// - `Value::wat__std__HashMap(..)` → `hashmap_get_inner` (key → Option<V>; inner already wraps)
+///
 /// HashSet excluded — HashSet has no positional get (use `contains?`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_get(
@@ -25356,7 +25363,7 @@ fn is_mutation_head(head: &str) -> bool {
 // The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
 // lets send'/recv' detect use-after-close (None → RuntimeError).
 
-/// §7 wire-wall (OUTBOUND): a bare `Nature::Struct` value must not be WRITTEN to a
+// §7 wire-wall (OUTBOUND): a bare `Nature::Struct` value must not be WRITTEN to a
 // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────────
 // `reject_non_portable_on_wire` — deleted. The §7 runtime send-side guard that
 // refused a bare struct at the wire-serialize step is superseded by the
@@ -26620,26 +26627,26 @@ fn eval_peer_select_prime(
     }
 }
 
-/// `(:wat::kernel::poll self-peer listener peers)` — Arc 209 Stone C0b.1b / C0b.2e-i-c.
-///
-/// 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
-/// (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
-/// and the **connected client `Peer'`s** (requests) — returning a `ServiceEvent<I,O>`.
-///
-/// Registration order (= Select index):
-///   0 = self-peer `.rx`  (= `input_rx`; wakes when owner drops the handle via RAII drain)
-///   1 = listener receiver (new connections)
-///   2..=N+1 = client peers[0..N-1] `.rx`
-///
-/// Select outcome mapping:
-///   `Recv { index: 0, .. }`       → `ServiceEvent::Shutdown`  (owner dropped; RAII drain fired)
-///   `Recv { index: 1, result }`   → unpack + wrap → `ServiceEvent::Connection { peer }`
-///   `Recv { index: k, result }`, k≥2:
-///     `Ok(msg)`  → `ServiceEvent::Message { idx: k-2, msg }`
-///     `Err(_)`   → `ServiceEvent::Closed  { idx: k-2 }`
-///
-/// Thread tier only. Uses existing `comms::thread::Select` (no `comms/thread.rs` change).
-/// `wrap_connect_request` is reused from `accept'` — ONE helper, THREE callers.
+// `(:wat::kernel::poll self-peer listener peers)` — Arc 209 Stone C0b.1b / C0b.2e-i-c.
+//
+// 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
+// (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
+// and the **connected client `Peer'`s** (requests) — returning a `ServiceEvent<I,O>`.
+//
+// Registration order (= Select index):
+//   0 = self-peer `.rx`  (= `input_rx`; wakes when owner drops the handle via RAII drain)
+//   1 = listener receiver (new connections)
+//   2..=N+1 = client peers[0..N-1] `.rx`
+//
+// Select outcome mapping:
+//   `Recv { index: 0, .. }`       → `ServiceEvent::Shutdown`  (owner dropped; RAII drain fired)
+//   `Recv { index: 1, result }`   → unpack + wrap → `ServiceEvent::Connection { peer }`
+//   `Recv { index: k, result }`, k≥2:
+//     `Ok(msg)`  → `ServiceEvent::Message { idx: k-2, msg }`
+//     `Err(_)`   → `ServiceEvent::Closed  { idx: k-2 }`
+//
+// Thread tier only. Uses existing `comms::thread::Select` (no `comms/thread.rs` change).
+// `wrap_connect_request` is reused from `accept'` — ONE helper, THREE callers.
 
 // ─── after — one-shot timer peer ─────────────────────────────────────────────
 

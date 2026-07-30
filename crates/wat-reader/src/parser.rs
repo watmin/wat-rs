@@ -11,6 +11,7 @@
 //!   auto-captures the call-site Rust file:line as the span label.
 //! - [`parse_all!`] — macro that parses a sequence of top-level forms
 //!   and auto-captures the call-site Rust file:line as the span label.
+//!
 //! Production callers with real source paths use
 //! [`parse_one_with_file`] / [`parse_all_with_file`] directly.
 

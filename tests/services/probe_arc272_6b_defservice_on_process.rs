@@ -12,7 +12,7 @@
 //!     send' state0 over the lineage (6b-ii-α) → return Launched.
 //!   - defservice emits `<fqdn>::child-forms` (the Op/Reply enums + Request/Response records + serve
 //!     + a `:user::main` driver), so the forked child's universe (stdlib + these forms) has the
-//!     service code (the child runs a FRESH startup — it does NOT inherit the parent's defservice).
+//!       service code (the child runs a FRESH startup — it does NOT inherit the parent's defservice).
 //!
 //! The client face crosses Op/Reply RECORDS over the socket connection — proven possible by
 //! 6b-ii-α (socket-tier recv' decodes records). state0 (0) crosses parent→child over the lineage.

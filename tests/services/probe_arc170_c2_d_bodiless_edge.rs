@@ -16,10 +16,10 @@
 //!
 //! The real auto-emitted `:wat::capability::TypedCapability<S,R>` mechanism (wat/capability.wat
 //! + wat/service.wat's bodiless typedcap-extend) is covered end-to-end by
-//! `probe_arc170_w2a_kwargs_check_mint*` (the checker) and `probe_arc170_c2_mixed_macro*` /
-//! `probe_arc170_c2_strike1_mixed` (the full N-service grant+dial runtime); this file isolates
-//! just the bodiless-edge mechanism itself, with a hand-defined LOCAL surface mirroring the
-//! proven probe shape verbatim.
+//!   `probe_arc170_w2a_kwargs_check_mint*` (the checker) and `probe_arc170_c2_mixed_macro*` /
+//!   `probe_arc170_c2_strike1_mixed` (the full N-service grant+dial runtime); this file isolates
+//!   just the bodiless-edge mechanism itself, with a hand-defined LOCAL surface mirroring the
+//!   proven probe shape verbatim.
 
 use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_from_file, StartupError};

@@ -2268,6 +2268,7 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
 /// For every `SurfaceDef` with a `nature`, emits THREE companion `TypeDef::Aggregate` values:
 ///   - `<surface-name>$core-record`   (nature = Record)
 ///   - `<surface-name>$holon-record`  (nature = HolonRecord)
+///
 /// Both share the same fields (surface's `Field` members only; methods excluded).
 /// The surface's own `:nature` governs satisfaction (who may pass `[x <- :S]` slots);
 /// these two backing types are always emitted regardless of the surface's nature so

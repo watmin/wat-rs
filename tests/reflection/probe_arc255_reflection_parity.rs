@@ -13,6 +13,7 @@
 //! RED AT HEAD:
 //!   - `(metadata-of :wat::core::i64::+)` -> None (builtin not registered in sym).
 //!   - `(metadata-of :my::f)` for a bare defn -> None (no guaranteed baseline).
+//!
 //! GREEN AFTER 255.1: both return `Some(baseline)` — the builtin registered into
 //! `sym` as a `Native` Function entry; every registered form carrying the
 //! auto-derived baseline (`:defined-in` + `:layer` + `:name` + `:arity`).

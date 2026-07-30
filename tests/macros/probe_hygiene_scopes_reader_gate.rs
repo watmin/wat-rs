@@ -10,7 +10,7 @@
 //!   2. the canonical hasher (`src/hash.rs`) — cross-process identity (renumbered),
 //!   3. the plain-EDN bridge (`src/wat_edn_bridge.rs`) — cross-process TRANSPORT
 //!      (remapped; arc 170) —
-//! and every resolution bind of a possibly-scoped ident routes through `env_key`.
+//!      and every resolution bind of a possibly-scoped ident routes through `env_key`.
 //!
 //! (3) joined in arc 170 and is the sibling of (2), not a new keying surface: both
 //! cross a process boundary, and both refuse to carry the sender's raw ids — the

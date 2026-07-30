@@ -432,7 +432,9 @@ impl Listener {
     ///   the owner is trusted by construction (it minted this child). Spawn is clone3-direct (no
     ///   CLONE_PARENT; clone.rs) and the body runs in that child (spawn.rs), so `getppid()` IS the
     ///   spawner — the gate is LIVE from construction.
+    ///
     /// Further peers (spawned children) are admitted by the owner via `allow'`.
+    ///
     /// Arc 278 Stone 1 — `max_frame_bytes` is the service's declared hard frame
     /// limit `FOO`, threaded from `listener'` (default `DEFAULT_MAX_FRAME_BYTES`
     /// = 512 KiB when the defservice declares nothing). It is carried on the

@@ -3,8 +3,8 @@
 //! For every row in `clj_expr_oracle/corpus.txt` (a faithful `wat.core/…` expression), the wat
 //! runtime's evaluated result — rendered as canonical EDN — must equal what `clojure.core` evals
 //! + `pr-str`s (baked in `clj_expr_oracle/golden.txt`, so this runs WITHOUT clj). clj's `pr-str` is
-//! TYPE-DISCRIMINATING (1 / 1N / 1.0 / 1/2 print distinctly), so a string-equal render carries
-//! VALUE *and* TYPE parity in one comparison — the whole "clojure on rust" claim, measured.
+//!   TYPE-DISCRIMINATING (1 / 1N / 1.0 / 1/2 print distinctly), so a string-equal render carries
+//!   VALUE *and* TYPE parity in one comparison — the whole "clojure on rust" claim, measured.
 //!
 //! Regenerate the oracle when the corpus grows (needs the `clojure` CLI):
 //!   CORPUS=tests/clj_expr_oracle/corpus.txt GOLDEN=tests/clj_expr_oracle/golden.txt \

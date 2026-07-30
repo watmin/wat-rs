@@ -20,7 +20,7 @@
 //!   6. Special-form head rejection (:wat::core::defn → error)
 //!   7. Non-keyword head rejection (String → type error)
 //!   8. Non-vector last arg rejection (trailing i64 instead of Vector)
-
+//!
 //! Wat source: tests/function/probe_diagnostic_dynamic_keyword_invocation.wat
 //! Negative fixtures: probe_diagnostic_non_keyword.wat.bad (probe 7),
 //!   probe_diagnostic_non_vector.wat.bad (probe 8).

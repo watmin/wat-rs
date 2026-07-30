@@ -18,6 +18,7 @@
 //!    minted its Sender via the now-annihilated depth-1 channel
 //!    constructor; there is no way to construct the scenario without
 //!    it, so the test is gone.
+//!
 //! 8/9. (retired) `*-program{,-ast}` callsite retirement nags —
 //!    ANNIHILATED (arc 170 CULMINATION); the verbs had zero live callers
 //!    and no runtime eval, so the check-time nag + its tests are gone.

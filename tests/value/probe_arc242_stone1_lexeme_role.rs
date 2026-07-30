@@ -7,7 +7,7 @@
 //! HEAD-disconfirmation map:
 //! - C01: bare `nil` works as a primitive VALUE in expression position
 //!   ⇒ FAILS at HEAD (bare `nil` parses as symbol, not primitive value;
-//!      using bare `nil` where the type is `:wat::core::nil` may type-mismatch)
+//!   using bare `nil` where the type is `:wat::core::nil` may type-mismatch)
 //! - C02: `:wat::core::nil` STILL works as TYPE in signature position
 //!   (preservation contract; ensures we didn't break type semantics)
 //! - C03: `:wat::core::Char` HARD-CUT-rejected with structured retirement remedy

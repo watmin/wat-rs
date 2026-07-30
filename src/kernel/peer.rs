@@ -193,28 +193,28 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 
 // ─── Peer ─────────────────────────────────────────────────────────────────────
 
-/// Unified, transport-blind bidirectional connection/self peer — arc 209 Stone C0b.2e-i-b.
-///
-/// `Peer` is the single non-generic endpoint used for BOTH the worker self-peer
-/// (handed to a spawned thread via `send'`/`recv'`) AND a connection handle
-/// (produced by `peer-pair'`, `connect'`, `accept'`).  The
-/// self-vs-connection role is positional at the call site (e.g. arg 0 of
-/// `select'`), not a type distinction.
-///
-/// Arc 258.5b-ii: the send path is now symmetric with recv.  Thread-tier peers
-/// carry a `CommSender<Value>` (crossbeam; no serialisation); socket-tier peers
-/// carry a `CommSender<String>` (process; `String::to_wire()` is a raw
-/// passthrough).  The eval layer encodes with `sym.types()` and calls
-/// `Peer::send_wire(String)` for socket-tier; thread-tier goes through the
-/// existing `Peer::send(Value)`.  NO thread-local type env is involved.
-///
-/// Construct via `Peer::from_thread` (thread tier) or `Peer::from_socket`
-/// (socket tier).  Do not construct by naming fields directly.
-///
-/// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread'` today;
-/// RAII in S2b).  For the thread-tier self-peer the instance is created INSIDE
-/// the spawned thread's closure to satisfy the `ThreadOwnedCell` owner-thread
-/// invariant.
+// Unified, transport-blind bidirectional connection/self peer — arc 209 Stone C0b.2e-i-b.
+//
+// `Peer` is the single non-generic endpoint used for BOTH the worker self-peer
+// (handed to a spawned thread via `send'`/`recv'`) AND a connection handle
+// (produced by `peer-pair'`, `connect'`, `accept'`).  The
+// self-vs-connection role is positional at the call site (e.g. arg 0 of
+// `select'`), not a type distinction.
+//
+// Arc 258.5b-ii: the send path is now symmetric with recv.  Thread-tier peers
+// carry a `CommSender<Value>` (crossbeam; no serialisation); socket-tier peers
+// carry a `CommSender<String>` (process; `String::to_wire()` is a raw
+// passthrough).  The eval layer encodes with `sym.types()` and calls
+// `Peer::send_wire(String)` for socket-tier; thread-tier goes through the
+// existing `Peer::send(Value)`.  NO thread-local type env is involved.
+//
+// Construct via `Peer::from_thread` (thread tier) or `Peer::from_socket`
+// (socket tier).  Do not construct by naming fields directly.
+//
+// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread'` today;
+// RAII in S2b).  For the thread-tier self-peer the instance is created INSIDE
+// the spawned thread's closure to satisfy the `ThreadOwnedCell` owner-thread
+// invariant.
 
 /// Transport-erased send endpoint for a `Peer`.
 ///
