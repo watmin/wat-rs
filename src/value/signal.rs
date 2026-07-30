@@ -106,23 +106,46 @@ impl fmt::Display for EvalBreak {
 /// `Display` / EDN elide unknown spans.
 pub struct RuntimeError {
     span: Span,
-    kind: RuntimeErrorKind,
+    /// Boxed (arc 109 stone B2). Inline, this field made `RuntimeError` 128 bytes —
+    /// exactly clippy's `result_large_err` threshold — earning 482 warnings across
+    /// every `Result<_, RuntimeError>` signature, because the struct's width tracked
+    /// `RuntimeErrorKind`'s widest variant. Boxed, `RuntimeError` is 56 (48 span + 8
+    /// pointer), so its width no longer tracks the kind enum at all and no future
+    /// variant can re-breach the threshold.
+    ///
+    /// This is invisible to callers **by construction**: the field is private and
+    /// reached only through `new` / `kind` / `into_kind` (stone B1), so the box is an
+    /// implementation detail rather than a shape every call site has to know. That is
+    /// why B1 came first — it is what made B2 a three-line change instead of a
+    /// ~1438-site sweep, and what keeps the *next* width change three lines too.
+    ///
+    /// EDN is byte-identical, proven not assumed:
+    /// `tests/value/probe_runtime_error_boxed_kind_edn.rs` pins that
+    /// `Box<RuntimeErrorKind>::to_edn()` == `RuntimeErrorKind::to_edn()` via the
+    /// blanket `impl<T: ToEdn> ToEdn for Box<T>` (`crates/wat-edn/src/lib.rs:217`),
+    /// which the hand-written wrapper in `crate::runtime_error_edn` reaches by an
+    /// auto-deref'd method call.
+    kind: Box<RuntimeErrorKind>,
 }
 
 impl RuntimeError {
     /// The ONE door for construction.
     pub fn new(span: Span, kind: RuntimeErrorKind) -> Self {
-        Self { span, kind }
+        Self {
+            span,
+            kind: Box::new(kind),
+        }
     }
-    /// The ONE door for reading the kind.
+    /// The ONE door for reading the kind. Returns `&RuntimeErrorKind` whether the
+    /// storage is boxed or not — which is precisely why boxing cost no call site.
     pub fn kind(&self) -> &RuntimeErrorKind {
         &self.kind
     }
     /// The ONE door for taking the kind by value.
     pub fn into_kind(self) -> RuntimeErrorKind {
-        self.kind
+        *self.kind
     }
-    /// Span stays readable; it is not what stone B2 boxes.
+    /// Span stays inline — it is not what stone B2 boxes.
     pub fn span(&self) -> &Span {
         &self.span
     }

@@ -14,31 +14,48 @@
 //! total. Landing exactly at 128 is itself a STOP per the BRIEF (STOP-2: "one future field
 //! breaks it") — reported, not silently accepted; see the rider's final report.
 //!
-//! ⚠ **`RuntimeError` is NOT yet fixed, and the bound below does NOT claim it is.**
-//! clippy fires at `>= 128`, not `> 128` — grounded on this tree: `RuntimeError` is
-//! exactly 128 and all 482 of its `result_large_err` warnings still stand. So a
-//! `<= 128` assertion is a REGRESSION BOUND, never a clearance. It is deliberately
-//! *not* named `..._stays_narrow`: a passing test whose subject is still broken is the
-//! vacuous-gate class (R59 NISI FRANGAS, NIHIL PROBAS), and the name is where that lie
-//! would live. The real ceiling is **120**, and reaching it is stone B's job — the
-//! structural fix (a canonical `RuntimeError::new` funnelling the 1438 open struct
-//! literals, then `kind: Box<RuntimeErrorKind>` at one site: measured 128 -> 56).
-//! `eval_break_stays_narrow` below IS a wall — it earns the name.
+//! ✅ **Stone B2 landed. `RuntimeError` is 56 bytes** (48 span + an 8-byte
+//! `Box<RuntimeErrorKind>`), so `result_large_err` no longer fires on any
+//! `Result<_, RuntimeError>` signature and the width no longer tracks the kind enum's
+//! widest variant at all. 64 bytes of headroom.
+//!
+//! **The ceiling is 120, not 128.** clippy fires at `>= 128`, not `> 128` — grounded on
+//! this tree rather than read from docs: while `RuntimeError` sat at exactly 128, all 482
+//! of its warnings still stood. So a `<= 128` assertion would have been a regression
+//! bound, never a clearance, and for the stretch when that was the truth this test carried
+//! the name `runtime_error_width_regression_bound` — because a passing test whose subject
+//! is still broken is the vacuous-gate class (R59 NISI FRANGAS, NIHIL PROBAS), and the
+//! NAME is where that lie lives. B2 made the claim true, so the name came back.
+//!
+//! Why it stays true: `kind` is **private**, reached only through
+//! `RuntimeError::{new, kind, into_kind}` (stone B1), so the box is an implementation
+//! detail no caller can see — which is what made B2 a three-line change instead of a
+//! ~1438-site sweep, and what keeps the next width change three lines too.
 
 use std::mem::size_of;
 use wat::runtime::{EvalBreak, RuntimeError};
 
-/// Regression bound ONLY — see the module header. Passing this proves nothing about
-/// `result_large_err`, which still fires on all 482 `Result<_, RuntimeError>`
-/// signatures; it only stops `RuntimeError` drifting back *above* its current 128.
+/// A WALL now, and it earns the name back — stone B2 landed. `RuntimeError` is **56**
+/// bytes (48 span + an 8-byte `Box<RuntimeErrorKind>`), so `result_large_err` no longer
+/// fires on any `Result<_, RuntimeError>` signature, and the width no longer tracks the
+/// kind enum's widest variant at all.
+///
+/// The ceiling is 120, not 128: clippy fires at `>= 128`, grounded on this tree — at
+/// exactly 128 all 482 warnings still stood. Its predecessor asserted `<= 128` under the
+/// name `runtime_error_stays_narrow` and passed while the subject was broken, which is the
+/// vacuous-gate class (R59 NISI FRANGAS, NIHIL PROBAS) — hence the rename to a regression
+/// bound while that was true, and the rename back now that it is not. 56 leaves 64 bytes
+/// of headroom, and because `kind` is private no future variant can re-breach it without
+/// this test noticing first.
 #[test]
-fn runtime_error_width_regression_bound() {
+fn runtime_error_stays_narrow() {
     assert!(
-        size_of::<RuntimeError>() <= 128,
-        "RuntimeError regressed to {} bytes (was 128). The eval hot path returns \
-         Result<Value(48), RuntimeError>, so every byte is dead stack width on every \
-         success. NOTE: 128 is not the goal — clippy's result_large_err fires at >= 128, \
-         so 482 warnings stand at this width; stone B targets <= 120",
+        size_of::<RuntimeError>() <= 120,
+        "RuntimeError is {} bytes (ceiling 120; clippy's result_large_err fires at >= 128). \
+         The eval hot path returns Result<Value(48), RuntimeError>, so every byte over is \
+         dead stack width on every success. Stone B2 brought this to 56 by boxing the \
+         private `kind` field — a red here means either that box was removed or a fat field \
+         landed in the outer struct",
         size_of::<RuntimeError>()
     );
 }
