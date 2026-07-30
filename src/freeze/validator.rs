@@ -55,8 +55,23 @@ pub struct FreezeValidator {
     /// [`FreezeValidatorError`] whose `to_edn()` preserves the concrete error's own tagged
     /// namespace (dynamic dispatch through the box — the box does NOT re-tag or generic-wrap
     /// the inner error).
-    pub validate:
-        fn(&mut Vec<WatAST>, &TypeEnv, &SymbolTable) -> Result<(), Box<dyn FreezeValidatorError>>,
+    pub validate: FreezeValidateFn,
 }
+
+/// What a freeze-time validator returns: `Ok(())` on a clean pass, or a boxed
+/// [`FreezeValidatorError`] whose `to_edn()` keeps the concrete error's own tagged
+/// namespace (dynamic dispatch through the box — no re-tagging, no generic wrapper).
+pub type FreezeValidateOutcome = Result<(), Box<dyn FreezeValidatorError>>;
+
+/// The signature every freeze-time validator implements — the noun the nested type
+/// was hiding, named so `FreezeValidator`'s field reads as a contract rather than a
+/// four-deep type expression.
+///
+/// The three inputs are the SAME `residue` / `types` / `symbols` the rete wall
+/// already ran against (`src/freeze/env.rs` step 7.8) — post-register, post-resolve,
+/// so a validator sees fully-registered types and un-mangled quoted forms. `residue`
+/// is `&mut` because the rete wall's `:then` kwargs reorder rewrites the quoted form
+/// in place; a read-only validator never needs it, but the drain offers it uniformly.
+pub type FreezeValidateFn = fn(&mut Vec<WatAST>, &TypeEnv, &SymbolTable) -> FreezeValidateOutcome;
 
 inventory::collect!(FreezeValidator);

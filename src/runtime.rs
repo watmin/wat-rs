@@ -2926,9 +2926,22 @@ fn try_parse_metadata_map(node: &WatAST) -> Option<HashMap<String, WatAST>> {
     Some(meta)
 }
 
+/// A `def`'s `{...}` metadata-map clause, keyed by the metadata key's bare name.
+type FnShapeMetadata = HashMap<String, WatAST>;
+
+/// What a well-formed fn-shape `def` parses into: the bound name, the function it
+/// binds, and the metadata clause if the 4-item form carried one.
+///
+/// Named because the tuple is the noun — all four call sites of
+/// [`try_parse_fn_shape_def`] destructure it identically as
+/// `(path, func, metadata_opt)`, so the shape is a contract, not an incidental
+/// return. `None` for the metadata means the 3-item form was used, NOT that a
+/// metadata clause was present and empty.
+type ParsedFnShapeDef = (String, Arc<Function>, Option<FnShapeMetadata>);
+
 /// Returns `(name, function, metadata_opt)` where `metadata_opt` is `Some(map)` if
 /// a `{...}` metadata-map clause was present, `None` if the 3-item form was used.
-fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Option<HashMap<String, WatAST>>)> {
+fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => return None,
