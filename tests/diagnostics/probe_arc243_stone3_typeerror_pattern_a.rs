@@ -23,22 +23,22 @@ use wat::types::{TypeError, TypeErrorKind};
 /// every variant inherits the discipline by construction.
 #[test]
 fn typeerror_outer_span_field_required() {
-    let err = TypeError {
-        span: wat::rust_caller_span!(),
-        kind: TypeErrorKind::CyclicSubtype {
+    let err = TypeError::new(
+        wat::rust_caller_span!(),
+        TypeErrorKind::CyclicSubtype {
             child: "x".to_string(),
             parent: "y".to_string(),
         },
-    };
+    );
 
-    // The struct's span field is universally accessible — no exhaustive
+    // The struct's span is universally accessible — no exhaustive
     // match required across N variants. This is the load-bearing UX win.
-    let _span: &Span = &err.span;
+    let _span: &Span = err.span();
 
     // The kind enum holds variant-specific data only — no span field per
     // variant. CyclicSubtype's domain-spanless status is captured via the
     // outer struct's wat::rust_caller_span!() + rune annotation.
-    let kind_is_cyclic = matches!(err.kind, TypeErrorKind::CyclicSubtype { .. });
+    let kind_is_cyclic = matches!(err.kind(), TypeErrorKind::CyclicSubtype { .. });
     assert!(kind_is_cyclic);
 }
 
@@ -60,13 +60,10 @@ fn typeerrorkind_variants_have_no_span_field() {
         name: "wat::reserved".to_string(),
     };
 
-    let err = TypeError {
-        span: wat::rust_caller_span!(),
-        kind,
-    };
+    let err = TypeError::new(wat::rust_caller_span!(), kind);
 
-    let _span: &Span = &err.span;
-    assert!(matches!(err.kind, TypeErrorKind::ReservedPrefix { .. }));
+    let _span: &Span = err.span();
+    assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
 }
 
 /// Contract 3: Span access is universal — no exhaustive match across 16
@@ -82,22 +79,22 @@ fn typeerrorkind_variants_have_no_span_field() {
 fn typeerror_span_access_is_single_path() {
     let variants_under_test: Vec<(TypeError, Span)> = vec![
         (
-            TypeError {
-                span: wat::rust_caller_span!(),
-                kind: TypeErrorKind::CyclicSubtype {
+            TypeError::new(
+                wat::rust_caller_span!(),
+                TypeErrorKind::CyclicSubtype {
                     child: "a".into(),
                     parent: "b".into(),
                 },
-            },
+            ),
             wat::rust_caller_span!(),
         ),
         (
-            TypeError {
-                span: wat::rust_caller_span!(),
-                kind: TypeErrorKind::ReservedPrefix {
+            TypeError::new(
+                wat::rust_caller_span!(),
+                TypeErrorKind::ReservedPrefix {
                     name: "wat::x".into(),
                 },
-            },
+            ),
             wat::rust_caller_span!(),
         ),
     ];
@@ -105,7 +102,7 @@ fn typeerror_span_access_is_single_path() {
     for (err, expected_span) in &variants_under_test {
         // Universal single-path access — works for EVERY TypeError regardless
         // of which kind variant. The whole point of Pattern A.
-        let actual_span: &Span = &err.span;
+        let actual_span: &Span = err.span();
         assert_eq!(actual_span, expected_span);
     }
 }

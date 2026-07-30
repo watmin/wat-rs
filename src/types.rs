@@ -552,10 +552,10 @@ impl TypeEnv {
         match crate::resolve::gate(&name, privilege, existing) {
             crate::resolve::Registration::NoOp => return Ok(()),
             crate::resolve::Registration::Duplicate => {
-                return Err(TypeError { span, kind: TypeErrorKind::DuplicateType { name } })
+                return Err(TypeError::new(span, TypeErrorKind::DuplicateType { name }))
             }
             crate::resolve::Registration::Reserved => {
-                return Err(TypeError { span, kind: TypeErrorKind::ReservedPrefix { name } })
+                return Err(TypeError::new(span, TypeErrorKind::ReservedPrefix { name }))
             }
             crate::resolve::Registration::Insert => {}
         }
@@ -653,13 +653,13 @@ impl TypeEnv {
         // Cycle check: if parent is already transitively is-a child, adding this
         // edge closes a cycle.
         if is_subtype(parent, child, self) {
-            return Err(TypeError {
+            return Err(TypeError::new(
                 span,
-                kind: TypeErrorKind::CyclicSubtype {
+                TypeErrorKind::CyclicSubtype {
                     child: child.to_string(),
                     parent: parent.to_string(),
                 },
-            });
+            ));
         }
         self.subtype_edges
             .entry(child.to_string())
@@ -2430,9 +2430,9 @@ fn synthesize_surface_protocol(
         // enforcement codegen — a silent cap nobody chose. Make the omission a compile error
         // instead: every wire op must explicitly speak its own budget.
         if enforce_rtl_lock && !max_request_bytes_explicit {
-            return Err(TypeError {
-                span: decl_span.clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span.clone(),
+                TypeErrorKind::MalformedDecl {
                     head: ":wat::core::defsurface".to_string(),
                     reason: format!(
                         "op `{}` in surface {}: `:max-request-bytes N` is MANDATORY on a \
@@ -2445,7 +2445,7 @@ fn synthesize_surface_protocol(
                         crate::edn_shim::DEFAULT_MAX_FRAME_BYTES,
                     ),
                 },
-            });
+            ));
         }
 
         // Request payload = the arg AFTER `self` (`args[1]`). A method with no request arg
@@ -2483,9 +2483,9 @@ fn synthesize_surface_protocol(
         if enforce_rtl_lock { if let TypeExpr::Path(resp_path) = ret {
             match env.get(resp_path) {
                 Some(TypeDef::Aggregate(_)) => {
-                    return Err(TypeError {
-                        span: decl_span.clone(),
-                        kind: TypeErrorKind::MalformedVariant {
+                    return Err(TypeError::new(
+                        decl_span.clone(),
+                        TypeErrorKind::MalformedVariant {
                             enum_name: resp_path.clone(),
                             offending: RTL_VARIANT.to_string(),
                             reason: format!(
@@ -2499,7 +2499,7 @@ fn synthesize_surface_protocol(
                             ),
                             remedies: vec![],
                         },
-                    });
+                    ));
                 }
                 Some(TypeDef::Enum(EnumDef { variants, .. })) => {
                     let well_shaped = variants.iter().any(|v| {
@@ -2508,9 +2508,9 @@ fn synthesize_surface_protocol(
                                 if vn == RTL_VARIANT && *fields == rtl_fields)
                     });
                     if !well_shaped {
-                        return Err(TypeError {
-                            span: decl_span.clone(),
-                            kind: TypeErrorKind::MalformedVariant {
+                        return Err(TypeError::new(
+                            decl_span.clone(),
+                            TypeErrorKind::MalformedVariant {
                                 enum_name: resp_path.clone(),
                                 offending: RTL_VARIANT.to_string(),
                                 reason: format!(
@@ -2522,7 +2522,7 @@ fn synthesize_surface_protocol(
                                 ),
                                 remedies: vec![],
                             },
-                        });
+                        ));
                     }
                     // Arc 278 Stone 2 — the SHAPE half, same lock, same site, same standing.
                     // `wat/service.wat` generates the request-shape guard unconditionally into
@@ -2537,9 +2537,9 @@ fn synthesize_surface_protocol(
                                 if vn == RM_VARIANT && *fields == rm_fields)
                     });
                     if !rm_shaped {
-                        return Err(TypeError {
-                            span: decl_span.clone(),
-                            kind: TypeErrorKind::MalformedVariant {
+                        return Err(TypeError::new(
+                            decl_span.clone(),
+                            TypeErrorKind::MalformedVariant {
                                 enum_name: resp_path.clone(),
                                 offending: RM_VARIANT.to_string(),
                                 reason: format!(
@@ -2555,7 +2555,7 @@ fn synthesize_surface_protocol(
                                 ),
                                 remedies: vec![],
                             },
-                        });
+                        ));
                     }
                 }
                 // Non-Path ret, or a ret that resolves to a Newtype/Alias/Union/Surface, or an
@@ -2603,9 +2603,9 @@ fn synthesize_surface_protocol(
         EnumVariant::Tagged { name, .. } => name == RESERVED_FAILURE_VARIANT,
         EnumVariant::Unit(name) => name == RESERVED_FAILURE_VARIANT,
     }) {
-        return Err(TypeError {
-            span: decl_span.clone(),
-            kind: TypeErrorKind::MalformedVariant {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedVariant {
                 enum_name: format!("{}::Reply", surface.name),
                 offending: RESERVED_FAILURE_VARIANT.to_string(),
                 reason: format!(
@@ -2617,7 +2617,7 @@ fn synthesize_surface_protocol(
                 ),
                 remedies: vec![],
             },
-        });
+        ));
     }
     reply_variants.push(EnumVariant::Tagged {
         name: RESERVED_FAILURE_VARIANT.to_string(),
@@ -3011,25 +3011,25 @@ fn splice_type_decls(
             let child = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 _ => {
-                    return Err(TypeError {
-                        span: decl_span,
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        decl_span,
+                        TypeErrorKind::MalformedDecl {
                             head: "derive".into(),
                             reason: "expected keyword child type name at position 1".into(),
                         },
-                    })
+                    ))
                 }
             };
             let parent = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 _ => {
-                    return Err(TypeError {
-                        span: decl_span,
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        decl_span,
+                        TypeErrorKind::MalformedDecl {
                             head: "derive".into(),
                             reason: "expected keyword parent type name at position 2".into(),
                         },
-                    })
+                    ))
                 }
             };
             env.register_subtype(&child, &parent, decl_span)?;
@@ -3043,25 +3043,25 @@ fn splice_type_decls(
             let type_name = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 _ => {
-                    return Err(TypeError {
-                        span: decl_span,
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        decl_span,
+                        TypeErrorKind::MalformedDecl {
                             head: "extend-type".into(),
                             reason: "expected keyword type name at position 1".into(),
                         },
-                    })
+                    ))
                 }
             };
             let protocol_name = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 _ => {
-                    return Err(TypeError {
-                        span: decl_span,
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        decl_span,
+                        TypeErrorKind::MalformedDecl {
                             head: "extend-type".into(),
                             reason: "expected keyword protocol name at position 2".into(),
                         },
-                    })
+                    ))
                 }
             };
             env.register_subtype(&type_name, &protocol_name, decl_span)?;
@@ -3115,13 +3115,13 @@ fn parse_type_decl(
     let items = match form {
         WatAST::List(items, _) => items,
         _ => {
-            return Err(TypeError {
-                span: decl_span,
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span,
+                TypeErrorKind::MalformedDecl {
                     head: head.into(),
                     reason: "expected list form".into(),
                 },
-            })
+            ))
         }
     };
     let mut iter = items.into_iter();
@@ -3172,16 +3172,16 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
 
     // Need at least: name + one variant (2 args minimum).
     if args.len() < 2 {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span,
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "expected (:wat::core::defenum :Name :V1 ...) with at least one variant; got {} args after head",
                     args.len()
                 ),
             },
-        });
+        ));
     }
 
     let mut iter = args.into_iter();
@@ -3200,9 +3200,9 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
             Purity::from_marker_keyword(&k).unwrap()
         }
         other => {
-            return Err(TypeError {
-                span: other.as_ref().map(|n| n.span().clone()).unwrap_or_else(|| decl_span.clone()),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.as_ref().map(|n| n.span().clone()).unwrap_or_else(|| decl_span.clone()),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         "defenum requires a mandatory purity marker immediately after the name — \
@@ -3212,7 +3212,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                         other.map(|n| format!("{:?}", n)).unwrap_or_else(|| "end of form".into()),
                     ),
                 },
-            });
+            ));
         }
     };
 
@@ -3234,22 +3234,22 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     // We validate the structure but don't extend EnumDef with per-variant metadata.
     if let Some(ref meta_node) = metadata_node_opt {
         // Arc 257 slice 1: use metadata_map_pairs() to handle both Map and legacy List.
-        let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError {
-            span: meta_node.span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError::new(
+            meta_node.span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: "malformed metadata-map (internal structure corrupt)".into(),
             },
-        })?;
+        ))?;
         // Empty {} → pairs.len() == 0 → REJECTED (FORM-COLLAPSE D4).
         if pairs.is_empty() {
-            return Err(TypeError {
-                span: meta_node.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                meta_node.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: "empty `{}` metadata-map is illegal (use no metadata-map arg for plain defenum)".into(),
                 },
-            });
+            ));
         }
         // Walk key/value pairs — silently accept :variant-metadata + unknown keys (D5).
         for (k_node, _) in &pairs {
@@ -3261,13 +3261,13 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                     // Unknown keys also silently accepted (D5).
                 }
                 other => {
-                    return Err(TypeError {
-                        span: other.span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        other.span().clone(),
+                        TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: "metadata-map keys must be keywords".into(),
                         },
-                    });
+                    ));
                 }
             }
         }
@@ -3281,15 +3281,15 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
         let item = &variant_args[vi];
         match item {
             WatAST::Keyword(k, _) => {
-                let variant_name = k.strip_prefix(':').ok_or_else(|| TypeError {
-                    span: item.span().clone(),
-                    kind: TypeErrorKind::MalformedVariant {
+                let variant_name = k.strip_prefix(':').ok_or_else(|| TypeError::new(
+                    item.span().clone(),
+                    TypeErrorKind::MalformedVariant {
                         enum_name: name.clone(),
                         offending: format!("{:?}", k),
                         reason: "defenum variant must be a keyword starting with ':'".to_string(),
                         remedies: vec![],
                     },
-                })?.to_string();
+                ))?.to_string();
 
                 // One-token look-ahead: peek at the NEXT item.
                 let next = variant_args.get(vi + 1);
@@ -3317,9 +3317,9 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
             WatAST::Symbol(ident, _) => {
                 // Bare symbol where a keyword is expected: offer "write it as :<name>" remedy.
                 let needle = format!(":{}", ident.as_str());
-                return Err(TypeError {
-                    span: item.span().clone(),
-                    kind: TypeErrorKind::MalformedVariant {
+                return Err(TypeError::new(
+                    item.span().clone(),
+                    TypeErrorKind::MalformedVariant {
                         enum_name: name.clone(),
                         offending: ident.as_str().to_owned(),
                         reason: format!(
@@ -3328,30 +3328,30 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                         ),
                         remedies: vec![],
                     },
-                });
+                ));
             }
             other => {
-                return Err(TypeError {
-                    span: other.span().clone(),
-                    kind: TypeErrorKind::MalformedVariant {
+                return Err(TypeError::new(
+                    other.span().clone(),
+                    TypeErrorKind::MalformedVariant {
                         enum_name: name.clone(),
                         offending: format!("{:?}", other),
                         reason: "defenum variant must be a keyword (unit) or keyword followed by Vector (tagged)".to_string(),
                         remedies: vec![],
                     },
-                });
+                ));
             }
         }
     }
 
     if variants.is_empty() {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span,
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: "defenum must have at least one variant".into(),
             },
-        });
+        ));
     }
 
     Ok(TypeDef::Enum(EnumDef {
@@ -3364,16 +3364,16 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
 
 fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     if args.len() != 2 {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span,
+            TypeErrorKind::MalformedDecl {
                 head: "newtype".into(),
                 reason: format!(
                     "expected (:wat::core::newtype :name :InnerType); got {} args",
                     args.len()
                 ),
             },
-        });
+        ));
     }
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
@@ -3385,16 +3385,16 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
             parse_type_node(&inner_kw)?
         }
         other => {
-            return Err(TypeError {
-                span: decl_span,
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span,
+                TypeErrorKind::MalformedDecl {
                     head: "newtype".into(),
                     reason: format!(
                         "inner type must be a keyword or type form; got {}",
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
     Ok(TypeDef::Newtype(NewtypeDef {
@@ -3406,16 +3406,16 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
 
 fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     if args.len() != 2 {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span,
+            TypeErrorKind::MalformedDecl {
                 head: "typealias".into(),
                 reason: format!(
                     "expected (:wat::core::typealias :name :Expr); got {} args",
                     args.len()
                 ),
             },
-        });
+        ));
     }
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
@@ -3427,16 +3427,16 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
             parse_type_node(&expr_kw)?
         }
         other => {
-            return Err(TypeError {
-                span: decl_span,
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span,
+                TypeErrorKind::MalformedDecl {
                     head: "typealias".into(),
                     reason: format!(
                         "alias expression must be a keyword or type form; got {}",
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
     Ok(TypeDef::Alias(AliasDef {
@@ -3457,16 +3457,16 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
 /// shape validation occurs at registration time (in `validate_union_members`).
 fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     if args.len() != 2 {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span,
+            TypeErrorKind::MalformedDecl {
                 head: "typeunion".into(),
                 reason: format!(
                     "expected (:wat::core::typeunion :Name [:T1 :T2 ...]); got {} args",
                     args.len()
                 ),
             },
-        });
+        ));
     }
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
@@ -3475,16 +3475,16 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     let member_items = match members_ast {
         WatAST::Vector(items, _) => items,
         other => {
-            return Err(TypeError {
-                span: decl_span,
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span,
+                TypeErrorKind::MalformedDecl {
                     head: "typeunion".into(),
                     reason: format!(
                         "member list must be a Vector `[...]`; got {}",
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
     let mut members = Vec::with_capacity(member_items.len());
@@ -3496,16 +3496,16 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                 members.push(parse_type_node(&item)?);
             }
             other => {
-                return Err(TypeError {
-                    span: item_span,
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    item_span,
+                    TypeErrorKind::MalformedDecl {
                         head: "typeunion".into(),
                         reason: format!(
                             "member must be a type keyword or type form; got {}",
                             other.variant_name()
                         ),
                     },
-                })
+                ))
             }
         }
     }
@@ -3559,16 +3559,16 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result
 /// "structtype", "recordtype") — preserves existing error text for each alias.
 fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: &TypeEnv) -> Result<TypeDef, TypeError> {
     if args.len() < 3 || args.len() > 4 {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span,
+            TypeErrorKind::MalformedDecl {
                 head: head.into(),
                 reason: format!(
                     "expected (:{} :Name :Parent [fields]) or with optional metadata-map; got {} args",
                     head, args.len()
                 ),
             },
-        });
+        ));
     }
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
@@ -3579,31 +3579,31 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
     let parent = match &parent_kw {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
-            return Err(TypeError {
-                span: decl_span,
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span,
+                TypeErrorKind::MalformedDecl {
                     head: head.into(),
                     reason: format!(
                         "parent must be a type keyword; got {}",
                         other.variant_name()
                     ),
                 },
-            });
+            ));
         }
     };
 
     // Arc 293 inheritance annihilation — reject any parent that is not a nature-root.
     // Reuse-of-shape is surface-splice (`[~@:Surface own <- :T]`), not nominal inheritance.
-    let nature = Nature::from_root_keyword(&parent).ok_or_else(|| TypeError {
-        span: decl_span.clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let nature = Nature::from_root_keyword(&parent).ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
             head: head.into(),
             reason: format!(
                 "parent '{}' is not a nature-root; inheritance is unsupported — reuse a shape via surface-splice `[~@:Surface \u{2026}]`",
                 parent
             ),
         },
-    })?;
+    ))?;
 
     // Discriminate: 1 remaining arg (just fields) vs 2 remaining (metadata + fields).
     let (metadata_node_opt, fields_node) = if iter.len() == 1 {
@@ -3662,26 +3662,26 @@ fn parse_declared_name(
     let raw = match form {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
-            return Err(TypeError {
-                span: decl_span.clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                decl_span.clone(),
+                TypeErrorKind::MalformedDecl {
                     head: head.into(),
                     reason: format!(
                         "name must be a keyword; got {}",
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
     // Strip the colon but keep the rest as the key for TypeEnv.
-    let stripped = raw.strip_prefix(':').ok_or_else(|| TypeError {
-        span: name_span.clone(),
-        kind: TypeErrorKind::MalformedName {
+    let stripped = raw.strip_prefix(':').ok_or_else(|| TypeError::new(
+        name_span.clone(),
+        TypeErrorKind::MalformedName {
             raw: raw.clone(),
             reason: "keyword must begin with ':'".into(),
         },
-    })?;
+    ))?;
     // Split at first '<' if present.
     match stripped.find('<') {
         None => Ok((raw, Vec::new())),
@@ -3689,13 +3689,13 @@ fn parse_declared_name(
             let base = &stripped[..lt_index];
             let params_part = &stripped[lt_index..];
             if !params_part.ends_with('>') {
-                return Err(TypeError {
-                    span: name_span,
-                    kind: TypeErrorKind::MalformedName {
+                return Err(TypeError::new(
+                    name_span,
+                    TypeErrorKind::MalformedName {
                         raw: raw.clone(),
                         reason: "parametric name must close with '>'".into(),
                     },
-                });
+                ));
             }
             let inner = &params_part[1..params_part.len() - 1];
             let params: Vec<String> = inner
@@ -3705,13 +3705,13 @@ fn parse_declared_name(
                 .collect();
             for p in &params {
                 if p.contains(char::is_whitespace) || p.contains('<') || p.contains(':') {
-                    return Err(TypeError {
-                        span: name_span,
-                        kind: TypeErrorKind::MalformedName {
+                    return Err(TypeError::new(
+                        name_span,
+                        TypeErrorKind::MalformedName {
                             raw: raw.clone(),
                             reason: format!("type parameter {:?} has invalid chars", p),
                         },
-                    });
+                    ));
                 }
             }
             // Key the registry by the bare name (no <T> suffix), but
@@ -3741,13 +3741,13 @@ pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
 /// keyword span (the type-registration call chain in this file) use
 /// this entry point so emitted errors prefix `<file>:<line>:<col>:`.
 pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError> {
-    let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError {
-        span: span.clone(),
-        kind: TypeErrorKind::MalformedTypeExpr {
+    let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::new(
+        span.clone(),
+        TypeErrorKind::MalformedTypeExpr {
             raw: kw.into(),
             reason: "type expression keyword must begin with ':'".into(),
         },
-    })?;
+    ))?;
     let expr = parse_type_inner(stripped, kw, true, span)?;
     reject_any(&expr, kw, span)?;
     Ok(expr)
@@ -3790,16 +3790,16 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
         WatAST::List(_, _) => parse_type_form(node),
         // Arc 251.4c — a `[T… :-> R]` bracket is a function type (core.typed parity).
         WatAST::Vector(items, span) => parse_fn_type_bracket(items, span),
-        other => Err(TypeError {
-            span: other.span().clone(),
-            kind: TypeErrorKind::MalformedTypeExpr {
+        other => Err(TypeError::new(
+            other.span().clone(),
+            TypeErrorKind::MalformedTypeExpr {
                 raw: format!("{:?}", other),
                 reason: format!(
                     "type annotation must be a keyword, namespaced symbol, parametric form `(Ctor arg…)`, or function-type bracket `[arg… :-> ret]`; got {}",
                     other.variant_name()
                 ),
             },
-        }),
+        )),
     }
 }
 
@@ -3817,27 +3817,27 @@ fn parse_fn_type_bracket(items: &[WatAST], span: &Span) -> Result<TypeExpr, Type
     let arrow_pos = match arrow_pos {
         Some(p) => p,
         None => {
-            return Err(TypeError {
-                span: span.clone(),
-                kind: TypeErrorKind::MalformedTypeExpr {
+            return Err(TypeError::new(
+                span.clone(),
+                TypeErrorKind::MalformedTypeExpr {
                     raw: "[…]".into(),
                     reason: "function-type bracket needs a `:->` arrow: `[arg… :-> ret]`".into(),
                 },
-            })
+            ))
         }
     };
     let ret_nodes = &items[arrow_pos + 1..];
     if ret_nodes.len() != 1 {
-        return Err(TypeError {
-            span: span.clone(),
-            kind: TypeErrorKind::MalformedTypeExpr {
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
                 raw: "[…]".into(),
                 reason: format!(
                     "function-type bracket needs exactly one return type after `:->`; got {}",
                     ret_nodes.len()
                 ),
             },
-        });
+        ));
     }
     let args = items[..arrow_pos]
         .iter()
@@ -3869,23 +3869,23 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     let (items, span) = match node {
         WatAST::List(items, span) => (items, span),
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedTypeExpr {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedTypeExpr {
                     raw: format!("{:?}", other),
                     reason: "parse_type_form expects a List node".into(),
                 },
-            })
+            ))
         }
     };
     if items.is_empty() {
-        return Err(TypeError {
-            span: span.clone(),
-            kind: TypeErrorKind::MalformedTypeExpr {
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
                 raw: "()".into(),
                 reason: "parametric type form must not be empty; expected `(Ctor arg…)`".into(),
             },
-        });
+        ));
     }
     // Extract the constructor head as a bare path string (no leading colon).
     // Mirrors the <> arm in parse_type_inner which stores `raw_head = s[..lt_index]`
@@ -3910,13 +3910,13 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             kw.strip_prefix(':').unwrap_or(kw).to_string()
         }
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedTypeExpr {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedTypeExpr {
                     raw: format!("{:?}", other),
                     reason: "parametric type form head must be a symbol or keyword".into(),
                 },
-            })
+            ))
         }
     };
     // Arc 251.2 alias: `wat::type::` → `wat::core::` (dual-read, mirrors parse_type_inner ~line 2374).
@@ -3973,18 +3973,18 @@ fn reject_any(expr: &TypeExpr, raw: &str, span: &Span) -> Result<(), TypeError> 
     match expr {
         TypeExpr::Path(p) => {
             if p == ":Any" {
-                return Err(TypeError {
-                    span: span.clone(),
-                    kind: TypeErrorKind::AnyBanned { raw: raw.into() },
-                });
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::AnyBanned { raw: raw.into() },
+                ));
             }
         }
         TypeExpr::Parametric { head, args } => {
             if head == "Any" {
-                return Err(TypeError {
-                    span: span.clone(),
-                    kind: TypeErrorKind::AnyBanned { raw: raw.into() },
-                });
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::AnyBanned { raw: raw.into() },
+                ));
             }
             for a in args {
                 reject_any(a, raw, span)?;
@@ -4024,25 +4024,25 @@ fn parse_type_inner(
     span: &Span,
 ) -> Result<TypeExpr, TypeError> {
     if s.starts_with(':') {
-        return Err(TypeError {
-            span: span.clone(),
-            kind: TypeErrorKind::InnerColonInCompoundArg {
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::InnerColonInCompoundArg {
                 raw: original.into(),
                 offending: s.to_string(),
             },
-        });
+        ));
     }
     // Tuple literal — `(T,U,...)`. Must appear at the start; inner
     // types respect top-level comma splitting.
     if let Some(rest) = s.strip_prefix('(') {
         if !rest.ends_with(')') {
-            return Err(TypeError {
-                span: span.clone(),
-                kind: TypeErrorKind::MalformedTypeExpr {
+            return Err(TypeError::new(
+                span.clone(),
+                TypeErrorKind::MalformedTypeExpr {
                     raw: original.into(),
                     reason: "tuple-literal type must close with ')'".into(),
                 },
-            });
+            ));
         }
         let inside = &rest[..rest.len() - 1];
         return parse_tuple_body(inside, original, canonicalize, span);
@@ -4068,13 +4068,13 @@ fn parse_type_inner(
         let raw_head = s[..lt_index].to_string();
         let rest = &s[lt_index..];
         if !rest.ends_with('>') {
-            return Err(TypeError {
-                span: span.clone(),
-                kind: TypeErrorKind::MalformedTypeExpr {
+            return Err(TypeError::new(
+                span.clone(),
+                TypeErrorKind::MalformedTypeExpr {
                     raw: original.into(),
                     reason: "parametric type must close with '>'".into(),
                 },
-            });
+            ));
         }
         let inside = &rest[1..rest.len() - 1];
         let args = parse_type_list(inside, original, canonicalize, span)?;
@@ -4175,24 +4175,24 @@ fn parse_fn_body(
     span: &Span,
 ) -> Result<TypeExpr, TypeError> {
     // body is `T,U)->R` — find the matching `)` at depth 0.
-    let close = find_matching_close(body, '(', ')').ok_or_else(|| TypeError {
-        span: span.clone(),
-        kind: TypeErrorKind::MalformedTypeExpr {
+    let close = find_matching_close(body, '(', ')').ok_or_else(|| TypeError::new(
+        span.clone(),
+        TypeErrorKind::MalformedTypeExpr {
             raw: original.into(),
             reason: "fn type missing matching ')'".into(),
         },
-    })?;
+    ))?;
     let args_part = &body[..close];
     let tail = &body[close + 1..];
     let ret_part = tail
         .strip_prefix("->")
-        .ok_or_else(|| TypeError {
-            span: span.clone(),
-            kind: TypeErrorKind::MalformedTypeExpr {
+        .ok_or_else(|| TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
                 raw: original.into(),
                 reason: "fn type missing '->' before return".into(),
             },
-        })?;
+        ))?;
     let args = if args_part.trim().is_empty() {
         Vec::new()
     } else {
@@ -4459,10 +4459,10 @@ fn check_alias_reaches(
     match expr {
         TypeExpr::Path(name) => {
             if name == target_name {
-                return Err(TypeError {
-                    span: span.clone(),
-                    kind: TypeErrorKind::CyclicAlias { name: target_name.to_string() },
-                });
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::CyclicAlias { name: target_name.to_string() },
+                ));
             }
             if let Some(TypeDef::Alias(alias)) = env.get(name) {
                 if visiting.insert(name.clone()) {
@@ -4474,10 +4474,10 @@ fn check_alias_reaches(
         TypeExpr::Parametric { head, args } => {
             let qualified = format!(":{}", head);
             if qualified == target_name {
-                return Err(TypeError {
-                    span: span.clone(),
-                    kind: TypeErrorKind::CyclicAlias { name: target_name.to_string() },
-                });
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::CyclicAlias { name: target_name.to_string() },
+                ));
             }
             if let Some(TypeDef::Alias(alias)) = env.get(&qualified) {
                 if visiting.insert(qualified.clone()) {
@@ -4518,39 +4518,39 @@ fn check_alias_reaches(
 /// (`SingleMemberUnion` — recommend typealias).
 fn validate_union_members(name: &str, members: &[TypeExpr], span: &Span) -> Result<(), TypeError> {
     if members.is_empty() {
-        return Err(TypeError {
-            span: span.clone(),
-            kind: TypeErrorKind::EmptyUnion { name: name.to_string() },
-        });
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::EmptyUnion { name: name.to_string() },
+        ));
     }
     if members.len() == 1 {
-        return Err(TypeError {
-            span: span.clone(),
-            kind: TypeErrorKind::SingleMemberUnion { name: name.to_string() },
-        });
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::SingleMemberUnion { name: name.to_string() },
+        ));
     }
     for member in members {
         match member {
             TypeExpr::Path(_) | TypeExpr::Parametric { .. } | TypeExpr::Tuple(_) => {}
             TypeExpr::Fn { .. } => {
-                return Err(TypeError {
-                    span: span.clone(),
-                    kind: TypeErrorKind::InvalidUnionMember {
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::InvalidUnionMember {
                         union_name: name.to_string(),
                         member_form: format!("{:?}", member),
                         reason: "Fn types are not valid union members (weird dispatch semantics; revisit if a use case surfaces)".to_string(),
                     },
-                });
+                ));
             }
             TypeExpr::Var(_) => {
-                return Err(TypeError {
-                    span: span.clone(),
-                    kind: TypeErrorKind::InvalidUnionMember {
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::InvalidUnionMember {
                         union_name: name.to_string(),
                         member_form: format!("{:?}", member),
                         reason: "Var (synthetic unification variable) is not valid in user-written declarations".to_string(),
                     },
-                });
+                ));
             }
         }
     }
@@ -4589,10 +4589,10 @@ fn check_union_member_reaches(
     // leak names across recursive calls. New `?`-paths must preserve this pairing.
     if let TypeExpr::Path(name) = expr {
         if name == target_name {
-            return Err(TypeError {
-                span: span.clone(),
-                kind: TypeErrorKind::CyclicUnion { name: target_name.to_string() },
-            });
+            return Err(TypeError::new(
+                span.clone(),
+                TypeErrorKind::CyclicUnion { name: target_name.to_string() },
+            ));
         }
         // Walk through registered typeunions recursively.
         if let Some(TypeDef::Union(union)) = env.get(name) {
@@ -4900,7 +4900,7 @@ mod tests {
     fn empty_enum_rejected() {
         // Stone 241.9 — migrated to defenum form. Empty defenum (no variants) is rejected.
         let err = collect(r#"(:wat::core::defenum :my::Empty)"#).unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::MalformedDecl { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::MalformedDecl { .. }));
     }
 
     // ─── Newtype ────────────────────────────────────────────────────────
@@ -5005,26 +5005,26 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::DuplicateType { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::DuplicateType { .. }));
     }
 
     #[test]
     fn reserved_prefix_rejected() {
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let err = collect(r#"(:wat::core::defstruct :wat::core::MyStruct [x <- :f64])"#).unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::ReservedPrefix { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
 
         let err = collect(r#"(:wat::core::defstruct :wat::holon::Bad [x <- :f64])"#).unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::ReservedPrefix { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
 
         let err = collect(r#"(:wat::core::defstruct :wat::std::Bad [x <- :f64])"#).unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::ReservedPrefix { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
     }
 
     #[test]
     fn malformed_newtype_arity_rejected() {
         let err = collect(r#"(:wat::core::newtype :my::T)"#).unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::MalformedDecl { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::MalformedDecl { .. }));
     }
 
     #[test]
@@ -5033,7 +5033,7 @@ mod tests {
         // MalformedDecl from parse_argspec_triples (name-not-symbol / missing-arrow variants).
         // Incomplete triple [x] fails with MalformedDecl.
         let err = collect(r#"(:wat::core::defstruct :my::T [x])"#).unwrap_err();
-        assert!(matches!(err, TypeError { kind: TypeErrorKind::MalformedDecl { .. }, .. }));
+        assert!(matches!(err.kind(), TypeErrorKind::MalformedDecl { .. }));
     }
 
     #[test]
@@ -5338,7 +5338,7 @@ mod tests {
             rendered
         );
         assert!(
-            matches!(err, TypeError { kind: TypeErrorKind::MalformedDecl { .. }, .. }),
+            matches!(err.kind(), TypeErrorKind::MalformedDecl { .. }),
             "expected MalformedDecl, got: {:?}",
             err
         );
@@ -5389,7 +5389,7 @@ mod tests {
                                -> :t::Bad::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a record-typed op-Response must be a located ruling-A error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
                 assert_eq!(enum_name, ":t::Bad::FooResponse");
                 assert_eq!(offending, "RequestTooLarge");
@@ -5410,7 +5410,7 @@ mod tests {
                                -> :t::Bad2::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("an enum Response lacking RequestTooLarge must be a located ruling-A error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
                 assert_eq!(enum_name, ":t::Bad2::FooResponse");
                 assert_eq!(offending, "RequestTooLarge");
@@ -5432,7 +5432,7 @@ mod tests {
                                -> :t::Bad3::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a mis-shaped RequestTooLarge (non-i64 fields) must be a located error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
                 assert_eq!(enum_name, ":t::Bad3::FooResponse");
                 assert_eq!(offending, "RequestTooLarge");
@@ -5458,7 +5458,7 @@ mod tests {
                                -> :t::Bad4::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("an enum Response lacking RequestMalformed must be a located error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
                 assert_eq!(enum_name, ":t::Bad4::FooResponse");
                 assert_eq!(offending, "RequestMalformed");
@@ -5485,7 +5485,7 @@ mod tests {
                                -> :t::Bad5::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a mis-shaped RequestMalformed (String path) must be a located error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
                 assert_eq!(enum_name, ":t::Bad5::FooResponse");
                 assert_eq!(offending, "RequestMalformed");

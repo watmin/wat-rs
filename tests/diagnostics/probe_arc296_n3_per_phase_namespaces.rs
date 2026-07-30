@@ -41,10 +41,10 @@ fn error_families_tag_under_their_phase_namespace() {
     );
 
     // TypeError → #wat.type/
-    let ty = TypeError {
-        span: make_span(),
-        kind: TypeErrorKind::DuplicateType { name: ":user::T".into() },
-    };
+    let ty = TypeError::new(
+        make_span(),
+        TypeErrorKind::DuplicateType { name: ":user::T".into() },
+    );
     let s = wat_edn::write(&ty.to_edn());
     wat::assert_edn_eq!(
         s,
@@ -63,10 +63,10 @@ fn error_families_tag_under_their_phase_namespace() {
 
     // LoadError → #wat.load/, AND the embedded LoadFetchError STAYS #wat.kernel/
     // (shared value types are cross-phase infra, not a phase error).
-    let load = LoadError {
-        span: make_span(),
-        kind: LoadErrorKind::Fetch(LoadFetchError::NotFound("/no/such.wat".into())),
-    };
+    let load = LoadError::new(
+        make_span(),
+        LoadErrorKind::Fetch(LoadFetchError::NotFound("/no/such.wat".into())),
+    );
     let s = wat_edn::write(&load.to_edn());
     // LoadError under #wat.load/; embedded LoadFetchError STAYS #wat.kernel/NotFound (shared infra).
     wat::assert_edn_eq!(

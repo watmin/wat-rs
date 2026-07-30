@@ -95,7 +95,7 @@ impl From<ArgSpecError> for crate::check::CheckError {
 impl From<ArgSpecError> for TypeError {
     fn from(e: ArgSpecError) -> Self {
         let reason = e.kind.reason();
-        TypeError { span: e.span, kind: TypeErrorKind::MalformedDecl { head: e.head, reason } }
+        TypeError::new(e.span, TypeErrorKind::MalformedDecl { head: e.head, reason })
     }
 }
 

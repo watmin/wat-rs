@@ -199,7 +199,7 @@ fn parse_keyword_type(
                 ArgSpecError {
                     span: ast.span().clone(),
                     head: head.to_string(),
-                    kind: ArgSpecErrorKind::MalformedTypeKeyword { inner: Box::new(inner.kind) },
+                    kind: ArgSpecErrorKind::MalformedTypeKeyword { inner: Box::new(inner.into_kind()) },
                 }
             })
         }

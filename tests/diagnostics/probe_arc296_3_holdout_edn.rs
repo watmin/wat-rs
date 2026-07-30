@@ -187,10 +187,10 @@ fn probe_5_every_startup_variant_is_structured_not_stringly() {
     // Load — Pattern A.
     assert_structured(
         "Load",
-        StartupError::Load(LoadError {
-            span: span(),
-            kind: LoadErrorKind::DuplicateLoad { path: "a.wat".into() },
-        }),
+        StartupError::Load(LoadError::new(
+            span(),
+            LoadErrorKind::DuplicateLoad { path: "a.wat".into() },
+        )),
     );
 
     // Macro — full typed cause chain.
@@ -205,10 +205,10 @@ fn probe_5_every_startup_variant_is_structured_not_stringly() {
     // Type — Pattern A.
     assert_structured(
         "Type",
-        StartupError::Type(TypeError {
-            span: span(),
-            kind: TypeErrorKind::DuplicateType { name: ":user::T".into() },
-        }),
+        StartupError::Type(TypeError::new(
+            span(),
+            TypeErrorKind::DuplicateType { name: ":user::T".into() },
+        )),
     );
 
     // Resolve — vector of structured references.

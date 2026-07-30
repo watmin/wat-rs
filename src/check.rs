@@ -2937,9 +2937,9 @@ fn infer_list(
                 let ascribed_ty = match crate::types::parse_type_node(&args[1]) {
                     Ok(t) => t,
                     Err(te) => {
-                        local_errors.push(CheckError { span: te.span, kind: CheckErrorKind::MalformedForm {
+                        local_errors.push(CheckError { span: te.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::ann-form".into(),
-                            reason: format!("type slot failed to parse: {}", te.kind),
+                            reason: format!("type slot failed to parse: {}", te.kind()),
                             remedies: vec![],
                         } });
                         return CheckResult::errs(local_errors);
@@ -12390,14 +12390,14 @@ pub(crate) fn validate_aggregate_containment(
             TypeDef::Aggregate(a) if a.nature.is_pure() => {
                 for (fname, fty) in &a.fields {
                     if !is_pure_type(fty, env) {
-                        return Err(TypeError {
-                            span: crate::rust_caller_span!(),
-                            kind: TypeErrorKind::ImpureFieldInPureAggregate {
+                        return Err(TypeError::new(
+                            crate::rust_caller_span!(),
+                            TypeErrorKind::ImpureFieldInPureAggregate {
                                 aggregate: name.clone(),
                                 field: fname.clone(),
                                 field_ty: format_type(fty),
                             },
-                        });
+                        ));
                     }
                 }
             }
@@ -12408,15 +12408,15 @@ pub(crate) fn validate_aggregate_containment(
                     if let EnumVariant::Tagged { name: vname, fields } = variant {
                         for (fname, fty) in fields {
                             if !is_pure_type(fty, env) {
-                                return Err(TypeError {
-                                    span: crate::rust_caller_span!(),
-                                    kind: TypeErrorKind::ImpureVariantFieldInPureEnum {
+                                return Err(TypeError::new(
+                                    crate::rust_caller_span!(),
+                                    TypeErrorKind::ImpureVariantFieldInPureEnum {
                                         enum_name: name.clone(),
                                         variant: vname.clone(),
                                         field: fname.clone(),
                                         field_ty: format_type(fty),
                                     },
-                                });
+                                ));
                             }
                         }
                     }
@@ -19593,25 +19593,25 @@ mod tests {
     fn any_as_param_type_rejected_at_parse() {
         // Parsing `:Any` in any position is an error.
         let err = parse_type_expr(":Any").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
+        assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 
     #[test]
     fn any_as_parametric_head_rejected_at_parse() {
         let err = parse_type_expr(":Any<i64>").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
+        assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 
     #[test]
     fn any_as_nested_arg_rejected_at_parse() {
         let err = parse_type_expr(":Vec<Any>").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
+        assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 
     #[test]
     fn any_in_fn_rejected_at_parse() {
         let err = parse_type_expr(":fn(Any)->i64").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
+        assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 
 

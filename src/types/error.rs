@@ -13,8 +13,33 @@ use std::fmt;
 /// struct level; variant data in `TypeErrorKind`. Every constructor demands
 /// the span — silent omission is uncompilable.
 pub struct TypeError {
-    pub span: Span,
-    pub kind: TypeErrorKind,
+    span: Span,
+    /// Boxed (arc 109 stone C, mirroring `RuntimeError`'s B2). Inline, this
+    /// field made `TypeError` 152 bytes; boxed, it is 56 (48 span + 8
+    /// pointer), so its width no longer tracks `TypeErrorKind`'s widest
+    /// variant. Private — reached only through `new` / `kind` / `into_kind`
+    /// — so the box is invisible to callers, the same contract as
+    /// `RuntimeError` (`src/value/signal.rs`).
+    kind: Box<TypeErrorKind>,
+}
+
+impl TypeError {
+    /// The ONE door for construction.
+    pub fn new(span: Span, kind: TypeErrorKind) -> Self {
+        Self { span, kind: Box::new(kind) }
+    }
+    /// The ONE door for reading the kind.
+    pub fn kind(&self) -> &TypeErrorKind {
+        &self.kind
+    }
+    /// The ONE door for taking the kind by value.
+    pub fn into_kind(self) -> TypeErrorKind {
+        *self.kind
+    }
+    /// Span stays inline — it is not what this stone boxes.
+    pub fn span(&self) -> &Span {
+        &self.span
+    }
 }
 
 /// Variant data for [`TypeError`]. Spans live in the outer struct; variants

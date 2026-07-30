@@ -195,16 +195,16 @@ fn split_method_name_type_params(name: &str, sig_span: &Span) -> Result<(String,
         None => Ok((name.to_owned(), Vec::new())),
         Some(lt_index) => {
             if !name.ends_with('>') {
-                return Err(TypeError {
-                    span: sig_span.clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    sig_span.clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
                         reason: format!(
                             "method member name {:?} opens '<' but does not close '>'",
                             name
                         ),
                     },
-                });
+                ));
             }
             let bare = name[..lt_index].to_string();
             let inside = &name[lt_index + 1..name.len() - 1];
@@ -243,9 +243,9 @@ fn parse_method_member_sig(
     // sig_items[2] = -> (Symbol)
     // sig_items[3] = :RetType (Keyword)
     if sig_items.len() < 4 {
-        return Err(TypeError {
-            span: sig_span.clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            sig_span.clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "method member sig must have at least 4 elements \
@@ -253,7 +253,7 @@ fn parse_method_member_sig(
                     sig_items.len()
                 ),
             },
-        });
+        ));
     }
 
     // Item 0: method name (bare Symbol, possibly with type params e.g. `make<T>`).
@@ -262,16 +262,16 @@ fn parse_method_member_sig(
     let (method_name, type_params) = match &sig_items[0] {
         WatAST::Symbol(s, _) => split_method_name_type_params(s.as_str(), sig_span)?,
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         "method member first element must be a Symbol name; got {}",
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
 
@@ -290,9 +290,9 @@ fn parse_method_member_sig(
                 Ok(spec) => spec,
                 Err(_) => {
                     // Arc 293 K0b — bare untyped binders are no longer accepted.
-                    return Err(TypeError {
-                        span: vec_span.clone(),
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        vec_span.clone(),
+                        TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: format!(
                                 "all binders in a surface method member must be typed (`name <- :Type`); \
@@ -302,21 +302,21 @@ fn parse_method_member_sig(
                                 method_name
                             ),
                         },
-                    });
+                    ));
                 }
             }
         }
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         "method member second element must be an argspec Vector `[...]`; got {}",
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
 
@@ -324,9 +324,9 @@ fn parse_method_member_sig(
     match &sig_items[2] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         "expected `->` symbol after argspec in method member `{}`; got {}",
@@ -334,28 +334,28 @@ fn parse_method_member_sig(
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     }
 
     // Item 3: `:RetType` keyword.
     let ret = match &sig_items[3] {
         WatAST::Keyword(k, _) => {
-            super::parse_type_expr(k).map_err(|e| TypeError {
-                span: sig_items[3].span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            super::parse_type_expr(k).map_err(|e| TypeError::new(
+                sig_items[3].span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         "bad return type in method member `{}`: {}",
                         method_name, e
                     ),
                 },
-            })?
+            ))?
         }
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         "method member return type must be a keyword after `->` in `{}`; got {}",
@@ -363,7 +363,7 @@ fn parse_method_member_sig(
                         other.variant_name()
                     ),
                 },
-            })
+            ))
         }
     };
 
@@ -390,9 +390,9 @@ fn parse_method_member_sig(
         let key = match &opts[i] {
             WatAST::Keyword(k, _) => k.as_str(),
             other => {
-                return Err(TypeError {
-                    span: other.span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    other.span().clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
                         reason: format!(
                             "method member `{}`: options after `-> :RetType` are `:keyword value` \
@@ -401,40 +401,40 @@ fn parse_method_member_sig(
                             other.variant_name()
                         ),
                     },
-                })
+                ))
             }
         };
         // Option VALUE — must be present (no dangling key at the tail).
-        let val = opts.get(i + 1).ok_or_else(|| TypeError {
-            span: opts[i].span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        let val = opts.get(i + 1).ok_or_else(|| TypeError::new(
+            opts[i].span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "method member `{}`: option `{}` has no value — options are `:keyword value` pairs",
                     method_name, key
                 ),
             },
-        })?;
+        ))?;
         match key {
             ":max-request-bytes" => {
                 if max_request_bytes.is_some() {
-                    return Err(TypeError {
-                        span: opts[i].span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        opts[i].span().clone(),
+                        TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: format!(
                                 "method member `{}`: duplicate option `:max-request-bytes`",
                                 method_name
                             ),
                         },
-                    });
+                    ));
                 }
                 let n = match val {
                     WatAST::IntLit(n, _) => *n,
                     other => {
-                        return Err(TypeError {
-                            span: other.span().clone(),
-                            kind: TypeErrorKind::MalformedDecl {
+                        return Err(TypeError::new(
+                            other.span().clone(),
+                            TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
                                     "method member `{}`: `:max-request-bytes` must be a positive \
@@ -443,27 +443,27 @@ fn parse_method_member_sig(
                                     other.variant_name()
                                 ),
                             },
-                        })
+                        ))
                     }
                 };
                 if n <= 0 {
-                    return Err(TypeError {
-                        span: val.span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        val.span().clone(),
+                        TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: format!(
                                 "method member `{}`: `:max-request-bytes` must be POSITIVE; got {}",
                                 method_name, n
                             ),
                         },
-                    });
+                    ));
                 }
                 max_request_bytes = Some(n);
             }
             unknown => {
-                return Err(TypeError {
-                    span: opts[i].span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    opts[i].span().clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
                         reason: format!(
                             "method member `{}`: unrecognized option `{}` — recognized options: \
@@ -471,7 +471,7 @@ fn parse_method_member_sig(
                             method_name, unknown
                         ),
                     },
-                })
+                ))
             }
         }
         i += 2;
@@ -520,78 +520,78 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     let mut iter = args.into_iter().peekable();
 
     // Slot 0 — name keyword.
-    let name_kw = iter.next().ok_or_else(|| TypeError {
-        span: decl_span.clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let name_kw = iter.next().ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: "expected :Name after (:wat::core::defsurface ...)".into(),
         },
-    })?;
+    ))?;
     let (name, type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
     // `:nature :<root>` — MANDATORY.
-    let next = iter.next().ok_or_else(|| TypeError {
-        span: decl_span.clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let next = iter.next().ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: "`:nature` is mandatory — write \
                      (:wat::core::defsurface :Name :nature :<nature-root> :features [members])"
                 .into(),
         },
-    })?;
+    ))?;
     match &next {
         WatAST::Keyword(k, _) if k == ":nature" => {}
         WatAST::Keyword(k, _) if k == ":features" => {
-            return Err(TypeError {
-                span: next.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                next.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: "`:nature` is mandatory — found `:features` where `:nature` was expected; \
                              write (:wat::core::defsurface :Name :nature :<nature-root> :features [members])"
                         .into(),
                 },
-            });
+            ));
         }
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: "expected `:nature :<kw>` after the surface name".into(),
                 },
-            });
+            ));
         }
     }
     // nature value keyword.
-    let val_node = iter.next().ok_or_else(|| TypeError {
-        span: decl_span.clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let val_node = iter.next().ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: ":nature needs a value keyword".into(),
         },
-    })?;
+    ))?;
     let nature_val = match &val_node {
         WatAST::Keyword(v, _) => match Nature::from_root_keyword(v.as_str()) {
             Some(h) => h,
-            None => return Err(TypeError {
-                span: val_node.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            None => return Err(TypeError::new(
+                val_node.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer); got {}",
                         v
                     ),
                 },
-            }),
+            )),
         },
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer)".into(),
                 },
-            });
+            ));
         }
     };
 
@@ -606,9 +606,9 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         // protocol a `:satisfies` service ships across a process fork. On any aggregate nature
         // (Struct/Record/HolonRecord) there is no protocol to own → FORBIDDEN (located error).
         if nature_val != Nature::Peer {
-            return Err(TypeError {
-                span: msg_kw.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                msg_kw.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         ":messages is permitted ONLY on a :nature :wat::kernel::Peer surface \
@@ -618,25 +618,25 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                         nature_val.root_keyword()
                     ),
                 },
-            });
+            ));
         }
-        let msg_vec = iter.next().ok_or_else(|| TypeError {
-            span: decl_span.clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        let msg_vec = iter.next().ok_or_else(|| TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: ":messages needs a `[ <defrecord/defenum forms> ]` vector".into(),
             },
-        })?;
+        ))?;
         let msg_items = match msg_vec {
             WatAST::Vector(items, _) => items,
             other => {
-                return Err(TypeError {
-                    span: other.span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    other.span().clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
                         reason: ":messages value must be a Vector `[ (defrecord …) (defenum …) … ]`".into(),
                     },
-                });
+                ));
             }
         };
         for m in &msg_items {
@@ -668,9 +668,9 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                     continue;
                 }
                 if !message_is_declared(&message_names, &r) {
-                    return Err(TypeError {
-                        span: msg_kw.span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        msg_kw.span().clone(),
+                        TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: format!(
                                 "surface {} :messages type references {} which is not declared in \
@@ -683,7 +683,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                                 name, r, r
                             ),
                         },
-                    });
+                    ));
                 }
             }
         }
@@ -696,9 +696,9 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     // to ship → the fork cannot carry a wire vocabulary → located compile error. (Non-peer natures
     // remain FORBIDDEN from `:messages`, enforced above; together: peer ⇔ has :messages.)
     if nature_val == Nature::Peer && messages_span.is_none() {
-        return Err(TypeError {
-            span: decl_span.clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "a :nature :Peer surface must declare :messages (its own request/response \
@@ -707,55 +707,55 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                     name
                 ),
             },
-        });
+        ));
     }
 
     // `:features [members]` — MANDATORY.
-    let features_kw = iter.next().ok_or_else(|| TypeError {
-        span: decl_span.clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let features_kw = iter.next().ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: "expected :features clause — \
                      (:wat::core::defsurface :Name :nature :<kw> [:messages [msgs]] :features [members])"
                 .into(),
         },
-    })?;
+    ))?;
     match &features_kw {
         WatAST::Keyword(k, _) if k == ":features" => {}
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: "expected :features clause after :nature (and optional :messages) — \
                              (:wat::core::defsurface :Name :nature :<kw> [:messages [msgs]] :features [members])"
                         .into(),
                 },
-            });
+            ));
         }
     }
 
     // The member-vector: the next arg after the :features keyword.
-    let members_node = iter.next().ok_or_else(|| TypeError {
-        span: decl_span.clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let members_node = iter.next().ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: ":features needs a `[members]` vector".into(),
         },
-    })?;
+    ))?;
 
     // Arc 293.4d-fix — STRUCTURAL invariant: the member vector is the LAST arg; nothing follows it.
     if let Some(extra) = iter.next() {
-        return Err(TypeError {
-            span: extra.span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            extra.span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: "unexpected form after the member vector — every surface member (a field \
                          `name <- :T` AND a method `(name [self] -> :ret)`) goes INSIDE the single \
                          `[...]` member vector; nothing follows it"
                     .into(),
             },
-        });
+        ));
     }
 
     let nature: Option<Nature> = Some(nature_val);
@@ -763,13 +763,13 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     let (member_items, member_span) = match members_node {
         WatAST::Vector(items, span) => (items, span),
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: "member-vector must be a Vector `[name <- :T ...]`".into(),
                 },
-            });
+            ));
         }
     };
 
@@ -825,9 +825,9 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                         continue;
                     }
                     if !message_is_declared(&message_names, &r) {
-                        return Err(TypeError {
-                            span: msgs_span.clone(),
-                            kind: TypeErrorKind::MalformedDecl {
+                        return Err(TypeError::new(
+                            msgs_span.clone(),
+                            TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
                                     "surface {} feature `{}` references protocol type {} which is not \
@@ -839,7 +839,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                                     name, mname, r, r
                                 ),
                             },
-                        });
+                        ));
                     }
                 }
             }
@@ -1045,7 +1045,7 @@ mod tests {
         )
         .expect_err("`:max-request-bytes -5` (non-positive) must be a LOCATED error, not silently accepted");
         // It is a MalformedDecl carrying the surface head (the surrounding surface-parse shape).
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedDecl { .. } => {}
             other => panic!("expected a MalformedDecl for a non-positive budget; got {other:?}"),
         }
@@ -1058,7 +1058,7 @@ mod tests {
                (write-logs [self <- :t::Bad2] -> :t::Resp :max-request-bytes :nope)])",
         )
         .expect_err("`:max-request-bytes :nope` (non-integer) must be a LOCATED error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedDecl { .. } => {}
             other => panic!("expected a MalformedDecl for a non-integer budget; got {other:?}"),
         }
@@ -1074,7 +1074,7 @@ mod tests {
                (write-logs [self <- :t::Bad3] -> :t::Resp :max-frobnicate 5)])",
         )
         .expect_err("an unrecognized option key must be a LOCATED error, not silently ignored");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedDecl { .. } => {}
             other => panic!("expected a MalformedDecl for an unknown option key; got {other:?}"),
         }
@@ -1089,7 +1089,7 @@ mod tests {
                (write-logs [self <- :t::Bad4] -> :t::Resp :max-request-bytes 300 :max-request-bytes 400)])",
         )
         .expect_err("a duplicate `:max-request-bytes` must be a LOCATED error");
-        match err.kind {
+        match err.kind() {
             TypeErrorKind::MalformedDecl { .. } => {}
             other => panic!("expected a MalformedDecl for a duplicate option; got {other:?}"),
         }
@@ -1147,7 +1147,7 @@ mod tests {
             "a feature referencing a message whose BASE is absent from :messages must STILL be a \
              located error — base-normalization closes a spelling gap, it does not relax the wall",
         );
-        match err.kind {
+        match err.kind() {
             // Byte-identical, not a `contains` probe: the reason is a deterministic scalar, so
             // the whole of it is asserted (a loose check would pass on a wall that named the
             // WRONG message — precisely the failure mode base-normalization could introduce).

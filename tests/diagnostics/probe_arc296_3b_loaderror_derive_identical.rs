@@ -50,7 +50,7 @@ fn write(err: &LoadError) -> String {
 }
 
 fn make(span: Span, kind: LoadErrorKind) -> LoadError {
-    LoadError { span, kind }
+    LoadError::new(span, kind)
 }
 
 // ─── 1. MalformedLoadForm ─────────────────────────────────────────────────────

@@ -44,7 +44,7 @@ fn write(err: &TypeError) -> String {
 }
 
 fn make(span: Span, kind: TypeErrorKind) -> TypeError {
-    TypeError { span, kind }
+    TypeError::new(span, kind)
 }
 
 // ─── 1. DuplicateType ────────────────────────────────────────────────────────

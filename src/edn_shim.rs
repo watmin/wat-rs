@@ -1285,7 +1285,7 @@ pub fn eval_keyword_to_type_form(
     };
     let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("type-keyword parse failed: {:?}", e.kind),
+            reason: format!("type-keyword parse failed: {:?}", e.kind()),
         }))?;
     let node = type_expr_to_clojure_form(&te).map_err(|reason| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm { head: OP.into(), reason }))?;
     Ok(crate::value::TrackedValue::new(

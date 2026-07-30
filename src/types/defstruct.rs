@@ -21,28 +21,28 @@ const HEAD: &str = ":wat::core::defstruct";
 /// if the count is in range; returns a `MalformedDecl` error otherwise.
 fn validate_defstruct_arity(args_len: usize, decl_span: &Span) -> Result<(), TypeError> {
     if args_len < 2 {
-        return Err(TypeError {
-            span: decl_span.clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "expected (:wat::core::defstruct :Name [fields]) or with optional metadata-map; got {} args after head",
                     args_len
                 ),
             },
-        });
+        ));
     }
     if args_len > 3 {
-        return Err(TypeError {
-            span: decl_span.clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "too many args: expected 2 (name + fields) or 3 (name + metadata + fields); got {}",
                     args_len
                 ),
             },
-        });
+        ));
     }
     Ok(())
 }
@@ -69,43 +69,43 @@ pub(super) fn parse_defstruct_metadata(
     // Arc 257 slice 1: use is_metadata_map() / metadata_map_pairs() to accept
     // both WatAST::Map and the legacy List-with-HashMap-head form.
     if !meta_node.is_metadata_map() {
-        return Err(TypeError {
-            span: meta_node.span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            meta_node.span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: "expected a metadata-map `{...}` as second arg".into(),
             },
-        });
+        ));
     }
-    let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError {
-        span: meta_node.span().clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError::new(
+        meta_node.span().clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: "malformed metadata-map (internal structure corrupt)".into(),
         },
-    })?;
+    ))?;
     // Empty {} → pairs.len() == 0 → REJECTED per FORM-COLLAPSE-NOTES.
     if pairs.is_empty() {
-        return Err(TypeError {
-            span: meta_node.span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            meta_node.span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: "empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)".into(),
             },
-        });
+        ));
     }
     // Walk key/value pairs.
     for (k_node, val) in &pairs {
         let key_str = match k_node {
             WatAST::Keyword(k, _) => k.clone(),
             other => {
-                return Err(TypeError {
-                    span: other.span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    other.span().clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
                         reason: "metadata-map keys must be keywords".into(),
                     },
-                });
+                ));
             }
         };
         match key_str.as_str() {
@@ -117,25 +117,25 @@ pub(super) fn parse_defstruct_metadata(
                             match item {
                                 WatAST::Keyword(k, _) => ctor_whitelist.push(k.clone()),
                                 _ => {
-                                    return Err(TypeError {
-                                        span: item.span().clone(),
-                                        kind: TypeErrorKind::MalformedDecl {
+                                    return Err(TypeError::new(
+                                        item.span().clone(),
+                                        TypeErrorKind::MalformedDecl {
                                             head: HEAD.into(),
                                             reason: ":restricted-to entries must be keyword prefixes".into(),
                                         },
-                                    });
+                                    ));
                                 }
                             }
                         }
                     }
                     _ => {
-                        return Err(TypeError {
-                            span: val.span().clone(),
-                            kind: TypeErrorKind::MalformedDecl {
+                        return Err(TypeError::new(
+                            val.span().clone(),
+                            TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: ":restricted-to value must be a Vector of keyword prefixes `[...]`".into(),
                             },
-                        });
+                        ));
                     }
                 }
             }
@@ -162,21 +162,21 @@ fn parse_field_metadata_key(
     // Arc 257 slice 1: use is_metadata_map() / metadata_map_pairs() to accept
     // both WatAST::Map and the legacy List-with-HashMap-head form.
     if !val.is_metadata_map() {
-        return Err(TypeError {
-            span: val.span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        return Err(TypeError::new(
+            val.span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: ":field-metadata value must be a map `{field {meta} ...}`".into(),
             },
-        });
+        ));
     }
-    let fm_pairs = val.metadata_map_pairs().ok_or_else(|| TypeError {
-        span: val.span().clone(),
-        kind: TypeErrorKind::MalformedDecl {
+    let fm_pairs = val.metadata_map_pairs().ok_or_else(|| TypeError::new(
+        val.span().clone(),
+        TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: "malformed :field-metadata map (internal structure corrupt)".into(),
         },
-    })?;
+    ))?;
     for (fk_node, fmeta) in &fm_pairs {
         // field identifier — Keyword with optional leading colon stripped to get bare name.
         // In the Map literal form {witness {meta}}, `witness` must be written as
@@ -186,54 +186,54 @@ fn parse_field_metadata_key(
             WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
             WatAST::Symbol(ident, _) => ident.as_str().to_owned(),
             other => {
-                return Err(TypeError {
-                    span: other.span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    other.span().clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
                         reason: ":field-metadata field keys must be keyword field names (e.g. `:witness`)".into(),
                     },
-                });
+                ));
             }
         };
         // field metadata-map — must be a metadata-map itself.
         if !fmeta.is_metadata_map() {
-            return Err(TypeError {
-                span: fmeta.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                fmeta.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
                         ":field-metadata value for field '{}' must be a map `{{...}}`",
                         field_sym
                     ),
                 },
-            });
+            ));
         }
-        let fpairs = fmeta.metadata_map_pairs().ok_or_else(|| TypeError {
-            span: fmeta.span().clone(),
-            kind: TypeErrorKind::MalformedDecl {
+        let fpairs = fmeta.metadata_map_pairs().ok_or_else(|| TypeError::new(
+            fmeta.span().clone(),
+            TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "malformed :field-metadata for field '{}' (corrupt structure)",
                     field_sym
                 ),
             },
-        })?;
+        ))?;
         // Parse inner keys: recognize :restricted-to.
         let mut field_wlist: Vec<String> = Vec::new();
         for (fkey_node, fval) in &fpairs {
             let fkey = match fkey_node {
                 WatAST::Keyword(k, _) => k.clone(),
                 other => {
-                    return Err(TypeError {
-                        span: other.span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
+                    return Err(TypeError::new(
+                        other.span().clone(),
+                        TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: format!(
                                 ":field-metadata inner keys for '{}' must be keywords",
                                 field_sym
                             ),
                         },
-                    });
+                    ));
                 }
             };
             if fkey == ":restricted-to" {
@@ -243,31 +243,31 @@ fn parse_field_metadata_key(
                             match item {
                                 WatAST::Keyword(k, _) => field_wlist.push(k.clone()),
                                 _ => {
-                                    return Err(TypeError {
-                                        span: item.span().clone(),
-                                        kind: TypeErrorKind::MalformedDecl {
+                                    return Err(TypeError::new(
+                                        item.span().clone(),
+                                        TypeErrorKind::MalformedDecl {
                                             head: HEAD.into(),
                                             reason: format!(
                                                 ":field-metadata :restricted-to entries for '{}' must be keyword prefixes",
                                                 field_sym
                                             ),
                                         },
-                                    });
+                                    ));
                                 }
                             }
                         }
                     }
                     _ => {
-                        return Err(TypeError {
-                            span: fval.span().clone(),
-                            kind: TypeErrorKind::MalformedDecl {
+                        return Err(TypeError::new(
+                            fval.span().clone(),
+                            TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
                                     ":field-metadata :restricted-to for '{}' must be a Vector `[...]`",
                                     field_sym
                                 ),
                             },
-                        });
+                        ));
                     }
                 }
             }
@@ -301,13 +301,13 @@ pub(super) fn parse_aggregate_fields(
     let (field_items, field_span) = match fields_node {
         WatAST::Vector(items, span) => (items, span),
         other => {
-            return Err(TypeError {
-                span: other.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
                     head: head.into(),
                     reason: "field-vector must be a Vector `[field <- :T ...]`".into(),
                 },
-            });
+            ));
         }
     };
     let argspec = crate::argspec::parse_argspec_triples(
@@ -407,9 +407,9 @@ pub(super) fn parse_aggregate_fields_with_splices(
                         }
                     }
                     Some(_) => {
-                        return Err(TypeError {
-                            span: item_span,
-                            kind: TypeErrorKind::MalformedDecl {
+                        return Err(TypeError::new(
+                            item_span,
+                            TypeErrorKind::MalformedDecl {
                                 head: head.into(),
                                 reason: format!(
                                     "surface-splice `~@{}` target is registered but is not a \
@@ -417,12 +417,12 @@ pub(super) fn parse_aggregate_fields_with_splices(
                                     surface_kw
                                 ),
                             },
-                        });
+                        ));
                     }
                     None => {
-                        return Err(TypeError {
-                            span: item_span,
-                            kind: TypeErrorKind::MalformedDecl {
+                        return Err(TypeError::new(
+                            item_span,
+                            TypeErrorKind::MalformedDecl {
                                 head: head.into(),
                                 reason: format!(
                                     "surface-splice `~@{}` refers to an unknown surface — it must \
@@ -431,7 +431,7 @@ pub(super) fn parse_aggregate_fields_with_splices(
                                     surface_kw
                                 ),
                             },
-                        });
+                        ));
                     }
                 }
             }
@@ -450,9 +450,9 @@ pub(super) fn parse_aggregate_fields_with_splices(
                 // Same name, identical type — dedupes to the first occurrence; drop this one.
             }
             Some((_, existing_ty)) => {
-                return Err(TypeError {
-                    span: field_span.clone(),
-                    kind: TypeErrorKind::MalformedDecl {
+                return Err(TypeError::new(
+                    field_span.clone(),
+                    TypeErrorKind::MalformedDecl {
                         head: head.into(),
                         reason: format!(
                             "surface-splice conflict: field `{}` is installed at conflicting \
@@ -461,7 +461,7 @@ pub(super) fn parse_aggregate_fields_with_splices(
                             name, existing_ty, ty
                         ),
                     },
-                });
+                ));
             }
             None => merged.push((name, ty)),
         }

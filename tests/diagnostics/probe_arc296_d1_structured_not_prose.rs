@@ -88,10 +88,10 @@ fn probe_1_return_type_mismatch_remedies_field_is_vector_not_prose() {
 fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
     use wat::{LoadError, LoadErrorKind, LoadFetchError};
 
-    let err = LoadError {
-        span: wat::rust_caller_span!(),
-        kind: LoadErrorKind::Fetch(LoadFetchError::NotFound("/no/such/file.wat".into())),
-    };
+    let err = LoadError::new(
+        wat::rust_caller_span!(),
+        LoadErrorKind::Fetch(LoadFetchError::NotFound("/no/such/file.wat".into())),
+    );
 
     let edn = err.to_edn();
     let s = wat_edn::write(&edn);

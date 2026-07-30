@@ -34,6 +34,7 @@
 
 use std::mem::size_of;
 use wat::runtime::{EvalBreak, RuntimeError};
+use wat::{LoadError, StartupError, TypeError};
 
 /// A WALL now, and it earns the name back — stone B2 landed. `RuntimeError` is **56**
 /// bytes (48 span + an 8-byte `Box<RuntimeErrorKind>`), so `result_large_err` no longer
@@ -75,5 +76,76 @@ fn eval_break_stays_narrow() {
         "EvalBreak is {} bytes; the eval hot path returns Result<Value(48), EvalBreak>, \
          and clippy::result_large_err fires at >= 128",
         size_of::<EvalBreak>()
+    );
+}
+
+/// RED gate — arc 109 (kill-std), BRIEF-typeerror-loaderror-one-door: `TypeError` must
+/// stay narrow enough that clippy's `result_large_err` (threshold `>= 128`) never fires
+/// on any `Result<_, TypeError>` signature.
+///
+/// MEASURED at HEAD (before this stone): `size_of::<TypeError>() == 152` (48 span +
+/// 104 `TypeErrorKind`). Expected after boxing the private `kind`: 56.
+///
+/// The ceiling is 120, not 128 — see `runtime_error_stays_narrow`'s doc comment for the
+/// grounding (clippy fires at `>= 128`; `RuntimeError` sitting at exactly 128 still threw
+/// all 482 of its warnings).
+#[test]
+fn type_error_stays_narrow() {
+    assert!(
+        size_of::<TypeError>() <= 120,
+        "TypeError is {} bytes (ceiling 120; clippy::result_large_err fires at >= 128). \
+         Stone C boxes the private `kind` field to bring this to 56 — a red here means \
+         either that box was removed or a fat field landed in the outer struct",
+        size_of::<TypeError>()
+    );
+}
+
+/// RED gate — arc 109 (kill-std), BRIEF-typeerror-loaderror-one-door: `LoadError` must
+/// stay narrow enough that clippy's `result_large_err` (threshold `>= 128`) never fires
+/// on any `Result<_, LoadError>` signature.
+///
+/// MEASURED at HEAD (before this stone): `size_of::<LoadError>() == 160` (48 span + 112
+/// `LoadErrorKind`). Expected after boxing the private `kind`: 56.
+#[test]
+fn load_error_stays_narrow() {
+    assert!(
+        size_of::<LoadError>() <= 120,
+        "LoadError is {} bytes (ceiling 120; clippy::result_large_err fires at >= 128). \
+         Stone C boxes the private `kind` field to bring this to 56 — a red here means \
+         either that box was removed or a fat field landed in the outer struct",
+        size_of::<LoadError>()
+    );
+}
+
+/// RED gate — arc 109 (kill-std), BRIEF-typeerror-loaderror-one-door: `StartupError`'s
+/// width is driven entirely by its widest inline payload; this stone does NOT edit
+/// `src/freeze.rs` — the brief predicted the enum would fall out narrow for free once
+/// `TypeError` and `LoadError` were boxed.
+///
+/// MEASURED at HEAD (before this stone): `size_of::<StartupError>() == 160`, tracking
+/// `LoadError`'s 160.
+///
+/// **STOP-2 fired first, then the coordinator extended scope.** `TypeError` and `LoadError`
+/// both landed at 56, but `StartupError` still measured **152** — over the ceiling. The
+/// brief's payload table named `ConfigError` (104, confirmed) as the next-widest candidate,
+/// but the ACTUAL driver was `Stdlib(StdlibError)` — a `pub(crate)` variant the brief's table
+/// never listed (a grep that truncated before reaching it). `StdlibError` (`src/stdlib.rs`)
+/// was the exact same unboxed Pattern-A shape (`pub span: Span, pub kind: StdlibErrorKind`)
+/// `TypeError` and `LoadError` were before this stone: `size_of::<StdlibError>() == 152` (48
+/// span + 104 kind, `StdlibErrorKind::ParseFailed { path: &'static str, cause: ParseError }`).
+/// The coordinator (who owns the brief) authorized extending this stone's scope to box
+/// `StdlibError` the same way — its width gate lives in `src/stdlib.rs`'s own `#[cfg(test)]`
+/// mod (`stdlib_error_stays_narrow`) since the type is `pub(crate)` and unreachable from this
+/// integration-test crate. With `StdlibError` boxed to 56, `ConfigError` (104) became
+/// `StartupError`'s true widest payload — `StartupError` now measures **104**, under the
+/// ceiling with 16 bytes of headroom. `src/freeze.rs` was never edited.
+#[test]
+fn startup_error_stays_narrow() {
+    assert!(
+        size_of::<StartupError>() <= 120,
+        "StartupError is {} bytes (ceiling 120; clippy::result_large_err fires at >= 128). \
+         Its width tracks its widest inline payload — a red here after TypeError/LoadError \
+         are boxed means a different variant (e.g. ConfigError) is now the driver",
+        size_of::<StartupError>()
     );
 }

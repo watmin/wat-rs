@@ -55,17 +55,17 @@ fn register_subtype_threads_caller_span_into_cyclic_error() {
     // The load-bearing assertion: the caller's span survived into the error,
     // NOT a hardcoded wat::rust_caller_span!().
     assert_eq!(
-        err.span, span,
+        err.span(), &span,
         "CyclicSubtype must carry the caller-supplied span, not wat::rust_caller_span!()"
     );
     assert!(
-        matches!(err.kind, TypeErrorKind::CyclicSubtype { .. }),
+        matches!(err.kind(), TypeErrorKind::CyclicSubtype { .. }),
         "the closed cycle must surface as CyclicSubtype"
     );
     // Arc 298.2: every span is now a real location — no sentinel exists.
     // Verify the span carries a non-zero line (rust_caller_span!() always has line >= 1).
     assert!(
-        err.span.line > 0,
+        err.span().line > 0,
         "span must carry a real line number (no zero-line sentinel after arc 298.2)"
     );
 }

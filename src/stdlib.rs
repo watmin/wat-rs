@@ -463,23 +463,23 @@ const STDLIB_FILES: &[WatSource] = &[
 pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     let mut all = Vec::new();
     for file in stdlib_files() {
-        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError {
-            span: crate::rust_caller_span!(),
-            kind: StdlibErrorKind::ParseFailed {
+        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::new(
+            crate::rust_caller_span!(),
+            StdlibErrorKind::ParseFailed {
                 path: file.path,
                 cause: e,
             },
-        })?;
+        ))?;
         all.extend(forms);
     }
     for file in installed_dep_sources().iter().flat_map(|slice| slice.iter()) {
-        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError {
-            span: crate::rust_caller_span!(),
-            kind: StdlibErrorKind::ParseFailed {
+        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::new(
+            crate::rust_caller_span!(),
+            StdlibErrorKind::ParseFailed {
                 path: file.path,
                 cause: e,
             },
-        })?;
+        ))?;
         all.extend(forms);
     }
     Ok(all)
@@ -489,8 +489,33 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
 /// Pattern A (Stone 243.7e): span at the outer struct level; variant data
 /// in [`StdlibErrorKind`].
 pub struct StdlibError {
-    pub span: Span,
-    pub kind: StdlibErrorKind,
+    span: Span,
+    /// Boxed (arc 109 stone C, mirroring `RuntimeError`'s B2). Inline, this
+    /// field made `StdlibError` 152 bytes; boxed, it is 56 (48 span + 8
+    /// pointer), so its width no longer tracks `StdlibErrorKind`'s widest
+    /// variant. Private — reached only through `new` / `kind` / `into_kind`
+    /// — so the box is invisible to callers, the same contract as
+    /// `RuntimeError` (`src/value/signal.rs`).
+    kind: Box<StdlibErrorKind>,
+}
+
+impl StdlibError {
+    /// The ONE door for construction.
+    pub fn new(span: Span, kind: StdlibErrorKind) -> Self {
+        Self { span, kind: Box::new(kind) }
+    }
+    /// The ONE door for reading the kind.
+    pub fn kind(&self) -> &StdlibErrorKind {
+        &self.kind
+    }
+    /// The ONE door for taking the kind by value.
+    pub fn into_kind(self) -> StdlibErrorKind {
+        *self.kind
+    }
+    /// Span stays inline — it is not what this stone boxes.
+    pub fn span(&self) -> &Span {
+        &self.span
+    }
 }
 
 /// Variant data for [`StdlibError`]. The span lives in the outer struct;
@@ -587,6 +612,35 @@ mod tests {
         assert!(!forms.is_empty(), "stdlib should ship at least one form");
     }
 
+    /// RED gate — arc 109 (kill-std), BRIEF-typeerror-loaderror-one-door (scope extended
+    /// by the coordinator after STOP-2 named `StdlibError` as `StartupError`'s real
+    /// remaining driver): `StdlibError` must stay narrow enough that clippy's
+    /// `result_large_err` (threshold `>= 128`) never fires on `Result<_, StdlibError>`.
+    ///
+    /// `StdlibError` is `pub(crate)`, so this gate lives in-crate (mirrors the
+    /// `s6_parse_failed_edn_carries_typed_cause_not_source_string` precedent above,
+    /// which is in-crate for the identical reason) rather than in
+    /// `tests/value/probe_runtime_error_width.rs`, which houses this campaign's other
+    /// width walls but cannot name a `pub(crate)` type.
+    ///
+    /// MEASURED at HEAD (before this stone's StdlibError box): `size_of::<StdlibError>()
+    /// == 152` (48 span + 104 `StdlibErrorKind`, `ParseFailed { path: &'static str, cause:
+    /// ParseError }`). Expected after boxing the private `kind`: 56.
+    ///
+    /// The ceiling is 120, not 128 — see `runtime_error_stays_narrow` in
+    /// `tests/value/probe_runtime_error_width.rs` for the grounding (clippy fires at
+    /// `>= 128`; `RuntimeError` sitting at exactly 128 still threw all 482 of its warnings).
+    #[test]
+    fn stdlib_error_stays_narrow() {
+        assert!(
+            std::mem::size_of::<StdlibError>() <= 120,
+            "StdlibError is {} bytes (ceiling 120; clippy::result_large_err fires at >= 128). \
+             This stone boxes the private `kind` field to bring this to 56 — a red here means \
+             either that box was removed or a fat field landed in the outer struct",
+            std::mem::size_of::<StdlibError>()
+        );
+    }
+
     // ─── Arc 296 S6 probe — ParseFailed EDN carries :cause, not :source ──────
     //
     // StdlibError is pub(crate); this test lives in-crate where it's
@@ -600,13 +654,13 @@ mod tests {
         let parse_err = crate::parser::parse_all_with_file(bad_source, "stdlib-probe.wat")
             .expect_err("probe source must fail to parse");
 
-        let stdlib_err = StdlibError {
-            span: crate::rust_caller_span!(),
-            kind: StdlibErrorKind::ParseFailed {
+        let stdlib_err = StdlibError::new(
+            crate::rust_caller_span!(),
+            StdlibErrorKind::ParseFailed {
                 path: "stdlib-probe.wat",
                 cause: parse_err,
             },
-        };
+        );
 
         let edn = stdlib_err.to_edn();
         let s = wat_edn::write(&edn);
@@ -665,13 +719,13 @@ mod tests {
         let parse_err = crate::parser::parse_all_with_file(bad_source, "s3a-probe.wat")
             .expect_err("probe source must fail to parse");
 
-        let stdlib_err = StdlibError {
-            span: crate::rust_caller_span!(),
-            kind: StdlibErrorKind::ParseFailed {
+        let stdlib_err = StdlibError::new(
+            crate::rust_caller_span!(),
+            StdlibErrorKind::ParseFailed {
                 path: "s3a-probe.wat",
                 cause: parse_err,
             },
-        };
+        );
 
         let edn = stdlib_err.to_edn();
         let s = wat_edn::write(&edn);
@@ -723,13 +777,13 @@ mod tests {
             .expect_err("probe source must fail to parse");
 
         let known_span = crate::span::Span::new(Arc::new("s3a-span-probe.wat".to_string()), 1, 0);
-        let stdlib_err = StdlibError {
-            span: known_span,
-            kind: StdlibErrorKind::ParseFailed {
+        let stdlib_err = StdlibError::new(
+            known_span,
+            StdlibErrorKind::ParseFailed {
                 path: "s3a-span-probe.wat",
                 cause: parse_err,
             },
-        };
+        );
 
         let edn = stdlib_err.to_edn();
         let s = wat_edn::write(&edn);

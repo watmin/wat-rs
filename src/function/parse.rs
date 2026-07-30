@@ -176,8 +176,8 @@ pub(in crate::function) fn parse_fn_signature_prefix(
     let ret_type: TypeExpr = match &sig[2] {
         WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
             parse_type_node(&sig[2]).map_err(|te| ParseStep {
-                span: te.span,
-                kind: ParseStepKind::BadRetType(Box::new(te.kind)),
+                span: te.span().clone(),
+                kind: ParseStepKind::BadRetType(Box::new(te.into_kind())),
             })?
         }
         other => {

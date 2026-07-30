@@ -98,8 +98,8 @@ fn probe_02_cyclic_union_rejected_at_registration() {
         vec![path(":wat::core::f64"), path(":my::A")],
     );
     assert!(result.is_err(), "cyclic typeunion should be rejected");
-    match result.unwrap_err() {
-        TypeError { kind: TypeErrorKind::CyclicUnion { name }, .. } => {
+    match result.unwrap_err().kind() {
+        TypeErrorKind::CyclicUnion { name } => {
             assert_eq!(name, ":my::B", "CyclicUnion should name the cycle-closing union");
         }
         other => panic!("expected TypeErrorKind::CyclicUnion, got {:?}", other),
@@ -112,8 +112,8 @@ fn probe_03_empty_union_rejected() {
     let mut env = fresh_env();
     let result = register_union(&mut env, ":my::Empty", vec![]);
     assert!(result.is_err(), "empty typeunion should be rejected");
-    match result.unwrap_err() {
-        TypeError { kind: TypeErrorKind::EmptyUnion { name }, .. } => {
+    match result.unwrap_err().kind() {
+        TypeErrorKind::EmptyUnion { name } => {
             assert_eq!(name, ":my::Empty");
         }
         other => panic!("expected TypeErrorKind::EmptyUnion, got {:?}", other),
@@ -126,8 +126,8 @@ fn probe_04_single_member_union_rejected_with_typealias_hint() {
     let mut env = fresh_env();
     let result = register_union(&mut env, ":my::Foo", vec![path(":wat::core::i64")]);
     assert!(result.is_err(), "single-member typeunion should be rejected");
-    match result.unwrap_err() {
-        TypeError { kind: TypeErrorKind::SingleMemberUnion { name }, .. } => {
+    match result.unwrap_err().kind() {
+        TypeErrorKind::SingleMemberUnion { name } => {
             assert_eq!(name, ":my::Foo");
             // Diagnostic message should recommend typealias (verified by SCORE
             // independently rendering the error and reading the recommendation)
@@ -150,8 +150,8 @@ fn probe_05_fn_member_rejected() {
         vec![path(":wat::core::i64"), fn_type],
     );
     assert!(result.is_err(), "typeunion with Fn member should be rejected");
-    match result.unwrap_err() {
-        TypeError { kind: TypeErrorKind::InvalidUnionMember { union_name, .. }, .. } => {
+    match result.unwrap_err().kind() {
+        TypeErrorKind::InvalidUnionMember { union_name, .. } => {
             assert_eq!(union_name, ":my::WithFn");
         }
         other => panic!("expected TypeErrorKind::InvalidUnionMember, got {:?}", other),
@@ -169,8 +169,8 @@ fn probe_06_var_member_rejected() {
         vec![path(":wat::core::i64"), var],
     );
     assert!(result.is_err(), "typeunion with Var member should be rejected");
-    match result.unwrap_err() {
-        TypeError { kind: TypeErrorKind::InvalidUnionMember { union_name, .. }, .. } => {
+    match result.unwrap_err().kind() {
+        TypeErrorKind::InvalidUnionMember { union_name, .. } => {
             assert_eq!(union_name, ":my::WithVar");
         }
         other => panic!("expected TypeErrorKind::InvalidUnionMember for Var, got {:?}", other),
