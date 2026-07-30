@@ -62,10 +62,18 @@ fn checkenv_constructor_borrows_typeenv() {
     let types = TypeEnv::with_builtins();
     let env: CheckEnv<'_> = CheckEnv::with_builtins_and_types(&types);
 
-    // The env borrows `types`; both live to end of scope. If this compiles,
-    // the constructor takes a borrow and the borrow outlives the env's use.
+    // The env borrows `types`; both live to end of scope. **The COMPILATION is the
+    // assertion** — if `with_builtins_and_types` took ownership or an `Arc` instead
+    // of a borrow, this function would not build, and the test fails at compile time
+    // rather than at run time.
+    //
+    // There is deliberately no runtime assertion. This previously read
+    // `assert!(true, "…")`, which clippy correctly flagged
+    // (`assertions_on_constants`): a runtime check that cannot fail is not a check,
+    // and dressing a compile-gate up as one misrepresents what is being proven
+    // (R59 NISI FRANGAS, NIHIL PROBAS). The honest form states the mechanism instead
+    // of faking a predicate.
     let _ = &env;
-    assert!(true, "with_builtins_and_types(&TypeEnv) — borrow constructor in place");
 }
 
 /// Contract 3: a CheckEnv built from a SymbolTable borrows the symbol table's
@@ -91,6 +99,10 @@ fn checkenv_from_symbols_borrows() {
     // expected as Arc<TypeEnv>). Post-stone it compiles — the borrow path.
     let env: CheckEnv<'_> = CheckEnv::from_symbols(&sym, &types);
 
+    // **The COMPILATION is the assertion** — pre-stone, `from_symbols` expected an
+    // `Arc<TypeEnv>`, so passing both inputs by reference was a type error. That it
+    // builds at all is the proof the borrow path exists. Deliberately no runtime
+    // assertion: the previous `assert!(true, "…")` could not fail, so it proved
+    // nothing while looking like a check (R59) — see the sibling test above.
     let _ = &env;
-    assert!(true, "from_symbols(&sym, &types) — borrow path in place");
 }

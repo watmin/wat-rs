@@ -341,8 +341,27 @@ fn probe_10_non_atomizable_fn_panics() {
     //
     // See SCORE-STONE-216.5a.md § Probe 10 skip documentation.
     let _ = "Probe 10 skip documented: non-atomizable types not constructible at test layer";
-    // Verify the impl compiles and the trait bounds are satisfied:
+    // Verify the impl compiles, the trait bounds are satisfied, and — the part that
+    // is actually a test — that hashing is DETERMINISTIC and DISCRIMINATING.
+    //
+    // This replaces `assert!(h >= 0, "probe 10 placeholder: …")`, which was a
+    // tautology: `hash_value` returns an unsigned hash, so `h >= 0` is true for every
+    // possible execution and the assertion could not fail. clippy named it twice
+    // (`absurd_extreme_comparisons` + `unused_comparisons`) and clippy was right — a
+    // test that cannot go red is a claim with nothing behind it (R59 NISI FRANGAS,
+    // NIHIL PROBAS). The two properties below CAN fail: drop determinism and the
+    // first breaks; collapse distinct values to one hash and the second breaks.
     let v = Value::i64(42);
     let h = hash_value(&v);
-    assert!(h >= 0, "probe 10 placeholder: hash impl compiles and runs");
+    assert_eq!(
+        h,
+        hash_value(&Value::i64(42)),
+        "hash_value must be deterministic: the same value hashed twice gave {h} then {}",
+        hash_value(&Value::i64(42))
+    );
+    assert_ne!(
+        h,
+        hash_value(&Value::i64(43)),
+        "hash_value collapsed two distinct i64 values (42, 43) to the same hash {h}"
+    );
 }
