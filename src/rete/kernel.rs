@@ -1212,6 +1212,52 @@ fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -
         .collect()
 }
 
+/// Index `elements` by the join-key tuple shared with `sample_bindings` — the third application
+/// of the `keyed_join` (`:779-834`) shape, used by the Accumulate and Negation/Exists gathers.
+///
+/// `join_keys` mirrors `keyed_join` step 1 exactly (sorted intersection of `sample_bindings`'
+/// keys and a sample element's keys, string-sorted for a stable canonical order), derived from
+/// `elements[0]` when non-empty. An empty `elements` slice yields `join_keys = []` and an empty
+/// index — every probe then misses, which is exactly the empty-gather contract (no bucket ever
+/// existed to find). Buckets hold element *indices* in iteration order, matching `keyed_join`'s
+/// right-index and the wat oracle's foldl order.
+///
+/// Panics only via `key_of` if an element's bindings lack a derived join key — structurally
+/// impossible for a well-formed network (every element at one alpha node shares a binding
+/// key-set, the same guarantee `keyed_join` already rests on).
+fn gather_index(
+    sample_bindings: &rpds::HashTrieMapSync<Value, Value>,
+    elements: &[Value],
+) -> (Vec<Value>, HashMap<Vec<Value>, Vec<usize>>) {
+    let join_keys: Vec<Value> = if elements.is_empty() {
+        Vec::new()
+    } else {
+        let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
+        let mut keys: Vec<Value> = sample_bindings
+            .keys()
+            .filter(|k| sample_el_bindings.get(*k).is_some())
+            .cloned()
+            .collect();
+        // Binding keys are Value::String (variable names like "?loc").
+        // Sort by their string content for a stable canonical order.
+        keys.sort_by(|a, b| {
+            let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
+            let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+            a_str.cmp(b_str)
+        });
+        keys
+    };
+
+    let mut index: HashMap<Vec<Value>, Vec<usize>> = HashMap::new();
+    for (i, el) in elements.iter().enumerate() {
+        let (_, el_bindings) = element_fact_bindings(el);
+        let key = key_of(el_bindings, &join_keys);
+        index.entry(key).or_default().push(i);
+    }
+
+    (join_keys, index)
+}
+
 // ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
 
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
@@ -1486,6 +1532,46 @@ fn census_kind(kind: &str) -> &'static str {
         "QueryNode"      => "Query",
         _                => "?",
     }
+}
+
+// Test-only instrument: one element EXAMINED by an Accumulate / Negation / Exists gather.
+//
+// The gathers are the un-keyed twin of the keyed joins (`keyed_join`, and P6's per-node
+// `left_idx`/`right_idx`): each token walks the node's whole cumulative element memory, so the
+// cost is O(tokens × elements) where a hash probe would be O(1) + bucket.
+//
+// Counting the EXAMINATIONS — rather than the wall-clock — is what makes the keyed-gather gate
+// honest. A timing wall can pass for reasons that have nothing to do with the mechanism (a wall
+// drawn over a cheap container passed before its fix existed, 2026-07-30), and it is flaky under
+// load. A visit count cannot be faked by a scan: if the gather still scans, the count still scales
+// with the token count, whatever the machine was doing at the time.
+#[cfg(test)]
+thread_local! {
+    /// Elements examined by an Accumulate/Negation/Exists gather since the counter was armed.
+    pub(crate) static GATHER_VISITS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[inline]
+fn census_gather_visit() {
+    GATHER_VISITS.with(|c| c.set(c.get() + 1));
+}
+
+/// In every non-test build this is nothing at all — the instrument costs the production fire path
+/// zero instructions, exactly as `FIRE_CENSUS` records nothing unless armed.
+#[cfg(not(test))]
+#[inline(always)]
+fn census_gather_visit() {}
+
+/// Run `f` with the gather-visit counter zeroed, and return what it counted.
+///
+/// Any outer count is restored afterwards, so nesting cannot silently swallow a measurement.
+#[cfg(test)]
+pub(crate) fn with_gather_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
+    let prior = GATHER_VISITS.with(|c| c.replace(0));
+    let out = f();
+    let counted = GATHER_VISITS.with(|c| c.replace(prior));
+    (out, counted)
 }
 
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
@@ -1940,12 +2026,22 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 Some(els) => els.clone(),
                 None => vec![],
             };
+            // Index :from once per node per round (P3/P6 shape via `gather_index`), then each
+            // token probes its own bucket instead of scanning the whole memory. A missing bucket
+            // yields an EMPTY gather (`map_or(&[][..], ..)`), never a skipped token — count/sum
+            // still emit their identity on empty.
+            let (join_keys, index) = gather_index(&new_tokens[0].bindings, &from_elements);
             for tok in new_tokens {
+                let key = key_of(&tok.bindings, &join_keys);
+                let bucket: &[usize] = index.get(&key).map_or(&[][..], |v| v.as_slice());
                 // Gather the token-compatible :from elements (shared ?var agreement), in
-                // alpha-memory insertion order (matches the wat foldl over from-els).
-                let gathered: Vec<&Value> = from_elements
+                // alpha-memory insertion order (matches the wat foldl over from-els) — the
+                // bucket's indices were pushed in that same order.
+                let gathered: Vec<&Value> = bucket
                     .iter()
+                    .map(|&i| &from_elements[i])
                     .filter(|el| {
+                        census_gather_visit();
                         let (_, el_b) = element_fact_bindings(el);
                         token_element_compatible(&tok.bindings, el_b)
                     })
@@ -2014,10 +2110,18 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     Some(els) => els.clone(),
                     None => vec![],
                 };
+                // Index once per node per round; each token probes its own bucket instead of
+                // scanning the whole memory (same shape as the Accumulate site above). A missing
+                // bucket yields an empty slice, i.e. any-compat = false, exactly as an exhausted
+                // full scan would report.
+                let (join_keys, index) = gather_index(&new_tokens[0].bindings, &filter_elements);
                 for tok in new_tokens {
+                    let key = key_of(&tok.bindings, &join_keys);
+                    let bucket: &[usize] = index.get(&key).map_or(&[][..], |v| v.as_slice());
                     // any-compatible? = true iff any element's bindings agree with token's bindings.
-                    let any_compat = filter_elements.iter().any(|el| {
-                        let (_, el_b) = element_fact_bindings(el);
+                    let any_compat = bucket.iter().any(|&i| {
+                        census_gather_visit();
+                        let (_, el_b) = element_fact_bindings(&filter_elements[i]);
                         token_element_compatible(&tok.bindings, el_b)
                     });
                     // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
@@ -3322,6 +3426,116 @@ mod tests {
     /// Sum the tokens held by every beta node of a given kind in a census row.
     fn tokens_of_kind(row: &super::RoundCensus, kind: &str) -> usize {
         row.beta_by_node.iter().filter(|(_, k, _)| *k == kind).map(|(_, _, t)| *t).sum()
+    }
+
+    // ── The keyed-gather gate (DESIGN-STONE-keyed-gather.md) ──────────────────────────────────
+    //
+    // Two AccumulateNodes and one ExistsNode over `Reading`, joined to `Group` on `?g` — the
+    // `accum` grid axis's shape, reduced to the two node kinds whose gather is under test.
+
+    /// Group/Reading plus two accumulators and an exists, all keyed on the shared `?g`.
+    const ACCUM_GATHER_WORLD: &str = "\
+(:wat::core::defrecord :agc::Group   [g <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::ExistsF [g <- :wat::core::i64])\n\
+\n\
+(:wat::rete::defrule :agc::count-rule\n\
+  :when\n\
+  [(:agc::Group (?g <- :g))\n\
+   (?n <- (:wat::rete::acc::count) :from (:agc::Reading (?g <- :g)))]\n\
+  :then\n\
+  (:wat::rete::insert (:agc::CountF ?g ?n)))\n\
+\n\
+(:wat::rete::defrule :agc::sum-rule\n\
+  :when\n\
+  [(:agc::Group (?g <- :g))\n\
+   (?n <- (:wat::rete::acc::sum ?v) :from (:agc::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then\n\
+  (:wat::rete::insert (:agc::SumF ?g ?n)))\n\
+\n\
+(:wat::rete::defrule :agc::exists-rule\n\
+  :when\n\
+  [(:agc::Group (?g <- :g))\n\
+   (:wat::rete::exists (:agc::Reading (?g <- :g)))]\n\
+  :then\n\
+  (:wat::rete::insert (:agc::ExistsF ?g)))\n\
+\n\
+(:wat::core::defn :agc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert s (:agc::Reading :g g :v j)))\n\
+    session\n\
+    (:wat::core::range 0 w)))\n\
+\n\
+(:wat::core::defn :agc::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:agc::seed-readings (:wat::rete::insert s (:agc::Group g)) g w))\n\
+    session\n\
+    (:wat::core::range 0 gs)))\n\
+";
+
+    /// Fire the gather world at `g` groups × `w` readings and return the gather-visit count.
+    fn accum_gather_visits(g: i64, w: i64) -> u64 {
+        let world = startup_from_source(ACCUM_GATHER_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-gather world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:agc::seed (:wat::rete::compile (:wat::rete::collect-rules :agc)) {g} {w}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, visits) = super::with_gather_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
+                .value_owned()
+        });
+        visits
+    }
+
+    /// The keyed-gather gate — RED until the Accumulate/Negation/Exists gathers are keyed.
+    ///
+    /// Both runs hold the ELEMENT COUNT CONSTANT (G×W = 800 readings) and differ only in how many
+    /// tokens probe them (8× apart in group count). That separates "the gather is quadratic" from
+    /// "there are simply more facts" — the same control the measurement probe uses
+    /// (`wat-scripts/scratch-pad/probe-accumulate-gather-cost.wat`), which read 8.42× on wall-clock
+    /// at G=50/W=160 vs G=400/W=20.
+    ///
+    ///   un-keyed (today): every token scans all 800 elements → visits ∝ G → an 8× spread.
+    ///   keyed:            every token probes its own bucket   → visits ≈ G×W = 800/node → FLAT.
+    ///
+    /// What would turn this red — the R59 question, answered before the assertion was written:
+    ///   (a) the instrument recording nothing (`small == 0`) — asserted separately, because a
+    ///       silent zero would make the ratio 0/0 and "pass" while measuring nothing at all;
+    ///   (b) a gather that still walks the whole element memory per token — the defect under test;
+    ///   (c) a keyed gather whose buckets are wrong in a way that re-scans (e.g. an empty key
+    ///       tuple degenerating every element into one bucket for a workload that DOES share vars).
+    ///
+    /// It cannot pass by luck or by machine speed: it counts examinations, not nanoseconds.
+    #[test]
+    fn keyed_gather_visits_do_not_scale_with_group_count() {
+        // G×W = 800 readings in BOTH runs; only the token count moves (10 → 80).
+        let small = accum_gather_visits(10, 80);
+        let big = accum_gather_visits(80, 10);
+
+        assert!(
+            small > 0,
+            "the gather-visit instrument recorded ZERO — the gathers were never entered, so any \
+             ratio taken from this run would be an artifact, not a measurement"
+        );
+
+        let ratio = big as f64 / small as f64;
+        println!(
+            "\nkeyed-gather gate — constant 800 elements, tokens 10 → 80\n  \
+             G=10 W=80 : {small} visits\n  G=80 W=10 : {big} visits\n  ratio: {ratio:.2}x\n"
+        );
+        assert!(
+            ratio <= 2.0,
+            "gather visits scale with the TOKEN count ({small} → {big}, {ratio:.2}x) while the \
+             element count is constant at 800 — the Accumulate/Negation/Exists gathers are still \
+             scanning the whole memory per token instead of probing a key index (the joins have \
+             had one since P6). See DESIGN-STONE-keyed-gather.md."
+        );
     }
 
     /// A8 — census the native fire path as rule-count N grows against a fixed fact set.
