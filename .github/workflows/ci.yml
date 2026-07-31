@@ -95,11 +95,18 @@ jobs:
       - name: Test (nextest)
         run: cargo nextest run --profile ci --release
 
-      # Clippy stays informational for THIS run only — the checkout fix above is the first
-      # time this step has ever executed, so it needs one honest reading before it is armed.
-      # The local floor is zero (`cargo clippy --release --workspace --all-targets`, arc 278
-      # stones A–E). Arming is `--all-targets -- -D warnings` — --all-targets because that is
-      # the surface the 1874 → 0 campaign was measured against; the narrower form silently
-      # exempts tests and examples.
+      # ARMED (arc 278 stone E). The floor is zero and this is what keeps it there.
+      #
+      # `--all-targets` is the load-bearing half. The 1874 → 0 campaign was measured on that
+      # surface; plain `--workspace` lints lib+bins only and silently exempts every test,
+      # example and bench — coverage narrower than the claim made for it, which is the same
+      # shape of hole as a CI that never ran at all.
+      #
+      # `-D warnings` is NOT what fails clippy findings — [workspace.lints.clippy] already
+      # denies those in the manifest, everywhere, with no flag. This catches the other half:
+      # RUSTC-level warnings (unused imports, dead code) that a clippy lint table does not
+      # reach. Deliberately NOT [workspace.lints.rust] warnings = "deny", which would fail
+      # `cargo build` on an unused variable mid-edit — CI-strict, local-warn is the honest
+      # split for rustc lints.
       - name: Clippy
-        run: cargo clippy --release --workspace
+        run: cargo clippy --release --workspace --all-targets -- -D warnings
