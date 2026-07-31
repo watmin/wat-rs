@@ -3869,7 +3869,11 @@ mod tests {
     ///       are what stand between it and a silent empty gather.
     ///   (c) the cache outliving a round — `wm.alpha` grows in step 1, so a stale index under-reads
     ///       and `count`/`sum` emit identities for groups that do have elements.
+    /// ⛔ RED BY DESIGN — `#[ignore]`d so `main` stays green while the stone is in flight.
+    /// Remove the `#[ignore]` as part of landing the cache; a gate that ships ignored and STAYS
+    /// ignored is the vacuous-gate class (R59) wearing a schedule as an excuse.
     #[test]
+    #[ignore = "RED until the gather index is cached per (alpha, join-keys) — BRIEF-gather-index-cache.md"]
     fn gather_index_is_built_once_per_alpha_and_keyset() {
         let rows = accum_count_census(200, 200);
         let builds = rows.iter().find(|(n, _)| *n == "accum:index-builds").map(|(_, c)| *c).unwrap_or(0);

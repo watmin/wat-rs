@@ -88,6 +88,9 @@ or the fold.
 
 ## Definition of done
 
+- **Remove the `#[ignore]`** on `gather_index_is_built_once_per_alpha_and_keyset` — it is marked
+  RED-by-design only so `main` stays green while this is in flight, and a gate that ships ignored and
+  stays ignored proves nothing.
 - `cargo nextest run --release -E 'test(gather_index_is_built_once)'` passes (2 builds / 80,000).
 - `cargo nextest run --release -E 'binary_id(wat::rete)'` passes.
 - `cargo nextest run --release` — the **whole** floor, Summary line, 0 failed.
