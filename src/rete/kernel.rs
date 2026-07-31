@@ -4027,43 +4027,70 @@ mod tests {
         });
         let cal_ns_per_pair = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
 
+        // Each size is run GRID-style: repeatedly, reporting mean AND spread. A single run of
+        // this census read `accumulate` at 22.7 / 71.2 / 32.5 ms across three tries at the SAME
+        // size — a 3.1x swing — so a one-shot table cannot tell "accumulate fell 15%" from
+        // "accumulate wandered". The spread is printed beside the mean for the same reason the
+        // grid runner prints min/max: a bare mean conceals exactly that.
+        const RUNS: usize = 3;
+
         let mut table = format!(
-            "\naccum fire — per-phase split (native fire-rules only)\n\
+            "\naccum fire — per-phase split (native fire-rules only), mean of {RUNS} runs\n\
              instrument: ~{cal_ns_per_pair:.1} ns per mark pair; the alpha:* rows fire PER FACT, so \
              read them as PROPORTIONS\n"
         );
         for (g, w) in [(25i64, 50i64), (50, 100), (100, 200), (200, 200)] {
-            let rows = accum_phase_census(g, w);
-            assert!(
-                !rows.is_empty(),
-                "phase census recorded NOTHING at G={g} W={w} — the instrument never fired, so any \
-                 apportionment taken from it would be an artifact, not a measurement"
-            );
-            // The accum:* rows are SUB-phases of `accumulate` — summing them into the total would
-            // double-count that phase. The total is the six top-level phases only.
-            let total: u64 = rows
+            // phase -> the per-run nanosecond readings
+            let mut samples: std::collections::HashMap<&'static str, Vec<u64>> =
+                std::collections::HashMap::new();
+            for _ in 0..RUNS {
+                let rows = accum_phase_census(g, w);
+                assert!(
+                    !rows.is_empty(),
+                    "phase census recorded NOTHING at G={g} W={w} — the instrument never fired, so \
+                     any apportionment taken from it would be an artifact, not a measurement"
+                );
+                for (name, ns) in rows {
+                    samples.entry(name).or_default().push(ns);
+                }
+            }
+
+            let stat = |xs: &[u64]| -> (f64, u64, u64) {
+                let sum: u64 = xs.iter().sum();
+                (
+                    sum as f64 / xs.len() as f64,
+                    *xs.iter().min().expect("non-empty"),
+                    *xs.iter().max().expect("non-empty"),
+                )
+            };
+
+            // Sub-phases (indented names) are INSIDE their parent — summing them into the total
+            // would double-count that phase. The total is the six top-level phases only.
+            let total_mean: f64 = samples
                 .iter()
                 .filter(|(n, _)| !n.starts_with("  "))
-                .map(|(_, ns)| *ns)
+                .map(|(_, xs)| stat(xs).0)
                 .sum();
-            assert!(total > 0, "phase census total is zero at G={g} W={w}");
+            assert!(total_mean > 0.0, "phase census total is zero at G={g} W={w}");
 
             table.push_str(&format!(
                 "\n  G={g} W={w}  ({} facts)  total {:.2} ms\n",
                 g * (w + 1),
-                total as f64 / 1e6
+                total_mean / 1e6
             ));
             for phase in PHASES {
-                let ns = rows.iter().find(|(n, _)| *n == phase).map(|(_, ns)| *ns);
-                let ns = ns.unwrap_or_else(|| {
+                let xs = samples.get(phase).unwrap_or_else(|| {
                     panic!("phase {phase:?} never recorded at G={g} W={w} — its marks were not \
                             reached, and its share would land silently on the other phases")
                 });
+                let (mean, lo, hi) = stat(xs);
                 table.push_str(&format!(
-                    "    {:<12} {:>9.2} ms   {:>5.1}%\n",
+                    "    {:<20} {:>8.2} ms  {:>5.1}%   [{:.2}–{:.2}]\n",
                     phase,
-                    ns as f64 / 1e6,
-                    100.0 * ns as f64 / total as f64
+                    mean / 1e6,
+                    100.0 * mean / total_mean,
+                    lo as f64 / 1e6,
+                    hi as f64 / 1e6,
                 ));
             }
         }

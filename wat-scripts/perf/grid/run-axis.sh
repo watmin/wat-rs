@@ -64,6 +64,19 @@ WAT_BIN="${WAT_BIN:-$REPO_ROOT/target/release/wat}"
 GRID_MEM_MAX="${GRID_MEM_MAX:-6G}"
 GRID_TIMEOUT="${GRID_TIMEOUT:-300}"
 
+# ── REPEATS — one lucky sample may not produce a verdict ──────────────────────
+#
+# 2026-07-31: this runner reported `accum [100 200] ratio 1.0604 :winner :us` — a FLIP from a
+# previously-recorded 0.653 :clara. Four more runs of the identical point read 0.6996 / 0.5911 /
+# 0.8984 / 0.6134. The 1.06 was one sample at the top of an ~80%-wide distribution and the flip was
+# not real. At the same time `[200 200]` read 0.664 against a prior 0.665 — two samples of a
+# ~40%-wide distribution landing on top of each other, which looked like "unchanged" and was not.
+#
+# Single-run verdicts are therefore unreadable wherever the ratio is near parity. Each point now
+# runs GRID_RUNS times and the verdict reports mean AND min/max — the SPREAD stays visible, because
+# a bare mean would have concealed exactly the thing that produced the false flip.
+GRID_RUNS="${GRID_RUNS:-3}"
+
 if command -v systemd-run >/dev/null 2>&1 && systemd-run --user --scope --quiet true 2>/dev/null; then
   guard() { systemd-run --user --scope --quiet \
               -p MemoryMax="$GRID_MEM_MAX" -p MemorySwapMax=0 \
@@ -88,64 +101,86 @@ GEN_FILE="$GRID_DIR/gen-$AXIS.sh"
 for SIZE in "$@"; do
   SIZE_JSON="[$(echo "$SIZE" | tr -s ' ' ',')]"
 
-  # ── wat side: native fire-rules, timed inside the script itself ──────────
-  # stderr is CAPTURED, not discarded: `2>/dev/null` made a wat-side failure loud but
-  # REASONLESS — you learned the axis produced nothing and never why.
-  WAT_ERR="$(mktemp)"
-  set +e
-  WAT_OUT="$(echo "$SIZE_JSON" | guard "$WAT_BIN" "$WAT_FILE" 2>"$WAT_ERR")"
-  WAT_RC=$?
-  set -e
-  WAT_LINE="$(echo "$WAT_OUT" | grep -o '#grid/Result.*' || true)"
-  if [ -z "$WAT_LINE" ]; then
-    echo "run-axis: wat side produced no #grid/Result for axis=$AXIS size=[$SIZE] (rc=$WAT_RC)" >&2
-    echo "  binary: $WAT_BIN" >&2
-    # rc is the diagnosis, and empty-output-with-no-error is the tell of a KILL, not a failure.
-    case "$WAT_RC" in
-      124) echo "  ⇒ TIMED OUT at ${GRID_TIMEOUT}s. Raise GRID_TIMEOUT, or the size is too big." >&2 ;;
-      137) echo "  ⇒ KILLED (SIGKILL) — almost certainly the memory cap ($GRID_MEM_MAX)." >&2
-           echo "    That is the guard working. Do NOT just raise it; a blowup at this size IS the finding." >&2 ;;
-      *)   echo "  ⇒ exit $WAT_RC" >&2 ;;
-    esac
-    echo "  ── stdout ──" >&2; echo "$WAT_OUT" >&2
-    echo "  ── stderr ──" >&2; cat "$WAT_ERR" >&2
-    rm -f "$WAT_ERR"
-    exit 1
-  fi
-  rm -f "$WAT_ERR"
-
-  # ── Clara side: generate the .clj, run it in its own tmp dir, capture stdout ──
-  # Clojure's classpath loader maps ns `strat-neg` -> file `strat_neg.clj` (hyphen -> underscore);
-  # the emitted `(ns <axis> ...)` keeps the hyphen (readable), the FILE on disk must not.
+  # The Clara program is generated ONCE per size and re-run; generation is not under measurement.
   CLJ_TMP="$(mktemp -d)"
   AXIS_FILE="${AXIS//-/_}"
   bash "$GEN_FILE" $SIZE > "$CLJ_TMP/$AXIS_FILE.clj"
-  CLARA_OUT="$(cd "$CLJ_TMP" && clojure -Sdeps "$CLARA_DEP" -M -m "$AXIS" 2>/dev/null || true)"
+
+  RATIOS=""
+  ACCURACY=":match"
+
+  for RUN in $(seq 1 "$GRID_RUNS"); do
+    # ── wat side: native fire-rules, timed inside the script itself ──────────
+    # stderr is CAPTURED, not discarded: `2>/dev/null` made a wat-side failure loud but
+    # REASONLESS — you learned the axis produced nothing and never why.
+    WAT_ERR="$(mktemp)"
+    set +e
+    WAT_OUT="$(echo "$SIZE_JSON" | guard "$WAT_BIN" "$WAT_FILE" 2>"$WAT_ERR")"
+    WAT_RC=$?
+    set -e
+    WAT_LINE="$(echo "$WAT_OUT" | grep -o '#grid/Result.*' || true)"
+    if [ -z "$WAT_LINE" ]; then
+      echo "run-axis: wat side produced no #grid/Result for axis=$AXIS size=[$SIZE] run=$RUN (rc=$WAT_RC)" >&2
+      echo "  binary: $WAT_BIN" >&2
+      # rc is the diagnosis, and empty-output-with-no-error is the tell of a KILL, not a failure.
+      case "$WAT_RC" in
+        124) echo "  ⇒ TIMED OUT at ${GRID_TIMEOUT}s. Raise GRID_TIMEOUT, or the size is too big." >&2 ;;
+        137) echo "  ⇒ KILLED (SIGKILL) — almost certainly the memory cap ($GRID_MEM_MAX)." >&2
+             echo "    That is the guard working. Do NOT just raise it; a blowup at this size IS the finding." >&2 ;;
+        *)   echo "  ⇒ exit $WAT_RC" >&2 ;;
+      esac
+      echo "  ── stdout ──" >&2; echo "$WAT_OUT" >&2
+      echo "  ── stderr ──" >&2; cat "$WAT_ERR" >&2
+      rm -f "$WAT_ERR"; rm -rf "$CLJ_TMP"
+      exit 1
+    fi
+    rm -f "$WAT_ERR"
+
+    # ── Clara side ────────────────────────────────────────────────────────────
+    CLARA_OUT="$(cd "$CLJ_TMP" && clojure -Sdeps "$CLARA_DEP" -M -m "$AXIS" 2>/dev/null || true)"
+    CLARA_LINE="$(echo "$CLARA_OUT" | grep -o '#grid/Result.*' || true)"
+    if [ -z "$CLARA_LINE" ]; then
+      echo "run-axis: Clara side produced no #grid/Result for axis=$AXIS size=[$SIZE] run=$RUN:" >&2
+      echo "$CLARA_OUT" >&2
+      rm -rf "$CLJ_TMP"
+      exit 1
+    fi
+
+    # ── canonicalize :derived (strip wat's PersistentVector tag) + compare ────
+    # Checked on EVERY run, not just the first: an accuracy divergence that only appears
+    # sometimes is a worse finding than one that always does, and must not be sampled away.
+    WAT_DERIVED="$(echo "$WAT_LINE" | grep -oP ':derived\s+(?:#wat\.core/PersistentVector\s+)?\K\[[^]]*\]')"
+    CLARA_DERIVED="$(echo "$CLARA_LINE" | grep -oP ':derived\s+\K\[[^]]*\]')"
+    WAT_NS="$(echo "$WAT_LINE" | grep -oP ':native-ns\s+\K[0-9]+')"
+    CLARA_NS="$(echo "$CLARA_LINE" | grep -oP ':clara-ns\s+\K[0-9]+')"
+
+    if [ -z "$WAT_DERIVED" ] || [ "$WAT_DERIVED" != "$CLARA_DERIVED" ]; then
+      ACCURACY=":MISMATCH"
+      echo "run-axis: MISMATCH axis=$AXIS size=[$SIZE] run=$RUN" >&2
+      echo "  wat   :derived $WAT_DERIVED" >&2
+      echo "  clara :derived $CLARA_DERIVED" >&2
+    fi
+
+    RATIOS="$RATIOS $(awk -v n="$WAT_NS" -v c="$CLARA_NS" 'BEGIN { printf "%.4f", (n>0)? c/n : -1 }')"
+  done
+
   rm -rf "$CLJ_TMP"
-  CLARA_LINE="$(echo "$CLARA_OUT" | grep -o '#grid/Result.*' || true)"
-  if [ -z "$CLARA_LINE" ]; then
-    echo "run-axis: Clara side produced no #grid/Result for axis=$AXIS size=[$SIZE]:" >&2
-    echo "$CLARA_OUT" >&2
-    exit 1
-  fi
 
-  # ── canonicalize :derived (strip wat's PersistentVector tag) + compare ────
-  WAT_DERIVED="$(echo "$WAT_LINE" | grep -oP ':derived\s+(?:#wat\.core/PersistentVector\s+)?\K\[[^]]*\]')"
-  CLARA_DERIVED="$(echo "$CLARA_LINE" | grep -oP ':derived\s+\K\[[^]]*\]')"
-  WAT_NS="$(echo "$WAT_LINE" | grep -oP ':native-ns\s+\K[0-9]+')"
-  CLARA_NS="$(echo "$CLARA_LINE" | grep -oP ':clara-ns\s+\K[0-9]+')"
+  # ── mean + spread, and a verdict only where every run agrees ───────────────
+  # :us / :clara require EVERY run to fall on the same side of the ±5% band. If the spread
+  # straddles parity the honest answer is :unresolved — not the mean's coin flip. A matrix that
+  # reports :unresolved for two points and stands behind nineteen is worth more than one that
+  # reports twenty-one verdicts, two of which are samples.
+  STATS="$(echo "$RATIOS" | awk '{ n=0; s=0; mn=1e18; mx=-1e18;
+      for (i=1; i<=NF; i++) { v=$i+0; n++; s+=v; if (v<mn) mn=v; if (v>mx) mx=v }
+      printf "%.4f %.4f %.4f", s/n, mn, mx }')"
+  MEAN="$(echo "$STATS" | cut -d' ' -f1)"
+  MIN="$(echo "$STATS"  | cut -d' ' -f2)"
+  MAX="$(echo "$STATS"  | cut -d' ' -f3)"
+  WINNER="$(awk -v mn="$MIN" -v mx="$MAX" 'BEGIN {
+      if      (mn > 1.05) print ":us"
+      else if (mx < 0.95) print ":clara"
+      else                print ":unresolved" }')"
 
-  if [ -n "$WAT_DERIVED" ] && [ "$WAT_DERIVED" = "$CLARA_DERIVED" ]; then
-    ACCURACY=":match"
-  else
-    ACCURACY=":MISMATCH"
-    echo "run-axis: MISMATCH axis=$AXIS size=[$SIZE]" >&2
-    echo "  wat   :derived $WAT_DERIVED" >&2
-    echo "  clara :derived $CLARA_DERIVED" >&2
-  fi
-
-  RATIO="$(awk -v n="$WAT_NS" -v c="$CLARA_NS" 'BEGIN { printf "%.4f", (n>0)? c/n : -1 }')"
-  WINNER=":$(awk -v r="$RATIO" 'BEGIN { print (r > 1.05) ? "us" : (r < 0.95 ? "clara" : "tie") }')"
-
-  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :ratio $RATIO :winner $WINNER}"
+  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :winner $WINNER}"
 done
