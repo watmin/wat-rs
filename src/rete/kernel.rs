@@ -1788,6 +1788,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             };
 
             // Group B: field_names from cache (fact-class → field names, computed once per class).
+            //
+            // ⚠ The `alpha:*` sub-marks below fire PER FACT (and per fact×alpha), not once per node
+            // per round like the `accum:*` ones. `Instant::now()` is ~20-25ns, so eight calls
+            // against a ~1.5µs/fact phase is a material share of what it measures. Read the
+            // instrument's own cost off the census table's calibration line before apportioning,
+            // and treat these as PROPORTIONS rather than absolute times.
+            let __afn = phase_start();
             let field_names: &Vec<String> = field_names_cache
                 .entry(fact_class.to_string())
                 .or_insert_with(|| {
@@ -1801,18 +1808,26 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         })
                         .unwrap_or_default()
                 });
+            phase_end("  ├ alpha:fieldnames", __afn);
 
             for aid in alphas {
                 let cond_ast = match alpha_cond.get(aid) {
                     Some(c) => c,
                     None => continue,
                 };
-                if let Some(bindings) = crate::rete::matcher::alpha_match_inner(
+                let __am = phase_start();
+                let matched = crate::rete::matcher::alpha_match_inner(
                     cond_ast, fact_class, fact_fields, field_names,
-                ) {
+                );
+                phase_end("  ├ alpha:match", __am);
+                if let Some(bindings) = matched {
+                    let __mk = phase_start();
                     let el = make_element(fact.clone(), bindings);
+                    phase_end("  ├ alpha:element", __mk);
+                    let __pu = phase_start();
                     wm.alpha.entry(*aid).or_default().push(el.clone());
                     d_alpha.entry(*aid).or_default().push(el);
+                    phase_end("  └ alpha:push", __pu);
                 }
             }
         }
@@ -3767,13 +3782,36 @@ mod tests {
     /// Read the table with `--no-capture`.
     #[test]
     fn accum_fire_phase_census() {
-        const PHASES: [&str; 9] = [
-            "alpha", "root-join", "hash-join",
+        const PHASES: [&str; 13] = [
+            "alpha",
+            "  ├ alpha:fieldnames", "  ├ alpha:match", "  ├ alpha:element", "  └ alpha:push",
+            "root-join", "hash-join",
             "accumulate", "  ├ accum:snapshot", "  ├ accum:index", "  └ accum:fold",
             "filter", "production",
         ];
 
-        let mut table = String::from("\naccum fire — per-phase split (native fire-rules only)\n");
+        // ── The instrument declares its own cost ─────────────────────────────────────────────
+        //
+        // The accum:* marks fire once per node per round (negligible). The alpha:* marks fire PER
+        // FACT — up to four pairs each — so at 20k facts the instrument is doing ~80k clock reads
+        // inside the very phase it is measuring. An instrument that supplies a material part of
+        // its own result is not a measurement, so it is calibrated and the number is printed
+        // beside the table rather than left for the reader to wonder about.
+        const CAL_N: u64 = 200_000;
+        let cal_t0 = std::time::Instant::now();
+        super::with_phase_census(|| {
+            for _ in 0..CAL_N {
+                let m = super::phase_start();
+                super::phase_end("cal", m);
+            }
+        });
+        let cal_ns_per_pair = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+
+        let mut table = format!(
+            "\naccum fire — per-phase split (native fire-rules only)\n\
+             instrument: ~{cal_ns_per_pair:.1} ns per mark pair; the alpha:* rows fire PER FACT, so \
+             read them as PROPORTIONS\n"
+        );
         for (g, w) in [(25i64, 50i64), (50, 100), (100, 200), (200, 200)] {
             let rows = accum_phase_census(g, w);
             assert!(
