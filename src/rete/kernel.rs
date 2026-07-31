@@ -3937,6 +3937,81 @@ mod tests {
         );
     }
 
+    // ── Is the per-element BINDING LOOKUP the fold's cost? ───────────────────────────────────
+    //
+    // `accum:fold` is ~27% of fire. Inside it, `acc_var_i64` does an rpds trie lookup per element
+    // to recover the accumulated ?var. That is a plausible root — and so were the three that died
+    // this week. The accumulators differ in exactly the way needed to settle it without a new
+    // instrument: `count` is `gathered.len()` and does NO lookup; `sum` does one per element.
+    // Same world shape, same size, one rule each — the delta in `accum:fold` IS the lookup.
+
+    fn one_rule_world(rule: &str) -> String {
+        format!(
+"(:wat::core::defrecord :one::Group   [g <- :wat::core::i64])\n\
+(:wat::core::defrecord :one::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
+(:wat::core::defrecord :one::Out     [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+{rule}\n\
+(:wat::core::defn :one::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert s (:one::Reading :g g :v j)))\n\
+    session\n\
+    (:wat::core::range 0 w)))\n\
+(:wat::core::defn :one::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:one::seed-readings (:wat::rete::insert s (:one::Group g)) g w))\n\
+    session\n\
+    (:wat::core::range 0 gs)))\n")
+    }
+
+    fn one_rule_fold_ns(rule: &str, g: i64, w: i64) -> u64 {
+        let world = startup_from_source(&one_rule_world(rule), None, Arc::new(InMemoryLoader::new()))
+            .expect("one-rule world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:one::seed (:wat::rete::compile (:wat::rete::collect-rules :one)) {g} {w}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, rows) = super::with_phase_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
+                .value_owned()
+        });
+        rows.iter().find(|(n, _)| *n == "  └ accum:fold").map(|(_, ns)| *ns).unwrap_or(0)
+    }
+
+    /// Diagnostic — the fold WITH a per-element binding lookup vs WITHOUT one.
+    #[test]
+    fn fold_cost_with_and_without_the_binding_lookup() {
+        const COUNT_RULE: &str = "(:wat::rete::defrule :one::count-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?n <- (:wat::rete::acc::count) :from (:one::Reading (?g <- :g)))]\n\
+  :then (:wat::rete::insert (:one::Out ?g ?n)))";
+        const SUM_RULE: &str = "(:wat::rete::defrule :one::sum-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?n <- (:wat::rete::acc::sum ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then (:wat::rete::insert (:one::Out ?g ?n)))";
+
+        const RUNS: usize = 3;
+        let (g, w) = (200i64, 200i64);
+        let elements = g * w;
+
+        let mut counts = Vec::new();
+        let mut sums = Vec::new();
+        for _ in 0..RUNS {
+            counts.push(one_rule_fold_ns(COUNT_RULE, g, w));
+            sums.push(one_rule_fold_ns(SUM_RULE, g, w));
+        }
+        let mean = |xs: &[u64]| xs.iter().sum::<u64>() as f64 / xs.len() as f64;
+        let (c, s) = (mean(&counts), mean(&sums));
+        assert!(c > 0.0 && s > 0.0, "one or both folds recorded nothing — the instrument never fired");
+
+        println!(
+            "\nfold cost, {elements} elements gathered, mean of {RUNS}\n                 count (NO per-element lookup)  {:>7.2} ms\n                 sum   (ONE lookup per element) {:>7.2} ms\n                 delta = the lookup             {:>7.2} ms   ({:.0} ns/element)\n",
+            c / 1e6, s / 1e6, (s - c) / 1e6, (s - c) / elements as f64
+        );
+    }
+
     /// How many DISTINCT alpha memories do the accumulate nodes actually read?
     ///
     /// `accum:index-builds 4` over `index-elements 160,000` is consistent with ONE shared alpha
