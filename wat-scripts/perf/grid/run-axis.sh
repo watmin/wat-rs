@@ -107,6 +107,8 @@ for SIZE in "$@"; do
   bash "$GEN_FILE" $SIZE > "$CLJ_TMP/$AXIS_FILE.clj"
 
   RATIOS=""
+  WAT_NSS=""
+  CLARA_NSS=""
   ACCURACY=":match"
 
   for RUN in $(seq 1 "$GRID_RUNS"); do
@@ -162,6 +164,8 @@ for SIZE in "$@"; do
     fi
 
     RATIOS="$RATIOS $(awk -v n="$WAT_NS" -v c="$CLARA_NS" 'BEGIN { printf "%.4f", (n>0)? c/n : -1 }')"
+    WAT_NSS="$WAT_NSS $WAT_NS"
+    CLARA_NSS="$CLARA_NSS $CLARA_NS"
   done
 
   rm -rf "$CLJ_TMP"
@@ -182,5 +186,8 @@ for SIZE in "$@"; do
       else if (mx < 0.95) print ":clara"
       else                print ":unresolved" }')"
 
-  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :winner $WINNER}"
+  WAT_MEAN="$(echo "$WAT_NSS"   | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
+  CLARA_MEAN="$(echo "$CLARA_NSS" | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
+
+  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :clara-ns $CLARA_MEAN :winner $WINNER}"
 done

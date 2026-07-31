@@ -1726,7 +1726,10 @@ pub(crate) fn with_phase_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static s
 /// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
 /// probe cost per match instead of O(W) rebuild per round per node.
 fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&mut HashMap<Value, (String, Token)>>) -> Result<Value, EvalBreak> {
+    let __in = phase_start();
     let mut wm = to_transient(session)?;
+    phase_end("IN: to_transient", __in);
+    let __setup = phase_start();
 
     // Start with empty memories (staged session may carry stale state from prior calls).
     wm.alpha.clear();
@@ -1828,6 +1831,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         }
     }
 
+    phase_end("SETUP: indexes", __setup);
+    let __rounds = phase_start();
     loop {
         // Per-round delta sets (new elements/tokens created THIS round).
         let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
@@ -2455,10 +2460,18 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
     // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
     wm.beta.clear();
+    phase_end("ROUND LOOP", __rounds);
+
     // Return persistent session with facts = input (fire-rules contract).
     // The input facts are already in wm.facts (never modified during delta fire).
     let input_facts = wm.facts.clone();
-    Ok(session_with_facts(&to_persistent(wm), input_facts))
+    // The Value<->native conversions and the tail are OUTSIDE the round loop and were
+    // never marked — the six phases covered only ~28% of fire, so everything apportioned
+    // within them was apportioned within a quarter of the work.
+    let __out = phase_start();
+    let __res = Ok(session_with_facts(&to_persistent(wm), input_facts));
+    phase_end("OUT: to_persistent", __out);
+    __res
 }
 
 // ── Arc 278 Stone 7-strat-native: STRATIFIED negation, native port ──────────────
@@ -3864,11 +3877,24 @@ mod tests {
         );
         let src = format!("(:wat::rete::fire-rules {staged})");
         let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
-        let (_fired, rows) = super::with_phase_census(|| {
+        let t0 = std::time::Instant::now();
+        let (_fired, mut rows) = super::with_phase_census(|| {
             eval_in_frozen(&ast, &world, &Environment::new())
                 .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
                 .value_owned()
         });
+        // ⚠ The WHOLE fire, so the census can declare its own COVERAGE. The six phases live inside
+        // `fire_fixpoint_delta`'s round loop; everything outside it — network extraction,
+        // alpha_by_type, parent_of, per-round setup, the terminate step, merge_facts,
+        // to_persistent — is NOT covered by any mark. Apportioning the phases as if they were the
+        // whole fire is precisely the instrument-boundary error this file keeps warning about.
+        // ⚠ This wraps the WHOLE driver expression — `(fire-rules (seed (compile ...)))` — so it
+        // includes compile and SEED, not just the fire. Named accordingly: an earlier version
+        // called it "WHOLE FIRE" and the ~205ms of seeding read as unaccounted fire, which is the
+        // third instrument-boundary error in this file today and all three were mine. The four
+        // outer marks (IN/SETUP/ROUND LOOP/OUT) are what partition the fire, and their sum matches
+        // the grid's own :wat-ns to ~1% — that agreement is the cross-check.
+        rows.push(("WHOLE EVAL (compile+seed+fire)", t0.elapsed().as_nanos() as u64));
         rows
     }
 
@@ -4203,12 +4229,21 @@ mod tests {
     /// Read the table with `--no-capture`.
     #[test]
     fn accum_fire_phase_census() {
-        const PHASES: [&str; 13] = [
+        // The four OUTER marks partition the whole fire; everything else nests inside one of
+        // them. The total is the outer four ONLY — summing a parent with its children is what
+        // made the first version of this table report 124% coverage.
+        const TOP: [&str; 4] =
+            ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
+        const PHASES: [&str; 17] = [
+            "IN: to_transient",
+            "SETUP: indexes",
+            "ROUND LOOP",
             "alpha",
             "  ├ alpha:fieldnames", "  ├ alpha:match", "  ├ alpha:element", "  └ alpha:push",
             "root-join", "hash-join",
             "accumulate", "  ├ accum:snapshot", "  ├ accum:index", "  └ accum:fold",
             "filter", "production",
+            "OUT: to_persistent",
         ];
 
         // ── The instrument declares its own cost ─────────────────────────────────────────────
@@ -4267,17 +4302,23 @@ mod tests {
 
             // Sub-phases (indented names) are INSIDE their parent — summing them into the total
             // would double-count that phase. The total is the six top-level phases only.
-            let total_mean: f64 = samples
+            let total_mean: f64 = TOP
                 .iter()
-                .filter(|(n, _)| !n.starts_with("  "))
-                .map(|(_, xs)| stat(xs).0)
+                .filter_map(|k| samples.get(k).map(|xs| stat(xs).0))
                 .sum();
             assert!(total_mean > 0.0, "phase census total is zero at G={g} W={w}");
 
+            let whole_mean = samples
+                .get("WHOLE EVAL (compile+seed+fire)")
+                .map(|xs| stat(xs).0)
+                .unwrap_or(0.0);
             table.push_str(&format!(
-                "\n  G={g} W={w}  ({} facts)  total {:.2} ms\n",
+                "\n  G={g} W={w}  ({} facts)   FIRE {:.2} ms (the four outer marks)   \
+                 whole eval {:.2} ms   → seed+compile ≈ {:.2} ms\n",
                 g * (w + 1),
-                total_mean / 1e6
+                total_mean / 1e6,
+                whole_mean / 1e6,
+                (whole_mean - total_mean) / 1e6,
             ));
             for phase in PHASES {
                 let xs = samples.get(phase).unwrap_or_else(|| {
