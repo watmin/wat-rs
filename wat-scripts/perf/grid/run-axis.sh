@@ -32,6 +32,52 @@ set -euo pipefail
 GRID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLARA_DEP='{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}} :paths ["."]}'
 
+# THE BINARY UNDER MEASUREMENT — the LOCAL build, never `cargo wat`.
+#
+# `cargo wat` resolves to whatever sits in ~/.cargo/bin, which is a DIFFERENT binary than the
+# one in this tree: on 2026-07-30 the install was 7 hours older than target/release/wat, across
+# a kernel purge and a compiler bump. A benchmark that reads one build while you reason about
+# another is an instrument supplying its own result — and this runner had that bug on every
+# axis, which is reason enough to distrust any number it produced before this line existed.
+# Set WAT_BIN explicitly if you genuinely mean to measure an install.
+REPO_ROOT="$(cd "$GRID_DIR/../../.." && pwd)"
+WAT_BIN="${WAT_BIN:-$REPO_ROOT/target/release/wat}"
+[ -x "$WAT_BIN" ] || {
+  echo "run-axis: no wat binary at $WAT_BIN — build it first (cargo build --release)" >&2
+  exit 1
+}
+
+# ── THE BLAST DOOR — a benchmark may not be able to take the workstation down ──
+#
+# 2026-07-30: `run-axis.sh node-share "10 2000" "50 2000"` CRASHED THE BUILDER'S MACHINE. The
+# N=50 point consumed the box's 43 GiB of available RAM and the OOM killer took the desktop
+# with it; the axis produced empty stdout AND empty stderr, which is the signature of a process
+# being killed rather than failing. A benchmark that can do that is not a measurement tool.
+#
+# The cap is not caution, it is a wall: each side runs in its OWN cgroup scope with a hard
+# MemoryMax and swap disabled, so a runaway dies alone and reports WHY. MemorySwapMax=0 matters
+# more than the cap — swap thrash is what actually wedges a desktop before the OOM killer acts.
+#
+# Raise GRID_MEM_MAX deliberately for a big run; do not remove the guard. And grow a size ladder
+# UPWARD from small (R24: these harnesses are O(n^2) interpreted — a point that returns fast
+# says nothing about the next one).
+GRID_MEM_MAX="${GRID_MEM_MAX:-6G}"
+GRID_TIMEOUT="${GRID_TIMEOUT:-300}"
+
+if command -v systemd-run >/dev/null 2>&1 && systemd-run --user --scope --quiet true 2>/dev/null; then
+  guard() { systemd-run --user --scope --quiet \
+              -p MemoryMax="$GRID_MEM_MAX" -p MemorySwapMax=0 \
+              -- timeout "$GRID_TIMEOUT" "$@"; }
+  GUARD_KIND="cgroup MemoryMax=$GRID_MEM_MAX, no swap, ${GRID_TIMEOUT}s"
+else
+  # Fallback: address-space cap. Blunter than a cgroup (Rust reserves generously, so a false
+  # trip is possible) but it still beats an unbounded run against the machine.
+  GUARD_KB=$(( $(numfmt --from=iec "$GRID_MEM_MAX") / 1024 ))
+  guard() { ( ulimit -v "$GUARD_KB"; exec timeout "$GRID_TIMEOUT" "$@" ); }
+  GUARD_KIND="ulimit -v $GRID_MEM_MAX, ${GRID_TIMEOUT}s (no systemd-run)"
+fi
+echo "run-axis: guard = $GUARD_KIND" >&2
+
 AXIS="${1:?usage: run-axis.sh AXIS SIZE...}"; shift
 WAT_FILE="$GRID_DIR/$AXIS.wat"
 GEN_FILE="$GRID_DIR/gen-$AXIS.sh"
@@ -43,13 +89,30 @@ for SIZE in "$@"; do
   SIZE_JSON="[$(echo "$SIZE" | tr -s ' ' ',')]"
 
   # ── wat side: native fire-rules, timed inside the script itself ──────────
-  WAT_OUT="$(echo "$SIZE_JSON" | cargo wat "$WAT_FILE" 2>/dev/null || true)"
+  # stderr is CAPTURED, not discarded: `2>/dev/null` made a wat-side failure loud but
+  # REASONLESS — you learned the axis produced nothing and never why.
+  WAT_ERR="$(mktemp)"
+  set +e
+  WAT_OUT="$(echo "$SIZE_JSON" | guard "$WAT_BIN" "$WAT_FILE" 2>"$WAT_ERR")"
+  WAT_RC=$?
+  set -e
   WAT_LINE="$(echo "$WAT_OUT" | grep -o '#grid/Result.*' || true)"
   if [ -z "$WAT_LINE" ]; then
-    echo "run-axis: wat side produced no #grid/Result for axis=$AXIS size=[$SIZE]:" >&2
-    echo "$WAT_OUT" >&2
+    echo "run-axis: wat side produced no #grid/Result for axis=$AXIS size=[$SIZE] (rc=$WAT_RC)" >&2
+    echo "  binary: $WAT_BIN" >&2
+    # rc is the diagnosis, and empty-output-with-no-error is the tell of a KILL, not a failure.
+    case "$WAT_RC" in
+      124) echo "  ⇒ TIMED OUT at ${GRID_TIMEOUT}s. Raise GRID_TIMEOUT, or the size is too big." >&2 ;;
+      137) echo "  ⇒ KILLED (SIGKILL) — almost certainly the memory cap ($GRID_MEM_MAX)." >&2
+           echo "    That is the guard working. Do NOT just raise it; a blowup at this size IS the finding." >&2 ;;
+      *)   echo "  ⇒ exit $WAT_RC" >&2 ;;
+    esac
+    echo "  ── stdout ──" >&2; echo "$WAT_OUT" >&2
+    echo "  ── stderr ──" >&2; cat "$WAT_ERR" >&2
+    rm -f "$WAT_ERR"
     exit 1
   fi
+  rm -f "$WAT_ERR"
 
   # ── Clara side: generate the .clj, run it in its own tmp dir, capture stdout ──
   # Clojure's classpath loader maps ns `strat-neg` -> file `strat_neg.clj` (hyphen -> underscore);
