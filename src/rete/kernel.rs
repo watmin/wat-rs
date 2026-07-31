@@ -4081,6 +4081,63 @@ mod tests {
         );
     }
 
+    // ── Inside the 163 ns bind: key CONSTRUCTION vs the MAP operation ────────────────────────
+    //
+    // `eval_clause` does `Value::String(Arc::new(var.to_string()))` per bind — a fresh String plus
+    // a fresh Arc, to key on a variable name that is a compile-time constant. Interning it would
+    // reduce that to an Arc refcount bump. Whether that is worth doing depends on its share of the
+    // 163 ns, and the alternative (changing the binding map's representation) is a substrate-wide
+    // change shared by joins, negation, token extension and the oracle differential — so the cheap
+    // fix deserves to be priced first.
+    //
+    // ⚠ HONEST BOUND: this is a tight-loop microbenchmark, not the engine. Allocator state and
+    // cache behaviour differ from a real fire, so treat the RATIO between the three as the finding
+    // and not the absolute nanoseconds. The 163 ns from `alpha_match_cost_per_binding` is the
+    // in-engine number; this only apportions it.
+    #[test]
+    fn bind_key_construction_vs_map_operation() {
+        use std::hint::black_box;
+        const N: usize = 300_000;
+        let var = "?g";
+        let val = Value::i64(42);
+        let interned = Value::String(Arc::new(var.to_string()));
+        let empty: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+
+        // (a) what we do today: build the key from scratch, every bind.
+        let t0 = std::time::Instant::now();
+        for _ in 0..N {
+            let key = Value::String(Arc::new(var.to_string()));
+            black_box(&key);
+        }
+        let fresh_ns = t0.elapsed().as_nanos() as f64 / N as f64;
+
+        // (b) what interning would cost instead: an Arc refcount bump.
+        let t1 = std::time::Instant::now();
+        for _ in 0..N {
+            let key = interned.clone();
+            black_box(&key);
+        }
+        let interned_ns = t1.elapsed().as_nanos() as f64 / N as f64;
+
+        // (c) the map operation itself, key supplied — get (the already-bound check) then insert
+        // into a fresh empty map, which is what a first bind on an element does.
+        let t2 = std::time::Instant::now();
+        for _ in 0..N {
+            let m = empty.clone();
+            black_box(m.get(&interned));
+            let m2 = m.insert(interned.clone(), val.clone());
+            black_box(&m2);
+        }
+        let map_ns = t2.elapsed().as_nanos() as f64 / N as f64 - interned_ns; // subtract the clone (c) also pays
+
+        assert!(fresh_ns > 0.0 && map_ns > 0.0, "microbenchmark recorded nothing");
+
+        println!(
+            "\nbind cost apportioned — {N} iterations each (RATIOS, not absolutes)\n                 (a) fresh key   Value::String(Arc::new(var.to_string()))  {fresh_ns:>6.1} ns\n                 (b) interned    an Arc refcount bump                      {interned_ns:>6.1} ns\n                 (c) map         get + insert, key supplied                {map_ns:>6.1} ns\n                 ---------------------------------------------------------------\n                 interning would save (a)-(b) = {:>5.1} ns of the ~163 ns in-engine bind\n                 the map itself is {:>5.1} ns and is untouched by interning\n",
+            fresh_ns - interned_ns, map_ns
+        );
+    }
+
     /// How many DISTINCT alpha memories do the accumulate nodes actually read?
     ///
     /// `accum:index-builds 4` over `index-elements 160,000` is consistent with ONE shared alpha
