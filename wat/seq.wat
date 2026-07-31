@@ -248,33 +248,17 @@
 ;; primitive, so `seqable->stream` is the one-time normalization step that lets every clause
 ;; share the SAME Stream-only walker instead of re-deriving it per container type).
 
-;; seqable->stream — private plumbing: realize any seqable (Vector/List/PersistentVector/Stream/
-;; bare-PersistentVector) as an equivalent `Stream<T>`, identity walk (no predicate — mirrors
-;; `filter`'s per-type clause shape with `pred` fixed to "always true"). Used by every stateful
-;; form below to collapse 5 container types down to 1 before threading state.
-(:wat::core::defclause :wat::core::seqable->stream
-  ([coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll))))))
-  ([coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll))))))
-  ([coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll))))))
-  ([coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
-    coll)
-  ([coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll)))))))
+;; seqable->stream — private plumbing: realize any seqable (Vector/List/PersistentVector/Stream)
+;; as an equivalent `Stream<T>`. Used by every stateful form below to collapse the container
+;; types down to 1 before threading state.
+;;
+;; Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — NATIVE now (src/collection/
+;; transform.rs's `eval_seqable_to_stream`, dispatched in src/runtime.rs). The wat form this
+;; replaced walked its source by repeated `(rest coll)`, and `rest` on any eager container
+;; REBUILDS the whole remaining container — O(n^2) over the walk. The native form steps its
+;; source BY POSITION instead (List is snapshotted once, O(n) total, then stepped the same
+;; way — it has no indexed access), materialising nothing per element. Every clause below is
+;; unchanged; they go linear by delegation alone.
 
 ;; ─── remove — filter's negation (keep elements where `pred` is FALSE) ─────────────────────────
 (:wat::core::defclause :wat::core::remove

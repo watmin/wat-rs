@@ -5166,6 +5166,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::drop" => crate::collection::transform::eval_vec_drop(args, list_span, env, sym),
         ":wat::core::sort'" => crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym),  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
+        // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — the private eager→lazy
+        // normalizer, native now (was a wat `defclause`, `wat/seq.wat`, that stepped its
+        // source via repeated `rest` — O(n^2) on every eager container). Steps by position;
+        // see `eval_seqable_to_stream`'s doc for the per-container shape.
+        ":wat::core::seqable->stream" => crate::collection::transform::eval_seqable_to_stream(args, list_span, env, sym),
         ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
         ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
         // Arc 118.2a — `:wat::core::filter` retired from this dispatch table: no

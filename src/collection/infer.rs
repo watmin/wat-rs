@@ -1062,6 +1062,57 @@ pub(crate) fn infer_drop(
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
 }
 
+/// Type-check `(:wat::core::seqable->stream coll)` — Arc-278 DESIGN-STONE
+/// seq-traversal-one-door, Strike 1 (native now; was a wat `defclause`, `wat/seq.wat`).
+///
+/// `Seqable<T> → Stream<T>` — the private eager→lazy normalizer every stateful lazy
+/// transformer (`keep`, `keep-indexed`, `take-nth`, `dedupe`, `distinct`, `map-indexed`)
+/// delegates through. Accepts the same `Seqable` set as `map`/`take`/`drop` (see
+/// `extract_lazyable_elem`'s doc): Vector<T> | List<T> | PersistentVector<T> | Stream<T>.
+pub(crate) fn infer_seqable_to_stream(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::seqable->stream";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![fresh.fresh()] };
+    if args.len() != 1 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 1, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
+                let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&elem_ty, subst)] };
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
 /// Type-check `(:wat::core::concat a b)` — arc 278 stone 0d.
 ///
 /// Projective: `C<T> × C<T> → C<T>` — same-kind-only; mixed Vector+PersistentVector → TypeMismatch.

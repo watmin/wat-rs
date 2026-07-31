@@ -772,3 +772,184 @@ pub(crate) fn eval_vec_map_with_index(
     }
     Ok(Value::Vec(Arc::new(out)))
 }
+
+/// `(:wat::core::seqable->stream coll)` → `Stream<T>`. Arc-278 DESIGN-STONE
+/// seq-traversal-one-door, Strike 1 — the private eager→lazy normalizer, NATIVE now,
+/// replacing the wat `defclause` that used to walk its source by repeated `(rest coll)`.
+/// `rest` on an eager container REBUILDS the whole remaining container (`eval_rest`,
+/// `collection/eval.rs`), so the old walk was O(n^2); this one steps its source BY
+/// POSITION and materialises nothing per element, so it is O(n) total.
+///
+/// Every verb that already delegates through this converter (`keep`, `keep-indexed`,
+/// `take-nth`, `dedupe`, `distinct`, `map-indexed` — `wat/seq.wat`) goes linear with ZERO
+/// edits of their own: that is the proof the door is shared.
+///
+/// Dispatch shape copied from `eval_vec_foldl`'s container match (this file), routed
+/// through the `StreamContainer` registry (`collection/seq_container.rs`) — no re-derived
+/// classification, and (arc-278 strike 4 convention) exhaustive over the closed enum, no `_`.
+///
+/// - `Stream` — already lazy; returned unchanged (`Arc` bump only).
+/// - `Vector` — already indexable behind an `Arc<Vec<Value>>`. Builds a `NativeThunk`
+///   holding `(the Arc handle, index)`; forcing it yields `Cons(elem_at(index),
+///   thunk(index + 1))`, `Empty` past the end. The handle is `Arc::clone`d once per step —
+///   O(1) — never the elements, and no element is touched until its cell is forced.
+/// - `PersistentVector` — an rpds bitmapped trie: `.get(index)` is O(log n), `.clone()` is
+///   O(1) (structural sharing). Same index-stepping shape as `Vector`.
+/// - `List` — `Arc<LinkedList>`, which has NO indexed access. Snapshotted into an indexable
+///   `Vec<Value>` ONCE (a single O(n) pass, not per element), then stepped exactly like the
+///   `Vector` arm. Indexing the `LinkedList` itself per step would reintroduce the quadratic
+///   on this arm — the exact silent divergence the design stone exists to kill.
+pub(crate) fn eval_seqable_to_stream(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::seqable->stream";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        }).into());
+    }
+    let coll = eval_inner(&args[0], env, sym)?.value_owned();
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&coll) {
+        Some(container) => match container {
+            // Already lazy — return unchanged (Arc bump only).
+            StreamContainer::Stream => Ok(coll),
+            StreamContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
+                Ok(Value::wat__stream__Stream(indexed_vec_stream(xs, 0)))
+            }
+            StreamContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
+                Ok(Value::wat__stream__Stream(indexed_pv_stream(pv, 0)))
+            }
+            StreamContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                // No indexed access on a LinkedList — snapshot ONCE (a single O(n) pass),
+                // then step the snapshot by index exactly like the Vector arm.
+                let snapshot: Arc<Vec<Value>> = Arc::new(xs.iter().cloned().collect());
+                Ok(Value::wat__stream__Stream(indexed_vec_stream(snapshot, 0)))
+            }
+            // Not accepted by this door — the same set the wat defclause it replaces
+            // accepted (Vector/List/PersistentVector/Stream only).
+            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet => {
+                Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::Vector, wat::core::List, wat::core::PersistentVector, or wat::stream::Stream",
+                    got: Box::new(ValueSnapshot::of(&coll)),
+                }).into())
+            }
+        },
+        None => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::core::Vector, wat::core::List, wat::core::PersistentVector, or wat::stream::Stream",
+            got: Box::new(ValueSnapshot::of(&coll)),
+        }).into()),
+    }
+}
+
+/// Build a lazy `Stream` stepping an already-resident `Vec<Value>` (a `Vector`, or a `List`
+/// snapshot) by index. Each `NativeThunk` captures the `Arc<Vec<Value>>` handle (an `Arc`
+/// clone, O(1)) and the next index; forcing it clones only the ONE element being yielded —
+/// nothing is touched until the cell is actually forced (`take`/early-exit still short-circuits).
+fn indexed_vec_stream(xs: Arc<Vec<Value>>, index: usize) -> Arc<crate::stream::Stream> {
+    use crate::stream::{NativeLazyCell, Stream};
+    if index >= xs.len() {
+        return Arc::new(Stream::Empty);
+    }
+    Arc::new(Stream::NativeThunk(NativeLazyCell {
+        thunk: Arc::new(move |_sym, _span| {
+            let head = xs[index].clone();
+            let tail = indexed_vec_stream(Arc::clone(&xs), index + 1);
+            Ok(Arc::new(Stream::Cons { head, tail }))
+        }),
+    }))
+}
+
+/// Build a lazy `Stream` stepping a `PersistentVector` (`rpds::VectorSync<Value>`) by index.
+/// `rpds`'s `Vector` is a bitmapped trie: `.get(index)` is O(log n) and `.clone()` is O(1)
+/// (Arc-backed structural sharing) — the container handle is cloned once per step, never
+/// rebuilt, never walked element-by-element.
+fn indexed_pv_stream(pv: rpds::VectorSync<Value>, index: usize) -> Arc<crate::stream::Stream> {
+    use crate::stream::{NativeLazyCell, Stream};
+    if index >= pv.len() {
+        return Arc::new(Stream::Empty);
+    }
+    Arc::new(Stream::NativeThunk(NativeLazyCell {
+        thunk: Arc::new(move |_sym, _span| {
+            let head = pv.get(index).expect("index < pv.len() checked at construction").clone();
+            let tail = indexed_pv_stream(pv.clone(), index + 1);
+            Ok(Arc::new(Stream::Cons { head, tail }))
+        }),
+    }))
+}
+
+// ─── Arc-278 DESIGN-STONE seq-traversal-one-door — the RED gate ──────────────────────────────
+//
+// Written and run BEFORE `seqable->stream` goes native, so it cannot be tuned to a fix that
+// doesn't exist yet. `keep` is the clean probe verb (EXPECTATIONS' trap-door #3): it already
+// delegates through `:wat::core::seqable->stream` and this strike does NOT edit `keep` itself
+// — only the converter it normalizes through. A wall, not a stopwatch: quadratic at n=4000 is
+// ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no machine variance crosses.
+#[cfg(test)]
+mod seqable_to_stream_tests {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+    use crate::freeze::{eval_in_frozen, startup_from_source};
+    use crate::load::InMemoryLoader;
+    use crate::runtime::{Environment, Value};
+
+    /// `(into (Vector) (keep keep-all pv))` over a 4000-element `PersistentVector` must
+    /// complete in under one second. The source is a `PersistentVector` (not a plain
+    /// `Vector`) deliberately: rpds's `rest` rebuilds via `push_back`-cloning every
+    /// remaining element (`collection/eval.rs`'s `PersistentVector` arm of `eval_rest`),
+    /// the same expensive-per-step shape the DESIGN-STONE's own measurement used
+    /// (`probe-pv-lazy-materialize-cost.wat`) — a plain `Vector<i64>` source clones too
+    /// cheaply per step to blow the wall at this n. RED today (the wat `seqable->stream`
+    /// defclause walks its source by repeated `rest`, O(n^2) total); GREEN once
+    /// `seqable->stream` steps by position instead.
+    #[test]
+    fn seqable_to_stream_keep_stays_under_wall_at_n4000() {
+        const WORLD: &str = "\
+(:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>\n\
+  (:wat::core::Some x))\n\
+(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  i <- :wat::core::i64]\n\
+      -> :wat::core::PersistentVector<wat::core::i64>\n\
+      (:wat::core::PersistentVector/conj acc i))\n\
+    (:wat::core::PersistentVector)\n\
+    (:wat::core::range 0 n)))\n\
+";
+        let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let ast = crate::parse_one!(
+            "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
+              (:wat::core::keep :cx::keep-all (:cx::build-pv 4000))))"
+        ).expect("parse the keep pipeline");
+
+        let start = Instant::now();
+        let result = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+            .value_owned();
+        let elapsed = start.elapsed();
+        eprintln!("seqable_to_stream_keep_stays_under_wall_at_n4000: elapsed={elapsed:?}");
+
+        assert_eq!(
+            result,
+            Value::i64(4000),
+            "keep over 4000 elements must keep all 4000 — a wrong count means the gate is \
+             measuring the wrong thing, not the absence of the quadratic"
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "keep over 4000 elements took {elapsed:?} — quadratic is ~12,000ms, linear is \
+             ~10ms; this wall (<1s) asserts the ABSENCE of the O(n^2) seqable->stream walk, \
+             not a performance number (DESIGN-STONE seq-traversal-one-door)"
+        );
+    }
+}

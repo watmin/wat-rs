@@ -4096,6 +4096,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — `seqable->stream` is
+            // native now (was a wat `defclause`, `wat/seq.wat`); check-side parity with
+            // map/take/drop above (same `extract_lazyable_elem` Seqable set).
+            ":wat::core::seqable->stream" => {
+                let (val, mut errs) = crate::collection::infer::infer_seqable_to_stream(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // concat is a defalias for :wat::core::Vector/concat (core.wat:44).
             // This arm intercepts before the alias scheme (Vec<T>×Vec<T>→Vec<T>) is consulted,
             // enabling PersistentVector support with same-kind-only semantics.
