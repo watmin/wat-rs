@@ -1212,50 +1212,60 @@ fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -
         .collect()
 }
 
-/// Index `elements` by the join-key tuple shared with `sample_bindings` — the third application
-/// of the `keyed_join` (`:779-834`) shape, used by the Accumulate and Negation/Exists gathers.
+/// Derive the join-key tuple shared between `sample_bindings` and `elements` — the cheap half of
+/// `gather_index` (step 1 of the `keyed_join` (`:779-834`) shape): a sorted intersection of
+/// `sample_bindings`' keys and a sample element's keys, string-sorted for a stable canonical
+/// order, derived from `elements[0]` when non-empty. An empty `elements` slice yields `[]`.
 ///
-/// `join_keys` mirrors `keyed_join` step 1 exactly (sorted intersection of `sample_bindings`'
-/// keys and a sample element's keys, string-sorted for a stable canonical order), derived from
-/// `elements[0]` when non-empty. An empty `elements` slice yields `join_keys = []` and an empty
-/// index — every probe then misses, which is exactly the empty-gather contract (no bucket ever
-/// existed to find). Buckets hold element *indices* in iteration order, matching `keyed_join`'s
-/// right-index and the wat oracle's foldl order.
+/// Split out from the index build so a cache lookup can key on `(alpha_id, join_keys)` *before*
+/// paying for the expensive half (`build_gather_index`) — the gather-index cache's ordering
+/// constraint (`DESIGN-STONE-gather-index-cache.md`).
+fn gather_join_keys(
+    sample_bindings: &rpds::HashTrieMapSync<Value, Value>,
+    elements: &[Value],
+) -> Vec<Value> {
+    if elements.is_empty() {
+        return Vec::new();
+    }
+    let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
+    let mut keys: Vec<Value> = sample_bindings
+        .keys()
+        .filter(|k| sample_el_bindings.get(*k).is_some())
+        .cloned()
+        .collect();
+    // Binding keys are Value::String (variable names like "?loc").
+    // Sort by their string content for a stable canonical order.
+    keys.sort_by(|a, b| {
+        let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
+        let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+        a_str.cmp(b_str)
+    });
+    keys
+}
+
+/// Join-key tuple → element indices (bucket), as built by `build_gather_index`.
+type GatherIndex = HashMap<Vec<Value>, Vec<usize>>;
+
+/// Round-scoped cache: `(alpha_id, join_keys) -> (snapshot, index)`. The snapshot and its index
+/// travel together — buckets are indices into that specific `Vec<Value>`, not `wm.alpha` itself
+/// (`DESIGN-STONE-gather-index-cache.md`).
+type GatherCache = HashMap<(i64, Vec<Value>), (Vec<Value>, GatherIndex)>;
+
+/// Build the bucket index over `elements` for a given `join_keys` tuple — the expensive half of
+/// `gather_index` (the full scan). Buckets hold element *indices* in iteration order, matching
+/// `keyed_join`'s right-index and the wat oracle's foldl order.
 ///
 /// Panics only via `key_of` if an element's bindings lack a derived join key — structurally
 /// impossible for a well-formed network (every element at one alpha node shares a binding
 /// key-set, the same guarantee `keyed_join` already rests on).
-fn gather_index(
-    sample_bindings: &rpds::HashTrieMapSync<Value, Value>,
-    elements: &[Value],
-) -> (Vec<Value>, HashMap<Vec<Value>, Vec<usize>>) {
-    let join_keys: Vec<Value> = if elements.is_empty() {
-        Vec::new()
-    } else {
-        let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
-        let mut keys: Vec<Value> = sample_bindings
-            .keys()
-            .filter(|k| sample_el_bindings.get(*k).is_some())
-            .cloned()
-            .collect();
-        // Binding keys are Value::String (variable names like "?loc").
-        // Sort by their string content for a stable canonical order.
-        keys.sort_by(|a, b| {
-            let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
-            let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
-            a_str.cmp(b_str)
-        });
-        keys
-    };
-
-    let mut index: HashMap<Vec<Value>, Vec<usize>> = HashMap::new();
+fn build_gather_index(elements: &[Value], join_keys: &[Value]) -> GatherIndex {
+    let mut index: GatherIndex = HashMap::new();
     for (i, el) in elements.iter().enumerate() {
         let (_, el_bindings) = element_fact_bindings(el);
-        let key = key_of(el_bindings, &join_keys);
+        let key = key_of(el_bindings, join_keys);
         index.entry(key).or_default().push(i);
     }
-
-    (join_keys, index)
+    index
 }
 
 // ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
@@ -1823,6 +1833,17 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
         let mut d_beta:  HashMap<i64, Vec<Token>> = HashMap::new();
 
+        // Round-scoped gather-index cache, shared by the accumulate pass and the
+        // Negation/Exists filter pass: `gather_index` is a pure function of (alpha memory,
+        // join keys), so the first reader of an (alpha_id, join_keys) pair builds and stores;
+        // the rest borrow. Keyed on BOTH — `alpha_id` alone is not sufficient: two nodes
+        // reading the same alpha can have parents binding different variable sets, and a
+        // wrong-tuple index makes every probe miss silently (DESIGN-STONE-gather-index-cache.md).
+        // Round-scoped, never longer: `wm.alpha` grows in step 1 of this same round, so a cache
+        // that outlived a round would serve a stale index. Declared HERE, same lifetime as
+        // `d_alpha`/`d_beta`, so it cannot leak across rounds.
+        let mut gather_cache: GatherCache = HashMap::new();
+
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
         let __pt0 = phase_start();
         for fact in &delta_facts {
@@ -2167,26 +2188,37 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 Some(ts) if !ts.is_empty() => ts.clone(),
                 _ => continue,
             };
-            // Snapshot the FULL cumulative :from elements (empty vec if none — count/sum/etc.
-            // still emit their identity on empty, so we iterate parent tokens regardless).
-            let __sn = phase_start();
-            let from_elements: Vec<Value> = match wm.alpha.get(&from_alpha_id) {
-                Some(els) => els.clone(),
-                None => vec![],
-            };
-            phase_end("  ├ accum:snapshot", __sn);
-            // Index :from once per node per round (P3/P6 shape via `gather_index`), then each
-            // token probes its own bucket instead of scanning the whole memory. A missing bucket
-            // yields an EMPTY gather (`map_or(&[][..], ..)`), never a skipped token — count/sum
-            // still emit their identity on empty.
+            // Derive the join-key tuple first (cheap: elements[0] + a sample-bindings
+            // intersection) so the cache can be probed BEFORE paying for a snapshot clone or an
+            // index build. Reads wm.alpha through a borrow, no clone yet.
             let __ix = phase_start();
-            // Counted, not assumed: `gather_index` is a pure function of (alpha memory, join keys),
-            // yet it is rebuilt per NODE per ROUND. If several accumulate nodes read the same
-            // `:from` alpha, we build the identical index several times. `index-elements` vs the
-            // alpha memory's own size is what makes that visible.
-            census_count("accum:index-builds");
-            census_count_n("accum:index-elements", from_elements.len() as u64);
-            let (join_keys, index) = gather_index(&new_tokens[0].bindings, &from_elements);
+            let join_keys = gather_join_keys(
+                &new_tokens[0].bindings,
+                wm.alpha.get(&from_alpha_id).map(Vec::as_slice).unwrap_or(&[]),
+            );
+            // Round-scoped cache keyed on (alpha_id, join_keys) — NOT alpha_id alone (see the
+            // cache declaration above). First reader of this pair snapshots :from and builds the
+            // index (miss path, counted below); the rest of this round borrow both together —
+            // the snapshot and its index travel as one unit (buckets are indices into THIS
+            // specific Vec<Value>).
+            let cache_key = (from_alpha_id, join_keys.clone());
+            let (from_elements, index) = gather_cache.entry(cache_key).or_insert_with(|| {
+                // Snapshot the FULL cumulative :from elements (empty vec if none — count/sum/etc.
+                // still emit their identity on empty, so we iterate parent tokens regardless).
+                let __sn = phase_start();
+                let elements: Vec<Value> = match wm.alpha.get(&from_alpha_id) {
+                    Some(els) => els.clone(),
+                    None => vec![],
+                };
+                phase_end("  ├ accum:snapshot", __sn);
+                // Counted, not assumed: this is the MISS path — the real index build. If several
+                // accumulate/filter nodes read the same (alpha, join_keys) pair, only the first
+                // lands here; the rest borrow the cached (snapshot, index) pair below.
+                census_count("accum:index-builds");
+                census_count_n("accum:index-elements", elements.len() as u64);
+                let idx = build_gather_index(&elements, &join_keys);
+                (elements, idx)
+            });
             phase_end("  ├ accum:index", __ix);
             let __fd = phase_start();
             for tok in new_tokens {
@@ -2267,21 +2299,28 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     Value::i64(n) => *n,
                     _ => continue, // malformed Negation/Exists node: skip
                 };
-                // Snapshot the full elements at alpha_id (empty vec if none inserted this fire).
-                let filter_elements: Vec<Value> = match wm.alpha.get(&alpha_id) {
-                    Some(els) => els.clone(),
-                    None => vec![],
-                };
-                // Index once per node per round; each token probes its own bucket instead of
-                // scanning the whole memory (same shape as the Accumulate site above). A missing
-                // bucket yields an empty slice, i.e. any-compat = false, exactly as an exhausted
-                // full scan would report.
-                // Counted alongside the accumulate pass's builds: this is the FIFTH build over the
-                // same two (alpha, join_keys) pairs — the Reading-?g alpha is indexed here for
-                // `exists` and again in the accumulate pass for `count`.
-                census_count("accum:index-builds");
-                census_count_n("accum:index-elements", filter_elements.len() as u64);
-                let (join_keys, index) = gather_index(&new_tokens[0].bindings, &filter_elements);
+                // Derive the join-key tuple first (cheap), then probe the SAME round-scoped
+                // cache the accumulate pass uses — same shape as that site above, same reason:
+                // the Reading-?g alpha is often indexed by `count` already this round, and this
+                // pass borrows it instead of rebuilding (the fifth build, folded into the two).
+                let join_keys = gather_join_keys(
+                    &new_tokens[0].bindings,
+                    wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]),
+                );
+                let cache_key = (alpha_id, join_keys.clone());
+                let (filter_elements, index) = gather_cache.entry(cache_key).or_insert_with(|| {
+                    // Snapshot the full elements at alpha_id (empty vec if none inserted this fire).
+                    let elements: Vec<Value> = match wm.alpha.get(&alpha_id) {
+                        Some(els) => els.clone(),
+                        None => vec![],
+                    };
+                    // Counted, not assumed: this is the MISS path only — see the accumulate
+                    // pass's comment above for the full rationale.
+                    census_count("accum:index-builds");
+                    census_count_n("accum:index-elements", elements.len() as u64);
+                    let idx = build_gather_index(&elements, &join_keys);
+                    (elements, idx)
+                });
                 for tok in new_tokens {
                     let key = key_of(&tok.bindings, &join_keys);
                     let bucket: &[usize] = index.get(&key).map_or(&[][..], |v| v.as_slice());
@@ -3869,11 +3908,10 @@ mod tests {
     ///       are what stand between it and a silent empty gather.
     ///   (c) the cache outliving a round — `wm.alpha` grows in step 1, so a stale index under-reads
     ///       and `count`/`sum` emit identities for groups that do have elements.
-    /// ⛔ RED BY DESIGN — `#[ignore]`d so `main` stays green while the stone is in flight.
-    /// Remove the `#[ignore]` as part of landing the cache; a gate that ships ignored and STAYS
-    /// ignored is the vacuous-gate class (R59) wearing a schedule as an excuse.
+    /// Landed: the round-scoped `gather_cache` keyed on `(alpha_id, join_keys)`
+    /// (`src/rete/kernel.rs`, the round-loop head) makes this GREEN at 2 builds / 80,000
+    /// elements — see `DESIGN-STONE-gather-index-cache.md`.
     #[test]
-    #[ignore = "RED until the gather index is cached per (alpha, join-keys) — BRIEF-gather-index-cache.md"]
     fn gather_index_is_built_once_per_alpha_and_keyset() {
         let rows = accum_count_census(200, 200);
         let builds = rows.iter().find(|(n, _)| *n == "accum:index-builds").map(|(_, c)| *c).unwrap_or(0);
