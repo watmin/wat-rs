@@ -4012,6 +4012,75 @@ mod tests {
         );
     }
 
+    // ── Is the BIND (trie insert) the cost inside alpha:match? ───────────────────────────────
+    //
+    // alpha:match is ~28% of fire and does 120,200 fresh binds, each allocating an rpds trie node
+    // for a map holding one or two entries. Plausible — and the previous three plausible roots
+    // were wrong, so it is measured the same way the fold's lookup was: two worlds differing by
+    // EXACTLY one bind clause on the Reading condition. No accumulate, no join beyond the root:
+    // the delta in alpha:match is the marginal cost of one binding, times the fact count.
+
+    fn bind_world(reading_cond: &str) -> String {
+        format!(
+"(:wat::core::defrecord :bnd::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
+(:wat::core::defrecord :bnd::Out     [g <- :wat::core::i64])\n\
+(:wat::rete::defrule :bnd::r\n\
+  :when [{reading_cond}]\n\
+  :then (:wat::rete::insert (:bnd::Out ?g)))\n\
+(:wat::core::defn :bnd::seed [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert s (:bnd::Reading :g i :v i)))\n\
+    session\n\
+    (:wat::core::range 0 n)))\n")
+    }
+
+    /// Returns (alpha:match ns, alpha:element ns, alpha total ns) for one bind-world at `n` facts.
+    fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> (u64, u64, u64) {
+        let world = startup_from_source(&bind_world(reading_cond), None, Arc::new(InMemoryLoader::new()))
+            .expect("bind world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:bnd::seed (:wat::rete::compile (:wat::rete::collect-rules :bnd)) {n}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, rows) = super::with_phase_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
+                .value_owned()
+        });
+        let get = |k: &str| rows.iter().find(|(n2, _)| *n2 == k).map(|(_, ns)| *ns).unwrap_or(0);
+        (get("  ├ alpha:match"), get("  ├ alpha:element"), get("alpha"))
+    }
+
+    /// Diagnostic — one bind vs two binds on the same condition, same facts.
+    #[test]
+    fn alpha_match_cost_per_binding() {
+        const ONE: &str = "(:bnd::Reading (?g <- :g))";
+        const TWO: &str = "(:bnd::Reading (?g <- :g) (?v <- :v))";
+        const RUNS: usize = 3;
+        let n = 40_000i64;
+
+        let (mut m1, mut e1, mut a1) = (0u64, 0u64, 0u64);
+        let (mut m2, mut e2, mut a2) = (0u64, 0u64, 0u64);
+        for _ in 0..RUNS {
+            let (m, e, a) = bind_world_alpha_ns(ONE, n);
+            m1 += m; e1 += e; a1 += a;
+            let (m, e, a) = bind_world_alpha_ns(TWO, n);
+            m2 += m; e2 += e; a2 += a;
+        }
+        let r = RUNS as f64;
+        let (m1, e1, a1) = (m1 as f64 / r, e1 as f64 / r, a1 as f64 / r);
+        let (m2, e2, a2) = (m2 as f64 / r, e2 as f64 / r, a2 as f64 / r);
+        assert!(m1 > 0.0 && m2 > 0.0, "alpha:match recorded nothing — the instrument never fired");
+
+        println!(
+            "\nalpha cost per BINDING — {n} facts, mean of {RUNS}\n                 1 bind : match {:>7.2} ms   element {:>6.2} ms   alpha {:>7.2} ms\n                 2 binds: match {:>7.2} ms   element {:>6.2} ms   alpha {:>7.2} ms\n                 delta  : match {:>7.2} ms ({:>4.0} ns/fact)   element {:>6.2} ms   alpha {:>7.2} ms\n",
+            m1 / 1e6, e1 / 1e6, a1 / 1e6,
+            m2 / 1e6, e2 / 1e6, a2 / 1e6,
+            (m2 - m1) / 1e6, (m2 - m1) / n as f64, (e2 - e1) / 1e6, (a2 - a1) / 1e6
+        );
+    }
+
     /// How many DISTINCT alpha memories do the accumulate nodes actually read?
     ///
     /// `accum:index-builds 4` over `index-elements 160,000` is consistent with ONE shared alpha
