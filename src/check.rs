@@ -6138,10 +6138,8 @@ fn pattern_coverage(
                     } else {
                         rename(field_type, &type_param_mapping)
                     };
-                    match check_subpattern(binder_ast, &instantiated_field_type, env, bindings, errors) {
-                        Some(full) => all_full &= full,
-                        None => return None,
-                    }
+                    let full = check_subpattern(binder_ast, &instantiated_field_type, env, bindings, errors)?;
+                    all_full &= full
                 }
                 return Some(Coverage::EnumVariant {
                     name: variant_name.to_string(),
@@ -6705,10 +6703,8 @@ fn check_subpattern(
                     }
                     let mut all_full = true;
                     for (sub_pat, sub_ty) in items.iter().zip(elem_tys.iter()) {
-                        match check_subpattern(sub_pat, sub_ty, env, bindings, errors) {
-                            Some(full) => all_full &= full,
-                            None => return None,
-                        }
+                        let full = check_subpattern(sub_pat, sub_ty, env, bindings, errors)?;
+                        all_full &= full
                     }
                     Some(all_full)
                 }
@@ -10691,7 +10687,7 @@ fn process_let_binding(
                 } });
             }
         }
-        for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
+        for (name, ev) in names.into_iter().zip(elem_vars) {
             new_bindings.insert(name, apply_subst(&ev, subst));
         }
         return if binding_errors.is_empty() {

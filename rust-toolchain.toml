@@ -1,0 +1,36 @@
+# The toolchain, pinned — ONE number, read by every side.
+#
+# WHY THIS FILE EXISTS. On 2026-07-30 CI ran to completion for the first time and
+# immediately disagreed with local: the floor matched exactly (4194/4194) but clippy
+# was 0 here and 5 errors there. Neither side was misconfigured — BOTH were on
+# "stable", and that is the whole trap. `dtolnay/rust-toolchain@stable` installs
+# CURRENT stable on every run; a dev box is on whatever stable it last pulled, and
+# rustup never updates itself. This box sat at 1.93.0 while the runner was at 1.97.0,
+# four minor versions apart, with no configuration anywhere recording the difference.
+#
+# The clippy campaign's "1874 -> 0" was therefore measured on 1.93 and reported as THE
+# floor. On 1.97 it was 5. A number is only a floor if you say which compiler produced
+# it (question_mark and useless_conversion were BROADENED in the interval, not new).
+#
+# THE FIX IS A SINGLE SITE. rustup honors this file for any cargo invocation inside
+# this directory and auto-installs the toolchain, so local and CI read the same
+# version from the same place. Drift stops being something to remember and becomes
+# unrepresentable — the same argument [workspace.dependencies] makes for `uuid` and
+# [workspace.lints] makes for clippy.
+#
+# REPO-SCOPED ON PURPOSE. `rustup update stable` would have been the one-line fix and
+# is the wrong one: it moves the toolchain for every sibling on the box (holon-rs,
+# holon-lab-trading, holon-lab-ddos), none of which has CI to say what a bump does to
+# them. A toolchain file touches this repo only.
+#
+# BUMPING IS A COMMIT, AND THAT IS THE POINT. Edit the channel; CI and every dev box
+# move together; any new lints land inside a deliberate change instead of arriving as
+# a surprise from a runner. Do NOT set channel = "stable" — that restores exactly the
+# drift this file exists to kill, because "stable" means different things in different
+# places at the same instant.
+#
+# `components` is load-bearing: CI's clippy step needs clippy present on the PINNED
+# toolchain, not on whatever the workflow happened to install.
+[toolchain]
+channel = "1.97.0"
+components = ["clippy", "rustfmt"]

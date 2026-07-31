@@ -42,10 +42,18 @@ jobs:
           repository: watmin/holon-rs
           path: holon-rs
 
-      - name: Install Rust toolchain (+ clippy, rustfmt)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+      # NO toolchain-install step, deliberately. `rust-toolchain.toml` pins the version
+      # AND its components, and rustup (preinstalled on the runner) honors it for any
+      # cargo invocation inside wat-rs/ — auto-installing on first use. Installing
+      # `@stable` here would put clippy on a DIFFERENT toolchain than the one that
+      # actually compiles, and would re-open the exact drift the pin exists to close:
+      # on 2026-07-30 this box was on stable=1.93.0 while the runner was on
+      # stable=1.97.0, and clippy read 0 here and 5 errors there.
+      #
+      # Removing the step is also what makes the pin TESTABLE. Today stable and the pin
+      # are both 1.97.0, so with an install step a green run would prove nothing —
+      # both paths reach the same compiler. With nothing else installing a toolchain,
+      # a green run can only mean rustup resolved the file.
 
       # nextest: prebuilt binary, installed into the ephemeral CI container in seconds.
       - name: Install cargo-nextest
@@ -66,6 +74,12 @@ jobs:
       # inferred". The linker is a system package; install it as one.
       - name: Install mold (the linker .cargo/config.toml pins)
         run: sudo apt-get update && sudo apt-get install -y mold && mold --version
+
+      # Print what rustup actually resolved from rust-toolchain.toml. Cheap, and it puts
+      # the version in the log so a future local-vs-CI disagreement is one glance to
+      # diagnose instead of an evening — which is precisely what it cost on 2026-07-30.
+      - name: Show resolved toolchain
+        run: rustc --version && cargo clippy --version
 
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2

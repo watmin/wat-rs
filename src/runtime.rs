@@ -2989,9 +2989,9 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
     let (fn_slot_idx, metadata_opt) = if items.len() == 4 {
         // items[2] must be a metadata-map (head :wat::core::HashMap).
         // If it's not a HashMap list, this is not the fn-shape-def path.
-        match try_parse_metadata_map(&items[2]) {
-            Some(meta) => (3usize, Some(meta)), // metadata present; fn-form is at index 3
-            None => return None, // items[2] is not a metadata-map; let other parsers handle
+        {
+            let meta = try_parse_metadata_map(&items[2])?; // items[2] is not a metadata-map; let other parsers handle
+            (3usize, Some(meta)) // metadata present; fn-form is at index 3
         }
     } else {
         (2usize, None) // 3-item form; fn-form is at index 2; no metadata
@@ -7341,7 +7341,7 @@ fn bind_let_binding(
             let value = eval_inner(rhs, scope, sym)?.value_owned();
             let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
             let mut builder = scope.child();
-            for ((name, name_span), elem) in names.into_iter().zip(elements.into_iter()) {
+            for ((name, name_span), elem) in names.into_iter().zip(elements) {
                 // Arc 233 Stone 233.2.e: each destructure slot is bound with its
                 // name_span from the LHS pattern. Lookup yields SymbolBound with
                 // binding_span pointing at the slot's position in the pattern.
