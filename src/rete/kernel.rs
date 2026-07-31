@@ -3844,6 +3844,31 @@ mod tests {
         rows
     }
 
+    /// How many DISTINCT alpha memories do the accumulate nodes actually read?
+    ///
+    /// `accum:index-builds 4` over `index-elements 160,000` is consistent with ONE shared alpha
+    /// (4 builds of 40,000) or TWO (1 + 3 builds of 40,000) — the counts alone cannot tell them
+    /// apart, and the size of the cache win differs (3 of 4 builds saved vs 2 of 4). The round
+    /// census already counts alpha nodes and their elements, so it settles it.
+    #[test]
+    fn accum_alpha_memory_shape() {
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let src = "(:wat::rete::fire-rules (:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200))";
+        let ast = crate::parse_one!(src).expect("parse the fire driver");
+        let (_fired, census) = super::with_fire_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
+                .value_owned()
+        });
+        assert!(!census.is_empty(), "round census recorded nothing");
+        let last = census.last().expect("non-empty");
+        println!(
+            "\naccum alpha memories — G=200 W=200 (200 Groups + 40,000 Readings)\n                 alpha_nodes {}   alpha_elements {}\n",
+            last.alpha_nodes, last.alpha_elements
+        );
+    }
+
     /// Diagnostic — how MANY matcher operations, at the size the phase census apportions.
     ///
     /// Counted rather than timed: one level below `alpha` the operations cost ~100-300ns while a
