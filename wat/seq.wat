@@ -9,14 +9,14 @@
 ;; via `wat-scripts/fixes/rename-seq-fold-aliases-to-core-reduce.wat`.
 ;;
 ;; This file is the home of the rest of the 118.2a flip's new surface:
-;;   - `:wat::core::filter` — the one lazy HOF that ships as wat-over-primitives (Decision B's
-;;     original preference). `map`/`take`/`drop` stay Rust intrinsics instead — a forced,
-;;     named exception: several stdlib macros (`:wat::core::defn` itself, `:wat::core::defrecord`
-;;     / `:wat::holon::defrecord` / `:wat::service::defservice` / `:wat::rete::defrule` /
-;;     `:wat::core::format`) call `map`/`take`/`drop` INSIDE their own macro bodies — at
-;;     macro-expansion time, before any wat-defined `defclause`'s real clauses would exist. See
-;;     `crate::stream::NativeLazyCell`'s doc (src/stream/mod.rs) for the full writeup. `filter`
-;;     has no such caller anywhere in the stdlib, so it is safe to self-host.
+;;   - `:wat::core::filter` — was the one lazy HOF shipped as wat-over-primitives here (Decision
+;;     B's original preference), on the reasoning that (unlike map/take/drop) no stdlib macro
+;;     calls it at macro-expansion time, so self-hosting it was bootstrap-safe. That reasoning
+;;     was true but incomplete: it never weighed that the ONLY traversal a wat `defclause` could
+;;     express (per-container `(rest coll)` stepping) is O(n^2) on every eager container, because
+;;     `rest` REBUILDS the whole remaining container each step. Arc-278 DESIGN-STONE
+;;     seq-traversal-one-door Strike 2a moved `filter` NATIVE (`eval_filter`,
+;;     `src/collection/transform.rs`) — see below, where its old five clauses used to live.
 ;;   - the eager materializers: `mapv` / `filterv` / `into` / `doall` / `dorun`. There is NO
 ;;     `vec` — `:wat::core::vec` is a HARD-retired name in this substrate
 ;;     (`src/remedy/retirement.rs`: an old verb-equals-type alias for the `Vector`
@@ -44,62 +44,19 @@
 ;; walks the whole input (exactly like the `foldl`/`:wat::seq::reduce` it replaces; no
 ;; regression, just not a new capability).
 
-;; ─── filter — the one lazy HOF built in wat (Decision B; no bootstrap-critical caller) ──────
+;; ─── filter — NATIVE now (Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a) ─────────────
 ;;
-;; Same recursive shape as the Rust-native lazy map/take/drop (see `src/collection/transform.rs`):
-;; `(:wat::stream::lazy <body>)` defers `<body>`; forcing checks `empty?`, then `pred`, then
-;; either yields `(cons head (filter pred (rest coll)))` or recurses PAST a rejected element by
-;; calling `filter` again (itself `stream::lazy`-wrapped, so this is O(1) per rejected element,
-;; not eager work) — `realize`'s iterative thunk-forcing loop (src/stream/mod.rs) walks through
-;; consecutive rejections in one pull, exactly like the Rust-native filter would.
+;; `:wat::core::filter` used to live here as five wat `defclause` arms (Vector<T> / List<T> /
+;; PersistentVector<T> / Stream<T> / bare PersistentVector), each stepping its eager source by
+;; repeated `(rest coll)` — O(n) per step, O(n^2) per walk, because `rest` REBUILDS the whole
+;; remaining container on every eager container. It is a Rust intrinsic now (`eval_filter`,
+;; `src/collection/transform.rs`), one body for any seqable, composing through the native
+;; `seqable->stream` normaliser (Strike 1) instead of hand-rolling a per-container walk — the
+;; same shape `map`/`take`/`drop` already have. See the DESIGN-STONE's "⛔ THE TWIN ROUTE IS
+;; DEAD" ruling for why this went native rather than minting a `filter-stream` twin.
 ;;
-;; Four clauses — one per seqable this arc's `first`/`rest`/`empty?` already support
-;; polymorphically (Vector/List/PersistentVector/Stream) — dispatched by arg-2's concrete type
-;; (defclause arity+type dispatch; `pred`-first mirrors the retired eager `filter`'s call order).
-(:wat::core::defclause :wat::core::filter
-  ([pred <- :wat::core::Fn(T)->wat::core::bool
-    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::core::if (pred (:wat::core::first coll))
-          (:wat::stream::cons (:wat::core::first coll) (:wat::core::filter pred (:wat::core::rest coll)))
-          (:wat::core::filter pred (:wat::core::rest coll))))))
-  ([pred <- :wat::core::Fn(T)->wat::core::bool
-    coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::core::if (pred (:wat::core::first coll))
-          (:wat::stream::cons (:wat::core::first coll) (:wat::core::filter pred (:wat::core::rest coll)))
-          (:wat::core::filter pred (:wat::core::rest coll))))))
-  ([pred <- :wat::core::Fn(T)->wat::core::bool
-    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::core::if (pred (:wat::core::first coll))
-          (:wat::stream::cons (:wat::core::first coll) (:wat::core::filter pred (:wat::core::rest coll)))
-          (:wat::core::filter pred (:wat::core::rest coll))))))
-  ([pred <- :wat::core::Fn(T)->wat::core::bool
-    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::core::if (pred (:wat::core::first coll))
-          (:wat::stream::cons (:wat::core::first coll) (:wat::core::filter pred (:wat::core::rest coll)))
-          (:wat::core::filter pred (:wat::core::rest coll))))))
-  ;; Bare (un-parameterized) PersistentVector — arc 278 0d.1 regression guard territory: a
-  ;; heterogeneous field (e.g. a record's un-parameterized PersistentVector) must type-check
-  ;; through the HOFs too. T is pinned entirely from `pred`'s concrete type at the call site.
-  ([pred <- :wat::core::Fn(T)->wat::core::bool
-    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
-    (:wat::stream::lazy
-      (:wat::core::if (:wat::core::empty? coll)
-        (:wat::stream::empty)
-        (:wat::core::if (pred (:wat::core::first coll))
-          (:wat::stream::cons (:wat::core::first coll) (:wat::core::filter pred (:wat::core::rest coll)))
-          (:wat::core::filter pred (:wat::core::rest coll)))))))
+;; `filterv` (below) is unchanged: `(into [] (filter pred coll))` still works, unaware its
+;; ingredient verb's engine flipped underneath it.
 
 ;; ─── the eager materializers ─────────────────────────────────────────────────────────────────
 

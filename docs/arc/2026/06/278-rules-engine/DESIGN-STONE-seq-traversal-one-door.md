@@ -120,9 +120,79 @@ After this stone a new stage cannot get the walk wrong, because no stage writes 
 
 - **Strike 1 (this stone)** — `seqable->stream` native + linear, under the registry. Six verbs go
   linear immediately, by delegation. RED-gated (below).
-- **Strike 2 (next)** — migrate the seven hand-rollers onto the normaliser: each becomes
+- **Strike 2** — migrate the hand-rollers onto the normaliser: each becomes
   `(<verb>-stream … (seqable->stream coll))`, the shape its siblings already have. This also
-  deletes the 5×-per-container body duplication in `filter` and `remove`.
+  deletes the per-container body duplication in `filter` and `remove`.
+
+  **Census re-run AFTER Strike 1 landed** (`seqable->stream` is native now, so it leaves the
+  list). Six verbs remain, and the work is bigger than "delegate" for five of them — the
+  Stream-only twin they would delegate TO does not exist yet:
+
+  | verb | eager arms | rest-walks | `<verb>-stream` twin |
+  |---|---|---|---|
+  | `filter` | 5 | 10 | **must be minted** |
+  | `remove` | 4 | 10 | **must be minted** |
+  | `take-while` | 4 | 5 | **must be minted** |
+  | `drop-while` | 4 | 5 | **must be minted** |
+  | `reductions` | 8 | 10 | **must be minted** |
+  | `interpose` | 4 | 5 | exists (`interpose-stream`) |
+
+  Existing twins to model on: `keep-stream` (`seq.wat:476`), `dedupe-stream`,
+  `distinct-stream`, `keep-indexed-stream`, `map-indexed-stream`, `reduce-stream`.
+
+  ### ⛔ THE TWIN ROUTE IS DEAD — Strike 2 goes NATIVE (ruled 2026-07-31)
+
+  The census above scoped Strike 2 as "mint five `-stream` twins, then delegate." **That was
+  wrong**, and the builder's challenge is what surfaced it: *"does clojure differentiate filter
+  over data types? why do we need a -stream version? isn't that just filter vs filterv?"*
+
+  **Clojure does not differentiate.** There is exactly one `filter`; it calls `seq` — the universal
+  coercion — and walks an `ISeq`. One body, no per-container variants, no `filter-stream`.
+  `filterv` is just the eager-vector convenience, which wat already has.
+
+  wat cannot write that, and the reason is a **missing type**, grounded:
+  - there is no `Seqable` type in any `.wat` file — the concept lives only in the Rust checker as
+    `extract_lazyable_elem` (`collection/infer.rs:637`), a hardcoded match on four heads;
+  - so a wat-level verb accepting several containers has exactly one option — a `defclause` with
+    one arm per concrete container — and the `-stream` twin exists purely so those arms can share
+    a body instead of duplicating it.
+
+  **The twins are a workaround for the missing type, not a pattern.** Seven exist; the census would
+  have minted five more. A twelfth is not "precisely one way to solve things correctly."
+
+  The tell is which verbs need no twin at all: `map`, `take`, `drop`, and (since Strike 1)
+  `seqable->stream` are **native**, so they dispatch on `StreamContainer` at runtime and
+  `extract_lazyable_elem` at check time — and get Clojure's one-body-any-seqable shape for free.
+  That is the same fault line that caused the original bug: `map` native and linear, `filter` wat
+  and quadratic, chosen by nobody.
+
+  **Four-questioned, native vs. a real `Seqable` surface:**
+
+  | | native (chosen) | `Seqable` surface |
+  |---|---|---|
+  | Obvious? | YES — already what four shipped verbs are | YES — R28's model of what a surface is |
+  | Simple? | YES — one body per verb, no new concept; deletes 12 twins + ~29 arms | **NO** — needs a surface nature admitting builtins (none), builtin surface-satisfaction (nothing does), and reconciliation with no-ad-hoc-unions (R7) |
+  | Honest? | YES | *unreached* |
+  | Good UX? | YES — signatures unchanged, quadratic gone | *unreached* |
+
+  Native wins on a grounded NO, not a preference. The surface route is **an arc, not a stone** —
+  filed as `109-kill-std/NOTE-seqable-has-no-name-in-wat.md`, with the blockers written down and
+  the note that this stone is its **precondition** (it collapses the seqable set from ~30 spellings
+  to one, which is what makes naming it tractable later).
+
+  **The ladder, named honestly:** native reaches the **check** rung, not `no-form`. Afterwards
+  "sequence verbs that take any seqable live in Rust" is a *convention* — nothing stops a new
+  wat-level stage with per-container arms and a `rest`-walk tomorrow, and it would be quadratic and
+  green. So this stone carries two things beyond the fix: the seqable set is **named** at its single
+  definition site with its blockers beside it (so the 109 note is a marked delta, not an intention),
+  and a lint is tracked to convert the convention into a wall.
+
+  **Sequenced as 2a then 2b**, per prove-one-exemplar-then-fan:
+  - **2a — `filter` alone**, made native end to end. It has the most arms (5), it is the verb this
+    chase started from, and it is the one `query-by-type-string` calls — so 2a closes the A8 derive
+    quadratic outright and the payoff is directly measurable, not inferred.
+  - **2b — the remaining five** (`remove`, `take-while`, `drop-while`, `interpose`, `reductions`)
+    fanned against 2a's proven shape, deleting their arms and the twins they'd have needed.
 - **OUT — affirmatively cut, not deferred:**
   - `PersistentList` (an `rpds::ListSync`-backed persistent cons list). It is a genuine gap in the
     eager/persistent pairing (`Vector`/`PersistentVector`, `HashMap`/`PersistentMap`, `List`/—),

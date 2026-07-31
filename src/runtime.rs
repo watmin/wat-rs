@@ -5173,9 +5173,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::seqable->stream" => crate::collection::transform::eval_seqable_to_stream(args, list_span, env, sym),
         ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
         ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
-        // Arc 118.2a — `:wat::core::filter` retired from this dispatch table: no
-        // macro-expansion-time caller depends on it, so it is now an ordinary wat
-        // `defclause` (`wat/seq.wat`) and falls through to normal function-call dispatch.
+        // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — `:wat::core::filter` is
+        // native again (was the arc-118.2a wat `defclause`, `wat/seq.wat`, which stepped its
+        // source via repeated `rest` — O(n^2) on every eager container). Composes through
+        // `seqable->stream`'s per-container normalization; see `eval_filter`'s doc.
+        ":wat::core::filter" => crate::collection::transform::eval_filter(args, list_span, env, sym),
         ":wat::std::list::zip" => crate::collection::transform::eval_vec_zip(args, list_span, env, sym),
         ":wat::std::list::window" => crate::collection::transform::eval_vec_window(args, list_span, env, sym),
         ":wat::std::list::remove-at" => crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym),

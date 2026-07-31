@@ -634,6 +634,25 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 ///
 /// Returns `None` for a `Var` (caller defers to the runtime backstop, same policy as
 /// `extract_seq_elem`) or for any other shape (caller emits `TypeMismatch`).
+///
+/// **This IS the `Seqable` set — the type wat cannot currently spell.** Clojure has exactly one
+/// `filter` (and `map`/`reduce`/…) because it calls `seq`, a universal coercion every collection
+/// implements, and walks an `ISeq`. wat has no surface way to name "any of these four
+/// containers" as a parameter type — this hardcoded four-head match is the ONLY place the
+/// concept exists, and it is checker-internal, unreachable from a `.wat` signature. Three
+/// blockers keep it that way (none is a small fix):
+/// 1. no `defsurface` `:nature` admits a builtin container (only `:wat::core::Record` and
+///    `:wat::kernel::Peer'` exist);
+/// 2. no builtin (`Vector`/`PersistentVector`/`List`) satisfies any surface today — surface
+///    satisfaction is an aggregate mechanism (attributes + methods, R28), builtins sit outside it;
+/// 3. wat has no ad-hoc unions, deliberately (R7) — a bound over four concrete builtins is
+///    structurally a union unless the surface mechanism genuinely subsumes it.
+///
+/// See `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md` for the full writeup
+/// (the twelve `<verb>-stream` twins that exist only because this type doesn't, and why arc
+/// 278's native route is this note's PRECONDITION, not a competing fix — it collapses the set's
+/// ~30 hand-rolled re-spellings down to this one function, which is what makes naming it
+/// tractable later).
 fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
     match reduced {
         TypeExpr::Parametric { head, args }
@@ -705,6 +724,82 @@ pub(crate) fn infer_map(
                 }
                 // Return Stream<U> — ALWAYS a Stream now (the lazy flip); U is the fn's output.
                 let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&u_var, subst)] };
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {
+                // Unresolved collection type — still check the fn arg if possible.
+                // Return a fresh var; the runtime backstop enforces the rest.
+            }
+            None => {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#2".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::filter pred xs)` — Arc-278 DESIGN-STONE seq-traversal-one-door,
+/// Strike 2a. `filter` is NATIVE now (`eval_filter`, `src/collection/transform.rs`),
+/// superseding the five wat `defclause` arms it used to have (`wat/seq.wat`).
+///
+/// LAZY: `Seqable<T> × fn(T)->bool → Stream<T>` — the SAME `Seqable` set as `map`/`take`/
+/// `drop`/`seqable->stream` (see [`extract_lazyable_elem`]'s doc), because `filter`'s runtime
+/// composes through `seqable->stream`'s exact per-container normalization. Mirrors
+/// [`infer_map`] in every particular except the callee's return type is pinned to `bool`
+/// (never a fresh `U`) and the element type `T` is preserved on the way out (filter narrows a
+/// stream, it does not transform its elements).
+pub(crate) fn infer_filter(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::filter";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![fresh.fresh()] };
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // pred-first: arg[0] is the predicate, arg[1] is the collection.
+    let fn_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let coll_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
+                // pred must be fn(T) -> bool — T from the collection, bool fixed (not a fresh U).
+                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                let expected_fn_ty = TypeExpr::Fn {
+                    args: vec![elem_ty.clone()],
+                    ret: Box::new(bool_ty),
+                };
+                if let Some(f_ty) = fn_ty {
+                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: format_type(&expected_fn_ty),
+                            got: format_type(&apply_subst(&f_ty, subst))
+                        }});
+                    }
+                }
+                // Return Stream<T> — T is preserved (filter narrows, never transforms).
+                let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&elem_ty, subst)] };
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
                 } else {

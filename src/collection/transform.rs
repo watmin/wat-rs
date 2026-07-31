@@ -543,12 +543,15 @@ pub(crate) fn eval_vec_foldr(
     }
 }
 
-// Arc 118.2a — `eval_vec_filter` RETIRED. `:wat::core::filter` has no macro-expansion-time
-// caller anywhere in the stdlib (unlike map/take/drop), so it ships as a genuine wat
-// `defclause` instead (Vector<T>/List<T>/PersistentVector<T>/Stream<T> clauses, `wat/seq.wat`)
-// — honoring Decision B's self-hosting preference wherever the bootstrap allows it. Its
-// check.rs `infer_filter` special-case arm is retired too (see `src/collection/infer.rs`);
-// `:wat::core::filter` now falls through to ordinary defclause dispatch.
+// Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — `:wat::core::filter` is NATIVE
+// again (`eval_filter`, above `eval_seqable_to_stream` in this file), superseding the
+// Arc-118.2a wat `defclause` (five per-container arms, `wat/seq.wat`) that walked its source
+// by repeated `rest` — O(n^2). The "no macro-expansion-time caller, so self-host it" reasoning
+// that justified the wat defclause was true but incomplete: it never weighed the O(n^2) cost
+// of the only traversal a wat `defclause` COULD express without a native seqable→stream door.
+// Now that door exists (Strike 1), `filter` composes through it instead — one body, any
+// seqable, dispatched through the `StreamContainer` registry exactly like `map`. check.rs's
+// `infer_filter` special-case arm is live again too (`src/collection/infer.rs`).
 
 /// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at
 /// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).
@@ -814,42 +817,155 @@ pub(crate) fn eval_seqable_to_stream(
         }).into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
+    Ok(Value::wat__stream__Stream(seqable_value_to_stream(coll, OP, args[0].span())?))
+}
+
+/// Shared value-level seqable→stream normalizer — the exact per-container dispatch
+/// [`eval_seqable_to_stream`] performs, factored out so `filter` (below) can COMPOSE through
+/// it on an already-evaluated `Value` instead of re-deriving the same container walk. `op` and
+/// `coll_span` are the CALLING verb's op name / arg span, threaded through so a `TypeMismatch`
+/// raised here reads as coming from the caller (e.g. `:wat::core::filter`), not this internal
+/// plumbing function.
+///
+/// This is `eval_seqable_to_stream`'s body verbatim (Strike 1) — same containers, same List
+/// snapshot rule, same errors — just parameterized over an already-evaluated `Value` rather
+/// than a raw AST arg, so both callers get identical per-container correctness for free.
+fn seqable_value_to_stream(
+    coll: Value,
+    op: &str,
+    coll_span: &Span,
+) -> Result<Arc<crate::stream::Stream>, EvalBreak> {
     use crate::collection::seq_container::StreamContainer;
     match StreamContainer::of_value(&coll) {
         Some(container) => match container {
             // Already lazy — return unchanged (Arc bump only).
-            StreamContainer::Stream => Ok(coll),
+            StreamContainer::Stream => {
+                let Value::wat__stream__Stream(s) = coll else { unreachable!("of_value⇒Stream") };
+                Ok(s)
+            }
             StreamContainer::Vector => {
                 let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
-                Ok(Value::wat__stream__Stream(indexed_vec_stream(xs, 0)))
+                Ok(indexed_vec_stream(xs, 0))
             }
             StreamContainer::PersistentVector => {
                 let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
-                Ok(Value::wat__stream__Stream(indexed_pv_stream(pv, 0)))
+                Ok(indexed_pv_stream(pv, 0))
             }
             StreamContainer::List => {
                 let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
                 // No indexed access on a LinkedList — snapshot ONCE (a single O(n) pass),
                 // then step the snapshot by index exactly like the Vector arm.
                 let snapshot: Arc<Vec<Value>> = Arc::new(xs.iter().cloned().collect());
-                Ok(Value::wat__stream__Stream(indexed_vec_stream(snapshot, 0)))
+                Ok(indexed_vec_stream(snapshot, 0))
             }
             // Not accepted by this door — the same set the wat defclause it replaces
             // accepted (Vector/List/PersistentVector/Stream only).
             StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet => {
-                Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
+                Err(RuntimeError::new(coll_span.clone(), RuntimeErrorKind::TypeMismatch {
+                    op: op.into(),
                     expected: "wat::core::Vector, wat::core::List, wat::core::PersistentVector, or wat::stream::Stream",
                     got: Box::new(ValueSnapshot::of(&coll)),
                 }).into())
             }
         },
-        None => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
+        None => Err(RuntimeError::new(coll_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
             expected: "wat::core::Vector, wat::core::List, wat::core::PersistentVector, or wat::stream::Stream",
             got: Box::new(ValueSnapshot::of(&coll)),
         }).into()),
     }
+}
+
+/// `(:wat::core::filter pred coll)` → `Stream<T>`. Arc-278 DESIGN-STONE
+/// seq-traversal-one-door, Strike 2a — NATIVE now, replacing the five wat `defclause` arms
+/// (`wat/seq.wat`) that each stepped their eager source by repeated `(rest coll)` — O(n^2).
+///
+/// **Composes, does not re-derive**: normalises `coll` through [`seqable_value_to_stream`] —
+/// the exact function `seqable->stream` itself calls — then lazily walks the resulting
+/// `Stream`, applying `pred` one element at a time and skipping rejects, only as far as the
+/// caller pulls. This reuses Strike 1's per-container correctness (including the `List`
+/// snapshot) instead of duplicating it — one door, one walk.
+///
+/// pred-first (`(filter pred coll)`), mirroring the retired wat clauses' call order and
+/// `map`'s fn-first shape (`eval_vec_map`). A raising `pred` PROPAGATES (via `?` inside the
+/// lazy cell) rather than being swallowed — a filter that silently dropped an element on a
+/// predicate error would be a hidden failure, not an honest one.
+pub(crate) fn eval_filter(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::filter";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len()
+        }).into());
+    }
+    // pred-first: arg[0] is the predicate, arg[1] is the collection.
+    let p = eval_inner(&args[0], env, sym)?.value_owned();
+    let coll = eval_inner(&args[1], env, sym)?.value_owned();
+    let pred = match &p {
+        Value::wat__core__fn(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::fn",
+                got: Box::new(ValueSnapshot::of(other))
+            }).into());
+        }
+    };
+    let source = seqable_value_to_stream(coll, OP, args[1].span())?;
+    Ok(Value::wat__stream__Stream(lazy_filter_stream(OP, pred, source)))
+}
+
+/// Build one deferred `filter` cell over `source`: forcing it walks `source` — via
+/// `crate::stream::realize`'s iterative loop, not Rust recursion, so a long run of rejected
+/// elements stays O(1) per element and never grows the Rust stack — applying `pred` to each
+/// head strictly, at force time (the laziness: `pred` runs on element N only when the caller
+/// pulls that far). The first element `pred` accepts yields `Cons{that element, <a fresh
+/// filter cell over the rest>}`; if `source` is exhausted first, `Empty`. `pred`'s errors
+/// propagate via `?` — never swallowed, never turned into a silently-dropped element.
+fn lazy_filter_stream(
+    op: &'static str,
+    pred: Arc<crate::value::Function>,
+    source: Arc<crate::stream::Stream>,
+) -> Arc<crate::stream::Stream> {
+    use crate::stream::{NativeLazyCell, Stream};
+    Arc::new(Stream::NativeThunk(NativeLazyCell {
+        thunk: Arc::new(move |sym, span| {
+            let realized = crate::stream::realize(&source, sym, span)?;
+            match realized.as_ref() {
+                Stream::Empty => Ok(Arc::new(Stream::Empty)),
+                Stream::Cons { head, tail } => {
+                    let kept = apply_function(pred.clone(), vec![head.clone()], sym, span.clone())?;
+                    match kept {
+                        Value::bool(true) => {
+                            let filtered_tail = lazy_filter_stream(op, pred.clone(), Arc::clone(tail));
+                            Ok(Arc::new(Stream::Cons { head: head.clone(), tail: filtered_tail }))
+                        }
+                        Value::bool(false) => {
+                            // Skip the rejected element by handing back a fresh filter cell
+                            // over the tail — `realize`'s loop keeps forcing it (no Rust
+                            // recursion), so a run of N consecutive rejects is O(N), not a
+                            // deferred Rust call per reject.
+                            Ok(lazy_filter_stream(op, pred.clone(), Arc::clone(tail)))
+                        }
+                        other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
+                            op: op.into(),
+                            expected: "wat::core::bool",
+                            got: Box::new(ValueSnapshot::of(&other)),
+                        }).into()),
+                    }
+                }
+                Stream::Thunk(_) | Stream::NativeThunk(_) => {
+                    unreachable!("crate::stream::realize always returns Empty|Cons")
+                }
+            }
+        }),
+    }))
 }
 
 /// Build a lazy `Stream` stepping an already-resident `Vec<Value>` (a `Vector`, or a `List`
@@ -950,6 +1066,71 @@ mod seqable_to_stream_tests {
             "keep over 4000 elements took {elapsed:?} — quadratic is ~12,000ms, linear is \
              ~10ms; this wall (<1s) asserts the ABSENCE of the O(n^2) seqable->stream walk, \
              not a performance number (DESIGN-STONE seq-traversal-one-door)"
+        );
+    }
+}
+
+// ─── Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — the RED gate ────────────────────
+//
+// Written and run BEFORE `filter` goes native, so it cannot be tuned to a fix that doesn't
+// exist yet. `filter`'s five wat clauses each step their eager source by `(rest coll)` — O(n)
+// per step, O(n^2) per walk. The source here MUST be a `PersistentVector`, not a plain
+// `Vector` — Strike 1's rider drew this same wall over a `Vector` and it passed BEFORE any fix
+// existed, because a `Vector`'s `rest` (a flat clone-and-collect) is cheap enough per element
+// not to cross a one-second wall at n=4000, while a `PersistentVector`'s trie rebuild
+// (`push_back`-cloning every remaining element, `collection/eval.rs`'s `PersistentVector` arm
+// of `eval_rest`) misses it by ~35x. A wall, not a stopwatch: quadratic at n=4000 is
+// ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no machine variance crosses.
+#[cfg(test)]
+mod filter_native_tests {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+    use crate::freeze::{eval_in_frozen, startup_from_source};
+    use crate::load::InMemoryLoader;
+    use crate::runtime::{Environment, Value};
+
+    /// `(into [] (filter pred pv))` over a 4000-element `PersistentVector` must complete in
+    /// under one second. RED today (the wat `filter` defclause walks its source by repeated
+    /// `rest`, O(n^2) total); GREEN once `filter` is a native intrinsic composing through
+    /// `seqable->stream`'s by-position walk instead.
+    #[test]
+    fn filter_native_stays_under_wall_at_n4000_persistentvector() {
+        const WORLD: &str = "\
+(:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> :wat::core::bool\n\
+  true)\n\
+(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  i <- :wat::core::i64]\n\
+      -> :wat::core::PersistentVector<wat::core::i64>\n\
+      (:wat::core::PersistentVector/conj acc i))\n\
+    (:wat::core::PersistentVector)\n\
+    (:wat::core::range 0 n)))\n\
+";
+        let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let ast = crate::parse_one!(
+            "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
+              (:wat::core::filter :cx::keep-all (:cx::build-pv 4000))))"
+        ).expect("parse the filter pipeline");
+
+        let start = Instant::now();
+        let result = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+            .value_owned();
+        let elapsed = start.elapsed();
+        eprintln!("filter_native_stays_under_wall_at_n4000_persistentvector: elapsed={elapsed:?}");
+
+        assert_eq!(
+            result,
+            Value::i64(4000),
+            "filter over 4000 elements with an all-true predicate must keep all 4000 — a wrong \
+             count means the gate is measuring the wrong thing, not the absence of the quadratic"
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "filter over 4000 elements took {elapsed:?} — quadratic is ~12,000ms, linear is \
+             ~10ms; this wall (<1s) asserts the ABSENCE of the O(n^2) rest-walk, not a \
+             performance number (DESIGN-STONE seq-traversal-one-door, Strike 2a)"
         );
     }
 }
