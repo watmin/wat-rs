@@ -4704,6 +4704,12 @@ fn dispatch_keyword_head_value(
         // multi-round cascade (derived facts re-enter the network until no new fact is produced).
         // Returns a Session with facts = input only (derived live in production-memory).
         ":wat::rete::fire-rules'" => crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        // Arc 278 — native Rust `insert` (the dual of `insert-spec`, the wat oracle).
+        // (:wat::rete::insert' <session> <fact>) → :wat::rete::Session
+        // Zero activation (rete.wat:828-830): stages `fact` into `facts`, resolved BY NAME
+        // through the class's RecordDef.field_names — never a positional index. The other six
+        // Session fields carry through untouched.
+        ":wat::rete::insert'" => crate::rete::kernel::eval_insert_native(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
         // (:wat::rete::fire-rules-explain' <session>) → :wat::rete::Explained
         ":wat::rete::fire-rules-explain'" => crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed

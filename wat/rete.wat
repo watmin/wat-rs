@@ -825,12 +825,13 @@
 
 ;; ─── insert + fire-rules ────────────────────────────────────────────────────────
 
-;; insert — stage a fact into the session's working memory. Zero activation.
+;; insert-spec — the wat reference engine (the SPEC / differential oracle). Stages a fact into
+;; the session's working memory. Zero activation.
 ;; WHY zero activation: the WM stays open while the caller stages multiple facts;
 ;; fire-rules is the lock that runs them through the network all at once.
 ;; WHY reconstruct Session: Record/assoc returns the base :wat::core::Record type; the
 ;; typed Session constructor preserves the concrete return type for the checker.
-(:wat::core::defn :wat::rete::insert
+(:wat::core::defn :wat::rete::insert-spec
   [session <- :wat::rete::Session
    fact    <- :wat::core::Record]
   -> :wat::rete::Session
@@ -842,6 +843,17 @@
     :production-memory (:wat::rete::Session/production-memory session)
     :facts (:wat::core::PersistentVector/conj (:wat::rete::Session/facts session) fact)
     :next-id (:wat::rete::Session/next-id           session)))
+
+;; insert — THE PUBLIC PRODUCTION VERB. Delegates to the native Rust `insert'`: resolves `facts`
+;; by name through the class's RecordDef (never a positional index), stages `fact`, and returns
+;; every other field untouched. Zero activation — same contract as insert-spec (rete.wat:828-830).
+;; Observationally equivalent to insert-spec (proven by the native-insert differential); the
+;; native kernel is the fast impl, the spec keeps it honest.
+(:wat::core::defn :wat::rete::insert
+  [session <- :wat::rete::Session
+   fact    <- :wat::core::Record]
+  -> :wat::rete::Session
+  (:wat::rete::insert' session fact))
 
 ;; activate-fact — fold step: try one fact against a single AlphaNode's condition.
 ;; On a match, appends an Element(fact, bindings) to alpha-memory at alpha-id;
@@ -1754,7 +1766,7 @@
                                     (:wat::core::fn [s <- :wat::rete::Session
                                                      f <- :wat::core::Record]
                                       -> :wat::rete::Session
-                                      (:wat::rete::insert s f))
+                                      (:wat::rete::insert-spec s f))
                                     sub-sess
                                     acc-facts)
                       fired       (:wat::rete::fire-fixpoint sub-sess2)
