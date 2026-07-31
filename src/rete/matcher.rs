@@ -164,7 +164,9 @@ pub(crate) fn alpha_match_inner(
         _ => return None,
     };
     // fact_class is already colon-free (extracted by fact_from_value).
+    crate::rete::kernel::census_count("match:calls");
     if cond_head != fact_class {
+        crate::rete::kernel::census_count("match:head-miss");
         return None;
     }
 
@@ -185,6 +187,7 @@ fn eval_clauses(
 ) -> Option<rpds::HashTrieMapSync<Value, Value>> {
     let mut current = bindings;
     for clause in clauses {
+        crate::rete::kernel::census_count("match:clause");
         current = eval_clause(clause, fact_fields, field_names, current)?;
     }
     Some(current)
@@ -349,7 +352,10 @@ fn eval_clause(
             match bindings.get(&key) {
                 Some(existing) if existing != &field_value => None, // conflict
                 Some(_) => Some(bindings),                          // already bound, equal
-                None => Some(bindings.insert(key, field_value)),    // fresh binding
+                None => {
+                    crate::rete::kernel::census_count("match:bind-insert");
+                    Some(bindings.insert(key, field_value))
+                }                                                   // fresh binding
             }
         }
 

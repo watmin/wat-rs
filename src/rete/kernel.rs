@@ -1633,6 +1633,56 @@ fn phase_end(name: &'static str, t: PhaseMark) {
 #[inline(always)]
 fn phase_end(_name: &'static str, _t: PhaseMark) {}
 
+// ── Operation counters (for granularity where a TIMER would measure mostly itself) ──────────
+//
+// One level below `alpha`, the sub-operations cost ~100-300ns each while a phase mark pair costs
+// ~52ns (calibrated). Timing there would tax each operation 20-50% and — worse — tax them UNEVENLY,
+// making a cheap operation look expensive purely because it was called often. So this level counts
+// instead: a `Cell` increment is ~1-2ns. Combined with the phase timer's un-taxed total for the
+// enclosing phase, counts give ns-per-operation without distorting the thing being measured.
+
+#[cfg(test)]
+thread_local! {
+    /// counter name → occurrences. `None` = not recording.
+    pub(crate) static CENSUS_COUNTS: std::cell::RefCell<Option<HashMap<&'static str, u64>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_count_n(name: &'static str, n: u64) {
+    CENSUS_COUNTS.with(|c| {
+        if let Some(m) = c.borrow_mut().as_mut() {
+            *m.entry(name).or_insert(0) += n;
+        }
+    });
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_count(name: &'static str) {
+    census_count_n(name, 1);
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_count(_name: &'static str) {}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_count_n(_name: &'static str, _n: u64) {}
+
+/// Run `f` with operation counting enabled, and return what it counted (descending).
+#[cfg(test)]
+pub(crate) fn with_count_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static str, u64)>) {
+    let prior = CENSUS_COUNTS.with(|c| c.borrow_mut().replace(HashMap::new()));
+    let out = f();
+    let recorded = CENSUS_COUNTS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    let mut rows: Vec<(&'static str, u64)> = recorded.unwrap_or_default().into_iter().collect();
+    rows.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
+    (out, rows)
+}
+
 /// Run `f` with per-phase timing enabled, and return what it recorded (descending by nanoseconds).
 ///
 /// Any previously-armed map is restored afterwards, so nesting cannot swallow an outer measurement.
@@ -2130,6 +2180,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             // yields an EMPTY gather (`map_or(&[][..], ..)`), never a skipped token — count/sum
             // still emit their identity on empty.
             let __ix = phase_start();
+            // Counted, not assumed: `gather_index` is a pure function of (alpha memory, join keys),
+            // yet it is rebuilt per NODE per ROUND. If several accumulate nodes read the same
+            // `:from` alpha, we build the identical index several times. `index-elements` vs the
+            // alpha memory's own size is what makes that visible.
+            census_count("accum:index-builds");
+            census_count_n("accum:index-elements", from_elements.len() as u64);
             let (join_keys, index) = gather_index(&new_tokens[0].bindings, &from_elements);
             phase_end("  ├ accum:index", __ix);
             let __fd = phase_start();
@@ -3770,6 +3826,52 @@ mod tests {
                 .value_owned()
         });
         rows
+    }
+
+    /// Fire the axis world and return the operation counts (see `census_count`).
+    fn accum_count_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, rows) = super::with_count_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
+                .value_owned()
+        });
+        rows
+    }
+
+    /// Diagnostic — how MANY matcher operations, at the size the phase census apportions.
+    ///
+    /// Counted rather than timed: one level below `alpha` the operations cost ~100-300ns while a
+    /// mark pair costs ~52ns, so a timer would tax them 20-50% and — worse — unevenly, in
+    /// proportion to call count rather than cost. A `Cell` increment is ~1-2ns.
+    #[test]
+    fn accum_matcher_op_census() {
+        let rows = accum_count_census(200, 200);
+        assert!(
+            !rows.is_empty(),
+            "the operation census counted NOTHING — the counters were never reached, so any \
+             rate derived from them would be an artifact"
+        );
+        let calls = rows.iter().find(|(n, _)| *n == "match:calls").map(|(_, c)| *c).unwrap_or(0);
+        assert!(calls > 0, "match:calls is zero — alpha_match_inner was never entered");
+
+        let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");
+        for (name, n) in &rows {
+            out.push_str(&format!("    {name:<20} {n:>10}\n"));
+        }
+        out.push_str(&format!(
+            "  per alpha_match_inner call: {:.2} clauses, {:.2} binds\n",
+            rows.iter().find(|(n, _)| *n == "match:clause").map(|(_, c)| *c).unwrap_or(0) as f64
+                / calls as f64,
+            rows.iter().find(|(n, _)| *n == "match:bind-insert").map(|(_, c)| *c).unwrap_or(0)
+                as f64 / calls as f64,
+        ));
+        println!("{out}");
     }
 
     /// Diagnostic — print where the accum fire's time goes, per phase, at two sizes.
