@@ -1574,6 +1574,78 @@ pub(crate) fn with_gather_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
     (out, counted)
 }
 
+// ── Per-phase wall-clock inside the fire loop ────────────────────────────────
+//
+// `RoundCensus` counts STRUCTURES (how many tokens, how many elements); this counts NANOSECONDS,
+// summed across every round, per step of `fire_fixpoint_delta`. The two answer different questions
+// and neither substitutes for the other: the census says the shape is linear, this says where the
+// linear cost is spent.
+//
+// Why it exists: the `accum` axis is ~1.5x behind a WARMED Clara, and the keyed gather is under 10%
+// of our fire — so the remaining cost is somewhere else and nothing on this box can profile it (no
+// `perf`). Rather than narrate a plausible root — four perf hypotheses died this week by exactly
+// that move — the loop is made to say where its own time goes.
+//
+// Deliberately start/end marks rather than an RAII guard: the steps are sequential blocks that
+// mutate `wm`/`d_beta` in place, and wrapping them in scopes to host a guard would re-indent the
+// hot path for the benefit of a test-only instrument. In a non-test build every call here is a
+// no-op on a `()` and the phase map does not exist.
+
+#[cfg(test)]
+type PhaseMark = std::time::Instant;
+/// A zero-sized stand-in in non-test builds. Deliberately NOT `()`: `let __pt = phase_start();`
+/// against a unit value trips `clippy::let_unit_value` at nine call sites, and nine `#[allow]`s
+/// would be suppressing a lint rather than not earning it. A ZST compiles to nothing and the lint
+/// simply does not apply.
+#[cfg(not(test))]
+#[derive(Clone, Copy)]
+pub(crate) struct PhaseMark;
+
+#[cfg(test)]
+thread_local! {
+    /// phase name → nanoseconds, summed over every round. `None` = not recording.
+    pub(crate) static PHASE_NANOS: std::cell::RefCell<Option<HashMap<&'static str, u64>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+#[inline]
+fn phase_start() -> PhaseMark {
+    std::time::Instant::now()
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+fn phase_start() -> PhaseMark { PhaseMark }
+
+#[cfg(test)]
+#[inline]
+fn phase_end(name: &'static str, t: PhaseMark) {
+    let ns = t.elapsed().as_nanos() as u64;
+    PHASE_NANOS.with(|c| {
+        if let Some(m) = c.borrow_mut().as_mut() {
+            *m.entry(name).or_insert(0) += ns;
+        }
+    });
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+fn phase_end(_name: &'static str, _t: PhaseMark) {}
+
+/// Run `f` with per-phase timing enabled, and return what it recorded (descending by nanoseconds).
+///
+/// Any previously-armed map is restored afterwards, so nesting cannot swallow an outer measurement.
+#[cfg(test)]
+pub(crate) fn with_phase_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static str, u64)>) {
+    let prior = PHASE_NANOS.with(|c| c.borrow_mut().replace(HashMap::new()));
+    let out = f();
+    let recorded = PHASE_NANOS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    let mut rows: Vec<(&'static str, u64)> = recorded.unwrap_or_default().into_iter().collect();
+    rows.sort_by_key(|&(_, ns)| std::cmp::Reverse(ns));
+    (out, rows)
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -1702,6 +1774,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         let mut d_beta:  HashMap<i64, Vec<Token>> = HashMap::new();
 
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
+        let __pt0 = phase_start();
         for fact in &delta_facts {
             let (fact_class, fact_fields) = match fact {
                 Value::Aggregate(a) if a.nature != Nature::Struct => {
@@ -1744,7 +1817,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             }
         }
 
+        phase_end("alpha", __pt0);
+
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
+        let __pt1 = phase_start();
         for node_id in &node_ids {
             // Group C: use &Value ref — no clone; kind_of/node_children take &Value.
             let node = match get_node(&wm.network, *node_id) {
@@ -1783,7 +1859,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             }
         }
 
+        phase_end("root-join", __pt1);
+
         // ── 3. Hash-join delta (ascending id — topological). ─────────────────────
+        let __pt2 = phase_start();
         // P6 persistent-index algorithm (DESIGN-STONE-P6, 6-step ordering):
         //
         // For each parent P (Root/HashJoin) with HashJoinNode child J (feeding alpha A):
@@ -1987,7 +2066,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             }
         }
 
+        phase_end("hash-join", __pt2);
+
         // ── 3.25 Accumulate-pass (8-b): dispatch AccumulateNode. ────────────────
+        let __pt3 = phase_start();
         // For each AccumulateNode (topological = ascending id order): for each NEW token
         // at the parent (d_beta[parent]), gather the token-compatible elements from the
         // FULL cumulative wm.alpha[from_alpha_id] (the aggregate needs all matching facts,
@@ -2022,15 +2104,20 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             };
             // Snapshot the FULL cumulative :from elements (empty vec if none — count/sum/etc.
             // still emit their identity on empty, so we iterate parent tokens regardless).
+            let __sn = phase_start();
             let from_elements: Vec<Value> = match wm.alpha.get(&from_alpha_id) {
                 Some(els) => els.clone(),
                 None => vec![],
             };
+            phase_end("  ├ accum:snapshot", __sn);
             // Index :from once per node per round (P3/P6 shape via `gather_index`), then each
             // token probes its own bucket instead of scanning the whole memory. A missing bucket
             // yields an EMPTY gather (`map_or(&[][..], ..)`), never a skipped token — count/sum
             // still emit their identity on empty.
+            let __ix = phase_start();
             let (join_keys, index) = gather_index(&new_tokens[0].bindings, &from_elements);
+            phase_end("  ├ accum:index", __ix);
+            let __fd = phase_start();
             for tok in new_tokens {
                 let key = key_of(&tok.bindings, &join_keys);
                 let bucket: &[usize] = index.get(&key).map_or(&[][..], |v| v.as_slice());
@@ -2054,9 +2141,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     d_beta.entry(*node_id).or_default().push(new_tok);
                 }
             }
+            phase_end("  └ accum:fold", __fd);
         }
 
+        phase_end("accumulate", __pt3);
+
         // ── 3.5 Filter-pass (7-a unified): dispatch TestNode + NegationNode. ─────
+        let __pt4 = phase_start();
         // For each TestNode or NegationNode (in topological = ascending id order):
         //   TestNode     → eval-test filter: pass the token iff expr evaluates true.
         //   NegationNode → negation filter: pass the un-extended token iff ZERO elements in
@@ -2134,7 +2225,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             }
         }
 
+        phase_end("filter", __pt4);
+
         // ── 4. Production delta: fire production nodes on NEW tokens only. ────────
+        let __pt5 = phase_start();
         let mut next_delta: Vec<Value> = Vec::new();
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) {
@@ -2233,6 +2327,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         {
             round_no += 1;
         }
+
+        phase_end("production", __pt5);
 
         // ── 5. Terminate or loop. ─────────────────────────────────────────────────
         if next_delta.is_empty() {
@@ -3574,6 +3670,146 @@ mod tests {
                 .value_owned()
         });
         visits
+    }
+
+    // ── Where does the accum fire actually spend its time? ────────────────────────────────────
+    //
+    // The `accum` grid axis is ~1.5× behind a WARMED Clara (2.19 vs 4.66 µs/fact at 40,200 facts;
+    // Clara's own per-fact cost falls 4.6× across the ladder as its JIT warms, ours is flat). The
+    // keyed gather is under 10% of our fire, so the cost is elsewhere — and there is no `perf` on
+    // this box. Rather than narrate a plausible root, the loop reports its own split.
+    //
+    // The world mirrors `wat-scripts/perf/grid/accum.wat` — FIVE rules (count/sum/min/max + exists)
+    // over Group ⋈ Reading — byte-for-byte modulo the namespace, so this apportions the AXIS's time
+    // and not a lookalike's. (`ACCUM_GATHER_WORLD` above is deliberately smaller: it exists to gate
+    // the gather's SHAPE, where two accumulators are enough.)
+
+    const ACCUM_AXIS_WORLD: &str = "\
+(:wat::core::defrecord :apx::Group   [g <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::MinF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::MaxF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::ExistsF [g <- :wat::core::i64])\n\
+\n\
+(:wat::rete::defrule :apx::count-rule\n\
+  :when [(:apx::Group (?g <- :g))\n\
+         (?n <- (:wat::rete::acc::count) :from (:apx::Reading (?g <- :g)))]\n\
+  :then (:wat::rete::insert (:apx::CountF ?g ?n)))\n\
+\n\
+(:wat::rete::defrule :apx::sum-rule\n\
+  :when [(:apx::Group (?g <- :g))\n\
+         (?n <- (:wat::rete::acc::sum ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then (:wat::rete::insert (:apx::SumF ?g ?n)))\n\
+\n\
+(:wat::rete::defrule :apx::min-rule\n\
+  :when [(:apx::Group (?g <- :g))\n\
+         (?n <- (:wat::rete::acc::min ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then (:wat::rete::insert (:apx::MinF ?g ?n)))\n\
+\n\
+(:wat::rete::defrule :apx::max-rule\n\
+  :when [(:apx::Group (?g <- :g))\n\
+         (?n <- (:wat::rete::acc::max ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then (:wat::rete::insert (:apx::MaxF ?g ?n)))\n\
+\n\
+(:wat::rete::defrule :apx::exists-rule\n\
+  :when [(:apx::Group (?g <- :g))\n\
+         (:wat::rete::exists (:apx::Reading (?g <- :g)))]\n\
+  :then (:wat::rete::insert (:apx::ExistsF ?g)))\n\
+\n\
+(:wat::core::defn :apx::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64\n\
+  (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]\n\
+    (:wat::core::i64::- x (:wat::core::i64::* (:wat::core::i64::/ x 1000) 1000))))\n\
+\n\
+(:wat::core::defn :apx::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert s (:apx::Reading :g g :v (:apx::val g j))))\n\
+    session\n\
+    (:wat::core::range 0 w)))\n\
+\n\
+(:wat::core::defn :apx::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:apx::seed-readings (:wat::rete::insert s (:apx::Group g)) g w))\n\
+    session\n\
+    (:wat::core::range 0 gs)))\n\
+";
+
+    /// Fire the axis world at `g` groups × `w` readings; return the per-phase nanosecond split.
+    ///
+    /// Only `fire-rules` is inside the armed window — compile and seed run first, un-timed, exactly
+    /// as the grid harness does it, so this apportions the same span the grid's `:native-ns` covers.
+    fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = format!(
+            "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w})"
+        );
+        let src = format!("(:wat::rete::fire-rules {staged})");
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, rows) = super::with_phase_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
+                .value_owned()
+        });
+        rows
+    }
+
+    /// Diagnostic — print where the accum fire's time goes, per phase, at two sizes.
+    ///
+    /// This APPORTIONS; it does not gate. The assertions exist only so it cannot report an artifact:
+    ///   (a) the instrument must have recorded something (an unarmed or never-entered loop would
+    ///       give an empty table that reads as "no time anywhere"),
+    ///   (b) every one of the six phases must appear — a phase missing from the map means its marks
+    ///       were never reached, and its share would silently land on the others.
+    /// Read the table with `--no-capture`.
+    #[test]
+    fn accum_fire_phase_census() {
+        const PHASES: [&str; 9] = [
+            "alpha", "root-join", "hash-join",
+            "accumulate", "  ├ accum:snapshot", "  ├ accum:index", "  └ accum:fold",
+            "filter", "production",
+        ];
+
+        let mut table = String::from("\naccum fire — per-phase split (native fire-rules only)\n");
+        for (g, w) in [(25i64, 50i64), (50, 100), (100, 200), (200, 200)] {
+            let rows = accum_phase_census(g, w);
+            assert!(
+                !rows.is_empty(),
+                "phase census recorded NOTHING at G={g} W={w} — the instrument never fired, so any \
+                 apportionment taken from it would be an artifact, not a measurement"
+            );
+            // The accum:* rows are SUB-phases of `accumulate` — summing them into the total would
+            // double-count that phase. The total is the six top-level phases only.
+            let total: u64 = rows
+                .iter()
+                .filter(|(n, _)| !n.starts_with("  "))
+                .map(|(_, ns)| *ns)
+                .sum();
+            assert!(total > 0, "phase census total is zero at G={g} W={w}");
+
+            table.push_str(&format!(
+                "\n  G={g} W={w}  ({} facts)  total {:.2} ms\n",
+                g * (w + 1),
+                total as f64 / 1e6
+            ));
+            for phase in PHASES {
+                let ns = rows.iter().find(|(n, _)| *n == phase).map(|(_, ns)| *ns);
+                let ns = ns.unwrap_or_else(|| {
+                    panic!("phase {phase:?} never recorded at G={g} W={w} — its marks were not \
+                            reached, and its share would land silently on the other phases")
+                });
+                table.push_str(&format!(
+                    "    {:<12} {:>9.2} ms   {:>5.1}%\n",
+                    phase,
+                    ns as f64 / 1e6,
+                    100.0 * ns as f64 / total as f64
+                ));
+            }
+        }
+        println!("{table}");
     }
 
     /// The keyed-gather gate — RED until the Accumulate/Negation/Exists gathers are keyed.
