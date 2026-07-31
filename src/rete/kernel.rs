@@ -1389,6 +1389,105 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Value], sym: &SymbolTable) -
     })
 }
 
+// ── Arc 278 A8 instrument: per-round census of the native fire memories ──────
+//
+// WHY THIS EXISTS. Grid axis A8 (node-share) is the one cell where Clara wins, and by 2026-07-30
+// the compiler was proven INNOCENT: `probe-node-share-dedup.wat` counts the compiled network at
+// `4 + 2N` nodes (Alpha flat at 2, HashJoin flat at 1) across N = 1..32 — textbook optimal
+// sharing. So the blow-up (>4 GiB to join 500 facts against 20 rules) is in the FIRE path.
+//
+// It cannot be measured from wat: `wm.beta.clear()` runs before freeze (see the end of
+// `fire_fixpoint_delta`), so a frozen Session carries an EMPTY beta-memory and a wat-side probe
+// reading `Session/beta-memory` would report all zeros — a number that looks like a finding and
+// is an artifact. The census is therefore taken HERE, inside the real loop, before the clear —
+// the same reasoning that relocated the 3a/3b join assertions into this module (see the P11
+// relocation note in `mod tests`).
+//
+// It measures the REAL path. There is no second implementation to drift from and no re-derived
+// oracle to compare against itself: `fire_fixpoint_delta` records into the thread-local below,
+// and production is untouched because every line of it is `#[cfg(test)]`.
+
+/// One round's census of every native structure the fire loop grows.
+///
+/// Recorded at the END of each round, after all five passes and before the terminate check, so
+/// the counts are that round's cumulative totals. Fields are deliberately exhaustive: the point
+/// is to let the growth term name ITSELF rather than confirm a guess about which one it is.
+#[cfg(test)]
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RoundCensus {
+    /// 0-based round index within this fire.
+    pub(crate) round:               usize,
+    /// Facts entering this round (the previous round's derivations; round 0 = the input facts).
+    pub(crate) delta_facts_in:      usize,
+    /// Distinct node-ids holding alpha elements, and the total element count across them.
+    pub(crate) alpha_nodes:         usize,
+    pub(crate) alpha_elements:      usize,
+    /// Distinct node-ids holding beta tokens, and the total token count across them.
+    pub(crate) beta_nodes:          usize,
+    pub(crate) beta_tokens:         usize,
+    /// Σ over every beta token of `matches.len()` — the per-token support-chain edges. This is the
+    /// real memory driver (a Token owns its `Vec<(Value, i64)>`), so it separates "N× more tokens"
+    /// from "same tokens carrying N× longer chains".
+    pub(crate) beta_token_matches:  usize,
+    /// The per-round delta (new-this-round tokens), same two measures.
+    pub(crate) d_beta_nodes:        usize,
+    pub(crate) d_beta_tokens:       usize,
+    /// The P6 persistent join indexes, summed across every HashJoinNode.
+    pub(crate) left_idx_tokens:     usize,
+    pub(crate) right_idx_elements:  usize,
+    /// Derived facts retained in production-memory, and the size of the `seen` dedup set.
+    pub(crate) production_facts:    usize,
+    pub(crate) seen_facts:          usize,
+    /// Σ over every node of `children.len()` — the compiled network's EDGE count.
+    ///
+    /// Counted here because nothing else ever counted it: the compile-time census
+    /// (`probe-node-share-dedup.wat`) counts NODES, and a shared node reached by N duplicate
+    /// edges is indistinguishable from a shared node reached once if nodes are all you count.
+    pub(crate) network_edges:       usize,
+    /// Per-node beta occupancy as `(node-id, kind, tokens)`, ascending by id — the breakdown that
+    /// distinguishes "one shared join holds M tokens" from "N tails each hold their own copy".
+    pub(crate) beta_by_node:        Vec<(i64, &'static str, usize)>,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Enabled by `with_fire_census`; `None` means "do not record" (the default for every other
+    /// test in the suite, so the instrument costs nothing it is not asked for).
+    pub(crate) static FIRE_CENSUS: std::cell::RefCell<Option<Vec<RoundCensus>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Run `f` with the per-round census enabled, and return what it recorded.
+///
+/// Any previously-armed census is restored afterwards, so nesting cannot silently swallow an
+/// outer measurement.
+#[cfg(test)]
+pub(crate) fn with_fire_census<R>(f: impl FnOnce() -> R) -> (R, Vec<RoundCensus>) {
+    let prior = FIRE_CENSUS.with(|c| c.borrow_mut().replace(Vec::new()));
+    let out = f();
+    let recorded = FIRE_CENSUS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    (out, recorded.unwrap_or_default())
+}
+
+/// Map a node kind label onto a `&'static str` so a census row can be printed without holding a
+/// borrow of the network. Any kind the compiler can emit that is not listed reads as `"?"` — an
+/// unrecognised kind must be visible in the output, never silently folded into a neighbour.
+#[cfg(test)]
+fn census_kind(kind: &str) -> &'static str {
+    match kind {
+        "AlphaNode"      => "Alpha",
+        "RootJoinNode"   => "RootJoin",
+        "HashJoinNode"   => "HashJoin",
+        "TestNode"       => "Test",
+        "NegationNode"   => "Negation",
+        "ExistsNode"     => "Exists",
+        "AccumulateNode" => "Accumulate",
+        "ProductionNode" => "Production",
+        "QueryNode"      => "Query",
+        _                => "?",
+    }
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -1490,6 +1589,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // Group B: field_names_cache — hoisted BEFORE the round loop (fact-class → field names).
     // Computed once per fact-class encountered across ALL rounds; never recomputed in later rounds.
     let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
+
+    // A8 instrument: the round counter the census stamps its rows with (test-only).
+    #[cfg(test)]
+    let mut round_no: usize = 0;
 
     // Group B: rule_rhs_cache — hoisted BEFORE the round loop (rule-name → rhs WatAST forms).
     // Eliminates the O(rules) linear scan per production node per round.
@@ -1971,6 +2074,60 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     }
                 }
             }
+        }
+
+        // ── A8 instrument: census this round BEFORE the terminate check. ─────────
+        // Placed here so the row reflects the round's cumulative totals after all five passes,
+        // and so the LAST round is recorded too (the break below would otherwise skip it).
+        // `delta_facts` still holds this round's INPUT — it is not reassigned until after the
+        // terminate check, so `.len()` here is what entered, not what leaves.
+        #[cfg(test)]
+        FIRE_CENSUS.with(|c| {
+            let mut slot = c.borrow_mut();
+            let rounds = match slot.as_mut() {
+                Some(r) => r,
+                None => return, // not armed — every other test in the suite pays nothing
+            };
+            let mut beta_by_node: Vec<(i64, &'static str, usize)> = Vec::new();
+            let mut beta_tokens: usize = 0;
+            let mut beta_token_matches: usize = 0;
+            for node_id in &node_ids {
+                let toks = match wm.beta.get(node_id) {
+                    Some(t) if !t.is_empty() => t,
+                    _ => continue,
+                };
+                let kind = match get_node(&wm.network, *node_id) {
+                    Some(n) => census_kind(kind_of(n)),
+                    None => "?",
+                };
+                beta_tokens += toks.len();
+                beta_token_matches += toks.iter().map(|t| t.matches.len()).sum::<usize>();
+                beta_by_node.push((*node_id, kind, toks.len()));
+            }
+            rounds.push(RoundCensus {
+                round:              round_no,
+                delta_facts_in:     delta_facts.len(),
+                alpha_nodes:        wm.alpha.values().filter(|v| !v.is_empty()).count(),
+                alpha_elements:     wm.alpha.values().map(Vec::len).sum(),
+                beta_nodes:         beta_by_node.len(),
+                beta_tokens,
+                beta_token_matches,
+                d_beta_nodes:       d_beta.values().filter(|v| !v.is_empty()).count(),
+                d_beta_tokens:      d_beta.values().map(Vec::len).sum(),
+                left_idx_tokens:    left_idx.values().flat_map(|m| m.values()).map(Vec::len).sum(),
+                right_idx_elements: right_idx.values().flat_map(|m| m.values()).map(Vec::len).sum(),
+                production_facts:   wm.production.values().map(Vec::len).sum(),
+                seen_facts:         seen.len(),
+                network_edges:      node_ids.iter()
+                    .filter_map(|id| get_node(&wm.network, *id))
+                    .map(|n| node_children(n).len())
+                    .sum(),
+                beta_by_node,
+            });
+        });
+        #[cfg(test)]
+        {
+            round_no += 1;
         }
 
         // ── 5. Terminate or loop. ─────────────────────────────────────────────────
@@ -3088,6 +3245,195 @@ mod tests {
             locs,
             ["Oslo", "Bergen"].into_iter().map(String::from).collect::<std::collections::HashSet<String>>(),
             "joined tokens must be exactly the Oslo and Bergen same-loc pairs"
+        );
+    }
+
+    // ── Arc 278 A8 — the node-share fire-path census ─────────────────────────────
+    //
+    // A8 (node-share) is the one grid cell Clara wins, and the compiler was cleared on 2026-07-30:
+    // `wat-scripts/scratch-pad/probe-node-share-dedup.wat` counts the compiled network at `4 + 2N`
+    // (Alpha flat at 2, HashJoin flat at 1) for N = 1..32, so the shared prefix collapses exactly
+    // as `find-or-mint-hash-join` intends. The blow-up — >4 GiB to join 500 facts against 20 rules
+    // — therefore lives in the FIRE path, and this is the instrument that reads it.
+    //
+    // It measures, it does not guess. Every native structure the loop grows is counted per round
+    // (see `RoundCensus`), so the growth term names itself instead of confirming a hypothesis about
+    // which one it is. The world below is copied from `wat-scripts/perf/grid/node-share.wat` —
+    // same `build-rule`, same `seed` — so this measures the AXIS and not a lookalike.
+
+    /// The node-share world: A/B/Out plus the axis's own rule-builder and seeder.
+    ///
+    /// `build-rule i n` is byte-identical to the axis's: the leading `[A (?k)] ⋈ [B (?k)]` carries
+    /// no `i`, so it is the shared prefix under test; only the trailing `where` holds the per-rule
+    /// literal. `mod` is spelled as the truncating-division idiom (wat has no native i64 mod).
+    const NODE_SHARE_WORLD: &str = "\
+(:wat::core::defrecord :nsh::A   [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :nsh::B   [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :nsh::Out [k <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :nsh::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule\n\
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k <- :k)))\n\
+                    b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))\n\
+                    where-c (:wat::core::quasiquote\n\
+                              (:wat::rete::where\n\
+                                (:wat::core::= (:wat::core::unquote i)\n\
+                                  (:wat::core::i64::- ?k\n\
+                                    (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))\n\
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:nsh::Out ?k)))]\n\
+    (:wat::rete::Rule :name (:wat::core::i64::to-string i)\n\
+      :lhs (:wat::core::PersistentVector a-c b-c where-c)\n\
+      :rhs (:wat::core::PersistentVector ins))))\n\
+\n\
+(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]\n\
+      -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+      (:wat::core::PersistentVector/conj acc (:nsh::build-rule i n)))\n\
+    (:wat::core::PersistentVector)\n\
+    (:wat::core::range 0 n)))\n\
+\n\
+(:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert (:wat::rete::insert s (:nsh::A i)) (:nsh::B i)))\n\
+    session\n\
+    (:wat::core::range 0 items)))\n\
+";
+
+    /// Compile N node-share rules, seed M×2 facts, fire through the NATIVE path, return the census.
+    ///
+    /// Fires `:wat::rete::fire-rules` — the public production verb, which delegates to the native
+    /// `fire-rules'` (`wat/rete.wat:1835`) — so this is the same path the grid harness times.
+    fn node_share_census(n: i64, m: i64) -> Vec<super::RoundCensus> {
+        let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("node-share world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, census) = super::with_fire_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
+                .value_owned()
+        });
+        census
+    }
+
+    /// Sum the tokens held by every beta node of a given kind in a census row.
+    fn tokens_of_kind(row: &super::RoundCensus, kind: &str) -> usize {
+        row.beta_by_node.iter().filter(|(_, k, _)| *k == kind).map(|(_, _, t)| *t).sum()
+    }
+
+    /// A8 — census the native fire path as rule-count N grows against a fixed fact set.
+    ///
+    /// M is deliberately tiny (50 of each type). The axis blew a machine's RAM at N=20/M=500;
+    /// nothing here can approach that, and the growth SHAPE is what the diagnosis needs, not the
+    /// magnitude. Prints the full per-N table (`--no-capture` to read it) and asserts the
+    /// invariants that must hold for the shared-prefix story to be true at fire time.
+    ///
+    /// What would turn this red — the R59 question, answered before the assertions were written:
+    ///   (a) the instrument recording nothing (an unarmed or never-entered loop),
+    ///   (b) the derived-fact count drifting from M (the axis's documented N-invariance breaking),
+    ///   (c) the shared HashJoin's token count growing with N — which IS the fire-path smoking gun:
+    ///       one compiled join node re-materialising its tokens per rule.
+    #[test]
+    fn a8_node_share_fire_census() {
+        const M: i64 = 50;
+        const NS: [i64; 4] = [1, 2, 4, 8];
+
+        let mut table = String::new();
+        table.push_str(&format!(
+            "\nA8 node-share — native fire census (M={M} A-facts + {M} B-facts)\n\
+             \n  N | edges | rnds | dIn | aNodes aEls | bNodes bToks bMatches | dbNodes dbToks \
+             | lIdx rIdx | prod seen | HashJoin RootJoin Test\n"
+        ));
+
+        let mut hash_join_tokens: Vec<(i64, usize)> = Vec::new();
+
+        for n in NS {
+            let census = node_share_census(n, M);
+            assert!(
+                !census.is_empty(),
+                "A8 census recorded ZERO rounds at N={n} — the instrument never fired, so any \
+                 reading taken from it would be an artifact, not a measurement"
+            );
+
+            // The final round carries the cumulative totals for the whole fire.
+            let last = census.last().expect("census is non-empty");
+            let hj = tokens_of_kind(last, "HashJoin");
+            let rj = tokens_of_kind(last, "RootJoin");
+            let tn = tokens_of_kind(last, "Test");
+
+            table.push_str(&format!(
+                "  {:<2}| {:<6}| {:<5}| {:<4}| {:<7}{:<5}| {:<7}{:<6}{:<10}| {:<8}{:<7}| \
+                 {:<5}{:<5}| {:<5}{:<5}| {:<9}{:<9}{}\n",
+                n,
+                last.network_edges,
+                census.len(),
+                last.delta_facts_in,
+                last.alpha_nodes,
+                last.alpha_elements,
+                last.beta_nodes,
+                last.beta_tokens,
+                last.beta_token_matches,
+                last.d_beta_nodes,
+                last.d_beta_tokens,
+                last.left_idx_tokens,
+                last.right_idx_elements,
+                last.production_facts,
+                last.seen_facts,
+                hj,
+                rj,
+                tn,
+            ));
+
+            // Per-round detail: the fixpoint's shape over time. A structure that grows across
+            // rounds reads differently from one that is over-allocated in a single round, and the
+            // summary row above (cumulative totals) cannot tell them apart.
+            for row in &census {
+                table.push_str(&format!(
+                    "     |- round {:<2} dIn={:<5} beta={:<6} dBeta={:<6} matches={:<8} prod={}\n",
+                    row.round,
+                    row.delta_facts_in,
+                    row.beta_tokens,
+                    row.d_beta_tokens,
+                    row.beta_token_matches,
+                    row.production_facts,
+                ));
+            }
+
+            // (b) The axis's own N-invariance: every k in [0, M) satisfies exactly one rule, so the
+            // derived set is {Out(k)} of size M no matter how many rules split it.
+            assert_eq!(
+                last.production_facts, M as usize,
+                "A8 derived-fact count must be N-invariant (M={M}), got {} at N={n}{table}",
+                last.production_facts
+            );
+
+            hash_join_tokens.push((n, hj));
+        }
+
+        println!("{table}");
+
+        // (c) Fire-time sharing: the ONE compiled HashJoinNode must hold the same token set no
+        // matter how many rules hang off it. If this grows with N, the fire path is re-doing the
+        // join per rule — the shared network collapsing back into N copies at run time, which is
+        // exactly the mechanism the >4 GiB blow-up would need.
+        let (_, baseline) = hash_join_tokens[0];
+        for &(n, tokens) in &hash_join_tokens {
+            assert_eq!(
+                tokens, baseline,
+                "A8 fire-time sharing broken: the shared HashJoinNode holds {tokens} tokens at \
+                 N={n} but {baseline} at N={}. One compiled join node is materialising per-rule \
+                 token sets — the fire-path defect the compiler census (4 + 2N nodes) ruled out at \
+                 compile time.{table}",
+                hash_join_tokens[0].0
+            );
+        }
+        assert!(
+            baseline > 0,
+            "A8 census read 0 HashJoin tokens — the join never ran, so the sharing assertion above \
+             would pass vacuously.{table}"
         );
     }
 }

@@ -404,6 +404,10 @@
 
 ;; network-add-child — add child-id to the children of the node at node-id in network.
 ;; Returns the updated PersistentMap.
+;; SET SEMANTICS: children is a set of out-edges. Adding a child-id already present is a
+;; no-op — a rete edge means "propagate to this child", and a second identical edge would mean
+;; "propagate twice", which no caller wants. When two rules share a compiled node (routine under
+;; the find-or-mint-* dedup), this keeps the node's out-degree from growing once per rule.
 ;; WHY: wiring edges = conj child-id onto the existing children PersistentVector and
 ;; re-assoc the node; :wat::core::Record/assoc does name-based field update on any Record.
 (:wat::core::defn :wat::rete::network-add-child
@@ -411,13 +415,15 @@
    node-id  <- :wat::core::i64
    child-id <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node     (:wat::core::Option/expect  
+  (:wat::core::let [node   (:wat::core::Option/expect
                                   (:wat::core::PersistentMap/get network node-id)
                                   "network-add-child: node not found")
-                    old-ch   (:wat::rete::node-children-ids node)
-                    new-ch   (:wat::core::PersistentVector/conj old-ch child-id)
-                    new-node (:wat::core::Record/assoc node :children new-ch)]
-    (:wat::core::PersistentMap/assoc network node-id new-node)))
+                    old-ch (:wat::rete::node-children-ids node)]
+    (:wat::core::if (:wat::core::PersistentVector/contains? old-ch child-id)
+      network
+      (:wat::core::let [new-ch   (:wat::core::PersistentVector/conj old-ch child-id)
+                        new-node (:wat::core::Record/assoc node :children new-ch)]
+        (:wat::core::PersistentMap/assoc network node-id new-node)))))
 
 ;; find-or-mint-alpha — find an existing AlphaNode whose tests == cond, or mint a new one.
 ;; Dedup key: "alpha:<write-forms cond>".
