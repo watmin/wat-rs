@@ -2276,6 +2276,11 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // scanning the whole memory (same shape as the Accumulate site above). A missing
                 // bucket yields an empty slice, i.e. any-compat = false, exactly as an exhausted
                 // full scan would report.
+                // Counted alongside the accumulate pass's builds: this is the FIFTH build over the
+                // same two (alpha, join_keys) pairs — the Reading-?g alpha is indexed here for
+                // `exists` and again in the accumulate pass for `count`.
+                census_count("accum:index-builds");
+                census_count_n("accum:index-elements", filter_elements.len() as u64);
                 let (join_keys, index) = gather_index(&new_tokens[0].bindings, &filter_elements);
                 for tok in new_tokens {
                     let key = key_of(&tok.bindings, &join_keys);
@@ -3842,6 +3847,52 @@ mod tests {
                 .value_owned()
         });
         rows
+    }
+
+    /// The gather-index-cache gate — RED until the index is cached per (alpha, join-keys).
+    ///
+    /// `gather_index` is a pure function of (alpha memory, join keys), yet it is rebuilt per NODE
+    /// per round. At G=200 W=200 the accum world has THREE alpha nodes (200 Groups + two Reading
+    /// alphas of 40,000 — one binding ?g, one binding ?g,?v) and FIVE readers of them:
+    ///   count   -> Reading-?g     (accumulate pass)
+    ///   exists  -> Reading-?g     (filter pass)
+    ///   sum/min/max -> Reading-?g?v (accumulate pass)
+    /// Five builds over TWO distinct (alpha_id, join_keys) pairs; three are pure repetition, each
+    /// dragging a full 40,000-element clone with it.
+    ///
+    /// What would turn this red once green — the R59 question, answered before the assertion:
+    ///   (a) the instrument counting nothing (`builds == 0`) — asserted separately, since a silent
+    ///       zero would satisfy `<= 2` while measuring nothing at all;
+    ///   (b) a cache keyed on `alpha_id` ALONE — it would read 2 here (every reader keys on ?g) and
+    ///       be WRONG the moment two readers of one alpha have parents binding different variable
+    ///       sets. This gate cannot catch that; the DESIGN's contract clause and the differentials
+    ///       are what stand between it and a silent empty gather.
+    ///   (c) the cache outliving a round — `wm.alpha` grows in step 1, so a stale index under-reads
+    ///       and `count`/`sum` emit identities for groups that do have elements.
+    #[test]
+    fn gather_index_is_built_once_per_alpha_and_keyset() {
+        let rows = accum_count_census(200, 200);
+        let builds = rows.iter().find(|(n, _)| *n == "accum:index-builds").map(|(_, c)| *c).unwrap_or(0);
+        let elements = rows.iter().find(|(n, _)| *n == "accum:index-elements").map(|(_, c)| *c).unwrap_or(0);
+
+        assert!(
+            builds > 0,
+            "the index-build counter recorded ZERO — the counters were never reached, so `builds \
+             <= 2` would pass while measuring nothing"
+        );
+        println!("\ngather index — builds {builds}, elements indexed {elements}\n");
+
+        assert!(
+            builds <= 2,
+            "gather_index ran {builds} times over only TWO distinct (alpha_id, join_keys) pairs — \
+             the index is being rebuilt per NODE instead of cached per (alpha, key-set). See \
+             DESIGN-STONE-gather-index-cache.md."
+        );
+        assert!(
+            elements <= 80_000,
+            "indexed {elements} elements where 80,000 (the two distinct alpha memories, once each) \
+             suffices — each redundant build drags a full-memory clone with it"
+        );
     }
 
     /// How many DISTINCT alpha memories do the accumulate nodes actually read?
