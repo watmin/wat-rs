@@ -71,14 +71,37 @@ claims coverage the measurement does not have. If you cannot make the two sides 
    ruling with its own design doc.
 4. **STOP-4** — do not touch `src/` or `wat/`. If an axis seems to need an engine change, STOP.
 
+## How to run an axis — the resource guard (mandatory, every run)
+
+A grid run spawns a JVM (Clara) beside our binary. **Cap memory and wall-clock before the first run at
+any new size, and climb the ladder UPWARD** — smallest rung first, never start at the top:
+
+```bash
+systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=0 -- \
+  timeout 600 bash wat-scripts/perf/grid/run-axis.sh <axis> "<rung>"
+```
+
+Climb `10 5 → 20 5 → 30 5` (A0) and `10000 → 20000 → 40000` (A1). If a rung is OOM-killed or times
+out, **report the rung and stop climbing that axis** — do not raise the cap on your own.
+
+**Accuracy is the deliverable; the timing ratios are provisional.** Other work may share this box, and
+the orchestrator re-weighs the ratios on a quiet machine. Report the numbers you get, but a ratio that
+looks off is not something to chase.
+
 ## Definition of done
 
-- `bash wat-scripts/perf/grid/run-axis.sh deep-cascade "10 5"` → one `#grid/Verdict`.
-- `bash wat-scripts/perf/grid/run-axis.sh fanout "10000"` → one `#grid/Verdict`.
-- `bash wat-scripts/perf/grid/run-all.sh` with no arguments runs **nine** axes.
+- `run-axis.sh deep-cascade "10 5"` → one `#grid/Verdict` (under the guard above).
+- `run-axis.sh fanout "10000"` → one `#grid/Verdict` (under the guard above).
+- Each axis climbed its full three-rung ladder via its own named run:
+  `run-all.sh deep-cascade` and `run-all.sh fanout` (under the guard). **These two named runs are the
+  only sweeps you perform.**
+- The nine-axis wiring is verified **statically, not by executing the sweep**: `LADDER` and `ORDER` in
+  `run-all.sh` each carry nine entries, `deep-cascade` and `fanout` among them. **Do NOT run
+  `run-all.sh` with no arguments** — the full grid is the orchestrator's weigh, not part of this strike.
 - `cargo nextest run --release -E 'test(every_wat_scripts_file_loads)'` — the new `.wat` files must
   load and type-check under the loader gate.
-- `cargo nextest run --release` — the floor, unchanged.
+- `cargo nextest run --release` — the floor, unchanged. **Run this LAST**, after every grid run is
+  finished, so the two never overlap.
 - Report every `#grid/Verdict` you produced, verbatim, including any `:clara` or `:MISMATCH`.
 - `git diff --stat`.
 
