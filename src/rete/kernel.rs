@@ -155,9 +155,19 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
     for (node_id, vec) in map {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for v in vec {
-            pv = pv.push_back(v);
+            // `_mut`, not the copying form. `Vector::push_back(&self)` begins with
+            // `self.clone()`, which raises every node's refcount to 2, so the `make_mut` inside
+            // `assoc` is FORCED to copy the whole root->leaf path on EVERY iteration — the old
+            // version is then dropped unread. Building a fresh vector nobody else holds, that is
+            // pure waste: `push_back_mut` leaves the refcount at 1, `make_mut` hands back the
+            // existing node, and the write lands in place.
+            //
+            // This is R8's `each_with_object` against `reduce { merge }`, in the output path:
+            // rpds's `*_mut` family IS the transient API the doctrine calls for. Same final
+            // value either way — a persistent Vector — only the build is no longer copy-per-element.
+            pv.push_back_mut(v);
         }
-        pm = pm.insert(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
+        pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
     Value::wat__core__PersistentMap(pm)
 }
@@ -2266,6 +2276,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     let all_right: Vec<Element> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
                     let all_left:  Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
                     // Build right_idx[J] from ALL cumulative right elements.
+                    let __cri = phase_start();
                     {
                         let ridx = right_idx.entry(*child_id).or_default();
                         for el in &all_right {
@@ -2274,7 +2285,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                             ridx.entry(k).or_default().push(el.clone());
                         }
                     }
+                    phase_end("  ├ hj:catchup:right-idx", __cri);
                     // Full cross-join: every left token keyed against right_idx[J].
+                    let __cpr = phase_start();
                     let mut new_tokens: Vec<Token> = Vec::new();
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in &all_left {
@@ -2288,7 +2301,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                             }
                         }
                     }
+                    phase_end("  ├ hj:catchup:probe", __cpr);
                     // Build left_idx[J] from ALL cumulative left tokens.
+                    let __cli = phase_start();
                     {
                         let lidx = left_idx.entry(*child_id).or_default();
                         for tok in all_left {
@@ -2296,11 +2311,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                             lidx.entry(k).or_default().push(tok);
                         }
                     }
+                    phase_end("  ├ hj:catchup:left-idx", __cli);
                     // Emit catch-up tokens into cumulative and delta memories.
+                    let __cem = phase_start();
                     for new_tok in new_tokens {
                         wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                         d_beta.entry(*child_id).or_default().push(new_tok);
                     }
+                    phase_end("  ├ hj:catchup:emit", __cem);
                     continue; // Skip incremental steps 2–5 for this round.
                 }
 
@@ -2316,6 +2334,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
 
                 // Step 2: add Δright (dr) to right_idx[J] FIRST.
                 // dr is &[Element] — iterate directly (no extra borrow needed).
+                let __s2 = phase_start();
                 {
                     let ridx = right_idx.entry(*child_id).or_default();
                     for el in dr {
@@ -2324,9 +2343,11 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         ridx.entry(k).or_default().push(el.clone());
                     }
                 }
+                phase_end("  ├ hj:step2-right-idx", __s2);
 
                 // Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
                 // The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
+                let __s3 = phase_start();
                 let mut new_tokens: Vec<Token> = Vec::new();
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
@@ -2342,9 +2363,11 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         }
                     }
                 }
+                phase_end("  ├ hj:step3-term1", __s3);
 
                 // Step 4: term2 = old_left ⋈ Δright (probe left_idx[J] — still OLD, Δleft not yet added).
                 // left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
+                let __s4 = phase_start();
                 if !dr.is_empty() {
                     if let Some(lidx) = left_idx.get(child_id) {
                         for el in dr {
@@ -2359,9 +2382,11 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         }
                     }
                 }
+                phase_end("  ├ hj:step4-term2", __s4);
 
                 // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
                 // dl is &[Token] — iterate directly.
+                let __s5 = phase_start();
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
                     for tok in dl {
@@ -2369,12 +2394,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         lidx.entry(k).or_default().push(tok.clone());
                     }
                 }
+                phase_end("  ├ hj:step5-left-idx", __s5);
 
                 // Step 6: push new tokens to wm.beta[J] and d_beta[J].
+                let __s6 = phase_start();
                 for new_tok in new_tokens {
                     wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                     d_beta.entry(*child_id).or_default().push(new_tok);
                 }
+                phase_end("  ├ hj:step6-emit", __s6);
             }
         }
 
