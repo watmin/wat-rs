@@ -58,12 +58,18 @@
 
 ;; seed-items session items — stage A(i) for i in [0, items), threading the staging session.
 ;; Every A arrives (round 0) before ANY B/C is derived — the asymmetric-arrival condition.
+;; Staged with the BATCH verb: build the fact vector, then ONE `insert-all` (which delegates to
+;; the native `insert-all'` — one rebuild, not N). `insert` x N is what a user should never write,
+;; so the benchmark must not write it either.
 (:wat::core::defn :asym::seed-items [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:asym::A i)))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 items)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::PersistentVector/conj acc (:asym::A i)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 items))))
 
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
 (:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>

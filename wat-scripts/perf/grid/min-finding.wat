@@ -79,12 +79,16 @@
   (:wat::core::i64::- a (:wat::core::i64::* (:wat::core::i64::/ a b) b)))
 
 ;; seed-readings session loc count — stage `count` Reading(loc) findings for one station.
-(:wat::core::defn :mf::seed-readings
-  [session <- :wat::rete::Session  loc <- :wat::core::i64  count <- :wat::core::i64] -> :wat::rete::Session
+;; reading-facts loc count — `count` Reading(loc) facts as a FACT VECTOR. No longer threads a
+;; Session: staging is one BATCH `insert-all` at the end of `seed`.
+(:wat::core::defn :mf::reading-facts
+  [acc <- :wat::core::PersistentVector<wat::core::Record>  loc <- :wat::core::i64  count <- :wat::core::i64]
+  -> :wat::core::PersistentVector<wat::core::Record>
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  _r <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:mf::Reading loc)))
-    session
+    (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Record>  _r <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::PersistentVector/conj a (:mf::Reading loc)))
+    acc
     (:wat::core::range 0 count)))
 
 ;; seed session stations threshold — for each station i in [0, stations): stage Station(i) plus
@@ -94,12 +98,17 @@
   [session <- :wat::rete::Session  stations <- :wat::core::i64  threshold <- :wat::core::i64]
   -> :wat::rete::Session
   (:wat::core::let [span (:wat::core::i64::* 2 threshold)]
-    (:wat::core::foldl
-      (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-        (:wat::core::let [s1 (:wat::rete::insert s (:mf::Station i))]
-          (:mf::seed-readings s1 i (:mf::i64-mod i span))))
+    (:wat::rete::insert-all
       session
-      (:wat::core::range 0 stations))))
+      (:wat::core::foldl
+        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                        -> :wat::core::PersistentVector<wat::core::Record>
+          (:mf::reading-facts
+            (:wat::core::PersistentVector/conj acc (:mf::Station i))
+            i
+            (:mf::i64-mod i span)))
+        (:wat::core::PersistentVector)
+        (:wat::core::range 0 stations)))))
 
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one

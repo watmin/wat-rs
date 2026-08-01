@@ -70,24 +70,30 @@
   (:wat::rete::insert (:ur::Agg ?loc ?s)))
 
 ;; seed-loc session loc reads — stage Station(loc) then Reading(loc, (loc+j) mod 7) for j in [0,reads).
-(:wat::core::defn :ur::seed-loc
-  [session <- :wat::rete::Session  loc <- :wat::core::i64  reads <- :wat::core::i64]
-  -> :wat::rete::Session
+;; loc-facts acc loc reads — Station(loc) then its `reads` Readings, appended to a FACT VECTOR.
+;; No longer threads a Session: staging is one BATCH `insert-all` at the end of `seed-all`.
+(:wat::core::defn :ur::loc-facts
+  [acc <- :wat::core::PersistentVector<wat::core::Record>  loc <- :wat::core::i64  reads <- :wat::core::i64]
+  -> :wat::core::PersistentVector<wat::core::Record>
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:ur::Reading :loc loc :value (:ur::mod7 (:wat::core::i64::+ loc j)))))
-    (:wat::rete::insert session (:ur::Station loc))
+    (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Record>  j <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::PersistentVector/conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::core::i64::+ loc j)))))
+    (:wat::core::PersistentVector/conj acc (:ur::Station loc))
     (:wat::core::range 0 reads)))
 
 ;; seed-all session locs reads — stage every location's Station + Reading block.
 (:wat::core::defn :ur::seed-all
   [session <- :wat::rete::Session  locs <- :wat::core::i64  reads <- :wat::core::i64]
   -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  loc <- :wat::core::i64] -> :wat::rete::Session
-      (:ur::seed-loc s loc reads))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 locs)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  loc <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:ur::loc-facts acc loc reads))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 locs))))
 
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one

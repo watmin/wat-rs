@@ -110,20 +110,28 @@
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; seed-readings session g W — stage Reading(g, val(g,j)) for j in [0, W), threading the session.
-(:wat::core::defn :acc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
+;; reading-facts acc g W — group g's W Readings, appended to a FACT VECTOR. No longer threads a
+;; Session: staging is one BATCH `insert-all` at the end of `seed`.
+(:wat::core::defn :acc::reading-facts
+  [acc <- :wat::core::PersistentVector<wat::core::Record>  g <- :wat::core::i64  W <- :wat::core::i64]
+  -> :wat::core::PersistentVector<wat::core::Record>
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:acc::Reading :g g :v (:acc::val g j))))
-    session
+    (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Record>  j <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::PersistentVector/conj a (:acc::Reading :g g :v (:acc::val g j))))
+    acc
     (:wat::core::range 0 W)))
 
 ;; seed session G W — stage Group(g) + its W Readings for every g in [0, G).
 (:wat::core::defn :acc::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session
-      (:acc::seed-readings (:wat::rete::insert s (:acc::Group g)) g W))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 G)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  g <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:acc::reading-facts (:wat::core::PersistentVector/conj acc (:acc::Group g)) g W))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 G))))
 
 ;; codes fired — every derived fact across all five types, canonically encoded, into a Vector<i64>.
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.

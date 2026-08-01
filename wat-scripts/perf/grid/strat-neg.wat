@@ -141,12 +141,16 @@
     (:wat::core::range 1 strata)))
 
 ;; seed-items session items — stage Item(i) for i in [0, items), threading the staging session.
+;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x N.
 (:wat::core::defn :strat::seed-items [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:strat::Item i)))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 items)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::PersistentVector/conj acc (:strat::Item i)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 items))))
 
 ;; codes-for-level fired lvl — every derived fact of stratum lvl's type, canonically encoded.
 ;; Same literal-dispatch shape as insert-form/not-pattern (the type-qualified accessor

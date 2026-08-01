@@ -53,15 +53,21 @@
 
 ;; seed session items — stage Item(i) for every i in [0, items), plus Bad(i) for every EVEN i,
 ;; threading the staging session (mirrors strat-neg.wat's seed-items, with the extra Bad insert).
+;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x N.
+;; The conditional Bad(i) stays exactly where it was; only the accumulator changed from a Session
+;; to the fact vector, so the staging ORDER (Item then Bad, ascending i) is preserved.
 (:wat::core::defn :neg::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::core::let [s2 (:wat::rete::insert s (:neg::Item i))]
-        (:wat::core::if (:wat::core::= i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))
-          (:wat::rete::insert s2 (:neg::Bad i))
-          s2)))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 items)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:neg::Item i))]
+          (:wat::core::if (:wat::core::= i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))
+            (:wat::core::PersistentVector/conj a2 (:neg::Bad i))
+            a2)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 items))))
 
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one

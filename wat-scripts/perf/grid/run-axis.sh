@@ -23,8 +23,21 @@
 # the canonicalization the DESIGN calls for, not a fudge: the accuracy check still fails loudly
 # on any real difference in the derived-fact SET (missing/extra/reordered elements).
 #
+# TWO VERDICTS PER SIZE, and the distinction is load-bearing:
+#   :ratio / :winner            — the ENGINE. clara-ns / native-ns, both sides timing the FIRE only.
+#                                 This is what the differential and the whole grid history mean.
+#   :wall-ratio / :wall-winner  — the PROGRAM. clara-wall / wat-wall, `time` around each process:
+#                                 our freeze + seed + fire + derive + print, against the JVM's cold
+#                                 boot + Clojure load + its own everything. Same convention (>1 ⇒ us).
+#   :fire-share-pct             — how much of OUR wall clock the timed region actually covers.
+# They are NOT merged. An engine can win the fire and lose the program, and collapsing them hides
+# exactly that. Added 2026-08-01 after measuring fanout [40000]: fire 0.046s of a 5.33s run —
+# :fire-share-pct 0.9. The record had flagged this ("the grid timed `fire` and declared superiority
+# on 2% of the runtime") and we kept rediscovering it because the runner never captured the whole.
+#
 # Emits, per SIZE, one line:
-#   #grid/Verdict {:axis "<axis>" :size [<size>] :accuracy :match|:MISMATCH :ratio <f64> :winner :us|:clara|:tie}
+#   #grid/Verdict {:axis "<axis>" :size [<size>] :accuracy :match|:MISMATCH :ratio <f64> :winner :us|:clara|:tie
+#                  :wat-wall-ms <n> :clara-wall-ms <n> :wall-ratio <f64> :wall-winner <..> :fire-share-pct <f64>}
 # :ratio is clara-ns / native-ns (>1 ⇒ native faster ⇒ :us; <1 ⇒ Clara faster ⇒ :clara; within
 # ±5% ⇒ :tie). A :MISMATCH also dumps both :derived sets to stderr (never hidden — DESIGN STOP #4).
 set -euo pipefail
@@ -109,6 +122,8 @@ for SIZE in "$@"; do
   RATIOS=""
   WAT_NSS=""
   CLARA_NSS=""
+  WAT_WALLS=""
+  CLARA_WALLS=""
   ACCURACY=":match"
 
   for RUN in $(seq 1 "$GRID_RUNS"); do
@@ -117,8 +132,15 @@ for SIZE in "$@"; do
     # REASONLESS — you learned the axis produced nothing and never why.
     WAT_ERR="$(mktemp)"
     set +e
+    # OUTER WALL CLOCK. `:native-ns` times the FIRE ONLY, and that is honest for comparing
+    # engines — but at fanout [40000] the fire is ~0.9% of the program, so a ratio built on it
+    # says nothing about what a user waits for. Measured 2026-08-01; the record had already
+    # flagged it ("the grid timed `fire` and declared superiority on 2% of the runtime") and we
+    # kept rediscovering it because the runner never captured the whole. Now it does, both sides.
+    WAT_W0=$(date +%s%N)
     WAT_OUT="$(echo "$SIZE_JSON" | guard "$WAT_BIN" "$WAT_FILE" 2>"$WAT_ERR")"
     WAT_RC=$?
+    WAT_W1=$(date +%s%N)
     set -e
     WAT_LINE="$(echo "$WAT_OUT" | grep -o '#grid/Result.*' || true)"
     if [ -z "$WAT_LINE" ]; then
@@ -139,7 +161,12 @@ for SIZE in "$@"; do
     rm -f "$WAT_ERR"
 
     # ── Clara side ────────────────────────────────────────────────────────────
+    # The Clara side's wall clock INCLUDES JVM cold boot + Clojure load, which is the point:
+    # that is what a user of the peer actually waits for, exactly as our wall includes freeze,
+    # seeding, derive and print. Neither number is flattered; both are the whole program.
+    CLARA_W0=$(date +%s%N)
     CLARA_OUT="$(cd "$CLJ_TMP" && clojure -Sdeps "$CLARA_DEP" -M -m "$AXIS" 2>/dev/null || true)"
+    CLARA_W1=$(date +%s%N)
     CLARA_LINE="$(echo "$CLARA_OUT" | grep -o '#grid/Result.*' || true)"
     if [ -z "$CLARA_LINE" ]; then
       echo "run-axis: Clara side produced no #grid/Result for axis=$AXIS size=[$SIZE] run=$RUN:" >&2
@@ -166,6 +193,8 @@ for SIZE in "$@"; do
     RATIOS="$RATIOS $(awk -v n="$WAT_NS" -v c="$CLARA_NS" 'BEGIN { printf "%.4f", (n>0)? c/n : -1 }')"
     WAT_NSS="$WAT_NSS $WAT_NS"
     CLARA_NSS="$CLARA_NSS $CLARA_NS"
+    WAT_WALLS="$WAT_WALLS $(( (WAT_W1   - WAT_W0)   / 1000000 ))"
+    CLARA_WALLS="$CLARA_WALLS $(( (CLARA_W1 - CLARA_W0) / 1000000 ))"
   done
 
   rm -rf "$CLJ_TMP"
@@ -189,5 +218,22 @@ for SIZE in "$@"; do
   WAT_MEAN="$(echo "$WAT_NSS"   | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
   CLARA_MEAN="$(echo "$CLARA_NSS" | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
 
-  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :clara-ns $CLARA_MEAN :winner $WINNER}"
+  # ── the WHOLE-PROGRAM verdict, reported beside the fire-only one ───────────
+  # :wall-ratio is clara-wall / wat-wall on the SAME convention as :ratio (>1 ⇒ we finish
+  # sooner). It is deliberately NOT folded into :winner — :winner remains the ENGINE verdict,
+  # because that is what the differential and the whole grid history mean. Two numbers, two
+  # claims, neither standing in for the other: an engine can win the fire and lose the program.
+  WAT_WALL="$(echo "$WAT_WALLS"   | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
+  CLARA_WALL="$(echo "$CLARA_WALLS" | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
+  WALL_RATIO="$(awk -v w="$WAT_WALL" -v c="$CLARA_WALL" 'BEGIN { printf "%.4f", (w>0)? c/w : -1 }')"
+  WALL_WINNER="$(awk -v r="$WALL_RATIO" 'BEGIN {
+      if      (r > 1.05) print ":us"
+      else if (r < 0.95) print ":clara"
+      else               print ":tie" }')"
+  # The share of our wall clock the timed region actually covers. If this is 1%, any claim
+  # resting on :ratio alone is a claim about 1% of the program — say so in the artifact, not
+  # in someone's memory.
+  FIRE_SHARE="$(awk -v ns="$WAT_MEAN" -v wall="$WAT_WALL" 'BEGIN { printf "%.2f", (wall>0)? (ns/1000000.0)*100.0/wall : -1 }')"
+
+  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :clara-ns $CLARA_MEAN :winner $WINNER :wat-wall-ms $WAT_WALL :clara-wall-ms $CLARA_WALL :wall-ratio $WALL_RATIO :wall-winner $WALL_WINNER :fire-share-pct $FIRE_SHARE}"
 done

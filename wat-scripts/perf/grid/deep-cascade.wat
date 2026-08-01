@@ -61,12 +61,18 @@
     (:wat::core::range 2 (:wat::core::i64::+ depth 1))))
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in [0, width), threading the session.
+;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x 2N.
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert s (:cascade::Node :level 0 :id i)) (:cascade::Tag :level 0 :id i)))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 width)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::PersistentVector/conj
+          (:wat::core::PersistentVector/conj acc (:cascade::Node :level 0 :id i))
+          (:cascade::Tag :level 0 :id i)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 width))))
 
 ;; enc kind level id — canonical single-i64 witness for one derived fact (mirrors accum.wat's
 ;; :acc::enc: kind*1e15 + level*1e9 + id).

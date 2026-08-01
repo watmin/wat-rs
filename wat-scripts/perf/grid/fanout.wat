@@ -44,21 +44,31 @@
    derived   <- :wat::core::PersistentVector<wat::core::i64>
    native-ns <- :wat::core::i64])
 
-;; seed-key s k fanout — stage Left(k,f)+Right(k,f) for f in [0,fanout), threading session s.
-(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
+;; facts-key k fanout — the Left(k,f)+Right(k,f) facts for f in [0,fanout), as a FACT VECTOR.
+;; It no longer threads a Session: staging is now one BATCH call at the end (below), so the
+;; helper's job is to produce facts, not to insert them. Named for what it returns.
+(:wat::core::defn :fan::facts-key [k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left :key k :lid f)) (:fan::Right :key k :rid f)))
-    s
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  f <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::PersistentVector/conj
+        (:wat::core::PersistentVector/conj acc (:fan::Left :key k :lid f))
+        (:fan::Right :key k :rid f)))
+    (:wat::core::PersistentVector)
     (:wat::core::range 0 fanout)))
 
-;; seed s keys fanout — stage every key's F Lefts + F Rights, threading the staging session.
+;; seed s keys fanout — every key's F Lefts + F Rights, staged in ONE `insert-all` (which
+;; delegates to the native `insert-all'`: one rebuild, not N). Order is preserved exactly —
+;; ascending k, and within a key ascending f, Left before Right — so `:derived` is unchanged.
 (:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
-      (:fan::seed-key acc k fanout))
+  (:wat::rete::insert-all
     s
-    (:wat::core::range 0 keys)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  k <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::PersistentVector/concat acc (:fan::facts-key k fanout)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 keys))))
 
 ;; enc key lid rid — canonical single-i64 witness for one derived Pair fact.
 (:wat::core::defn :fan::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64

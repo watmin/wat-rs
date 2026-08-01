@@ -88,12 +88,17 @@
 
 ;; seed session items — stage A(i) AND B(i) for i in [0, items), threading the staging session, so
 ;; the shared [A]⋈[B] join yields exactly one token per k (fan-in = items).
+;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x 2N.
+;; The fact vector is heterogeneous (A and B), which `PersistentVector<Record>` carries fine.
 (:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert s (:nsh::A i)) (:nsh::B i)))
+  (:wat::rete::insert-all
     session
-    (:wat::core::range 0 items)))
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                      -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::PersistentVector/conj (:wat::core::PersistentVector/conj acc (:nsh::A i)) (:nsh::B i)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 0 items))))
 
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
