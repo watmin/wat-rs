@@ -45,3 +45,33 @@
 ;; degrades harder under load than we do (their CV 16.4% vs our 3.5%), so these flatter us.
 ;; The quiet-box comparison at [200 200] is 73.61 vs 103.38 = ~1.40, still :us — because even
 ;; quiet, our max (77.94ms) beats their min (80.93ms). Read 1.40-1.69, not 1.69.
+
+;; ── SCALING LADDER, accum, post-stones (interleaved, 3 runs/point) ───────────────────────────
+;; Asking: does 21/21 survive scale, or does Clara's better marginal rate cross us?
+#grid/Verdict {:axis "accum" :size [400 200] :accuracy :match :runs 3 :ratio 1.4103 :min 1.3315 :max 1.5097 :wat-ns 156705466 :clara-ns 221024865 :winner :us}
+#grid/Verdict {:axis "accum" :size [800 200] :accuracy :match :runs 3 :ratio 1.2409 :min 1.1362 :max 1.3131 :wat-ns 340818956 :clara-ns 421652084 :winner :us}
+#grid/Verdict {:axis "accum" :size [1600 200] :accuracy :match :runs 3 :ratio 1.4175 :min 1.3630 :max 1.4906 :wat-ns 689059396 :clara-ns 976545193 :winner :us}
+;;
+;;   facts      ratio    ours us/fact   clara us/fact
+;;    10,200    1.81         1.78           3.21
+;;    20,200    1.56         2.62           3.99
+;;    40,200    1.69         1.99           3.35
+;;    80,400    1.41         1.95           2.75
+;;   160,800    1.24         2.12           2.62
+;;   321,600    1.42         2.14           3.04   <- their rate REVERSED
+;;
+;; NO CROSSOVER between 10k and 321k facts (a 31x range), :us at every rung.
+;; OURS is FLAT (1.78-2.62, no drift). THEIRS is NON-MONOTONE: falls while the JIT warms, then
+;; rises again at 321k — consistent with GC pressure at a larger heap, which is a HYPOTHESIS, not
+;; a measurement.
+;;
+;; LESSON RECORDED: after the first five rungs the ratio looked monotonically decaying (1.81 ->
+;; 1.24) and the orchestrator extrapolated a crossover at "300k-600k facts". The SIXTH rung
+;; falsified it. Five points that trend are not a trend. Do not extrapolate this curve; extend it.
+;;
+;; STILL UNMEASURED — where Clara plausibly remains ahead, both documented and neither benchmarked:
+;;   RETRACT   — pure replay is O(everything) vs Clara's O(delta) TMS (PVRITAS VERVM NON
+;;               CELERITATEM; R22 named it T2 and it was never built). NO AXIS EXISTS.
+;;   STREAMING — Clara's accumulate folds incrementally onto a stored reduction (engine.cljc:1014);
+;;               ours re-folds. ALL 27 measured points are BATCH fires. The chaos engine (R25) is a
+;;               stream. This is the regime our benchmark is structurally silent about.
