@@ -1855,6 +1855,60 @@ pub(crate) fn with_phase_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static s
     (out, rows)
 }
 
+/// P8 — build the alpha type-index: fact-type (colon-free) → `[AlphaNode id]`, plus each
+/// AlphaNode's cached condition AST. Pure function of the (immutable) network; called once at
+/// setup by `fire_fixpoint_delta`, and directly by tests that need the SAME index the fire pass
+/// built (`alpha_tree` tests below) rather than a hand-rolled duplicate — one reader of the
+/// network's AlphaNode shape, not two.
+///
+/// Behavior-identical to the pre-P8 linear scan: `alpha_match_inner` only ever matched when
+/// `cond_head == fact_class` anyway.
+pub(crate) fn build_alpha_index(
+    wm: &WorkingMemory,
+    node_ids: &[i64],
+) -> (HashMap<String, Vec<i64>>, HashMap<i64, WatAST>) {
+    let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
+    for node_id in node_ids {
+        // Group C: use &Value ref — no clone needed; only reads wm.network here.
+        let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+        if kind_of(node) != "AlphaNode" { continue; }
+        let (_, sf) = node_record(node).unwrap();
+        let cond_ast: WatAST = match &sf[1] {
+            Value::wat__core__PersistentVector(pv) => match pv.first() {
+                Some(Value::wat__WatAST(ast)) => (**ast).clone(),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        // The condition's fact-type head (colon-free), exactly as alpha_match_inner reads it.
+        if let WatAST::List(items, _) = &cond_ast {
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                let ty = k.trim_start_matches(':').to_string();
+                alpha_by_type.entry(ty).or_default().push(*node_id);
+                alpha_cond.insert(*node_id, cond_ast);
+            }
+        }
+    }
+    (alpha_by_type, alpha_cond)
+}
+
+/// Declared field names for a fact class (colon-free), read from the frozen type registry.
+/// Shared by the per-round `field_names_cache` lookup below and
+/// `alpha_tree::AlphaTree::build` (setup-time tree construction needs the exact same declared
+/// field order the round loop indexes fact fields by — one reader of the registry, not two).
+pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
+    let type_key = format!(":{}", class);
+    sym.types()
+        .and_then(|t| match t.get(&type_key) {
+            Some(crate::types::TypeDef::Aggregate(a)) => {
+                Some(a.field_names().map(|s| s.to_string()).collect())
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -1917,29 +1971,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // The alpha-delta then probes only the alphas whose condition type matches the fact's type, instead
     // of re-matching every delta fact against EVERY AlphaNode (the deep-cascade O(facts × all-alphas)).
     // Behavior-identical: alpha_match_inner only ever matched when cond_head == fact_class anyway.
-    let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
-    let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
-    for node_id in &node_ids {
-        // Group C: use &Value ref — no clone needed; only reads wm.network here.
-        let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
-        if kind_of(node) != "AlphaNode" { continue; }
-        let (_, sf) = node_record(node).unwrap();
-        let cond_ast: WatAST = match &sf[1] {
-            Value::wat__core__PersistentVector(pv) => match pv.first() {
-                Some(Value::wat__WatAST(ast)) => (**ast).clone(),
-                _ => continue,
-            },
-            _ => continue,
-        };
-        // The condition's fact-type head (colon-free), exactly as alpha_match_inner reads it.
-        if let WatAST::List(items, _) = &cond_ast {
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
-                let ty = k.trim_start_matches(':').to_string();
-                alpha_by_type.entry(ty).or_default().push(*node_id);
-                alpha_cond.insert(*node_id, cond_ast);
-            }
-        }
-    }
+    let (alpha_by_type, alpha_cond) = build_alpha_index(&wm, &node_ids);
+
+    // P8c (DESIGN-STONE-alpha-discrimination-tree.md) — the discrimination tree over
+    // `alpha_by_type`/`alpha_cond`, built once from the immutable network right alongside them.
+    // Replaces step 1's "every alpha of this fact's type" linear scan with a root-to-leaf walk
+    // that returns only the alphas a fact could possibly satisfy — `alpha_match_inner` remains
+    // the sole authority on whether a condition holds, so a wrong/wildcarded tree can only ever
+    // waste a match call, never drop a derivation.
+    let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
 
     // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
     // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
@@ -2013,10 +2053,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 }
                 _ => continue,
             };
-            let alphas = match alpha_by_type.get(fact_class) {
-                Some(v) => v,
-                None => continue, // no alpha matches this fact's type
-            };
+            // DESIGN-STONE-alpha-discrimination-tree.md — the candidate set replaces
+            // `alpha_by_type.get(fact_class)`'s "every alpha of this type." It is a SUPERSET of
+            // the alphas that will actually match (never a subset); `alpha_match_inner` below is
+            // unchanged and remains the sole authority on whether each candidate truly holds.
+            let alphas = alpha_tree.candidates(fact_class, fact_fields);
+            if alphas.is_empty() {
+                continue; // no alpha matches this fact's type
+            }
 
             // Group B: field_names from cache (fact-class → field names, computed once per class).
             //
@@ -2028,20 +2072,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             let __afn = phase_start();
             let field_names: &Vec<String> = field_names_cache
                 .entry(fact_class.to_string())
-                .or_insert_with(|| {
-                    let type_key = format!(":{}", fact_class);
-                    sym.types()
-                        .and_then(|t| match t.get(&type_key) {
-                            Some(crate::types::TypeDef::Aggregate(a)) => {
-                                Some(a.field_names().map(|s| s.to_string()).collect())
-                            }
-                            _ => None,
-                        })
-                        .unwrap_or_default()
-                });
+                .or_insert_with(|| class_field_names(sym, fact_class));
             phase_end("  ├ alpha:fieldnames", __afn);
 
-            for aid in alphas {
+            for aid in &alphas {
                 let cond_ast = match alpha_cond.get(aid) {
                     Some(c) => c,
                     None => continue,
@@ -5177,6 +5211,197 @@ mod tests {
             s_tot > 0 && d_tot > 0,
             "the phase census recorded nothing — the probe measured its own scaffolding, not the \
              fire. A zero here means `with_phase_census` never saw a round.{table}"
+        );
+    }
+
+    // ── AlphaTree (DESIGN-STONE-alpha-discrimination-tree.md) ────────────────────────────────
+
+    use std::collections::HashMap;
+    use crate::ast::WatAST;
+    use crate::rete::alpha_tree::AlphaTree;
+    use super::{build_alpha_index, class_field_names, session_facts, sorted_node_ids};
+
+    /// Like `depth_split_phases`, but returns the fired session (seed + every derived fact) and
+    /// the frozen world (for `.symbols()`) instead of the phase census — the alpha-tree tests
+    /// below inspect the ACTUAL network and fact set the fire pass produced, rather than firing
+    /// a second time or hand-building a fixture.
+    fn fire_cascade(depth: i64, width: i64) -> (crate::freeze::FrozenWorld, Value) {
+        let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("depth-split world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let fired = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("fire raised at depth={depth} width={width}: {e:?}"))
+            .value_owned();
+        (world, fired)
+    }
+
+    /// Every `Value::Aggregate` (non-`Struct`) fact in a fired session's final fact set —
+    /// `merge_facts` accumulates seed + every derived fact there across the whole fire pass.
+    fn all_facts_of(fired: &Value) -> Vec<Value> {
+        match session_facts(fired) {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => vec![],
+        }
+    }
+
+    /// The one committed instrument for row 1 and row 2 of the EXPECTATIONS scorecard: fires
+    /// the `[50 100]` cascade, rebuilds P8's alpha index (`build_alpha_index` — the SAME
+    /// function `fire_fixpoint_delta` uses, not a hand-rolled duplicate) from that fired
+    /// session's own network, and builds the `AlphaTree` from that index. Returns everything a
+    /// caller needs to compare the tree's candidate set against the matcher's true set, fact by
+    /// fact, without re-firing or diverging from what actually ran.
+    ///
+    /// Returned as a NAMED struct rather than a 5-tuple: clippy's `type_complexity` flagged the
+    /// tuple, and an alias would have quieted the signature while leaving both call sites
+    /// destructuring by POSITION — one of them underscoring two fields purely to hold their slots.
+    /// Cast `perspicere` on it; its verdict was a struct over an alias, on exactly that ground
+    /// (a name here is better than the tuple, not merely equivalent to it).
+    struct AlphaTreeFixture {
+        world: crate::freeze::FrozenWorld,
+        tree: AlphaTree,
+        alpha_by_type: HashMap<String, Vec<i64>>,
+        alpha_cond: HashMap<i64, WatAST>,
+        facts: Vec<Value>,
+    }
+
+    fn alpha_tree_fixture_50_100() -> AlphaTreeFixture {
+        let (world, fired) = fire_cascade(50, 100);
+        let wm = to_transient(&fired).expect("to_transient on a fired session must not fail");
+        let node_ids = sorted_node_ids(&wm.network);
+        let (alpha_by_type, alpha_cond) = build_alpha_index(&wm, &node_ids);
+        let tree = AlphaTree::build(&alpha_by_type, &alpha_cond, world.symbols());
+        let facts = all_facts_of(&fired);
+        AlphaTreeFixture { world, tree, alpha_by_type, alpha_cond, facts }
+    }
+
+    /// Row 1 / STOP-2 — the ONE contract decision, as a test: for every fact the `[50 100]`
+    /// cascade ever held (seed + every derived fact), the tree's candidate set must be a
+    /// SUPERSET of the set `alpha_match_inner` actually accepts. A subset anywhere is a hard
+    /// fail — reported with the fact, the tree's candidate set, and the matcher's true set, per
+    /// STOP-2, rather than relaxed or special-cased.
+    #[test]
+    fn alpha_tree_candidate_set_is_superset_of_true_matches_at_50_100() {
+        let AlphaTreeFixture { world, tree, alpha_by_type, alpha_cond, facts } =
+            alpha_tree_fixture_50_100();
+        let sym = world.symbols();
+        assert!(
+            !facts.is_empty(),
+            "the [50 100] cascade fixture produced no facts — the invariant would hold vacuously"
+        );
+
+        let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
+        let mut checked = 0usize;
+        for fact in &facts {
+            let (fact_class, fact_fields) = match fact {
+                Value::Aggregate(a) if a.nature != Nature::Struct => {
+                    (a.class.as_str(), a.fields.as_slice())
+                }
+                _ => continue,
+            };
+            let field_names = field_names_cache
+                .entry(fact_class.to_string())
+                .or_insert_with(|| class_field_names(sym, fact_class));
+
+            // The oracle: alpha_match_inner run over EVERY alpha of this fact's type — exactly
+            // the pre-stone linear scan, kept here as ground truth for what "actually matches"
+            // means. The tree must never drop any id this set contains.
+            let true_set: std::collections::HashSet<i64> = alpha_by_type
+                .get(fact_class)
+                .into_iter()
+                .flatten()
+                .filter(|aid| {
+                    let cond = &alpha_cond[aid];
+                    crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names)
+                        .is_some()
+                })
+                .copied()
+                .collect();
+
+            let candidate_set: std::collections::HashSet<i64> =
+                tree.candidates(fact_class, fact_fields).into_iter().collect();
+
+            let missing: Vec<i64> = true_set.difference(&candidate_set).copied().collect();
+            assert!(
+                missing.is_empty(),
+                "STOP-2: superset invariant failed.\n  fact: {fact:?}\n  class: {fact_class}\n  \
+                 tree's candidate set: {candidate_set:?}\n  matcher's true set: {true_set:?}\n  \
+                 missing (dropped) alpha ids: {missing:?}"
+            );
+            checked += 1;
+        }
+        assert!(
+            checked > 0,
+            "no Aggregate (non-Struct) facts were checked — the invariant test measured nothing"
+        );
+        println!(
+            "alpha_tree_candidate_set_is_superset_of_true_matches_at_50_100: checked {checked} facts, \
+             superset invariant held for all of them"
+        );
+    }
+
+    /// Row 2 / STOP-3 — the tree must actually discriminate, not just be correct. Reports mean
+    /// candidates/fact WITH the tree at `[50 100]` (expected ~1) alongside the SAME measurement
+    /// with the tree bypassed (`alpha_by_type[class].len()` — the pre-stone "every alpha of this
+    /// type," expected ~D=50), so a tree that wildcards everything (perfectly correct, buys
+    /// nothing — the trap-door row 1/5/6 would not catch) cannot read as success.
+    #[test]
+    fn alpha_tree_discriminates_candidates_to_about_one_at_50_100() {
+        let AlphaTreeFixture { tree, alpha_by_type, facts, .. } = alpha_tree_fixture_50_100();
+        assert!(!facts.is_empty(), "the [50 100] cascade fixture produced no facts");
+
+        let mut n = 0u64;
+        let mut with_tree_total = 0u64;
+        let mut without_tree_total = 0u64;
+        let mut with_tree_hist: HashMap<usize, u64> = HashMap::new();
+
+        for fact in &facts {
+            let (fact_class, fact_fields) = match fact {
+                Value::Aggregate(a) if a.nature != Nature::Struct => {
+                    (a.class.as_str(), a.fields.as_slice())
+                }
+                _ => continue,
+            };
+            let with_tree = tree.candidates(fact_class, fact_fields).len();
+            let without_tree = alpha_by_type.get(fact_class).map(|v| v.len()).unwrap_or(0);
+
+            with_tree_total += with_tree as u64;
+            without_tree_total += without_tree as u64;
+            *with_tree_hist.entry(with_tree).or_default() += 1;
+            n += 1;
+        }
+        assert!(n > 0, "no Aggregate (non-Struct) facts were checked — the test measured nothing");
+
+        let mean_with = with_tree_total as f64 / n as f64;
+        let mean_without = without_tree_total as f64 / n as f64;
+
+        let mut hist_keys: Vec<&usize> = with_tree_hist.keys().collect();
+        hist_keys.sort();
+        let hist_str: String = hist_keys
+            .iter()
+            .map(|k| format!("{k} candidates × {} facts", with_tree_hist[*k]))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        println!(
+            "\n  ALPHA TREE candidate distribution at [50 100]  (n = {n} facts)\n  \
+             mean candidates/fact WITH the tree:      {mean_with:.3}\n  \
+             mean candidates/fact WITHOUT (bypassed): {mean_without:.3}   (the pre-stone linear scan)\n  \
+             WITH-tree histogram: {hist_str}\n"
+        );
+
+        assert!(
+            mean_with < 2.0,
+            "STOP-3: mean candidates/fact WITH the tree is {mean_with:.3} at [50 100], not ~1 — \
+             the tree is correct but discriminates nothing. Distribution: {hist_str}"
+        );
+        assert!(
+            mean_without > 10.0,
+            "the bypassed (no-tree) comparison itself collapsed — mean {mean_without:.3} \
+             candidates/fact without the tree, expected ~D=50; this fixture no longer exercises \
+             the depth the row-2 assertion depends on, so the row-2 pass above would be vacuous"
         );
     }
 }

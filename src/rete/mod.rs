@@ -44,3 +44,8 @@ pub(crate) mod kernel;
 // Stone 6a (purity.rs) — default-deny purity classifier: is_pure_expr / is_pure_fn (transitive,
 // cycle-safe) + eval_pure_predicate (the :wat::rete::pure? primitive entry point).
 pub(crate) mod purity;
+// DESIGN-STONE-alpha-discrimination-tree.md — AlphaTree: replaces the P8 linear
+// "every alpha of this fact's type" scan with a root-to-leaf walk over provable equality
+// discriminators. Prune-only (candidate set; `alpha_match_inner` stays the sole authority),
+// alpha-only (beta stays runtime), built once at setup from the immutable network.
+pub(crate) mod alpha_tree;
