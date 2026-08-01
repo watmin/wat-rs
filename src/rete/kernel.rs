@@ -1781,8 +1781,16 @@ pub(crate) struct PhaseMark;
 
 #[cfg(test)]
 thread_local! {
-    /// phase name → nanoseconds, summed over every round. `None` = not recording.
-    pub(crate) static PHASE_NANOS: std::cell::RefCell<Option<HashMap<&'static str, u64>>> =
+    /// phase name → (nanoseconds, MARK PAIRS FIRED), summed over every round. `None` = not recording.
+    ///
+    /// ★ The pair COUNT is not bookkeeping — it is what makes the timing readable. A mark pair
+    /// costs ~75-80ns, and the `alpha:*` marks fire PER FACT: at 40,200 facts that is ~3.2ms of
+    /// pure clock-reading per row. Measured 2026-08-01 against a no-sub-marks control: the fire
+    /// read 78.5ms instrumented vs 58.2ms bare — 26% of the "measurement" was the instrument, and
+    /// THREE of alpha's five children (candidates/element/fieldnames) were individually SMALLER
+    /// than their own instrument, i.e. their rows measured nothing but themselves. Without the
+    /// count there is no way to say that from the table; with it, the table subtracts.
+    pub(crate) static PHASE_NANOS: std::cell::RefCell<Option<HashMap<&'static str, (u64, u64)>>> =
         const { std::cell::RefCell::new(None) };
 }
 
@@ -1802,7 +1810,9 @@ pub(crate) fn phase_end(name: &'static str, t: PhaseMark) {
     let ns = t.elapsed().as_nanos() as u64;
     PHASE_NANOS.with(|c| {
         if let Some(m) = c.borrow_mut().as_mut() {
-            *m.entry(name).or_insert(0) += ns;
+            let e = m.entry(name).or_insert((0, 0));
+            e.0 += ns;
+            e.1 += 1; // pairs fired — the divisor for the instrument subtraction
         }
     });
 }
@@ -1928,11 +1938,27 @@ pub(crate) fn with_beta_traffic<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, u64, 
 /// Any previously-armed map is restored afterwards, so nesting cannot swallow an outer measurement.
 #[cfg(test)]
 pub(crate) fn with_phase_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static str, u64)>) {
+    let (out, rows) = with_phase_census_counted(f);
+    (out, rows.into_iter().map(|(n, ns, _)| (n, ns)).collect())
+}
+
+/// As [`with_phase_census`], but each row also carries **how many mark pairs fired**.
+///
+/// ONE implementation, two views: the count only matters to a caller that intends to subtract the
+/// instrument from the reading, and most callers just want the split. A mark pair is ~75-80ns and
+/// the `alpha:*` marks fire PER FACT, so at 40,200 facts a single row carries ~3.2ms of clock
+/// reads — enough that three of alpha's five children measured nothing but themselves. A caller
+/// that reports raw nanoseconds on a per-fact-marked phase is reporting its own instrument.
+#[cfg(test)]
+pub(crate) fn with_phase_census_counted<R>(
+    f: impl FnOnce() -> R,
+) -> (R, Vec<(&'static str, u64, u64)>) {
     let prior = PHASE_NANOS.with(|c| c.borrow_mut().replace(HashMap::new()));
     let out = f();
     let recorded = PHASE_NANOS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
-    let mut rows: Vec<(&'static str, u64)> = recorded.unwrap_or_default().into_iter().collect();
-    rows.sort_by_key(|&(_, ns)| std::cmp::Reverse(ns));
+    let mut rows: Vec<(&'static str, u64, u64)> =
+        recorded.unwrap_or_default().into_iter().map(|(n, (ns, k))| (n, ns, k)).collect();
+    rows.sort_by_key(|&(_, ns, _)| std::cmp::Reverse(ns));
     (out, rows)
 }
 
@@ -2207,7 +2233,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             // `alpha_by_type.get(fact_class)`'s "every alpha of this type." It is a SUPERSET of
             // the alphas that will actually match (never a subset); `alpha_match_inner` below is
             // unchanged and remains the sole authority on whether each candidate truly holds.
+            //
+            // ★ MARKED 2026-08-01. `alpha`'s named children summed to 23.5 of its 37.2 ms on the
+            // accum cell — 37% of the phase that dominates our WEAKEST grid axis had no mark, and
+            // this tree walk was the largest unmarked computation in it. You cannot rank a sink
+            // you have not marked; "6-8 ms remain" was wrong this morning for exactly this reason.
+            // ONE pair, not a sprinkle: these fire PER FACT and the instrument is ~20-25ns a call.
+            let __cand = phase_start();
             let alphas = alpha_tree.candidates(fact_class, fact_fields);
+            phase_end("  ├ alpha:candidates", __cand);
             if alphas.is_empty() {
                 continue; // no alpha matches this fact's type
             }
@@ -4489,7 +4523,7 @@ mod tests {
     ///
     /// Only `fire-rules` is inside the armed window — compile and seed run first, un-timed, exactly
     /// as the grid harness does it, so this apportions the same span the grid's `:native-ns` covers.
-    fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
+    fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64, u64)> {
         let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("accum-axis world should freeze");
         let staged = format!(
@@ -4498,7 +4532,7 @@ mod tests {
         let src = format!("(:wat::rete::fire-rules {staged})");
         let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
         let t0 = std::time::Instant::now();
-        let (_fired, mut rows) = super::with_phase_census(|| {
+        let (_fired, mut rows) = super::with_phase_census_counted(|| {
             eval_in_frozen(&ast, &world, &Environment::new())
                 .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
                 .value_owned()
@@ -4514,7 +4548,7 @@ mod tests {
         // third instrument-boundary error in this file today and all three were mine. The four
         // outer marks (IN/SETUP/ROUND LOOP/OUT) are what partition the fire, and their sum matches
         // the grid's own :wat-ns to ~1% — that agreement is the cross-check.
-        rows.push(("WHOLE EVAL (compile+seed+fire)", t0.elapsed().as_nanos() as u64));
+        rows.push(("WHOLE EVAL (compile+seed+fire)", t0.elapsed().as_nanos() as u64, 1));
         rows
     }
 
@@ -5135,7 +5169,19 @@ mod tests {
         // made the first version of this table report 124% coverage.
         const TOP: [&str; 4] =
             ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
-        const PHASES: [&str; 23] = [
+        // ★ 2026-08-01 — this list is now a FLOOR, not the table's contents.
+        //
+        // It used to BE the table: `for phase in PHASES`. So when `alpha:candidates` was added to
+        // mark the discrimination-tree walk — the largest unmarked computation inside the phase
+        // that dominates our weakest grid axis — the mark fired and the row simply did not appear.
+        // A census that lists its rows cannot report a sink nobody thought to list, which is the
+        // whole job of a census. (`feedback_a_gate_that_discovers_beats_one_that_lists`.)
+        //
+        // Now: the table DISCOVERS every phase the run actually recorded, in first-fired order,
+        // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
+        // deleted or stops firing still fails loudly, while a mark that is ADDED shows up for
+        // free. Both directions covered; neither can go quiet.
+        const REQUIRED_PHASES: [&str; 23] = [
             "IN: to_transient",
             "SETUP: indexes",
             "ROUND LOOP",
@@ -5182,6 +5228,13 @@ mod tests {
             // phase -> the per-run nanosecond readings
             let mut samples: std::collections::HashMap<&'static str, Vec<u64>> =
                 std::collections::HashMap::new();
+            // phase -> mark pairs fired in ONE run (identical every run; used to subtract the
+            // instrument from that row rather than merely warn about it).
+            let mut pairs: std::collections::HashMap<&'static str, u64> =
+                std::collections::HashMap::new();
+            // DISCOVERED display order: every phase the run actually recorded, in the order its
+            // mark first fired. Not a hardcoded list — a mark added tomorrow appears tomorrow.
+            let mut order: Vec<&'static str> = Vec::new();
             for _ in 0..RUNS {
                 let rows = accum_phase_census(g, w);
                 assert!(
@@ -5189,10 +5242,23 @@ mod tests {
                     "phase census recorded NOTHING at G={g} W={w} — the instrument never fired, so \
                      any apportionment taken from it would be an artifact, not a measurement"
                 );
-                for (name, ns) in rows {
+                for (name, ns, k) in rows {
+                    if !samples.contains_key(name) {
+                        order.push(name);
+                    }
                     samples.entry(name).or_default().push(ns);
+                    pairs.insert(name, k);
                 }
             }
+            // The floor: every phase we KNOW must exist still does. Discovery adds rows; this
+            // stops one from silently disappearing.
+            let missing: Vec<&str> =
+                REQUIRED_PHASES.iter().copied().filter(|p| !samples.contains_key(p)).collect();
+            assert!(
+                missing.is_empty(),
+                "phase(s) {missing:?} never recorded at G={g} W={w} — their marks were not reached, \
+                 and their share would land silently on the other phases"
+            );
 
             let stat = |xs: &[u64]| -> (f64, u64, u64) {
                 let sum: u64 = xs.iter().sum();
@@ -5210,32 +5276,68 @@ mod tests {
                 .filter_map(|k| samples.get(k).map(|xs| stat(xs).0))
                 .sum();
             assert!(total_mean > 0.0, "phase census total is zero at G={g} W={w}");
+            // The denominator must be net too, or every share is computed against a total that
+            // includes ~20ms of clock reads and each row's percentage is quietly deflated.
+            let total_net: f64 = TOP
+                .iter()
+                .filter_map(|k| {
+                    samples.get(k).map(|xs| {
+                        stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair
+                    })
+                })
+                .sum();
 
             let whole_mean = samples
                 .get("WHOLE EVAL (compile+seed+fire)")
                 .map(|xs| stat(xs).0)
                 .unwrap_or(0.0);
+            // The instrument's TOTAL weight, so the header states it once as a number rather
+            // than leaving it to be re-derived per row. ⚠ HONEST LIMIT: `net` is subtracted
+            // PER ROW only. A parent row (alpha, ROUND LOOP, the FIRE total) still CONTAINS its
+            // descendants' clock reads, because nesting is encoded in the row's indent glyph and
+            // not in data — inferring it from the glyph would be a convention, not a fact.
+            // Cross-checked against a no-sub-marks control build (2026-08-01): fire 78.5ms
+            // instrumented vs 58.2ms bare, alpha 40.8 vs 23.5 — i.e. alpha's TRUE share is ~40%,
+            // not the ~55% its raw row shows. Read parents with that correction in hand.
+            let total_instrument: f64 =
+                pairs.values().map(|k| *k as f64 * cal_ns_per_pair).sum();
             table.push_str(&format!(
                 "\n  G={g} W={w}  ({} facts)   FIRE {:.2} ms (the four outer marks)   \
-                 whole eval {:.2} ms   → seed+compile ≈ {:.2} ms\n",
+                 whole eval {:.2} ms   → seed+compile ≈ {:.2} ms\n\
+                 \x20   instrument total {:.2} ms across {} mark pairs — PARENT rows still \
+                 contain their children's share\n",
                 g * (w + 1),
                 total_mean / 1e6,
                 whole_mean / 1e6,
                 (whole_mean - total_mean) / 1e6,
+                total_instrument / 1e6,
+                pairs.values().sum::<u64>(),
             ));
-            for phase in PHASES {
-                let xs = samples.get(phase).unwrap_or_else(|| {
-                    panic!("phase {phase:?} never recorded at G={g} W={w} — its marks were not \
-                            reached, and its share would land silently on the other phases")
-                });
+            for phase in &order {
+                if *phase == "WHOLE EVAL (compile+seed+fire)" {
+                    continue; // reported in the header line above, not as a row inside the fire
+                }
+                let xs = samples.get(phase).expect("discovered from samples, so present");
                 let (mean, lo, hi) = stat(xs);
+                // ★ SUBTRACT THE INSTRUMENT. Each row cost (pairs x cal_ns_per_pair) in clock
+                // reads that landed INSIDE its own measurement. Warning the reader to "treat
+                // these as proportions" left three alpha children reading 2ms when their true
+                // cost was ~0 — the row was measuring itself. Reporting `net` makes that visible
+                // as a NEGATIVE, which is the honest rendering of "smaller than its instrument".
+                let k = *pairs.get(phase).unwrap_or(&0);
+                let inst = k as f64 * cal_ns_per_pair;
+                let net = mean - inst;
+                let flag = if net <= 0.0 { "  ⚠ BELOW ITS OWN INSTRUMENT" } else { "" };
                 table.push_str(&format!(
-                    "    {:<20} {:>8.2} ms  {:>5.1}%   [{:.2}–{:.2}]\n",
+                    "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [{:.2}–{:.2}]  {}x{}\n",
                     phase,
                     mean / 1e6,
-                    100.0 * mean / total_mean,
+                    net / 1e6,
+                    100.0 * net / total_net,
                     lo as f64 / 1e6,
                     hi as f64 / 1e6,
+                    k,
+                    flag,
                 ));
             }
         }
