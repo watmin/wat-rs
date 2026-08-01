@@ -1844,6 +1844,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     phase_end("SETUP: indexes", __setup);
     let __rounds = phase_start();
     loop {
+        // ROUND LOOP's six named passes cover only ~60% of it on an accumulate workload (root-join
+        // and hash-join do nothing there). These two marks bracket the loop's own scaffolding so
+        // the remainder has a name instead of being inferred from a parent/child subtraction.
+        let __pre = phase_start();
         // Per-round delta sets (new elements/tokens created THIS round).
         let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
         let mut d_beta:  HashMap<i64, Vec<Token>> = HashMap::new();
@@ -1858,6 +1862,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // that outlived a round would serve a stale index. Declared HERE, same lifetime as
         // `d_alpha`/`d_beta`, so it cannot leak across rounds.
         let mut gather_cache: GatherCache = HashMap::new();
+
+        phase_end("  ├ round:preamble", __pre);
 
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
         let __pt0 = phase_start();
@@ -2461,10 +2467,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         phase_end("production", __pt5);
 
         // ── 5. Terminate or loop. ─────────────────────────────────────────────────
-        if next_delta.is_empty() {
+        let __ep = phase_start();
+        let __done = next_delta.is_empty();
+        if !__done {
+            delta_facts = next_delta;
+        }
+        phase_end("  └ round:epilogue", __ep);
+        if __done {
             break;
         }
-        delta_facts = next_delta;
     }
 
     // Drop alpha elements before freeze — alpha is fire-scoped scratch, not session state.
@@ -2473,10 +2484,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // `facts` every fire and never read a frozen one. It was ~31% of fire to serialize.
     // (fire_once_session deliberately keeps its alpha — it mirrors the oracle's fire-once,
     //  which does populate it.)
+    let __drop = phase_start();
     wm.alpha.clear();
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
     // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
     wm.beta.clear();
+    phase_end("  └ round:drop-memories", __drop);
     phase_end("ROUND LOOP", __rounds);
 
     // Return persistent session with facts = input (fire-rules contract).
@@ -4252,7 +4265,7 @@ mod tests {
         // made the first version of this table report 124% coverage.
         const TOP: [&str; 4] =
             ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
-        const PHASES: [&str; 20] = [
+        const PHASES: [&str; 23] = [
             "IN: to_transient",
             "SETUP: indexes",
             "ROUND LOOP",
@@ -4263,6 +4276,7 @@ mod tests {
             "filter", "production",
             "OUT: to_persistent",
             "  ├ out:alpha", "  ├ out:beta", "  └ out:production",
+            "  ├ round:preamble", "  └ round:epilogue", "  └ round:drop-memories",
         ];
 
         // ── The instrument declares its own cost ─────────────────────────────────────────────
