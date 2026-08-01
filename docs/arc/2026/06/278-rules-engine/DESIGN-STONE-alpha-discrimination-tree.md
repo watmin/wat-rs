@@ -118,7 +118,13 @@ the validator; a third private parser would re-open it.
   record's declared field order (deterministic, already available via `field_names_cache`).
 - **Values, not `u32`.** `children` keys on `Value`. Already established — the join indexes are
   `HashMap<Vec<Value>, Vec<Token>>`.
-- **Built once**, at network-compile time, from the immutable network — never per round.
+- **Built once per FIRE, at setup** — beside P8's `alpha_by_type`/`alpha_cond`, from the immutable
+  network, never per round. *(Corrected 2026-07-31: this line first read "at network-compile time,"
+  which is a DIFFERENT time and a lifecycle we do not have — nothing survives between fires today.
+  The BRIEF pointed at the fire-setup site and the rider built it there, correctly. Moving
+  construction to `compile` so the artifact persists across fires is its own stone,
+  `DESIGN-STONE-compile-actually-compiles.md`, and it is a prerequisite for R0 — not a phrase to
+  smuggle in here.)*
   `SETUP: indexes` is 0.135–0.250 ms today, so there is room to spend there; the gate bounds it.
 
 ## Blast radius
