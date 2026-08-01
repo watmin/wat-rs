@@ -70,7 +70,7 @@ pub(crate) fn eval_collect_rules(
         let kw = if name.starts_with(':') { name.clone() } else { format!(":{name}") };
         let call = WatAST::List(vec![WatAST::Keyword(kw, list_span.clone())], list_span.clone());
         let rule = crate::runtime::eval_inner(&call, env, sym)?.value_owned();
-        out = out.push_back(rule);
+        out.push_back_mut(rule);
     }
     Ok(Value::wat__core__PersistentVector(out))
 }

@@ -55,7 +55,7 @@ pub(crate) fn eval_vec_reverse(
                 let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
-                    out = out.push_back(elem.clone());
+                    out.push_back_mut(elem.clone());
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }

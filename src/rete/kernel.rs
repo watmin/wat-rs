@@ -241,7 +241,7 @@ fn native_token_to_value(tok: Token) -> Value {
     let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
     for (fact, alpha_id) in tok.matches {
         let tuple = Value::Tuple(Arc::new(vec![fact, Value::i64(alpha_id)]));
-        matches_pv = matches_pv.push_back(tuple);
+        matches_pv.push_back_mut(tuple);
     }
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*token_class_fqdn()).clone(),
@@ -300,9 +300,9 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
     for (node_id, tokens) in beta {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for tok in tokens {
-            pv = pv.push_back(native_token_to_value(tok));
+            pv.push_back_mut(native_token_to_value(tok));
         }
-        pm = pm.insert(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
+        pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
     Value::wat__core__PersistentMap(pm)
 }
@@ -347,7 +347,7 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
 fn native_element_to_value(el: Element) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (k, v) in el.bindings.iter() {
-        pm = pm.insert(k.clone(), v.clone());
+        pm.insert_mut(k.clone(), v.clone());
     }
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
@@ -403,9 +403,9 @@ fn alpha_to_pm(alpha: HashMap<i64, Vec<Element>>) -> Value {
     for (node_id, elements) in alpha {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for el in elements {
-            pv = pv.push_back(native_element_to_value(el));
+            pv.push_back_mut(native_element_to_value(el));
         }
-        pm = pm.insert(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
+        pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
     Value::wat__core__PersistentMap(pm)
 }
@@ -602,7 +602,7 @@ fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -
     for c in old_pv.iter() {
         if let Value::i64(cid) = c {
             if keep.contains(cid) && seen_ids.insert(*cid) {
-                new_pv = new_pv.push_back(Value::i64(*cid));
+                new_pv.push_back_mut(Value::i64(*cid));
             }
         }
     }
@@ -902,7 +902,7 @@ fn extend_token(
         // Group D: skip keys already present with the same value (shared join-keys are idempotent).
         // New vars from the element's OWN bindings are always inserted.
         if new_bindings.get(k) != Some(v) {
-            new_bindings = new_bindings.insert(k.clone(), v.clone());
+            new_bindings.insert_mut(k.clone(), v.clone());
         }
     }
     Token { matches: new_matches, bindings: new_bindings }
@@ -921,7 +921,7 @@ fn extend_token(
 fn seed_token_bindings(el_bindings: &Arc<[(Value, Value)]>) -> rpds::HashTrieMapSync<Value, Value> {
     let mut m: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (k, v) in el_bindings.iter() {
-        m = m.insert(k.clone(), v.clone());
+        m.insert_mut(k.clone(), v.clone());
     }
     m
 }
@@ -1254,7 +1254,7 @@ fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
     for fact in derived {
         // Conj only if not already present (structural equality, now O(1) amortized).
         if present.insert(fact.clone()) {
-            pv = pv.push_back(fact.clone());
+            pv.push_back_mut(fact.clone());
         }
     }
     Value::wat__core__PersistentVector(pv)
@@ -1530,7 +1530,7 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             for el in gathered {
                 let v = Value::i64(acc_var_i64(el, &var));
                 if !pv.iter().any(|x| *x == v) {
-                    pv = pv.push_back(v);
+                    pv.push_back_mut(v);
                 }
             }
             Some(Value::wat__core__PersistentVector(pv))
@@ -1540,7 +1540,7 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
                 let (fact, _) = element_fact_bindings(el);
-                pv = pv.push_back(fact.clone());
+                pv.push_back_mut(fact.clone());
             }
             Some(Value::wat__core__PersistentVector(pv))
         }
@@ -1555,7 +1555,7 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
                     Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
                     _ => rpds::VectorSync::new_sync(),
                 };
-                pm = pm.insert(k, Value::wat__core__PersistentVector(pv.push_back(fact.clone())));
+                pm.insert_mut(k, Value::wat__core__PersistentVector(pv.push_back(fact.clone())));
             }
             Some(Value::wat__core__PersistentMap(pm))
         }
@@ -1568,7 +1568,7 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             // mirrors the oracle's acc::gather-vals; the fold fn sees every value).
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                pv = pv.push_back(Value::i64(acc_var_i64(el, &var)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, &var)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
 
@@ -3052,7 +3052,7 @@ fn fire_rules_stratified(
         let mut frontier: Vec<i64> = Vec::new();
         for ((rule_val, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
             if *stratum == s {
-                stratum_pv = stratum_pv.push_back(rule_val.clone());
+                stratum_pv.push_back_mut(rule_val.clone());
                 if let Some((_, rsf)) = node_record(rule_val) {
                     if let Value::String(rname) = &rsf[0] {
                         if let Some(&pid) = production_id_by_rule.get(rname.as_str()) {
@@ -3104,7 +3104,7 @@ fn fire_rules_stratified(
                 let mut nm = rpds::HashTrieMapSync::new_sync();
                 for id in &active_ids {
                     if let Some(v) = m.get(&Value::i64(*id)) {
-                        nm = nm.insert(Value::i64(*id), dedupe_filter_children(v, &active_ids));
+                        nm.insert_mut(Value::i64(*id), dedupe_filter_children(v, &active_ids));
                     }
                 }
                 Value::wat__core__PersistentMap(nm)
@@ -3163,7 +3163,7 @@ fn fire_rules_stratified(
     // constructor, wat/rete.wat:1793-1800).
     let mut prod_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
     for d in &acc_derived {
-        prod_pv = prod_pv.push_back(d.clone());
+        prod_pv.push_back_mut(d.clone());
     }
     let prod_pm = rpds::HashTrieMapSync::new_sync().insert(Value::i64(0), Value::wat__core__PersistentVector(prod_pv));
 
@@ -3490,7 +3490,7 @@ pub(crate) fn eval_fire_rules_explain(
                 token_value,
             ]),
         )));
-        support_pm = support_pm.insert(derived_fact, support_value);
+        support_pm.insert_mut(derived_fact, support_value);
     }
 
     // Build Explained { session, support }.

@@ -780,10 +780,10 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             let Value::wat__core__PersistentVector(r) = right else { unreachable!("of_value⇒PersistentVector") };
                             let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                             for elem in l.iter() {
-                                out = out.push_back(elem.clone());
+                                out.push_back_mut(elem.clone());
                             }
                             for elem in r.iter() {
-                                out = out.push_back(elem.clone());
+                                out.push_back_mut(elem.clone());
                             }
                             Ok(Value::wat__core__PersistentVector(out))
                         }
@@ -1202,7 +1202,7 @@ pub(crate) fn eval_persistentmap_ctor(
                 got: Box::new(ValueSnapshot::of(&k))
             }).into());
         }
-        map = map.insert(k, v);
+        map.insert_mut(k, v);
     }
     Ok(Value::wat__core__PersistentMap(map))
 }
@@ -1532,7 +1532,7 @@ pub(crate) fn eval_persistentvector_ctor(
     let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
     for arg in args {
         let v = eval_inner(arg, env, sym)?.value_owned();
-        pv = pv.push_back(v);
+        pv.push_back_mut(v);
     }
     Ok(Value::wat__core__PersistentVector(pv))
 }
@@ -1651,7 +1651,7 @@ pub(crate) fn eval_rest(
                     // Build a new PersistentVector by skipping the first element.
                     let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                     for elem in pv.iter().skip(1) {
-                        out = out.push_back(elem.clone());
+                        out.push_back_mut(elem.clone());
                     }
                     Ok(Value::wat__core__PersistentVector(out))
                 }

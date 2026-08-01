@@ -189,7 +189,7 @@ pub(crate) fn eval_alpha_match(
         Some(bindings) => {
             let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
             for (k, v) in bindings.iter() {
-                pm = pm.insert(k.clone(), v.clone());
+                pm.insert_mut(k.clone(), v.clone());
             }
             Value::Option(Arc::new(Some(Value::wat__core__PersistentMap(pm))))
         }
@@ -1013,7 +1013,7 @@ pub(crate) fn eval_step_payload(
                     ],
                     list_span.clone(),
                 );
-                constraints_pv = constraints_pv.push_back(Value::wat__WatAST(Arc::new(substituted)));
+                constraints_pv.push_back_mut(Value::wat__WatAST(Arc::new(substituted)));
             }
 
             _ => continue, // non-symbol/non-keyword head: skip
@@ -1025,7 +1025,7 @@ pub(crate) fn eval_step_payload(
     for var_name in &binder_vars {
         let key = Value::String(Arc::new(var_name.clone()));
         if let Some(v) = token_bindings.get(&key) {
-            step_bindings_pm = step_bindings_pm.insert(key, v.clone());
+            step_bindings_pm.insert_mut(key, v.clone());
         }
     }
 

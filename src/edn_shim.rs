@@ -2892,7 +2892,7 @@ fn tagged_to_value(
             if !crate::runtime::value_is_key_hashable(&k_val) {
                 return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentMap key: {}", k_val.type_name())) });
             }
-            pm = pm.insert(k_val, v_val);
+            pm.insert_mut(k_val, v_val);
         }
         return Ok(Value::wat__core__PersistentMap(pm));
     }
@@ -2911,7 +2911,7 @@ fn tagged_to_value(
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for item in items {
             let val = edn_to_value_caps(item, types, allow_caps, foreign)?;
-            pv = pv.push_back(val);
+            pv.push_back_mut(val);
         }
         return Ok(Value::wat__core__PersistentVector(pv));
     }
@@ -4490,9 +4490,9 @@ mod tests {
     fn persistent_vector_edn_round_trip() {
         // Build a PersistentVector with three elements.
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        pv = pv.push_back(Value::i64(10));
-        pv = pv.push_back(Value::i64(20));
-        pv = pv.push_back(Value::i64(30));
+        pv.push_back_mut(Value::i64(10));
+        pv.push_back_mut(Value::i64(20));
+        pv.push_back_mut(Value::i64(30));
         let orig = Value::wat__core__PersistentVector(pv);
 
         // Serialize → tagged EDN string.
@@ -4530,8 +4530,8 @@ mod tests {
     fn persistent_map_edn_round_trip() {
         // Build a PersistentMap with two entries.
         let mut m: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
-        m = m.insert(Value::String(Arc::new("a".to_string())), Value::i64(1));
-        m = m.insert(Value::String(Arc::new("b".to_string())), Value::i64(2));
+        m.insert_mut(Value::String(Arc::new("a".to_string())), Value::i64(1));
+        m.insert_mut(Value::String(Arc::new("b".to_string())), Value::i64(2));
         let pm = Value::wat__core__PersistentMap(m);
 
         // Serialize → tagged EDN string.
