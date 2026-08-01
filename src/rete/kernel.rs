@@ -2467,6 +2467,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         delta_facts = next_delta;
     }
 
+    // Drop alpha elements before freeze — alpha is fire-scoped scratch, not session state.
+    // The wat oracle's fire-rules-spec returns an EMPTY alpha (fire-stratified, rete.wat:1817),
+    // so carrying one here is a divergence as well as a cost: both engines rebuild alpha from
+    // `facts` every fire and never read a frozen one. It was ~31% of fire to serialize.
+    // (fire_once_session deliberately keeps its alpha — it mirrors the oracle's fire-once,
+    //  which does populate it.)
+    wm.alpha.clear();
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
     // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
     wm.beta.clear();
@@ -3144,7 +3151,8 @@ mod tests {
             .value_owned()
     }
 
-    /// Round-trip a fired `Session` (populated alpha/beta/production memories).
+    /// Round-trip a fired `Session` (populated production memory; alpha/beta are fire-scoped
+    /// scratch, cleared before freeze by the fixpoint fire path that produced `fired`).
     /// `to_persistent(to_transient(fired)) == fired`.
     #[test]
     fn round_trip_fired_session() {

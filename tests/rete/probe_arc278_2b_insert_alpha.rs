@@ -12,6 +12,12 @@
 //!
 //! RED at HEAD: `:wat::rete::insert` / `fire-rules` unknown (compile/Session/Temp/alpha-match all exist).
 //!
+//! arc 278 "alpha is fire-scoped" (v2): the fixture now fires via native `fire-once'` (single-pass),
+//! not `fire-rules` (fixpoint). `fire-once'` mirrors the oracle's `fire-once`, which genuinely
+//! populates alpha — the fixpoint pair (`fire-rules` / `fire-rules-spec`) now both return alpha
+//! empty, so it stopped being a truthful place to observe alpha activation. See
+//! `probe_arc278_alpha_is_fire_scoped.rs` for the differential covering the fixpoint verbs.
+//!
 //! Run: cargo test --release -p wat --test probe_arc278_2b_insert_alpha -- --include-ignored
 
 use std::sync::Arc;

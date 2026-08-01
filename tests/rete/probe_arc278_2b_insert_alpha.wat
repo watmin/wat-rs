@@ -5,6 +5,12 @@
 
 ;; Shared lifecycle: one rule `(:user::Temp (?t <- :value) (> ?t 20))`; stage a matching fact (25) and
 ;; a non-matching one (15), fire, and inspect alpha-memory (the three probe assertions below).
+;;
+;; arc 278 "alpha is fire-scoped" (v2): fires via `fire-once'` — native single-pass — not `fire-rules`.
+;; `fire-once'` mirrors the oracle's `fire-once`, which genuinely populates alpha (rete.wat:1462), so
+;; it stays a truthful home; the fixpoint verb `fire-rules` now clears alpha before freeze (it agrees
+;; with the oracle's `fire-rules-spec`, which returns alpha empty via `fire-stratified`). The rule's
+;; RHS is empty, so single-pass and fixpoint coincide for these three assertions regardless.
 
 ;; (1) exactly one AlphaNode populated (one condition; one of two staged facts matches).
 (:wat::core::defn :user::alpha-populated-count [] -> :wat::core::i64
@@ -14,7 +20,7 @@
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
-     fired (:wat::rete::fire-rules sess2)
+     fired (:wat::rete::fire-once' sess2)
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -26,7 +32,7 @@
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
-     fired (:wat::rete::fire-rules sess2)
+     fired (:wat::rete::fire-once' sess2)
      amem  (:wat::rete::Session/alpha-memory fired)
      aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
      elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")]
@@ -40,7 +46,7 @@
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
-     fired (:wat::rete::fire-rules sess2)
+     fired (:wat::rete::fire-once' sess2)
      amem  (:wat::rete::Session/alpha-memory fired)
      aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
      elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")

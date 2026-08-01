@@ -171,7 +171,13 @@
 ;;   network:           id → Node (raw node records) — the compiled DAG, id-indexed.
 ;;   rules:             PersistentVector of Rule (the rule-set as data).
 ;;   alpha-memory:      node-id → {join-bindings → [Element …]}
+;;                      FIRE-SCOPED — write-only scratch, rebuilt from `facts` on every fire, never
+;;                      read from a frozen Session. Population depends on which fire verb produced
+;;                      this Session (`fire-once`/`fire-once'` populate it; `fire-rules`/
+;;                      `fire-rules-spec` return it empty — arc 278 "alpha is fire-scoped").
 ;;   beta-memory:       node-id → {join-bindings → [Token …]}
+;;                      FIRE-SCOPED — same treatment; `fire-once` populates it, `fire-rules`/
+;;                      `fire-rules-spec`/`fire-once'` all return it empty.
 ;;   production-memory: node-id → PV<:wat::core::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
