@@ -4379,6 +4379,193 @@ mod tests {
         println!("{out}");
     }
 
+    /// Microbenchmark — how much of a binding-map operation is the STRING KEY?
+    ///
+    /// Binding keys are `Value::String(Arc<String>)` (`matcher.rs:351`) — a fresh heap String per
+    /// bind, hashed and memcmp'd on every lookup. **Clara's are interned Clojure keywords**
+    /// (`engine.cljc:23` "a map of keyword-to-values"; `compiler.clj:293` assoc's `(keyword var)`),
+    /// which carry a CACHED hash and compare by pointer.
+    ///
+    /// `9448f012` measured "interning the bind key saves 8% — the MAP is 85% of it" and concluded
+    /// interning was not worth a stone. That split may be an artifact: if the map operation's cost
+    /// is largely *hashing the string key*, then "the map" and "the key" are not separable and the
+    /// 85% already contains the thing the 8% was measuring. This isolates it by changing ONLY the
+    /// key type on an otherwise identical map.
+    ///
+    /// `Value::i64` stands in for an interned symbol id (hash of an i64, compare by value) — the
+    /// floor an interning scheme could reach, not a proposal for the key type itself.
+    ///
+    /// Diagnostic. Read with `--no-capture`.
+    #[test]
+    fn binding_key_cost() {
+        use std::hint::black_box;
+        use std::time::Instant;
+        const N: usize = 50_000;
+
+        println!("\nBINDING KEY COST — Value::String (today) vs Value::i64 (an interned-id floor)");
+        println!("  {N} iterations; rpds::HashTrieMapSync in BOTH columns — only the KEY type differs\n");
+        println!("  {:>4}  {:>21}  {:>21}", "n", "build (str / i64)", "lookup (str / i64)");
+
+        for n in [1usize, 2, 3, 5, 8] {
+            let sk: Vec<(Value, Value)> = (0..n)
+                .map(|i| (Value::String(Arc::new(format!("?v{i}"))), Value::i64(i as i64))).collect();
+            let ik: Vec<(Value, Value)> = (0..n)
+                .map(|i| (Value::i64(i as i64), Value::i64(i as i64))).collect();
+
+            let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N {
+                let mut m = rpds::HashTrieMapSync::new_sync();
+                for (k, v) in &sk { m = m.insert(k.clone(), v.clone()); }
+                sink.push(m);
+            }
+            let bs = t.elapsed().as_nanos() as f64 / N as f64;
+            let ms = sink[0].clone(); drop(sink);
+
+            let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N {
+                let mut m = rpds::HashTrieMapSync::new_sync();
+                for (k, v) in &ik { m = m.insert(k.clone(), v.clone()); }
+                sink.push(m);
+            }
+            let bi = t.elapsed().as_nanos() as f64 / N as f64;
+            let mi = sink[0].clone(); drop(sink);
+
+            let ps = sk[n / 2].0.clone();
+            let pi = ik[n / 2].0.clone();
+            let t = Instant::now();
+            for _ in 0..N { black_box(ms.get(black_box(&ps))); }
+            let ls = t.elapsed().as_nanos() as f64 / N as f64;
+            let t = Instant::now();
+            for _ in 0..N { black_box(mi.get(black_box(&pi))); }
+            let li = t.elapsed().as_nanos() as f64 / N as f64;
+
+            println!("  {:>4}  {:>9.1} /{:>9.1}  {:>9.1} /{:>9.1}   build {:>4.1}x  lookup {:>4.1}x",
+                     n, bs, bi, ls, li, bs / bi, ls / li);
+        }
+        println!();
+    }
+
+    /// Microbenchmark — rpds HAMT vs a persistent ARRAY map, at binding-map sizes.
+    ///
+    /// The follow-on stone's claim is "an rpds trie pays HAMT prices on a 1-3 entry map, and
+    /// Clojure/Clara get an array representation for free below 8." That claim was PREDICTED, never
+    /// measured. This measures it, before any stone is drawn.
+    ///
+    /// The comparison must be the HONEST analogue. Clojure's PersistentArrayMap is not a bare Vec —
+    /// it is an IMMUTABLE array behind a reference, so `clone` is a refcount bump exactly as the
+    /// HAMT's is, and only the LOOKUP differs (linear scan vs hash+trie descent). A bare `Vec`
+    /// would lose catastrophically on clone and prove nothing about the real design.
+    ///   A = rpds::HashTrieMapSync<Value,Value>   (today)
+    ///   B = Arc<Vec<(Value,Value)>>              (PersistentArrayMap's shape)
+    ///
+    /// Five operations, chosen because they are what the kernel actually does to a binding map:
+    ///   build   — alpha match constructs one per fact
+    ///   lookup  — accum:fold (94 ns/element) and token_element_compatible
+    ///   clone   — alpha:push (this REGRESSED when Element went native)
+    ///   extend  — extend_token: clone + insert one binding (rpds shares structurally; the array copies)
+    ///   drop    — round:drop-memories (41 ms)
+    ///
+    /// Keys are real `Value::String(Arc<str>)` — hashing/comparing a wat String is the actual cost,
+    /// and an integer-keyed benchmark would flatter the HAMT.
+    ///
+    /// Diagnostic, not a gate. Read with `--no-capture`.
+    #[test]
+    fn binding_repr_microbench() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const SIZES: [usize; 8] = [1, 2, 3, 4, 5, 8, 12, 16];
+        const N: usize = 20_000;
+
+        fn keys(n: usize) -> Vec<(Value, Value)> {
+            (0..n).map(|i| (Value::String(Arc::new(format!("?v{i}"))), Value::i64(i as i64)))
+                  .collect()
+        }
+
+        println!("\nBINDING REPRESENTATION — rpds HAMT (A) vs persistent array map (B)");
+        println!("  {N} iterations per cell; ns/op; keys are real Value::String\n");
+        println!("  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
+                 "n", "build", "lookup", "clone", "extend", "drop");
+        println!("  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
+                 "", "A / B", "A / B", "A / B", "A / B", "A / B");
+
+        for n in SIZES {
+            let kv = keys(n);
+            let probe = kv[n / 2].0.clone();
+            let extra = (Value::String(Arc::new("?zz".to_string())), Value::i64(99));
+
+            // ── build (construct into a reserved Vec; drop timed separately) ──
+            let mut sink_a: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N {
+                let mut m = rpds::HashTrieMapSync::new_sync();
+                for (k, v) in &kv { m = m.insert(k.clone(), v.clone()); }
+                sink_a.push(m);
+            }
+            let build_a = t.elapsed().as_nanos() as f64 / N as f64;
+
+            let mut sink_b: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N {
+                let mut v = Vec::with_capacity(n);
+                for (k, val) in &kv { v.push((k.clone(), val.clone())); }
+                sink_b.push(Arc::new(v));
+            }
+            let build_b = t.elapsed().as_nanos() as f64 / N as f64;
+
+            let ma = sink_a[0].clone();
+            let mb = sink_b[0].clone();
+
+            // ── lookup (hit, mid-map) ──
+            let t = Instant::now();
+            for _ in 0..N { black_box(ma.get(black_box(&probe))); }
+            let look_a = t.elapsed().as_nanos() as f64 / N as f64;
+            let t = Instant::now();
+            for _ in 0..N {
+                black_box(mb.iter().find(|(k, _)| k == black_box(&probe)).map(|(_, v)| v));
+            }
+            let look_b = t.elapsed().as_nanos() as f64 / N as f64;
+
+            // ── clone ──
+            let mut ca: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N { ca.push(ma.clone()); }
+            let clone_a = t.elapsed().as_nanos() as f64 / N as f64;
+            let mut cb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N { cb.push(Arc::clone(&mb)); }
+            let clone_b = t.elapsed().as_nanos() as f64 / N as f64;
+            drop(ca); drop(cb);
+
+            // ── extend (extend_token: derive a new map with one more binding) ──
+            let mut ea: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N { ea.push(ma.insert(extra.0.clone(), extra.1.clone())); }
+            let ext_a = t.elapsed().as_nanos() as f64 / N as f64;
+            let mut eb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
+            let t = Instant::now();
+            for _ in 0..N {
+                let mut v = (*mb).clone();
+                v.push(extra.clone());
+                eb.push(Arc::new(v));
+            }
+            let ext_b = t.elapsed().as_nanos() as f64 / N as f64;
+            drop(ea); drop(eb);
+
+            // ── drop (the sinks built above) ──
+            let t = Instant::now(); drop(sink_a);
+            let drop_a = t.elapsed().as_nanos() as f64 / N as f64;
+            let t = Instant::now(); drop(sink_b);
+            let drop_b = t.elapsed().as_nanos() as f64 / N as f64;
+
+            println!("  {:>4}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}",
+                     n, build_a, build_b, look_a, look_b, clone_a, clone_b, ext_a, ext_b, drop_a, drop_b);
+        }
+        println!("\n  A = rpds::HashTrieMapSync (today)   B = Arc<Vec<(Value,Value)>>\n");
+    }
+
     /// Diagnostic — the binding-cardinality distribution, the PREMISE under the
     /// binding-representation stone.
     ///
