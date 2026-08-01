@@ -1,0 +1,33 @@
+#grid/Verdict {:axis "min-finding" :size [500 3] :accuracy :match :runs 3 :ratio 11.0800 :min 10.1695 :max 12.3624 :wat-ns 2361901 :clara-ns 26149496 :winner :us}
+#grid/Verdict {:axis "min-finding" :size [1000 3] :accuracy :match :runs 3 :ratio 7.2950 :min 4.7468 :max 10.4275 :wat-ns 5593126 :clara-ns 38998995 :winner :us}
+#grid/Verdict {:axis "min-finding" :size [2000 3] :accuracy :match :runs 3 :ratio 8.6792 :min 6.4637 :max 10.4351 :wat-ns 11266092 :clara-ns 98697069 :winner :us}
+#grid/Verdict {:axis "negation" :size [250] :accuracy :match :runs 3 :ratio 10.0157 :min 8.9855 :max 10.7233 :wat-ns 933464 :clara-ns 9478106 :winner :us}
+#grid/Verdict {:axis "negation" :size [500] :accuracy :match :runs 3 :ratio 6.5439 :min 4.4810 :max 8.3697 :wat-ns 1921483 :clara-ns 11741449 :winner :us}
+#grid/Verdict {:axis "negation" :size [1000] :accuracy :match :runs 3 :ratio 4.8526 :min 4.4957 :max 5.1696 :wat-ns 3851639 :clara-ns 18736595 :winner :us}
+#grid/Verdict {:axis "asym-join" :size [500] :accuracy :match :runs 3 :ratio 7.9430 :min 6.4016 :max 10.8698 :wat-ns 2569438 :clara-ns 19810742 :winner :us}
+#grid/Verdict {:axis "asym-join" :size [1000] :accuracy :match :runs 3 :ratio 7.0372 :min 4.8000 :max 9.5277 :wat-ns 4475445 :clara-ns 31534004 :winner :us}
+#grid/Verdict {:axis "asym-join" :size [2000] :accuracy :match :runs 3 :ratio 6.0603 :min 4.9159 :max 8.0828 :wat-ns 9649742 :clara-ns 58431468 :winner :us}
+#grid/Verdict {:axis "strat-neg" :size [6 500] :accuracy :match :runs 3 :ratio 10.6332 :min 7.6129 :max 14.4458 :wat-ns 10264943 :clara-ns 109455716 :winner :us}
+#grid/Verdict {:axis "strat-neg" :size [6 1000] :accuracy :match :runs 3 :ratio 8.0405 :min 7.3017 :max 8.4251 :wat-ns 20996686 :clara-ns 168302942 :winner :us}
+#grid/Verdict {:axis "strat-neg" :size [6 2000] :accuracy :match :runs 3 :ratio 10.2876 :min 9.6693 :max 10.9676 :wat-ns 39461277 :clara-ns 405413759 :winner :us}
+#grid/Verdict {:axis "user-reduce" :size [10 25] :accuracy :match :runs 3 :ratio 5.5623 :min 5.1415 :max 5.8050 :wat-ns 671754 :clara-ns 3721967 :winner :us}
+#grid/Verdict {:axis "user-reduce" :size [20 50] :accuracy :match :runs 3 :ratio 3.1468 :min 2.7096 :max 3.7046 :wat-ns 2460602 :clara-ns 7743244 :winner :us}
+#grid/Verdict {:axis "user-reduce" :size [40 100] :accuracy :match :runs 3 :ratio 1.6533 :min 1.4819 :max 1.9538 :wat-ns 9869820 :clara-ns 16242539 :winner :us}
+#grid/Verdict {:axis "node-share" :size [10 200] :accuracy :match :runs 3 :ratio 5.8669 :min 4.3843 :max 8.3943 :wat-ns 2359714 :clara-ns 13924840 :winner :us}
+#grid/Verdict {:axis "node-share" :size [25 200] :accuracy :match :runs 3 :ratio 3.4472 :min 2.7295 :max 4.1968 :wat-ns 4378958 :clara-ns 15084792 :winner :us}
+#grid/Verdict {:axis "node-share" :size [50 200] :accuracy :match :runs 3 :ratio 2.0595 :min 1.5546 :max 2.8201 :wat-ns 8290390 :clara-ns 16938191 :winner :us}
+#grid/Verdict {:axis "accum" :size [50 200] :accuracy :match :runs 3 :ratio 1.0170 :min 0.9400 :max 1.0574 :wat-ns 38042363 :clara-ns 38804888 :winner :unresolved}
+#grid/Verdict {:axis "accum" :size [100 200] :accuracy :match :runs 3 :ratio 0.6959 :min 0.5293 :max 0.9860 :wat-ns 90898210 :clara-ns 60380874 :winner :unresolved}
+#grid/Verdict {:axis "accum" :size [200 200] :accuracy :match :runs 3 :ratio 0.9226 :min 0.7720 :max 1.1144 :wat-ns 135575294 :clara-ns 125131958 :winner :unresolved}
+
+;; ── quiet-machine re-runs of the accum axis, GRID_RUNS=7 (the sweep above is 3) ──────────────
+;; Run alone, nothing else on the box. Recorded because accum is the noisy axis and the 3-run
+;; sweep values sit inside its spread.
+#grid/Verdict {:axis "accum" :size [100 200] :accuracy :match :runs 7 :ratio 0.9683 :min 0.8307 :max 1.1956 :wat-ns 64590697 :clara-ns 62575887 :winner :unresolved}
+#grid/Verdict {:axis "accum" :size [200 200] :accuracy :match :runs 7 :ratio 0.8785 :min 0.6972 :max 1.0954 :wat-ns 146550266 :clara-ns 126441021 :winner :unresolved}
+
+;; NOTE ON NOISE — do not read accum to two decimals. Same size, same binary, same day:
+;;   [100 200]  wat-ns 79.0ms (3 runs) / 90.9ms (in-sweep) / 64.6ms (7 runs quiet)
+;;   [200 200]  wat-ns 134.0ms (3 runs) / 135.6ms (in-sweep) / 146.6ms (7 runs quiet)
+;; A machine-contention explanation fits the first row and is contradicted by the second.
+;; The cause is NOT established. What is solid is the min/max spread the runner prints.
