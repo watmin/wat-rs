@@ -1079,12 +1079,21 @@ pub(crate) fn eval_test_core<B: Bindings>(
     const OP: &str = ":wat::rete::eval-test";
 
     // Build a CHILD Environment binding each ?var → value.
+    // ★ COUNTED for DESIGN-STONE-compiled-where (task #49a). This block runs for EVERY token x
+    // EVERY TestNode — 10,000 times on node-share [50 200], of which 98% are about to FAIL — and
+    // each pass allocates a child Environment plus a fresh String per binding (`.to_string()` on
+    // a key that is FIXED at rule-compile time) plus a Value clone. Exactly the waste
+    // `compiled_cond` was built to remove from the alpha path: "two heap allocations rebuilding
+    // the constant binding key on every call, including every call that is about to fail."
+    // The compiled form pre-resolves ?vars to SLOTS at setup; this counter is what proves it.
+    crate::rete::kernel::census_count("filter:test-env-builds");
     let mut b = env.child();
     for (k, v) in bindings.iter() {
         let name = match k {
             Value::String(s) => s.as_str().to_string(),
             _ => continue, // non-string key: skip (should not occur in well-formed bindings)
         };
+        crate::rete::kernel::census_count("filter:test-key-alloc");
         b = b.bind_unknown_span(name, TrackedValue::from(v.clone()));
     }
     let test_env = b.build();

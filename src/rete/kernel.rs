@@ -4715,6 +4715,8 @@ mod tests {
             let get = |k: &str| rows.iter().find(|(a, _)| *a == k).map(|(_, v)| *v).unwrap_or(0);
             let evals = get("filter:test-evals");
             let passes = get("filter:test-pass");
+            let envs = get("filter:test-env-builds");
+            let keys = get("filter:test-key-alloc");
             // Non-vacuity FIRST: a fire that never reached a TestNode would report 0 evals and
             // 0 passes, and a "0% waste" reading would look like the best possible news.
             assert!(
@@ -4727,7 +4729,7 @@ mod tests {
             worst_waste = worst_waste.max(waste_pct);
             table.push_str(&format!(
                 "  {n:>5}  {m:>5} | {evals:>8}  {passes:>8} {wasted:>8}  {waste_pct:>5.1}%  \
-                 {:>10.1}\n",
+                 {:>10.1}  | envs {envs:>7}  keyallocs {keys:>7}\n",
                 evals as f64 / n as f64,
             ));
         }
