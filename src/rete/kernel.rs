@@ -3239,6 +3239,93 @@ pub(crate) fn eval_insert_native(
     Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), Arc::new(new_fields)))))
 }
 
+// ── Public entry: native insert-all' ───────────────────────────────────────────
+
+/// `(:wat::rete::insert-all' <session> <facts>) -> :wat::rete::Session`
+///
+/// The batch sibling of `insert'` — native dual of the wat oracle `insert-all-spec`
+/// (`wat/rete.wat`). Stages every element of `facts` (a `PersistentVector<Record>`) into the
+/// Session's `facts` field in ONE rebuild, instead of N rebuilds (`insert'` × N). ZERO
+/// activation, same contract as `insert'` (`rete.wat:828-830`): the working memory stays open
+/// until `fire-rules`. The other six `Session` fields carry through untouched.
+///
+/// ★ This is the entire point of the stone: `insert'` reconstructs the 7-field `Session` once
+/// PER FACT (~1.03 µs of pure rebuild above a bare `conj`, measured in
+/// `DESIGN-STONE-insert-all.md`); this extends the resolved `facts` PersistentVector by N
+/// elements via one `Vector/concat` and rebuilds the `Session` exactly once.
+///
+/// ★ Contract: `facts` is resolved BY NAME through the class's `RecordDef.field_names` in the
+/// TypeEnv — never by positional index — exactly mirroring `eval_insert_native` above.
+pub(crate) fn eval_insert_all_native(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::insert-all'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    if args.len() != 2 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        }).into());
+    }
+
+    // Evaluate both arguments (mirrors eval_insert_native's session/fact eval).
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let new_facts_vec = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+
+    let agg = match &session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a,
+        other => {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Session (a wat::core::Record)",
+                got: Box::new(ValueSnapshot::of(other)),
+            }).into());
+        }
+    };
+
+    // Resolve `facts` BY NAME through the class's RecordDef.field_names — the one contract
+    // decision this function exists to enforce (STOP-2). No positional fallback.
+    let type_key = format!(":{}", agg.class);
+    let types = sym.types().ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: "insert-all' requires the type registry".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    }))?;
+    let record_def = match types.get(&type_key) {
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != Nature::Struct => a,
+        _ => {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("record class :{} is not registered in the TypeEnv", agg.class),
+            }).into());
+        }
+    };
+    let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
+    let facts_idx = match record_def.field_names().position(|n| n == "facts") {
+        Some(i) => i,
+        None => {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::UnknownField {
+                record_class: agg.class.clone(),
+                field: "facts".to_string(),
+                available,
+            }).into());
+        }
+    };
+
+    // Extend the resolved `facts` PersistentVector by every element of `new_facts_vec` in ONE
+    // concat; every other field carries through unchanged (structural clone). This single
+    // concat + single 7-field rebuild (below) is the whole win over N `insert'` calls.
+    let facts_val = &agg.fields[facts_idx];
+    let new_facts = crate::collection::eval::vector_concat_inner(facts_val, &new_facts_vec)?;
+
+    let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
+    new_fields[facts_idx] = new_facts;
+
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), Arc::new(new_fields)))))
+}
+
 // ── Public entry: native fire-rules-explain' ─────────────────────────────────
 
 /// `(:wat::rete::fire-rules-explain' <session>) -> :wat::rete::Explained`

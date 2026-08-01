@@ -4710,6 +4710,12 @@ fn dispatch_keyword_head_value(
         // through the class's RecordDef.field_names — never a positional index. The other six
         // Session fields carry through untouched.
         ":wat::rete::insert'" => crate::rete::kernel::eval_insert_native(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        // Arc 278 — native Rust `insert-all` (the dual of `insert-all-spec`, the wat oracle).
+        // (:wat::rete::insert-all' <session> <facts>) → :wat::rete::Session
+        // The batch sibling of `insert'`: extends `facts` (resolved BY NAME, never a positional
+        // index) by every element of the incoming PersistentVector in ONE concat, then rebuilds
+        // the Session ONCE — collapsing N reconstructions (`insert'` × N) into one.
+        ":wat::rete::insert-all'" => crate::rete::kernel::eval_insert_all_native(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
         // (:wat::rete::fire-rules-explain' <session>) → :wat::rete::Explained
         ":wat::rete::fire-rules-explain'" => crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
@@ -7127,7 +7133,21 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
                 Value::Aggregate(a) => {
                     // p may carry a leading colon; strip it to compare bare FQDN.
                     let bare_p = p.strip_prefix(':').unwrap_or(p.as_str());
+                    // Arc 278 — the RECORD-TOP must dispatch, or the runtime disagrees with the
+                    // checker. `:wat::core::Record` roots every record for `is_subtype` (R7's
+                    // record-top), so the checker ACCEPTS a call passing a concrete record to a
+                    // param declared as the top — and this arm then refused it, because no real
+                    // record's `class` is ever literally "wat::core::Record". The result was a
+                    // program that type-checks and dies at runtime with `NoMatchingClause`,
+                    // reporting `expected :wat::core::Record, got :wat::core::Record` (a declared
+                    // TYPE against a concrete CLASS, which could never be equal).
+                    //
+                    // Dispatching on the specific class stays exactly as it was — that is what
+                    // lets a clause keyed on `:user::Tag` match a `Tag`. This only ADDS the
+                    // supertype, so it can never make a call that dispatches today stop
+                    // dispatching; and the checker still gates which calls are legal at all.
                     bare_p == a.class.as_str()
+                        || (bare_p == "wat::core::Record" && a.nature != Nature::Struct)
                 }
                 _ => {
                     // Map the value's runtime type to its canonical type-keyword path.

@@ -850,16 +850,70 @@
     :facts (:wat::core::PersistentVector/conj (:wat::rete::Session/facts session) fact)
     :next-id (:wat::rete::Session/next-id           session)))
 
-;; insert — THE PUBLIC PRODUCTION VERB. Delegates to the native Rust `insert'`: resolves `facts`
-;; by name through the class's RecordDef (never a positional index), stages `fact`, and returns
-;; every other field untouched. Zero activation — same contract as insert-spec (rete.wat:828-830).
-;; Observationally equivalent to insert-spec (proven by the native-insert differential); the
-;; native kernel is the fast impl, the spec keeps it honest.
-(:wat::core::defn :wat::rete::insert
+;; insert-all-spec — the wat reference engine (the SPEC / differential oracle) for BATCH insert.
+;; Stages every fact in `facts` into the session's working memory: N chained insert-spec calls,
+;; folded left→right so caller order is preserved. Zero activation — the exact insert-spec
+;; contract, N times over (rete.wat:828-830 — WM stays open until fire-rules).
+(:wat::core::defn :wat::rete::insert-all-spec
   [session <- :wat::rete::Session
-   fact    <- :wat::core::Record]
+   facts   <- :wat::core::PersistentVector<wat::core::Record>]
   -> :wat::rete::Session
-  (:wat::rete::insert' session fact))
+  (:wat::core::foldl
+    :wat::rete::insert-spec
+    session
+    facts))
+
+;; insert-all — THE PUBLIC BATCH VERB. Delegates to the native Rust `insert-all'`: resolves
+;; `facts` by name through the class's RecordDef (never a positional index) and extends the
+;; Session's `facts` by every element of `facts` in ONE rebuild — not N rebuilds (`insert` × N).
+;; Zero activation — same contract as insert-all-spec / insert-spec. Observationally equivalent
+;; to insert-all-spec (proven by the insert-all differential); the native kernel is the fast
+;; impl, the spec keeps it honest.
+(:wat::core::defn :wat::rete::insert-all
+  [session <- :wat::rete::Session
+   facts   <- :wat::core::PersistentVector<wat::core::Record>]
+  -> :wat::rete::Session
+  (:wat::rete::insert-all' session facts))
+
+;; insert — THE PUBLIC PRODUCTION VERB. A `defclause` of two arities:
+;;
+;;   2-ary   — UNCHANGED, byte for byte: delegates straight to the native `insert'`. This is the
+;;             streaming hot path (the chaos engine takes facts ONE AT A TIME off a wire) and it
+;;             MUST NOT be re-routed through insert-all — that would force a one-element
+;;             PersistentVector allocation onto the case that matters most, buying nothing.
+;;             (DESIGN-STONE-insert-all.md ★ THE ONE CONTRACT DECISION / BRIEF STOP-1.)
+;;   3+-ary  — sugar: `(:wat::rete::insert session f1 f2 f3)` collects `f2 f3` into `rest` (the
+;;             typed rest-param shape `:wat::core::+` proves works, wat/core.wat:58-99) and
+;;             assembles `fact :: rest` into one PersistentVector before delegating to
+;;             `insert-all` — the real primitive Clara ships (`rules.cljc:11,17`) and we did not,
+;;             until this stone.
+;;
+;; ★ `fact`'s declared type is a bare type-var `T`, NOT `:wat::core::Record` — a runtime-dispatch
+;; constraint, not a stylistic choice. `defclause`'s clause-selection matcher
+;; (`value_matches_type_by_name`, runtime.rs:7112) special-cases `Value::Aggregate` by comparing
+;; the declared Path string against the value's CONCRETE class (Arc 259 S2c-ii.0 — built for a
+;; defclause keyed on one specific class, e.g. `:user::Tag`). No concrete record's class is ever
+;; literally "wat::core::Record" (the dynamic/open supertype every user record inhabits), so a
+;; clause declaring `fact <- :wat::core::Record` can NEVER match any real fact at runtime —
+;; confirmed empirically (`NoMatchingClause`, every attempted clause failing arg-type match). A
+;; bare type-var hits the `is_type_var` wildcard branch instead (unconditional match), so arity
+;; alone discriminates the two clauses below, exactly as needed. `insert'` / `insert-all` (both
+;; plain `defn`, not `defclause`) are unaffected — their `:wat::core::Record` params are checked
+;; statically by the ordinary checker, which already understands Record as an open supertype.
+(:wat::core::defclause :wat::rete::insert
+  ([session <- :wat::rete::Session
+    fact    <- :wat::core::Record] -> :wat::rete::Session
+    (:wat::rete::insert' session fact))
+  ([session <- :wat::rete::Session
+    fact    <- :wat::core::Record
+    & rest  <- :wat::core::Vector<wat::core::Record>] -> :wat::rete::Session
+    (:wat::rete::insert-all session
+      (:wat::core::foldl
+        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>
+                         f   <- :T] -> :wat::core::PersistentVector<wat::core::Record>
+          (:wat::core::PersistentVector/conj acc f))
+        (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) fact)
+        rest))))
 
 ;; activate-fact — fold step: try one fact against a single AlphaNode's condition.
 ;; On a match, appends an Element(fact, bindings) to alpha-memory at alpha-id;
