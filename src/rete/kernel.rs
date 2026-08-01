@@ -2709,7 +2709,23 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     _ => continue, // malformed TestNode: skip
                 };
                 for tok in new_tokens {
+                    // ★ THE COUNTERS THAT DECIDE THE FILTER STONE'S SHAPE (task #49).
+                    //
+                    // `filter` is 89.5% of node-share's fire and grows LINEARLY with rule count,
+                    // because every token is tested by EVERY rule's TestNode. Two attacks follow
+                    // from that — compile the predicate (cheaper per evaluation) and index it
+                    // (fewer evaluations) — and which one is worth more depends entirely on the
+                    // ratio below, which had only ever been DERIVED from an assumed token count.
+                    //
+                    //   evals ≫ passes  ⇒ most work is on predicates that FAIL ⇒ indexing wins big
+                    //   evals ≈ passes  ⇒ the join already prunes ⇒ indexing is worthless and
+                    //                     compiling the walk is the whole story
+                    //
+                    // A timer cannot answer this (it would measure mostly itself at ~75ns/pair
+                    // against a sub-µs body); a counter can, exactly.
+                    census_count("filter:test-evals");
                     if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
+                        census_count("filter:test-pass");
                         if beta_readers.contains(node_id) {
                             beta_written(*node_id, 1);
                             wm.beta.entry(*node_id).or_default().push(tok.clone());
@@ -4662,6 +4678,69 @@ mod tests {
                 .value_owned()
         });
         rows
+    }
+
+
+    /// ★ THE COUNTER THAT DECIDES TASK #49 — how many `where` evaluations, and how many PASS?
+    ///
+    /// `filter` is 89.5% of node-share's fire (the grid's weakest engine cell, :ratio 1.56) and
+    /// scales linearly with rule count. Two attacks compete: COMPILE the predicate (cheaper per
+    /// evaluation) vs INDEX it (fewer evaluations). Their relative worth is the pass RATIO, and
+    /// until this test that ratio was DERIVED from an assumed token count, never measured — the
+    /// error that was wrong four times on 2026-08-01.
+    ///
+    /// A wasted evaluation is one that runs and fails. If they dominate, indexing removes them
+    /// wholesale and its win scales with the rule count; if the join already prunes, indexing has
+    /// nothing to remove and compiling the walk is the entire stone.
+    #[test]
+    fn node_share_filter_eval_census() {
+        let mut table = String::from(
+            "\nnode-share — `where` evaluations vs passes (the compile-vs-index decider)\n\
+             \x20 rules  items |    evals    passes   wasted  waste%   evals/rule\n\
+             \x20 --------------------------------------------------------------------\n",
+        );
+        let mut worst_waste = 0.0f64;
+        for (n, m) in [(10i64, 200i64), (25, 200), (50, 200)] {
+            let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
+                .expect("node-share world should freeze");
+            let src = format!(
+                "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m}))"
+            );
+            let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+            let (_fired, rows) = super::with_count_census(|| {
+                eval_in_frozen(&ast, &world, &Environment::new())
+                    .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
+                    .value_owned()
+            });
+            let get = |k: &str| rows.iter().find(|(a, _)| *a == k).map(|(_, v)| *v).unwrap_or(0);
+            let evals = get("filter:test-evals");
+            let passes = get("filter:test-pass");
+            // Non-vacuity FIRST: a fire that never reached a TestNode would report 0 evals and
+            // 0 passes, and a "0% waste" reading would look like the best possible news.
+            assert!(
+                evals > 0,
+                "node-share N={n} M={m} recorded ZERO `where` evaluations — the filter pass never \
+                 ran, so any ratio taken from this is an artifact, not a measurement"
+            );
+            let wasted = evals - passes;
+            let waste_pct = 100.0 * wasted as f64 / evals as f64;
+            worst_waste = worst_waste.max(waste_pct);
+            table.push_str(&format!(
+                "  {n:>5}  {m:>5} | {evals:>8}  {passes:>8} {wasted:>8}  {waste_pct:>5.1}%  \
+                 {:>10.1}\n",
+                evals as f64 / n as f64,
+            ));
+        }
+        println!("{table}");
+        // The claim under test, stated so a future reader knows what a change MEANS: if indexing
+        // lands, `wasted` collapses and this assertion is what must be re-pointed — not deleted.
+        assert!(
+            worst_waste > 50.0,
+            "expected most `where` evaluations to be WASTED (a token tested by every rule's \
+             predicate, matching at most one) — got a peak waste of {worst_waste:.1}%. If this \
+             fell legitimately, the join now prunes before the filter pass and task #49's attack \
+             (b) (indexing) has little left to remove; re-rank it against (a).{table}"
+        );
     }
 
     /// The node-share phase table, at the GRID's own ladder ([10|25|50] x 200).
