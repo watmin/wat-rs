@@ -1662,6 +1662,12 @@ pub(crate) struct RoundCensus {
     /// Per-node beta occupancy as `(node-id, kind, tokens)`, ascending by id — the breakdown that
     /// distinguishes "one shared join holds M tokens" from "N tails each hold their own copy".
     pub(crate) beta_by_node:        Vec<(i64, &'static str, usize)>,
+    /// The same, for the per-round DELTA. Load-bearing since the beta-readers guard: a node whose
+    /// `wm.beta` is deliberately not materialised is invisible in `beta_by_node`, but every token
+    /// it produced still passes through `d_beta`. Summed across rounds this equals what
+    /// `beta_by_node` reported before the guard, by construction (both were pushed by the same
+    /// unconditional statement pair).
+    pub(crate) d_beta_by_node:      Vec<(i64, &'static str, usize)>,
 }
 
 #[cfg(test)]
@@ -2092,6 +2098,41 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         }
     }
 
+    // Arc 278 DESIGN-STONE-beta-is-written-only-for-readers — WHICH nodes' beta anyone reads.
+    //
+    // `wm.beta` has exactly TWO readers, both inside the hash-join's first-keying path, and both
+    // read the PARENT of the join being keyed: `.first()` for one sample token (to derive the
+    // join keys) and `all_left` for the catch-up cross-join. A node that no HashJoinNode names as
+    // parent can therefore never be reached by either — so writing its beta costs a Token clone,
+    // a map lookup and a Vec push whose result nothing observes, and which `wm.beta.clear()`
+    // discards before freeze anyway.
+    //
+    // Measured before this guard existed (`beta_write_read_traffic`): write-only nodes took
+    // **95.2%** of all beta writes on the fanout cell, **80.6%** on a three-condition rule and
+    // **50.0%** on the deep cascade — and every node that DID read was the parent of a
+    // HashJoinNode, 16 for 16 across three shapes, including a MIDDLE join (a three-condition
+    // rule's J1, which reads its parent's beta AND is read by J2). The two-condition worlds could
+    // not have refuted this on their own: every hash-join in them is a leaf.
+    //
+    // This is a STATIC property of the immutable network, derived once here — not a heuristic and
+    // not a workload constant. `d_beta` is untouched: production consumes it every round.
+    let beta_readers: std::collections::HashSet<i64> = {
+        let mut readers = std::collections::HashSet::new();
+        for node_id in &node_ids {
+            let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+            for child in node_children(node) {
+                let child_is_join = get_node(&wm.network, child)
+                    .map(|c| kind_of(c) == "HashJoinNode")
+                    .unwrap_or(false);
+                if child_is_join {
+                    readers.insert(*node_id);
+                    break;
+                }
+            }
+        }
+        readers
+    };
+
     // Group B: field_names_cache — hoisted BEFORE the round loop (fact-class → field names).
     // Computed once per fact-class encountered across ALL rounds; never recomputed in later rounds.
     let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
@@ -2237,8 +2278,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         matches:  vec![(fact.clone(), *node_id)],
                         bindings: seed_token_bindings(bindings),
                     };
-                    beta_written(*child_id, 1);
-                    wm.beta.entry(*child_id).or_default().push(tok.clone());
+                    if beta_readers.contains(child_id) {
+                        beta_written(*child_id, 1);
+                        wm.beta.entry(*child_id).or_default().push(tok.clone());
+                    }
                     d_beta.entry(*child_id).or_default().push(tok);
                 }
             }
@@ -2381,11 +2424,18 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     phase_end("  ├ hj:catchup:left-idx", __cli);
                     // Emit catch-up tokens into cumulative and delta memories.
                     let __cem = phase_start();
-                    for new_tok in new_tokens {
-                        beta_written(*child_id, 1);
-                        wm.beta.entry(*child_id).or_default().push(new_tok.clone());
-                        d_beta.entry(*child_id).or_default().push(new_tok);
+                    // `entry()` HOISTED out of the per-token loop: the key is constant, so the
+                    // old form paid two map lookups per token (80,000 on the fanout cell) where
+                    // two total will do. Correct regardless of the guard below.
+                    if beta_readers.contains(child_id) {
+                        beta_written(*child_id, new_tokens.len() as u64);
+                        let beta = wm.beta.entry(*child_id).or_default();
+                        beta.reserve(new_tokens.len());
+                        for t in &new_tokens { beta.push(t.clone()); }
                     }
+                    let delta = d_beta.entry(*child_id).or_default();
+                    delta.reserve(new_tokens.len());
+                    for new_tok in new_tokens { delta.push(new_tok); }
                     phase_end("  ├ hj:catchup:emit", __cem);
                     continue; // Skip incremental steps 2–5 for this round.
                 }
@@ -2466,11 +2516,16 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
 
                 // Step 6: push new tokens to wm.beta[J] and d_beta[J].
                 let __s6 = phase_start();
-                for new_tok in new_tokens {
-                    beta_written(*child_id, 1);
-                    wm.beta.entry(*child_id).or_default().push(new_tok.clone());
-                    d_beta.entry(*child_id).or_default().push(new_tok);
+                // Same hoist + guard as the catch-up emit above.
+                if beta_readers.contains(child_id) {
+                    beta_written(*child_id, new_tokens.len() as u64);
+                    let beta = wm.beta.entry(*child_id).or_default();
+                    beta.reserve(new_tokens.len());
+                    for t in &new_tokens { beta.push(t.clone()); }
                 }
+                let delta = d_beta.entry(*child_id).or_default();
+                delta.reserve(new_tokens.len());
+                for new_tok in new_tokens { delta.push(new_tok); }
                 phase_end("  ├ hj:step6-emit", __s6);
             }
         }
@@ -2563,8 +2618,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // Extend the token: same matches; bindings + {result-var → aggregate}.
                     let new_bindings = tok.bindings.insert(result_var.clone(), aggregate);
                     let new_tok = Token { matches: tok.matches.clone(), bindings: new_bindings };
-                    beta_written(*node_id, 1);
-                    wm.beta.entry(*node_id).or_default().push(new_tok.clone());
+                    if beta_readers.contains(node_id) {
+                        beta_written(*node_id, 1);
+                        wm.beta.entry(*node_id).or_default().push(new_tok.clone());
+                    }
                     d_beta.entry(*node_id).or_default().push(new_tok);
                 }
             }
@@ -2606,8 +2663,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 };
                 for tok in new_tokens {
                     if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
-                        beta_written(*node_id, 1);
-                        wm.beta.entry(*node_id).or_default().push(tok.clone());
+                        if beta_readers.contains(node_id) {
+                            beta_written(*node_id, 1);
+                            wm.beta.entry(*node_id).or_default().push(tok.clone());
+                        }
                         d_beta.entry(*node_id).or_default().push(tok);
                     }
                 }
@@ -2658,8 +2717,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
                     let pass = if is_exists { any_compat } else { !any_compat };
                     if pass {
-                        beta_written(*node_id, 1);
-                        wm.beta.entry(*node_id).or_default().push(tok.clone());
+                        if beta_readers.contains(node_id) {
+                            beta_written(*node_id, 1);
+                            wm.beta.entry(*node_id).or_default().push(tok.clone());
+                        }
                         d_beta.entry(*node_id).or_default().push(tok);
                     }
                 }
@@ -2769,6 +2830,29 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 beta_token_matches += toks.iter().map(|t| t.matches.len()).sum::<usize>();
                 beta_by_node.push((*node_id, kind, toks.len()));
             }
+            // Per-node DELTA, the same shape. Needed because the beta-readers guard
+            // (DESIGN-STONE-beta-is-written-only-for-readers) stops materialising `wm.beta` for
+            // nodes nothing reads — so a node whose beta is deliberately empty is now invisible
+            // above, and any census reading of it would be an artifact of the guard rather than a
+            // measurement of the join.
+            //
+            // This is the SAME quantity, not a weaker proxy: before the guard, every token was
+            // pushed to `wm.beta[node]` and `d_beta[node]` by the same unconditional statement
+            // pair, so `Σ over rounds |d_beta[node]| == |wm.beta[node]|` at end of fire, exactly.
+            // `d_beta` is also the more honest instrument for "did this join re-run per rule?" —
+            // it is what the node PRODUCED, where beta was a cumulative copy of the same tokens.
+            let mut d_beta_by_node: Vec<(i64, &'static str, usize)> = Vec::new();
+            for node_id in &node_ids {
+                let toks = match d_beta.get(node_id) {
+                    Some(t) if !t.is_empty() => t,
+                    _ => continue,
+                };
+                let kind = match get_node(&wm.network, *node_id) {
+                    Some(n) => census_kind(kind_of(n)),
+                    None => "?",
+                };
+                d_beta_by_node.push((*node_id, kind, toks.len()));
+            }
             rounds.push(RoundCensus {
                 round:              round_no,
                 delta_facts_in:     delta_facts.len(),
@@ -2788,6 +2872,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     .map(|n| node_children(n).len())
                     .sum(),
                 beta_by_node,
+                d_beta_by_node,
             });
         });
         #[cfg(test)]
@@ -4222,6 +4307,24 @@ mod tests {
         row.beta_by_node.iter().filter(|(_, k, _)| *k == kind).map(|(_, _, t)| *t).sum()
     }
 
+    /// Tokens PRODUCED by nodes of `kind` across the whole fire, read off the per-round delta.
+    ///
+    /// Since the beta-readers guard (`DESIGN-STONE-beta-is-written-only-for-readers`), a node
+    /// nothing reads has no materialised `wm.beta`, so `tokens_of_kind` reports 0 for it — a fact
+    /// about the guard, not about the join. `d_beta` still carries every token the node produced.
+    ///
+    /// This is the SAME NUMBER the beta reading used to give, not a softer one: before the guard
+    /// both stores were fed by one unconditional statement pair, so summing the deltas across
+    /// rounds reconstructs exactly what the cumulative beta held.
+    fn produced_of_kind(census: &[super::RoundCensus], kind: &str) -> usize {
+        census
+            .iter()
+            .flat_map(|r| r.d_beta_by_node.iter())
+            .filter(|(_, k, _)| *k == kind)
+            .map(|(_, _, t)| *t)
+            .sum()
+    }
+
     // ── The keyed-gather gate (DESIGN-STONE-keyed-gather.md) ──────────────────────────────────
     //
     // Two AccumulateNodes and one ExistsNode over `Reading`, joined to `Group` on `?g` — the
@@ -5190,7 +5293,13 @@ mod tests {
 
             // The final round carries the cumulative totals for the whole fire.
             let last = census.last().expect("census is non-empty");
-            let hj = tokens_of_kind(last, "HashJoin");
+            // PRODUCED, not HELD. Post-guard a terminal HashJoinNode deliberately materialises no
+            // beta, so `tokens_of_kind(last, "HashJoin")` would read 0 for every N and the sharing
+            // assertion below would be vacuously true — the gate would keep its green and stop
+            // meaning anything. The delta carries the same tokens (see `produced_of_kind`), and it
+            // is the better witness for this claim anyway: the defect under test is the join
+            // RE-RUNNING per rule, which shows up as tokens produced, not tokens stored.
+            let hj = produced_of_kind(&census, "HashJoin");
             let rj = tokens_of_kind(last, "RootJoin");
             let tn = tokens_of_kind(last, "Test");
 
@@ -5245,15 +5354,21 @@ mod tests {
 
         println!("{table}");
 
-        // (c) Fire-time sharing: the ONE compiled HashJoinNode must hold the same token set no
+        // (c) Fire-time sharing: the ONE compiled HashJoinNode must PRODUCE the same token set no
         // matter how many rules hang off it. If this grows with N, the fire path is re-doing the
         // join per rule — the shared network collapsing back into N copies at run time, which is
         // exactly the mechanism the >4 GiB blow-up would need.
+        //
+        // Reworded from "must HOLD" on 2026-08-01: the beta-readers guard stopped materialising a
+        // terminal join's `wm.beta`, so "holds" became vacuous by design. The quantity is
+        // unchanged — before the guard, beta and the delta were fed by one unconditional
+        // statement pair, so the summed delta IS what beta held — but the gate now says what it
+        // actually proves rather than keeping a name the code had made false.
         let (_, baseline) = hash_join_tokens[0];
         for &(n, tokens) in &hash_join_tokens {
             assert_eq!(
                 tokens, baseline,
-                "A8 fire-time sharing broken: the shared HashJoinNode holds {tokens} tokens at \
+                "A8 fire-time sharing broken: the shared HashJoinNode produced {tokens} tokens at \
                  N={n} but {baseline} at N={}. One compiled join node is materialising per-rule \
                  token sets — the fire-path defect the compiler census (4 + 2N nodes) ruled out at \
                  compile time.{table}",
@@ -5378,6 +5493,27 @@ mod tests {
             ));
             // The instrument must have seen traffic at all, or its zeros mean nothing.
             assert!(tot_w > 0, "{label}: recorded no beta writes — the instrument is not armed.{out}");
+
+            // ★ THE GUARD'S INVARIANT — and this is the DANGEROUS direction.
+            //
+            // `beta_readers` writes a node's beta iff that node parents a HashJoinNode, and the
+            // two readers only ever read such a parent, so the sets coincide by construction.
+            // Should a THIRD reader ever be added that reads some other node, `wm.beta.get()`
+            // returns `None`, `all_left` comes back EMPTY, and the join silently drops tokens —
+            // no panic, no error, just wrong answers that a differential would have to catch
+            // downstream. A node with reads and zero writes is that bug, caught here at its
+            // source.
+            let starved: Vec<&(i64, u64, u64)> =
+                rows.iter().filter(|&&(_, w, r)| r > 0 && w == 0).collect();
+            assert!(
+                starved.is_empty(),
+                "{label}: {} node(s) READ a beta that was never WRITTEN — {starved:?}.\n\
+                 The beta_readers guard (a node is written iff it parents a HashJoinNode) no \
+                 longer covers every reader, so `wm.beta.get()` hands back None and the join \
+                 silently loses tokens. Widen the guard to include the new reader; do NOT relax \
+                 this assertion.{out}",
+                starved.len(),
+            );
             (out, rows)
         }
 
