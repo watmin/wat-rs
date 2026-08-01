@@ -2594,20 +2594,31 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // distort the very thing being measured.
     #[cfg(test)]
     {
-        fn bucket(n: usize) -> &'static str {
-            match n { 0=>"bind-card:0", 1=>"bind-card:1", 2=>"bind-card:2",
-                      3=>"bind-card:3", 4=>"bind-card:4", 5=>"bind-card:5", _=>"bind-card:6+" }
+        // Buckets are PER KIND. Element and Token have different operation profiles and are
+        // getting different representations (DESIGN-STONE-element-bindings-array), so a combined
+        // histogram cannot answer the question either of them asks. An earlier version of this
+        // census shared one bucket set across both and a design doc then claimed it "separates
+        // elements from tokens" — it separated only the totals.
+        fn ebucket(n: usize) -> &'static str {
+            match n { 0=>"elem-card:0", 1=>"elem-card:1", 2=>"elem-card:2",
+                      3=>"elem-card:3", 4=>"elem-card:4", 5=>"elem-card:5",
+                      6..=7=>"elem-card:6-7", _=>"elem-card:8+" }
+        }
+        fn tbucket(n: usize) -> &'static str {
+            match n { 0=>"tok-card:0", 1=>"tok-card:1", 2=>"tok-card:2",
+                      3=>"tok-card:3", 4=>"tok-card:4", 5=>"tok-card:5",
+                      6..=7=>"tok-card:6-7", _=>"tok-card:8+" }
         }
         for els in wm.alpha.values() {
             for el in els {
                 let (_, b) = element_fact_bindings(el);
-                census_count(bucket(b.size()));
+                census_count(ebucket(b.size()));
                 census_count("bind-card:ELEMENTS");
             }
         }
         for toks in wm.beta.values() {
             for t in toks {
-                census_count(bucket(t.bindings.size()));
+                census_count(tbucket(t.bindings.size()));
                 census_count("bind-card:TOKENS");
             }
         }
@@ -4593,12 +4604,16 @@ mod tests {
                 out.push_str("    (nothing counted)\n");
                 return out;
             }
-            for b in ["bind-card:0","bind-card:1","bind-card:2","bind-card:3",
-                      "bind-card:4","bind-card:5","bind-card:6+"] {
-                let n = get(b);
-                if n == 0 { continue; }
-                out.push_str(&format!("    {:<16} {:>9}  {:>5.1}%\n",
-                    b.trim_start_matches("bind-card:"), n, 100.0 * n as f64 / total as f64));
+            for (kind, tot, pfx) in [("ELEMENT", els, "elem-card:"), ("TOKEN", toks, "tok-card:")] {
+                if tot == 0 { continue; }
+                out.push_str(&format!("    {kind}S ({tot})\n"));
+                for suf in ["0","1","2","3","4","5","6-7","8+"] {
+                    let key = format!("{pfx}{suf}");
+                    let n = rows.iter().find(|(nm, _)| *nm == key).map(|(_, c)| *c).unwrap_or(0);
+                    if n == 0 { continue; }
+                    out.push_str(&format!("      {:<6} {:>9}  {:>5.1}%\n",
+                        suf, n, 100.0 * n as f64 / tot as f64));
+                }
             }
             out
         }
@@ -4639,7 +4654,7 @@ mod tests {
         report.push_str(&dist("2-cond join, 3 distinct vars (N=400)", &rows_join));
 
         let counted: u64 = rows_accum.iter().chain(rows_join.iter())
-            .filter(|(n, _)| n.starts_with("bind-card:"))
+            .filter(|(n, _)| n.starts_with("bind-card:") || n.starts_with("elem-card:") || n.starts_with("tok-card:"))
             .map(|(_, c)| *c).sum();
         assert!(counted > 0,
             "the binding census counted NOTHING — the walk never ran, so an all-zero table \

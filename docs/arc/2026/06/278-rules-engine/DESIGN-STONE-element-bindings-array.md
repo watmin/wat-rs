@@ -66,18 +66,33 @@ that this was contained to `kernel.rs` was wrong and is corrected here.
 `Value::wat__core__PersistentMap` and no other representation was expressible. That stone was the
 prerequisite, exactly as `03ec041e` predicted.
 
-## Open, and deliberately not pre-decided
+## RESOLVED — no spill. A plain array at any width.
 
-**Whether the array spills above some width.** Elements never extend, so the array's only weakness at
-size is lookup — and the measured lookup crossover is **8**, which independently reproduces Clojure's
-`PersistentArrayMap` threshold using our own `Value` type. That is a real coincidence of engineering,
-not a number found in our test corpus, and it is the honest default if a spill is wanted.
+*(This section was "deliberately not pre-decided" and pointed a rider at
+`binding_cardinality_distribution` to settle it. That was a **false claim**: the census shared one
+bucket set across both kinds, so it separated the TOTALS and not the histogram. Instrument fixed —
+buckets are now per-kind — and the question is answered below rather than handed on.)*
 
-But an element's bindings come from **one condition**, not a whole rule, so they are narrower than
-tokens by construction. Whether any real element ever reaches 8 is unmeasured. **Do not hardcode a
-width on the strength of this paragraph** — measure element-only cardinality first (the existing
-`binding_cardinality_distribution` already separates ELEMENTS from TOKENS and can answer it), then
-decide spill-or-not with that number in hand.
+```
+ELEMENTS   accum axis: 1 -> 50.4%, 2 -> 49.6%     max 2
+           2-cond join: 2 -> 100%                 max 2
+TOKENS     accum axis: 1 -> 33.3%, 2 -> 66.7%
+           2-cond join: 2 -> 50%,  3 -> 50%       max 3
+```
+
+An element's bindings come from **one condition**, so its width is *fields destructured in that one
+condition* — not rule width. That is a far tighter structural bound than the rule-level one, and it is
+why elements sit at 1–2 here. It is **not** a cap: a wide packet condition binding five or six fields
+is ordinary, and nothing forbids more.
+
+**No spill is needed anyway.** The array's only losing operation is lookup past 8 — and at n=16 that
+loss is `54.9 vs 41.1`, **1.3×**, while build is `583 vs 4228` (7.3× the other way) and drop is
+`198 vs 2831` (14×). Lookup is two orders of magnitude cheaper than build. The array wins the
+aggregate at **every size measured**, so a plain `Arc<[(Value, Value)]>` is correct at any width and
+a spill path would be complexity bought for nothing.
+
+The 8-crossover stays interesting for `Token.bindings` — which extends, and where the trie wins —
+but Token is out of scope here.
 
 ## The gate
 
