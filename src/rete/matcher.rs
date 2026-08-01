@@ -410,6 +410,11 @@ fn eval_clause(
             // Linear scan (not `Bindings::get` — this is the concrete array accumulator
             // itself, not a generic reader; see the array's one losing op in the
             // DESIGN-STONE, accepted because elements bind 1-2 vars in practice).
+            // Arc 278 DESIGN-STONE-compiled-conditions.md, row 2 of the scorecard — this
+            // allocation (rebuilding the constant `"?var"` key on every call, including every
+            // failing one) is exactly what the compiled executor eliminates. Counted, not timed,
+            // so the differential can assert it at zero for the compiled path and non-zero here.
+            crate::rete::kernel::census_count("match:key-alloc");
             let key = Value::String(Arc::new(var.to_string()));
             let existing = bindings.iter().find_map(|(k, v)| (*k == key).then(|| v.clone()));
             match existing {
@@ -506,6 +511,10 @@ pub(crate) fn resolve_operand<B: Bindings>(
             let name = ident.as_str();
             if name.starts_with('?') {
                 // Logic variable: look up in bindings accumulated so far in this condition.
+                // Arc 278 DESIGN-STONE-compiled-conditions.md, row 2 — second heap allocation
+                // rebuilding the same constant key (see the `Bind` arm above); counted for the
+                // same differential.
+                crate::rete::kernel::census_count("match:key-alloc");
                 let key = Value::String(Arc::new(name.to_string()));
                 bindings.get(&key).cloned()
             } else {
@@ -724,7 +733,7 @@ pub(crate) fn read_fact_field(
 /// Mirrors the Compare arm in `walk_match_clause` (`runtime.rs` ~:10615) but as a
 /// pure value-level function: no `Environment`, no `EvalBreak`. Returns `None` for
 /// incompatible types (Clara no-error: type mismatch = constraint fails = `None`).
-fn compare_values(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
+pub(crate) fn compare_values(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => Some(x.cmp(y)),
         (Value::u8(x), Value::u8(y)) => Some(x.cmp(y)),

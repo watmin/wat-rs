@@ -49,3 +49,9 @@ pub(crate) mod purity;
 // discriminators. Prune-only (candidate set; `alpha_match_inner` stays the sole authority),
 // alpha-only (beta stays runtime), built once at setup from the immutable network.
 pub(crate) mod alpha_tree;
+// DESIGN-STONE-compiled-conditions.md — compiles each alpha condition ONCE at setup (beside the
+// tree) into a pre-resolved instruction sequence (field indices, slot indices, no per-fact
+// string-key allocation, no per-fact classify_rete_clause re-derivation). Not a perf stone (see
+// the module doc's amendment note): `alpha_match_inner` remains the reference implementation and
+// the differential's other half; this is the mechanism that stops it being re-derived dynamically.
+pub(crate) mod compiled_cond;

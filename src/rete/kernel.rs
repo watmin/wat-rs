@@ -1981,6 +1981,30 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // waste a match call, never drop a derivation.
     let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
 
+    // DESIGN-STONE-compiled-conditions.md — compile each alpha's condition ONCE here, beside the
+    // tree, from the SAME (alpha_by_type, alpha_cond) index. `alpha_match_inner` remains the sole
+    // authority on what a condition means; `compile_condition` never fails for anything
+    // `build_alpha_index` put in `alpha_cond` (see its doc), so the `None` arm below is a
+    // defensive fallback to the interpreter, never a path real conditions take.
+    let mut compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond> =
+        HashMap::with_capacity(alpha_cond.len());
+    for (class, ids) in &alpha_by_type {
+        let cclass_field_names = class_field_names(sym, class);
+        for aid in ids {
+            if let Some(cond) = alpha_cond.get(aid) {
+                if let Some(compiled) = crate::rete::compiled_cond::compile_condition(cond, &cclass_field_names) {
+                    compiled_conds.insert(*aid, compiled);
+                }
+            }
+        }
+    }
+    // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
+    // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
+    // `resize` back up never reallocates after this point — the failure path it guards allocates
+    // nothing (row 2 of the DESIGN-STONE's scorecard).
+    let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
+    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(compiled_max_slots);
+
     // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
     // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
     // feeding_alpha_of[J] = the AlphaNode feeding J; parent_of[C] = C's non-alpha upstream parent.
@@ -2076,14 +2100,22 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             phase_end("  ├ alpha:fieldnames", __afn);
 
             for aid in &alphas {
-                let cond_ast = match alpha_cond.get(aid) {
-                    Some(c) => c,
-                    None => continue,
-                };
                 let __am = phase_start();
-                let matched = crate::rete::matcher::alpha_match_inner(
-                    cond_ast, fact_class, fact_fields, field_names,
-                );
+                let matched = match compiled_conds.get(aid) {
+                    // DESIGN-STONE-compiled-conditions.md — the compiled executor replaces
+                    // `alpha_match_inner` here, inside the SAME phase mark, so `alpha:match`
+                    // stays an apples-to-apples timing comparison before/after this stone.
+                    Some(compiled) => {
+                        crate::rete::compiled_cond::exec_compiled(compiled, fact_fields, &mut match_scratch)
+                    }
+                    // Defensive fallback only — see the comment where `compiled_conds` is built.
+                    None => match alpha_cond.get(aid) {
+                        Some(cond_ast) => crate::rete::matcher::alpha_match_inner(
+                            cond_ast, fact_class, fact_fields, field_names,
+                        ),
+                        None => None,
+                    },
+                };
                 phase_end("  ├ alpha:match", __am);
                 if let Some(bindings) = matched {
                     let __mk = phase_start();
@@ -4523,6 +4555,21 @@ mod tests {
     /// Counted rather than timed: one level below `alpha` the operations cost ~100-300ns while a
     /// mark pair costs ~52ns, so a timer would tax them 20-50% and — worse — unevenly, in
     /// proportion to call count rather than cost. A `Cell` increment is ~1-2ns.
+    ///
+    /// Arc 278 DESIGN-STONE-compiled-conditions.md — a real fire's step 1 now runs the compiled
+    /// executor (`compiled_cond::exec_compiled`), not `alpha_match_inner`: `match:calls` (and its
+    /// `match:clause`/`match:bind-insert` siblings) are armed INSIDE `alpha_match_inner`'s own
+    /// body, so they read zero here now by construction, not by regression. `compiled:calls`
+    /// (armed inside `exec_compiled`) is what actually fires on this path.
+    ///
+    /// `match:key-alloc` is printed but NOT asserted at zero here: this world's RHS insert forms
+    /// (`build_insert_fact`, the production pass) resolve `?var` args through the SAME
+    /// `resolve_operand` alpha-match uses, which is untouched by this stone (out of scope —
+    /// "Compiling the RHS… `eval_test_core`, and the accumulate fold" is a separate future stone
+    /// per the DESIGN doc). So a real fire's `match:key-alloc` is non-zero even with the compiled
+    /// path fully in place; the actual row-2 gate that isolates ALPHA-MATCH's failure path in
+    /// isolation is `compiled_cond_failure_path_allocates_no_binding_keys_at_50_100`, which never
+    /// touches RHS resolution.
     #[test]
     fn accum_matcher_op_census() {
         let rows = accum_count_census(200, 200);
@@ -4531,20 +4578,13 @@ mod tests {
             "the operation census counted NOTHING — the counters were never reached, so any \
              rate derived from them would be an artifact"
         );
-        let calls = rows.iter().find(|(n, _)| *n == "match:calls").map(|(_, c)| *c).unwrap_or(0);
-        assert!(calls > 0, "match:calls is zero — alpha_match_inner was never entered");
+        let calls = rows.iter().find(|(n, _)| *n == "compiled:calls").map(|(_, c)| *c).unwrap_or(0);
+        assert!(calls > 0, "compiled:calls is zero — exec_compiled was never entered");
 
         let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");
         for (name, n) in &rows {
             out.push_str(&format!("    {name:<20} {n:>10}\n"));
         }
-        out.push_str(&format!(
-            "  per alpha_match_inner call: {:.2} clauses, {:.2} binds\n",
-            rows.iter().find(|(n, _)| *n == "match:clause").map(|(_, c)| *c).unwrap_or(0) as f64
-                / calls as f64,
-            rows.iter().find(|(n, _)| *n == "match:bind-insert").map(|(_, c)| *c).unwrap_or(0)
-                as f64 / calls as f64,
-        ));
         println!("{out}");
     }
 
@@ -5247,12 +5287,6 @@ mod tests {
         }
     }
 
-    /// The one committed instrument for row 1 and row 2 of the EXPECTATIONS scorecard: fires
-    /// the `[50 100]` cascade, rebuilds P8's alpha index (`build_alpha_index` — the SAME
-    /// function `fire_fixpoint_delta` uses, not a hand-rolled duplicate) from that fired
-    /// session's own network, and builds the `AlphaTree` from that index. Returns everything a
-    /// caller needs to compare the tree's candidate set against the matcher's true set, fact by
-    /// fact, without re-firing or diverging from what actually ran.
     // ── The fact-heavy, rule-LIGHT census (arc 278, 2026-08-01) ───────────────────────────────
     //
     // The depth-split probe answers "what does DEPTH cost" on a rule-heavy cascade. This one
@@ -5312,11 +5346,19 @@ mod tests {
                 .value_owned()
         });
 
-        // The denominator is the sum of the TOP-LEVEL phases (ROUND LOOP / OUT / SETUP / IN) —
-        // i.e. the whole fire. Summing the INDENTED rows instead double-counts, because a nested
-        // row is a component of its parent: the first draft of this table printed shares totalling
-        // 209.3%, which is how the bug announced itself. Nested rows are shares OF THE FIRE.
-        let fire: u64 = rows.iter().filter(|(n, _)| !n.starts_with(' ')).map(|(_, ns)| *ns).sum();
+        // The denominator is THE FIRE — and it is NAMED, not inferred, because inferring it from
+        // the row text has now been wrong twice. Draft 1 summed the INDENTED rows and printed
+        // shares totalling 209.3% (a nested row is a component of its parent, so that double-counts
+        // upward). Draft 2 summed the UN-indented rows — which looks right and is not, because
+        // `production` / `hash-join` / `alpha` / `root-join` / `accumulate` / `filter` carry
+        // unindented NAMES while living INSIDE `ROUND LOOP`; that inflated the divisor ~60% and
+        // quietly understated every share. A wrong number that looks plausible is worse than one
+        // that reads 209%. These four are the actual brackets around a fire; everything else is a
+        // component of one of them.
+        const FIRE_PHASES: [&str; 4] =
+            ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
+        let fire: u64 =
+            rows.iter().filter(|(n, _)| FIRE_PHASES.contains(n)).map(|(_, ns)| *ns).sum();
         let mut table = String::from(
             "\n  FANOUT PER-CALL CENSUS — keys=100 x fanout=20 (R4's 40,000-pair cell), D=1\n\
              \n  phase                                 ms   % of fire\n\
@@ -5339,6 +5381,12 @@ mod tests {
         assert!(total > 0, "the phase census recorded nothing.{table}");
     }
 
+    /// The one committed instrument for row 1 and row 2 of the EXPECTATIONS scorecard: fires
+    /// the `[50 100]` cascade, rebuilds P8's alpha index (`build_alpha_index` — the SAME
+    /// function `fire_fixpoint_delta` uses, not a hand-rolled duplicate) from that fired
+    /// session's own network, and builds the `AlphaTree` from that index. Returns everything a
+    /// caller needs to compare the tree's candidate set against the matcher's true set, fact by
+    /// fact, without re-firing or diverging from what actually ran.
     ///
     /// Returned as a NAMED struct rather than a 5-tuple: clippy's `type_complexity` flagged the
     /// tuple, and an alias would have quieted the signature while leaving both call sites
@@ -5488,6 +5536,194 @@ mod tests {
             "the bypassed (no-tree) comparison itself collapsed — mean {mean_without:.3} \
              candidates/fact without the tree, expected ~D=50; this fixture no longer exercises \
              the depth the row-2 assertion depends on, so the row-2 pass above would be vacuous"
+        );
+    }
+
+    // ── Compiled conditions (DESIGN-STONE-compiled-conditions.md) ────────────────────────────
+
+    /// Build every alpha's `CompiledCond`, exactly as `fire_fixpoint_delta`'s setup does — one
+    /// reader of `(alpha_by_type, alpha_cond)` for compilation, not a hand-rolled duplicate.
+    fn compile_all(
+        alpha_by_type: &HashMap<String, Vec<i64>>,
+        alpha_cond: &HashMap<i64, WatAST>,
+        sym: &crate::runtime::SymbolTable,
+    ) -> HashMap<i64, crate::rete::compiled_cond::CompiledCond> {
+        let mut compiled = HashMap::with_capacity(alpha_cond.len());
+        for (class, ids) in alpha_by_type {
+            let field_names = class_field_names(sym, class);
+            for aid in ids {
+                let cond = &alpha_cond[aid];
+                let c = crate::rete::compiled_cond::compile_condition(cond, &field_names)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "STOP-2: compile_condition returned None for a condition \
+                             build_alpha_index already accepted: {cond:?}"
+                        )
+                    });
+                compiled.insert(*aid, c);
+            }
+        }
+        compiled
+    }
+
+    /// Row 1 / STOP-1 — the ONE contract decision, as a test: for every (fact, alpha) pair the
+    /// `[50 100]` cascade's own network+facts can form, the compiled executor's verdict AND
+    /// bindings array must be IDENTICAL to `alpha_match_inner`'s. A "both matched" comparison
+    /// would pass while producing wrong joins downstream (EXPECTATIONS row 1's named trap-door)
+    /// — so this asserts array equality (`Arc<[(Value, Value)]>`'s `PartialEq`, which compares
+    /// length, then each pair in order), never just `is_some()`.
+    #[test]
+    fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
+        use crate::rete::compiled_cond::exec_compiled;
+
+        let AlphaTreeFixture { world, alpha_by_type, alpha_cond, facts, .. } =
+            alpha_tree_fixture_50_100();
+        let sym = world.symbols();
+        assert!(!facts.is_empty(), "the [50 100] cascade fixture produced no facts");
+
+        let compiled = compile_all(&alpha_by_type, &alpha_cond, sym);
+        let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
+        let mut scratch: Vec<Option<Value>> = Vec::new();
+        let mut checked = 0usize;
+        let mut matched_checked = 0usize;
+
+        for fact in &facts {
+            let (fact_class, fact_fields) = match fact {
+                Value::Aggregate(a) if a.nature != Nature::Struct => {
+                    (a.class.as_str(), a.fields.as_slice())
+                }
+                _ => continue,
+            };
+            let field_names = field_names_cache
+                .entry(fact_class.to_string())
+                .or_insert_with(|| class_field_names(sym, fact_class));
+
+            // EVERY alpha of this fact's type (not just the tree's candidate set) — the
+            // differential is about the executor, not the tree, so it must cover the alphas the
+            // tree would have pruned too.
+            for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
+                let cond = &alpha_cond[aid];
+                let interpreted =
+                    crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names);
+                let via_compiled = exec_compiled(&compiled[aid], fact_fields, &mut scratch);
+
+                match (&interpreted, &via_compiled) {
+                    (None, None) => {}
+                    (Some(i), Some(c)) => {
+                        matched_checked += 1;
+                        assert_eq!(
+                            i, c,
+                            "STOP-1: bindings array diverged.\n  fact: {fact:?}\n  alpha id: {aid}\n  \
+                             interpreted: {i:?}\n  compiled: {c:?}"
+                        );
+                    }
+                    _ => panic!(
+                        "STOP-1: verdict diverged (one side matched, the other didn't).\n  \
+                         fact: {fact:?}\n  alpha id: {aid}\n  interpreted: {interpreted:?}\n  \
+                         compiled: {via_compiled:?}"
+                    ),
+                }
+                checked += 1;
+            }
+        }
+
+        assert!(checked > 0, "no (fact, alpha) pairs were checked — the differential measured nothing");
+        assert!(
+            matched_checked > 0,
+            "every pair agreed None/None — the array-equality assertion (the actual STOP-1 \
+             requirement) never ran once. Need at least one Some/Some comparison."
+        );
+        println!(
+            "compiled_cond_bindings_identical_to_interpreter_at_50_100: checked {checked} \
+             (fact, alpha) pairs; {matched_checked} matched on both sides with IDENTICAL bindings \
+             arrays (same pairs, same order, same values)."
+        );
+    }
+
+    /// Row 2 / STOP-3 — the load-bearing row: the failure path allocates NOTHING. Asserted via
+    /// the `match:key-alloc` census counter (armed at the two `Value::String(Arc::new(..))` call
+    /// sites in `matcher.rs` that rebuild the constant `"?var"` key on every call), with the SAME
+    /// measure taken against the interpreter over the IDENTICAL corpus — so a compiled path that
+    /// happens to read zero simply because the counter is never wired to anything live cannot
+    /// pass vacuously (EXPECTATIONS' named trap-door for this row).
+    #[test]
+    fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
+        use crate::rete::compiled_cond::exec_compiled;
+
+        let AlphaTreeFixture { world, alpha_by_type, alpha_cond, facts, .. } =
+            alpha_tree_fixture_50_100();
+        let sym = world.symbols();
+        assert!(!facts.is_empty(), "the [50 100] cascade fixture produced no facts");
+
+        let compiled = compile_all(&alpha_by_type, &alpha_cond, sym);
+
+        let (mut calls, mut fails) = (0u64, 0u64);
+        let mut scratch: Vec<Option<Value>> = Vec::new();
+        let (_out, compiled_rows) = super::with_count_census(|| {
+            for fact in &facts {
+                let (fact_class, fact_fields) = match fact {
+                    Value::Aggregate(a) if a.nature != Nature::Struct => {
+                        (a.class.as_str(), a.fields.as_slice())
+                    }
+                    _ => continue,
+                };
+                for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
+                    calls += 1;
+                    if exec_compiled(&compiled[aid], fact_fields, &mut scratch).is_none() {
+                        fails += 1;
+                    }
+                }
+            }
+        });
+
+        let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
+        let mut interp_calls = 0u64;
+        let (_out, interp_rows) = super::with_count_census(|| {
+            for fact in &facts {
+                let (fact_class, fact_fields) = match fact {
+                    Value::Aggregate(a) if a.nature != Nature::Struct => {
+                        (a.class.as_str(), a.fields.as_slice())
+                    }
+                    _ => continue,
+                };
+                let field_names = field_names_cache
+                    .entry(fact_class.to_string())
+                    .or_insert_with(|| class_field_names(sym, fact_class));
+                for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
+                    interp_calls += 1;
+                    let _ = crate::rete::matcher::alpha_match_inner(
+                        &alpha_cond[aid], fact_class, fact_fields, field_names,
+                    );
+                }
+            }
+        });
+
+        let get = |rows: &[(&'static str, u64)], name: &str| -> u64 {
+            rows.iter().find(|(n, _)| *n == name).map(|(_, c)| *c).unwrap_or(0)
+        };
+        let compiled_key_allocs = get(&compiled_rows, "match:key-alloc");
+        let interp_key_allocs = get(&interp_rows, "match:key-alloc");
+
+        println!(
+            "\n  ROW 2 — failure-path binding-key allocation, [50 100] cascade\n  \
+             compiled calls:    {calls} ({fails} failed, {:.1}% failure rate)\n  \
+             compiled path    match:key-alloc = {compiled_key_allocs}\n  \
+             interpreter      match:key-alloc = {interp_key_allocs}   (over {interp_calls} calls, \
+             the SAME corpus)\n",
+            100.0 * fails as f64 / calls.max(1) as f64
+        );
+
+        assert!(calls > 0 && fails > 0, "the corpus produced no failing calls — row 2 would be vacuous");
+        assert_eq!(
+            compiled_key_allocs, 0,
+            "STOP-3: the compiled path allocated {compiled_key_allocs} binding key(s) on this \
+             corpus — the failure path is supposed to allocate NOTHING"
+        );
+        assert!(
+            interp_key_allocs > 0,
+            "the interpreter comparison itself allocated ZERO keys over {interp_calls} calls — \
+             the counter is not wired to a live call path, so compiled's zero above would prove \
+             nothing"
         );
     }
 }
