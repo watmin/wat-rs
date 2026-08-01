@@ -129,27 +129,113 @@ resembles it.
 - **Task #50 (the token clone) is real and third-order** — 0.773 ms, 11% of the phase. Confirmed
   NOT a peer cost (STOP-0b did not fire); it stays its own cheaper stone.
 
-### ★ AND IT INVERTS ONE CLAIM IN TASK #49 — (a) and (b) are SUBSTITUTES here, not complements
+### The node-share arithmetic — TRUE OF NODE-SHARE, and NOT a statement about the design
 
-`cost = evaluations × cost-per-evaluation` is true as a formula, and the task called the two attacks
-"independent and MULTIPLICATIVE." Measured, on this workload, they overlap almost entirely — because
-**either one alone drives the product to near-zero**:
-
-| | evaluations | ns/eval | filter's predicate cost | saves |
+| | evaluations | ns/eval | predicate cost | saves |
 |---|---|---|---|---|
 | today | 10,000 | 540 | 5.40 ms | — |
-| **(a) alone** — compile | 10,000 | ~21 | 0.21 ms | 5.19 ms |
-| **(b) alone** — index | 200 | 540 | 0.11 ms | 5.29 ms |
+| (a) alone — compile | 10,000 | ~21 | 0.21 ms | 5.19 ms |
+| (b) alone — index | 200 | 540 | 0.11 ms | 5.29 ms |
 | both | 200 | ~21 | 0.004 ms | 5.40 ms |
 
-**After (a), (b) is worth ~0.2 ms.** The ratified order still holds — it was ruled on *correctness*
-(land the semantically-inert stone first; (b) can suppress a raise that fires today), and that
-reasoning is untouched. But the *value* argument for doing both must be retired: the second one
-lands on almost nothing.
+On **this axis** either attack alone drives the product near zero. That is an arithmetic fact about
+node-share (50 rules, ONE shared key expression), not about the two designs. It was reported once as
+"(a) and (b) are substitutes"; see the retraction below. `[[feedback_a_measurements_boundary_is_its_claims_boundary]]`.
 
-**Bounded honestly (R60):** this is ONE axis, ONE predicate shape, and both sides of it are ours.
-A workload with an expensive predicate *and* a well-pruning join would make (a) matter and (b) not;
-node-share happens to be one where both attack the same mass. Do not generalize the substitution.
+## ⚠ AMENDED — the DDoS lab is the second oracle, and it kills a load-bearing claim of mine (R61, again)
+
+The builder: *"is this not… something from the alpha tree we did in the ddos lab we can reuse?"*
+It is. `~/work/holon/holon-lab-ddos/veth-lab/filter/src/tree.rs:75` — read this session:
+
+```rust
+pub(crate) struct ShadowNode {
+    dim_index:      usize,
+    children:       StdHashMap<u32, Rc<ShadowNode>>,       // equality fan-out, O(1)
+    wildcard:       Option<Rc<ShadowNode>>,                // rules not constraining this dim
+    range_children: Vec<(RangeEdge, Rc<ShadowNode>)>,      // (op, threshold) GUARD EDGES
+}
+```
+
+**RETRACTED: "a hash cannot dispatch a range."** That was the pivot of a `Honest? NO` verdict on (b)
+and of the "(b) applies to 1 of 24 predicate families" scope claim. Both are dead.
+`series-003-004-the-rule-engine.md` states the mechanism outright: *"These evaluate as guard edges in
+the tree — the node checks the inequality at traversal time without expanding the rule into multiple
+equality branches. No tree bloat."* Shipped, at 1.3M pps, in this workspace, since February.
+
+Also uncredited: **`any_constrains`** (`tree.rs:478`) — a dimension no active rule constrains
+generates zero nodes and zero runtime cost. That answers the other objection ("~8 key expressions
+across 7 arena rules, nearly one index each"): each key expression is a level, non-constraining rules
+take the wildcard edge, and the tree prunes regardless.
+
+**⇒ (b) is a general engine capability, not a node-share special case**, and "conditional on a
+workload that has not appeared" is **RETRACTED**.
+
+### What survives the retraction — two things, and the second is sharper than what it replaced
+
+1. **Raise suppression, and it is OURS, not the lab's.** The lab's dimensions are field extractions
+   from a packet struct; they cannot raise. Our key expressions are arbitrary wat — div-by-zero,
+   unbound var, a user fn that panics. A token routed away from rule 37 never evaluates rule 37's
+   `where`, so a raise that fires today vanishes. Independent of hash-vs-tree; a hidden failure in
+   the arc whose law forbids them (R55).
+2. **The lab's tractability is that `FieldDim` is a DECLARED enum of 15 fixed dimensions.** Ours
+   would have to **derive** dimensions by canonicalizing arbitrary expressions and proving two
+   sub-ASTs are the same dimension. That is categorically harder than anything in the lab, and
+   getting it wrong routes tokens to the wrong rule, silently, with the right type. It is also the
+   open door: *the lab did not derive its dimensions — it declared them.* See the probe below.
+
+### ★ THE RULING — (a) then (b), on three INDEPENDENT reasons (builder-ratified 2026-08-01)
+
+1. **(a) is semantically inert; (b) is not.** Land the inert stone with its differential, then make
+   the semantic change on a proven base. (The builder's original ruling; untouched by any of today.)
+2. **(b) needs (a)'s structured Ops.** Recognizing dimension shapes and proving sub-expression
+   equality is an analysis written against *something*; against raw `WatAST` you write it twice.
+3. **★ (b) WITHOUT (a) CANNOT HIT THE TARGET RATE.** The tree cuts the *number* of key-expression
+   evaluations to ~one per level; it does not make one cheap. At 540 ns interpreted × ~5 levels that
+   is ~2.7 µs/token against the lab's shipped budget of ~770 ns/packet at 1.3M pps. Compiled at
+   21 ns/eval it is ~105 ns and fits. **(a) is a PREREQUISITE for (b) to be worth having at line
+   rate**, which is R25's chaos engine, which is what this arc is for.
+   *(Arithmetic on a projection — both inputs measured, the composition is not.)*
+
+The dead reason — the "1 of 24" scope argument — is **not replaced**. The three above are independent
+of it and of each other.
+
+### ✅ THE DISCONFIRMING PROBE HAS RUN — `tests/rete/probe_arc278_compiled_where_ops.rs`, both GREEN
+
+**1. `Op::Field` is sound — with one caveat the brief must carry.** The interpreted accessor
+`(:p::Route/status r)` and a direct `a.fields[0]` read agree, and the field index IS resolvable from
+the `TypeEnv` **given the class**. ⚠ But at TestNode-compile time we do **not** know `?route`'s class
+— it is bound dynamically by an earlier condition. So `Op::Field` cannot be a compile-time index for
+a `?var` receiver. It is either a runtime class→index lookup (cacheable) or it carries the field
+NAME and does `keyword_accessor_record`'s work **without** the head dispatch. Both beat the status
+quo (today the accessor is the LAST arm after user-fn lookup, def-bound and sandbox all miss); the
+probe proves the value is reachable and the registry lookup works, and proves nothing more.
+
+**2. THE (b) SCOUT — the corpus ratio is 1.6, the lab's is ~66,000.**
+
+```
+  preds  distinct-keys  no-key  ratio  file
+     11              7       0    1.6  tests/services/probe_arc278_sift_rules_arena.wat
+     11              7       0    1.6  wat-scripts/scratch-pad/probe-arena-rich-graph.wat
+      5              0       5    0.0  wat-scripts/fixes/to-faithful-clojure-net.wat
+      5              0       5    0.0  wat-scripts/fixes/to-faithful-clojure-rete.wat
+      …
+     55             21      24         TOTAL
+```
+
+A tree level pays off at MANY rules : FEW dimensions. The lab runs **1M rules over 15 declared
+`FieldDim`s ≈ 66,000:1**. Our corpus runs **~1.6:1** — and **24 of 55 predicates have no key
+expression at all** (user fns, `not`, `or`, var-to-var), so under a tree they sit on the wildcard
+edge and are evaluated for every token regardless. *A tree cannot help those; only (a) can.*
+
+⚠ **Two honest caveats.** The scanner is line-based, so the multi-line predicates (node-share,
+strat-neg, three probe copies) report 0 keys — the 1.6 is a **floor**, and node-share's real ratio is
+50:1. And the corpus is not the users (R60): R25's chaos engine — packets against thousands of rules
+— is precisely the lab's regime, which is why (b) is worth building at all.
+
+**⇒ This SHARPENS the ruling rather than changing it.** (a) helps every ruleset we have today,
+including the 24 predicates a tree can never touch. (b) helps the regime we are building toward. And
+reason 3 becomes the load-bearing one: in that regime, an interpreted key expression blows the
+per-packet budget, so **(a) is what makes (b) worth having.**
 
 ## The change — a compiled predicate, built where the TestNode is built
 
