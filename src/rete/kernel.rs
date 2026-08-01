@@ -1852,6 +1852,68 @@ pub(crate) fn with_count_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static s
     (out, rows)
 }
 
+// ── BETA TRAFFIC — is a beta memory ever READ by the fire that writes it? ────────────────
+//
+// `wm.beta` is written once per join result (a Token CLONE) and then `wm.beta.clear()`ed before
+// freeze, so nothing downstream of the fire can observe it. Inside the fire it is read at exactly
+// two places, both in the hash-join's first-keying path and both against the PARENT node:
+// `.first()` for one sample token (to derive join keys) and `all_left` for the catch-up cross-join.
+//
+// That makes a WRITE-BUT-NEVER-READ hypothesis available for terminal joins — and a hypothesis is
+// all it is. The identical shape ("surely this store is redundant") was proposed for
+// production-memory's freeze one session ago and died on the disk: derived facts live ONLY there,
+// so the freeze IS the output. This instrument exists so the beta question is answered by
+// measurement instead of by the same reasoning that was wrong last time.
+//
+// Per node: tokens written in, tokens read back out. A node with writes and zero reads is a
+// candidate; a node with reads is not. No timing here — this is a counting question.
+#[cfg(test)]
+thread_local! {
+    /// node_id → (tokens written into `wm.beta`, tokens read back out). `None` = not recording.
+    pub(crate) static BETA_TRAFFIC: std::cell::RefCell<Option<HashMap<i64, (u64, u64)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn beta_written(node_id: i64, n: u64) {
+    BETA_TRAFFIC.with(|c| {
+        if let Some(m) = c.borrow_mut().as_mut() {
+            m.entry(node_id).or_insert((0, 0)).0 += n;
+        }
+    });
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn beta_written(_node_id: i64, _n: u64) {}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn beta_read(node_id: i64, n: u64) {
+    BETA_TRAFFIC.with(|c| {
+        if let Some(m) = c.borrow_mut().as_mut() {
+            m.entry(node_id).or_insert((0, 0)).1 += n;
+        }
+    });
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn beta_read(_node_id: i64, _n: u64) {}
+
+/// Run `f` with beta write/read traffic recorded, returning it as (node_id, written, read).
+#[cfg(test)]
+pub(crate) fn with_beta_traffic<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, u64, u64)>) {
+    let prior = BETA_TRAFFIC.with(|c| c.borrow_mut().replace(HashMap::new()));
+    let out = f();
+    let recorded = BETA_TRAFFIC.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    let mut rows: Vec<(i64, u64, u64)> =
+        recorded.unwrap_or_default().into_iter().map(|(id, (w, r))| (id, w, r)).collect();
+    rows.sort_by_key(|&(id, _, _)| id);
+    (out, rows)
+}
+
 /// Run `f` with per-phase timing enabled, and return what it recorded (descending by nanoseconds).
 ///
 /// Any previously-armed map is restored afterwards, so nesting cannot swallow an outer measurement.
@@ -2175,6 +2237,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         matches:  vec![(fact.clone(), *node_id)],
                         bindings: seed_token_bindings(bindings),
                     };
+                    beta_written(*child_id, 1);
                     wm.beta.entry(*child_id).or_default().push(tok.clone());
                     d_beta.entry(*child_id).or_default().push(tok);
                 }
@@ -2231,6 +2294,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // cumulative wm.alpha[alpha_id] (not just the current round's dr).
                 let first_keying = if !join_keys_cache.contains_key(child_id) {
                     let sample_tok = wm.beta.get(node_id).and_then(|v| v.first());
+                    // READ #1 of 2: one sample token, to derive this join's keys.
+                    if sample_tok.is_some() { beta_read(*node_id, 1); }
                     let sample_el  = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
@@ -2275,6 +2340,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // Clone to avoid split-borrow conflicts with later wm.beta/d_beta mutations.
                     let all_right: Vec<Element> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
                     let all_left:  Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
+                    // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
+                    beta_read(*node_id, all_left.len() as u64);
                     // Build right_idx[J] from ALL cumulative right elements.
                     let __cri = phase_start();
                     {
@@ -2315,6 +2382,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // Emit catch-up tokens into cumulative and delta memories.
                     let __cem = phase_start();
                     for new_tok in new_tokens {
+                        beta_written(*child_id, 1);
                         wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                         d_beta.entry(*child_id).or_default().push(new_tok);
                     }
@@ -2399,6 +2467,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // Step 6: push new tokens to wm.beta[J] and d_beta[J].
                 let __s6 = phase_start();
                 for new_tok in new_tokens {
+                    beta_written(*child_id, 1);
                     wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                     d_beta.entry(*child_id).or_default().push(new_tok);
                 }
@@ -2494,6 +2563,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // Extend the token: same matches; bindings + {result-var → aggregate}.
                     let new_bindings = tok.bindings.insert(result_var.clone(), aggregate);
                     let new_tok = Token { matches: tok.matches.clone(), bindings: new_bindings };
+                    beta_written(*node_id, 1);
                     wm.beta.entry(*node_id).or_default().push(new_tok.clone());
                     d_beta.entry(*node_id).or_default().push(new_tok);
                 }
@@ -2536,6 +2606,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 };
                 for tok in new_tokens {
                     if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
+                        beta_written(*node_id, 1);
                         wm.beta.entry(*node_id).or_default().push(tok.clone());
                         d_beta.entry(*node_id).or_default().push(tok);
                     }
@@ -2587,6 +2658,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
                     let pass = if is_exists { any_compat } else { !any_compat };
                     if pass {
+                        beta_written(*node_id, 1);
                         wm.beta.entry(*node_id).or_default().push(tok.clone());
                         d_beta.entry(*node_id).or_default().push(tok);
                     }
@@ -5254,6 +5326,114 @@ mod tests {
         rows
     }
 
+    /// ★ Does the fire ever READ the beta memory it writes?
+    ///
+    /// `wm.beta` takes a Token CLONE per join result and is `clear()`ed before freeze, so nothing
+    /// downstream can see it. Inside the fire it is read at two places only, both against the
+    /// PARENT of a hash-join being keyed for the first time. That makes "a terminal join's beta is
+    /// written and never read" a HYPOTHESIS — and the identical shape ("surely this store is
+    /// redundant") was proposed for production-memory one session ago and was FALSE. So it gets
+    /// measured, not reasoned.
+    ///
+    /// Two shapes, because one of them is the control: the CASCADE chains joins (level N feeds
+    /// level N+1), so its middle betas MUST show reads. If every node in both shapes read zero,
+    /// the instrument is broken, not the engine.
+    #[test]
+    fn beta_write_read_traffic() {
+        /// Returns the human table AND the structured rows. The controls below assert on the
+        /// ROWS, never on the table text: the rows are what was measured, and a `contains` over a
+        /// formatted table would pass on a reordered column, a renamed verdict, or a substring
+        /// appearing by accident — the exact laundering `no_loose_string_assert` exists to stop.
+        fn traffic(label: &str, world_src: &str, driver: &str) -> (String, Vec<(i64, u64, u64)>) {
+            let world = startup_from_source(world_src, None, Arc::new(InMemoryLoader::new()))
+                .expect("world should freeze");
+            let ast = crate::parse_one!(driver).expect("parse the fire driver");
+            let (_fired, rows) = super::with_beta_traffic(|| {
+                eval_in_frozen(&ast, &world, &Environment::new())
+                    .unwrap_or_else(|e| panic!("{label} fire raised: {e:?}"))
+                    .value_owned()
+            });
+
+            let mut out = format!("\n  BETA TRAFFIC — {label}\n\n    node    written      read   verdict\n    ------------------------------------------------\n");
+            let (mut tot_w, mut tot_r, mut dead_w, mut dead_n) = (0u64, 0u64, 0u64, 0usize);
+            for (id, w, r) in &rows {
+                tot_w += w;
+                tot_r += r;
+                let verdict = if *w > 0 && *r == 0 {
+                    dead_w += w;
+                    dead_n += 1;
+                    "WRITTEN, NEVER READ"
+                } else if *r > 0 {
+                    "read"
+                } else {
+                    "-"
+                };
+                out.push_str(&format!("    {id:>4}  {w:>9}  {r:>8}   {verdict}\n"));
+            }
+            out.push_str(&format!(
+                "\n    total written {tot_w}, total read {tot_r}\n    \
+                 write-only nodes: {dead_n}  —  tokens cloned into them and never read: {dead_w} \
+                 ({:.1}% of all beta writes)\n",
+                if tot_w > 0 { dead_w as f64 * 100.0 / tot_w as f64 } else { 0.0 },
+            ));
+            // The instrument must have seen traffic at all, or its zeros mean nothing.
+            assert!(tot_w > 0, "{label}: recorded no beta writes — the instrument is not armed.{out}");
+            (out, rows)
+        }
+
+        let (fanout, _fanout_rows) = traffic(
+            "fanout [100 x 20] — one rule, two conditions (the join is TERMINAL)",
+            FANOUT_CENSUS_WORLD,
+            "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
+             (:wat::rete::collect-rules :fan)) 100 20))",
+        );
+        let (cascade, cascade_rows) = traffic(
+            "deep-cascade [10 x 100] — CHAINED joins (the CONTROL: middle betas must be read)",
+            DEPTH_SPLIT_WORLD,
+            "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules 10)) 100))",
+        );
+        // THE case neither shape above produces: a MIDDLE hash-join, whose beta feeds the next
+        // join's catch-up. Both worlds above are two-condition rules, so every hash-join in them
+        // is a leaf; a rule about "hash-join betas" drawn from those alone would be generalising
+        // from a corpus with no counter-example in it.
+        let (tri, tri_rows) = traffic(
+            "tri [10 x 5] — THREE conditions: root-join -> J1 -> J2, so J1 is a MIDDLE join",
+            TRI_CENSUS_WORLD,
+            "(:wat::rete::fire-rules (:tri::seed (:wat::rete::compile \
+             (:wat::rete::collect-rules :tri)) 10 5))",
+        );
+        println!("{fanout}{cascade}{tri}");
+
+        // Both controls assert on the ROWS — the measured (node, written, read) triples — not on
+        // the table text. A `contains` over a rendered table would survive a renamed verdict, a
+        // reordered column, or a chance substring, and would be asserting the FORMATTER rather
+        // than the measurement.
+        let readers = |rows: &[(i64, u64, u64)]| -> usize {
+            rows.iter().filter(|&&(_, _, r)| r > 0).count()
+        };
+
+        // Control 1: SOMETHING must read a beta, or a zero elsewhere proves nothing rather than
+        // proving the store is dead (a green that cannot go red is a claim with nothing behind it).
+        assert!(
+            readers(&cascade_rows) > 0,
+            "the CONTROL failed — the cascade read no beta at all, so the instrument is measuring \
+             nothing and the fanout zeros are meaningless.{cascade}"
+        );
+
+        // Control 2, the sharper one. The guard this probe justifies is "a node needs its beta iff
+        // it parents a HashJoinNode". In `tri`, J1 parents J2 — so if J1 read ZERO the rule is
+        // wrong and the guard would delete a live store on every 3+-condition rule. TWO nodes must
+        // read here (the root-join AND J1); one alone means only the root-join was observed and
+        // the middle-join case is still untested.
+        let tri_readers = readers(&tri_rows);
+        assert!(
+            tri_readers >= 2,
+            "a three-condition rule showed only {tri_readers} node(s) reading beta. Either the \
+             middle join J1 is NOT read — which kills the parent-of-a-HashJoinNode guard — or the \
+             network is not the shape this world intends. Do not draw the stone on this.{tri}"
+        );
+    }
+
     /// Diagnostic — where the depth cost lands, at CONSTANT work (10,000 derived facts).
     ///
     /// Shallow-and-wide vs deep-and-narrow derive exactly the same number of facts, so any
@@ -5380,6 +5560,44 @@ mod tests {
    (:fan::Right (?k <- :key) (?r <- :rid))]\n\
   :then\n\
   (:wat::rete::insert (:fan::Pair ?k ?l ?r)))\n";
+
+    /// THREE conditions — the shape neither the fanout nor the cascade produces.
+    ///
+    /// Two conditions give `root-join -> J` where `J` is terminal, so every hash-join in those
+    /// worlds is a leaf. Three give `root-join -> J1 -> J2`, and **J1 is a MIDDLE join**: its beta
+    /// is the left input of J2's catch-up, so it must be READ. Without this world the beta-traffic
+    /// probe can only observe leaves, and "a hash-join's beta is never read" would be an
+    /// over-generalisation from a corpus that contains no counter-example — the exact shape of
+    /// claim this arc keeps having to retract.
+    ///
+    /// `keys=10 x fanout=5`: 50 of each record, A⋈B = 250 pairs, A⋈B⋈C = 1250 triples.
+    const TRI_CENSUS_WORLD: &str = "\
+(:wat::core::defrecord :tri::A [key <- :wat::core::i64  a <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::B [key <- :wat::core::i64  b <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::C [key <- :wat::core::i64  c <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::Trip [key <- :wat::core::i64  a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :tri::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert (:wat::rete::insert (:wat::rete::insert acc (:tri::A :key k :a f)) (:tri::B :key k :b f)) (:tri::C :key k :c f)))\n\
+    s\n\
+    (:wat::core::range 0 fanout)))\n\
+\n\
+(:wat::core::defn :tri::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:tri::seed-key acc k fanout))\n\
+    s\n\
+    (:wat::core::range 0 keys)))\n\
+\n\
+(:wat::rete::defrule :tri::tri-rule\n\
+  :when\n\
+  [(:tri::A (?k <- :key) (?a <- :a))\n\
+   (:tri::B (?k <- :key) (?b <- :b))\n\
+   (:tri::C (?k <- :key) (?c <- :c))]\n\
+  :then\n\
+  (:wat::rete::insert (:tri::Trip ?k ?a ?b ?c)))\n";
 
     /// Diagnostic — where the REMAINING key allocations live once the compiled alpha path is in.
     ///
