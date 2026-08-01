@@ -1,0 +1,50 @@
+# GRID — 2026-08-01, POST the O(n) drain (e12acc8d). 27/27 :match, 27/27 :us on BOTH verdicts.
+#
+# HEAD e12acc8d + 492830aa. GRID_RUNS=3, loadavg gated < 1.5 before launch (1.35), 5m29s.
+# The ladder is run-all.sh's; do not compare against a grid run at different sizes.
+#
+# TWO verdicts per cell, deliberately unmerged:
+#   :ratio / :winner            — the ENGINE (fire only, both sides)
+#   :wall-ratio / :wall-winner  — the WHOLE PROGRAM (outer wall clock, both sides)
+#   :fire-share-pct             — how much of OUR wall the timed region covers
+#
+# THE PRIOR GRID THIS SUPERSEDES (GRID-2026-08-01.txt) recorded the first live :clara
+# verdict this project ever measured — fanout [40000] wall-ratio 0.73. It is kept as
+# historical evidence, not deleted. That cell now reads 3.36 :us.
+#
+# Wat's wall is nearly FLAT (220-1230ms) where Clara's is a floor (2961-4135ms): both are
+# startup-dominated, ours ~20x cheaper to stand up (bare freeze measured 170ms).
+# :fire-share-pct never exceeds 12.54% and is usually under 3% — every :ratio in this
+# project's history was a claim about a small minority of the program.
+#
+# The engine ratio NARROWS with size on five axes (user-reduce 10.44->2.42, node-share
+# 6.79->1.56, accum 2.53->1.62, deep-cascade 9.53->3.80, fanout 6.75->2.81). Stated with
+# its boundary: within THESE rungs. Nothing beyond them is measured.
+
+#grid/Verdict {:axis "min-finding" :size [500 3] :accuracy :match :runs 3 :ratio 16.9592 :min 12.5831 :max 21.2802 :wat-ns 1382406 :clara-ns 23379479 :winner :us :wat-wall-ms 220 :clara-wall-ms 3242 :wall-ratio 14.7364 :wall-winner :us :fire-share-pct 0.63}
+#grid/Verdict {:axis "min-finding" :size [1000 3] :accuracy :match :runs 3 :ratio 13.1473 :min 9.3098 :max 20.0337 :wat-ns 3706964 :clara-ns 48052560 :winner :us :wat-wall-ms 272 :clara-wall-ms 3654 :wall-ratio 13.4338 :wall-winner :us :fire-share-pct 1.36}
+#grid/Verdict {:axis "min-finding" :size [2000 3] :accuracy :match :runs 3 :ratio 12.2387 :min 10.8443 :max 14.2674 :wat-ns 7682242 :clara-ns 93998945 :winner :us :wat-wall-ms 296 :clara-wall-ms 3853 :wall-ratio 13.0169 :wall-winner :us :fire-share-pct 2.60}
+#grid/Verdict {:axis "negation" :size [250] :accuracy :match :runs 3 :ratio 15.2685 :min 13.1566 :max 19.2949 :wat-ns 710977 :clara-ns 10621017 :winner :us :wat-wall-ms 237 :clara-wall-ms 3009 :wall-ratio 12.6962 :wall-winner :us :fire-share-pct 0.30}
+#grid/Verdict {:axis "negation" :size [500] :accuracy :match :runs 3 :ratio 14.8496 :min 12.1764 :max 16.4188 :wat-ns 1096763 :clara-ns 16273530 :winner :us :wat-wall-ms 239 :clara-wall-ms 3216 :wall-ratio 13.4561 :wall-winner :us :fire-share-pct 0.46}
+#grid/Verdict {:axis "negation" :size [1000] :accuracy :match :runs 3 :ratio 12.4272 :min 8.1273 :max 18.4658 :wat-ns 2287569 :clara-ns 27407074 :winner :us :wat-wall-ms 247 :clara-wall-ms 3219 :wall-ratio 13.0324 :wall-winner :us :fire-share-pct 0.93}
+#grid/Verdict {:axis "asym-join" :size [500] :accuracy :match :runs 3 :ratio 10.7179 :min 9.1760 :max 11.5728 :wat-ns 1556320 :clara-ns 16387734 :winner :us :wat-wall-ms 247 :clara-wall-ms 3092 :wall-ratio 12.5182 :wall-winner :us :fire-share-pct 0.63}
+#grid/Verdict {:axis "asym-join" :size [1000] :accuracy :match :runs 3 :ratio 12.1656 :min 6.3256 :max 19.8095 :wat-ns 3325022 :clara-ns 36484621 :winner :us :wat-wall-ms 287 :clara-wall-ms 2961 :wall-ratio 10.3171 :wall-winner :us :fire-share-pct 1.16}
+#grid/Verdict {:axis "asym-join" :size [2000] :accuracy :match :runs 3 :ratio 8.6944 :min 5.9515 :max 10.5502 :wat-ns 8253345 :clara-ns 67284634 :winner :us :wat-wall-ms 328 :clara-wall-ms 3300 :wall-ratio 10.0610 :wall-winner :us :fire-share-pct 2.52}
+#grid/Verdict {:axis "strat-neg" :size [6 500] :accuracy :match :runs 3 :ratio 12.7722 :min 11.0773 :max 14.7842 :wat-ns 7016433 :clara-ns 87776036 :winner :us :wat-wall-ms 296 :clara-wall-ms 3564 :wall-ratio 12.0405 :wall-winner :us :fire-share-pct 2.37}
+#grid/Verdict {:axis "strat-neg" :size [6 1000] :accuracy :match :runs 3 :ratio 16.1706 :min 14.4719 :max 19.3101 :wat-ns 11310328 :clara-ns 183034678 :winner :us :wat-wall-ms 323 :clara-wall-ms 4286 :wall-ratio 13.2693 :wall-winner :us :fire-share-pct 3.50}
+#grid/Verdict {:axis "strat-neg" :size [6 2000] :accuracy :match :runs 3 :ratio 20.6532 :min 18.3781 :max 24.8607 :wat-ns 24999871 :clara-ns 515149636 :winner :us :wat-wall-ms 446 :clara-wall-ms 5975 :wall-ratio 13.3969 :wall-winner :us :fire-share-pct 5.61}
+#grid/Verdict {:axis "user-reduce" :size [10 25] :accuracy :match :runs 3 :ratio 10.4423 :min 7.8711 :max 14.6493 :wat-ns 460913 :clara-ns 4740991 :winner :us :wat-wall-ms 233 :clara-wall-ms 3445 :wall-ratio 14.7854 :wall-winner :us :fire-share-pct 0.20}
+#grid/Verdict {:axis "user-reduce" :size [20 50] :accuracy :match :runs 3 :ratio 5.8996 :min 5.0331 :max 7.4557 :wat-ns 1627205 :clara-ns 9512978 :winner :us :wat-wall-ms 258 :clara-wall-ms 3421 :wall-ratio 13.2597 :wall-winner :us :fire-share-pct 0.63}
+#grid/Verdict {:axis "user-reduce" :size [40 100] :accuracy :match :runs 3 :ratio 2.4226 :min 1.6442 :max 3.8262 :wat-ns 8632014 :clara-ns 19352113 :winner :us :wat-wall-ms 331 :clara-wall-ms 3355 :wall-ratio 10.1360 :wall-winner :us :fire-share-pct 2.61}
+#grid/Verdict {:axis "node-share" :size [10 200] :accuracy :match :runs 3 :ratio 6.7911 :min 4.8704 :max 10.2439 :wat-ns 2424683 :clara-ns 16077269 :winner :us :wat-wall-ms 256 :clara-wall-ms 3342 :wall-ratio 13.0547 :wall-winner :us :fire-share-pct 0.95}
+#grid/Verdict {:axis "node-share" :size [25 200] :accuracy :match :runs 3 :ratio 3.8460 :min 2.4025 :max 4.8761 :wat-ns 4940677 :clara-ns 18365589 :winner :us :wat-wall-ms 259 :clara-wall-ms 3660 :wall-ratio 14.1313 :wall-winner :us :fire-share-pct 1.91}
+#grid/Verdict {:axis "node-share" :size [50 200] :accuracy :match :runs 3 :ratio 1.5584 :min 1.3069 :max 1.7038 :wat-ns 9611531 :clara-ns 14746911 :winner :us :wat-wall-ms 261 :clara-wall-ms 3886 :wall-ratio 14.8889 :wall-winner :us :fire-share-pct 3.68}
+#grid/Verdict {:axis "accum" :size [50 200] :accuracy :match :runs 3 :ratio 2.5338 :min 2.0850 :max 3.1989 :wat-ns 14080053 :clara-ns 35420814 :winner :us :wat-wall-ms 322 :clara-wall-ms 3647 :wall-ratio 11.3261 :wall-winner :us :fire-share-pct 4.37}
+#grid/Verdict {:axis "accum" :size [100 200] :accuracy :match :runs 3 :ratio 1.8252 :min 1.7738 :max 1.8926 :wat-ns 30900622 :clara-ns 56400577 :winner :us :wat-wall-ms 383 :clara-wall-ms 3897 :wall-ratio 10.1749 :wall-winner :us :fire-share-pct 8.07}
+#grid/Verdict {:axis "accum" :size [200 200] :accuracy :match :runs 3 :ratio 1.6183 :min 1.4417 :max 1.9123 :wat-ns 64308932 :clara-ns 103841690 :winner :us :wat-wall-ms 513 :clara-wall-ms 3855 :wall-ratio 7.5146 :wall-winner :us :fire-share-pct 12.54}
+#grid/Verdict {:axis "deep-cascade" :size [10 100] :accuracy :match :runs 3 :ratio 9.5320 :min 6.4843 :max 13.5181 :wat-ns 3857964 :clara-ns 36160384 :winner :us :wat-wall-ms 317 :clara-wall-ms 3295 :wall-ratio 10.3943 :wall-winner :us :fire-share-pct 1.22}
+#grid/Verdict {:axis "deep-cascade" :size [30 100] :accuracy :match :runs 3 :ratio 4.4840 :min 3.7039 :max 5.6642 :wat-ns 13543574 :clara-ns 60780961 :winner :us :wat-wall-ms 492 :clara-wall-ms 3886 :wall-ratio 7.8984 :wall-winner :us :fire-share-pct 2.75}
+#grid/Verdict {:axis "deep-cascade" :size [50 100] :accuracy :match :runs 3 :ratio 3.7999 :min 2.7557 :max 5.1215 :wat-ns 31194521 :clara-ns 115134189 :winner :us :wat-wall-ms 678 :clara-wall-ms 4006 :wall-ratio 5.9086 :wall-winner :us :fire-share-pct 4.60}
+#grid/Verdict {:axis "fanout" :size [10000] :accuracy :match :runs 3 :ratio 6.7492 :min 4.1404 :max 10.0049 :wat-ns 11690165 :clara-ns 74152054 :winner :us :wat-wall-ms 494 :clara-wall-ms 3168 :wall-ratio 6.4130 :wall-winner :us :fire-share-pct 2.37}
+#grid/Verdict {:axis "fanout" :size [20000] :accuracy :match :runs 3 :ratio 3.4782 :min 3.1729 :max 3.7134 :wat-ns 23451852 :clara-ns 81620941 :winner :us :wat-wall-ms 758 :clara-wall-ms 3665 :wall-ratio 4.8351 :wall-winner :us :fire-share-pct 3.09}
+#grid/Verdict {:axis "fanout" :size [40000] :accuracy :match :runs 3 :ratio 2.8119 :min 2.4865 :max 3.0883 :wat-ns 51722053 :clara-ns 145472030 :winner :us :wat-wall-ms 1230 :clara-wall-ms 4135 :wall-ratio 3.3618 :wall-winner :us :fire-share-pct 4.21}
