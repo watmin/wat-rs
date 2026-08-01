@@ -48,6 +48,25 @@ pub(crate) struct Token {
     pub(crate) bindings: rpds::HashTrieMapSync<Value, Value>,
 }
 
+// ─── Native element (nativise-element) ─────────────────────────────────────────
+
+/// A cheap native alpha-memory element: a fact that passed an AlphaNode's condition, together
+/// with the variable bindings that match produced.
+///
+/// Native for the same reason `Token` is (P11): the `Value`-record form —
+/// `Value::Aggregate(Arc::new(record(..., Arc::new(vec![fact, Value::wat__core__PersistentMap(bindings)]))))`
+/// — costs ~3-4 heap allocations each, and alpha holds tens of thousands of these (80,200 at
+/// `G=200 W=200`). `bindings` stays `rpds::HashTrieMapSync` — `matcher.rs` and the hash-join /
+/// gather-index paths read it directly (the binding representation itself is a separate,
+/// later stone; changing it here would make this diff's measurement unattributable).
+#[derive(Clone)]
+pub(crate) struct Element {
+    /// The fact that matched the AlphaNode's condition.
+    pub(crate) fact:     Value,
+    /// Bound variables produced by the alpha match. Stays rpds — matcher reads it directly.
+    pub(crate) bindings: rpds::HashTrieMapSync<Value, Value>,
+}
+
 /// The mutable mirror of a `:wat::rete::Session` — used during the fire pass (P2–P5).
 ///
 /// The three memory maps (`alpha`, `beta`, `production`) are hot, mutated-during-fire
@@ -59,8 +78,8 @@ pub(crate) struct WorkingMemory {
     pub(crate) network:    Value,
     /// Passthrough — immutable input: ordered rule vector.
     pub(crate) rules:      Value,
-    /// Mutable mirror of `alpha-memory`  (node-id → [Element]).
-    pub(crate) alpha:      HashMap<i64, Vec<Value>>,
+    /// Mutable mirror of `alpha-memory`  (node-id → [native Element]).
+    pub(crate) alpha:      HashMap<i64, Vec<Element>>,
     /// Mutable mirror of `beta-memory`   (node-id → [native Token]).
     pub(crate) beta:       HashMap<i64, Vec<Token>>,
     /// Mutable mirror of `production-memory` (node-id → [Record]).
@@ -270,6 +289,98 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
     Value::wat__core__PersistentMap(pm)
 }
 
+/// Decode a Value Element Record → native `Element` (lossless).
+///
+/// Value Element Record shape (from `native_element_to_value` / `wat::rete::Element`):
+///   struct_form[0] = fact  — the matched fact (a `wat::core::Record`)
+///   struct_form[1] = PM    — the bindings
+fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
+    const OP: &str = ":wat::rete::to_transient (alpha decode)";
+    let struct_form = match el {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
+        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Element (a wat::core::Record)",
+                got: Box::new(ValueSnapshot::of(other)),
+            }).into()),
+    };
+    let fact = struct_form[0].clone();
+    let bindings = match &struct_form[1] {
+        Value::wat__core__PersistentMap(m) => m.clone(),
+        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "element bindings :wat::core::PersistentMap",
+                got: Box::new(ValueSnapshot::of(other)),
+            }).into()),
+    };
+    Ok(Element { fact, bindings })
+}
+
+/// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
+///
+/// Produces the same shape `make_element` (pre-nativise) did: `struct_form = [fact, PM bindings]`.
+fn native_element_to_value(el: Element) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        (*element_class_fqdn()).clone(),
+        Arc::new(vec![el.fact, Value::wat__core__PersistentMap(el.bindings)]),
+    )))
+}
+
+/// Decode an `alpha-memory` PersistentMap (node-id → PV<Element Record>) into native elements.
+///
+/// Each node's PV contains `Value Element Records`; each is decoded to a native `Element`.
+fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
+    match pm {
+        Value::wat__core__PersistentMap(m) => {
+            let mut out: HashMap<i64, Vec<Element>> = HashMap::with_capacity(m.size());
+            for (k, v) in m.iter() {
+                let node_id = match k {
+                    Value::i64(n) => *n,
+                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                            op: op.into(),
+                            expected: "node-id key :wat::core::i64",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        }).into()),
+                };
+                let elements = match v {
+                    Value::wat__core__PersistentVector(pv) => {
+                        let mut es: Vec<Element> = Vec::with_capacity(pv.len());
+                        for ev in pv.iter() {
+                            es.push(value_to_element(ev)?);
+                        }
+                        es
+                    }
+                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                            op: op.into(),
+                            expected: "alpha-memory value :wat::core::PersistentVector",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        }).into()),
+                };
+                out.insert(node_id, elements);
+            }
+            Ok(out)
+        }
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::core::PersistentMap (alpha-memory)",
+                got: Box::new(ValueSnapshot::of(other)),
+            }).into()),
+    }
+}
+
+/// Encode a native alpha map (`HashMap<i64, Vec<Element>>`) back to a Value PersistentMap.
+fn alpha_to_pm(alpha: HashMap<i64, Vec<Element>>) -> Value {
+    let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for (node_id, elements) in alpha {
+        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        for el in elements {
+            pv = pv.push_back(native_element_to_value(el));
+        }
+        pm = pm.insert(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
+    }
+    Value::wat__core__PersistentMap(pm)
+}
+
 // ─── Public boundary ──────────────────────────────────────────────────────────
 
 /// Convert a frozen `:wat::rete::Session` `Value` into a mutable `WorkingMemory`.
@@ -326,7 +437,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         }
     };
 
-    let alpha      = pm_to_hashmap(OP, alpha_pm)?;
+    let alpha      = pm_to_alpha(OP, alpha_pm)?;
     let beta       = pm_to_beta(OP, beta_pm)?;
     let production = pm_to_hashmap(OP, prod_pm)?;
 
@@ -346,7 +457,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     // a rounding error. Attributing the whole to alpha without measuring the parts is the
     // exact error that made the first phase census report a quarter of fire as the whole.
     let __oa = phase_start();
-    let alpha_pm = hashmap_to_pm(wm.alpha);
+    let alpha_pm = alpha_to_pm(wm.alpha);
     phase_end("  ├ out:alpha", __oa);
     let __ob = phase_start();
     let beta_pm = beta_to_pm(wm.beta);
@@ -524,14 +635,12 @@ fn explained_class_fqdn() -> Arc<String> {
     EXPLAINED_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Explained".to_string())).clone()
 }
 
-/// Build an `Element` record value.
-/// Element: `{ fact: :wat::core::Record, bindings: :wat::core::PersistentMap }` (positional).
-/// class_fqdn = "wat::rete::Element", struct_form = [fact, bindings_pm].
-fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        (*element_class_fqdn()).clone(),
-        Arc::new(vec![fact, Value::wat__core__PersistentMap(bindings)]),
-    )))
+/// Build a native `Element` — a fact paired with the bindings its alpha match produced.
+/// (Pre-nativise, this built the `wat::rete::Element` Value record directly; that body now
+/// lives in `native_element_to_value`, the encoder called at the one boundary — `to_persistent`
+/// — where an Element must actually become a Value.)
+fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> Element {
+    Element { fact, bindings }
 }
 
 /// Build a `Token` record value (retained for documentation; superseded by native `Token` in P11).
@@ -551,20 +660,13 @@ fn make_token(
     )))
 }
 
-/// Destructure an Element: (fact, bindings). Panics on malformed.
+/// Destructure an Element: (fact, bindings).
 /// Group C: returns borrows — no clone of the bindings map per match.
-fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, Value>) {
-    match el {
-        Value::Aggregate(a) if a.nature != Nature::Struct => {
-            let sf = a.fields.as_slice();
-            let bindings = match &sf[1] {
-                Value::wat__core__PersistentMap(m) => m,
-                _ => panic!("element_fact_bindings: bindings must be PersistentMap"),
-            };
-            (&sf[0], bindings)
-        }
-        _ => panic!("element_fact_bindings: not a Record"),
-    }
+/// A native `Element` cannot be malformed — the two `panic!` arms this used to have (for a
+/// non-Record Value or a non-PersistentMap bindings field) are gone; the one place a malformed
+/// Value could arrive is now `value_to_element`, which returns a `Result` like `value_to_token`.
+fn element_fact_bindings(el: &Element) -> (&Value, &rpds::HashTrieMapSync<Value, Value>) {
+    (&el.fact, &el.bindings)
 }
 
 /// Destructure a Value Token Record: (matches pv, bindings map). Panics on malformed.
@@ -786,7 +888,7 @@ fn extend_token(
 ///
 /// The join_keys (sorted intersection of token/element binding keys) are derived from the
 /// first element of each slice — callers must guarantee both slices are non-empty.
-fn keyed_join(left_tokens: &[Token], right_elements: &[Value], alpha_id: i64) -> Vec<Token> {
+fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) -> Vec<Token> {
     if left_tokens.is_empty() || right_elements.is_empty() {
         return vec![];
     }
@@ -1232,7 +1334,7 @@ fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -
 /// constraint (`DESIGN-STONE-gather-index-cache.md`).
 fn gather_join_keys(
     sample_bindings: &rpds::HashTrieMapSync<Value, Value>,
-    elements: &[Value],
+    elements: &[Element],
 ) -> Vec<Value> {
     if elements.is_empty() {
         return Vec::new();
@@ -1257,9 +1359,9 @@ fn gather_join_keys(
 type GatherIndex = HashMap<Vec<Value>, Vec<usize>>;
 
 /// Round-scoped cache: `(alpha_id, join_keys) -> (snapshot, index)`. The snapshot and its index
-/// travel together — buckets are indices into that specific `Vec<Value>`, not `wm.alpha` itself
+/// travel together — buckets are indices into that specific `Vec<Element>`, not `wm.alpha` itself
 /// (`DESIGN-STONE-gather-index-cache.md`).
-type GatherCache = HashMap<(i64, Vec<Value>), (Vec<Value>, GatherIndex)>;
+type GatherCache = HashMap<(i64, Vec<Value>), (Vec<Element>, GatherIndex)>;
 
 /// Build the bucket index over `elements` for a given `join_keys` tuple — the expensive half of
 /// `gather_index` (the full scan). Buckets hold element *indices* in iteration order, matching
@@ -1268,7 +1370,7 @@ type GatherCache = HashMap<(i64, Vec<Value>), (Vec<Value>, GatherIndex)>;
 /// Panics only via `key_of` if an element's bindings lack a derived join key — structurally
 /// impossible for a well-formed network (every element at one alpha node shares a binding
 /// key-set, the same guarantee `keyed_join` already rests on).
-fn build_gather_index(elements: &[Value], join_keys: &[Value]) -> GatherIndex {
+fn build_gather_index(elements: &[Element], join_keys: &[Value]) -> GatherIndex {
     let mut index: GatherIndex = HashMap::new();
     for (i, el) in elements.iter().enumerate() {
         let (_, el_bindings) = element_fact_bindings(el);
@@ -1283,7 +1385,7 @@ fn build_gather_index(elements: &[Value], join_keys: &[Value]) -> GatherIndex {
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
 /// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
 /// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-fn acc_var_i64(el: &Value, var: &Value) -> i64 {
+fn acc_var_i64(el: &Element, var: &Value) -> i64 {
     let (_, bindings) = element_fact_bindings(el);
     match bindings.get(var) {
         Some(Value::i64(n)) => *n,
@@ -1310,7 +1412,7 @@ fn acc_var_i64(el: &Value, var: &Value) -> i64 {
 ///
 /// Returns `Ok(Some(value))` on a produced aggregate, `Ok(None)` to drop the token (empty
 /// min/max/mean), `Err` if a custom fn's evaluation breaks.
-fn accumulate_value(acc_form: &WatAST, gathered: &[&Value], sym: &SymbolTable) -> Result<Option<Value>, EvalBreak> {
+fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable) -> Result<Option<Value>, EvalBreak> {
     // Head keyword name (e.g. ":wat::rete::acc::count").
     let items = match acc_form {
         WatAST::List(items, _) => items.as_slice(),
@@ -1771,7 +1873,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // right_idx[J]: key → Vec<Element> (all right elements seen so far for J)
     // join_keys[J]: the sorted shared-variable list (cached lazily on first use)
     let mut left_idx:  HashMap<i64, HashMap<Vec<Value>, Vec<Token>>> = HashMap::new();
-    let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Value>>> = HashMap::new();
+    let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Element>>> = HashMap::new();
     let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
 
     // P8 — alpha type-index, built ONCE: fact-type (colon-free) → [AlphaNode id], + cached cond AST.
@@ -1849,7 +1951,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // the remainder has a name instead of being inferred from a parent/child subtraction.
         let __pre = phase_start();
         // Per-round delta sets (new elements/tokens created THIS round).
-        let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
+        let mut d_alpha: HashMap<i64, Vec<Element>> = HashMap::new();
         let mut d_beta:  HashMap<i64, Vec<Token>> = HashMap::new();
 
         // Round-scoped gather-index cache, shared by the accumulate pass and the
@@ -2058,7 +2160,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // this round's new elements — the catch-up covers historical AND current-round facts.
                 if first_keying {
                     // Clone to avoid split-borrow conflicts with later wm.beta/d_beta mutations.
-                    let all_right: Vec<Value> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
+                    let all_right: Vec<Element> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
                     let all_left:  Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
                     // Build right_idx[J] from ALL cumulative right elements.
                     {
@@ -2102,7 +2204,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // Group C: borrow dl/dr slices — no Vec alloc per node per round.
                 // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
                 let dl: &[Token] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
-                let dr: &[Value] = d_alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or_default();
+                let dr: &[Element] = d_alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or_default();
 
                 // Skip if nothing new on either side.
                 if dl.is_empty() && dr.is_empty() {
@@ -2110,7 +2212,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 }
 
                 // Step 2: add Δright (dr) to right_idx[J] FIRST.
-                // dr is &[Value] — iterate directly (no extra borrow needed).
+                // dr is &[Element] — iterate directly (no extra borrow needed).
                 {
                     let ridx = right_idx.entry(*child_id).or_default();
                     for el in dr {
@@ -2227,7 +2329,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // Snapshot the FULL cumulative :from elements (empty vec if none — count/sum/etc.
                 // still emit their identity on empty, so we iterate parent tokens regardless).
                 let __sn = phase_start();
-                let elements: Vec<Value> = match wm.alpha.get(&from_alpha_id) {
+                let elements: Vec<Element> = match wm.alpha.get(&from_alpha_id) {
                     Some(els) => els.clone(),
                     None => vec![],
                 };
@@ -2248,7 +2350,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // Gather the token-compatible :from elements (shared ?var agreement), in
                 // alpha-memory insertion order (matches the wat foldl over from-els) — the
                 // bucket's indices were pushed in that same order.
-                let gathered: Vec<&Value> = bucket
+                let gathered: Vec<&Element> = bucket
                     .iter()
                     .map(|&i| &from_elements[i])
                     .filter(|el| {
@@ -2331,7 +2433,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 let cache_key = (alpha_id, join_keys.clone());
                 let (filter_elements, index) = gather_cache.entry(cache_key).or_insert_with(|| {
                     // Snapshot the full elements at alpha_id (empty vec if none inserted this fire).
-                    let elements: Vec<Value> = match wm.alpha.get(&alpha_id) {
+                    let elements: Vec<Element> = match wm.alpha.get(&alpha_id) {
                         Some(els) => els.clone(),
                         None => vec![],
                     };
