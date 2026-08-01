@@ -1681,6 +1681,47 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
+// ─── DESIGN-STONE-compiled-where Step 0: capture the filter loop's real inputs ────────────────
+//
+// The decomposition benchmark must time the EXACT values production hands the filter pass, not a
+// hand-fabricated stand-in — a probe that does not walk the substrate path production uses proves
+// nothing (`[[feedback_feasibility_probe_must_exercise_the_exact_mechanism]]`). So the loop hands
+// its first (predicate, parent-delta-tokens) pair to this slot, once, under `#[cfg(test)]`.
+
+/// What the filter loop hands Step 0: the TestNode's predicate, and the parent's new-this-round
+/// tokens (the vector `:2701` clones once per TestNode).
+#[cfg(test)]
+pub(crate) type WhereSample = (WatAST, Vec<Token>);
+
+#[cfg(test)]
+thread_local! {
+    /// Armed by [`with_where_sample`]; the OUTER `None` means "do not record" (the default
+    /// everywhere else), the inner one means "armed, nothing caught yet".
+    pub(crate) static WHERE_SAMPLE: std::cell::RefCell<Option<Option<WhereSample>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Record the filter loop's inputs, FIRST occurrence only (later TestNodes in the same round see
+/// the same parent delta by construction on a shared-prefix axis, and overwriting would make the
+/// captured sample depend on node iteration order).
+#[cfg(test)]
+fn capture_where_sample(expr: &WatAST, tokens: &[Token]) {
+    WHERE_SAMPLE.with(|c| {
+        if let Some(slot @ None) = c.borrow_mut().as_mut() {
+            *slot = Some((expr.clone(), tokens.to_vec()));
+        }
+    });
+}
+
+/// Run `f` with the filter-input capture armed, and return what it caught.
+#[cfg(test)]
+pub(crate) fn with_where_sample<R>(f: impl FnOnce() -> R) -> (R, Option<WhereSample>) {
+    let prior = WHERE_SAMPLE.with(|c| c.borrow_mut().replace(None));
+    let out = f();
+    let caught = WHERE_SAMPLE.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    (out, caught.flatten())
+}
+
 /// Run `f` with the per-round census enabled, and return what it recorded.
 ///
 /// Any previously-armed census is restored afterwards, so nesting cannot silently swallow an
@@ -2708,6 +2749,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     Value::wat__WatAST(ast) => (**ast).clone(),
                     _ => continue, // malformed TestNode: skip
                 };
+                // DESIGN-STONE-compiled-where Step 0 — capture the FIRST (expr, tokens) this loop
+                // handles, so the decomposition benchmark times the PRODUCTION inputs instead of a
+                // hand-fabricated stand-in (`feedback_feasibility_probe_must_exercise_the_exact_
+                // mechanism`). `#[cfg(test)]`, so production never pays the branch.
+                #[cfg(test)]
+                capture_where_sample(&expr, &new_tokens);
                 for tok in new_tokens {
                     // ★ THE COUNTERS THAT DECIDE THE FILTER STONE'S SHAPE (task #49).
                     //
@@ -4680,6 +4727,234 @@ mod tests {
         rows
     }
 
+
+    /// ★ STEP 0 of DESIGN-STONE-compiled-where — the DECOMPOSITION, before anything is built.
+    ///
+    /// The counters (`node_share_filter_eval_census`, below) proved the MECHANISM exactly: 10,000
+    /// `Environment` builds and 10,000 key allocations per fire at `[50 200]`, 98% of them for a
+    /// predicate about to fail. They say NOTHING about the SHARE — and a cost read is not a cost
+    /// measured (`[[feedback_measure_the_decomposition_never_read_it]]`, four wrong attributions in
+    /// one session doing exactly that).
+    ///
+    /// Two things the `filter` phase's 89.5% actually contains, unsplit until now:
+    ///   1. the per-TestNode `new_tokens = ts.clone()` (`:2701`) — on a SHARED-prefix axis every
+    ///      one of the N TestNodes has the same parent, so the same 200-token vector is cloned N
+    ///      times per round. NOT the predicate. (Task #50.)
+    ///   2. the predicate itself, which splits again into the env build and the `eval_inner` walk.
+    ///
+    /// So three arms, at ONE ROUND'S WORTH of work each so the numbers land on the same scale as
+    /// the 6.83 ms `filter` reading, **interleaved** — never blocks; a block-ordered A/B produced a
+    /// clean, disjoint, WRONG −7 ms on 2026-08-01 that a B-A-B drift check destroyed
+    /// (`[[feedback_a_benchmarks_shape_manufactures_its_result]]`).
+    ///
+    /// Inputs are the PRODUCTION values, captured out of a real fire — not fabricated.
+    ///
+    /// STOP-0 (in the stone): if `walk ≫ env`, the seam's gate (`env-builds → 0`) is a mechanism
+    /// win with no timing behind it and the stone's shape is wrong.
+    /// STOP-0b: if `clone` is comparable to `env + walk`, task #50 is a peer cost and cheaper.
+    #[test]
+    fn node_share_where_cost_decomposition() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const N: i64 = 50;
+        const M: i64 = 200;
+        const REPS: usize = 15;
+
+        // ── capture the real inputs out of a real fire ────────────────────────────────────────
+        let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("node-share world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {N})) {M}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, sample) = super::with_where_sample(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at N={N} M={M}: {e:?}"))
+                .value_owned()
+        });
+        let (expr, tokens) = sample.expect(
+            "the fire never reached a TestNode, so nothing was captured — every number below \
+             would be measuring a fabricated input, which is the one thing this probe exists to \
+             avoid",
+        );
+
+        // ── non-vacuity, BEFORE any timing ────────────────────────────────────────────────────
+        // A benchmark over an empty token vector or a zero-binding token would run fast and mean
+        // nothing. Assert the shape production actually produced, and that the predicate really
+        // evaluates (both verdicts must be reachable across the captured tokens: node-share's
+        // `i == k mod N` passes exactly one k in N).
+        let bindings_per_token = tokens[0].bindings.size();
+        assert!(
+            tokens.len() as i64 == M && bindings_per_token > 0,
+            "captured {} tokens with {bindings_per_token} bindings each; expected {M} tokens \
+             carrying at least one ?var — the capture did not see node-share's real parent delta",
+            tokens.len(),
+        );
+        let verdicts: Vec<bool> = tokens
+            .iter()
+            .map(|t| {
+                crate::rete::matcher::eval_test_core(
+                    &expr, &t.bindings, &Environment::new(), &world.symbols,
+                )
+                .expect("the captured predicate must evaluate on the captured bindings")
+            })
+            .collect();
+        let passes = verdicts.iter().filter(|b| **b).count();
+        assert!(
+            passes > 0 && passes < tokens.len(),
+            "captured predicate returned the SAME verdict for all {} tokens ({passes} passes) — \
+             a constant-folded predicate would make arm B's walk unrepresentative",
+            tokens.len(),
+        );
+
+        // ── the three arms, one round's worth each, interleaved ───────────────────────────────
+        // Arm A calls `build_test_env`, which IS the block `eval_test_core` runs — extracted, not
+        // copied, so the arm cannot drift from the path it claims to measure.
+        let evals_per_round = (N as usize) * tokens.len(); // 50 TestNodes x 200 tokens = 10,000
+        let mut a_ns: Vec<u128> = Vec::with_capacity(REPS);
+        let mut b_ns: Vec<u128> = Vec::with_capacity(REPS);
+        let mut c_ns: Vec<u128> = Vec::with_capacity(REPS);
+        let mut d_ns: Vec<u128> = Vec::with_capacity(REPS);
+        let mut e_ns: Vec<u128> = Vec::with_capacity(REPS);
+        let empty = Environment::new();
+
+        // Arm D's input — the SAME predicate with its two `?k` reads replaced by the literal they
+        // would resolve to. Identical node count, identical operators, ZERO name lookups: the
+        // identity control that separates "the interpreter's per-node dispatch" from "resolving a
+        // ?var through the Environment" inside the walk.
+        let const_src =
+            "(:wat::core::= 7 (:wat::core::i64::- 9 \
+               (:wat::core::i64::* (:wat::core::i64::/ 9 50) 50)))";
+        let const_expr = crate::parse_one!(const_src).expect("parse the var-free control predicate");
+        // The control must actually EVALUATE, or arm D measures an error path, not a walk.
+        assert!(
+            crate::rete::matcher::eval_test_core(
+                &const_expr, &tokens[0].bindings, &empty, &world.symbols,
+            )
+            .is_ok(),
+            "the var-free control predicate did not evaluate — arm D would be timing a failure"
+        );
+        // Arm E's key — the one binding node-share's predicate reads.
+        let k_key = tokens[0]
+            .bindings
+            .keys()
+            .next()
+            .cloned()
+            .expect("the captured token carries at least one binding (asserted above)");
+        for _ in 0..REPS {
+            // A — the env build alone.
+            let t = Instant::now();
+            for i in 0..evals_per_round {
+                let e = crate::rete::matcher::build_test_env(
+                    &tokens[i % tokens.len()].bindings, &empty,
+                );
+                black_box(&e);
+            }
+            a_ns.push(t.elapsed().as_nanos());
+
+            // B — the env build PLUS the eval_inner walk (the whole of `eval_test_core`).
+            let t = Instant::now();
+            for i in 0..evals_per_round {
+                let v = crate::rete::matcher::eval_test_core(
+                    &expr, &tokens[i % tokens.len()].bindings, &empty, &world.symbols,
+                );
+                black_box(&v);
+            }
+            b_ns.push(t.elapsed().as_nanos());
+
+            // C — the per-TestNode token clone: N clones of the parent's M-token delta.
+            let t = Instant::now();
+            for _ in 0..N {
+                let c: Vec<super::Token> = tokens.clone();
+                black_box(&c);
+            }
+            c_ns.push(t.elapsed().as_nanos());
+
+            // D — env build + walk of the VAR-FREE control (same nodes, no name lookups).
+            let t = Instant::now();
+            for i in 0..evals_per_round {
+                let v = crate::rete::matcher::eval_test_core(
+                    &const_expr, &tokens[i % tokens.len()].bindings, &empty, &world.symbols,
+                );
+                black_box(&v);
+            }
+            d_ns.push(t.elapsed().as_nanos());
+
+            // E — THE FLOOR. The same predicate as hand-written Rust against the same trie: one
+            // binding read, then the arithmetic. This is what a perfectly compiled IR could reach,
+            // so it BOUNDS the prize instead of leaving it to a prediction (and today's
+            // predictions have a bad record — `[[feedback_measure_the_decomposition_never_read_it]]`).
+            let t = Instant::now();
+            for i in 0..evals_per_round {
+                let bs = &tokens[i % tokens.len()].bindings;
+                let v = match bs.get(&k_key) {
+                    Some(Value::i64(k)) => 7 == k - (k / 50) * 50,
+                    _ => false,
+                };
+                black_box(v);
+            }
+            e_ns.push(t.elapsed().as_nanos());
+        }
+        let median = |mut v: Vec<u128>| -> f64 {
+            v.sort_unstable();
+            v[v.len() / 2] as f64
+        };
+        let a = median(a_ns);
+        let b = median(b_ns);
+        let c = median(c_ns);
+        let d = median(d_ns);
+        let e = median(e_ns);
+        let walk = b - a;
+        let walk_novars = d - a;
+        let lookups = walk - walk_novars;
+        // The measured `filter` phase this reconstructs (2026-08-01, node_share_fire_phase_census,
+        // [50 200]). Printed so the reconstruction can be CHECKED, not assumed: if B + C does not
+        // land near it, the harness is measuring something the fire does not do.
+        const FILTER_MS_MEASURED_IN_FIRE: f64 = 6.83;
+
+        println!(
+            "\nSTEP 0 — where-predicate cost decomposition, node-share [{N} {M}], \
+             ONE ROUND's worth per arm, {REPS} interleaved reps, medians\n\
+             \x20 captured from a real fire: 1 predicate x {} tokens x {bindings_per_token} \
+             binding(s); {passes}/{} pass\n\
+             \x20 ---------------------------------------------------------------------------\n\
+             \x20 A  env build alone         ({evals_per_round:>6} x)  {:>8.3} ms\n\
+             \x20 B  env build + walk        ({evals_per_round:>6} x)  {:>8.3} ms\n\
+             \x20 C  token clone             ({:>6} x)  {:>8.3} ms\n\
+             \x20 D  env + walk, VAR-FREE    ({evals_per_round:>6} x)  {:>8.3} ms\n\
+             \x20 E  hand-written Rust       ({evals_per_round:>6} x)  {:>8.3} ms   <- THE FLOOR\n\
+             \x20 ---------------------------------------------------------------------------\n\
+             \x20 the walk        B-A   {:>8.3} ms  {:>5.1}% of B   {:>6.1} ns/eval\n\
+             \x20   of which:\n\
+             \x20     ?var lookup (B-A)-(D-A)  {:>8.3} ms  {:>5.1}% of the walk\n\
+             \x20     node dispatch    D-A     {:>8.3} ms  {:>5.1}% of the walk\n\
+             \x20 the env build   A     {:>8.3} ms  {:>5.1}% of B   {:>6.1} ns/eval\n\
+             \x20 the token clone C     {:>8.3} ms\n\
+             \x20 ---------------------------------------------------------------------------\n\
+             \x20 RECONSTRUCTION  B+C = {:>6.3} ms  vs a measured `filter` of \
+             {FILTER_MS_MEASURED_IN_FIRE} ms  ({:>4.0}% accounted)\n\
+             \x20 HEADROOM        B-E = {:>6.3} ms is what a PERFECT compile could remove\n",
+            tokens.len(), tokens.len(),
+            a / 1e6, b / 1e6, N, c / 1e6, d / 1e6, e / 1e6,
+            walk / 1e6, 100.0 * walk / b, walk / evals_per_round as f64,
+            lookups / 1e6, 100.0 * lookups / walk,
+            walk_novars / 1e6, 100.0 * walk_novars / walk,
+            a / 1e6, 100.0 * a / b, a / evals_per_round as f64,
+            c / 1e6,
+            (b + c) / 1e6, 100.0 * ((b + c) / 1e6) / FILTER_MS_MEASURED_IN_FIRE,
+            (b - e) / 1e6,
+        );
+
+        // Non-vacuity on the INSTRUMENT itself: a zero reading means the optimiser removed the
+        // arm, and every share above would be an artifact.
+        assert!(
+            a > 0.0 && b > 0.0 && c > 0.0 && d > 0.0 && e > 0.0 && b > a && b > e,
+            "an arm measured zero, or the orderings that MUST hold do not — the loop was \
+             optimised away and the shares above are artifacts \
+             (A={a}ns B={b}ns C={c}ns D={d}ns E={e}ns)"
+        );
+    }
 
     /// ★ THE COUNTER THAT DECIDES TASK #49 — how many `where` evaluations, and how many PASS?
     ///

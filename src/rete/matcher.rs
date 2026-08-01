@@ -1070,22 +1070,26 @@ pub(crate) fn eval_step_payload(
 /// evaluates after a join in the fixtures exercised so far), but a `:test` clause may in
 /// principle sit right after a single condition (element-side), so the reader stays agnostic
 /// rather than assuming a representation.
-pub(crate) fn eval_test_core<B: Bindings>(
-    expr: &WatAST,
-    bindings: &B,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<bool, EvalBreak> {
-    const OP: &str = ":wat::rete::eval-test";
-
-    // Build a CHILD Environment binding each ?var → value.
-    // ★ COUNTED for DESIGN-STONE-compiled-where (task #49a). This block runs for EVERY token x
-    // EVERY TestNode — 10,000 times on node-share [50 200], of which 98% are about to FAIL — and
-    // each pass allocates a child Environment plus a fresh String per binding (`.to_string()` on
-    // a key that is FIXED at rule-compile time) plus a Value clone. Exactly the waste
-    // `compiled_cond` was built to remove from the alpha path: "two heap allocations rebuilding
-    // the constant binding key on every call, including every call that is about to fail."
-    // The compiled form pre-resolves ?vars to SLOTS at setup; this counter is what proves it.
+/// Build the CHILD `Environment` a `where` predicate is evaluated in — one binding per `?var` the
+/// token carries.
+///
+/// Extracted from [`eval_test_core`] (which is its only production caller) so that
+/// DESIGN-STONE-compiled-where's **Step 0** can time this block ALONE against the block plus the
+/// `eval_inner` walk, without duplicating it in a test where it would drift from the real path
+/// (`[[feedback_feasibility_probe_must_exercise_the_exact_mechanism]]` — a probe that does not walk
+/// the exact substrate path production uses proves nothing). Pure extraction: no behaviour change.
+///
+/// COUNTED, because this is the hot path: it runs for EVERY token × EVERY TestNode — 10,000 times
+/// on node-share `[50 200]`, of which 98% are about to FAIL — and each pass allocates a child
+/// `Environment` (`Arc<EnvCell>` + a `HashMap`) plus, per binding, a fresh `String` (`.to_string()`
+/// on a key FIXED at rule-compile time), a `Span`, and a `Value` clone. Exactly the waste
+/// `compiled_cond` was built to remove from the alpha path: *"two heap allocations rebuilding the
+/// constant binding key on every call, including every call that is about to fail."*
+///
+/// Measured (Step 0, 2026-08-01): **122.5 ns/eval — 22.7% of a `where` evaluation.** The other
+/// 77.3% is the `eval_inner` walk, which is why the stone is a full expression IR and not just
+/// this block.
+pub(crate) fn build_test_env<B: Bindings>(bindings: &B, env: &Environment) -> Environment {
     crate::rete::kernel::census_count("filter:test-env-builds");
     let mut b = env.child();
     for (k, v) in bindings.iter() {
@@ -1096,7 +1100,21 @@ pub(crate) fn eval_test_core<B: Bindings>(
         crate::rete::kernel::census_count("filter:test-key-alloc");
         b = b.bind_unknown_span(name, TrackedValue::from(v.clone()));
     }
-    let test_env = b.build();
+    b.build()
+}
+
+pub(crate) fn eval_test_core<B: Bindings>(
+    expr: &WatAST,
+    bindings: &B,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<bool, EvalBreak> {
+    const OP: &str = ":wat::rete::eval-test";
+
+    // Build a CHILD Environment binding each ?var → value. The cost this carries, and why
+    // DESIGN-STONE-compiled-where targets it, is documented on `build_test_env` itself — where
+    // Step 0's timing arm calls the same body, so the two cannot drift.
+    let test_env = build_test_env(bindings, env);
 
     // Evaluate the predicate expr in the test env; result MUST be bool.
     match crate::runtime::eval_inner(expr, &test_env, sym)?.value_owned() {

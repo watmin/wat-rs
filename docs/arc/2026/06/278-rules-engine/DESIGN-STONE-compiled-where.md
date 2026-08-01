@@ -86,6 +86,71 @@ first. Surface it; do not build the env fix and call it (a).
 cheaper* stone (hoist the clone out of the per-node loop — every TestNode with the same parent reads
 the same vector). Surface it and let the builder order the two.
 
+## ⚠ STEP 0 HAS RUN (2026-08-01) — **STOP-0 FIRED.** The gate was aimed at 23%; the walk is 77%
+
+`node_share_where_cost_decomposition`, node-share `[50 200]`, one round's worth per arm, 15
+**interleaved** reps, medians, inputs captured out of a **real fire** (1 predicate × 200 tokens ×
+1 binding; 4/200 pass). Load-gated, run under the memory guard, my own re-run:
+
+```
+  A  env build alone         ( 10000 x)     1.225 ms
+  B  env build + walk        ( 10000 x)     5.401 ms
+  C  token clone             (    50 x)     0.773 ms
+  D  env + walk, VAR-FREE    ( 10000 x)     4.339 ms      <- the identity control
+  E  hand-written Rust       ( 10000 x)     0.210 ms      <- THE FLOOR
+  ------------------------------------------------------------------------
+  the walk        B-A      4.177 ms   77.3% of B    417.7 ns/eval
+      ?var lookup    (B-A)-(D-A)   1.062 ms   25.4% of the walk
+      node dispatch  D-A           3.114 ms   74.6% of the walk
+  the env build   A        1.225 ms   22.7% of B    122.5 ns/eval
+  the token clone C        0.773 ms
+  ------------------------------------------------------------------------
+  RECONSTRUCTION  B+C = 6.175 ms  vs a measured `filter` of 6.83 ms  (90% accounted)
+  HEADROOM        B-E = 5.192 ms is what a PERFECT compile could remove
+```
+
+**The reconstruction is the load-bearing row.** Two arms measured out-of-fire account for 90% of the
+in-fire phase reading, so this is a decomposition of the real thing, not of a synthetic that
+resembles it.
+
+### What this CHANGES in this document
+
+- **The seam's gate was aimed at the smaller half.** `filter:test-env-builds → 0` removes arm A —
+  **1.225 ms, 22.7% of the predicate, 18% of the `filter` phase.** Real, but not the story.
+- **The story is the interpreter's per-node dispatch.** 540 ns/eval today against a **21 ns/eval
+  floor**; and the split inside the walk says the win is *not* mostly name lookup — dispatch is
+  74.6% of the walk, `?var` lookup 25.4%. So the half-measures are bounded: interning the keys plus
+  pre-resolving the vars captures at most (122 + 106) / 540 = **42%**. Only the full IR reaches the
+  floor.
+- **⇒ The stone is NOT the env fix. It is the full expression IR**, and the IR subsumes the env
+  build by construction (slots, no `Environment` at all). Everything below stands; what changes is
+  that `Op::Interp` is the *exception* arm, not a comfortable majority — and the gate gets a timing
+  row it can now state honestly (below).
+- **Task #50 (the token clone) is real and third-order** — 0.773 ms, 11% of the phase. Confirmed
+  NOT a peer cost (STOP-0b did not fire); it stays its own cheaper stone.
+
+### ★ AND IT INVERTS ONE CLAIM IN TASK #49 — (a) and (b) are SUBSTITUTES here, not complements
+
+`cost = evaluations × cost-per-evaluation` is true as a formula, and the task called the two attacks
+"independent and MULTIPLICATIVE." Measured, on this workload, they overlap almost entirely — because
+**either one alone drives the product to near-zero**:
+
+| | evaluations | ns/eval | filter's predicate cost | saves |
+|---|---|---|---|---|
+| today | 10,000 | 540 | 5.40 ms | — |
+| **(a) alone** — compile | 10,000 | ~21 | 0.21 ms | 5.19 ms |
+| **(b) alone** — index | 200 | 540 | 0.11 ms | 5.29 ms |
+| both | 200 | ~21 | 0.004 ms | 5.40 ms |
+
+**After (a), (b) is worth ~0.2 ms.** The ratified order still holds — it was ruled on *correctness*
+(land the semantically-inert stone first; (b) can suppress a raise that fires today), and that
+reasoning is untouched. But the *value* argument for doing both must be retired: the second one
+lands on almost nothing.
+
+**Bounded honestly (R60):** this is ONE axis, ONE predicate shape, and both sides of it are ours.
+A workload with an expensive predicate *and* a well-pruning join would make (a) matter and (b) not;
+node-share happens to be one where both attack the same mass. Do not generalize the substitution.
+
 ## The change — a compiled predicate, built where the TestNode is built
 
 Mirrors `compiled_cond.rs` exactly: a pre-resolved instruction sequence produced **once**, at the
@@ -154,9 +219,14 @@ IMMOTVM`, R22).
    (`cargo nextest run --release`, the Summary line, my own re-run).
 4. **Setup cost stays bounded** — compiling N predicates does not push `SETUP: indexes` past the
    budget the alpha-tree stone set.
-5. **NO timing row is claimed until Step 0 has run.** Per the amendment `compiled_cond` had to make
-   after the fact: a scorecard row demanding an improvement inside the noise is an unfalsifiable
-   claim. Step 0 decides whether a timing row is honest here, and what it should say.
+5. **The timing row, now that Step 0 has run and licenses one.** Unlike `compiled_cond` — whose
+   target was 1.2 ms of a 115 ms fire, where any scorecard row demanding an improvement would have
+   been unfalsifiable — the target here is **5.19 ms of a 6.83 ms phase**, measured, with a
+   **21 ns/eval floor** to score against. So the row is stated and it is falsifiable:
+   **`node_share_where_cost_decomposition`'s arm B must fall from ~540 ns/eval toward E's ~21, and
+   `filter` in `node_share_fire_phase_census` at `[50 200]` must fall materially from 6.83 ms.**
+   Re-run the decomposition after the strike — it is the same instrument, so before/after are
+   directly comparable. Interleave, gate on load, and never compare across batches.
 
 ## Out of scope = REJECTED (affirmative cuts)
 
