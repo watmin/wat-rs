@@ -55,3 +55,9 @@ pub(crate) mod alpha_tree;
 // the module doc's amendment note): `alpha_match_inner` remains the reference implementation and
 // the differential's other half; this is the mechanism that stops it being re-derived dynamically.
 pub(crate) mod compiled_cond;
+// DESIGN-STONE-compiled-rhs.md — compiles each rule's :then insert-form(s) ONCE at setup (beside
+// compiled_conds) into a pre-resolved {class, Vec<RhsOp>} program (no per-fact form re-validation,
+// no per-fact kwargs re-detection, no per-fact ?var key re-allocation). `build_insert_fact` remains
+// the reference implementation and the differential's other half; this is the mechanism that stops
+// the RHS's static program being re-derived dynamically.
+pub(crate) mod compiled_rhs;

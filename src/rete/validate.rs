@@ -83,6 +83,35 @@ pub enum ReteCheckErrorKind {
         expected: usize,
         got: usize,
     },
+    /// A `:then` insert's VALUE-position operand can never resolve at fire time, whatever the
+    /// bindings: a nested form, a `:field` keyword (a RHS has no current fact to read a field
+    /// from), or a bare non-`?` symbol. `resolve_operand` returns `None` for all three and
+    /// `build_insert_fact` then raises — but it raised *per derived fact, mid-fire*, for a
+    /// property of the RULE that no fact can change.
+    ///
+    /// This wall is arc 278's third statement of one ruling: a negation cycle is a compile error
+    /// (R18 `NEGATIO COMPLETVM POSCIT` — "the ill-defined program given no form"), a lying
+    /// `extend-type` is a compile error (R28 `SOLVIMVS NE MENTIRETVR`), and `()` stopped being a
+    /// value (arc 179) because a second spelling walks around every wall built on the first.
+    /// `validate_and_reorder_then` already checked the insert's SHAPE — head, fact type, field
+    /// names, positional arity — and stopped short of looking *inside* an argument, which is why
+    /// `(:Out (:wat::core::+ ?a 1))` passed `--check` with arity 1 == 1 field and then exploded
+    /// mid-fire.
+    ///
+    /// SCOPE, deliberately narrow: only operands that can NEVER resolve. An unbound `?var` is
+    /// equally a compile-time property but needs binder analysis over `:when` (an `Or` arm binds
+    /// conditionally, `exists` binds nothing outward, `accumulate` binds its result var) — and
+    /// under-collecting that set would reject LEGAL rules, which is the one failure a wall must
+    /// not have. Tracked separately; this variant carries no binder claim.
+    RhsUnresolvableOperand {
+        rule: String,
+        fact_type: String,
+        /// The offending operand, rendered as wat source (`render_form`) — never Rust `Debug`.
+        operand: String,
+        /// What a RHS operand may be, so the error teaches rather than merely refusing (R29
+        /// `RVINA ERVDIT`), mirroring `UnknownField`'s `available_fields`.
+        accepted: Vec<String>,
+    },
 }
 
 impl fmt::Display for ReteCheckErrorKind {
@@ -104,6 +133,12 @@ impl fmt::Display for ReteCheckErrorKind {
             ReteCheckErrorKind::RhsArityMismatch { rule, fact_type, expected, got } => write!(
                 f,
                 "defrule `{rule}`: `:then` insert of `:{fact_type}` expects {expected} positional argument(s); got {got}"
+            ),
+            ReteCheckErrorKind::RhsUnresolvableOperand { rule, fact_type, operand, accepted } => write!(
+                f,
+                "defrule `{rule}`: `:then` insert of `:{fact_type}` has operand `{operand}`, which can \
+                 never resolve at fire time — a RHS operand must be {}",
+                accepted.join(", or ")
             ),
         }
     }
@@ -542,6 +577,47 @@ fn malformed(span: Span, rule_name: &str, fact_type: &str, clause: &WatAST) -> R
 /// for a kwargs RHS, every `:field` name — then REWRITES the fact-form's args to declaration
 /// order in place (mutating `residue`, so `build_insert_fact` sees declaration order at fire
 /// time). A positional RHS is checked for arity only (unchanged shape; no rewrite needed).
+/// A `:then` value-position operand that can NEVER resolve at fire time — whatever the bindings.
+///
+/// Mirrors `resolve_operand`'s accepted set (`matcher.rs`) exactly, minus the `?var` case whose
+/// boundness this stone does not judge: a literal resolves, a `?var` MAY resolve, and everything
+/// else — a nested form, a `:field` keyword (a RHS has no current fact), a bare non-`?` symbol —
+/// resolves to `None` for every possible token. Purely syntactic, so it cannot reject a legal rule.
+fn rhs_operand_can_never_resolve(arg: &WatAST) -> bool {
+    !matches!(
+        arg,
+        WatAST::IntLit(_, _)
+            | WatAST::FloatLit(_, _)
+            | WatAST::BoolLit(_, _)
+            | WatAST::StringLit(_, _)
+    ) && !matches!(arg, WatAST::Symbol(ident, _) if ident.as_str().starts_with('?'))
+}
+
+/// Flag every value-position operand of a `:then` insert that can never resolve.
+fn check_rhs_operands(
+    value_args: &[WatAST],
+    rule_name: &str,
+    fact_type: &str,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    for arg in value_args {
+        if rhs_operand_can_never_resolve(arg) {
+            errors.push(ReteCheckError {
+                span: arg.span().clone(),
+                kind: ReteCheckErrorKind::RhsUnresolvableOperand {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.to_string(),
+                    operand: render_form(arg),
+                    accepted: vec![
+                        "a ?var bound by this rule's :when".to_string(),
+                        "an integer / float / boolean / string literal".to_string(),
+                    ],
+                },
+            });
+        }
+    }
+}
+
 fn validate_and_reorder_then(
     insert_form: &mut WatAST,
     rule_name: &str,
@@ -630,6 +706,11 @@ fn validate_and_reorder_then(
         if !all_known {
             return; // do not rewrite a form already flagged invalid
         }
+        // The wall, kwargs side. Checked BEFORE the reorder rewrites `fact_items` in place, so
+        // the operand reported is the one the author wrote, at the span they wrote it at.
+        let kwargs_values: Vec<WatAST> = kv_pairs.iter().map(|(_, v)| v.clone()).collect();
+        check_rhs_operands(&kwargs_values, rule_name, &fact_type, errors);
+
         let field_order: Vec<&str> = field_names.iter().map(|s| s.as_str()).collect();
         let kv_ref: Vec<(&str, WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
         match reorder_kwargs_by_field_name(&field_order, &kv_ref) {
@@ -651,6 +732,11 @@ fn validate_and_reorder_then(
             }
         }
     } else {
+        // The wall, positional side. Independent of the arity verdict below: a rule can be both
+        // wrong-arity AND carry an unresolvable operand, and batching every finding is this
+        // validator's whole contract (`validate_rete_rules` returns them all, not the first).
+        check_rhs_operands(args, rule_name, &fact_type, errors);
+
         // Positional: arg count must equal the type's field count.
         if args.len() != field_names.len() {
             errors.push(ReteCheckError {

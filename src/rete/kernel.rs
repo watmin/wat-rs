@@ -2144,6 +2144,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // Group B: rule_rhs_cache — hoisted BEFORE the round loop (rule-name → rhs WatAST forms).
     // Eliminates the O(rules) linear scan per production node per round.
     let mut rule_rhs_cache: HashMap<String, Vec<WatAST>> = HashMap::new();
+    // DESIGN-STONE-compiled-rhs.md — compile each rule's :then insert-form(s) ONCE here, from the
+    // SAME rhs forms `rule_rhs_cache` just extracted, parallel by index. `build_insert_fact`
+    // remains the sole authority on what an insert-form means; `compile_rhs` returning `None` for
+    // a given form (an entry left absent below) is a defensive per-FORM fallback to the
+    // interpreter, never a path a compilable rule's forms take.
+    let mut compiled_rhs_cache: HashMap<String, Vec<Option<crate::rete::compiled_rhs::CompiledRhs>>> =
+        HashMap::new();
     for r in &rules {
         if let Some((_, rsf)) = node_record(r) {
             let rname = match &rsf[0] { Value::String(s) => s.as_str(), _ => continue };
@@ -2153,6 +2160,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 }).collect(),
                 _ => vec![],
             };
+            let compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> =
+                rhs.iter().map(crate::rete::compiled_rhs::compile_rhs).collect();
+            compiled_rhs_cache.insert(rname.to_string(), compiled);
             rule_rhs_cache.insert(rname.to_string(), rhs);
         }
     }
@@ -2769,10 +2779,27 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             // insertions about to happen. Reserving it turns the ladder into one sized growth.
             seen.reserve(new_tokens.len().saturating_mul(rhs_forms.len()));
 
+            // DESIGN-STONE-compiled-rhs.md — the compiled program for this rule's :then forms,
+            // parallel by index to `rhs_forms`. `None` for the whole rule (no cache entry) or
+            // `None` per-form is the defensive fallback to `build_insert_fact`; see the comment
+            // where `compiled_rhs_cache` is built.
+            let compiled_rhs_forms = compiled_rhs_cache.get(rule_name);
+
             for tok in new_tokens {
-                for form in rhs_forms {
+                for (form_idx, form) in rhs_forms.iter().enumerate() {
                     // tok.bindings is native rpds — pass directly (no intermediate clone).
-                    let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
+                    let compiled = compiled_rhs_forms.and_then(|v| v.get(form_idx)).and_then(|o| o.as_ref());
+                    let derived = match compiled {
+                        Some(c) => {
+                            let __prhs = phase_start();
+                            let derived = crate::rete::compiled_rhs::exec_compiled_rhs(c, &tok.bindings)?;
+                            phase_end("  ├ prod:compiled-rhs", __prhs);
+                            derived
+                        }
+                        // Defensive fallback only — see the comment where `compiled_rhs_cache` is
+                        // built. `build_insert_fact`'s own four `prod:*` marks still fire here.
+                        None => crate::rete::matcher::build_insert_fact(form, &tok.bindings)?,
+                    };
                     // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
                     // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
                     // function. This mark brackets the dedup-and-store block. One pair per
@@ -5735,12 +5762,17 @@ mod tests {
   :then\n\
   (:wat::rete::insert (:tri::Trip ?k ?a ?b ?c)))\n";
 
-    /// Diagnostic — where the REMAINING key allocations live once the compiled alpha path is in.
+    /// Diagnostic — DESIGN-STONE-compiled-rhs.md's zero-allocation gate, not a positive count.
     ///
-    /// `match:key-alloc` is armed inside `matcher.rs`'s two `Value::String(Arc::new(...))` sites,
-    /// and the RHS (`build_insert_fact` -> `resolve_operand`) shares them with alpha matching. The
-    /// compiled executor never enters either, so on a fire with the compiled path live, **every
-    /// remaining count is the production pass** — no new instrumentation needed to size it.
+    /// `match:key-alloc` is armed inside `matcher.rs`'s two `Value::String(Arc::new(...))` sites
+    /// (alpha's `?v <- :field` and the RHS's `resolve_operand`). Alpha is compiled (arc 278
+    /// compiled-conditions), and as of this stone the RHS is too: `exec_compiled_rhs` walks a
+    /// pre-built `CompiledRhs` program and never re-allocates a `?var` key, so on a fire with BOTH
+    /// compiled paths live, `match:key-alloc` is expected to be EXACTLY ZERO — a fire that still
+    /// counted here would mean a form fell through to the `build_insert_fact` fallback. (This
+    /// mirrors `a8_node_share_fire_census`'s HOLD → PRODUCE re-point earlier the same day: the
+    /// property this test proves changed, so the assertion had to be re-pointed rather than left
+    /// to keep passing on a claim it no longer supports.)
     #[test]
     fn fanout_rhs_key_alloc_census() {
         let world =
@@ -5757,18 +5789,37 @@ mod tests {
         let get = |n: &str| rows.iter().find(|(k, _)| *k == n).map(|(_, c)| *c).unwrap_or(0);
         let table = format!(
             "\n  FANOUT RHS ALLOCATION CENSUS — keys=100 x fanout=20, 40,000 derived Pairs\n\
-             \n  match:key-alloc (ALL of it the RHS, alpha is compiled)  {:>10}\n\
+             \n  match:key-alloc (RHS + alpha, both compiled — expect 0)  {:>10}\n\
              \x20 per derived fact                                       {:>10.2}\n\
-             \x20 match:calls (interpreter entries — expect 0)           {:>10}\n",
+             \x20 match:calls (interpreter entries — expect 0)           {:>10}\n\
+             \x20 prod:derivations (non-vacuity guard — expect 40,000)   {:>10}\n",
             get("match:key-alloc"),
             get("match:key-alloc") as f64 / 40_000.0,
             get("match:calls"),
+            get("prod:derivations"),
         );
         println!("{table}");
-        assert!(
-            get("match:key-alloc") > 0,
-            "no key allocations counted — the counter never fired, so any conclusion drawn from a \
-             zero here would be an artifact.{table}"
+        // Arc 278 DESIGN-STONE-compiled-rhs.md — this stone makes ZERO the correct answer (the
+        // compiled RHS rebuilds no `?var` key), so the pre-stone ">0" assertion INVERTS rather
+        // than simply strengthens. Re-pointed, not weakened: exactly 0 proves no form fell
+        // through to the `build_insert_fact` fallback, AND `prod:derivations == 40_000` is kept
+        // as a non-vacuity guard — a fire that never ran would also read 0 key allocations, and
+        // without this second assertion that dead-fire zero would be indistinguishable from the
+        // proof this test exists to make.
+        assert_eq!(
+            get("match:key-alloc"),
+            0,
+            "expected ZERO key allocations — the compiled RHS pre-builds every ?var key at rule \
+             setup and never reallocates one per fact; a nonzero count means some :then form fell \
+             through to the build_insert_fact fallback.{table}"
+        );
+        assert_eq!(
+            get("prod:derivations"),
+            40_000,
+            "non-vacuity guard: expected exactly 40,000 derivations (the fanout cell's documented \
+             size) — a count other than this means the key-alloc==0 reading above cannot be \
+             trusted as proof of the compiled path (it could equally be an artifact of a fire that \
+             never ran).{table}"
         );
     }
 

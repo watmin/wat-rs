@@ -1,0 +1,15 @@
+;; NEGATIVE FIXTURE — must FAIL `--check`. Arc 278, the :then operand wall.
+;;
+;; `(:wat::core::+ ?a 1)` in a :then value position can never resolve at fire time:
+;; `resolve_operand` accepts a literal or a `?var`, and returns None for a nested form.
+;; Before the wall this file type-checked CLEAN (arity 1 == :Out's 1 field, and nobody
+;; looked inside the argument) and then raised mid-fire, per derived fact, with a Rust
+;; `Debug` dump of the AST as its diagnostic.
+(:wat::core::defrecord :nf::In  [a <- :wat::core::i64])
+(:wat::core::defrecord :nf::Out [a <- :wat::core::i64])
+
+(:wat::rete::defrule :nf::compute
+  :when  [(:nf::In (?a <- :a))]
+  :then  (:wat::rete::insert (:nf::Out (:wat::core::+ ?a 1))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

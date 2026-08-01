@@ -386,7 +386,7 @@ mod rete_wall_probe {
     //!
     //! Arc 294 item 9a — the wall landed (`crate::rete::validate::validate_rete_rules`, hooked
     //! in `build_env` step 7.8, below). This probe's fixture is now a CORRECT rule: with the
-    //! wall live, `build_env` itself raises `StartupError::Rete(..)` on the 9a codemod's
+    //! wall live, `build_env` itself raises `StartupError::Validator(..)` (the rete wall registers through the generic freeze-validator hook; there is no `Rete` variant) on the 9a codemod's
     //! injected-keyword corruption this probe originally carried — a corrupt fixture here would
     //! make `build_env` fail, defeating the reachability assertions this probe exists to prove.
     //! The corruption-is-caught proof now lives in `src/rete/validate.rs`'s own test module
