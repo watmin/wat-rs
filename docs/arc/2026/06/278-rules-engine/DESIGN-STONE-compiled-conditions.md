@@ -75,6 +75,65 @@ ruling and not this stone's to make (`feedback_no_consumers_does_not_mean_dead`)
 forms alongside the tree at setup; call the executor from step 1). **Nothing under `wat/`** — the
 oracle does not move, and stays naive by ruling.
 
+## ⚠ AMENDED 2026-08-01 — the perf case COLLAPSED; the stone stands on correctness
+
+Everything above about the MECHANISM is unchanged and still grounded. The SIZING is not: this
+document was written before the alpha discrimination tree landed, and its origin cites an
+`alpha:match` of 117 ms that no longer exists.
+
+Post-tree, measured (`fanout_per_call_alpha_census`, R4's 40,000-pair cell, `D=1` — the shape where
+the tree buys nothing and every millisecond is per-CALL cost):
+
+```
+  ROUND LOOP          82.751 ms
+    production        37.407 ms     32% of the fire
+    hash-join         31.585 ms     27%
+    alpha              4.057 ms
+      alpha:match      1.211 ms      1.1%   <-- everything this stone targets
+  OUT: to_persistent  31.525 ms     27%
+  fire             ~ 115.19 ms
+```
+
+I had extrapolated ~11 ms from the cascade's per-fact rate. **Actual: 1.211 ms — wrong by ~10x, in
+the direction that favoured building it.** The census also says WHY: fanout derives 40,000 `Pair`
+facts, `Pair` appears in no condition, so `alpha_by_type.get` returns `None` and those facts
+`continue` before any per-call cost. The TYPE TIER already discards ~91% of the facts for free; my
+extrapolation assumed every fact walks the match path.
+
+**So there is no workload on the nine-axis board where this is worth a strike on perf grounds.**
+Eliminating the target entirely buys ~1% fact-heavy, ~5% on the cascade.
+
+### Why it is built anyway (the builder's ruling, 2026-08-01)
+
+> *"i say we build the thing we speced out - prove the shape - we will need this shape of solution
+> later... i do not wish to abandon a solution we have repeatedly asserted is resolving a problem
+> that is described as WRONG, NOT SLOW."*
+
+Three reasons, none of them a percentage:
+
+1. **It is wrong, not slow.** The condition AST is immutable from compile onward; re-deriving the
+   program from it on every fact is a defect whose cost share happens to have dropped. A class does
+   not become correct because something else got faster
+   (`feedback_choose_correct_not_cheap_difficulty_is_not_a_design_axis`).
+2. **Allocation pressure is a threat to a property we CLAIM.** R2 sells "no GC, so the tail is
+   jitter-free by construction" as a structural edge over Clara, and the tail is what the DDoS case
+   actually needs. ~1M heap allocations per fire rebuilding the constant `"?l"` is the most obvious
+   remaining threat to a measured CV of 3.5%. That argument never depended on CPU share.
+3. **The shape is needed for the regime we are building toward.** The workload where this pays is
+   many facts each reaching many conditions — every packet against thousands of rules, i.e. R25's
+   chaos engine. That axis does not exist yet. Proving partial evaluation on a small, understood
+   surface now is cheaper and safer than discovering it at 1M rules under load.
+
+### What the amendment CHANGES in this document
+
+- **The gate below is re-based on COUNTERS, not timing.** A move from 1.211 ms to ~0.4 ms on a
+  115 ms fire is inside the noise; a scorecard row reading "alpha:match falls materially" would be
+  unfalsifiable. The mechanism is provable exactly (allocations on the failure path go to zero) and
+  that is what gets gated.
+- **The `TOTAL (nested phases)` figure in any table quoted here is suspect.** The census probe's
+  first draft summed indented rows as its denominator and printed shares totalling 209.3%; fixed to
+  divide by the top-level phases. Millisecond figures were always sound; the percentages were not.
+
 ## The gate
 
 1. **The differential, on bindings — not on a boolean.** Over a corpus of (condition, fact) pairs
@@ -83,9 +142,10 @@ oracle does not move, and stays naive by ruling.
    comparison that ignores the bindings would pass while producing wrong joins downstream.
 2. **Zero allocation on the failure path**, asserted via the existing `census_count` counters — not
    inferred from a timing improvement.
-3. **`alpha:match` falls in BOTH columns** of `a0_depth_cost_split_at_equal_work`. This stone is
-   per-call, so unlike the tree it must improve the shallow column too. If only the deep column
-   moves, something depth-shaped is being measured instead.
+3. **`alpha:match` does not REGRESS in either column** of `a0_depth_cost_split_at_equal_work`, and
+   does not regress in `fanout_per_call_alpha_census`. Per the amendment this is a no-harm row, NOT
+   a win row: the target is 1.211 ms of a 115 ms fire, so any improvement is inside the noise and a
+   scorecard that demanded one would be demanding an unfalsifiable claim.
 4. **Setup cost stays bounded** — compilation does not push `SETUP: indexes` past the budget the tree
    stone set.
 5. **`:accuracy :match` on every grid axis, and the release floor unchanged.**

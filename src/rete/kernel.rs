@@ -5253,6 +5253,92 @@ mod tests {
     /// session's own network, and builds the `AlphaTree` from that index. Returns everything a
     /// caller needs to compare the tree's candidate set against the matcher's true set, fact by
     /// fact, without re-firing or diverging from what actually ran.
+    // ── The fact-heavy, rule-LIGHT census (arc 278, 2026-08-01) ───────────────────────────────
+    //
+    // The depth-split probe answers "what does DEPTH cost" on a rule-heavy cascade. This one
+    // answers the complementary question the compiled-conditions stone needs: what does a match
+    // cost PER FACT when the discrimination tree buys nothing?
+    //
+    // Fanout is that shape — ONE rule, two conditions, two fact types, so D=1 per type and the
+    // tree has nothing to prune. Every millisecond in `alpha:match` here is per-CALL cost, not
+    // per-candidate: the redundant head compare, `classify_rete_clause` on a static AST, the
+    // linear field-name scan, and the two heap allocations that rebuild a constant binding key.
+    //
+    // Sizing the stone off the CASCADE's per-fact rate would be extrapolating across workload
+    // shapes, which is the error that has cost this arc twice today. Measure the shape you mean.
+
+    const FANOUT_CENSUS_WORLD: &str = "\
+(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])\n\
+(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])\n\
+(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left :key k :lid f)) (:fan::Right :key k :rid f)))\n\
+    s\n\
+    (:wat::core::range 0 fanout)))\n\
+\n\
+(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:fan::seed-key acc k fanout))\n\
+    s\n\
+    (:wat::core::range 0 keys)))\n\
+\n\
+(:wat::rete::defrule :fan::fan-rule\n\
+  :when\n\
+  [(:fan::Left  (?k <- :key) (?l <- :lid))\n\
+   (:fan::Right (?k <- :key) (?r <- :rid))]\n\
+  :then\n\
+  (:wat::rete::insert (:fan::Pair ?k ?l ?r)))\n";
+
+    /// Diagnostic — per-CALL alpha cost on a rule-light, fact-heavy workload (`D=1`).
+    ///
+    /// `keys=100, fanout=20` is R4's exact 40,000-derived-pair cell. Prints the phase split so the
+    /// compiled-conditions stone can size its scorecard from a measurement of the shape it targets
+    /// instead of from the cascade's per-fact rate.
+    #[test]
+    fn fanout_per_call_alpha_census() {
+        let world =
+            startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
+                .expect("fanout census world should freeze");
+        let src = "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
+                   (:wat::rete::collect-rules :fan)) 100 20))";
+        let ast = crate::parse_one!(src).expect("parse the fire driver");
+        let (_fired, rows) = super::with_phase_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fanout census fire raised: {e:?}"))
+                .value_owned()
+        });
+
+        // The denominator is the sum of the TOP-LEVEL phases (ROUND LOOP / OUT / SETUP / IN) —
+        // i.e. the whole fire. Summing the INDENTED rows instead double-counts, because a nested
+        // row is a component of its parent: the first draft of this table printed shares totalling
+        // 209.3%, which is how the bug announced itself. Nested rows are shares OF THE FIRE.
+        let fire: u64 = rows.iter().filter(|(n, _)| !n.starts_with(' ')).map(|(_, ns)| *ns).sum();
+        let mut table = String::from(
+            "\n  FANOUT PER-CALL CENSUS — keys=100 x fanout=20 (R4's 40,000-pair cell), D=1\n\
+             \n  phase                                 ms   % of fire\n\
+             \x20 ------------------------------------------------------\n",
+        );
+        for (n, ns) in &rows {
+            table.push_str(&format!(
+                "  {n:<32} {:>8.3} {:>10.1}%\n",
+                *ns as f64 / 1e6,
+                if fire > 0 { *ns as f64 * 100.0 / fire as f64 } else { 0.0 }
+            ));
+        }
+        table.push_str(&format!(
+            "  {:<32} {:>8.3}     100.0%\n",
+            "THE FIRE (top-level phases)",
+            fire as f64 / 1e6
+        ));
+        let total = fire;
+        println!("{table}");
+        assert!(total > 0, "the phase census recorded nothing.{table}");
+    }
+
     ///
     /// Returned as a NAMED struct rather than a 5-tuple: clippy's `type_complexity` flagged the
     /// tuple, and an alias would have quieted the signature while leaving both call sites
