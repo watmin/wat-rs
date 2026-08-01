@@ -2597,25 +2597,42 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 _ => continue,
             };
 
+            // `seen` grows by one entry per NEW derived fact, and hashbrown stores only 7-bit
+            // control tags — it RE-HASHES every element on every resize. Left to the doubling
+            // ladder, growing this set from the input facts to the full derived set costs ~1.75
+            // extra full `Value` hashes per derivation (measured: ~200 ns/derivation on the
+            // 40,000-pair fanout cell, against ~121 ns for a single aggregate hash).
+            //
+            // The count is not a guess and needs no tuning: the two loops below run exactly
+            // `new_tokens.len() * rhs_forms.len()` times, so that is an exact upper bound on the
+            // insertions about to happen. Reserving it turns the ladder into one sized growth.
+            seen.reserve(new_tokens.len().saturating_mul(rhs_forms.len()));
+
             for tok in new_tokens {
                 for form in rhs_forms {
                     // tok.bindings is native rpds — pass directly (no intermediate clone).
                     let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
                     // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
                     // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
-                    // function. This mark brackets the dedup-and-store block: two full-aggregate
-                    // hashes (`contains` then `insert`) plus three Arc clones into three maps, per
-                    // derivation. One pair per derivation, same tax as the four inside — so these
-                    // five are comparable to each other.
+                    // function. This mark brackets the dedup-and-store block. One pair per
+                    // derivation, same tax as the four inside — so these five are comparable to
+                    // each other and to nothing else.
+                    //
+                    // It used to cost two full-aggregate hashes per derivation (`contains`, then
+                    // `insert`) on top of the resize ladder; both are gone — `insert` alone reports
+                    // newness, and the reserve above sizes the set once. Measured on the
+                    // 40,000-pair fanout cell, 3 runs each: 610 -> 489 (kill the second hash)
+                    // -> 244 (reserve) ns per derivation, ranges disjoint at every step.
+                    // ~120-165 ns of what remains is this mark pair itself, so the block is at
+                    // the instrument's resolution — measure something else before cutting here.
                     let __pd = phase_start();
                     census_count("prod:derivations");
                     // Dedup + termination guard: only propagate truly new facts.
-                    if !seen.contains(&derived) {
+                    if seen.insert(derived.clone()) {
                         // P12a: record the support index (first-producer-wins; or_insert_with).
                         if let Some(ref mut idx) = support {
                             idx.entry(derived.clone()).or_insert_with(|| (rule_name.to_string(), tok.clone()));
                         }
-                        seen.insert(derived.clone());
                         wm.production.entry(*node_id).or_default().push(derived.clone());
                         next_delta.push(derived);
                     }
