@@ -884,7 +884,7 @@ fn token_element_compatible(
 }
 
 /// `extend-token` — merge an Element's fact and bindings into a native `Token`.
-/// matches: push `(el_fact, alpha_id)` onto a cloned Vec.
+/// matches: build a `len + 1` Vec from the token's edges plus `(el_fact, alpha_id)`.
 /// bindings: fold element.bindings into token.bindings (assoc each; shared vars are idempotent).
 /// Mirrors `wat/rete.wat:682-702`.
 fn extend_token(
@@ -893,8 +893,11 @@ fn extend_token(
     el_bindings: &Arc<[(Value, Value)]>,
     alpha_id: i64,
 ) -> Token {
-    // Clone the matches Vec and push the new edge.
-    let mut new_matches = tok.matches.clone();
+    // Size the matches Vec for its FINAL length up front. `tok.matches.clone()` allocates a
+    // capacity of exactly `len`, so the subsequent `push` always reallocs and memcpys — two
+    // allocations and a copy per extended token, on the hottest path in the join.
+    let mut new_matches = Vec::with_capacity(tok.matches.len() + 1);
+    new_matches.extend_from_slice(&tok.matches);
     new_matches.push((el_fact.clone(), alpha_id));
     // Fold element bindings into a clone of token bindings (idempotent skip for shared join-keys).
     let mut new_bindings = tok.bindings.clone();
