@@ -1769,17 +1769,17 @@ thread_local! {
 
 #[cfg(test)]
 #[inline]
-fn phase_start() -> PhaseMark {
+pub(crate) fn phase_start() -> PhaseMark {
     std::time::Instant::now()
 }
 
 #[cfg(not(test))]
 #[inline(always)]
-fn phase_start() -> PhaseMark { PhaseMark }
+pub(crate) fn phase_start() -> PhaseMark { PhaseMark }
 
 #[cfg(test)]
 #[inline]
-fn phase_end(name: &'static str, t: PhaseMark) {
+pub(crate) fn phase_end(name: &'static str, t: PhaseMark) {
     let ns = t.elapsed().as_nanos() as u64;
     PHASE_NANOS.with(|c| {
         if let Some(m) = c.borrow_mut().as_mut() {
@@ -1790,7 +1790,7 @@ fn phase_end(name: &'static str, t: PhaseMark) {
 
 #[cfg(not(test))]
 #[inline(always)]
-fn phase_end(_name: &'static str, _t: PhaseMark) {}
+pub(crate) fn phase_end(_name: &'static str, _t: PhaseMark) {}
 
 // ── Operation counters (for granularity where a TIMER would measure mostly itself) ──────────
 //
@@ -2601,6 +2601,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 for form in rhs_forms {
                     // tok.bindings is native rpds — pass directly (no intermediate clone).
                     let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
+                    // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
+                    // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
+                    // function. This mark brackets the dedup-and-store block: two full-aggregate
+                    // hashes (`contains` then `insert`) plus three Arc clones into three maps, per
+                    // derivation. One pair per derivation, same tax as the four inside — so these
+                    // five are comparable to each other.
+                    let __pd = phase_start();
+                    census_count("prod:derivations");
                     // Dedup + termination guard: only propagate truly new facts.
                     if !seen.contains(&derived) {
                         // P12a: record the support index (first-producer-wins; or_insert_with).
@@ -2611,6 +2619,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         wm.production.entry(*node_id).or_default().push(derived.clone());
                         next_delta.push(derived);
                     }
+                    phase_end("  ├ prod:dedup-store", __pd);
                 }
             }
         }
@@ -5326,6 +5335,43 @@ mod tests {
    (:fan::Right (?k <- :key) (?r <- :rid))]\n\
   :then\n\
   (:wat::rete::insert (:fan::Pair ?k ?l ?r)))\n";
+
+    /// Diagnostic — where the REMAINING key allocations live once the compiled alpha path is in.
+    ///
+    /// `match:key-alloc` is armed inside `matcher.rs`'s two `Value::String(Arc::new(...))` sites,
+    /// and the RHS (`build_insert_fact` -> `resolve_operand`) shares them with alpha matching. The
+    /// compiled executor never enters either, so on a fire with the compiled path live, **every
+    /// remaining count is the production pass** — no new instrumentation needed to size it.
+    #[test]
+    fn fanout_rhs_key_alloc_census() {
+        let world =
+            startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
+                .expect("fanout census world should freeze");
+        let src = "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
+                   (:wat::rete::collect-rules :fan)) 100 20))";
+        let ast = crate::parse_one!(src).expect("parse the fire driver");
+        let (_fired, rows) = super::with_count_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fanout count census fire raised: {e:?}"))
+                .value_owned()
+        });
+        let get = |n: &str| rows.iter().find(|(k, _)| *k == n).map(|(_, c)| *c).unwrap_or(0);
+        let table = format!(
+            "\n  FANOUT RHS ALLOCATION CENSUS — keys=100 x fanout=20, 40,000 derived Pairs\n\
+             \n  match:key-alloc (ALL of it the RHS, alpha is compiled)  {:>10}\n\
+             \x20 per derived fact                                       {:>10.2}\n\
+             \x20 match:calls (interpreter entries — expect 0)           {:>10}\n",
+            get("match:key-alloc"),
+            get("match:key-alloc") as f64 / 40_000.0,
+            get("match:calls"),
+        );
+        println!("{table}");
+        assert!(
+            get("match:key-alloc") > 0,
+            "no key allocations counted — the counter never fired, so any conclusion drawn from a \
+             zero here would be an artifact.{table}"
+        );
+    }
 
     /// Diagnostic — per-CALL alpha cost on a rule-light, fact-heavy workload (`D=1`).
     ///

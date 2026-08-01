@@ -556,6 +556,12 @@ pub(crate) fn build_insert_fact(
     bindings: &rpds::HashTrieMapSync<Value, Value>,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
+    // Arc 278 — splitting the production pass (34.9ms, 34% of a fact-heavy fire) into its parts
+    // BEFORE drawing a stone against it. Coarse marks only (~52ns/pair x 4 x 40,000 derived facts):
+    // read as PROPORTIONS, and read the enclosing `production` total against its un-instrumented
+    // 34.963ms to see the tax. Allocation COUNTS use counters (~1-2ns) — the house method for a
+    // level where a timer would tax the thing it measures.
+    let __pv = crate::rete::kernel::phase_start();
 
     // Validate the insert form: must be a List `(:wat::rete::insert <fact-form>)`.
     // Borrow (do NOT clone) — this runs once per derived fact; cloning the form AST per fact was
@@ -615,7 +621,12 @@ pub(crate) fn build_insert_fact(
         }
     };
     // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
+    // A String allocated per derived fact for a class name fixed at compile time — NOT counted by
+    // `match:key-alloc`, which arms only the two resolve_operand sites.
+    crate::rete::kernel::census_count("prod:class-alloc");
     let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
+    crate::rete::kernel::phase_end("  ├ prod:validate", __pv);
+    let __ps = crate::rete::kernel::phase_start();
 
     // Arc 294 item 9a — a defrule :then RHS fact-form may be written in KWARGS form
     // `(:Type :field1 v1 :field2 v2)` (the flip's encouraged form, symmetric with the
@@ -636,7 +647,10 @@ pub(crate) fn build_insert_fact(
     };
     // Resolve each value via resolve_operand with empty fact-fields/names.
     // RHS has no current fact — only ?var + literal resolve; None → malformed rule.
+    crate::rete::kernel::census_count_n("prod:vec-alloc", 2); // value_asts + fields
     let mut fields: Vec<Value> = Vec::with_capacity(value_asts.len());
+    crate::rete::kernel::phase_end("  ├ prod:shape", __ps);
+    let __pr = crate::rete::kernel::phase_start();
     for arg in value_asts {
         match resolve_operand(arg, &[], &[], bindings) {
             Some(v) => fields.push(v),
@@ -650,7 +664,12 @@ pub(crate) fn build_insert_fact(
         }
     }
 
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
+    crate::rete::kernel::phase_end("  ├ prod:resolve", __pr);
+    let __pc = crate::rete::kernel::phase_start();
+    crate::rete::kernel::census_count_n("prod:record-alloc", 2); // AggregateValue + the fields Arc
+    let out = Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields))));
+    crate::rete::kernel::phase_end("  ├ prod:construct", __pc);
+    Ok(out)
 }
 
 /// `(:wat::rete::eval-insert <insert-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
