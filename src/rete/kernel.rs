@@ -4552,6 +4552,161 @@ mod tests {
         rows
     }
 
+
+    /// Render an instrument-subtracted phase table for ANY axis.
+    ///
+    /// Extracted 2026-08-01 when node-share needed the same table accum already had. Copying it
+    /// would have put the instrument-subtraction arithmetic in two places, and the whole reason
+    /// that arithmetic exists is that a table which misreports its own instrument is worse than no
+    /// table — two copies is how one of them silently stops subtracting.
+    ///
+    /// `census(a, b)` fires the axis at that size and returns (phase, ns, mark-pairs-fired).
+    /// `facts(a, b)` is the fact count for the header. `top` partitions the fire (summing a parent
+    /// with its children is what made an earlier version of this table report 124% coverage).
+    fn render_phase_table(
+        label: &str,
+        sizes: &[(i64, i64)],
+        top: &[&'static str],
+        required: &[&'static str],
+        facts: impl Fn(i64, i64) -> i64,
+        census: impl Fn(i64, i64) -> Vec<(&'static str, u64, u64)>,
+    ) -> String {
+        const CAL_N: u64 = 200_000;
+        let cal_t0 = std::time::Instant::now();
+        super::with_phase_census(|| {
+            for _ in 0..CAL_N {
+                let m = super::phase_start();
+                super::phase_end("cal", m);
+            }
+        });
+        let cal_ns_per_pair = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+        const RUNS: usize = 3;
+
+        let mut table = format!(
+            "\n{label} — per-phase split (native fire-rules only), mean of {RUNS} runs\n\
+             instrument: ~{cal_ns_per_pair:.1} ns per mark pair; `net` = raw MINUS this row's own \
+             pairs. PARENT rows still contain their children's share.\n"
+        );
+        for &(a, b) in sizes {
+            let mut samples: std::collections::HashMap<&'static str, Vec<u64>> =
+                std::collections::HashMap::new();
+            let mut pairs: std::collections::HashMap<&'static str, u64> =
+                std::collections::HashMap::new();
+            let mut order: Vec<&'static str> = Vec::new();
+            for _ in 0..RUNS {
+                let rows = census(a, b);
+                assert!(!rows.is_empty(), "{label}: census recorded NOTHING at {a}/{b}");
+                for (name, ns, k) in rows {
+                    if !samples.contains_key(name) { order.push(name); }
+                    samples.entry(name).or_default().push(ns);
+                    pairs.insert(name, k);
+                }
+            }
+            let missing: Vec<&str> =
+                required.iter().copied().filter(|p| !samples.contains_key(p)).collect();
+            assert!(missing.is_empty(), "{label}: phase(s) {missing:?} never recorded at {a}/{b}");
+
+            let stat = |xs: &[u64]| -> (f64, u64, u64) {
+                let sum: u64 = xs.iter().sum();
+                (sum as f64 / xs.len() as f64,
+                 *xs.iter().min().expect("non-empty"),
+                 *xs.iter().max().expect("non-empty"))
+            };
+            let net_of = |k: &str, xs: &[u64]| -> f64 {
+                stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair
+            };
+            let total_mean: f64 =
+                top.iter().filter_map(|k| samples.get(k).map(|xs| stat(xs).0)).sum();
+            assert!(total_mean > 0.0, "{label}: phase total is zero at {a}/{b}");
+            let total_net: f64 =
+                top.iter().filter_map(|k| samples.get(k).map(|xs| net_of(k, xs))).sum();
+            let instrument: f64 = pairs.values().map(|k| *k as f64 * cal_ns_per_pair).sum();
+
+            table.push_str(&format!(
+                "\n  {a}/{b}  ({} facts)   FIRE {:.2} ms raw / {:.2} net   \
+                 instrument {:.2} ms across {} pairs\n",
+                facts(a, b), total_mean / 1e6, total_net / 1e6,
+                instrument / 1e6, pairs.values().sum::<u64>(),
+            ));
+            for phase in &order {
+                if *phase == "WHOLE EVAL (compile+seed+fire)" { continue; }
+                let xs = samples.get(phase).expect("discovered, so present");
+                let (mean, lo, hi) = stat(xs);
+                let net = net_of(phase, xs);
+                let flag = if net <= 0.0 { "  ⚠ BELOW ITS OWN INSTRUMENT" } else { "" };
+                table.push_str(&format!(
+                    "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [{:.2}–{:.2}]  {}x{}\n",
+                    phase, mean / 1e6, net / 1e6, 100.0 * net / total_net,
+                    lo as f64 / 1e6, hi as f64 / 1e6,
+                    *pairs.get(phase).unwrap_or(&0), flag,
+                ));
+            }
+        }
+        table
+    }
+
+    /// Fire the node-share world at `n` rules x `m` items; per-phase split with pair counts.
+    ///
+    /// node-share is the grid's WEAKEST engine cell (:ratio 1.56 at [50 200]) and had no phase
+    /// census at all — only a COUNT census at M=50. Ranking its sinks off accum's or fanout's
+    /// table would be the R61 error: alpha is 4.7% of fanout and ~40% of accum.
+    fn node_share_phase_census(n: i64, m: i64) -> Vec<(&'static str, u64, u64)> {
+        let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("node-share world should freeze");
+        let staged = format!("(:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m})");
+        let src = format!("(:wat::rete::fire-rules {staged})");
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, rows) = super::with_phase_census_counted(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
+                .value_owned()
+        });
+        rows
+    }
+
+    /// The node-share phase table, at the GRID's own ladder ([10|25|50] x 200).
+    #[test]
+    fn node_share_fire_phase_census() {
+        const TOP: [&str; 4] =
+            ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
+        // Floor only — the table discovers the rest. node-share has no accumulate/filter, so its
+        // required set is deliberately smaller than accum's; asserting accum's list here would
+        // fail on phases this axis never reaches.
+        const REQUIRED: [&str; 6] = [
+            "SETUP: indexes", "ROUND LOOP", "alpha", "root-join", "hash-join", "production",
+        ];
+        let table = render_phase_table(
+            "node-share fire",
+            &[(10, 200), (25, 200), (50, 200)],
+            &TOP,
+            &REQUIRED,
+            |_n, m| m * 2, // M A-facts + M B-facts
+            node_share_phase_census,
+        );
+        println!("{table}");
+
+        // Assert on the DATA, not the rendered text. A `table.contains("ROUND LOOP")` passes on a
+        // table whose every number is zero, on a reordered table, and on one where the row is a
+        // header rather than a measurement — and `no_loose_string_assert` is right to reject it.
+        // What this test actually claims is that the axis FIRED and that `filter` dominates it,
+        // so that is what gets checked, with a non-vacuity guard on the total.
+        let rows = node_share_phase_census(50, 200);
+        let ns_of = |name: &str| -> u64 {
+            rows.iter().find(|(n, _, _)| *n == name).map(|(_, ns, _)| *ns).unwrap_or(0)
+        };
+        let round_loop = ns_of("ROUND LOOP");
+        let filter = ns_of("filter");
+        assert!(round_loop > 0, "ROUND LOOP recorded 0ns at 50/200 — the fire never ran, and a\n\
+                                 table of zeroes would still have rendered every row:\n{table}");
+        assert!(
+            filter * 2 > round_loop,
+            "expected `filter` to dominate node-share's fire (it read 89.5% at 50/200 on\n\
+             2026-08-01, and it is the reason this axis is the grid's weakest engine cell at\n\
+             :ratio 1.56) — got filter={filter}ns of ROUND LOOP={round_loop}ns. If this fell\n\
+             legitimately, the where-clause cost was fixed and the axis needs re-ranking:\n{table}"
+        );
+    }
+
     /// Fire the axis world and return the operation counts (see `census_count`).
     fn accum_count_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
         let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
