@@ -341,9 +341,19 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
 ///
 /// An empty memory map → an empty `PersistentMap` (never `nil`; the field is always present).
 pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
-    let alpha_pm   = hashmap_to_pm(wm.alpha);
-    let beta_pm    = beta_to_pm(wm.beta);
-    let prod_pm    = hashmap_to_pm(wm.production);
+    // Sub-split of the OUT phase. `OUT: to_persistent` is ~a third of fire, and which FIELD
+    // that third belongs to decides whether the alpha-clear is worth a contract change or is
+    // a rounding error. Attributing the whole to alpha without measuring the parts is the
+    // exact error that made the first phase census report a quarter of fire as the whole.
+    let __oa = phase_start();
+    let alpha_pm = hashmap_to_pm(wm.alpha);
+    phase_end("  ├ out:alpha", __oa);
+    let __ob = phase_start();
+    let beta_pm = beta_to_pm(wm.beta);
+    phase_end("  ├ out:beta", __ob);
+    let __op = phase_start();
+    let prod_pm = hashmap_to_pm(wm.production);
+    phase_end("  └ out:production", __op);
 
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::rete::Session".into(),
@@ -4234,7 +4244,7 @@ mod tests {
         // made the first version of this table report 124% coverage.
         const TOP: [&str; 4] =
             ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
-        const PHASES: [&str; 17] = [
+        const PHASES: [&str; 20] = [
             "IN: to_transient",
             "SETUP: indexes",
             "ROUND LOOP",
@@ -4244,6 +4254,7 @@ mod tests {
             "accumulate", "  ├ accum:snapshot", "  ├ accum:index", "  └ accum:fold",
             "filter", "production",
             "OUT: to_persistent",
+            "  ├ out:alpha", "  ├ out:beta", "  └ out:production",
         ];
 
         // ── The instrument declares its own cost ─────────────────────────────────────────────
