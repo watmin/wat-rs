@@ -5066,4 +5066,117 @@ mod tests {
              would pass vacuously.{table}"
         );
     }
+
+    // ── A0 depth-cost split (arc 278, 2026-07-31) ─────────────────────────────────────────────
+    //
+    // The grid's deep-cascade axis reads `:winner :clara` at [50 100] (all five runs), and holding
+    // the derived-fact count CONSTANT while varying depth showed the cost tracks DEPTH, not size:
+    // 6000 derived facts cost us 34.7ms at depth 10 and 119.5ms at depth 60, where Clara paid
+    // 76.7 → 114.2. Grounded, the round body runs FOUR full-network scans per round
+    // (root-join :2070, hash-join :2127, accumulate :2327, filter :2423) and a depth-D cascade
+    // needs D rounds — so we visit O(D) nodes D times while exactly one level can do work.
+    //
+    // This probe measures the SPLIT that decides the fix: at EQUAL work, how much of the extra
+    // cost at depth is per-round scaffolding over idle nodes, versus real per-fact work? If the
+    // idle scan dominates, a dirty-node agenda captures it; if it does not, only per-element
+    // incremental propagation (T3) helps. It asserts nothing about which — it prints the rows.
+
+    const DEPTH_SPLIT_WORLD: &str = "\
+(:wat::core::defrecord :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])\n\
+(:wat::core::defrecord :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule\n\
+  (:wat::core::let [prev (:wat::core::i64::- k 1)\n\
+                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::core::= ?l (:wat::core::unquote prev))))\n\
+                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::core::= ?m (:wat::core::unquote prev))))\n\
+                    t1 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Node (:wat::core::unquote k) ?id)))\n\
+                    t2 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Tag  (:wat::core::unquote k) ?id)))]\n\
+    (:wat::rete::Rule :name (:wat::core::i64::to-string k)\n\
+      :lhs (:wat::core::PersistentVector c1 c2)\n\
+      :rhs (:wat::core::PersistentVector t1 t2))))\n\
+\n\
+(:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  k <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+      (:wat::core::PersistentVector/conj acc (:dc::build-rule k)))\n\
+    (:wat::core::PersistentVector (:dc::build-rule 1))\n\
+    (:wat::core::range 2 (:wat::core::i64::+ depth 1))))\n\
+\n\
+(:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert (:wat::rete::insert s (:cascade::Node :level 0 :id i)) (:cascade::Tag :level 0 :id i)))\n\
+    session\n\
+    (:wat::core::range 0 width)))\n";
+
+    /// Fire a depth×width cascade through the native path; return the per-phase nanosecond rows.
+    fn depth_split_phases(depth: i64, width: i64) -> Vec<(&'static str, u64)> {
+        let world =
+            startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
+                .expect("depth-split world should freeze");
+        let src = format!(
+            "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width}))"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+        let (_fired, rows) = super::with_phase_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fire raised at depth={depth} width={width}: {e:?}"))
+                .value_owned()
+        });
+        rows
+    }
+
+    /// Diagnostic — where the depth cost lands, at CONSTANT work (10,000 derived facts).
+    ///
+    /// Shallow-and-wide vs deep-and-narrow derive exactly the same number of facts, so any
+    /// difference between the two columns is depth, and the per-phase breakdown says which
+    /// phase is paying for it.
+    #[test]
+    fn a0_depth_cost_split_at_equal_work() {
+        // 2*depth*width derived facts: both columns derive 10,000.
+        let shallow = depth_split_phases(10, 500); // 10 rounds  · 500 ids per level
+        let deep = depth_split_phases(50, 100); // 50 rounds · 100 ids per level  (the :clara cell)
+
+        let names: std::collections::BTreeSet<&'static str> =
+            shallow.iter().chain(deep.iter()).map(|(n, _)| *n).collect();
+
+        let sum = |rows: &[(&'static str, u64)]| -> u64 {
+            rows.iter().filter(|(n, _)| n.starts_with("  ")).map(|(_, ns)| *ns).sum()
+        };
+        let (s_tot, d_tot) = (sum(&shallow), sum(&deep));
+
+        let get = |rows: &[(&'static str, u64)], name: &str| -> u64 {
+            rows.iter().find(|(n, _)| *n == name).map(|(_, ns)| *ns).unwrap_or(0)
+        };
+
+        let mut table = String::from(
+            "\n  A0 DEPTH-COST SPLIT — 10,000 derived facts in BOTH columns\n\
+             \n  phase                          depth10×w500      depth50×w100         delta\n\
+             \x20 ---------------------------------------------------------------------------\n",
+        );
+        for n in &names {
+            let (a, b) = (get(&shallow, n), get(&deep, n));
+            table.push_str(&format!(
+                "  {n:<28} {:>10.3} ms {:>13.3} ms {:>+11.3} ms\n",
+                a as f64 / 1e6,
+                b as f64 / 1e6,
+                (b as f64 - a as f64) / 1e6
+            ));
+        }
+        table.push_str(&format!(
+            "  {:<28} {:>10.3} ms {:>13.3} ms {:>+11.3} ms   ({:.2}x)\n",
+            "TOTAL (nested phases)",
+            s_tot as f64 / 1e6,
+            d_tot as f64 / 1e6,
+            (d_tot as f64 - s_tot as f64) / 1e6,
+            if s_tot > 0 { d_tot as f64 / s_tot as f64 } else { 0.0 }
+        ));
+
+        println!("{table}");
+        assert!(
+            s_tot > 0 && d_tot > 0,
+            "the phase census recorded nothing — the probe measured its own scaffolding, not the \
+             fire. A zero here means `with_phase_census` never saw a round.{table}"
+        );
+    }
 }
