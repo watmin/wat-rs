@@ -2484,6 +2484,33 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // `facts` every fire and never read a frozen one. It was ~31% of fire to serialize.
     // (fire_once_session deliberately keeps its alpha — it mirrors the oracle's fire-once,
     //  which does populate it.)
+    // ── Binding-cardinality census (test-only) ───────────────────────────────────────────
+    // The binding-representation stone rests on ONE premise: a binding map holds 1-2 entries,
+    // so an rpds trie (heap alloc + Arc + hash + pointer-chase + dealloc) is paying trie prices
+    // for a pair. If the real distribution is wide, a small-vec is WORSE and the stone inverts.
+    // Measured on the LIVE population at end of fire — one walk, no hot-path instrumentation to
+    // distort the very thing being measured.
+    #[cfg(test)]
+    {
+        fn bucket(n: usize) -> &'static str {
+            match n { 0=>"bind-card:0", 1=>"bind-card:1", 2=>"bind-card:2",
+                      3=>"bind-card:3", 4=>"bind-card:4", 5=>"bind-card:5", _=>"bind-card:6+" }
+        }
+        for els in wm.alpha.values() {
+            for el in els {
+                let (_, b) = element_fact_bindings(el);
+                census_count(bucket(b.size()));
+                census_count("bind-card:ELEMENTS");
+            }
+        }
+        for toks in wm.beta.values() {
+            for t in toks {
+                census_count(bucket(t.bindings.size()));
+                census_count("bind-card:TOKENS");
+            }
+        }
+    }
+
     let __drop = phase_start();
     wm.alpha.clear();
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
@@ -4248,6 +4275,88 @@ mod tests {
                 as f64 / calls as f64,
         ));
         println!("{out}");
+    }
+
+    /// Diagnostic — the binding-cardinality distribution, the PREMISE under the
+    /// binding-representation stone.
+    ///
+    /// The stone's whole argument is that a binding map holds 1-2 entries, so an
+    /// `rpds::HashTrieMapSync` (heap alloc + Arc + hash + pointer-chase + dealloc) is paying trie
+    /// prices for a pair. If the distribution is wide, an inline small-vec is WORSE and the stone
+    /// inverts. Nobody had measured it.
+    ///
+    /// Load-bearing subtlety: binding cardinality is a property of the RULE SHAPE, not the data
+    /// volume. A 2-condition rule binding 3 distinct vars yields 3-binding tokens at 10 facts and
+    /// at 10 million. So this drives SEVERAL rule shapes and reports each — a single workload
+    /// would answer a narrower question than the one the stone asks.
+    ///
+    /// Read with `--no-capture`. Diagnostic, not a gate; the assertion only stops it reporting an
+    /// artifact (a census that counted nothing would print an empty table reading as "all zero").
+    #[test]
+    fn binding_cardinality_distribution() {
+        fn dist(label: &str, rows: &[(&'static str, u64)]) -> String {
+            let get = |k: &str| rows.iter().find(|(n, _)| *n == k).map(|(_, c)| *c).unwrap_or(0);
+            let els = get("bind-card:ELEMENTS");
+            let toks = get("bind-card:TOKENS");
+            let total = els + toks;
+            let mut out = format!("\n  {label}  —  {els} elements, {toks} tokens\n");
+            if total == 0 {
+                out.push_str("    (nothing counted)\n");
+                return out;
+            }
+            for b in ["bind-card:0","bind-card:1","bind-card:2","bind-card:3",
+                      "bind-card:4","bind-card:5","bind-card:6+"] {
+                let n = get(b);
+                if n == 0 { continue; }
+                out.push_str(&format!("    {:<16} {:>9}  {:>5.1}%\n",
+                    b.trim_start_matches("bind-card:"), n, 100.0 * n as f64 / total as f64));
+            }
+            out
+        }
+
+        let mut report = String::from("\nBINDING CARDINALITY — the premise under the small-vec stone");
+
+        // Shape A — accumulate: conditions bind ?g / ?g,?v; tokens carry the group key.
+        let rows_accum = accum_count_census(60, 60);
+        report.push_str(&dist("accumulate  (accum axis, G=60 W=60)", &rows_accum));
+
+        // Shape B — a 2-condition JOIN binding THREE distinct vars across the conditions
+        // (?loc shared, ?t from one, ?w from the other). This is the shape that grows a token's
+        // binding map, and the one an accumulate-only measurement would never show.
+        const J: &str = "\
+(:wat::core::defrecord :bcd::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::i64])\n\
+(:wat::core::defrecord :bcd::WindSpeed   [kph      <- :wat::core::i64  location <- :wat::core::i64])\n\
+(:wat::core::defrecord :bcd::Cw          [loc <- :wat::core::i64  t <- :wat::core::i64  w <- :wat::core::i64])\n\
+(:wat::core::defn :bcd::seed [n <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::let [c1   (:wat::core::quote (:bcd::Temperature (?loc <- :location) (?t <- :celsius)))\n\
+                    c2   (:wat::core::quote (:bcd::WindSpeed (?loc <- :location) (?w <- :kph)))\n\
+                    rhs1 (:wat::core::quote (:wat::rete::insert (:bcd::Cw ?loc ?t ?w)))\n\
+                    rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\n\
+                    s0   (:wat::rete::compile (:wat::core::PersistentVector rule))]\n\
+    (:wat::core::foldl\n\
+      (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+        (:wat::core::let [a (:wat::rete::insert acc (:bcd::Temperature :celsius i :location i))]\n\
+          (:wat::rete::insert a (:bcd::WindSpeed :kph i :location i))))\n\
+      s0 (:wat::core::range 0 n))))\n\
+";
+        let wj = startup_from_source(J, None, Arc::new(InMemoryLoader::new()))
+            .expect("join world should freeze");
+        let ast = crate::parse_one!("(:wat::rete::fire-rules (:bcd::seed 400))").expect("parse");
+        let (_f, rows_join) = super::with_count_census(|| {
+            eval_in_frozen(&ast, &wj, &Environment::new())
+                .unwrap_or_else(|e| panic!("join fire raised: {e:?}"))
+                .value_owned()
+        });
+        report.push_str(&dist("2-cond join, 3 distinct vars (N=400)", &rows_join));
+
+        let counted: u64 = rows_accum.iter().chain(rows_join.iter())
+            .filter(|(n, _)| n.starts_with("bind-card:"))
+            .map(|(_, c)| *c).sum();
+        assert!(counted > 0,
+            "the binding census counted NOTHING — the walk never ran, so an all-zero table \
+             would be an artifact, not a distribution");
+
+        println!("{report}");
     }
 
     /// Diagnostic — print where the accum fire's time goes, per phase, at two sizes.
