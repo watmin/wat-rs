@@ -63,11 +63,20 @@
 ;; stream->vec — internal helper: drains a Stream into a Vector, seeded by `acc` (so `into` can
 ;; append onto an existing Vector, not just build from empty). Tail-recursive (TCO trampoline
 ;; keeps this O(1) Rust-stack regardless of stream length).
+;; ★ Arc 278 — THIS WAS QUADRATIC, and it is the language's standard materializer.
+;; The old body recursed `(conj acc (first s))`, one `conj` per element — and Vector's conj
+;; (`vector_conj_inner`, src/collection/eval.rs) does `(**xs).clone()`, a FULL copy of the
+;; accumulator, every time. So `(into [] (map f coll))` was O(n^2).
+;; MEASURED (wat-scripts/scratch-pad/probe-into-is-quadratic.wat), n=40,000, same output, lengths
+;; asserted equal: per-element Vec conj 8,112 ms · the identical drain into an rpds accumulator
+;; 113 ms (LINEAR) · one native build 0.8 ms. 8x n gave 114x time; rpds gave 7.8x.
+;; So: drain into a PersistentVector (structural sharing, linear), then materialize ONCE via the
+;; native `Vector/extend`. Same result, same order, no per-element copy.
 (:wat::core::defn :wat::core::stream->vec<T>
   [acc <- :wat::core::Vector<T> s <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
-  (:wat::core::if (:wat::core::empty? s)
+  (:wat::core::Vector/extend
     acc
-    (:wat::core::stream->vec (:wat::core::conj acc (:wat::core::first s)) (:wat::core::rest s))))
+    (:wat::core::stream->pvec (:wat::core::PersistentVector) s)))
 
 ;; mapv / filterv — the eager forms: force `map`/`filter`'s lazy Stream result to a Vector in
 ;; one step via `(into [] ...)` (clojure's own materializer idiom — no new name). Two clauses —
@@ -113,7 +122,13 @@
   ;; into a PersistentVector in ONE native call, retiring the nine grid axes' hand-rolled
   ;; `foldl`+`conj` bridge (N interpreted closure invocations -> one native concat).
   ([to <- :wat::core::PersistentVector<T> from <- :wat::core::Vector<T>] -> :wat::core::PersistentVector<T>
-    (:wat::core::PersistentVector/concat to from)))
+    (:wat::core::PersistentVector/concat to from))
+  ;; Arc 278 — the MIRROR of the clause above, and the one `stream->vec` now needs. Its absence
+  ;; was flagged as owed the moment the (PV,Vector) clause landed, and tripped a probe an hour
+  ;; later: `query-by-type-string` returns a PersistentVector, so materialising one into a Vector
+  ;; had no clause at all. Native one-shot, no per-element conj.
+  ([to <- :wat::core::Vector<T> from <- :wat::core::PersistentVector<T>] -> :wat::core::Vector<T>
+    (:wat::core::Vector/extend to from)))
 
 ;; doall / dorun — eager forcers (Stream -> Vector / nil). DIALECT NOTE: clojure's `doall`
 ;; returns the SAME (now-forced) lazy seq, replayable — wat's Stream is single-pass / NEVER

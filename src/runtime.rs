@@ -5174,6 +5174,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::Vector/concat" => crate::collection::eval::eval_vector_concat(args, list_span, env, sym),
         // DESIGN-STONE-into-pv-from-vector.md — per-Type sibling; own eval fn (NOT
         // eval_vector_concat/vector_concat_inner — those stay same-kind-only).
+        ":wat::core::Vector/extend" => crate::collection::eval::eval_vector_extend(args, list_span, env, sym),
         ":wat::core::PersistentVector/concat" => crate::collection::eval::eval_persistentvector_concat(args, list_span, env, sym),
         ":wat::core::reverse" => crate::collection::transform::eval_vec_reverse(args, list_span, env, sym),
         ":wat::core::range" => crate::collection::transform::eval_vec_range(args, list_span, env, sym),
@@ -9694,6 +9695,11 @@ pub(crate) fn dispatch_substrate_impl(
         // registering only the runtime.rs:5174 keyword-dispatch arm would leave `apply`
         // unable to reach the new op — an avoidable split-brain.
         ":wat::core::PersistentVector/concat" => Some(ceval::persistentvector_concat_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        // Arc 278 — the mirror, present here for the same reason: `apply` reaches this path.
+        ":wat::core::Vector/extend" => Some(ceval::vector_extend_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),

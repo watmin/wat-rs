@@ -4132,6 +4132,16 @@ fn infer_list(
             // name) cannot express arg2's dual coverage (Vector<T> OR PersistentVector<T>);
             // the fallback fingerprint scheme registered in register_builtins (beside
             // Vector/concat) is never consulted — this arm always intercepts first.
+            // Arc 278 — the mirror: destination fixes the kind (Vector), source takes either.
+            // Same reason for a custom arm: a static TypeScheme cannot express arg2's dual shape.
+            ":wat::core::Vector/extend" => {
+                let (val, mut errs) = crate::collection::infer::infer_vector_extend(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::core::PersistentVector/concat" => {
                 let (val, mut errs) = crate::collection::infer::infer_persistentvector_concat(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -18672,6 +18682,20 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![pv_of(t_var()), pv_of(t_var())],
             ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 278 — the mirror. Same fingerprint-only status: `infer_vector_extend` intercepts
+    // first, and is where arg2's dual shape (Vector<T> OR PersistentVector<T>) actually lives.
+    //   Vector/extend :: ∀T. Vector<T> × Vector<T> -> Vector<T>
+    //                    (fingerprint; arg2 ALSO accepts PersistentVector<T> per the custom arm)
+    env.register(
+        ":wat::core::Vector/extend".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), vec_of(t_var())],
+            ret: vec_of(t_var()),
             rest_param_type: None,
         },
     );

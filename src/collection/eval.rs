@@ -1534,6 +1534,52 @@ pub(crate) fn eval_persistentvector_conj(
 /// extends one level down to its native backing fn. `to` MUST be a PersistentVector (the
 /// receiver, whose kind the result preserves — DESIGN row 2); `from` may be EITHER a Vector
 /// or a PersistentVector (the two schemes `infer_persistentvector_concat` type-checks).
+/// Arc 278 — `:wat::core::Vector/extend`: a Vector extended by every element of a Vector OR a
+/// PersistentVector, in ONE build.
+///
+/// NOT a `concat` variant, deliberately. `concat` is same-kind by a documented invariant
+/// (`vector_concat_inner`'s gate + `infer_concat`) because concatenating two different container
+/// kinds leaves the RESULT kind ambiguous. `into` has no such ambiguity — its contract is that the
+/// DESTINATION decides — so the mixed-kind case belongs to a verb named for extension, not
+/// concatenation, and `concat`'s invariant is left untouched.
+///
+/// WHY IT EXISTS (measured, `probe-into-is-quadratic.wat`): `stream->vec` drained a Stream with one
+/// `conj` per element, and `vector_conj_inner` copies the whole accumulator each time — so
+/// `(into [] (map f coll))`, the language's standard materializer, was QUADRATIC: 8,112 ms at
+/// n=40,000 against 113 ms for the identical drain into an rpds accumulator (structural sharing),
+/// and 0.8 ms for a single native build. This is the one-shot conversion that lets `stream->vec`
+/// drain linearly into a PersistentVector and materialize ONCE.
+pub(crate) fn vector_extend_inner(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::Vector/extend";
+    let Value::Vec(l) = to else {
+        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>",
+            got: Box::new(ValueSnapshot::of(to))
+        }).into());
+    };
+    // Size for the FINAL length up front — the whole point is one allocation, not N.
+    let extra = match from {
+        Value::Vec(r) => r.len(),
+        Value::wat__core__PersistentVector(r) => r.len(),
+        other => {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<T> or PersistentVector<T>",
+                got: Box::new(ValueSnapshot::of(other))
+            }).into());
+        }
+    };
+    let mut out: Vec<Value> = Vec::with_capacity(l.len() + extra);
+    out.extend(l.iter().cloned());
+    match from {
+        Value::Vec(r) => out.extend(r.iter().cloned()),
+        Value::wat__core__PersistentVector(r) => out.extend(r.iter().cloned()),
+        _ => unreachable!("the arity/kind check above already rejected every other shape"),
+    }
+    Ok(Value::Vec(Arc::new(out)))
+}
+
 pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentVector/concat";
     let Value::wat__core__PersistentVector(l) = to else {
@@ -1567,6 +1613,24 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
         }
     }
     Ok(Value::wat__core__PersistentVector(out))
+}
+
+pub(crate) fn eval_vector_extend(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::Vector/extend".into(),
+            expected: 2,
+            got: args.len()
+        }).into());
+    }
+    let to = eval_inner(&args[0], env, sym)?.value_owned();
+    let from = eval_inner(&args[1], env, sym)?.value_owned();
+    vector_extend_inner(&to, &from)
 }
 
 pub(crate) fn eval_persistentvector_concat(
