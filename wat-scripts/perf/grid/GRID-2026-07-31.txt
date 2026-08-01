@@ -31,3 +31,17 @@
 ;;   [200 200]  wat-ns 134.0ms (3 runs) / 135.6ms (in-sweep) / 146.6ms (7 runs quiet)
 ;; A machine-contention explanation fits the first row and is contradicted by the second.
 ;; The cause is NOT established. What is solid is the min/max spread the runner prints.
+
+;; ── AFTER the three rete stones (alpha fire-scoped / native Element / array bindings) ────────
+;; accum re-run INTERLEAVED (both engines, same session, same box state).
+#grid/Verdict {:axis "accum" :size [50 200] :accuracy :match :runs 5 :ratio 1.8116 :min 1.4873 :max 2.5350 :wat-ns 18154489 :clara-ns 32701479 :winner :us}
+#grid/Verdict {:axis "accum" :size [100 200] :accuracy :match :runs 5 :ratio 1.5641 :min 1.2783 :max 2.1042 :wat-ns 52953701 :clara-ns 80688460 :winner :us}
+#grid/Verdict {:axis "accum" :size [200 200] :accuracy :match :runs 9 :ratio 1.6870 :min 1.3613 :max 2.3124 :wat-ns 80181375 :clara-ns 134840542 :winner :us}
+;;
+;; => 21 of 21 :winner :us, 21 of 21 :accuracy :match. accum was the last holdout; it opened
+;;    2026-07-31 at 0.564 :clara ([200 200]) and 0.667 :clara ([100 200]).
+;;
+;; HONEST BOUND ON THE RATIOS: the box was loaded when these ran (load avg 8.47), and Clara
+;; degrades harder under load than we do (their CV 16.4% vs our 3.5%), so these flatter us.
+;; The quiet-box comparison at [200 200] is 73.61 vs 103.38 = ~1.40, still :us — because even
+;; quiet, our max (77.94ms) beats their min (80.93ms). Read 1.40-1.69, not 1.69.
