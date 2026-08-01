@@ -35,10 +35,17 @@ declare -A LADDER=(
   [user-reduce]="10 25|20 50|40 100"         # dial: locs × reads together
   [node-share]="10 200|25 200|50 200"        # dial: rules      (items fixed at 200)
   [accum]="50 200|100 200|200 200"           # dial: groups     (readings fixed at 200)
+  [deep-cascade]="10 100|30 100|50 100"      # dial: depth      (width fixed at 100 — width 5
+                                              # was 300 derived facts / 4 ms, an order of
+                                              # magnitude under every other axis, where the
+                                              # ratio measured jitter, not the engine)
+  [fanout]="10000|20000|40000"               # dial: items (target derived-pair count; fanout
+                                              # fixed at 20 internally) — 40000 is R4's Clara-win
+                                              # size (REALIZATIONS.md:201), deliberately
 )
 
 # Deterministic order — the table reads the same every run.
-ORDER=(min-finding negation asym-join strat-neg user-reduce node-share accum)
+ORDER=(min-finding negation asym-join strat-neg user-reduce node-share accum deep-cascade fanout)
 
 AXES=("$@")
 if [ ${#AXES[@]} -eq 0 ]; then AXES=("${ORDER[@]}"); fi
