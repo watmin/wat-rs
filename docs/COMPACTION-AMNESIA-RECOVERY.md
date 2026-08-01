@@ -1411,6 +1411,49 @@ changes."*
 **Cross-reference:** FM 12 (model explicit), Section 7 (delegation).
 Distinct from both: this is about *concurrency of the build itself*.
 
+### Failure mode 19 — The rider believes it is the ORCHESTRATOR (the yielded background job)
+
+**Signature:** a spawned rider launches a long verification (`cargo nextest`, a build, a grid run)
+in the BACKGROUND, then ends its turn saying something like *"I'll wait here without further
+polling — the background run will notify me automatically."* The harness fires a
+`task-notification` marked **completed**. The rider has done the work and reported **nothing**. Its
+job may still be running.
+
+**Reality check:** a rider has `run_in_background` and a Bash tool that look identical to the
+orchestrator's, so it reasons the way the orchestrator correctly reasons — *start the long thing,
+end the turn, get woken.* **But ending a rider's turn TERMINATES it and returns control upward.**
+Nothing wakes it. The affordance is present; the lifecycle semantics are not. That is a trap by
+construction, not carelessness — which is why "be careful" does not fix it and why it recurs.
+
+Note the failure looks *disciplined*: "don't poll, you'll be notified" is correct orchestrator
+practice. The rider applied a good rule from the wrong tier.
+
+**Real incident, 2026-08-01 (arc 278, the compiled-conditions stone):** the rider finished the
+implementation, launched `cargo nextest run --release` backgrounded, and yielded. The notification
+read "completed" with a result that was one sentence about waiting. `pgrep` showed its nextest still
+alive at load 16.8, and its work sitting uncommitted in the tree. It was resumed via `SendMessage`
+and delivered a complete, high-quality report — nothing was lost, but the orchestrator had to notice
+a "completed" agent that had not reported, rather than reading a report.
+
+**The prescription — brief the ROLE, not just the rule.** A bare prohibition gets reasoned around by
+a capable model; the role makes the rule derivable:
+
+> You are a rider, not the orchestrator. **Ending your turn ENDS you** — it does not suspend you, and
+> nothing will wake you. There is no notification coming. Run every verification in the FOREGROUND
+> and block on it: your turn ends when the numbers are in your hands, not when the command is
+> launched.
+
+**Orchestrator-side, when it happens anyway:** do NOT run cargo to check on it — a second build
+against the same `target/` lock is FM 18, and any number taken while the rider's job is live is an
+instrument artifact. `pgrep` for its process, confirm the work in `git status`, and `SendMessage` the
+agent to finish and report. A resumed rider keeps its full context.
+
+**Related but distinct:** FM 18 is N riders contending on one build. This is ONE rider whose turn
+ended while its own build ran. Both are about how rider work relates to the build; neither is about
+the rider's competence.
+
+---
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)
