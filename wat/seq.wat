@@ -98,16 +98,22 @@
 
 ;; into — clojure's `(into to from)`: append every element of `from` onto `to`. `to` determines
 ;; the output container kind (Vector or PersistentVector, both in scope); `from` may be a
-;; same-kind eager container (delegates to `concat`) or a Stream (delegates to `stream->vec`/
-;; `stream->pvec`, seeded by `to` — the general "append a realized pipeline onto an
-;; accumulator" shape).
+;; same-kind eager container (delegates to `concat`), a Vector (PersistentVector receiver only —
+;; delegates to the native `PersistentVector/concat`, DESIGN-STONE-into-pv-from-vector.md), or a
+;; Stream (delegates to `stream->vec`/`stream->pvec`, seeded by `to` — the general "append a
+;; realized pipeline onto an accumulator" shape).
 (:wat::core::defclause :wat::core::into
   ([to <- :wat::core::Vector<T> from <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
     (:wat::core::concat to from))
   ([to <- :wat::core::Vector<T> from <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
     (:wat::core::stream->vec to from))
   ([to <- :wat::core::PersistentVector<T> from <- :wat::stream::Stream<T>] -> :wat::core::PersistentVector<T>
-    (:wat::core::stream->pvec to from)))
+    (:wat::core::stream->pvec to from))
+  ;; DESIGN-STONE-into-pv-from-vector.md — the missing fourth clause: materialize a Vector
+  ;; into a PersistentVector in ONE native call, retiring the nine grid axes' hand-rolled
+  ;; `foldl`+`conj` bridge (N interpreted closure invocations -> one native concat).
+  ([to <- :wat::core::PersistentVector<T> from <- :wat::core::Vector<T>] -> :wat::core::PersistentVector<T>
+    (:wat::core::PersistentVector/concat to from)))
 
 ;; doall / dorun — eager forcers (Stream -> Vector / nil). DIALECT NOTE: clojure's `doall`
 ;; returns the SAME (now-forced) lazy seq, replayable — wat's Stream is single-pass / NEVER

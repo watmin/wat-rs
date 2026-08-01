@@ -1518,6 +1518,75 @@ pub(crate) fn eval_persistentvector_conj(
     persistentvector_conj_inner(&container, &item)
 }
 
+/// `(:wat::core::PersistentVector/concat to from)` — DESIGN-STONE-into-pv-from-vector.md.
+///
+/// The per-Type sibling of `Vector/concat`: appends every element of `from` onto `to`,
+/// returning a NEW PersistentVector (`to`/`from` are unchanged — rpds structural sharing).
+///
+/// Deliberately its OWN function rather than a new arm inside `vector_concat_inner` above.
+/// That function's same-kind-only gate (Vec+Vec / PersistentVector+PersistentVector /
+/// List+List) is a load-bearing, DOCUMENTED invariant ("Same-kind constraint preserved",
+/// arc-278 strike 3) shared with `insert-all'` (`rete/kernel.rs:3628`, always PV×PV) and the
+/// general `concat`/`Vector/concat` surface (`infer_concat`, which explicitly rejects
+/// Vector+PersistentVector as a TypeMismatch). Widening `vector_concat_inner` itself to
+/// accept a mismatched-kind pair would be exactly the "widen the polymorphic surface" move
+/// DESIGN-STONE-into-pv-from-vector.md rejects for `Vector/concat` — the same reasoning
+/// extends one level down to its native backing fn. `to` MUST be a PersistentVector (the
+/// receiver, whose kind the result preserves — DESIGN row 2); `from` may be EITHER a Vector
+/// or a PersistentVector (the two schemes `infer_persistentvector_concat` type-checks).
+pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::PersistentVector/concat";
+    let Value::wat__core__PersistentVector(l) = to else {
+        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(to))
+        }).into());
+    };
+    let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    for elem in l.iter() {
+        out.push_back_mut(elem.clone());
+    }
+    match from {
+        Value::wat__core__PersistentVector(r) => {
+            for elem in r.iter() {
+                out.push_back_mut(elem.clone());
+            }
+        }
+        Value::Vec(r) => {
+            for elem in r.iter() {
+                out.push_back_mut(elem.clone());
+            }
+        }
+        other => {
+            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<T> or PersistentVector<T>",
+                got: Box::new(ValueSnapshot::of(other))
+            }).into());
+        }
+    }
+    Ok(Value::wat__core__PersistentVector(out))
+}
+
+pub(crate) fn eval_persistentvector_concat(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentVector/concat".into(),
+            expected: 2,
+            got: args.len()
+        }).into());
+    }
+    let to = eval_inner(&args[0], env, sym)?.value_owned();
+    let from = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentvector_concat_inner(&to, &from)
+}
+
 /// `(:wat::core::PersistentVector e1 e2 ...)` — constructor.
 /// Takes bare elements in order (NO leading type keyword).
 /// Types are inferred from the actual elements (checked at check-time by

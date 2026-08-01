@@ -5172,6 +5172,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::PersistentMap/keys" => crate::collection::eval::eval_persistentmap_keys(args, list_span, env, sym),
         ":wat::core::PersistentMap/values" => crate::collection::eval::eval_persistentmap_values(args, list_span, env, sym),
         ":wat::core::Vector/concat" => crate::collection::eval::eval_vector_concat(args, list_span, env, sym),
+        // DESIGN-STONE-into-pv-from-vector.md — per-Type sibling; own eval fn (NOT
+        // eval_vector_concat/vector_concat_inner — those stay same-kind-only).
+        ":wat::core::PersistentVector/concat" => crate::collection::eval::eval_persistentvector_concat(args, list_span, env, sym),
         ":wat::core::reverse" => crate::collection::transform::eval_vec_reverse(args, list_span, env, sym),
         ":wat::core::range" => crate::collection::transform::eval_vec_range(args, list_span, env, sym),
         ":wat::core::take" => crate::collection::transform::eval_vec_take(args, list_span, env, sym),
@@ -9167,6 +9170,17 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Delegates to Value's PartialEq (arc 216.5b; storage is Arc<HashSet<Value>>).
         // Order-independent (set semantics).
         (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => Some(a == b),
+        // DESIGN-STONE-into-pv-from-vector.md — PersistentVector same-type structural
+        // equality (order-dependent; a vector's order is semantic). A genuine pre-existing
+        // gap surfaced by this stone's own test: `rpds::VectorSync<Value>` already implements
+        // PartialEq and Value's manual Rust-level PartialEq impl already delegates to it
+        // (value.rs:616, arc-278-0b) — but the wat-level `=` (`values_equal`, this fn) had no
+        // arm at all, so no corpus test had ever compared two PersistentVectors before this
+        // stone tried to `assert-eq` its own result. Deliberately NO cross-kind arm
+        // (PersistentVector vs Vector/List) — unlike List<->Vector's EDN-spec cross-type
+        // equality below, PersistentVector stays a genuinely distinct kind; the whole point of
+        // this stone is that its receiver's kind is never conflated with a Vector's.
+        (Value::wat__core__PersistentVector(a), Value::wat__core__PersistentVector(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — Instant equality. chrono::DateTime<Utc> implements Eq.
         // Mirrors the values_compare Instant arm (runtime.rs:9609).
         // Closes the orderable-but-not-equatable asymmetry (Instant had values_compare but not values_equal).
@@ -9670,6 +9684,16 @@ pub(crate) fn dispatch_substrate_impl(
             Some(ceval::hashmap_values_inner(vals.first().expect("arity-checked")))
         }
         ":wat::core::Vector/concat" => Some(ceval::vector_concat_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        // DESIGN-STONE-into-pv-from-vector.md — parity with the Vector/concat arm above.
+        // `(:wat::core::apply :wat::core::PersistentVector/concat [to from])` reaches this
+        // path (dispatch_substrate_impl is also `eval_apply`'s substrate fallback, not only a
+        // const-eval path); every other per-Type leaf on this list has both entries, so
+        // registering only the runtime.rs:5174 keyword-dispatch arm would leave `apply`
+        // unable to reach the new op — an avoidable split-brain.
+        ":wat::core::PersistentVector/concat" => Some(ceval::persistentvector_concat_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),

@@ -1300,3 +1300,89 @@ pub(crate) fn infer_concat(
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
 }
 
+/// Type-check `(:wat::core::PersistentVector/concat to from)` —
+/// DESIGN-STONE-into-pv-from-vector.md.
+///
+/// The per-Type sibling of `Vector/concat`, MINTED rather than widening `infer_concat`'s
+/// same-kind-only contract above (that gate stays exactly as-is; `Vector+PersistentVector`
+/// through the general `concat`/`Vector/concat` surface is still, correctly, a TypeMismatch).
+///
+/// Two accepted shapes — NOT symmetric, deliberately:
+///   `PersistentVector<T> × Vector<T>            -> PersistentVector<T>`
+///   `PersistentVector<T> × PersistentVector<T>  -> PersistentVector<T>`
+///
+/// arg1 (`to`, the receiver) MUST reduce to `PersistentVector<T>` specifically — this is the
+/// param whose kind the result is pinned to (DESIGN row 2: the receiver's kind is preserved).
+/// arg2 (`from`) is the one position with dual coverage: Vector<T> OR PersistentVector<T>,
+/// never List<T>/Stream<T>/HashSet<T> (`into`'s existing `(PersistentVector<T>, Stream<T>)`
+/// clause already owns the Stream case; nothing here widens it).
+pub(crate) fn infer_persistentvector_concat(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::PersistentVector/concat";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = seq_ty("wat::core::PersistentVector", fresh.fresh());
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+
+    let a_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let b_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(a_ty) = a_ty_opt {
+        let a_reduced = reduce(&a_ty, subst, env.types());
+        match extract_seq_elem(&a_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
+            Some(("wat::core::PersistentVector", elem_ty_a)) => {
+                if let Some(b_ty) = b_ty_opt {
+                    let b_reduced = reduce(&b_ty, subst, env.types());
+                    match extract_seq_elem(&b_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
+                        // The one deliberate divergence from infer_concat: arg2 accepts
+                        // EITHER Vector OR PersistentVector, not just a matching kind.
+                        Some((coll_head_b, elem_ty_b))
+                            if coll_head_b == "wat::core::Vector" || coll_head_b == "wat::core::PersistentVector" =>
+                        {
+                            if unify(&elem_ty_b, &elem_ty_a, subst, env.types()).is_err() {
+                                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                    callee: OP.into(),
+                                    param: "#2".into(),
+                                    expected: format_type(&a_reduced),
+                                    got: format_type(&b_reduced)
+                                }});
+                            }
+                        }
+                        None if matches!(b_reduced, TypeExpr::Var(_)) => {}
+                        _ => {
+                            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: OP.into(),
+                                param: "#2".into(),
+                                expected: "Vector<T> or PersistentVector<T>".into(),
+                                got: format_type(&b_reduced)
+                            }});
+                        }
+                    }
+                }
+                let ret_ty = seq_ty("wat::core::PersistentVector", apply_subst(&elem_ty_a, subst));
+                return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
+            }
+            None if matches!(a_reduced, TypeExpr::Var(_)) => {}
+            _ => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "PersistentVector<T>".into(),
+                    got: format_type(&a_reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+

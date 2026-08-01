@@ -95,15 +95,11 @@
     session
     (:wat::core::range 0 items)))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (no into-clause bridges the
-;; two container kinds; a manual conj-fold is the honest bridge — cf. min-finding.wat/strat-neg.wat).
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :nsh::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::PersistentVector/conj acc x))
-    (:wat::core::PersistentVector)
-    v))
+  (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Out fact's key k, sorted ascending. THE (one-time) sanity
 ;; witness: the full derived set. Expected = [0 1 .. items-1], independent of rule-count N.

@@ -4126,6 +4126,20 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // DESIGN-STONE-into-pv-from-vector.md — the per-Type sibling of `Vector/concat`,
+            // minted rather than widening `concat`'s same-kind-only contract just above.
+            // Custom arm because a single static TypeScheme (one `params: Vec<TypeExpr>` per
+            // name) cannot express arg2's dual coverage (Vector<T> OR PersistentVector<T>);
+            // the fallback fingerprint scheme registered in register_builtins (beside
+            // Vector/concat) is never consulted — this arm always intercepts first.
+            ":wat::core::PersistentVector/concat" => {
+                let (val, mut errs) = crate::collection::infer::infer_persistentvector_concat(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 220 Stone 220.4 / arc-278 strike 2 — `:wat::core::rest` is polymorphic over
             // Vector<T>, List<T>, PersistentVector<T>, and WatAST (list form).
             // Classification is routed through StreamContainer::of_type + has_tail() — the
@@ -18636,6 +18650,28 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), vec_of(t_var())],
             ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // DESIGN-STONE-into-pv-from-vector.md — the per-Type sibling of Vector/concat above.
+    // Fallback rank-1 fingerprint scheme (for the env.get path / reflection tools only —
+    // mirrors the assoc/conj fingerprint pattern): the custom arm in `infer_list`
+    // (`infer_persistentvector_concat`) intercepts BEFORE this scheme is ever consulted,
+    // and is where the real dual-shape coverage lives (arg2 accepts Vector<T> OR
+    // PersistentVector<T>, which a single static TypeScheme cannot express).
+    //   PersistentVector/concat :: ∀T. PersistentVector<T> × PersistentVector<T> -> PersistentVector<T>
+    //                             (fingerprint; arg2 ALSO accepts Vector<T> per the custom arm)
+    let pv_of = |inner: TypeExpr| TypeExpr::Parametric {
+        head: "wat::core::PersistentVector".into(),
+        args: vec![inner],
+    };
+    env.register(
+        ":wat::core::PersistentVector/concat".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), pv_of(t_var())],
+            ret: pv_of(t_var()),
             rest_param_type: None,
         },
     );

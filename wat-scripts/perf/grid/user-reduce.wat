@@ -89,15 +89,11 @@
     session
     (:wat::core::range 0 locs)))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (same bridge as strat-neg.wat:
-;; `into` has no (PersistentVector<T>, Vector<T>) clause, so a manual conj-fold is the honest one).
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :ur::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::PersistentVector/conj acc x))
-    (:wat::core::PersistentVector)
-    v))
+  (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Agg fact, canonically encoded and sorted ascending. THE
 ;; accuracy witness: the full per-location aggregate set (a wrong Σx² anywhere shows up).

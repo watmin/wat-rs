@@ -103,15 +103,11 @@
     (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* g 1000000000))
     val))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (mirrors strat-neg.wat:
-;; `into` has no (PV<T>,Vector<T>) clause, so a manual conj-fold is the honest bridge).
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :acc::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::PersistentVector/conj acc x))
-    (:wat::core::PersistentVector)
-    v))
+  (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; seed-readings session g W — stage Reading(g, val(g,j)) for j in [0, W), threading the session.
 (:wat::core::defn :acc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session

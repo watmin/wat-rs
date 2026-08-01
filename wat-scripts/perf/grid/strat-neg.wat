@@ -201,16 +201,11 @@
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
                :lvl-s (:wat::core::i64::to-string lvl))))))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. `into` has no
-;; (PersistentVector<T>, Vector<T>) clause (wat/seq.wat only defines Vector,Vector and the two
-;; Stream-seeded forms) — a manual conj-fold is the honest bridge between the two container kinds.
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :strat::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::PersistentVector/conj acc x))
-    (:wat::core::PersistentVector)
-    v))
+  (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired strata — every derived fact across all `strata` levels, canonically
 ;; encoded and sorted ascending. This IS the accuracy witness: the full set, not a count — a

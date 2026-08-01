@@ -66,15 +66,11 @@
     (:wat::core::i64::+ (:wat::core::i64::* key 1000000) (:wat::core::i64::* lid 1000))
     rid))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (the honest conj-fold
-;; bridge every grid axis uses; `into` has no (PV<T>,Vector<T>) clause).
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :fan::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::PersistentVector/conj acc x))
-    (:wat::core::PersistentVector)
-    v))
+  (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Pair fact, canonically encoded, sorted ascending.
 (:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>

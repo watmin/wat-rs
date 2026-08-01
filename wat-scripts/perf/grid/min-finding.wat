@@ -101,16 +101,11 @@
       session
       (:wat::core::range 0 stations))))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (no into-clause for the
-;; (PersistentVector<T>, Vector<T>) pair; a manual conj-fold is the honest bridge — mirrors
-;; strat-neg.wat's vec->pvec).
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :mf::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::PersistentVector/conj acc x))
-    (:wat::core::PersistentVector)
-    v))
+  (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every activated Busy fact, canonically encoded (loc*1M + n) and sorted
 ;; ascending. THIS is the accuracy witness: the full activated set, not a count — a mismatch
