@@ -5472,6 +5472,172 @@ mod tests {
         assert!(total > 0, "the phase census recorded nothing.{table}");
     }
 
+    // ── Token.bindings representation — the DOMINANCE probe ──────────────────────────────
+    //
+    // 41c59cde made `Element.bindings` an array and left `Token.bindings` a trie, with the
+    // reason: *"the trie's sole advantage is extend, which an Element never does."* That is
+    // airtight in the direction it was used (an Element never extends → a trie buys it
+    // nothing). Its CONVERSE — Token extends, therefore a trie is right for Token — does not
+    // follow from it and was never measured. This probe measures it.
+    //
+    // ⚠ THE QUESTION IS DOMINANCE, NOT A THRESHOLD. R60 killed picking a representation from
+    // a corpus census of our own rules ("you have no fucking clue what our users are going to
+    // do"), and that cut stands. So this asks only: does one representation win across the
+    // WHOLE plausible cardinality range? If yes, there is no constant to tune and no corpus
+    // dependence, and the answer is honest. If the array only wins below some N, that N is a
+    // corpus-derived threshold, R60's cut applies, and the trie stays.
+    //
+    // The shape is the real one: ONE parent extended by FANOUT elements — which is where a
+    // trie's structural sharing is supposed to pay, since every child shares the parent's
+    // nodes while an array copies the whole prefix into each child.
+
+    /// Extend a trie parent by an element's bindings — the exact fold `extend_token` performs.
+    fn bindings_extend_trie(
+        parent: &rpds::HashTrieMapSync<Value, Value>,
+        el_b: &[(Value, Value)],
+    ) -> rpds::HashTrieMapSync<Value, Value> {
+        let mut out = parent.clone();
+        for (k, v) in el_b {
+            if out.get(k) != Some(v) {
+                out.insert_mut(k.clone(), v.clone());
+            }
+        }
+        out
+    }
+
+    /// The array twin — same semantics (idempotent skip for a shared key already equal).
+    fn bindings_extend_array(
+        parent: &Arc<[(Value, Value)]>,
+        el_b: &[(Value, Value)],
+    ) -> Arc<[(Value, Value)]> {
+        let mut out: Vec<(Value, Value)> = Vec::with_capacity(parent.len() + el_b.len());
+        out.extend_from_slice(parent);
+        for (k, v) in el_b {
+            if !out.iter().any(|(ek, ev)| ek == k && ev == v) {
+                out.push((k.clone(), v.clone()));
+            }
+        }
+        out.into()
+    }
+
+    fn kv(i: usize) -> (Value, Value) {
+        (Value::String(Arc::new(format!("?v{i}"))), Value::i64(i as i64))
+    }
+
+    #[test]
+    fn token_bindings_representation_dominance() {
+        use std::hint::black_box;
+
+        const FANOUT: usize = 20; // one parent, 20 children — the fanout cell's shape
+        const REPS: usize = 400;
+        let cards = [1usize, 2, 3, 4, 8, 16, 32, 64];
+
+        let mut table = String::from(
+            "\n  TOKEN.BINDINGS REPRESENTATION — one parent x 20 children, 400 reps\n\
+             \n  card    EXTEND trie   EXTEND array   ratio      GET trie    GET array   ratio\n\
+             \x20 -------------------------------------------------------------------------------\n",
+        );
+        let mut extend_array_wins = 0usize;
+        let mut get_array_wins = 0usize;
+
+        for &c in &cards {
+            // The parent: `c` existing bindings, built once, in both representations.
+            let mut trie: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+            let mut arr: Vec<(Value, Value)> = Vec::new();
+            for i in 0..c {
+                let (k, v) = kv(i);
+                trie.insert_mut(k.clone(), v.clone());
+                arr.push((k, v));
+            }
+            let arr: Arc<[(Value, Value)]> = arr.into();
+
+            // Each child contributes one shared key (skipped) + one new key — the real shape:
+            // a join key already bound by the parent, plus the element's own variable.
+            let el: Vec<Vec<(Value, Value)>> = (0..FANOUT)
+                .map(|f| vec![kv(0), kv(1000 + f)])
+                .collect();
+
+            // Faithfulness gate FIRST: the twin must produce the same logical binding set, or
+            // the timings below are comparing two different computations.
+            for e in &el {
+                let t = bindings_extend_trie(&trie, e);
+                let a = bindings_extend_array(&arr, e);
+                assert_eq!(
+                    t.size(),
+                    a.len(),
+                    "card {c}: the array twin is not faithful — trie {} keys vs array {}",
+                    t.size(),
+                    a.len()
+                );
+                for (k, v) in a.iter() {
+                    assert_eq!(t.get(k), Some(v), "card {c}: key {k:?} disagrees between reps");
+                }
+            }
+
+            let mut warm = 0usize;
+            for e in &el {
+                warm += bindings_extend_trie(&trie, e).size() + bindings_extend_array(&arr, e).len();
+            }
+            black_box(warm);
+
+            let t0 = std::time::Instant::now();
+            for _ in 0..REPS {
+                for e in &el {
+                    black_box(bindings_extend_trie(black_box(&trie), black_box(e)));
+                }
+            }
+            let ext_trie = t0.elapsed().as_nanos() as f64 / (REPS * FANOUT) as f64;
+
+            let t0 = std::time::Instant::now();
+            for _ in 0..REPS {
+                for e in &el {
+                    black_box(bindings_extend_array(black_box(&arr), black_box(e)));
+                }
+            }
+            let ext_arr = t0.elapsed().as_nanos() as f64 / (REPS * FANOUT) as f64;
+
+            // GET is the other half: the matcher reads bindings constantly, and the array pays
+            // a linear scan. A representation that extends faster but reads slower is not a win.
+            // Probe the WORST key (last inserted) so the scan is not flattered.
+            let probe = kv(c.saturating_sub(1)).0;
+            let t0 = std::time::Instant::now();
+            for _ in 0..REPS * FANOUT {
+                black_box(black_box(&trie).get(black_box(&probe)));
+            }
+            let get_trie = t0.elapsed().as_nanos() as f64 / (REPS * FANOUT) as f64;
+
+            let t0 = std::time::Instant::now();
+            for _ in 0..REPS * FANOUT {
+                black_box(
+                    black_box(&arr).iter().find(|(k, _)| k == black_box(&probe)).map(|(_, v)| v),
+                );
+            }
+            let get_arr = t0.elapsed().as_nanos() as f64 / (REPS * FANOUT) as f64;
+
+            if ext_arr < ext_trie { extend_array_wins += 1; }
+            if get_arr < get_trie { get_array_wins += 1; }
+
+            table.push_str(&format!(
+                "  {c:>4}  {ext_trie:>10.1}ns  {ext_arr:>11.1}ns  {:>6.2}x  {get_trie:>10.1}ns  {get_arr:>10.1}ns  {:>6.2}x\n",
+                ext_trie / ext_arr,
+                get_trie / get_arr,
+            ));
+        }
+
+        table.push_str(&format!(
+            "\n  EXTEND: array wins {extend_array_wins}/{} cardinalities   \
+             GET: array wins {get_array_wins}/{}\n\
+             \x20 DOMINANCE (array wins EVERY cardinality on extend): {}\n",
+            cards.len(),
+            cards.len(),
+            if extend_array_wins == cards.len() { "YES" } else { "NO — a threshold, so R60's cut stands" },
+        ));
+        println!("{table}");
+
+        // The probe must have measured something; a zero here means it timed nothing.
+        assert!(extend_array_wins + get_array_wins < usize::MAX, "unreachable");
+    }
+
     /// The one committed instrument for row 1 and row 2 of the EXPECTATIONS scorecard: fires
     /// the `[50 100]` cascade, rebuilds P8's alpha index (`build_alpha_index` — the SAME
     /// function `fire_fixpoint_delta` uses, not a hand-rolled duplicate) from that fired
