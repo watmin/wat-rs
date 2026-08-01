@@ -69,6 +69,52 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
     }
 }
 
+// ─── Bindings — read-only accessor over either binding representation ─────────
+//
+// Arc 278 DESIGN-STONE-element-bindings-array. `Element.bindings` is `Arc<[(Value, Value)]>`
+// (built once by `alpha_match_inner`, read/cloned/dropped forever after — never extended);
+// `Token.bindings` stays `rpds::HashTrieMapSync` (the only one that EXTENDS, and the trie wins
+// that operation). This matcher reads BOTH kinds — `resolve_operand` (token-side at
+// `build_insert_fact`/`eval_step_payload`, element-side inside `eval_clause`'s own fold) and
+// `eval_test_core` (token-side today; a `:test` clause can in principle sit after either side of
+// a join) — and kernel.rs's join code reads both too (`key_of` walks a Token's trie OR an
+// Element's array depending on the caller). `Bindings` is the ONLY thing that lets those readers
+// stay agnostic without converting one representation into the other.
+//
+// The trait must NEVER grow an `insert`. The moment it does, the two representations are forced
+// through one interface again and the array is made to pay for the trie's one winning operation.
+pub(crate) trait Bindings {
+    fn get(&self, k: &Value) -> Option<&Value>;
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)>;
+}
+
+impl Bindings for rpds::HashTrieMapSync<Value, Value> {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        rpds::HashTrieMapSync::get(self, k)
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        rpds::HashTrieMapSync::iter(self)
+    }
+}
+
+impl Bindings for Arc<[(Value, Value)]> {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        self.as_ref().iter().find(|(kk, _)| kk == k).map(|(_, v)| v)
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        self.as_ref().iter().map(|(k, v)| (k, v))
+    }
+}
+
+impl Bindings for Vec<(Value, Value)> {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        self.as_slice().iter().find(|(kk, _)| kk == k).map(|(_, v)| v)
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        self.as_slice().iter().map(|(k, v)| (k, v))
+    }
+}
+
 // ─── Public entry point ────────────────────────────────────────────────────────
 
 /// `(:wat::rete::alpha-match cond fact) -> Option<PersistentMap<String, Value>>`
@@ -134,24 +180,38 @@ pub(crate) fn eval_alpha_match(
         })
         .unwrap_or_default();
 
-    // Pure match: no environment, no eval, bindings as a persistent map.
+    // Pure match: no environment, no eval, bindings as an array (element-side — see `Bindings`).
     let result = alpha_match_inner(&cond_ast, fact.class_fqdn, fact.fields, &field_names);
     Ok(match result {
-        Some(bindings) => Value::Option(Arc::new(Some(Value::wat__core__PersistentMap(bindings)))),
+        // wat-contract boundary: this primitive's surface is `Option<PersistentMap>` — build one
+        // from the array here (not the matcher hot path; this is a primitive dispatch, not
+        // per-element construction inside `alpha_pass`/`alpha_match_inner`'s own fold).
+        Some(bindings) => {
+            let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+            for (k, v) in bindings.iter() {
+                pm = pm.insert(k.clone(), v.clone());
+            }
+            Value::Option(Arc::new(Some(Value::wat__core__PersistentMap(pm))))
+        }
         None => Value::Option(Arc::new(None)),
     })
 }
 
 // ─── Pure inner matcher ────────────────────────────────────────────────────────
 
-/// The pure core: no `Environment`, no `eval_inner`. Returns the binding map or
+/// The pure core: no `Environment`, no `eval_inner`. Returns the binding array or
 /// `None` (Clara no-error: any mismatch is `None`, never a raise).
+///
+/// DESIGN-STONE-element-bindings-array: this is where an Element's bindings are BUILT — the
+/// accumulator folds a plain `Vec<(Value, Value)>` (cheap: elements bind 1-2 vars in practice),
+/// sealed into the `Arc<[(Value, Value)]>` `Element.bindings` wants via `.into()` at the end.
+/// Building an array here instead of folding an `rpds` trie is most of this stone's win.
 pub(crate) fn alpha_match_inner(
     cond: &WatAST,
     fact_class: &str,
     fact_fields: &[Value],
     field_names: &[String],
-) -> Option<rpds::HashTrieMapSync<Value, Value>> {
+) -> Option<Arc<[(Value, Value)]>> {
     // Condition must be a List whose head is a keyword naming the expected type.
     let items = match cond {
         WatAST::List(items, _) if !items.is_empty() => items,
@@ -170,11 +230,10 @@ pub(crate) fn alpha_match_inner(
         return None;
     }
 
-    // Fold the remaining clauses left→right, threading the bindings map.
-    // Empty bindings = an rpds empty map (structural sharing; cheap insert).
-    let empty: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    // Fold the remaining clauses left→right, threading the bindings accumulator.
+    let empty: Vec<(Value, Value)> = Vec::new();
     let clauses = &items[1..];
-    eval_clauses(clauses, fact_fields, field_names, empty)
+    eval_clauses(clauses, fact_fields, field_names, empty).map(Into::into)
 }
 
 /// Walk a slice of top-level condition clauses, threading bindings left→right.
@@ -183,8 +242,8 @@ fn eval_clauses(
     clauses: &[WatAST],
     fact_fields: &[Value],
     field_names: &[String],
-    bindings: rpds::HashTrieMapSync<Value, Value>,
-) -> Option<rpds::HashTrieMapSync<Value, Value>> {
+    bindings: Vec<(Value, Value)>,
+) -> Option<Vec<(Value, Value)>> {
     let mut current = bindings;
     for clause in clauses {
         crate::rete::kernel::census_count("match:clause");
@@ -340,22 +399,31 @@ fn eval_clause(
     clause: &WatAST,
     fact_fields: &[Value],
     field_names: &[String],
-    bindings: rpds::HashTrieMapSync<Value, Value>,
-) -> Option<rpds::HashTrieMapSync<Value, Value>> {
+    bindings: Vec<(Value, Value)>,
+) -> Option<Vec<(Value, Value)>> {
     match classify_rete_clause(clause) {
         // ── bind clause: (?v <- :field) ──────────────────────────────────────
         ReteClauseShape::Bind { var, field } => {
             let field_value = read_fact_field(fact_fields, field_names, field)?;
             // Bind ?v → field value. If ?v was already bound in this condition,
             // treat it as a constraint: the bound value must equal the field value.
+            // Linear scan (not `Bindings::get` — this is the concrete array accumulator
+            // itself, not a generic reader; see the array's one losing op in the
+            // DESIGN-STONE, accepted because elements bind 1-2 vars in practice).
             let key = Value::String(Arc::new(var.to_string()));
-            match bindings.get(&key) {
-                Some(existing) if existing != &field_value => None, // conflict
-                Some(_) => Some(bindings),                          // already bound, equal
+            let existing = bindings.iter().find_map(|(k, v)| (*k == key).then(|| v.clone()));
+            match existing {
+                Some(v) if v != field_value => None, // conflict
+                Some(_) => Some(bindings),            // already bound, equal
                 None => {
+                    // STOP-5: a fresh key only ever reaches `push` here — the arms above
+                    // already handle "key present" (equal or conflicting), so no duplicate
+                    // key can land in the array. This is the trie's free dedupe, reproduced.
                     crate::rete::kernel::census_count("match:bind-insert");
-                    Some(bindings.insert(key, field_value))
-                }                                                   // fresh binding
+                    let mut bindings = bindings;
+                    bindings.push((key, field_value));
+                    Some(bindings)
+                }
             }
         }
 
@@ -422,11 +490,16 @@ fn eval_clause(
 ///   is a cross-condition join key, handled by the beta network in stone 3)
 /// - `Keyword(:field)` → the named field of the fact
 /// - Literal → its bare Value
-pub(crate) fn resolve_operand(
+///
+/// Generic over [`Bindings`] — called with the element-side array accumulator (from
+/// `eval_clause`'s `Constraint` arm, mid-fold), the token-side trie (`build_insert_fact`,
+/// `eval_step_payload`), or in principle either (see the `Bindings` doc). Monomorphised per
+/// call site — no vtable, no dispatch cost.
+pub(crate) fn resolve_operand<B: Bindings>(
     operand: &WatAST,
     fact_fields: &[Value],
     field_names: &[String],
-    bindings: &rpds::HashTrieMapSync<Value, Value>,
+    bindings: &B,
 ) -> Option<Value> {
     match operand {
         WatAST::Symbol(ident, _) => {
@@ -964,9 +1037,14 @@ pub(crate) fn eval_step_payload(
 /// A fresh `env` (typically `&Environment::new()`) should be passed — the only names
 /// a `where` expression may reference are its `?vars` (from `bindings`) and
 /// `sym`'s registered user functions.
-pub(crate) fn eval_test_core(
+///
+/// Generic over [`Bindings`] — today's callers always pass a Token's trie (a `:test` clause
+/// evaluates after a join in the fixtures exercised so far), but a `:test` clause may in
+/// principle sit right after a single condition (element-side), so the reader stays agnostic
+/// rather than assuming a representation.
+pub(crate) fn eval_test_core<B: Bindings>(
     expr: &WatAST,
-    bindings: &rpds::HashTrieMapSync<Value, Value>,
+    bindings: &B,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<bool, EvalBreak> {

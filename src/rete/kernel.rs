@@ -24,6 +24,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
+use crate::rete::matcher::Bindings;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
 use crate::value::value::AggregateValue;
@@ -56,15 +57,22 @@ pub(crate) struct Token {
 /// Native for the same reason `Token` is (P11): the `Value`-record form —
 /// `Value::Aggregate(Arc::new(record(..., Arc::new(vec![fact, Value::wat__core__PersistentMap(bindings)]))))`
 /// — costs ~3-4 heap allocations each, and alpha holds tens of thousands of these (80,200 at
-/// `G=200 W=200`). `bindings` stays `rpds::HashTrieMapSync` — `matcher.rs` and the hash-join /
-/// gather-index paths read it directly (the binding representation itself is a separate,
-/// later stone; changing it here would make this diff's measurement unattributable).
+/// `G=200 W=200`).
+///
+/// `bindings` is `Arc<[(Value, Value)]>` — DESIGN-STONE-element-bindings-array: an Element is
+/// built once by `alpha_match_inner` and only read, cloned and dropped forever after (never
+/// extended), and measured, the array wins build/lookup/clone/drop over an `rpds` trie at every
+/// width. `Token.bindings` stays the trie — Tokens are the thing that extends, and the trie wins
+/// exactly that operation. `matcher.rs`'s readers (`resolve_operand`, `eval_test_core`) and
+/// kernel.rs's join code (`key_of`) read both kinds through the read-only `Bindings` trait
+/// (`matcher::Bindings`) rather than converting one into the other.
 #[derive(Clone)]
 pub(crate) struct Element {
     /// The fact that matched the AlphaNode's condition.
     pub(crate) fact:     Value,
-    /// Bound variables produced by the alpha match. Stays rpds — matcher reads it directly.
-    pub(crate) bindings: rpds::HashTrieMapSync<Value, Value>,
+    /// Bound variables produced by the alpha match. Read-only forever after construction —
+    /// see the struct doc. Lookup is a linear scan (fine: elements bind 1-2 vars in practice).
+    pub(crate) bindings: Arc<[(Value, Value)]>,
 }
 
 /// The mutable mirror of a `:wat::rete::Session` — used during the fire pass (P2–P5).
@@ -305,8 +313,12 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
             }).into()),
     };
     let fact = struct_form[0].clone();
-    let bindings = match &struct_form[1] {
-        Value::wat__core__PersistentMap(m) => m.clone(),
+    // Value-boundary decode: PM -> array. One-time per element at session decode (to_transient),
+    // not the matcher's hot read path — see DESIGN-STONE-element-bindings-array read-order §3.
+    let bindings: Arc<[(Value, Value)]> = match &struct_form[1] {
+        Value::wat__core__PersistentMap(m) => {
+            m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>().into()
+        }
         other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "element bindings :wat::core::PersistentMap",
@@ -319,10 +331,17 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
 /// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
 ///
 /// Produces the same shape `make_element` (pre-nativise) did: `struct_form = [fact, PM bindings]`.
+/// Value-boundary encode: array -> PM. One-time per element at session encode (to_persistent) —
+/// the wat contract still needs a `PersistentMap`, so this walks the array and builds one
+/// (DESIGN-STONE-element-bindings-array read-order §3); it is not the matcher's hot read path.
 fn native_element_to_value(el: Element) -> Value {
+    let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for (k, v) in el.bindings.iter() {
+        pm = pm.insert(k.clone(), v.clone());
+    }
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
-        Arc::new(vec![el.fact, Value::wat__core__PersistentMap(el.bindings)]),
+        Arc::new(vec![el.fact, Value::wat__core__PersistentMap(pm)]),
     )))
 }
 
@@ -639,7 +658,7 @@ fn explained_class_fqdn() -> Arc<String> {
 /// (Pre-nativise, this built the `wat::rete::Element` Value record directly; that body now
 /// lives in `native_element_to_value`, the encoder called at the one boundary — `to_persistent`
 /// — where an Element must actually become a Value.)
-fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> Element {
+fn make_element(fact: Value, bindings: Arc<[(Value, Value)]>) -> Element {
     Element { fact, bindings }
 }
 
@@ -665,7 +684,7 @@ fn make_token(
 /// A native `Element` cannot be malformed — the two `panic!` arms this used to have (for a
 /// non-Record Value or a non-PersistentMap bindings field) are gone; the one place a malformed
 /// Value could arrive is now `value_to_element`, which returns a `Result` like `value_to_token`.
-fn element_fact_bindings(el: &Element) -> (&Value, &rpds::HashTrieMapSync<Value, Value>) {
+fn element_fact_bindings(el: &Element) -> (&Value, &Arc<[(Value, Value)]>) {
     (&el.fact, &el.bindings)
 }
 
@@ -799,7 +818,7 @@ fn root_join_pass(wm: &mut WorkingMemory) {
                 // Support edge: (fact, alpha-id). Mirrors seed-token (wat:544-551).
                 let tok = Token {
                     matches:  vec![(fact.clone(), *node_id)],
-                    bindings: bindings.clone(),
+                    bindings: seed_token_bindings(bindings),
                 };
                 wm.beta.entry(*child_id).or_default().push(tok);
             }
@@ -841,7 +860,7 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// Called by the NegationNode filter (7-b) to check absence against the full alpha-memory.
 fn token_element_compatible(
     tok_bindings: &rpds::HashTrieMapSync<Value, Value>,
-    el_bindings: &rpds::HashTrieMapSync<Value, Value>,
+    el_bindings: &Arc<[(Value, Value)]>,
 ) -> bool {
     for (k, e_val) in el_bindings.iter() {
         if let Some(t_val) = tok_bindings.get(k) {
@@ -861,7 +880,7 @@ fn token_element_compatible(
 fn extend_token(
     tok: &Token,
     el_fact: &Value,
-    el_bindings: &rpds::HashTrieMapSync<Value, Value>,
+    el_bindings: &Arc<[(Value, Value)]>,
     alpha_id: i64,
 ) -> Token {
     // Clone the matches Vec and push the new edge.
@@ -877,6 +896,24 @@ fn extend_token(
         }
     }
     Token { matches: new_matches, bindings: new_bindings }
+}
+
+/// Seed a brand-new `Token`'s bindings trie from a root Element's array bindings.
+///
+/// The ONE place a `Token` is born from an `Element` (`root_join_pass` / its delta twin) — every
+/// other Token is produced by `extend_token`, which folds an element's bindings into an EXISTING
+/// trie one key at a time (unaffected by this stone). This is a real, unavoidable build: Token
+/// stays a trie because it extends, so a freshly-seeded Token needs one, and it can only come
+/// from walking the array — not the matcher-hot-path re-derivation STOP-1 forbids (that STOP is
+/// about a *reader* re-deriving a trie just to compare/look up; this is a Token being
+/// constructed for the first time, exactly as `native_element_to_value`'s Value-boundary encode
+/// is DESIGN-STONE-element-bindings-array read-order §3, not a hidden regression).
+fn seed_token_bindings(el_bindings: &Arc<[(Value, Value)]>) -> rpds::HashTrieMapSync<Value, Value> {
+    let mut m: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for (k, v) in el_bindings.iter() {
+        m = m.insert(k.clone(), v.clone());
+    }
+    m
 }
 
 /// Keyed hash-join helper (P3 — shared by batch `hash_join_pass` and delta `fire_fixpoint_delta`).
@@ -899,7 +936,7 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
         let (_, sample_el_bindings) = element_fact_bindings(&right_elements[0]);
         let mut keys: Vec<Value> = sample_tok_bindings
             .keys()
-            .filter(|k| sample_el_bindings.get(*k).is_some())
+            .filter(|k| sample_el_bindings.get(k).is_some())
             .cloned()
             .collect();
         // Binding keys are Value::String (variable names like "?loc").
@@ -1312,7 +1349,7 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
 ///
 /// Panics if a join key is absent from `bindings` (structurally impossible in a well-formed
 /// rete network; all shared variables must be bound before this node is reached).
-fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -> Vec<Value> {
+fn key_of<B: Bindings>(bindings: &B, join_keys: &[Value]) -> Vec<Value> {
     join_keys
         .iter()
         .map(|k| {
@@ -1342,7 +1379,7 @@ fn gather_join_keys(
     let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
     let mut keys: Vec<Value> = sample_bindings
         .keys()
-        .filter(|k| sample_el_bindings.get(*k).is_some())
+        .filter(|k| sample_el_bindings.get(k).is_some())
         .cloned()
         .collect();
     // Binding keys are Value::String (variable names like "?loc").
@@ -2060,7 +2097,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // Seed native Token: one matches edge (fact, alpha_id).
                     let tok = Token {
                         matches:  vec![(fact.clone(), *node_id)],
-                        bindings: bindings.clone(),
+                        bindings: seed_token_bindings(bindings),
                     };
                     wm.beta.entry(*child_id).or_default().push(tok.clone());
                     d_beta.entry(*child_id).or_default().push(tok);
@@ -2124,7 +2161,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                             let (_, el_b) = element_fact_bindings(el);
                             let mut keys: Vec<Value> = tok.bindings
                                 .keys()
-                                .filter(|k| el_b.get(*k).is_some())
+                                .filter(|k| el_b.get(k).is_some())
                                 .cloned()
                                 .collect();
                             keys.sort_by(|a, b| {
@@ -2612,7 +2649,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         for els in wm.alpha.values() {
             for el in els {
                 let (_, b) = element_fact_bindings(el);
-                census_count(ebucket(b.size()));
+                census_count(ebucket(b.len()));
                 census_count("bind-card:ELEMENTS");
             }
         }
