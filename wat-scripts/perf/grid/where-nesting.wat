@@ -113,28 +113,28 @@
     (:wat::core::= 0 (:wat::core::i64::- sc (:wat::core::i64::* (:wat::core::i64::/ sc 2) 2)))))
 
 ;; ROW 1 — depth-2 chain. c2(k) = c1(k)+3, c1(k) = k mod 13. c2 > 10 <=> c1 in {8..12} -> 75 of 200.
-(:wat::rete::defrule :depth2
+(:wat::rete::defrule :wnst::depth2
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c2 ?k) 10))]
   :then
   (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 2 — depth-3 chain. c3 > 15 <=> c1 in {10,11,12} -> 45 of 200.
-(:wat::rete::defrule :depth3
+(:wat::rete::defrule :wnst::depth3
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c3 ?k) 15))]
   :then
   (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 3 — depth-4 chain. c4 > 15 <=> c1 in {7..12} -> 90 of 200.
-(:wat::rete::defrule :depth4
+(:wat::rete::defrule :wnst::depth4
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c4 ?k) 15))]
   :then
   (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 4 — depth-5 chain. c5 > 20 <=> c1 in {9,10,11,12} -> 60 of 200.
-(:wat::rete::defrule :depth5
+(:wat::rete::defrule :wnst::depth5
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c5 ?k) 20))]
   :then
@@ -142,7 +142,7 @@
 
 ;; ROW 5 — depth-10 chain, the "keeps going past 5" witness kept live in the gate.
 ;; c10 = c1 + 27. c10 > 32 <=> c1 in {6..12} -> 105 of 200.
-(:wat::rete::defrule :depth10
+(:wat::rete::defrule :wnst::depth10
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c10 ?k) 32))]
   :then
@@ -152,7 +152,7 @@
 ;; reference, separate from call depth. g1=k+10 g2=g1*2 g3=g2-15 g4=g3/3 g5=g4+7 g6=g5*2 -> g6>157
 ;; selects 94 of 200 (all intermediate values stay non-negative by construction, so wat's truncating
 ;; `i64::/` and Clojure's `quot` agree without a sign subtlety to reason about).
-(:wat::rete::defrule :inline-tree
+(:wat::rete::defrule :wnst::inline-tree
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where
                                 (:wat::core::i64::>
@@ -170,7 +170,7 @@
   (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 7 — TWO bound vars, both live at test time. twoarg(?k, ?m) = (?k+?m) > 113 -> 108 of 200.
-(:wat::rete::defrule :two-arg
+(:wat::rete::defrule :wnst::two-arg
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::twoarg ?k ?m))]
   :then
@@ -178,7 +178,7 @@
 
 ;; ROW 8 — the where-clause's OWN top-level call takes a call to a DIFFERENT pure fn as its argument:
 ;; (wrap (c2 ?k)). wrap(v) = v mod 4 == 0. c2(k) = c1(k)+3 in {4,8,12} <=> c1 in {1,5,9} -> 46 of 200.
-(:wat::rete::defrule :arg-is-call
+(:wat::rete::defrule :wnst::arg-is-call
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k)))]
   :then
@@ -186,7 +186,7 @@
 
 ;; ROW 9 — mutual/chained helpers: f calls g AND h, both of which call the shared hub.
 ;; hub in {4..12} (mod 17) -> 108 of 200.
-(:wat::rete::defrule :diamond
+(:wat::rete::defrule :wnst::diamond
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::f ?k))]
   :then
@@ -194,7 +194,7 @@
 
 ;; ROW 10 — a user fn returning a NON-bool (i64), compared from OUTSIDE the call.
 ;; score(k) = (3k) mod 11; score > 6 -> 72 of 200.
-(:wat::rete::defrule :int-then-compare
+(:wat::rete::defrule :wnst::int-then-compare
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::score ?k) 6))]
   :then
@@ -202,7 +202,7 @@
 
 ;; ROW 11 — the CONTRAST with row 10: a user fn returning bool DIRECTLY (internally calling score),
 ;; used bare in the where clause with no external comparison. is-good(k) = score(k) even -> 109 of 200.
-(:wat::rete::defrule :bool-direct
+(:wat::rete::defrule :wnst::bool-direct
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::is-good ?k))]
   :then
@@ -212,17 +212,17 @@
 (:wat::core::defn :wnst::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:depth2))
-      ((:wat::core::= row 2)  (:depth3))
-      ((:wat::core::= row 3)  (:depth4))
-      ((:wat::core::= row 4)  (:depth5))
-      ((:wat::core::= row 5)  (:depth10))
-      ((:wat::core::= row 6)  (:inline-tree))
-      ((:wat::core::= row 7)  (:two-arg))
-      ((:wat::core::= row 8)  (:arg-is-call))
-      ((:wat::core::= row 9)  (:diamond))
-      ((:wat::core::= row 10) (:int-then-compare))
-      ((:wat::core::= row 11) (:bool-direct))
+      ((:wat::core::= row 1)  (:wnst::depth2))
+      ((:wat::core::= row 2)  (:wnst::depth3))
+      ((:wat::core::= row 3)  (:wnst::depth4))
+      ((:wat::core::= row 4)  (:wnst::depth5))
+      ((:wat::core::= row 5)  (:wnst::depth10))
+      ((:wat::core::= row 6)  (:wnst::inline-tree))
+      ((:wat::core::= row 7)  (:wnst::two-arg))
+      ((:wat::core::= row 8)  (:wnst::arg-is-call))
+      ((:wat::core::= row 9)  (:wnst::diamond))
+      ((:wat::core::= row 10) (:wnst::int-then-compare))
+      ((:wat::core::= row 11) (:wnst::bool-direct))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-nesting: unknown row " (:wat::core::i64::to-string row))
@@ -264,6 +264,21 @@
 
 ;; run-row row -> the corpus line for ONE shape, in its OWN session (mirrors where-shapes.wat exactly:
 ;; per-row isolation, so a divergence names the row that caused it).
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wnst::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wnst::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wnst::build-rules row)
                     rule    (:wat::core::first rules)
@@ -274,7 +289,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wnst::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wnst::render-ints derived))))))

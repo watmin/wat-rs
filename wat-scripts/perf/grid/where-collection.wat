@@ -119,7 +119,7 @@
 
 ;; ROW 1 — LENGTH vs a BOUND i64 VAR (not a constant). length(tags) > bound.
 ;; tags-len in {0..5}, bound in {0..7}; simulated => 48/200.
-(:wat::rete::defrule :length-bound
+(:wat::rete::defrule :wc::length-bound
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) ?b))]
   :then
@@ -130,7 +130,7 @@
 ;; `PersistentVector/get` (-> Option<T>) destructured by `match` — a pattern, not a call, so the
 ;; fence never even sees `Some`/`None` as heads. get(tags,2) -> Some x, x>5; None (len<=2) -> false.
 ;; Simulated => 54/200.
-(:wat::rete::defrule :get-const
+(:wat::rete::defrule :wc::get-const
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::match (:wat::core::PersistentVector/get ?t 2)
@@ -140,7 +140,7 @@
   (:wat::rete::insert (:wc::Hit ?k)))
 
 ;; ROW 3 — MEMBERSHIP. tags contains 6. Simulated => 38/200.
-(:wat::rete::defrule :contains
+(:wat::rete::defrule :wc::contains
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::core::PersistentVector/contains? ?t 6))]
   :then
@@ -149,7 +149,7 @@
 ;; ROW 4 — NESTED COLLECTION, two levels in. grid is Vector<Vector<i64>>; reach the FIRST inner
 ;; vector (Option, None when grid is empty — i mod 3 == 0, 67 facts) and test ITS length.
 ;; get(grid,0) -> Some inner, length(inner)>1; None -> false. Simulated => 66/200.
-(:wat::rete::defrule :nested
+(:wat::rete::defrule :wc::nested
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::match (:wat::core::PersistentVector/get ?g 0)
@@ -161,7 +161,7 @@
 ;; ROW 5 — HIGHER-ORDER + CROSS-VAR. sum(tags) > bound, via `foldl` closing over a pure `fn`.
 ;; foldl's own arg-recursion makes this admissible: the fence classifies `foldl` conditionally pure
 ;; and then recurses into the closure body (plain `i64::+`) — see header. Simulated => 150/200.
-(:wat::rete::defrule :fold-sum-bound
+(:wat::rete::defrule :wc::fold-sum-bound
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::i64::>
@@ -176,7 +176,7 @@
 ;; ROW 6 — ELEMENT ACCESS at a DYNAMIC (bound-var) index — the index itself is `?b`, not a literal.
 ;; get(tags,bound) -> Some x, x>3; None (bound out of range for this tags) -> false.
 ;; Simulated => 34/200.
-(:wat::rete::defrule :get-dynamic
+(:wat::rete::defrule :wc::get-dynamic
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::match (:wat::core::PersistentVector/get ?t ?b)
@@ -188,7 +188,7 @@
 ;; ROW 7 — a PURE FN taking the WHOLE bound collection and returning bool (`:wc::heavy?` above),
 ;; the shape a compiled executor cannot inline and must hand back to the interpreter (mirrors
 ;; where-shapes.wat row 5, but the argument is a collection, not a scalar). Simulated => 30/200.
-(:wat::rete::defrule :userfn
+(:wat::rete::defrule :wc::userfn
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wc::heavy? ?t))]
   :then
@@ -198,7 +198,7 @@
 ;; `(foldl and true tags)` — every tag is even. Seed `true` is the vacuous-truth answer, so the 34
 ;; facts with tags=[] land here WITHOUT raising (contrast `first`/2-arity `reduce`, header).
 ;; Simulated => 57/200 (includes all 34 empty-tags facts).
-(:wat::rete::defrule :fold-every-even
+(:wat::rete::defrule :wc::fold-every-even
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::foldl
@@ -211,7 +211,7 @@
 ;; ROW 9 — HIGHER-ORDER, `some?` EMULATED. `(foldl or false tags)` — some tag equals 0. Seed
 ;; `false` is the vacuous-falsity answer, so the same 34 empty-tags facts land OUTSIDE this set
 ;; without raising. Simulated => 38/200.
-(:wat::rete::defrule :fold-some-zero
+(:wat::rete::defrule :wc::fold-some-zero
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::foldl
@@ -224,7 +224,7 @@
 ;; ROW 10 — NESTED + HIGHER-ORDER + CROSS-VAR, all three composed: reach the first inner vector
 ;; (two levels in, Option-safe), THEN fold its elements, THEN compare against the bound var.
 ;; get(grid,0) -> Some inner, sum(inner) > bound; None -> false. Simulated => 76/200.
-(:wat::rete::defrule :nested-fold-bound
+(:wat::rete::defrule :wc::nested-fold-bound
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::core::match (:wat::core::PersistentVector/get ?g 0)
@@ -243,16 +243,16 @@
 (:wat::core::defn :wc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:length-bound))
-      ((:wat::core::= row 2)  (:get-const))
-      ((:wat::core::= row 3)  (:contains))
-      ((:wat::core::= row 4)  (:nested))
-      ((:wat::core::= row 5)  (:fold-sum-bound))
-      ((:wat::core::= row 6)  (:get-dynamic))
-      ((:wat::core::= row 7)  (:userfn))
-      ((:wat::core::= row 8)  (:fold-every-even))
-      ((:wat::core::= row 9)  (:fold-some-zero))
-      ((:wat::core::= row 10) (:nested-fold-bound))
+      ((:wat::core::= row 1)  (:wc::length-bound))
+      ((:wat::core::= row 2)  (:wc::get-const))
+      ((:wat::core::= row 3)  (:wc::contains))
+      ((:wat::core::= row 4)  (:wc::nested))
+      ((:wat::core::= row 5)  (:wc::fold-sum-bound))
+      ((:wat::core::= row 6)  (:wc::get-dynamic))
+      ((:wat::core::= row 7)  (:wc::userfn))
+      ((:wat::core::= row 8)  (:wc::fold-every-even))
+      ((:wat::core::= row 9)  (:wc::fold-some-zero))
+      ((:wat::core::= row 10) (:wc::nested-fold-bound))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-collection: unknown row " (:wat::core::i64::to-string row))
@@ -324,6 +324,21 @@
     v))
 
 ;; run-row row -> the corpus line for ONE shape, in its OWN session.
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wc::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wc::build-rules row)
                     rule    (:wat::core::first rules)
@@ -334,7 +349,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wc::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wc::render-ints derived))))))

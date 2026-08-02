@@ -120,7 +120,7 @@
 ;; n false (150/180): a < 2 means i mod 4 in {0,1}. Among the 150 non-multiples-of-6, i mod 4 in
 ;; {0,1} for 90 of the 180 total (half), minus the 15 multiples-of-6 with a=0 counted above =>
 ;; 90 - 15 = 75 pass on the not-n branch.  Total: 15 + 75 = 90/180.
-(:wat::rete::defrule :if-whole
+(:wat::rete::defrule :wsc::if-whole
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::if ?n
@@ -135,7 +135,7 @@
 ;; 180 facts (80) satisfy that, minus the ones that are also n=true (i mod 6==0 AND i mod 9 in
 ;; {5,6,7,8}): over one lcm(6,9)=18 period the three i mod 6==0 points are i mod 9 in {0,6,3}, of
 ;; which only 6 qualifies -- 1 of every 18 -- so 10 across [0,180). 80 - 10 = 70/180.
-(:wat::rete::defrule :if-nested-cmp
+(:wat::rete::defrule :wsc::if-nested-cmp
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::i64::>
@@ -151,7 +151,7 @@
 ;; `cond`'s macro-ness, not the branching semantics — chained `if` says the identical thing and
 ;; compiles clean. a = i mod 4: a==0 -> true (45/180), a==2 -> true (45/180), else -> false.
 ;; Total: 90/180.
-(:wat::rete::defrule :if-chain-whole
+(:wat::rete::defrule :wsc::if-chain-whole
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::if (:wat::core::= ?a 0)
@@ -170,7 +170,7 @@
 ;; s = a+b = (i mod 4) + (i mod 9), range [0,12] over the joint period lcm(4,9)=36. Enumerating all
 ;; 36 residues by hand: 22 of them land 5 <= s <= 11 (the strict-open interval (4,12)); 180/36 = 5
 ;; identical blocks => 22*5 = 110/180.
-(:wat::rete::defrule :let-twice
+(:wat::rete::defrule :wsc::let-twice
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
@@ -184,7 +184,7 @@
 ;; (common-subexpression shape). Hit :- Req(…) AND (let [c (bump a)] (and (> c 1) (< c 5))).
 ;; c = a+1, a = i mod 4 in {0,1,2,3} => c in {1,2,3,4}; c>1 and c<5 means c in {2,3,4} => a in
 ;; {1,2,3} => 3 of every 4 residues => 135/180.
-(:wat::rete::defrule :let-call-cse
+(:wat::rete::defrule :wsc::let-call-cse
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::let [c (:wsc::bump ?a)]
@@ -198,7 +198,7 @@
 ;; ordinary value rather than an enum — the plainest permitted shape). Hit :- Req(…) AND
 ;; (match a (0 false) (1 true) (2 false) (3 true)).  a=i mod 4: 1 and 3 give true => 2 of 4
 ;; residues => 90/180.
-(:wat::rete::defrule :match-i64
+(:wat::rete::defrule :wsc::match-i64
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::match ?a
@@ -213,7 +213,7 @@
 ;; (match o ((Some v) (> v 90)) (None false)).  o = Some(i) when i mod 3 != 0 (120/180), else None.
 ;; Of those 120, v=i>90 holds for i in [91,179] AND i mod 3 != 0: [91,179] has 89 integers, of
 ;; which 29 are multiples of 3 (93..177 step 3) => 89 - 29 = 60/180.
-(:wat::rete::defrule :option-match
+(:wat::rete::defrule :wsc::option-match
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::match ?o
@@ -227,7 +227,7 @@
 ;; n holds for i mod 6==0 (30/180), 6 distinct s-values per lcm(4,9,6)=36 block (i=0,6,12,18,24,30
 ;; give s=0,8,3,2,6,5). Per block: s>6 true at i=6 (s=8); the else-arm s<3 true at i=0 (s=0) and
 ;; i=18 (s=2); i=12(3),24(6),30(5) fail both => 3 of 6 per block * 5 blocks (180/36) = 15/180.
-(:wat::rete::defrule :deep-nest
+(:wat::rete::defrule :wsc::deep-nest
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
@@ -246,7 +246,7 @@
 ;; !n (150/180) -> gate on b=i mod 9<3 (b in {0,1,2}, 60/180 overall); of the 30 n=true facts, 2
 ;; per 36-block (i=0,18) also have b in {0,1,2}, so 10 must be subtracted from the 60: 60-10=50.
 ;; Total: 0 + 50 = 50/180.
-(:wat::rete::defrule :if-let-arm
+(:wat::rete::defrule :wsc::if-let-arm
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::if ?n
@@ -260,15 +260,15 @@
 (:wat::core::defn :wsc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1) (:if-whole))
-      ((:wat::core::= row 2) (:if-nested-cmp))
-      ((:wat::core::= row 3) (:if-chain-whole))
-      ((:wat::core::= row 4) (:let-twice))
-      ((:wat::core::= row 5) (:let-call-cse))
-      ((:wat::core::= row 6) (:match-i64))
-      ((:wat::core::= row 7) (:option-match))
-      ((:wat::core::= row 8) (:deep-nest))
-      ((:wat::core::= row 9) (:if-let-arm))
+      ((:wat::core::= row 1) (:wsc::if-whole))
+      ((:wat::core::= row 2) (:wsc::if-nested-cmp))
+      ((:wat::core::= row 3) (:wsc::if-chain-whole))
+      ((:wat::core::= row 4) (:wsc::let-twice))
+      ((:wat::core::= row 5) (:wsc::let-call-cse))
+      ((:wat::core::= row 6) (:wsc::match-i64))
+      ((:wat::core::= row 7) (:wsc::option-match))
+      ((:wat::core::= row 8) (:wsc::deep-nest))
+      ((:wat::core::= row 9) (:wsc::if-let-arm))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-control: unknown row " (:wat::core::i64::to-string row))
@@ -312,6 +312,21 @@
     v))
 
 ;; run-row row -> the corpus line for ONE shape, in its OWN session.
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wsc::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wsc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wsc::build-rules row)
                     rule    (:wat::core::first rules)
@@ -322,7 +337,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wsc::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wsc::render-ints derived))))))

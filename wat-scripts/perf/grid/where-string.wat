@@ -111,7 +111,7 @@
 ;; ROW 1 — String/starts-with?. Hit :- Req(…) AND (starts-with? ?n "cat").
 ;; True only for r=1 ("cat" itself) — r=2 has "zz" first, r=3 has "ねこ" first, r=4 is "DOG",
 ;; r=0 is empty (nothing starts a non-empty prefix). One category of five ⇒ 80/400.
-(:wat::rete::defrule :starts-with
+(:wat::rete::defrule :wst::starts-with
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/starts-with? ?n "cat"))]
   :then
@@ -120,7 +120,7 @@
 ;; ROW 2 — String/ends-with?. True for r=1 ("cat" ends "cat") and r=3 ("ねこcat" ends "cat"), but
 ;; NOT r=2 ("zzcatzz" ends "zz") — the row that tells starts/ends/contains apart. Two of five
 ;; categories ⇒ 160/400.
-(:wat::rete::defrule :ends-with
+(:wat::rete::defrule :wst::ends-with
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/ends-with? ?n "cat"))]
   :then
@@ -130,7 +130,7 @@
 ;; categories ⇒ 240/400. Compare against row 2: r=2 flips from false (ends-with) to true
 ;; (contains) — that flip is the whole reason r=2 has trailing "zz" instead of being a plain
 ;; "zzcat" suffix-match.
-(:wat::rete::defrule :contains
+(:wat::rete::defrule :wst::contains
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/contains? ?n "cat"))]
   :then
@@ -139,7 +139,7 @@
 ;; ROW 4 — String/empty?. True ONLY for r=0 (the empty-string category itself) ⇒ 80/400. THE direct
 ;; empty-string witness: every other row's r=0 facts flow through starts/ends/contains as legitimate
 ;; "no match" cases, but this row asserts the boundary is reachable and exact, not merely never hit.
-(:wat::rete::defrule :empty
+(:wat::rete::defrule :wst::empty
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/empty? ?n))]
   :then
@@ -151,7 +151,7 @@
 ;; per 40 = (m<0 count for L=0) + (m<3 for L=3, twice) + (m<7 for L=7) + (m<5 for L=5)
 ;;         =         0          +      3     +    3    +     7        +     5         = 18/40
 ;; ⇒ 180/400 over the 10 cycles in [0,400).
-(:wat::rete::defrule :length-bound
+(:wat::rete::defrule :wst::length-bound
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?n) ?minlen))]
   :then
@@ -163,7 +163,7 @@
 ;; By CRT over k mod 10 (parity × r): needle="cat" matches r=1,r=2,r=3 when k even; needle="xyt"
 ;; never matches anything. Of the 5 even/odd × 5 r combos per 10, "cat" hits at (even,r=1),
 ;; (even,r=2), (even,r=3) = 3 of 10 ⇒ 120/400.
-(:wat::rete::defrule :dynamic-arg
+(:wat::rete::defrule :wst::dynamic-arg
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::String/contains? ?n (:wat::core::String/concat ?tag "t")))]
@@ -172,7 +172,7 @@
 
 ;; ROW 7 — a String verb INSIDE a boolean composition: (contains "cat") AND (NOT (starts-with
 ;; "cat")). Contains ⇒ {r1,r2,r3}; excluding starts-with's {r1} leaves {r2,r3} ⇒ 160/400.
-(:wat::rete::defrule :compose-bool
+(:wat::rete::defrule :wst::compose-bool
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::and
@@ -184,7 +184,7 @@
 ;; ROW 8 — a String verb feeding an i64 comparison, itself composed with `and`: (contains "cat")
 ;; AND (?minlen > 3). Contains ⇒ {r1,r2,r3} (3 of 5 r-values); minlen>3 ⇒ m in {4,5,6,7} (4 of 8).
 ;; Independent (CRT, k mod 40) ⇒ 3*4 = 12/40 ⇒ 120/400.
-(:wat::rete::defrule :compose-i64
+(:wat::rete::defrule :wst::compose-i64
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::and
@@ -195,7 +195,7 @@
 
 ;; ROW 9 — the user-defined pure fn (String -> bool). Hit :- Req(…) AND (feline? ?n).
 ;; See :wst::feline? above: true for r=2, r=3 ⇒ 160/400.
-(:wat::rete::defrule :userfn
+(:wat::rete::defrule :wst::userfn
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wst::feline? ?n))]
   :then
@@ -206,7 +206,7 @@
 ;; is the case-sensitivity edge: `String/starts-with?` is case-sensitive, so without the
 ;; `to-lowercase` wrapper this row would derive the EMPTY set (STOP-2 territory), and that gap is
 ;; exactly what the row is for. One of five categories ⇒ 80/400.
-(:wat::rete::defrule :lowercase-chain
+(:wat::rete::defrule :wst::lowercase-chain
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::String/starts-with? (:wat::core::string::to-lowercase ?n) "dog"))]
@@ -221,7 +221,7 @@
 ;; r=2's are "zzc", r=3's are "ねこc" (char-indexed, not byte-indexed — a 2-BMP-char unicode prefix
 ;; still only consumes 2 of the 3 requested chars), r=4's are "DOG" (case-sensitive, no match).
 ;; One of five categories ⇒ 80/400.
-(:wat::rete::defrule :shortcircuit-subs
+(:wat::rete::defrule :wst::shortcircuit-subs
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::and
@@ -233,7 +233,7 @@
 ;; ROW 12 — string::trim feeding `=`, over the WHITESPACE edge. padded = "  cat  " (even k) or
 ;; "  dog  " (odd k); trimming and comparing to the literal "cat" selects exactly the even half.
 ;; Half of the stream ⇒ 200/400.
-(:wat::rete::defrule :trim-eq
+(:wat::rete::defrule :wst::trim-eq
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::= (:wat::core::string::trim ?padded) "cat"))]
   :then
@@ -243,18 +243,18 @@
 (:wat::core::defn :wst::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:starts-with))
-      ((:wat::core::= row 2)  (:ends-with))
-      ((:wat::core::= row 3)  (:contains))
-      ((:wat::core::= row 4)  (:empty))
-      ((:wat::core::= row 5)  (:length-bound))
-      ((:wat::core::= row 6)  (:dynamic-arg))
-      ((:wat::core::= row 7)  (:compose-bool))
-      ((:wat::core::= row 8)  (:compose-i64))
-      ((:wat::core::= row 9)  (:userfn))
-      ((:wat::core::= row 10) (:lowercase-chain))
-      ((:wat::core::= row 11) (:shortcircuit-subs))
-      ((:wat::core::= row 12) (:trim-eq))
+      ((:wat::core::= row 1)  (:wst::starts-with))
+      ((:wat::core::= row 2)  (:wst::ends-with))
+      ((:wat::core::= row 3)  (:wst::contains))
+      ((:wat::core::= row 4)  (:wst::empty))
+      ((:wat::core::= row 5)  (:wst::length-bound))
+      ((:wat::core::= row 6)  (:wst::dynamic-arg))
+      ((:wat::core::= row 7)  (:wst::compose-bool))
+      ((:wat::core::= row 8)  (:wst::compose-i64))
+      ((:wat::core::= row 9)  (:wst::userfn))
+      ((:wat::core::= row 10) (:wst::lowercase-chain))
+      ((:wat::core::= row 11) (:wst::shortcircuit-subs))
+      ((:wat::core::= row 12) (:wst::trim-eq))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-string: unknown row " (:wat::core::i64::to-string row))
@@ -304,6 +304,21 @@
     v))
 
 ;; run-row row -> the corpus line for ONE shape, in its OWN session.
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wst::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wst::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wst::build-rules row)
                     rule    (:wat::core::first rules)
@@ -314,7 +329,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wst::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wst::render-ints derived))))))

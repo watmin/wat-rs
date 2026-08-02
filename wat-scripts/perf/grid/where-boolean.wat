@@ -80,35 +80,35 @@
   (:wat::core::quasiquote (:wat::rete::insert (:wsb::Hit ?k))))
 
 ;; ROW 1 — and/2. Hit :- Req(…) AND (a and b).  k mod 2==0 and k mod 3==0 => k mod 6==0 => 35/210.
-(:wat::rete::defrule :and2
+(:wat::rete::defrule :wsb::and2
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b))]
   :then
   (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 2 — or/2. Hit :- Req(…) AND (a or b).  |a|+|b|-|a&b| = 105+70-35 => 140/210.
-(:wat::rete::defrule :or2
+(:wat::rete::defrule :wsb::or2
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::or ?a ?b))]
   :then
   (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 3 — not/1. Hit :- Req(…) AND (not c).  210 - 42 => 168/210.
-(:wat::rete::defrule :not1
+(:wat::rete::defrule :wsb::not1
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not ?c))]
   :then
   (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 4 — and/3. (a and b and c).  k mod 30==0 => 7/210.
-(:wat::rete::defrule :and3
+(:wat::rete::defrule :wsb::and3
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b ?c))]
   :then
   (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 5 — or/3. (a or b or c).  inclusion-exclusion => 154/210.
-(:wat::rete::defrule :or3
+(:wat::rete::defrule :wsb::or3
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::or ?a ?b ?c))]
   :then
@@ -116,7 +116,7 @@
 
 ;; ROW 6 — and/4, the full conjunction. k mod 210==0 => only k=0 => 1/210. Deliberately extreme
 ;; (still a PROPER subset — 0 < 1 < 210) to exercise 4-ary `and`, the widest arity this corpus uses.
-(:wat::rete::defrule :and4
+(:wat::rete::defrule :wsb::and4
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b ?c ?d))]
   :then
@@ -125,7 +125,7 @@
 ;; ROW 7 — NESTED, two levels: (and (or a b) (not c)).
 ;; |a∨b| = 140 (row 2). Restrict to c=false: of the 168 facts with c=false, exclude those with
 ;; a=false AND b=false (56 of them) => 168 - 56 = 112/210.
-(:wat::rete::defrule :nest-and-or-not
+(:wat::rete::defrule :wsb::nest-and-or-not
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and (:wat::core::or ?a ?b) (:wat::core::not ?c)))]
@@ -134,7 +134,7 @@
 
 ;; ROW 8 — NESTED, two levels: (or (and a b) (and c d)).
 ;; |a∧b|=35, |c∧d|=6, |a∧b∧c∧d|=1 (inclusion-exclusion on the two conjunctions) => 35+6-1=40/210.
-(:wat::rete::defrule :nest-or-and-and
+(:wat::rete::defrule :wsb::nest-or-and-and
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::or (:wat::core::and ?a ?b) (:wat::core::and ?c ?d)))]
@@ -145,7 +145,7 @@
 ;; Let X = (a∧b)∨c, Y = ¬(c∧d); count(X∧Y) enumerated over the 16 (a,b,c,d) truth combinations
 ;; weighted by CRT residue counts => 64/210 (worked by hand in the brief response, not re-derived
 ;; here — verify against this program's own `n=` if in doubt, per rule 2).
-(:wat::rete::defrule :nest3
+(:wat::rete::defrule :wsb::nest3
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and
@@ -156,13 +156,13 @@
 
 ;; ROW 10 / ROW 11 — DE MORGAN PAIR #1: ¬(a∧b)  ≡  (¬a)∨(¬b). Both MUST derive the identical set.
 ;; 210 - |a∧b| = 210 - 35 = 175/210 on both rows.
-(:wat::rete::defrule :demorgan-nand-a
+(:wat::rete::defrule :wsb::demorgan-nand-a
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not (:wat::core::and ?a ?b)))]
   :then
   (:wat::rete::insert (:wsb::Hit ?k)))
 
-(:wat::rete::defrule :demorgan-nand-b
+(:wat::rete::defrule :wsb::demorgan-nand-b
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::or (:wat::core::not ?a) (:wat::core::not ?b)))]
@@ -171,13 +171,13 @@
 
 ;; ROW 12 / ROW 13 — DE MORGAN PAIR #2: ¬(a∨b)  ≡  (¬a)∧(¬b). Both MUST derive the identical set.
 ;; 210 - |a∨b| = 210 - 140 = 70/210 on both rows.
-(:wat::rete::defrule :demorgan-nor-a
+(:wat::rete::defrule :wsb::demorgan-nor-a
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not (:wat::core::or ?a ?b)))]
   :then
   (:wat::rete::insert (:wsb::Hit ?k)))
 
-(:wat::rete::defrule :demorgan-nor-b
+(:wat::rete::defrule :wsb::demorgan-nor-b
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and (:wat::core::not ?a) (:wat::core::not ?b)))]
@@ -187,7 +187,7 @@
 ;; ROW 14 — a BOOLEAN-VALUED USER FN composed with inline boolean operators at the call site.
 ;; Hit :- Req(…) AND (edge?(k) and not c).  edge? is 60/210 on its own; of those, 12 are divisible
 ;; by 5 (6 in each 30-wide tail) => 60 - 12 = 48/210.
-(:wat::rete::defrule :userfn
+(:wat::rete::defrule :wsb::userfn
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and (:wsb::edge? ?k) (:wat::core::not ?c)))]
@@ -204,7 +204,7 @@
 ;;
 ;; For the 180 facts with l != 0 (l in {1..6}), 100/l (truncating) is {100,50,33,25,20,16} for
 ;; l={1,2,3,4,5,6} respectively; > 20 holds for l in {1,2,3,4} => 4/7 of 210 => 120/210.
-(:wat::rete::defrule :shortcircuit-and
+(:wat::rete::defrule :wsb::shortcircuit-and
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and
@@ -217,21 +217,21 @@
 (:wat::core::defn :wsb::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:and2))
-      ((:wat::core::= row 2)  (:or2))
-      ((:wat::core::= row 3)  (:not1))
-      ((:wat::core::= row 4)  (:and3))
-      ((:wat::core::= row 5)  (:or3))
-      ((:wat::core::= row 6)  (:and4))
-      ((:wat::core::= row 7)  (:nest-and-or-not))
-      ((:wat::core::= row 8)  (:nest-or-and-and))
-      ((:wat::core::= row 9)  (:nest3))
-      ((:wat::core::= row 10) (:demorgan-nand-a))
-      ((:wat::core::= row 11) (:demorgan-nand-b))
-      ((:wat::core::= row 12) (:demorgan-nor-a))
-      ((:wat::core::= row 13) (:demorgan-nor-b))
-      ((:wat::core::= row 14) (:userfn))
-      ((:wat::core::= row 15) (:shortcircuit-and))
+      ((:wat::core::= row 1)  (:wsb::and2))
+      ((:wat::core::= row 2)  (:wsb::or2))
+      ((:wat::core::= row 3)  (:wsb::not1))
+      ((:wat::core::= row 4)  (:wsb::and3))
+      ((:wat::core::= row 5)  (:wsb::or3))
+      ((:wat::core::= row 6)  (:wsb::and4))
+      ((:wat::core::= row 7)  (:wsb::nest-and-or-not))
+      ((:wat::core::= row 8)  (:wsb::nest-or-and-and))
+      ((:wat::core::= row 9)  (:wsb::nest3))
+      ((:wat::core::= row 10) (:wsb::demorgan-nand-a))
+      ((:wat::core::= row 11) (:wsb::demorgan-nand-b))
+      ((:wat::core::= row 12) (:wsb::demorgan-nor-a))
+      ((:wat::core::= row 13) (:wsb::demorgan-nor-b))
+      ((:wat::core::= row 14) (:wsb::userfn))
+      ((:wat::core::= row 15) (:wsb::shortcircuit-and))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-boolean: unknown row " (:wat::core::i64::to-string row))
@@ -275,6 +275,21 @@
     v))
 
 ;; run-row row -> the corpus line for ONE shape, in its OWN session.
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wsb::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wsb::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wsb::build-rules row)
                     rule    (:wat::core::first rules)
@@ -285,7 +300,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wsb::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wsb::render-ints derived))))))

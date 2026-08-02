@@ -79,7 +79,7 @@
     0))
 
 ;; ROW 1 — THREE bound vars in one predicate. a+b > c+10.  a=i%11, b=i%13, c=i%7 ⇒ 64 of 200.
-(:wat::rete::defrule :three-var
+(:wat::rete::defrule :wmv::three-var
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 10)))]
@@ -88,7 +88,7 @@
 
 ;; ROW 2 — FOUR bound vars in one predicate. (a+b) mod (c+1) == d.
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 36 of 200.
-(:wat::rete::defrule :four-var
+(:wat::rete::defrule :wmv::four-var
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::=
@@ -99,7 +99,7 @@
 
 ;; ROW 3 — FIVE bound vars in one predicate, combined with `and`.
 ;; (a mod 2 == 0) AND (b > c) AND (d > e).  a=i%11, b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 40 of 200.
-(:wat::rete::defrule :five-var
+(:wat::rete::defrule :wmv::five-var
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::and
@@ -112,7 +112,7 @@
 ;; ROW 4 — TRANSITIVE CHAIN. d < c AND c < b — the same var (`c`) anchors both legs of the chain,
 ;; so the predicate cannot be split into two independent single-var tests without still needing c
 ;; live in both. d=i%5, c=i%7, b=i%13 ⇒ 66 of 200.
-(:wat::rete::defrule :chain
+(:wat::rete::defrule :wmv::chain
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::and (:wat::core::i64::< ?d ?c) (:wat::core::i64::< ?c ?b)))]
@@ -120,7 +120,7 @@
   (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 5 — arithmetic ACROSS vars: (?a + ?b) > ?c.  a=i%11, b=i%13, c=i%7 ⇒ 183 of 200.
-(:wat::rete::defrule :sum-vars
+(:wat::rete::defrule :wmv::sum-vars
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) ?c))]
   :then
@@ -128,7 +128,7 @@
 
 ;; ROW 6 — arithmetic ACROSS vars: (?a * ?b) > (?c + ?d).
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 150 of 200.
-(:wat::rete::defrule :prod-vars
+(:wat::rete::defrule :wmv::prod-vars
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::i64::>
@@ -140,7 +140,7 @@
 ;; ROW 7 — the SAME var used SEVERAL TIMES in one predicate: (?a * ?a) - ?a > 20.
 ;; `?a` is bound once by the leading condition but read three times by the predicate — the compiler
 ;; needs to know it is one slot, not three. a=i%11 ⇒ 90 of 200.
-(:wat::rete::defrule :repeat-var
+(:wat::rete::defrule :wmv::repeat-var
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::i64::>
@@ -152,7 +152,7 @@
 ;; ROW 8 — a pure fn taking FOUR bound vars at once: (combo? ?a ?b ?c ?d).
 ;; combo?(a,b,c,d) = a*c > b*d.  Like where-shapes row 5, this is a CALL the compiler must hand back
 ;; to the interpreter — but now over four live slots instead of one. ⇒ 95 of 200.
-(:wat::rete::defrule :combo-fn
+(:wat::rete::defrule :wmv::combo-fn
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::combo? ?a ?b ?c ?d))]
   :then
@@ -162,7 +162,7 @@
 ;; `?s` is a String, `?c` is an i64; `string::length` bridges the type gap before the comparison.
 ;; s(i) = to-string(i) so len(s) is i's digit count (1 for i<10, 2 for i<100, 3 for i>=100);
 ;; c=i%7 ⇒ 71 of 200.
-(:wat::rete::defrule :mixed-type
+(:wat::rete::defrule :wmv::mixed-type
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?s) ?c))]
   :then
@@ -174,7 +174,7 @@
 ;; SEMANTICALLY (the derived set is exactly what a single-var predicate over `?a` alone would give);
 ;; whatever it costs the compiler to carry the other six slots live is a performance question, not
 ;; a correctness one. a=i%11 ⇒ 73 of 200.
-(:wat::rete::defrule :unused-binds
+(:wat::rete::defrule :wmv::unused-binds
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::= 0 (:wat::core::i64::mod ?a 3)))]
   :then
@@ -184,7 +184,7 @@
 ;; pent?(a,b,c,d,e) = (a+b+c) mod (d+e+1) == 0 ⇒ 73 of 200.
 ;; (Same count as row 10 by coincidence of the arithmetic — the two derived SETS differ; that is
 ;; exactly why every row prints its full set, not just its count.)
-(:wat::rete::defrule :five-fn
+(:wat::rete::defrule :wmv::five-fn
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::pent? ?a ?b ?c ?d ?e))]
   :then
@@ -193,7 +193,7 @@
 ;; ROW 12 — chain AND arithmetic combined: (?b < ?c) AND ((?c + ?d) > (?e * 3)).
 ;; The first leg is a bound-var-to-bound-var chain link, the second is arithmetic across three vars
 ;; — composed with `and` in one predicate. b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 37 of 200.
-(:wat::rete::defrule :chain-arith
+(:wat::rete::defrule :wmv::chain-arith
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::and
@@ -206,18 +206,18 @@
 (:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:three-var))
-      ((:wat::core::= row 2)  (:four-var))
-      ((:wat::core::= row 3)  (:five-var))
-      ((:wat::core::= row 4)  (:chain))
-      ((:wat::core::= row 5)  (:sum-vars))
-      ((:wat::core::= row 6)  (:prod-vars))
-      ((:wat::core::= row 7)  (:repeat-var))
-      ((:wat::core::= row 8)  (:combo-fn))
-      ((:wat::core::= row 9)  (:mixed-type))
-      ((:wat::core::= row 10) (:unused-binds))
-      ((:wat::core::= row 11) (:five-fn))
-      ((:wat::core::= row 12) (:chain-arith))
+      ((:wat::core::= row 1)  (:wmv::three-var))
+      ((:wat::core::= row 2)  (:wmv::four-var))
+      ((:wat::core::= row 3)  (:wmv::five-var))
+      ((:wat::core::= row 4)  (:wmv::chain))
+      ((:wat::core::= row 5)  (:wmv::sum-vars))
+      ((:wat::core::= row 6)  (:wmv::prod-vars))
+      ((:wat::core::= row 7)  (:wmv::repeat-var))
+      ((:wat::core::= row 8)  (:wmv::combo-fn))
+      ((:wat::core::= row 9)  (:wmv::mixed-type))
+      ((:wat::core::= row 10) (:wmv::unused-binds))
+      ((:wat::core::= row 11) (:wmv::five-fn))
+      ((:wat::core::= row 12) (:wmv::chain-arith))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-multivar: unknown row " (:wat::core::i64::to-string row))
@@ -272,6 +272,21 @@
 
 ;; run-row row -> the corpus line for ONE shape, in its OWN session (see where-shapes.wat's note on
 ;; why every row gets its own session — sharing one would UNION the derived sets).
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wmv::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wmv::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let
     [rules   (:wmv::build-rules row)
@@ -283,7 +298,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wmv::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wmv::render-ints derived))))))

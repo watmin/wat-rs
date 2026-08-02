@@ -86,7 +86,7 @@
 
 ;; ROW 1 — arithmetic. Hit(k) :- Req(…) AND (3 == k - (k/10)*10).  k mod 10 == 3 ⇒ 20 of 200.
 ;; The leading condition is the one every later row shares; only `where-c` varies per row.
-(:wat::rete::defrule :arith
+(:wat::rete::defrule :wsh::arith
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where
                                 (:wat::core::= 3
@@ -97,7 +97,7 @@
 
 ;; ROW 2 — record accessor. Hit(k) :- Req(…) AND (Client/rep ?c) > 0.
 ;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} ⇒ 80 of 200.
-(:wat::rete::defrule :accessor
+(:wat::rete::defrule :wsh::accessor
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> (:wsh::Client/rep ?c) 0))]
   :then
@@ -105,7 +105,7 @@
 
 ;; ROW 3 — String verb. Hit(k) :- Req(…) AND (starts-with? ?n "ad").
 ;; name(k) = "ad"+k when k mod 3 == 0, else "zz"+k ⇒ 67 of 200.
-(:wat::rete::defrule :string
+(:wat::rete::defrule :wsh::string
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::String/starts-with? ?n "ad"))]
   :then
@@ -113,7 +113,7 @@
 
 ;; ROW 4 — collection verb. Hit(k) :- Req(…) AND (length ?t) > 1.
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
-(:wat::rete::defrule :collection
+(:wat::rete::defrule :wsh::collection
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) 1))]
   :then
@@ -122,7 +122,7 @@
 ;; ROW 5 — user-defined pure fn. Hit(k) :- Req(…) AND (big? ?k).  k mod 7 > 3 ⇒ 84 of 200.
 ;; The predicate is a CALL, not an inline expression — the shape #49a's compiled executor cannot
 ;; model and must hand back to the interpreter. It carries the whole compiled-`where` question.
-(:wat::rete::defrule :userfn
+(:wat::rete::defrule :wsh::userfn
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wsh::big? ?k))]
   :then
@@ -139,7 +139,7 @@
 ;; limit(i) = (i mod 7) * 20, so the threshold VARIES per fact instead of being a hidden constant.
 ;; i > 20*(i mod 7) ⇒ 139 of 200 (28+26+23+20+17+14+11 across the seven residues) — deliberately
 ;; NOT a round number, because a count that is easy to guess can match by accident.
-(:wat::rete::defrule :cross-var
+(:wat::rete::defrule :wsh::cross-var
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> ?k ?l))]
   :then
@@ -157,12 +157,12 @@
 (:wat::core::defn :wsh::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1) (:arith))
-      ((:wat::core::= row 2) (:accessor))
-      ((:wat::core::= row 3) (:string))
-      ((:wat::core::= row 4) (:collection))
-      ((:wat::core::= row 5) (:userfn))
-      ((:wat::core::= row 6) (:cross-var))
+      ((:wat::core::= row 1) (:wsh::arith))
+      ((:wat::core::= row 2) (:wsh::accessor))
+      ((:wat::core::= row 3) (:wsh::string))
+      ((:wat::core::= row 4) (:wsh::collection))
+      ((:wat::core::= row 5) (:wsh::userfn))
+      ((:wat::core::= row 6) (:wsh::cross-var))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-shapes: unknown row " (:wat::core::i64::to-string row))
@@ -224,6 +224,21 @@
 ;; name table and not two), the derived COUNT, and the derived SET. The count is the non-vacuity
 ;; witness travelling inside the artifact: a row that silently starts matching everything shows up
 ;; in the diff as a changed number, not as a subtly different set nobody reads.
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wsh::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
 (:wat::core::defn :wsh::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wsh::build-rules row)
                     rule    (:wat::core::first rules)
@@ -234,7 +249,7 @@
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wat::rete::Rule/name rule)))
+        (:wat::core::String/concat " " (:wsh::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
         (:wat::core::String/concat " ->" (:wsh::render-ints derived))))))
