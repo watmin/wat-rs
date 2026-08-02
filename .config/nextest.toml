@@ -34,7 +34,30 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
 priority = 100                                            # schedule first
 
+# The REST of the lint binary, immediately behind the scripts gate.
+#
+# The `lint` target (Cargo.toml:219, tests/lint/mod.rs) is the second-longest
+# thing in the suite — MEASURED 2026-08-02: 66 tests, **40.5s**, and it grows
+# every time a wall is added. Same argument as the gate above, one rung down:
+# a long binary that STARTS late becomes the tail the whole run waits on, so
+# schedule it early and let it overlap the other ~4200 tests instead of
+# trailing them.
+#
+# ⚠ ORDER IS LOAD-BEARING. Overrides are matched top-down, so this MUST stay
+# BELOW the `every_wat_scripts_file_loads_on_the_current_runtime` rule — that
+# test lives INSIDE this very binary (tests/lint/wat_scripts_fixes_load.rs).
+# Above it, this broader filter would swallow the gate and strip its 120s/240s
+# timeout, walking the 88s freeze back into a SIGTERM. Only `priority` is set
+# here; every other setting falls through to the profile default.
+[[profile.default.overrides]]
+filter = 'binary_id(wat::lint)'
+priority = 99                                             # just below the scripts gate
+
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "120s", terminate-after = 2 }
 priority = 100
+
+[[profile.ci.overrides]]
+filter = 'binary_id(wat::lint)'
+priority = 99

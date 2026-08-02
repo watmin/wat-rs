@@ -773,6 +773,37 @@ pub(crate) fn classify_native_fn(path: &str, axis: Axis) -> Result<(), AxisViola
     if ok { Ok(()) } else { Err(AxisViolation::new(path, axis)) }
 }
 
+/// STOP-1's defensive code path has NO wat-surface fixture (see
+/// `tests/program/wat_arc278_sigma_fn_purity_gate.rs`'s doc comment) — nothing in the crate
+/// constructs a `Function` with `FunctionBody::Native`, so no wat program can drive a sigma fn
+/// into this arm. Exercised directly at the Rust level instead, proving the extracted helper
+/// itself agrees with `classify_fn`'s `FunctionBody::Native` arm it mirrors.
+#[cfg(test)]
+mod classify_native_fn_tests {
+    use super::*;
+
+    #[test]
+    fn a_proven_pure_deterministic_native_head_passes_both_axes() {
+        assert!(classify_native_fn(":wat::core::+", Axis::Pure).is_ok());
+        assert!(classify_native_fn(":wat::core::+", Axis::Deterministic).is_ok());
+    }
+
+    #[test]
+    fn an_unproven_head_default_denies_every_axis() {
+        let head = ":wat::core::this-op-does-not-exist";
+        assert!(classify_native_fn(head, Axis::Pure).is_err());
+        assert!(classify_native_fn(head, Axis::Deterministic).is_err());
+        assert!(classify_native_fn(head, Axis::Total).is_err());
+    }
+
+    #[test]
+    fn pure_but_nondeterministic_native_head_fails_only_the_deterministic_axis() {
+        // Uuid/v4 — the one hand-documented pure-but-random op.
+        assert!(classify_native_fn(":wat::core::Uuid/v4", Axis::Pure).is_ok());
+        assert!(classify_native_fn(":wat::core::Uuid/v4", Axis::Deterministic).is_err());
+    }
+}
+
 // ─── Public axis classifiers (fresh `seen` per call) — also for stone 6b+ ──────
 
 /// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::core::Uuid/v4` is pure (it does no IO).

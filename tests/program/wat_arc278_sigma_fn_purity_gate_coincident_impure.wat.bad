@@ -1,0 +1,5 @@
+(:wat::config::set-coincident-sigma!
+  (:wat::core::fn [d <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::do
+      (:wat::io::read-file "/nonexistent-arc278-sigma-purity-probe")
+      d)))

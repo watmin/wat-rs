@@ -1,0 +1,5 @@
+(:wat::config::set-presence-sigma!
+  (:wat::core::fn [d <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::do
+      (:wat::core::Uuid/v4)
+      d)))
