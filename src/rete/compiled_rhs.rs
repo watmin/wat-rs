@@ -146,7 +146,7 @@ pub(crate) fn compile_rhs(insert_form: &WatAST) -> Option<CompiledRhs> {
 /// surfaces at fire time rather than at compile time. Never panics.
 pub(crate) fn exec_compiled_rhs(
     c: &CompiledRhs,
-    bindings: &rpds::HashTrieMapSync<Value, Value>,
+    bindings: &crate::value::pmap::PMap,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
     let mut fields: Vec<Value> = Vec::with_capacity(c.ops.len());
@@ -203,12 +203,10 @@ mod tests {
     /// is a worse defect than differing text, and nothing today would have noticed that either.
     #[test]
     fn compiled_rhs_result_identical_to_interpreter() {
-        fn bindings_of(pairs: &[(&str, i64)]) -> rpds::HashTrieMapSync<Value, Value> {
-            let mut m = rpds::HashTrieMapSync::new_sync();
-            for (k, v) in pairs {
-                m.insert_mut(Value::String(Arc::new((*k).to_string())), Value::i64(*v));
-            }
-            m
+        fn bindings_of(pairs: &[(&str, i64)]) -> crate::value::pmap::PMap {
+            crate::value::pmap::PMap::from_pairs(
+                pairs.iter().map(|(k, v)| (Value::String(Arc::new((*k).to_string())), Value::i64(*v))),
+            )
         }
         fn kind_edn(e: &EvalBreak) -> String {
             match e {
@@ -218,7 +216,7 @@ mod tests {
         }
 
         let bound = bindings_of(&[("?k", 1), ("?l", 2), ("?r", 3)]);
-        let cases: &[(&str, &rpds::HashTrieMapSync<Value, Value>)] = &[
+        let cases: &[(&str, &crate::value::pmap::PMap)] = &[
             // 1. positional, every ?var bound
             ("(:wat::rete::insert (:fan::Pair ?k ?l ?r))", &bound),
             // 2. kwargs — the arc-294 9a form

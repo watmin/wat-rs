@@ -71,15 +71,16 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
 
 // ─── Bindings — read-only accessor over either binding representation ─────────
 //
-// Arc 278 DESIGN-STONE-element-bindings-array. `Element.bindings` is `Arc<[(Value, Value)]>`
-// (built once by `alpha_match_inner`, read/cloned/dropped forever after — never extended);
-// `Token.bindings` stays `rpds::HashTrieMapSync` (the only one that EXTENDS, and the trie wins
-// that operation). This matcher reads BOTH kinds — `resolve_operand` (token-side at
-// `build_insert_fact`/`eval_step_payload`, element-side inside `eval_clause`'s own fold) and
-// `eval_test_core` (token-side today; a `:test` clause can in principle sit after either side of
-// a join) — and kernel.rs's join code reads both too (`key_of` walks a Token's trie OR an
-// Element's array depending on the caller). `Bindings` is the ONLY thing that lets those readers
-// stay agnostic without converting one representation into the other.
+// Arc 278 DESIGN-STONE-element-bindings-array + DESIGN-STONE-token-bindings-promoting.
+// `Element.bindings` is `Arc<[(Value, Value)]>` (built once by `alpha_match_inner`,
+// read/cloned/dropped forever after — never extended); `Token.bindings` is a `PMap` (array below
+// `PROMOTION_THRESHOLD`, trie above it — a Token DOES extend, via `PMap::extend`, one clone of
+// the backing storage rather than one clone per key). This matcher reads ALL THREE kinds —
+// `resolve_operand` (token-side at `build_insert_fact`/`eval_step_payload`, element-side inside
+// `eval_clause`'s own fold) and `eval_test_core` (token-side today; a `:test` clause can in
+// principle sit after either side of a join) — and kernel.rs's join code reads both too (`key_of`
+// walks a Token's `PMap` OR an Element's array depending on the caller). `Bindings` is the ONLY
+// thing that lets those readers stay agnostic without converting one representation into another.
 //
 // The trait must NEVER grow an `insert`. The moment it does, the two representations are forced
 // through one interface again and the array is made to pay for the trie's one winning operation.
@@ -565,7 +566,7 @@ pub(crate) fn resolve_operand<B: Bindings>(
 /// Raises `RuntimeError` on malformed form or unresolved operand. Never panics.
 pub(crate) fn build_insert_fact(
     insert_form: &WatAST,
-    bindings: &rpds::HashTrieMapSync<Value, Value>,
+    bindings: &crate::value::pmap::PMap,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
     // Arc 278 — splitting the production pass (34.9ms, 34% of a fact-heavy fire) into its parts
@@ -724,12 +725,11 @@ pub(crate) fn eval_insert(
     };
 
     // Evaluate arg[1]: must be Value::wat__core__PersistentMap (token bindings). `build_insert_fact`
-    // is the hot-path production-pass helper and is typed to the trie directly (kernel.rs calls it
-    // with `&tok.bindings`, never converting) — so this wat-facing entry point converts AT THE
-    // BOUNDARY via `to_trie()`, materialising a trie only when the caller handed in the array arm.
+    // is now typed to `PMap` directly (DESIGN-STONE-token-bindings-promoting) — no trie
+    // materialisation at this boundary; the value IS the field.
     let bindings_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    let bindings: rpds::HashTrieMapSync<Value, Value> = match bindings_val {
-        Value::wat__core__PersistentMap(ref m) => m.to_trie(),
+    let bindings: crate::value::pmap::PMap = match bindings_val {
+        Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -1079,13 +1079,13 @@ pub(crate) fn eval_step_payload(
 /// evaluates `expr` in it, and requires `Value::bool`. Called by:
 /// - `eval_test` (the dispatch wrapper for the `(:wat::rete::eval-test …)` surface), and
 /// - `fire_fixpoint_delta`'s test-pass (stone 6b-ii-b), which already holds a
-///   native `rpds::HashTrieMapSync<Value,Value>` and a `WatAST` from the TestNode.
+///   native `Token`'s `PMap` bindings and a `WatAST` from the TestNode.
 ///
 /// A fresh `env` (typically `&Environment::new()`) should be passed — the only names
 /// a `where` expression may reference are its `?vars` (from `bindings`) and
 /// `sym`'s registered user functions.
 ///
-/// Generic over [`Bindings`] — today's callers always pass a Token's trie (a `:test` clause
+/// Generic over [`Bindings`] — today's callers always pass a Token's `PMap` (a `:test` clause
 /// evaluates after a join in the fixtures exercised so far), but a `:test` clause may in
 /// principle sit right after a single condition (element-side), so the reader stays agnostic
 /// rather than assuming a representation.

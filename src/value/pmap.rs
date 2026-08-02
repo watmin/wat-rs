@@ -128,6 +128,56 @@ impl PMap {
         }
     }
 
+    /// Apply many entries in ONE clone of the backing storage. `assoc` in a loop copies the whole
+    /// Vec per key; this copies it once. Exists because the production caller (`extend_token`)
+    /// folds an element's entire binding array into a token in a single act — the shape the trie
+    /// arm already had (clone once, then `insert_mut` per key) and the array arm did not.
+    ///
+    /// Observationally identical to folding `assoc` over `pairs` — same entries, same
+    /// later-key-wins, and the SAME arm (the array arm picks its arm from the FINAL length, just
+    /// as `from_pairs` does, so a batch that crosses the threshold promotes exactly as successive
+    /// `assoc` would). Zero pairs never clones the backing storage — the working copy is
+    /// materialised lazily, on the first item.
+    pub fn extend<I: IntoIterator<Item = (Value, Value)>>(&self, pairs: I) -> Self {
+        match self {
+            PMap::Array(entries) => {
+                let mut next: Option<Vec<(Value, Value)>> = None;
+                for (k, v) in pairs {
+                    let vec = next.get_or_insert_with(|| (**entries).clone());
+                    match vec.iter_mut().find(|(ek, _)| *ek == k) {
+                        Some(slot) => slot.1 = v,
+                        None => vec.push((k, v)),
+                    }
+                }
+                match next {
+                    None => self.clone(),
+                    Some(vec) => {
+                        if vec.len() > PROMOTION_THRESHOLD {
+                            let mut t = rpds::HashTrieMapSync::new_sync();
+                            for (k, v) in vec {
+                                t.insert_mut(k, v);
+                            }
+                            PMap::Trie(t)
+                        } else {
+                            PMap::Array(Arc::new(vec))
+                        }
+                    }
+                }
+            }
+            PMap::Trie(t) => {
+                let mut next: Option<rpds::HashTrieMapSync<Value, Value>> = None;
+                for (k, v) in pairs {
+                    let m = next.get_or_insert_with(|| t.clone());
+                    m.insert_mut(k, v);
+                }
+                match next {
+                    None => self.clone(),
+                    Some(m) => PMap::Trie(m),
+                }
+            }
+        }
+    }
+
     /// Remove. Never demotes — see the module doc: representation follows the high-water mark, so
     /// assoc/dissoc at the boundary cannot thrash the representation.
     pub fn dissoc(&self, k: &Value) -> Self {
@@ -380,5 +430,109 @@ mod tests {
         let rev = PMap::from_pairs((0..5i64).rev().map(|i| (k(i), k(i))));
         assert!(fwd == rev);
         assert_eq!(hash_of(&fwd), hash_of(&rev));
+    }
+
+    /// ★ THE EXTEND LAW — the wall Part A's RED gate proves: `m.extend(pairs)` must be
+    /// observationally identical to folding `assoc` over the same `pairs` — same entries, same
+    /// later-key-wins, AND the same arm (`is_trie()` agrees). Checked over sequences that stay
+    /// under the threshold, land exactly on it, cross it, start from an already-`Trie` map, carry
+    /// duplicate keys within one batch, and the empty batch — an arm check alone would let a
+    /// silent representation drift through, so both entries and `is_trie()` are asserted every
+    /// time.
+    #[test]
+    fn extend_matches_folded_assoc_same_entries_same_arm() {
+        fn check(label: &str, start: PMap, pairs: Vec<(Value, Value)>) {
+            let via_extend = start.extend(pairs.clone());
+            let via_fold = pairs.into_iter().fold(start, |acc, (k, v)| acc.assoc(k, v));
+            assert!(
+                via_extend == via_fold,
+                "{label}: extend and folded-assoc disagree on entries"
+            );
+            assert_eq!(
+                via_extend.is_trie(),
+                via_fold.is_trie(),
+                "{label}: extend landed in a different ARM than folded-assoc (extend.is_trie()={}, fold.is_trie()={})",
+                via_extend.is_trie(),
+                via_fold.is_trie(),
+            );
+        }
+
+        // (i) stays under the threshold: 0 entries + 3 new keys.
+        check(
+            "under threshold",
+            PMap::new(),
+            (0..3i64).map(|i| (k(i), k(i * 10))).collect(),
+        );
+
+        // (ii) lands exactly on PROMOTION_THRESHOLD (8): 0 + 8 new keys.
+        check(
+            "lands exactly on 8",
+            PMap::new(),
+            (0..PROMOTION_THRESHOLD as i64).map(|i| (k(i), k(i * 10))).collect(),
+        );
+
+        // (iii) crosses the threshold: 3 existing + 6 new keys = 9.
+        check(
+            "crosses the threshold",
+            PMap::from_pairs((0..3i64).map(|i| (k(i), k(i)))),
+            (3..9i64).map(|i| (k(i), k(i * 10))).collect(),
+        );
+
+        // (iv) a batch applied to a map that is ALREADY a Trie.
+        let already_trie = PMap::from_pairs((0..12i64).map(|i| (k(i), k(i))));
+        assert!(already_trie.is_trie(), "setup: expected the trie arm");
+        check(
+            "already a trie",
+            already_trie,
+            (12..15i64).map(|i| (k(i), k(i * 10))).collect(),
+        );
+
+        // (v) duplicate keys within one batch — later value must win, both directly (via extend)
+        // and through the fold (which applies them in order too).
+        check(
+            "duplicate keys within one batch, under threshold",
+            PMap::from_pairs((0..2i64).map(|i| (k(i), k(i)))),
+            vec![(k(5), k(500)), (k(5), k(501)), (k(0), k(999))],
+        );
+        let dup_result = PMap::from_pairs((0..2i64).map(|i| (k(i), k(i))))
+            .extend(vec![(k(5), k(500)), (k(5), k(501)), (k(0), k(999))]);
+        assert_eq!(dup_result.get(&k(5)), Some(&k(501)), "later duplicate key must win");
+        assert_eq!(dup_result.get(&k(0)), Some(&k(999)), "later duplicate key must win (existing key)");
+
+        // duplicate keys that cross the threshold — the FINAL de-duplicated length decides the
+        // arm, not the raw pair count.
+        check(
+            "duplicate keys within one batch, crossing the threshold",
+            PMap::new(),
+            vec![
+                (k(0), k(0)), (k(1), k(1)), (k(2), k(2)), (k(3), k(3)),
+                (k(4), k(4)), (k(5), k(5)), (k(6), k(6)), (k(7), k(7)),
+                (k(8), k(8)), (k(8), k(80)), // 9 distinct keys, one repeated -> still crosses
+            ],
+        );
+
+        // (vi) the empty batch — both arms, and must not clone the backing Vec (asserted via
+        // pointer identity on the Array arm's Arc).
+        let empty_array = PMap::from_pairs((0..3i64).map(|i| (k(i), k(i))));
+        assert!(!empty_array.is_trie(), "setup: expected the array arm");
+        let array_ptr_before = match &empty_array {
+            PMap::Array(v) => Arc::as_ptr(v),
+            PMap::Trie(_) => panic!("setup: expected the array arm"),
+        };
+        let extended_empty_array = empty_array.extend(Vec::<(Value, Value)>::new());
+        assert!(extended_empty_array == empty_array, "empty extend must not change entries");
+        assert!(!extended_empty_array.is_trie(), "empty extend must not change the arm");
+        match &extended_empty_array {
+            PMap::Array(v) => assert_eq!(
+                Arc::as_ptr(v),
+                array_ptr_before,
+                "empty extend must not clone the backing Vec (Arc pointer changed)"
+            ),
+            PMap::Trie(_) => panic!("empty extend on an Array must not promote"),
+        }
+
+        let empty_trie = PMap::from_pairs((0..12i64).map(|i| (k(i), k(i))));
+        assert!(empty_trie.is_trie(), "setup: expected the trie arm");
+        check("empty batch on a trie", empty_trie, Vec::new());
     }
 }

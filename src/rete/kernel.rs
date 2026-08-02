@@ -36,17 +36,25 @@ use crate::types::Nature;
 ///
 /// `matches` = the condition-labeled edges of the support graph: each `(fact, alpha_id)` pair
 /// records which fact satisfied which alpha gate, giving "how did this derived fact get produced."
-/// `bindings` stays `rpds::HashTrieMapSync` so `production_pass` → `build_insert_fact` reads it
-/// directly (no `matcher.rs` change, no per-firing conversion).
+///
+/// `bindings` is a `PMap` — DESIGN-STONE-token-bindings-promoting. The prior ruling
+/// (DESIGN-STONE-element-bindings-array) named `Token.bindings` as "the thing that extends, so
+/// give it the trie," under a BINARY array-or-trie choice. A promoting map is the third option
+/// that dichotomy never had: below `PROMOTION_THRESHOLD` a Token holds the array (which wins
+/// build/lookup/clone/drop — and lookups outnumber extends 105-355x on the live engine's own
+/// census) and promotes to the trie only past it. The live engine never crosses the threshold at
+/// all (widest binding map observed anywhere: 3) — see the design stone's Step-0 census.
 ///
 /// Replaces the per-token `Value::wat__core__Record` + `VectorSync<Tuple>` allocation chain (~6 allocs
-/// per token) with a single struct holding a plain `Vec` push + an rpds map fold.
+/// per token) with a single struct holding a plain `Vec` push + a `PMap` fold.
 #[derive(Clone)]
 pub(crate) struct Token {
     /// The condition-labeled edges: (supporting fact, alpha_id that accepted it).
     pub(crate) matches:  Vec<(Value, i64)>,
-    /// Bound variables accumulated across matched conditions. Stays rpds — matcher reads it directly.
-    pub(crate) bindings: rpds::HashTrieMapSync<Value, Value>,
+    /// Bound variables accumulated across matched conditions. `PMap` — array below the
+    /// promotion threshold, trie above it. `extend_token` folds an Element's bindings in via
+    /// `PMap::extend` (one clone of the backing storage, not one clone per key).
+    pub(crate) bindings: crate::value::pmap::PMap,
 }
 
 // ─── Native element (nativise-element) ─────────────────────────────────────────
@@ -62,8 +70,9 @@ pub(crate) struct Token {
 /// `bindings` is `Arc<[(Value, Value)]>` — DESIGN-STONE-element-bindings-array: an Element is
 /// built once by `alpha_match_inner` and only read, cloned and dropped forever after (never
 /// extended), and measured, the array wins build/lookup/clone/drop over an `rpds` trie at every
-/// width. `Token.bindings` stays the trie — Tokens are the thing that extends, and the trie wins
-/// exactly that operation. `matcher.rs`'s readers (`resolve_operand`, `eval_test_core`) and
+/// width. `Token.bindings` is a `PMap` (DESIGN-STONE-token-bindings-promoting) — a Token DOES
+/// extend, but a promoting map extends and stays cheap below the threshold, rather than forcing
+/// the trie up front. `matcher.rs`'s readers (`resolve_operand`, `eval_test_core`) and
 /// kernel.rs's join code (`key_of`) read both kinds through the read-only `Bindings` trait
 /// (`matcher::Bindings`) rather than converting one into the other.
 #[derive(Clone)]
@@ -223,10 +232,10 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
                 got: Box::new(ValueSnapshot::of(other)),
             }).into()),
     };
-    // Decode bindings: PM → HashTrieMapSync. `Token.bindings` stays a raw trie by ruling
-    // (DESIGN-STONE-element-bindings-array) — convert AT THE BOUNDARY, once per token decode.
+    // Decode bindings: PM → PMap. `Token.bindings` IS a `PMap` now (DESIGN-STONE-token-bindings-
+    // promoting) — no conversion at this boundary, just take the value directly.
     let bindings = match &struct_form[1] {
-        Value::wat__core__PersistentMap(m) => m.to_trie(),
+        Value::wat__core__PersistentMap(m) => m.clone(),
         other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "token bindings :wat::core::PersistentMap",
@@ -249,9 +258,8 @@ fn native_token_to_value(tok: Token) -> Value {
         (*token_class_fqdn()).clone(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches_pv),
-            // Boundary encode: Token.bindings is a raw trie; choose the PMap arm by size rather
-            // than wrapping it directly, so a small token's bindings do not keep a HAMT forever.
-            Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(tok.bindings)),
+            // Boundary encode: Token.bindings IS a `PMap` now — the value at this field directly.
+            Value::wat__core__PersistentMap(tok.bindings),
         ]),
     )))
 }
@@ -874,7 +882,7 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// Retained as the semantic reference; the keyed hash-join (P3) does not call it in the hot path.
 /// Called by the NegationNode filter (7-b) to check absence against the full alpha-memory.
 fn token_element_compatible(
-    tok_bindings: &rpds::HashTrieMapSync<Value, Value>,
+    tok_bindings: &crate::value::pmap::PMap,
     el_bindings: &Arc<[(Value, Value)]>,
 ) -> bool {
     for (k, e_val) in el_bindings.iter() {
@@ -890,7 +898,15 @@ fn token_element_compatible(
 
 /// `extend-token` — merge an Element's fact and bindings into a native `Token`.
 /// matches: build a `len + 1` Vec from the token's edges plus `(el_fact, alpha_id)`.
-/// bindings: fold element.bindings into token.bindings (assoc each; shared vars are idempotent).
+/// bindings: ONE `PMap::extend` call — one clone of the backing storage, not one clone per key
+/// (DESIGN-STONE-token-bindings-promoting — the API gap the array arm had and the trie already
+/// didn't). The filter tests each element binding against the ORIGINAL token map (not the
+/// accumulating result `extend` builds) and still skips a same-value duplicate / lands on the
+/// last value for a differing one, matching the old accumulating loop — `el_bindings` can never
+/// carry the same key twice (a repeated `?v` bind within one condition is checked as an equality
+/// CONSTRAINT by `eval_clause`, not pushed twice: `matcher.rs`'s `ReteClauseShape::Bind` arm
+/// either matches, in which case the existing pair stays, or conflicts, in which case the whole
+/// alpha-match fails and no Element exists to reach here at all).
 /// Mirrors `wat/rete.wat:682-702`.
 fn extend_token(
     tok: &Token,
@@ -904,34 +920,23 @@ fn extend_token(
     let mut new_matches = Vec::with_capacity(tok.matches.len() + 1);
     new_matches.extend_from_slice(&tok.matches);
     new_matches.push((el_fact.clone(), alpha_id));
-    // Fold element bindings into a clone of token bindings (idempotent skip for shared join-keys).
-    let mut new_bindings = tok.bindings.clone();
-    for (k, v) in el_bindings.iter() {
-        // Group D: skip keys already present with the same value (shared join-keys are idempotent).
-        // New vars from the element's OWN bindings are always inserted.
-        if new_bindings.get(k) != Some(v) {
-            new_bindings.insert_mut(k.clone(), v.clone());
-        }
-    }
+    let new_bindings = tok.bindings.extend(
+        el_bindings
+            .iter()
+            .filter(|(k, v)| tok.bindings.get(k) != Some(v))
+            .map(|(k, v)| (k.clone(), v.clone())),
+    );
     Token { matches: new_matches, bindings: new_bindings }
 }
 
-/// Seed a brand-new `Token`'s bindings trie from a root Element's array bindings.
+/// Seed a brand-new `Token`'s bindings `PMap` from a root Element's array bindings.
 ///
 /// The ONE place a `Token` is born from an `Element` (`root_join_pass` / its delta twin) — every
 /// other Token is produced by `extend_token`, which folds an element's bindings into an EXISTING
-/// trie one key at a time (unaffected by this stone). This is a real, unavoidable build: Token
-/// stays a trie because it extends, so a freshly-seeded Token needs one, and it can only come
-/// from walking the array — not the matcher-hot-path re-derivation STOP-1 forbids (that STOP is
-/// about a *reader* re-deriving a trie just to compare/look up; this is a Token being
-/// constructed for the first time, exactly as `native_element_to_value`'s Value-boundary encode
-/// is DESIGN-STONE-element-bindings-array read-order §3, not a hidden regression).
-fn seed_token_bindings(el_bindings: &Arc<[(Value, Value)]>) -> rpds::HashTrieMapSync<Value, Value> {
-    let mut m: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
-    for (k, v) in el_bindings.iter() {
-        m.insert_mut(k.clone(), v.clone());
-    }
-    m
+/// `PMap` via `PMap::extend` (unaffected by this stone beyond the type). `from_pairs` already
+/// does the choose-the-arm-from-final-size move a fresh build needs.
+fn seed_token_bindings(el_bindings: &Arc<[(Value, Value)]>) -> crate::value::pmap::PMap {
+    crate::value::pmap::PMap::from_pairs(el_bindings.iter().map(|(k, v)| (k.clone(), v.clone())))
 }
 
 /// Keyed hash-join helper (P3 — shared by batch `hash_join_pass` and delta `fire_fixpoint_delta`).
@@ -953,7 +958,8 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
         let sample_tok_bindings = &left_tokens[0].bindings;
         let (_, sample_el_bindings) = element_fact_bindings(&right_elements[0]);
         let mut keys: Vec<Value> = sample_tok_bindings
-            .keys()
+            .iter()
+            .map(|(k, _)| k)
             .filter(|k| sample_el_bindings.get(k).is_some())
             .cloned()
             .collect();
@@ -1134,7 +1140,7 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
         };
 
         // For each token × each RHS insert-form → build derived fact → push to production[prod_id].
-        // tok.bindings is a native rpds map — pass directly (no intermediate clone).
+        // tok.bindings is a native PMap — pass directly (no intermediate clone).
         for tok in &tokens {
             for form in &rhs_forms {
                 let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
@@ -1388,7 +1394,7 @@ fn key_of<B: Bindings>(bindings: &B, join_keys: &[Value]) -> Vec<Value> {
 /// paying for the expensive half (`build_gather_index`) — the gather-index cache's ordering
 /// constraint (`DESIGN-STONE-gather-index-cache.md`).
 fn gather_join_keys(
-    sample_bindings: &rpds::HashTrieMapSync<Value, Value>,
+    sample_bindings: &crate::value::pmap::PMap,
     elements: &[Element],
 ) -> Vec<Value> {
     if elements.is_empty() {
@@ -1396,7 +1402,8 @@ fn gather_join_keys(
     }
     let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
     let mut keys: Vec<Value> = sample_bindings
-        .keys()
+        .iter()
+        .map(|(k, _)| k)
         .filter(|k| sample_el_bindings.get(k).is_some())
         .cloned()
         .collect();
@@ -2438,7 +2445,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         (Some(tok), Some(el)) => {
                             let (_, el_b) = element_fact_bindings(el);
                             let mut keys: Vec<Value> = tok.bindings
-                                .keys()
+                                .iter()
+                                .map(|(k, _)| k)
                                 .filter(|k| el_b.get(k).is_some())
                                 .cloned()
                                 .collect();
@@ -2710,7 +2718,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     .collect();
                 if let Some(aggregate) = accumulate_value(&acc_form, &gathered, sym)? {
                     // Extend the token: same matches; bindings + {result-var → aggregate}.
-                    let new_bindings = tok.bindings.insert(result_var.clone(), aggregate);
+                    let new_bindings = tok.bindings.assoc(result_var.clone(), aggregate);
                     let new_tok = Token { matches: tok.matches.clone(), bindings: new_bindings };
                     if beta_readers.contains(node_id) {
                         beta_written(*node_id, 1);
@@ -2893,7 +2901,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
 
             for tok in new_tokens {
                 for (form_idx, form) in rhs_forms.iter().enumerate() {
-                    // tok.bindings is native rpds — pass directly (no intermediate clone).
+                    // tok.bindings is a native PMap — pass directly (no intermediate clone).
                     let compiled = compiled_rhs_forms.and_then(|v| v.get(form_idx)).and_then(|o| o.as_ref());
                     let derived = match compiled {
                         Some(c) => {
@@ -3065,7 +3073,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         }
         for toks in wm.beta.values() {
             for t in toks {
-                census_count(tbucket(t.bindings.size()));
+                census_count(tbucket(t.bindings.len()));
                 census_count("bind-card:TOKENS");
             }
         }
@@ -4792,7 +4800,7 @@ mod tests {
         // nothing. Assert the shape production actually produced, and that the predicate really
         // evaluates (both verdicts must be reachable across the captured tokens: node-share's
         // `i == k mod N` passes exactly one k in N).
-        let bindings_per_token = tokens[0].bindings.size();
+        let bindings_per_token = tokens[0].bindings.len();
         assert!(
             tokens.len() as i64 == M && bindings_per_token > 0,
             "captured {} tokens with {bindings_per_token} bindings each; expected {M} tokens \
@@ -4847,8 +4855,8 @@ mod tests {
         let k_key = tokens[0]
             .bindings
             .keys()
+            .into_iter()
             .next()
-            .cloned()
             .expect("the captured token carries at least one binding (asserted above)");
         for _ in 0..REPS {
             // A — the env build alone.

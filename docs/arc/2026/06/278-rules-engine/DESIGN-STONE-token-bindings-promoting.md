@@ -213,6 +213,48 @@ zero `token:` census sites — **this stone builds on clean ground and must not 
 - **Re-measuring the A/B after the change.** The microbenchmark's job is done; the engine-level gate
   (rows 3–5) is what decides whether this earned its place.
 
+## ★ THE VERDICT (2026-08-01, after the build) — green on correctness, UNRESOLVABLE on perf
+
+**Correctness: fully green.** Floor 4261/4261 + clippy 0 (own re-run); the `extend` law and all six
+prior `PMap` laws pass; `binding_cardinality_distribution` byte-identical under a stash differential
+run by hand (the test itself only asserts `counted > 0` and *prints* — it cannot fail on a changed
+distribution, so passing it proves nothing and the differential is the real check); and the full
+nine-axis grid at canonical sizes: **27/27 `:accuracy :match`, 27/27 `:winner :us`, zero mismatches.**
+
+**Perf: the measurement cannot resolve it.** A cross-run comparison against `GRID-2026-08-01.txt`
+showed +50–150% almost everywhere and is **inadmissible** — that baseline predates `f794b637`, the
+PMap migration, so the delta is that migration plus this stone plus machine state. Discarded.
+
+The honest isolation — same box, same session, HEAD vs stone, on the two axes with the highest
+lookup:extend ratio:
+
+```
+  accum[50 200]        HEAD 2.967 (min 2.612 max 3.673)   STONE 2.605 (2.090–2.876)   -12.2%
+  accum[200 200]       HEAD 1.590 (1.479–1.792)           STONE 1.516 (1.290–1.731)    -4.7%
+  node-share[10 200]   HEAD 7.698 (4.626–11.450)          STONE 8.363 (6.898–9.358)    +8.6%
+  node-share[50 200]   HEAD 2.058 (1.521–2.777)           STONE 2.436 (2.024–2.698)   +18.4%
+```
+
+**Every delta is inside the run-to-run spread**, and `node-share[10 200]`'s HEAD range spans 2.5× on
+n=3. Two up, two down, all noise. This is not a win, and it is not a loss; the instrument cannot tell.
+
+**★ And it refutes an inference of mine, which is the part worth keeping.** The Step-0 reading said
+*"lookups outnumber extends 355× on accum, so whichever arm wins lookup wins the engine."* That was
+derived from a **count ratio**, not a time decomposition — 355× more numerous says nothing about
+share of runtime. The axis with the highest ratio is the one that moved *down*. Deriving a bound from
+a count is the same class as R60's "3, then 5."
+
+**So the stone does not land on speed.** What it does land on, and these are real:
+
+- **A conversion boundary deleted.** Zero `to_trie()`/`from_trie()` calls remain anywhere in
+  `kernel.rs`/`matcher.rs`/`compiled_rhs.rs` — the `Value`↔`Token` seam stopped converting.
+- **A missing constructor filled.** `PMap::extend` with a law, useful to any batch caller, not just
+  this one.
+- **One representation story** — Element an array, Token a `PMap`, every wat-level map a `PMap`.
+
+If churn in the hottest path is not worth paying for a unification with no number behind it, the
+stone reverts in one command and nothing else depends on it.
+
 ## Honest state
 
 **Step 0 is complete and the numbers are above.** What is built: nothing of the stone itself — `PMap`
