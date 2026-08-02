@@ -25,6 +25,15 @@
 ;; SYMBOL (colon-stripped, namespace INCLUDED) — so naively keeping the symbol `:ns::rule-NAME` would
 ;; print "ns::rule-NAME" instead of the corpus's short "NAME", breaking every row's diff.
 ;;
+;; ⛔ THE "BARE IS LEGAL" PREMISE BELOW IS NO LONGER TRUE (arc 278, 2026-08-02). It was true when
+;; this migration ran and is kept verbatim because it is why the migration did what it did — but a
+;; bare top-level name is now a located `Registration::Unnamespaced` error at every registration
+;; door, and the probe it cites has been RETIRED (its subject died with the premise; `Rule/name` is
+;; covered by tests/rete/probe_arc278_5{a,b} and nine grid axes). The correction is its own recorded
+;; migration: `wat-scripts/fixes/namespace-defrule-names.wat`, which namespaced these very names and
+;; wrapped the `Rule/name` read in a `rule-display-name` derivation so the printed row label stayed
+;; byte-identical. Read the two together; do NOT act on the paragraph below alone.
+;;
 ;; RESOLUTION: across all 98 rows, the existing `:name "NAME"` string is EXACTLY the defn symbol's
 ;; suffix after "rule-" (verified by survey, not assumed) — and a BARE (non-namespaced) top-level
 ;; symbol is legal wat (probed: `(:wat::rete::defrule :arith ...)` derives Rule/name = "arith" exactly,
