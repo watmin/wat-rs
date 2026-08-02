@@ -568,3 +568,188 @@ pub(crate) fn eval_deterministic_predicate(
 ) -> Result<Value, EvalBreak> {
     eval_axis_predicate(":wat::rete::deterministic?", is_deterministic_expr, args, list_span, env, sym)
 }
+
+// ─── The purity-COMPLETENESS gate (arc 278, 2026-08-01) ─────────────────────────
+
+/// Every builtin verb the runtime dispatches is either CLASSIFIED by `intrinsic_meta`, or carries
+/// an explicit DISPOSITION saying why nobody has ruled on it yet. A verb that is neither is the
+/// state this gate exists to make impossible.
+///
+/// ## Why this gate exists — the defect it catches, which shipped
+///
+/// `intrinsic_meta` is, by its own doc, "hand-managed (enumerated from
+/// `dispatch_keyword_head_value`)" — one list transcribed from another. A verb minted in the
+/// dispatch table is therefore silently *unclassified* here, and unclassified is not a harmless
+/// default: `compile-condition` **panics** on `pure? = false` (`wat/rete.wat:566`), so a rule using
+/// it **cannot compile**. Nothing detected that. On 2026-08-01 it had accumulated to 35 verbs,
+/// including every `i64`/`f64` comparison, the entire `String/` family, and all 105
+/// `:wat::holon::` verbs — which welded shut R4's designed VSA seam. It was found by a user-shaped
+/// probe, not by any test, and it had been true for months.
+///
+/// ## The safety asymmetry — PURE is never inferred
+///
+/// A wrong "impure" costs expressivity and is visible the moment someone tries to write the rule.
+/// A wrong "pure" lets an effectful call into a predicate that gets re-fired and sandboxed. So:
+/// **`Pure` comes only from `intrinsic_meta`, per verb, by hand.** Dispositions below may say
+/// `Impure` or `Unreviewed` — never `Pure`. The gate cannot be satisfied by widening a prefix.
+///
+/// ## Why it is a RATCHET, not a zero-floor
+///
+/// Classifying the remaining verbs is a per-verb semantic ruling — the builder's, not a bulk
+/// inference from reading names, which is the exact error that produced the 35. So the gate asserts
+/// the unreviewed count **does not GROW**: a verb added to the dispatch table without a
+/// classification or a disposition pushes it over the baseline and goes red. The list is printed so
+/// the worklist is visible, the same shape `no_inlined_edn` and the clippy campaign used.
+/// `[[feedback_no_consumers_does_not_mean_dead]]` applies: this reports an inventory needing
+/// dispositions; it never proposes deleting a verb.
+///
+/// The root remains arc 255 — purity declared where the verb is *defined*, so the transcription
+/// step disappears. This gate is what holds the line until then.
+#[cfg(test)]
+mod completeness_gate {
+    use super::intrinsic_meta;
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Disp {
+        /// Structurally cannot be pure. Only used where the namespace's whole reason for existing
+        /// is the effect.
+        Impure,
+        /// Nobody has ruled. Counts toward the worklist — this is the honest default, and saying
+        /// "impure" instead would hide a capability gap exactly the way the 35 were hidden.
+        Unreviewed,
+    }
+
+    /// Namespace rules. Conservative by construction: `Impure` only where the namespace IS the
+    /// effect; everything else is `Unreviewed` with what needs checking named.
+    const RULES: &[(&str, Disp, &str)] = &[
+        (":wat::io::", Disp::Impure, "IO is the namespace's entire purpose"),
+        (":wat::kernel::", Disp::Impure, "the effect surface — println/eprintln/readln/assertion-failed!"),
+        (":wat::config::", Disp::Impure, "mutates per-runtime config (set-*! family)"),
+        (":wat::runtime::", Disp::Impure, "runtime introspection + mutation"),
+        (":wat::program::", Disp::Impure, "reads process env"),
+        (":wat::eval", Disp::Impure, "evaluates arbitrary submitted forms — purity is the form's, like `apply`"),
+        // Unreviewed: each names the question, not a guess.
+        (":wat::time::", Disp::Unreviewed, "MIXED — `now` reads the clock (non-deterministic), but `epoch-nanos` of an Instant in hand is a pure read. Needs per-verb review, and a blanket `impure` here would hide the pure readers the way the 35 were hidden"),
+        (":wat::holon::", Disp::Unreviewed, "4 ruled pure 2026-08-01 (cosine/dot/coincident?/presence?). The rest split into threshold siblings (likely pure), LEARNING ops (update/add/put — a semantics question before a purity one), and the eval-* family (purity is the argument's)"),
+        (":wat::rete::", Disp::Unreviewed, "engine verbs — insert/query/fire are pure value transforms over a Session, but a rete verb inside a rete predicate wants a ruling on recursion before a ruling on purity"),
+        (":wat::stream::", Disp::Unreviewed, "laziness — a Stream's purity is its producer's"),
+        (":wat::std::", Disp::Unreviewed, "arc 109 is annihilating this namespace; classify only what survives"),
+        (":wat::verify::", Disp::Unreviewed, "signature verification — reads keys; needs review"),
+        (":wat::form::", Disp::Unreviewed, "form/AST manipulation; kin to the `:wat::core::ast->*` family"),
+        (":wat::stdlib::", Disp::Unreviewed, "single verb; unexamined"),
+        (":wat::core::", Disp::Unreviewed, "the classified majority live here via `intrinsic_meta`; what falls through is the real worklist — the AST/meta family, apply, struct/Record ops, and the generic seq verbs named in `intrinsic_meta`'s doc"),
+    ];
+
+    /// ★ THE RATCHET. Lower it when verbs get ruled on; NEVER raise it to make a red gate green —
+    /// raising it is the laundering this gate exists to prevent. A new dispatch verb that is
+    /// neither classified nor disposed pushes the count over and goes red.
+    const UNREVIEWED_BASELINE: usize = 212;
+
+    /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
+    /// keyword-head path) and `dispatch_substrate_impl` (the `apply`-reachable substrate table).
+    /// Located by NAME, not line number, so the scan cannot silently drift to the wrong region —
+    /// and a floor-assert below catches it going vacuous if a rename ever breaks the anchors.
+    fn dispatch_verbs(src: &str) -> Vec<String> {
+        let lines: Vec<&str> = src.lines().collect();
+        let mut out = Vec::new();
+        for anchor in ["fn dispatch_keyword_head_value(", "fn dispatch_substrate_impl("] {
+            let start = match lines.iter().position(|l| l.contains(anchor)) {
+                Some(i) => i,
+                None => continue,
+            };
+            let end = lines[start + 1..]
+                .iter()
+                .position(|l| l.starts_with("fn ") || l.starts_with("pub fn ") || l.starts_with("pub(crate) fn "))
+                .map(|i| start + 1 + i)
+                .unwrap_or(lines.len());
+            for line in &lines[start..end] {
+                let mut rest = *line;
+                while let Some(i) = rest.find("\":wat::") {
+                    rest = &rest[i + 1..];
+                    if let Some(j) = rest.find('"') {
+                        out.push(rest[..j].to_string());
+                        rest = &rest[j + 1..];
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    #[test]
+    fn every_dispatched_verb_is_classified_or_disposed() {
+        let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/runtime.rs"))
+            .expect("runtime.rs must be readable — it IS the source of truth for what verbs exist");
+        let verbs = dispatch_verbs(&src);
+
+        // Non-vacuity FIRST. If a rename broke the anchors this returns a handful of verbs, every
+        // count below collapses, and a green gate would mean "we scanned nothing".
+        assert!(
+            verbs.len() > 400,
+            "the dispatch scan found only {} verbs — the `fn dispatch_*` anchors have drifted and \
+             this gate is measuring nothing. Fix the anchors; do NOT lower the floor.",
+            verbs.len()
+        );
+
+        let (mut classified, mut impure, mut unreviewed) = (0usize, 0usize, Vec::new());
+        for v in &verbs {
+            if intrinsic_meta(v).is_some() {
+                classified += 1;
+                continue;
+            }
+            match RULES.iter().find(|(p, _, _)| v.starts_with(p)) {
+                Some((_, Disp::Impure, _)) => impure += 1,
+                Some((_, Disp::Unreviewed, _)) | None => unreviewed.push(v.clone()),
+            }
+        }
+
+        println!(
+            "\nPURITY COMPLETENESS — {} dispatched verbs\n\
+             \x20 classified pure (intrinsic_meta)  {classified:>4}\n\
+             \x20 disposed impure (namespace rule)  {impure:>4}\n\
+             \x20 UNREVIEWED (the worklist)         {:>4}   baseline {UNREVIEWED_BASELINE}\n\
+             \x20 note: constructors + field accessors are NOT here — `constructor_meta` and\n\
+             \x20 `accessor_meta` DERIVE from the frozen TypeEnv, so they cannot go stale. Only the\n\
+             \x20 hand-managed `intrinsic_meta` needs a gate.\n",
+            verbs.len(),
+            unreviewed.len(),
+        );
+
+        // The worklist, grouped by namespace — the INVENTORY is the deliverable, not the count
+        // (`UNADOPTED.md`). A bare number tells nobody where to start.
+        let mut by_ns: std::collections::BTreeMap<String, Vec<&String>> = Default::default();
+        for v in &unreviewed {
+            let ns = v.rsplit_once("::").map(|(a, _)| a.to_string()).unwrap_or_else(|| v.clone());
+            by_ns.entry(ns).or_default().push(v);
+        }
+        let mut rows: Vec<(usize, String, Vec<&String>)> =
+            by_ns.into_iter().map(|(k, v)| (v.len(), k, v)).collect();
+        rows.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        println!("  THE WORKLIST — unreviewed by namespace (ratchet DOWN by ruling on these):");
+        for (n, ns, vs) in rows.iter().take(12) {
+            let sample: Vec<&str> = vs.iter().take(4).map(|s| s.as_str()).collect();
+            println!("   {n:>4}  {ns}   e.g. {}", sample.join(", "));
+        }
+        println!();
+
+        assert!(
+            unreviewed.len() <= UNREVIEWED_BASELINE,
+            "UNREVIEWED grew to {} (baseline {UNREVIEWED_BASELINE}).\n\n\
+             A verb was added to the runtime's dispatch table without a purity classification or a \
+             disposition. That is not cosmetic: `compile-condition` PANICS on `pure? = false`, so \
+             every rule using this verb CANNOT COMPILE, and nothing else in the suite will say so. \
+             This is the exact defect that hid 35 verbs — including the whole `String/` family and \
+             the VSA seam — for months.\n\n\
+             Fix it by CLASSIFYING the verb in `intrinsic_meta` (if it is genuinely pure — a ruling, \
+             not an inference from its name) or by adding a disposition in `RULES` with the reason. \
+             Do NOT raise the baseline.\n\n\
+             Newly unreviewed, first 20:\n{}\n",
+            unreviewed.len(),
+            unreviewed.iter().take(20).map(|v| format!("  {v}")).collect::<Vec<_>>().join("\n"),
+        );
+    }
+}
