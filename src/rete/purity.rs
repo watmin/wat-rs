@@ -63,6 +63,38 @@ struct OpMeta {
 
 /// The hand-managed map (enumerated from `dispatch_keyword_head_value` in `runtime.rs`).
 /// Almost every pure op is also deterministic; `Uuid/v4` is the lone pure-but-non-deterministic op.
+///
+/// ⚠ **HAND-MANAGED IS THE DEFECT, and it is a STEM fix — the root is arc 255.** This is one list
+/// transcribed from another, so a verb minted in `dispatch_keyword_head_value` is silently
+/// *unclassified* here, and unclassified means a rule that uses it **cannot compile**
+/// (`compile-condition` panics on `pure? = false`, `wat/rete.wat:566`). Nothing detects that; only
+/// a user hitting it does. The 2026-08-01 sweep below closed 35 such verbs, including the entire
+/// `String/` family. **The wall is purity declared where the verb is DEFINED**, so a verb cannot
+/// exist unclassified — arc 255's builtin registry, already named as this recognizer's successor in
+/// `constructor_meta`'s doc below. Until then, adding a verb to the dispatch table means adding it
+/// here, and nothing enforces that.
+///
+/// **Deliberately left UNCLASSIFIED by the 2026-08-01 sweep** (named so the omission is visible
+/// rather than silent — each wants a ruling, not an assumption):
+/// `apply` (purity depends on the fn it is handed); `struct-new` / `struct-field` / `struct->form`
+/// (a struct may hold a live resource — arc 293.W); `Record/assoc` / `Record/field-at` /
+/// `record->map` / `to-record`; the AST/meta family (`read-string`, `macroexpand`, `forms`,
+/// `ast->*`, `with-children`, `write-forms`); `Option/expect` / `Result/expect` (total but they
+/// raise); and the generic sequence verbs (`range`, `take`, `drop`, `rest`, `last`, `assoc`,
+/// `conj`, `find-last-index`) which are very likely pure but were not measured this session.
+///
+/// **The other 101 `:wat::holon::` verbs are also deliberately unclassified.** Three groups, and
+/// the middle one is the interesting question, not an oversight:
+/// - *the threshold siblings* — `coincident-floor`, `presence-floor`, `coincident-explain`: the
+///   same reads with an explicit floor / an explanation payload. Almost certainly pure; the builder
+///   ruled the four above as the set to open NOW, and these are the obvious next ask if a user
+///   wants a per-rule threshold rather than the configured one.
+/// - *the LEARNING ops* — `OnlineSubspace/update`, `EngramLibrary/add`, `Hologram/put|remove`,
+///   `Reckoner/observe`: they return new values rather than mutating, so they may well be pure,
+///   but a learning step inside a re-fired rete predicate is a semantics question before it is a
+///   purity question. Wants a ruling, not a classification.
+/// - *the `eval-*-coincident?` family* — these evaluate submitted forms; purity depends on what
+///   they are handed, exactly like `apply`.
 fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // Pure but NON-deterministic: random.
     if head == ":wat::core::Uuid/v4" {
@@ -189,6 +221,78 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::map"
             | ":wat::core::filter"
             | ":wat::core::reduce"
+            // ── 2026-08-01: the EXPRESSIVITY GAP, closed by hand ──────────────────────────────
+            //
+            // Found by measuring the fence against what a USER MAY WRITE rather than against our
+            // own corpus (the builder: "do not optimize for our code — optimize for the users we
+            // have not encountered yet"). Diffing `dispatch_keyword_head_value`'s arms against this
+            // list: 221 dispatch arms, 96 classified. Our rulesets happened to use only the
+            // classified subset — generic `>` everywhere, never a String verb in a `where` — so
+            // nothing ever tripped it.
+            //
+            // The cost was real and hard: `compile-condition` PANICS on `pure? = false`
+            // (`wat/rete.wat:566`), so `(:wat::rete::where (:wat::core::i64::> ?bytes 10000))` and
+            // `(:wat::rete::where (:wat::core::String/starts-with? ?path "/adm"))` were BOTH
+            // uncompilable — and the same gate fences the sift `Sieve::Predicate` form, so this
+            // constrained the chaos engine's server-side filter too, not just rete rules. It also
+            // propagates: a user's own `defn` predicate inherits the gap invisibly through its body.
+            //
+            // Each entry below is a value operation over already-evaluated arguments: no IO, no
+            // entropy, no mutation, same inputs → same output. Grouped by the family whose ABSENCE
+            // was the actual defect — the transcription had added the per-Type ARITHMETIC leaves
+            // and the Persistent* containers, then stopped.
+
+            // Per-Type COMPARISON leaves. `i64::+ - * /` were here; `i64::< > <= >=` were not —
+            // an inconsistency inside one family, and the single most common thing a rule says.
+            | ":wat::core::i64::<"  | ":wat::core::i64::<=" | ":wat::core::i64::>" | ":wat::core::i64::>="
+            | ":wat::core::f64::<"  | ":wat::core::f64::<=" | ":wat::core::f64::>" | ":wat::core::f64::>="
+            // Per-Type integer division family (`i64::/` was already here; its siblings were not).
+            | ":wat::core::i64::mod" | ":wat::core::i64::quot" | ":wat::core::i64::rem"
+            // f64 numeric readers/roundings — total functions of their argument.
+            | ":wat::core::f64::round" | ":wat::core::f64::clamp"
+            | ":wat::core::f64::max-of" | ":wat::core::f64::min-of"
+            | ":wat::core::f64::to-i64" | ":wat::core::f64::to-string"
+            // The `String/` family — ENTIRELY absent. Note `:wat::core::string::` (lowercase, a
+            // namespace) is whitelisted by prefix above; `String/` is the per-Type family users
+            // actually call, and it is a different namespace, so the prefix never covered it.
+            | ":wat::core::String/concat"      | ":wat::core::String/contains?"
+            | ":wat::core::String/empty?"      | ":wat::core::String/starts-with?"
+            | ":wat::core::String/ends-with?"
+            // `Vector/`, `List/`, `HashSet/` — the value containers. `PersistentVector/`,
+            // `PersistentMap/` and `HashMap/` were classified; these three were skipped.
+            | ":wat::core::Vector"        | ":wat::core::Vector/length"   | ":wat::core::Vector/get"
+            | ":wat::core::Vector/conj"   | ":wat::core::Vector/contains?" | ":wat::core::Vector/empty?"
+            | ":wat::core::Vector/concat" | ":wat::core::Vector/extend"
+            | ":wat::core::List?"         | ":wat::core::List/of"         | ":wat::core::List/length"
+            | ":wat::core::List/get"      | ":wat::core::List/conj"       | ":wat::core::List/contains?"
+            | ":wat::core::List/empty?"
+            | ":wat::core::HashSet"       | ":wat::core::HashSet/length"  | ":wat::core::HashSet/conj"
+            | ":wat::core::HashSet/contains?" | ":wat::core::HashSet/empty?"
+            // The persistent sibling the `into` stone minted; its `Vector/extend` twin is above.
+            | ":wat::core::PersistentVector/concat"
+            // Scalar conversions — total, same-in-same-out.
+            | ":wat::core::bool::to-string"
+            | ":wat::core::i64/to-f64" | ":wat::core::i64/to-string"
+            // Uuid READERS (contrast `Uuid/v4`, which is pure but NON-deterministic and is handled
+            // by its own arm at the top): these read bits out of a value already in hand.
+            | ":wat::core::Uuid/version" | ":wat::core::Uuid/rfc4122-variant?"
+
+            // ── The VSA SEAM — `:wat::holon::` (builder-ruled, 2026-08-01: these four) ─────────
+            //
+            // ZERO of the 105 `:wat::holon::` verbs were classified, so R4's designed seam — *"swap
+            // RETE's exact test for COINCIDENCE, similarity over a floor, so rules fire on
+            // resemblance, not equality"* — was welded shut: a rule doing a VSA op mid-fire could
+            // not compile. `DESIGN-sift-server-side-filter.md` calls for exactly this ("a holon
+            // fact carries its Hologram → a rule can do a VSA op mid-fire"), and the same fence
+            // gates the sift `Sieve::Predicate`, so it was shut on both paths.
+            //
+            // All four READ two values already in hand and return a scalar or a bool — no IO, no
+            // entropy, no mutation. `coincident?`/`presence?` are the bool predicates a `where`
+            // can use directly; `cosine`/`dot` are the scalars, usable because the f64 comparisons
+            // above landed in the same sweep — `(:wat::core::f64::> (:wat::holon::cosine ?a ?b) 0.9)`
+            // now composes, where before BOTH halves were unclassified.
+            | ":wat::holon::cosine" | ":wat::holon::dot"
+            | ":wat::holon::coincident?" | ":wat::holon::presence?"
     );
     if pure_det {
         Some(OpMeta { pure: true, deterministic: true })
