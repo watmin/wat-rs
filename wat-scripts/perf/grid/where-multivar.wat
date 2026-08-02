@@ -79,138 +79,94 @@
     0))
 
 ;; ROW 1 — THREE bound vars in one predicate. a+b > c+10.  a=i%11, b=i%13, c=i%7 ⇒ 64 of 200.
-(:wat::core::defn :wmv::rule-three-var [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
-                 (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 10))))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "three-var"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :three-var
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+                 (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 10)))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 2 — FOUR bound vars in one predicate. (a+b) mod (c+1) == d.
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 36 of 200.
-(:wat::core::defn :wmv::rule-four-var [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
+(:wat::rete::defrule :four-var
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::=
                    (:wat::core::i64::mod (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 1))
-                   ?d)))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "four-var"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                   ?d))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 3 — FIVE bound vars in one predicate, combined with `and`.
 ;; (a mod 2 == 0) AND (b > c) AND (d > e).  a=i%11, b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 40 of 200.
-(:wat::core::defn :wmv::rule-five-var [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
+(:wat::rete::defrule :five-var
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::and
                    (:wat::core::= 0 (:wat::core::i64::mod ?a 2))
                    (:wat::core::i64::> ?b ?c)
-                   (:wat::core::i64::> ?d ?e))))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "five-var"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                   (:wat::core::i64::> ?d ?e)))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 4 — TRANSITIVE CHAIN. d < c AND c < b — the same var (`c`) anchors both legs of the chain,
 ;; so the predicate cannot be split into two independent single-var tests without still needing c
 ;; live in both. d=i%5, c=i%7, b=i%13 ⇒ 66 of 200.
-(:wat::core::defn :wmv::rule-chain [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
-                 (:wat::core::and (:wat::core::i64::< ?d ?c) (:wat::core::i64::< ?c ?b))))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "chain"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :chain
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+                 (:wat::core::and (:wat::core::i64::< ?d ?c) (:wat::core::i64::< ?c ?b)))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 5 — arithmetic ACROSS vars: (?a + ?b) > ?c.  a=i%11, b=i%13, c=i%7 ⇒ 183 of 200.
-(:wat::core::defn :wmv::rule-sum-vars [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) ?c)))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "sum-vars"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :sum-vars
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) ?c))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 6 — arithmetic ACROSS vars: (?a * ?b) > (?c + ?d).
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 150 of 200.
-(:wat::core::defn :wmv::rule-prod-vars [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
+(:wat::rete::defrule :prod-vars
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::i64::>
                    (:wat::core::i64::* ?a ?b)
-                   (:wat::core::i64::+ ?c ?d))))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "prod-vars"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                   (:wat::core::i64::+ ?c ?d)))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 7 — the SAME var used SEVERAL TIMES in one predicate: (?a * ?a) - ?a > 20.
 ;; `?a` is bound once by the leading condition but read three times by the predicate — the compiler
 ;; needs to know it is one slot, not three. a=i%11 ⇒ 90 of 200.
-(:wat::core::defn :wmv::rule-repeat-var [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
+(:wat::rete::defrule :repeat-var
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::i64::>
                    (:wat::core::i64::- (:wat::core::i64::* ?a ?a) ?a)
-                   20)))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "repeat-var"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                   20))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 8 — a pure fn taking FOUR bound vars at once: (combo? ?a ?b ?c ?d).
 ;; combo?(a,b,c,d) = a*c > b*d.  Like where-shapes row 5, this is a CALL the compiler must hand back
 ;; to the interpreter — but now over four live slots instead of one. ⇒ 95 of 200.
-(:wat::core::defn :wmv::rule-combo-fn [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote (:wat::rete::where (:wmv::combo? ?a ?b ?c ?d)))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "combo-fn"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :combo-fn
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::combo? ?a ?b ?c ?d))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 9 — vars of DIFFERENT TYPES compared through a fn: (length ?s) > ?c.
 ;; `?s` is a String, `?c` is an i64; `string::length` bridges the type gap before the comparison.
 ;; s(i) = to-string(i) so len(s) is i's digit count (1 for i<10, 2 for i<100, 3 for i>=100);
 ;; c=i%7 ⇒ 71 of 200.
-(:wat::core::defn :wmv::rule-mixed-type [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?s) ?c)))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "mixed-type"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :mixed-type
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?s) ?c))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 10 — binds MANY vars, READS only one: ?a mod 3 == 0.
 ;; The leading condition binds all seven of (?k ?a ?b ?c ?d ?e ?s) per rule 1 — same as every other
@@ -218,63 +174,50 @@
 ;; SEMANTICALLY (the derived set is exactly what a single-var predicate over `?a` alone would give);
 ;; whatever it costs the compiler to carry the other six slots live is a performance question, not
 ;; a correctness one. a=i%11 ⇒ 73 of 200.
-(:wat::core::defn :wmv::rule-unused-binds [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::= 0 (:wat::core::i64::mod ?a 3))))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "unused-binds"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :unused-binds
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::= 0 (:wat::core::i64::mod ?a 3)))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 11 — a pure fn taking FIVE bound vars at once: (pent? ?a ?b ?c ?d ?e).
 ;; pent?(a,b,c,d,e) = (a+b+c) mod (d+e+1) == 0 ⇒ 73 of 200.
 ;; (Same count as row 10 by coincidence of the arithmetic — the two derived SETS differ; that is
 ;; exactly why every row prints its full set, not just its count.)
-(:wat::core::defn :wmv::rule-five-fn [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote (:wat::rete::where (:wmv::pent? ?a ?b ?c ?d ?e)))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "five-fn"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :five-fn
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::pent? ?a ?b ?c ?d ?e))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; ROW 12 — chain AND arithmetic combined: (?b < ?c) AND ((?c + ?d) > (?e * 3)).
 ;; The first leg is a bound-var-to-bound-var chain link, the second is arithmetic across three vars
 ;; — composed with `and` in one predicate. b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 37 of 200.
-(:wat::core::defn :wmv::rule-chain-arith [] -> :wat::rete::Rule
-  (:wat::core::let
-    [conds   (:wat::core::quasiquote
-               (:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)))
-     where-c (:wat::core::quasiquote
-               (:wat::rete::where
+(:wat::rete::defrule :chain-arith
+  :when
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::and
                    (:wat::core::i64::< ?b ?c)
-                   (:wat::core::i64::> (:wat::core::i64::+ ?c ?d) (:wat::core::i64::* ?e 3)))))
-     ins     (:wat::core::quasiquote (:wat::rete::insert (:wmv::Hit ?k)))]
-    (:wat::rete::Rule :name "chain-arith"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                   (:wat::core::i64::> (:wat::core::i64::+ ?c ?d) (:wat::core::i64::* ?e 3))))]
+  :then
+  (:wat::rete::insert (:wmv::Hit ?k)))
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:wmv::rule-three-var))
-      ((:wat::core::= row 2)  (:wmv::rule-four-var))
-      ((:wat::core::= row 3)  (:wmv::rule-five-var))
-      ((:wat::core::= row 4)  (:wmv::rule-chain))
-      ((:wat::core::= row 5)  (:wmv::rule-sum-vars))
-      ((:wat::core::= row 6)  (:wmv::rule-prod-vars))
-      ((:wat::core::= row 7)  (:wmv::rule-repeat-var))
-      ((:wat::core::= row 8)  (:wmv::rule-combo-fn))
-      ((:wat::core::= row 9)  (:wmv::rule-mixed-type))
-      ((:wat::core::= row 10) (:wmv::rule-unused-binds))
-      ((:wat::core::= row 11) (:wmv::rule-five-fn))
-      ((:wat::core::= row 12) (:wmv::rule-chain-arith))
+      ((:wat::core::= row 1)  (:three-var))
+      ((:wat::core::= row 2)  (:four-var))
+      ((:wat::core::= row 3)  (:five-var))
+      ((:wat::core::= row 4)  (:chain))
+      ((:wat::core::= row 5)  (:sum-vars))
+      ((:wat::core::= row 6)  (:prod-vars))
+      ((:wat::core::= row 7)  (:repeat-var))
+      ((:wat::core::= row 8)  (:combo-fn))
+      ((:wat::core::= row 9)  (:mixed-type))
+      ((:wat::core::= row 10) (:unused-binds))
+      ((:wat::core::= row 11) (:five-fn))
+      ((:wat::core::= row 12) (:chain-arith))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-multivar: unknown row " (:wat::core::i64::to-string row))

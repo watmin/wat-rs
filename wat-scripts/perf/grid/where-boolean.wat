@@ -80,125 +80,119 @@
   (:wat::core::quasiquote (:wat::rete::insert (:wsb::Hit ?k))))
 
 ;; ROW 1 — and/2. Hit :- Req(…) AND (a and b).  k mod 2==0 and k mod 3==0 => k mod 6==0 => 35/210.
-(:wat::core::defn :wsb::rule-and2 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::and ?a ?b)))]
-    (:wat::rete::Rule :name "and2"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :and2
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 2 — or/2. Hit :- Req(…) AND (a or b).  |a|+|b|-|a&b| = 105+70-35 => 140/210.
-(:wat::core::defn :wsb::rule-or2 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::or ?a ?b)))]
-    (:wat::rete::Rule :name "or2"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :or2
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::or ?a ?b))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 3 — not/1. Hit :- Req(…) AND (not c).  210 - 42 => 168/210.
-(:wat::core::defn :wsb::rule-not1 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::not ?c)))]
-    (:wat::rete::Rule :name "not1"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :not1
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not ?c))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 4 — and/3. (a and b and c).  k mod 30==0 => 7/210.
-(:wat::core::defn :wsb::rule-and3 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::and ?a ?b ?c)))]
-    (:wat::rete::Rule :name "and3"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :and3
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b ?c))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 5 — or/3. (a or b or c).  inclusion-exclusion => 154/210.
-(:wat::core::defn :wsb::rule-or3 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::or ?a ?b ?c)))]
-    (:wat::rete::Rule :name "or3"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :or3
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::or ?a ?b ?c))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 6 — and/4, the full conjunction. k mod 210==0 => only k=0 => 1/210. Deliberately extreme
 ;; (still a PROPER subset — 0 < 1 < 210) to exercise 4-ary `and`, the widest arity this corpus uses.
-(:wat::core::defn :wsb::rule-and4 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::and ?a ?b ?c ?d)))]
-    (:wat::rete::Rule :name "and4"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :and4
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b ?c ?d))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 7 — NESTED, two levels: (and (or a b) (not c)).
 ;; |a∨b| = 140 (row 2). Restrict to c=false: of the 168 facts with c=false, exclude those with
 ;; a=false AND b=false (56 of them) => 168 - 56 = 112/210.
-(:wat::core::defn :wsb::rule-nest-and-or-not [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::and (:wat::core::or ?a ?b) (:wat::core::not ?c))))]
-    (:wat::rete::Rule :name "nest-and-or-not"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :nest-and-or-not
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+                                 (:wat::core::and (:wat::core::or ?a ?b) (:wat::core::not ?c)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 8 — NESTED, two levels: (or (and a b) (and c d)).
 ;; |a∧b|=35, |c∧d|=6, |a∧b∧c∧d|=1 (inclusion-exclusion on the two conjunctions) => 35+6-1=40/210.
-(:wat::core::defn :wsb::rule-nest-or-and-and [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::or (:wat::core::and ?a ?b) (:wat::core::and ?c ?d))))]
-    (:wat::rete::Rule :name "nest-or-and-and"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :nest-or-and-and
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+                                 (:wat::core::or (:wat::core::and ?a ?b) (:wat::core::and ?c ?d)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 9 — THREE LEVELS DEEP: (and (or (and a b) c) (not (and c d))).
 ;; Let X = (a∧b)∨c, Y = ¬(c∧d); count(X∧Y) enumerated over the 16 (a,b,c,d) truth combinations
 ;; weighted by CRT residue counts => 64/210 (worked by hand in the brief response, not re-derived
 ;; here — verify against this program's own `n=` if in doubt, per rule 2).
-(:wat::core::defn :wsb::rule-nest3 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :nest3
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and
                                    (:wat::core::or (:wat::core::and ?a ?b) ?c)
-                                   (:wat::core::not (:wat::core::and ?c ?d)))))]
-    (:wat::rete::Rule :name "nest3"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+                                   (:wat::core::not (:wat::core::and ?c ?d))))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 10 / ROW 11 — DE MORGAN PAIR #1: ¬(a∧b)  ≡  (¬a)∨(¬b). Both MUST derive the identical set.
 ;; 210 - |a∧b| = 210 - 35 = 175/210 on both rows.
-(:wat::core::defn :wsb::rule-demorgan-nand-a [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::not (:wat::core::and ?a ?b))))]
-    (:wat::rete::Rule :name "demorgan-nand-a"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :demorgan-nand-a
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not (:wat::core::and ?a ?b)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
-(:wat::core::defn :wsb::rule-demorgan-nand-b [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::or (:wat::core::not ?a) (:wat::core::not ?b))))]
-    (:wat::rete::Rule :name "demorgan-nand-b"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :demorgan-nand-b
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+                                 (:wat::core::or (:wat::core::not ?a) (:wat::core::not ?b)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 12 / ROW 13 — DE MORGAN PAIR #2: ¬(a∨b)  ≡  (¬a)∧(¬b). Both MUST derive the identical set.
 ;; 210 - |a∨b| = 210 - 140 = 70/210 on both rows.
-(:wat::core::defn :wsb::rule-demorgan-nor-a [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::not (:wat::core::or ?a ?b))))]
-    (:wat::rete::Rule :name "demorgan-nor-a"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :demorgan-nor-a
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not (:wat::core::or ?a ?b)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
-(:wat::core::defn :wsb::rule-demorgan-nor-b [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::and (:wat::core::not ?a) (:wat::core::not ?b))))]
-    (:wat::rete::Rule :name "demorgan-nor-b"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :demorgan-nor-b
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+                                 (:wat::core::and (:wat::core::not ?a) (:wat::core::not ?b)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 14 — a BOOLEAN-VALUED USER FN composed with inline boolean operators at the call site.
 ;; Hit :- Req(…) AND (edge?(k) and not c).  edge? is 60/210 on its own; of those, 12 are divisible
 ;; by 5 (6 in each 30-wide tail) => 60 - 12 = 48/210.
-(:wat::core::defn :wsb::rule-userfn [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::and (:wsb::edge? ?k) (:wat::core::not ?c))))]
-    (:wat::rete::Rule :name "userfn"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+(:wat::rete::defrule :userfn
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+                                 (:wat::core::and (:wsb::edge? ?k) (:wat::core::not ?c)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; ROW 15 — SHORT-CIRCUIT-SENSITIVE. Hit :- Req(…) AND (l != 0 and (100/l) > 20).
 ;;
@@ -210,35 +204,34 @@
 ;;
 ;; For the 180 facts with l != 0 (l in {1..6}), 100/l (truncating) is {100,50,33,25,20,16} for
 ;; l={1,2,3,4,5,6} respectively; > 20 holds for l in {1,2,3,4} => 4/7 of 210 => 120/210.
-(:wat::core::defn :wsb::rule-shortcircuit-and [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :shortcircuit-and
+  :when
+  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and
                                    (:wat::core::not= ?l 0)
-                                   (:wat::core::i64::> (:wat::core::i64::/ 100 ?l) 20))))]
-    (:wat::rete::Rule :name "shortcircuit-and"
-      :lhs (:wat::core::PersistentVector (:wsb::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsb::ins)))))
+                                   (:wat::core::i64::> (:wat::core::i64::/ 100 ?l) 20)))]
+  :then
+  (:wat::rete::insert (:wsb::Hit ?k)))
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wsb::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:wsb::rule-and2))
-      ((:wat::core::= row 2)  (:wsb::rule-or2))
-      ((:wat::core::= row 3)  (:wsb::rule-not1))
-      ((:wat::core::= row 4)  (:wsb::rule-and3))
-      ((:wat::core::= row 5)  (:wsb::rule-or3))
-      ((:wat::core::= row 6)  (:wsb::rule-and4))
-      ((:wat::core::= row 7)  (:wsb::rule-nest-and-or-not))
-      ((:wat::core::= row 8)  (:wsb::rule-nest-or-and-and))
-      ((:wat::core::= row 9)  (:wsb::rule-nest3))
-      ((:wat::core::= row 10) (:wsb::rule-demorgan-nand-a))
-      ((:wat::core::= row 11) (:wsb::rule-demorgan-nand-b))
-      ((:wat::core::= row 12) (:wsb::rule-demorgan-nor-a))
-      ((:wat::core::= row 13) (:wsb::rule-demorgan-nor-b))
-      ((:wat::core::= row 14) (:wsb::rule-userfn))
-      ((:wat::core::= row 15) (:wsb::rule-shortcircuit-and))
+      ((:wat::core::= row 1)  (:and2))
+      ((:wat::core::= row 2)  (:or2))
+      ((:wat::core::= row 3)  (:not1))
+      ((:wat::core::= row 4)  (:and3))
+      ((:wat::core::= row 5)  (:or3))
+      ((:wat::core::= row 6)  (:and4))
+      ((:wat::core::= row 7)  (:nest-and-or-not))
+      ((:wat::core::= row 8)  (:nest-or-and-and))
+      ((:wat::core::= row 9)  (:nest3))
+      ((:wat::core::= row 10) (:demorgan-nand-a))
+      ((:wat::core::= row 11) (:demorgan-nand-b))
+      ((:wat::core::= row 12) (:demorgan-nor-a))
+      ((:wat::core::= row 13) (:demorgan-nor-b))
+      ((:wat::core::= row 14) (:userfn))
+      ((:wat::core::= row 15) (:shortcircuit-and))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-boolean: unknown row " (:wat::core::i64::to-string row))

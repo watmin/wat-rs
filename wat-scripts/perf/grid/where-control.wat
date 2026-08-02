@@ -120,15 +120,14 @@
 ;; n false (150/180): a < 2 means i mod 4 in {0,1}. Among the 150 non-multiples-of-6, i mod 4 in
 ;; {0,1} for 90 of the 180 total (half), minus the 15 multiples-of-6 with a=0 counted above =>
 ;; 90 - 15 = 75 pass on the not-n branch.  Total: 15 + 75 = 90/180.
-(:wat::core::defn :wsc::rule-if-whole [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :if-whole
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::if ?n
                                    (:wat::core::i64::> ?a 1)
-                                   (:wat::core::i64::< ?a 2))))]
-    (:wat::rete::Rule :name "if-whole"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                   (:wat::core::i64::< ?a 2)))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 2 — `if` NESTED inside a comparison: the `if` returns an i64, then that i64 is compared.
 ;; Hit :- Req(…) AND ((if n a b) > 4).  n true (i mod 6==0, 30 facts): compares a=i mod 4, always
@@ -136,15 +135,14 @@
 ;; 180 facts (80) satisfy that, minus the ones that are also n=true (i mod 6==0 AND i mod 9 in
 ;; {5,6,7,8}): over one lcm(6,9)=18 period the three i mod 6==0 points are i mod 9 in {0,6,3}, of
 ;; which only 6 qualifies -- 1 of every 18 -- so 10 across [0,180). 80 - 10 = 70/180.
-(:wat::core::defn :wsc::rule-if-nested-cmp [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :if-nested-cmp
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::i64::>
                                    (:wat::core::if ?n ?a ?b)
-                                   4)))]
-    (:wat::rete::Rule :name "if-nested-cmp"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                   4))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 3 — CHAINED `if` as the WHOLE predicate — see the STOP-1 note above the `cond` finding:
 ;; this is the SAME branching logic originally written with `cond` ((a==0)->true (a==1)->false
@@ -153,19 +151,18 @@
 ;; `cond`'s macro-ness, not the branching semantics — chained `if` says the identical thing and
 ;; compiles clean. a = i mod 4: a==0 -> true (45/180), a==2 -> true (45/180), else -> false.
 ;; Total: 90/180.
-(:wat::core::defn :wsc::rule-if-chain-whole [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :if-chain-whole
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::if (:wat::core::= ?a 0)
                                    true
                                    (:wat::core::if (:wat::core::= ?a 1)
                                      false
                                      (:wat::core::if (:wat::core::= ?a 2)
                                        true
-                                       false)))))]
-    (:wat::rete::Rule :name "if-chain-whole"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                       false))))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 4 — `let` binding a LOCAL inside the predicate, used TWICE. THE BIG ONE: if `let` is
 ;; admitted, a compiler must model local scope inside a where; if rejected, that is a hard
@@ -173,79 +170,74 @@
 ;; s = a+b = (i mod 4) + (i mod 9), range [0,12] over the joint period lcm(4,9)=36. Enumerating all
 ;; 36 residues by hand: 22 of them land 5 <= s <= 11 (the strict-open interval (4,12)); 180/36 = 5
 ;; identical blocks => 22*5 = 110/180.
-(:wat::core::defn :wsc::rule-let-twice [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :let-twice
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
                                    (:wat::core::and
                                      (:wat::core::i64::> s 4)
-                                     (:wat::core::i64::< s 12)))))]
-    (:wat::rete::Rule :name "let-twice"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                     (:wat::core::i64::< s 12))))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 5 — a `let` whose bound value is a CALL to a pure fn, used in two places
 ;; (common-subexpression shape). Hit :- Req(…) AND (let [c (bump a)] (and (> c 1) (< c 5))).
 ;; c = a+1, a = i mod 4 in {0,1,2,3} => c in {1,2,3,4}; c>1 and c<5 means c in {2,3,4} => a in
 ;; {1,2,3} => 3 of every 4 residues => 135/180.
-(:wat::core::defn :wsc::rule-let-call-cse [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :let-call-cse
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::let [c (:wsc::bump ?a)]
                                    (:wat::core::and
                                      (:wat::core::i64::> c 1)
-                                     (:wat::core::i64::< c 5)))))]
-    (:wat::rete::Rule :name "let-call-cse"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                     (:wat::core::i64::< c 5))))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 6 — `match` on an i64-VALUED expr (the language's structural-match, exercised over an
 ;; ordinary value rather than an enum — the plainest permitted shape). Hit :- Req(…) AND
 ;; (match a (0 false) (1 true) (2 false) (3 true)).  a=i mod 4: 1 and 3 give true => 2 of 4
 ;; residues => 90/180.
-(:wat::core::defn :wsc::rule-match-i64 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :match-i64
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::match ?a
                                    (0 false)
                                    (1 true)
                                    (2 false)
-                                   (3 true))))]
-    (:wat::rete::Rule :name "match-i64"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                   (3 true)))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 7 — Option handling via `match` (no raising verb). Hit :- Req(…) AND
 ;; (match o ((Some v) (> v 90)) (None false)).  o = Some(i) when i mod 3 != 0 (120/180), else None.
 ;; Of those 120, v=i>90 holds for i in [91,179] AND i mod 3 != 0: [91,179] has 89 integers, of
 ;; which 29 are multiples of 3 (93..177 step 3) => 89 - 29 = 60/180.
-(:wat::core::defn :wsc::rule-option-match [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :option-match
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::match ?o
                                    ((:wat::core::Some v) (:wat::core::i64::> v 90))
-                                   (:wat::core::None false))))]
-    (:wat::rete::Rule :name "option-match"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                   (:wat::core::None false)))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 8 — a NESTED `if` inside a `let` inside a boolean composition — the DEEP control shape.
 ;; Hit :- Req(…) AND (let [s (+ a b)] (and n (if (> s 6) true (< s 3)))).
 ;; n holds for i mod 6==0 (30/180), 6 distinct s-values per lcm(4,9,6)=36 block (i=0,6,12,18,24,30
 ;; give s=0,8,3,2,6,5). Per block: s>6 true at i=6 (s=8); the else-arm s<3 true at i=0 (s=0) and
 ;; i=18 (s=2); i=12(3),24(6),30(5) fail both => 3 of 6 per block * 5 blocks (180/36) = 15/180.
-(:wat::core::defn :wsc::rule-deep-nest [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :deep-nest
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
                                    (:wat::core::and
                                      ?n
                                      (:wat::core::if (:wat::core::i64::> s 6)
                                        true
-                                       (:wat::core::i64::< s 3))))))]
-    (:wat::rete::Rule :name "deep-nest"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                       (:wat::core::i64::< s 3)))))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; ROW 9 — the `cond`-shaped branch-with-a-`let`-arm, respelled with `if` for the same STOP-1
 ;; reason as row 3: Hit :- Req(…) AND (if n (let [s (+ a b)] (> s 8)) (< b 3)).
@@ -254,30 +246,29 @@
 ;; !n (150/180) -> gate on b=i mod 9<3 (b in {0,1,2}, 60/180 overall); of the 30 n=true facts, 2
 ;; per 36-block (i=0,18) also have b in {0,1,2}, so 10 must be subtracted from the 60: 60-10=50.
 ;; Total: 0 + 50 = 50/180.
-(:wat::core::defn :wsc::rule-if-let-arm [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :if-let-arm
+  :when
+  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::core::if ?n
                                    (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
                                      (:wat::core::i64::> s 8))
-                                   (:wat::core::i64::< ?b 3))))]
-    (:wat::rete::Rule :name "if-let-arm"
-      :lhs (:wat::core::PersistentVector (:wsc::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wsc::ins)))))
+                                   (:wat::core::i64::< ?b 3)))]
+  :then
+  (:wat::rete::insert (:wsc::Hit ?k)))
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wsc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1) (:wsc::rule-if-whole))
-      ((:wat::core::= row 2) (:wsc::rule-if-nested-cmp))
-      ((:wat::core::= row 3) (:wsc::rule-if-chain-whole))
-      ((:wat::core::= row 4) (:wsc::rule-let-twice))
-      ((:wat::core::= row 5) (:wsc::rule-let-call-cse))
-      ((:wat::core::= row 6) (:wsc::rule-match-i64))
-      ((:wat::core::= row 7) (:wsc::rule-option-match))
-      ((:wat::core::= row 8) (:wsc::rule-deep-nest))
-      ((:wat::core::= row 9) (:wsc::rule-if-let-arm))
+      ((:wat::core::= row 1) (:if-whole))
+      ((:wat::core::= row 2) (:if-nested-cmp))
+      ((:wat::core::= row 3) (:if-chain-whole))
+      ((:wat::core::= row 4) (:let-twice))
+      ((:wat::core::= row 5) (:let-call-cse))
+      ((:wat::core::= row 6) (:match-i64))
+      ((:wat::core::= row 7) (:option-match))
+      ((:wat::core::= row 8) (:deep-nest))
+      ((:wat::core::= row 9) (:if-let-arm))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-control: unknown row " (:wat::core::i64::to-string row))

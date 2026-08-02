@@ -84,77 +84,63 @@
 
 ;; ROW 1 — quot, negative dividend. quot truncates TOWARD ZERO. Hit(k) :- Num(…) AND quot(a,7) < 0.
 ;; VERIFIED (standalone counting probe over the real i64::quot): 94 of 200.
-(:wat::core::defn :wnm::rule-quot-neg [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::quot ?a 7) 0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "quot-neg"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :quot-neg
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::quot ?a 7) 0))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 2 — rem, negative dividend. rem takes the sign of the DIVIDEND. Hit(k) :- Num(…) AND
 ;; rem(a,7) < 0, i.e. a<0 AND a not evenly divisible by 7. VERIFIED: 86 of 200.
-(:wat::core::defn :wnm::rule-rem-neg [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::rem ?a 7) 0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "rem-neg"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :rem-neg
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::rem ?a 7) 0))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 3 — mod, NEGATIVE DIVISOR. mod is floored — its sign follows the DIVISOR, so mod(a,-7) lands
 ;; in (-7,0]. Hit(k) :- Num(…) AND mod(a,-7) < -3. VERIFIED: 85 of 200.
-(:wat::core::defn :wnm::rule-mod-negdiv [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::mod ?a -7) -3)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "mod-negdiv"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :mod-negdiv
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::mod ?a -7) -3))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 4 — i64::/ (truncating), NEGATIVE DIVISOR. Dividing by -3 truncates toward zero, so the sign
 ;; flips relative to `a`'s own sign except at the exact multiples. Hit(k) :- Num(…) AND
 ;; (a / -3) > 0, i.e. a < 0 and not a multiple of 3 landing exactly at the flip. VERIFIED: 98 of 200.
-(:wat::core::defn :wnm::rule-div-negdiv [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::/ ?a -3) 0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "div-negdiv"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :div-negdiv
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::/ ?a -3) 0))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 5 — rem/mod DIVERGENCE, the pinned sign difference made into a predicate rather than a
 ;; literal-operand oracle row. rem and mod agree everywhere EXCEPT when the dividend is negative
 ;; and not evenly divisible — this row asks the engine to notice the difference itself.
 ;; Hit(k) :- Num(…) AND rem(a,6) != mod(a,6). VERIFIED: 84 of 200.
-(:wat::core::defn :wnm::rule-rem-mod-diverge [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
+(:wat::rete::defrule :rem-mod-diverge
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where
                                 (:wat::core::not=
                                   (:wat::core::i64::rem ?a 6)
-                                  (:wat::core::i64::mod ?a 6))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "rem-mod-diverge"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                                  (:wat::core::i64::mod ?a 6)))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 6 — comparison CHAIN: a range test (>=, <=) ANDed with an exclusion (not= on a mod). The
 ;; first row whose predicate NESTS two `and`s and touches four distinct comparison/equality ops in
 ;; one expression. Hit(k) :- Num(…) AND -50<=a<=50 AND a mod 3 != 0. VERIFIED: 68 of 200.
-(:wat::core::defn :wnm::rule-chain [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
+(:wat::rete::defrule :chain
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where
                                 (:wat::core::and
                                   (:wat::core::i64::>= ?a -50)
                                   (:wat::core::and
                                     (:wat::core::i64::<= ?a 50)
-                                    (:wat::core::not= (:wat::core::i64::mod ?a 3) 0)))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "chain"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                                    (:wat::core::not= (:wat::core::i64::mod ?a 3) 0))))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 7 — the NUMERIC TOWER'S implicit-promotion boundary. `i64::+ - * /` are STRICT same-type
 ;; (arc 300, `feedback_no_implicit_coercion`) — but the GENERIC comparison `:wat::core::<` is NOT:
@@ -164,54 +150,43 @@
 ;; implicit coercion" line, and a `where` clause is exactly where a user would first notice.
 ;; Hit(k) :- Num(…) AND ?a < 0.5 (generic `<`, i64 vs f64 literal, no `i64::to-f64`).
 ;; a < 0.5, a integer ⇒ a <= 0 ⇒ i <= 100. VERIFIED: 101 of 200.
-(:wat::core::defn :wnm::rule-gencmp [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::< ?a 0.5)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "gencmp"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :gencmp
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::< ?a 0.5))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 8 — f64-vs-i64 MIXING via an EXPLICIT `i64::to-f64` conversion feeding a per-Type f64
 ;; comparison (contrast row 7's IMPLICIT generic mixing — this is the strict per-Type path where a
 ;; conversion really is required). Hit(k) :- Num(…) AND y > to-f64(a).
 ;; y=0.1i, a=i-100 ⇒ 0.1i > i-100 ⇒ i < 111.11 ⇒ i<=111. VERIFIED: 112 of 200.
-(:wat::core::defn :wnm::rule-fmix [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where (:wat::core::f64::> ?y (:wat::core::i64::to-f64 ?a))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "fmix"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :fmix
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::f64::> ?y (:wat::core::i64::to-f64 ?a)))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 9 — f64 ARITHMETIC composed with an f64 comparison (a genuine `where`-side computation, not
 ;; just a reader). Hit(k) :- Num(…) AND x*x > 100.0, i.e. |x|>10.
 ;; x=0.25i-25.0 ⇒ x>10 (i>140) or x<-10 (i<60). VERIFIED: 119 of 200.
-(:wat::core::defn :wnm::rule-fsq [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where (:wat::core::f64::> (:wat::core::f64::* ?x ?x) 100.0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "fsq"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :fsq
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::f64::> (:wat::core::f64::* ?x ?x) 100.0))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 10 — generic `=` (equality, not comparison) ANDed with a range test on a DIFFERENT field
 ;; than the sign-heavy rows above (`k` rather than `a`) — the numeric tower's polymorphic equality
 ;; used as a real constraint rather than the oracle's literal-vs-literal probe.
 ;; Hit(k) :- Num(…) AND k mod 4 == 0 AND k >= 101. VERIFIED: 24 of 200.
-(:wat::core::defn :wnm::rule-mix-and [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
+(:wat::rete::defrule :mix-and
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where
                                 (:wat::core::and
                                   (:wat::core::= (:wat::core::i64::mod ?k 4) 0)
-                                  (:wat::core::i64::>= ?k 101))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "mix-and"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                                  (:wat::core::i64::>= ?k 101)))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; ROW 11 — DIVISION BY A BOUND VAR THAT IS ZERO FOR SOME FACTS. `z` is zero for 40 of the 200
 ;; facts (i mod 5 == 2), starting at i=2 — the very third fact inserted, so this raises almost
@@ -219,28 +194,26 @@
 ;; engines raise and abort their ENTIRE `fire-rules` call; NEITHER engine skips the poisoned token
 ;; and continues. This row therefore has NO derived count and prints NO line on either side — the
 ;; row exists to be the crash, not to report a set. Placed last so rows 1-10 complete first.
-(:wat::core::defn :wnm::rule-div-by-zero [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::/ ?a ?z) 1)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnm::Hit ?k)))]
-    (:wat::rete::Rule :name "div-by-zero"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :div-by-zero
+  :when
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::/ ?a ?z) 1))]
+  :then
+  (:wat::rete::insert (:wnm::Hit ?k)))
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure (mirrors where-shapes.wat).
 (:wat::core::defn :wnm::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:wnm::rule-quot-neg))
-      ((:wat::core::= row 2)  (:wnm::rule-rem-neg))
-      ((:wat::core::= row 3)  (:wnm::rule-mod-negdiv))
-      ((:wat::core::= row 4)  (:wnm::rule-div-negdiv))
-      ((:wat::core::= row 5)  (:wnm::rule-rem-mod-diverge))
-      ((:wat::core::= row 6)  (:wnm::rule-chain))
-      ((:wat::core::= row 7)  (:wnm::rule-gencmp))
-      ((:wat::core::= row 8)  (:wnm::rule-fmix))
-      ((:wat::core::= row 9)  (:wnm::rule-fsq))
-      ((:wat::core::= row 10) (:wnm::rule-mix-and))
+      ((:wat::core::= row 1)  (:quot-neg))
+      ((:wat::core::= row 2)  (:rem-neg))
+      ((:wat::core::= row 3)  (:mod-negdiv))
+      ((:wat::core::= row 4)  (:div-negdiv))
+      ((:wat::core::= row 5)  (:rem-mod-diverge))
+      ((:wat::core::= row 6)  (:chain))
+      ((:wat::core::= row 7)  (:gencmp))
+      ((:wat::core::= row 8)  (:fmix))
+      ((:wat::core::= row 9)  (:fsq))
+      ((:wat::core::= row 10) (:mix-and))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-numeric: unknown row " (:wat::core::i64::to-string row))

@@ -113,59 +113,48 @@
     (:wat::core::= 0 (:wat::core::i64::- sc (:wat::core::i64::* (:wat::core::i64::/ sc 2) 2)))))
 
 ;; ROW 1 — depth-2 chain. c2(k) = c1(k)+3, c1(k) = k mod 13. c2 > 10 <=> c1 in {8..12} -> 75 of 200.
-(:wat::core::defn :wnst::rule-depth2 [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wnst::c2 ?k) 10)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "depth2"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :depth2
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c2 ?k) 10))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 2 — depth-3 chain. c3 > 15 <=> c1 in {10,11,12} -> 45 of 200.
-(:wat::core::defn :wnst::rule-depth3 [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wnst::c3 ?k) 15)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "depth3"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :depth3
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c3 ?k) 15))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 3 — depth-4 chain. c4 > 15 <=> c1 in {7..12} -> 90 of 200.
-(:wat::core::defn :wnst::rule-depth4 [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wnst::c4 ?k) 15)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "depth4"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :depth4
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c4 ?k) 15))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 4 — depth-5 chain. c5 > 20 <=> c1 in {9,10,11,12} -> 60 of 200.
-(:wat::core::defn :wnst::rule-depth5 [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wnst::c5 ?k) 20)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "depth5"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :depth5
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c5 ?k) 20))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 5 — depth-10 chain, the "keeps going past 5" witness kept live in the gate.
 ;; c10 = c1 + 27. c10 > 32 <=> c1 in {6..12} -> 105 of 200.
-(:wat::core::defn :wnst::rule-depth10 [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wnst::c10 ?k) 32)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "depth10"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :depth10
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c10 ?k) 32))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 6 — deep INLINE expression tree, 6 arithmetic levels, ZERO fn calls: the pure-structural-depth
 ;; reference, separate from call depth. g1=k+10 g2=g1*2 g3=g2-15 g4=g3/3 g5=g4+7 g6=g5*2 -> g6>157
 ;; selects 94 of 200 (all intermediate values stay non-negative by construction, so wat's truncating
 ;; `i64::/` and Clojure's `quot` agree without a sign subtlety to reason about).
-(:wat::core::defn :wnst::rule-inline-tree [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
+(:wat::rete::defrule :inline-tree
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where
                                 (:wat::core::i64::>
                                   (:wat::core::i64::*
                                     (:wat::core::i64::+
@@ -176,76 +165,64 @@
                                         3)
                                       7)
                                     2)
-                                  157)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "inline-tree"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                                  157))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 7 — TWO bound vars, both live at test time. twoarg(?k, ?m) = (?k+?m) > 113 -> 108 of 200.
-(:wat::core::defn :wnst::rule-two-arg [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wnst::twoarg ?k ?m)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "two-arg"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :two-arg
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::twoarg ?k ?m))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 8 — the where-clause's OWN top-level call takes a call to a DIFFERENT pure fn as its argument:
 ;; (wrap (c2 ?k)). wrap(v) = v mod 4 == 0. c2(k) = c1(k)+3 in {4,8,12} <=> c1 in {1,5,9} -> 46 of 200.
-(:wat::core::defn :wnst::rule-arg-is-call [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "arg-is-call"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :arg-is-call
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k)))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 9 — mutual/chained helpers: f calls g AND h, both of which call the shared hub.
 ;; hub in {4..12} (mod 17) -> 108 of 200.
-(:wat::core::defn :wnst::rule-diamond [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wnst::f ?k)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "diamond"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :diamond
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::f ?k))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 10 — a user fn returning a NON-bool (i64), compared from OUTSIDE the call.
 ;; score(k) = (3k) mod 11; score > 6 -> 72 of 200.
-(:wat::core::defn :wnst::rule-int-then-compare [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wnst::score ?k) 6)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "int-then-compare"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :int-then-compare
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::score ?k) 6))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; ROW 11 — the CONTRAST with row 10: a user fn returning bool DIRECTLY (internally calling score),
 ;; used bare in the where clause with no external comparison. is-good(k) = score(k) even -> 109 of 200.
-(:wat::core::defn :wnst::rule-bool-direct [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wnst::Req (?k <- :k) (?m <- :m)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wnst::is-good ?k)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wnst::Hit ?k)))]
-    (:wat::rete::Rule :name "bool-direct"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :bool-direct
+  :when
+  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::is-good ?k))]
+  :then
+  (:wat::rete::insert (:wnst::Hit ?k)))
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wnst::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:wnst::rule-depth2))
-      ((:wat::core::= row 2)  (:wnst::rule-depth3))
-      ((:wat::core::= row 3)  (:wnst::rule-depth4))
-      ((:wat::core::= row 4)  (:wnst::rule-depth5))
-      ((:wat::core::= row 5)  (:wnst::rule-depth10))
-      ((:wat::core::= row 6)  (:wnst::rule-inline-tree))
-      ((:wat::core::= row 7)  (:wnst::rule-two-arg))
-      ((:wat::core::= row 8)  (:wnst::rule-arg-is-call))
-      ((:wat::core::= row 9)  (:wnst::rule-diamond))
-      ((:wat::core::= row 10) (:wnst::rule-int-then-compare))
-      ((:wat::core::= row 11) (:wnst::rule-bool-direct))
+      ((:wat::core::= row 1)  (:depth2))
+      ((:wat::core::= row 2)  (:depth3))
+      ((:wat::core::= row 3)  (:depth4))
+      ((:wat::core::= row 4)  (:depth5))
+      ((:wat::core::= row 5)  (:depth10))
+      ((:wat::core::= row 6)  (:inline-tree))
+      ((:wat::core::= row 7)  (:two-arg))
+      ((:wat::core::= row 8)  (:arg-is-call))
+      ((:wat::core::= row 9)  (:diamond))
+      ((:wat::core::= row 10) (:int-then-compare))
+      ((:wat::core::= row 11) (:bool-direct))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-nesting: unknown row " (:wat::core::i64::to-string row))

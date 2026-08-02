@@ -86,58 +86,47 @@
 
 ;; ROW 1 — arithmetic. Hit(k) :- Req(…) AND (3 == k - (k/10)*10).  k mod 10 == 3 ⇒ 20 of 200.
 ;; The leading condition is the one every later row shares; only `where-c` varies per row.
-(:wat::core::defn :wsh::rule-arith [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
+(:wat::rete::defrule :arith
+  :when
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where
                                 (:wat::core::= 3
                                   (:wat::core::i64::- ?k
-                                    (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
-    (:wat::rete::Rule :name "arith"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+                                    (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10))))]
+  :then
+  (:wat::rete::insert (:wsh::Hit ?k)))
 
 ;; ROW 2 — record accessor. Hit(k) :- Req(…) AND (Client/rep ?c) > 0.
 ;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} ⇒ 80 of 200.
-(:wat::core::defn :wsh::rule-accessor [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wsh::Client/rep ?c) 0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
-    (:wat::rete::Rule :name "accessor"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :accessor
+  :when
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> (:wsh::Client/rep ?c) 0))]
+  :then
+  (:wat::rete::insert (:wsh::Hit ?k)))
 
 ;; ROW 3 — String verb. Hit(k) :- Req(…) AND (starts-with? ?n "ad").
 ;; name(k) = "ad"+k when k mod 3 == 0, else "zz"+k ⇒ 67 of 200.
-(:wat::core::defn :wsh::rule-string [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/starts-with? ?n "ad")))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
-    (:wat::rete::Rule :name "string"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :string
+  :when
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::String/starts-with? ?n "ad"))]
+  :then
+  (:wat::rete::insert (:wsh::Hit ?k)))
 
 ;; ROW 4 — collection verb. Hit(k) :- Req(…) AND (length ?t) > 1.
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
-(:wat::core::defn :wsh::rule-collection [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) 1)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
-    (:wat::rete::Rule :name "collection"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :collection
+  :when
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) 1))]
+  :then
+  (:wat::rete::insert (:wsh::Hit ?k)))
 
 ;; ROW 5 — user-defined pure fn. Hit(k) :- Req(…) AND (big? ?k).  k mod 7 > 3 ⇒ 84 of 200.
 ;; The predicate is a CALL, not an inline expression — the shape #49a's compiled executor cannot
 ;; model and must hand back to the interpreter. It carries the whole compiled-`where` question.
-(:wat::core::defn :wsh::rule-userfn [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wsh::big? ?k)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
-    (:wat::rete::Rule :name "userfn"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :userfn
+  :when
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wsh::big? ?k))]
+  :then
+  (:wat::rete::insert (:wsh::Hit ?k)))
 
 ;; ROW 6 — CROSS-VARIABLE comparison. Hit(k) :- Req(…) AND ?k > ?l.
 ;;
@@ -150,13 +139,11 @@
 ;; limit(i) = (i mod 7) * 20, so the threshold VARIES per fact instead of being a hidden constant.
 ;; i > 20*(i mod 7) ⇒ 139 of 200 (28+26+23+20+17+14+11 across the seven residues) — deliberately
 ;; NOT a round number, because a count that is easy to guess can match by accident.
-(:wat::core::defn :wsh::rule-cross-var [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> ?k ?l)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
-    (:wat::rete::Rule :name "cross-var"
-      :lhs (:wat::core::PersistentVector conds where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+(:wat::rete::defrule :cross-var
+  :when
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> ?k ?l))]
+  :then
+  (:wat::rete::insert (:wsh::Hit ?k)))
 
 ;; build-rules row — THE ROW DISPATCH, and the extension point every future shape lands on.
 ;;
@@ -170,12 +157,12 @@
 (:wat::core::defn :wsh::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1) (:wsh::rule-arith))
-      ((:wat::core::= row 2) (:wsh::rule-accessor))
-      ((:wat::core::= row 3) (:wsh::rule-string))
-      ((:wat::core::= row 4) (:wsh::rule-collection))
-      ((:wat::core::= row 5) (:wsh::rule-userfn))
-      ((:wat::core::= row 6) (:wsh::rule-cross-var))
+      ((:wat::core::= row 1) (:arith))
+      ((:wat::core::= row 2) (:accessor))
+      ((:wat::core::= row 3) (:string))
+      ((:wat::core::= row 4) (:collection))
+      ((:wat::core::= row 5) (:userfn))
+      ((:wat::core::= row 6) (:cross-var))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-shapes: unknown row " (:wat::core::i64::to-string row))

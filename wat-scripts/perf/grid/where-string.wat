@@ -111,39 +111,39 @@
 ;; ROW 1 — String/starts-with?. Hit :- Req(…) AND (starts-with? ?n "cat").
 ;; True only for r=1 ("cat" itself) — r=2 has "zz" first, r=3 has "ねこ" first, r=4 is "DOG",
 ;; r=0 is empty (nothing starts a non-empty prefix). One category of five ⇒ 80/400.
-(:wat::core::defn :wst::rule-starts-with [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/starts-with? ?n "cat")))]
-    (:wat::rete::Rule :name "starts-with"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :starts-with
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/starts-with? ?n "cat"))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 2 — String/ends-with?. True for r=1 ("cat" ends "cat") and r=3 ("ねこcat" ends "cat"), but
 ;; NOT r=2 ("zzcatzz" ends "zz") — the row that tells starts/ends/contains apart. Two of five
 ;; categories ⇒ 160/400.
-(:wat::core::defn :wst::rule-ends-with [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/ends-with? ?n "cat")))]
-    (:wat::rete::Rule :name "ends-with"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :ends-with
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/ends-with? ?n "cat"))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 3 — String/contains?. True for r=1, r=2, AND r=3 (the needle anywhere) — three of five
 ;; categories ⇒ 240/400. Compare against row 2: r=2 flips from false (ends-with) to true
 ;; (contains) — that flip is the whole reason r=2 has trailing "zz" instead of being a plain
 ;; "zzcat" suffix-match.
-(:wat::core::defn :wst::rule-contains [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/contains? ?n "cat")))]
-    (:wat::rete::Rule :name "contains"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :contains
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/contains? ?n "cat"))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 4 — String/empty?. True ONLY for r=0 (the empty-string category itself) ⇒ 80/400. THE direct
 ;; empty-string witness: every other row's r=0 facts flow through starts/ends/contains as legitimate
 ;; "no match" cases, but this row asserts the boundary is reachable and exact, not merely never hit.
-(:wat::core::defn :wst::rule-empty [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/empty? ?n)))]
-    (:wat::rete::Rule :name "empty"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :empty
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/empty? ?n))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 5 — string::length vs a BOUND i64 VAR (?minlen), not a constant. length(n) is fixed per
 ;; category: r=0→0, r=1→3, r=2→7, r=3→5, r=4→3 (chars, not bytes, for r=3). minlen = k mod 8.
@@ -151,12 +151,11 @@
 ;; per 40 = (m<0 count for L=0) + (m<3 for L=3, twice) + (m<7 for L=7) + (m<5 for L=5)
 ;;         =         0          +      3     +    3    +     7        +     5         = 18/40
 ;; ⇒ 180/400 over the 10 cycles in [0,400).
-(:wat::core::defn :wst::rule-length-bound [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?n) ?minlen)))]
-    (:wat::rete::Rule :name "length-bound"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :length-bound
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?n) ?minlen))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 6 — the ARGUMENT is built AT TEST TIME, not a literal: needle = (String/concat ?tag "t"),
 ;; so the compiler must know the second arg to `contains?` can be a runtime value, not a constant
@@ -164,59 +163,55 @@
 ;; By CRT over k mod 10 (parity × r): needle="cat" matches r=1,r=2,r=3 when k even; needle="xyt"
 ;; never matches anything. Of the 5 even/odd × 5 r combos per 10, "cat" hits at (even,r=1),
 ;; (even,r=2), (even,r=3) = 3 of 10 ⇒ 120/400.
-(:wat::core::defn :wst::rule-dynamic-arg [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::String/contains? ?n (:wat::core::String/concat ?tag "t"))))]
-    (:wat::rete::Rule :name "dynamic-arg"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :dynamic-arg
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+                                 (:wat::core::String/contains? ?n (:wat::core::String/concat ?tag "t")))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 7 — a String verb INSIDE a boolean composition: (contains "cat") AND (NOT (starts-with
 ;; "cat")). Contains ⇒ {r1,r2,r3}; excluding starts-with's {r1} leaves {r2,r3} ⇒ 160/400.
-(:wat::core::defn :wst::rule-compose-bool [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :compose-bool
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::and
                                    (:wat::core::String/contains? ?n "cat")
-                                   (:wat::core::not (:wat::core::String/starts-with? ?n "cat")))))]
-    (:wat::rete::Rule :name "compose-bool"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+                                   (:wat::core::not (:wat::core::String/starts-with? ?n "cat"))))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 8 — a String verb feeding an i64 comparison, itself composed with `and`: (contains "cat")
 ;; AND (?minlen > 3). Contains ⇒ {r1,r2,r3} (3 of 5 r-values); minlen>3 ⇒ m in {4,5,6,7} (4 of 8).
 ;; Independent (CRT, k mod 40) ⇒ 3*4 = 12/40 ⇒ 120/400.
-(:wat::core::defn :wst::rule-compose-i64 [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :compose-i64
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::and
                                    (:wat::core::String/contains? ?n "cat")
-                                   (:wat::core::i64::> ?minlen 3))))]
-    (:wat::rete::Rule :name "compose-i64"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+                                   (:wat::core::i64::> ?minlen 3)))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 9 — the user-defined pure fn (String -> bool). Hit :- Req(…) AND (feline? ?n).
 ;; See :wst::feline? above: true for r=2, r=3 ⇒ 160/400.
-(:wat::core::defn :wst::rule-userfn [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote (:wat::rete::where (:wst::feline? ?n)))]
-    (:wat::rete::Rule :name "userfn"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :userfn
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wst::feline? ?n))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 10 — a String verb feeding ANOTHER String verb's argument (value composition, not boolean):
 ;; (starts-with? (to-lowercase ?n) "dog"). Only r=4 ("DOG") lowercases to "dog" and matches — this
 ;; is the case-sensitivity edge: `String/starts-with?` is case-sensitive, so without the
 ;; `to-lowercase` wrapper this row would derive the EMPTY set (STOP-2 territory), and that gap is
 ;; exactly what the row is for. One of five categories ⇒ 80/400.
-(:wat::core::defn :wst::rule-lowercase-chain [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
-                                 (:wat::core::String/starts-with? (:wat::core::string::to-lowercase ?n) "dog")))]
-    (:wat::rete::Rule :name "lowercase-chain"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :lowercase-chain
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+                                 (:wat::core::String/starts-with? (:wat::core::string::to-lowercase ?n) "dog"))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 11 — SHORT-CIRCUIT-SENSITIVE (see header). `(string::subs ?n 0 3)` raises when
 ;; `length(?n) < 3` (r=0, the empty string, is exactly that fact). Guarding it behind
@@ -226,42 +221,40 @@
 ;; r=2's are "zzc", r=3's are "ねこc" (char-indexed, not byte-indexed — a 2-BMP-char unicode prefix
 ;; still only consumes 2 of the 3 requested chars), r=4's are "DOG" (case-sensitive, no match).
 ;; One of five categories ⇒ 80/400.
-(:wat::core::defn :wst::rule-shortcircuit-subs [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where
+(:wat::rete::defrule :shortcircuit-subs
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::and
                                    (:wat::core::i64::>= (:wat::core::string::length ?n) 3)
-                                   (:wat::core::String/starts-with? (:wat::core::string::subs ?n 0 3) "cat"))))]
-    (:wat::rete::Rule :name "shortcircuit-subs"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+                                   (:wat::core::String/starts-with? (:wat::core::string::subs ?n 0 3) "cat")))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; ROW 12 — string::trim feeding `=`, over the WHITESPACE edge. padded = "  cat  " (even k) or
 ;; "  dog  " (odd k); trimming and comparing to the literal "cat" selects exactly the even half.
 ;; Half of the stream ⇒ 200/400.
-(:wat::core::defn :wst::rule-trim-eq [] -> :wat::rete::Rule
-  (:wat::core::let [where-c (:wat::core::quasiquote
-                               (:wat::rete::where (:wat::core::= (:wat::core::string::trim ?padded) "cat")))]
-    (:wat::rete::Rule :name "trim-eq"
-      :lhs (:wat::core::PersistentVector (:wst::conds) where-c)
-      :rhs (:wat::core::PersistentVector (:wst::ins)))))
+(:wat::rete::defrule :trim-eq
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::= (:wat::core::string::trim ?padded) "cat"))]
+  :then
+  (:wat::rete::insert (:wst::Hit ?k)))
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wst::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
-      ((:wat::core::= row 1)  (:wst::rule-starts-with))
-      ((:wat::core::= row 2)  (:wst::rule-ends-with))
-      ((:wat::core::= row 3)  (:wst::rule-contains))
-      ((:wat::core::= row 4)  (:wst::rule-empty))
-      ((:wat::core::= row 5)  (:wst::rule-length-bound))
-      ((:wat::core::= row 6)  (:wst::rule-dynamic-arg))
-      ((:wat::core::= row 7)  (:wst::rule-compose-bool))
-      ((:wat::core::= row 8)  (:wst::rule-compose-i64))
-      ((:wat::core::= row 9)  (:wst::rule-userfn))
-      ((:wat::core::= row 10) (:wst::rule-lowercase-chain))
-      ((:wat::core::= row 11) (:wst::rule-shortcircuit-subs))
-      ((:wat::core::= row 12) (:wst::rule-trim-eq))
+      ((:wat::core::= row 1)  (:starts-with))
+      ((:wat::core::= row 2)  (:ends-with))
+      ((:wat::core::= row 3)  (:contains))
+      ((:wat::core::= row 4)  (:empty))
+      ((:wat::core::= row 5)  (:length-bound))
+      ((:wat::core::= row 6)  (:dynamic-arg))
+      ((:wat::core::= row 7)  (:compose-bool))
+      ((:wat::core::= row 8)  (:compose-i64))
+      ((:wat::core::= row 9)  (:userfn))
+      ((:wat::core::= row 10) (:lowercase-chain))
+      ((:wat::core::= row 11) (:shortcircuit-subs))
+      ((:wat::core::= row 12) (:trim-eq))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-string: unknown row " (:wat::core::i64::to-string row))
