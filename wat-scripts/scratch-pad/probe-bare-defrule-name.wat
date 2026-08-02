@@ -5,11 +5,11 @@
 (:wat::core::defrecord :wsh::probe::Req [k <- :wat::core::i64])
 (:wat::core::defrecord :wsh::probe::Hit [k <- :wat::core::i64])
 
-(:wat::rete::defrule :arith
+(:wat::rete::defrule :wsh::arith
   :when
   [(:wsh::probe::Req (?k <- :k))]
   :then
   (:wat::rete::insert (:wsh::probe::Hit ?k)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:wat::rete::Rule/name (:arith))))
+  (:wat::kernel::println (:wat::rete::Rule/name (:wsh::arith))))

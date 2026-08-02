@@ -72,6 +72,9 @@ impl MacroRegistry {
             Registration::Reserved => {
                 Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) })
             }
+            Registration::Unnamespaced => {
+                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::UnnamespacedName(def.name) })
+            }
         }
     }
 

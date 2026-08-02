@@ -8,7 +8,7 @@
 (:wat::core::defn :my::bad [] -> :wat::core::nil (:wat::core::def :x 1))
 
 ;; Probe 3: def at top-level still works.
-(:wat::core::def :my-answer 42)
-(:wat::core::defn :my::compute [] -> :wat::core::i64 :my-answer)
+(:wat::core::def :my::my-answer 42)
+(:wat::core::defn :my::compute [] -> :wat::core::i64 :my::my-answer)
 
 ;; Required for startup (child processes still need :user::main below them).

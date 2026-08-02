@@ -917,6 +917,9 @@ pub fn register_defines(
                 crate::resolve::Registration::Reserved => {
                     return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(path)));
                 }
+                crate::resolve::Registration::Unnamespaced => {
+                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
+                }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path.clone(), func);
                 }
@@ -949,6 +952,9 @@ pub fn register_defines(
             match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
                 crate::resolve::Registration::Reserved => {
                     return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(path)));
+                }
+                crate::resolve::Registration::Unnamespaced => {
+                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path, func);
@@ -2498,6 +2504,9 @@ fn register_defalias(
         crate::resolve::Registration::Reserved => {
             return Err(RuntimeError::new(span, RuntimeErrorKind::ReservedPrefix(alias.to_string())));
         }
+        crate::resolve::Registration::Unnamespaced => {
+            return Err(RuntimeError::new(span, RuntimeErrorKind::UnnamespacedName(alias.to_string())));
+        }
         crate::resolve::Registration::Insert => {}
     }
 
@@ -2683,6 +2692,9 @@ fn preregister_struct_accessors_from_form(
         crate::resolve::Registration::Reserved => {
             return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::ReservedPrefix(constructor_path)));
         }
+        crate::resolve::Registration::Unnamespaced => {
+            return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
+        }
         crate::resolve::Registration::Insert => {
             sym.functions.insert(
                 constructor_path,
@@ -2743,6 +2755,9 @@ fn preregister_struct_accessors_from_form(
             match crate::resolve::gate(&accessor_path, privilege, acc_existing) {
                 crate::resolve::Registration::Reserved => {
                     return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::ReservedPrefix(accessor_path)));
+                }
+                crate::resolve::Registration::Unnamespaced => {
+                    return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(accessor_path)));
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(
@@ -2856,6 +2871,9 @@ fn preregister_enum_constructors_from_form(
         match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
             crate::resolve::Registration::Reserved => {
                 return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::ReservedPrefix(constructor_path)));
+            }
+            crate::resolve::Registration::Unnamespaced => {
+                return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
             }
             crate::resolve::Registration::Insert => {
                 sym.functions.insert(
@@ -3384,6 +3402,9 @@ fn preregister_fn_defs_in_do(
                 crate::resolve::Registration::Reserved => {
                     return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::ReservedPrefix(path)));
                 }
+                crate::resolve::Registration::Unnamespaced => {
+                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
+                }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path.clone(), func);
                 }
@@ -3457,6 +3478,9 @@ fn preregister_fn_defs_in_let(
             match crate::resolve::gate(&path, privilege, existing) {
                 crate::resolve::Registration::Reserved => {
                     return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::ReservedPrefix(path)));
+                }
+                crate::resolve::Registration::Unnamespaced => {
+                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
                     sym.functions.insert(path.clone(), func);
@@ -6514,19 +6538,19 @@ pub fn parse_defclause_form(
         }
     };
 
-    // Check for reserved prefix on :name (user-code guard; skipped for privileged stdlib calls
-    // via allow_reserved=true). Stone 237.8b: stdlib defclauses live under :wat::core::*.
-    // Phase-1 migration to the ONE gate (defclause). A standalone declaration guard with no
-    // adjacent dedup, so Existing::Absent — gate yields Reserved (reject) or proceeds.
-    if matches!(
-        crate::resolve::gate(
-            &name,
-            privilege,
-            crate::resolve::Existing::Absent,
-        ),
-        crate::resolve::Registration::Reserved
-    ) {
-        return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(name)));
+    // Check for reserved prefix / namespacing on :name (user-code guard; skipped for
+    // privileged stdlib calls via allow_reserved=true). Stone 237.8b: stdlib defclauses
+    // live under :wat::core::*. Phase-1 migration to the ONE gate (defclause). A
+    // standalone declaration guard with no adjacent dedup, so Existing::Absent — gate
+    // yields Unnamespaced (reject), Reserved (reject), or Insert (proceed).
+    match crate::resolve::gate(&name, privilege, crate::resolve::Existing::Absent) {
+        crate::resolve::Registration::Unnamespaced => {
+            return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(name)));
+        }
+        crate::resolve::Registration::Reserved => {
+            return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(name)));
+        }
+        _ => {}
     }
 
     // Optional metadata-map, mirroring def/defn: `(:wat::core::defclause :name

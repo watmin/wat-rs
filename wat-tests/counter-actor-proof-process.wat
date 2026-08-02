@@ -69,7 +69,7 @@
    ;; return bare i64 (no ServiceError type in this proof-of-concept); terminal
    ;; arms use assertion-failed! (a Lost cause is a LociDiedError, surfaced).
 
-   (:wat::core::defn :counter-proc/get
+   (:wat::core::defn :counter-proc::get
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Get)
@@ -88,7 +88,7 @@
        ((:wat::kernel::SendOutcome::Lost cause)
          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
-   (:wat::core::defn :counter-proc/increment
+   (:wat::core::defn :counter-proc::increment
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>
       n     <- :wat::core::i64]
      -> :wat::core::i64
@@ -108,7 +108,7 @@
        ((:wat::kernel::SendOutcome::Lost cause)
          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
-   (:wat::core::defn :counter-proc/reset
+   (:wat::core::defn :counter-proc::reset
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Reset)
@@ -127,7 +127,7 @@
        ((:wat::kernel::SendOutcome::Lost cause)
          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
 
-   (:wat::core::defn :counter-proc/shutdown
+   (:wat::core::defn :counter-proc::shutdown
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Shutdown)
@@ -180,7 +180,7 @@
            ;; Reads one counter::Request from stdin, dispatches, sends
            ;; counter::Response to stdout. Recurs on all non-terminal arms.
            ;; Shutdown arm sends Final and returns nil → process exits.
-           (:wat::core::defn :counter/dispatch
+           (:wat::core::defn :counter::dispatch
              [state <- :wat::core::i64]
              -> :wat::core::nil
              (:wat::core::match (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
@@ -189,38 +189,38 @@
                (:counter::Request::Get
                   (:wat::core::do
                     (:wat::kernel::println (:counter::Response::Value state))
-                    (:counter/dispatch state)))
+                    (:counter::dispatch state)))
                ;; Mutate-computed — let-bind new state; reply + recur
                ((:counter::Request::Increment n)
                   (:wat::core::let [new-n (:wat::core::i64::+ state n)]
                     (:wat::kernel::println (:counter::Response::Ok new-n))
-                    (:counter/dispatch new-n)))
+                    (:counter::dispatch new-n)))
                ;; Mutate-literal — reply 0; recur with literal
                (:counter::Request::Reset
                   (:wat::core::do
                     (:wat::kernel::println (:counter::Response::Ok 0))
-                    (:counter/dispatch 0)))
+                    (:counter::dispatch 0)))
                ;; Terminal — send Final; return nil; process exits
                (:counter::Request::Shutdown
                   (:wat::kernel::println (:counter::Response::Final state)))))
            ;; Entry point — the substrate calls :user::main when the subprocess
            ;; starts. Per user 2026-05-16: "processes must always define
            ;; :user::main ... there is no :user::main-process".
-           (:wat::core::defn :user::main [] -> :wat::core::nil (:counter/dispatch 10))))
+           (:wat::core::defn :user::main [] -> :wat::core::nil (:counter::dispatch 10))))
      ;; spawn-program' (process) returns the peer directly (arc 278 IPC de-prime) —
      ;; no Receiver/from-pipe + Sender/from-pipe + ProcessPeer/new construction needed.
      ;; Same operations + assertions as thread tier (BRIEF § "same body shape").
-     after-inc-5  (:counter-proc/increment peer! 5)
+     after-inc-5  (:counter-proc::increment peer! 5)
      _            (:wat::test::assert-eq after-inc-5 15)
-     val          (:counter-proc/get peer!)
+     val          (:counter-proc::get peer!)
      _            (:wat::test::assert-eq val 15)
-     after-inc-7  (:counter-proc/increment peer! 7)
+     after-inc-7  (:counter-proc::increment peer! 7)
      _            (:wat::test::assert-eq after-inc-7 22)
-     after-reset  (:counter-proc/reset peer!)
+     after-reset  (:counter-proc::reset peer!)
      _            (:wat::test::assert-eq after-reset 0)
-     after-inc-3  (:counter-proc/increment peer! 3)
+     after-inc-3  (:counter-proc::increment peer! 3)
      _            (:wat::test::assert-eq after-inc-3 3)
-     final-state  (:counter-proc/shutdown peer!)
+     final-state  (:counter-proc::shutdown peer!)
      _            (:wat::test::assert-eq final-state 3)
      ;; Drain the peer to a clean close (arc 278 IPC de-prime: recv-all' replaces
      ;; Process/drain-and-join). The peer's death rides in the Err — surfaced, never swallowed.

@@ -60,6 +60,11 @@ pub enum TypeErrorKind {
     /// Arc 138 slice 2 — names the offending name keyword carrying
     /// the reserved prefix.
     ReservedPrefix { name: String },
+    /// A top-level type name reached a registration gate with no namespace.
+    /// Only fn arguments and `let` bindings may be bare — those are lexical
+    /// and never reach a gate. Held against `Privilege::Stdlib` too; there
+    /// is no privilege escape from the namespacing wall.
+    UnnamespacedName { name: String },
     /// Arc 138 slice 2 — names the whole malformed decl form
     /// (`(:wat::core::struct ...)` outer span).
     MalformedDecl { head: String, reason: String },
@@ -221,6 +226,13 @@ impl fmt::Display for TypeErrorKind {
                 "type name {} uses a reserved prefix ({}); user types must use their own prefix",
                 name,
                 crate::resolve::reserved_prefix_list()
+            ),
+            TypeErrorKind::UnnamespacedName { name } => write!(
+                f,
+                "top-level name '{}' is not namespaced — only fn arguments and let-bindings \
+                 may be bare; give it a namespace, e.g. ':my::{}'",
+                name,
+                name.trim_start_matches(':')
             ),
             TypeErrorKind::MalformedDecl { head, reason } => {
                 write!(f, "malformed {} declaration: {}", head, reason)

@@ -39,7 +39,7 @@
          (:wat::core::string::length
            (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0)))))])
 
-(:wat::core::defn :probe-det/round-trip
+(:wat::core::defn :probe-det::round-trip
   [c     <- :wat::kernel::Peer<probe-det::Bag::Op,probe-det::Bag::Reply>
    label <- :wat::core::String
    req   <- :probe-det::Bag::PutRequest]
@@ -85,7 +85,7 @@
            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)))
      good (:probe-det::Bag::PutRequest
             :items (:wat::core::Vector :wat::core::String "abcd"))
-     _ (:probe-det/round-trip c "[process] control " good)
+     _ (:probe-det::round-trip c "[process] control " good)
      bad (:wat::edn::read "#probe-det.Bag/PutRequest {:items [1 2 3]}")
-     _ (:probe-det/round-trip c "[process] MISTYPED" bad)]
+     _ (:probe-det::round-trip c "[process] MISTYPED" bad)]
     nil))

@@ -2,5 +2,5 @@
 (:wat::core::let
   [x 1]
   (:wat::core::do
-    (:wat::core::def :a x)
-    (:wat::core::def :b (:wat::core::i64::* x 2))))
+    (:wat::core::def :wat-arc157-def-let-do-ok::a x)
+    (:wat::core::def :wat-arc157-def-let-do-ok::b (:wat::core::i64::* x 2))))

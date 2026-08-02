@@ -27,6 +27,12 @@ pub enum MacroErrorKind {
     /// A user macro declared under a reserved `:wat::...` prefix.
     #[to_edn(key = "name")]
     ReservedPrefix(String),
+    /// A macro name reached the registration gate with no namespace. Only fn
+    /// arguments and `let` bindings may be bare — those are lexical and never
+    /// reach a gate. Held against `Privilege::Stdlib` too; there is no
+    /// privilege escape from the namespacing wall.
+    #[to_edn(key = "name")]
+    UnnamespacedName(String),
     /// A `defmacro` form was malformed.
     MalformedDefmacro { reason: String },
     /// A macro call passed the wrong number of arguments (fixed-arity macro).
@@ -112,6 +118,13 @@ impl fmt::Display for MacroErrorKind {
                 "cannot declare macro {} — reserved prefix ({}); user macros must use their own prefix",
                 n,
                 crate::resolve::reserved_prefix_list()
+            ),
+            MacroErrorKind::UnnamespacedName(n) => write!(
+                f,
+                "top-level name '{}' is not namespaced — only fn arguments and let-bindings \
+                 may be bare; give it a namespace, e.g. ':my::{}'",
+                n,
+                n.trim_start_matches(':')
             ),
             MacroErrorKind::MalformedDefmacro { reason } => {
                 write!(f, "malformed defmacro: {}", reason)

@@ -59,7 +59,7 @@
          (:wat::edn::write (:probe-wire::Bag::PutRequest/items req)))))])
 
 ;; ── one round-trip, reporting whatever comes back ────────────────────────────
-(:wat::core::defn :probe-wire/round-trip
+(:wat::core::defn :probe-wire::round-trip
   [c     <- :wat::kernel::Peer<probe-wire::Bag::Op,probe-wire::Bag::Reply>
    label <- :wat::core::String
    req   <- :probe-wire::Bag::PutRequest]
@@ -84,7 +84,7 @@
         (:wat::core::string::concat label " => RecvOutcome::Closed")))))
 
 ;; ── one tier: stand up, connect, send a GOOD payload then a MISTYPED one ─────
-(:wat::core::defn :probe-wire/measure-tier
+(:wat::core::defn :probe-wire::measure-tier
   [locus <- :wat::spawn::Locus
    tier  <- :wat::core::String]
   -> :wat::core::nil
@@ -106,15 +106,15 @@
      ;; is provably the SAME tag with a wrong-typed body.
      _ (:wat::kernel::println
          (:wat::core::string::concat tier " control wire form = " (:wat::edn::write good)))
-     _ (:probe-wire/round-trip c (:wat::core::string::concat tier " control  ") good)
+     _ (:probe-wire::round-trip c (:wat::core::string::concat tier " control  ") good)
      ;; THE PROBE — well-formed EDN, WRONG TYPE: i64s where Vector<String> is declared.
      bad (:wat::edn::read "#probe-wire.Bag/PutRequest {:items [1 2 3]}")
      _ (:wat::kernel::println
          (:wat::core::string::concat tier " mistyped wire form = " (:wat::edn::write bad)))
-     _ (:probe-wire/round-trip c (:wat::core::string::concat tier " MISTYPED ") bad)]
+     _ (:probe-wire::round-trip c (:wat::core::string::concat tier " MISTYPED ") bad)]
     nil))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:probe-wire/measure-tier (:wat::spawn::thread)  "[thread] ")
-    (:probe-wire/measure-tier (:wat::spawn::process) "[process]")))
+    (:probe-wire::measure-tier (:wat::spawn::thread)  "[thread] ")
+    (:probe-wire::measure-tier (:wat::spawn::process) "[process]")))

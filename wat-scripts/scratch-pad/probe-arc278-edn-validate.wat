@@ -13,7 +13,7 @@
 
 (:wat::core::defrecord :vprobe::PutRequest [items <- :wat::core::Vector<wat::core::String>])
 
-(:wat::core::defn :vprobe/render [v <- :wat::edn::Validation] -> :wat::core::String
+(:wat::core::defn :vprobe::render [v <- :wat::edn::Validation] -> :wat::core::String
   (:wat::core::match v
     (:wat::edn::Validation::Valid "VALID")
     ((:wat::edn::Validation::Invalid path expected got)
@@ -29,9 +29,9 @@
      ;; the attacker's frame: correct TAG, wrong-typed BODY
      bad  (:wat::edn::read "#vprobe/PutRequest {:items [1 2 3]}")
      _ (:wat::kernel::println
-         (:wat::core::string::concat "good => " (:vprobe/render (:wat::edn::validate good :vprobe::PutRequest))))
+         (:wat::core::string::concat "good => " (:vprobe::render (:wat::edn::validate good :vprobe::PutRequest))))
      _ (:wat::kernel::println
-         (:wat::core::string::concat "bad  => " (:vprobe/render (:wat::edn::validate bad :vprobe::PutRequest))))
+         (:wat::core::string::concat "bad  => " (:vprobe::render (:wat::edn::validate bad :vprobe::PutRequest))))
      ;; conforms? — the SAME bad value — is the gap, shown side by side
      _ (:wat::kernel::println
          (:wat::core::string::concat "bad conforms? => "

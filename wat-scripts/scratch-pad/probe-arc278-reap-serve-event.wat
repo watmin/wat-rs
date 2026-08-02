@@ -10,7 +10,7 @@
 ;;   a panic / silence  => poll' index 1 (listener) fired instead
 ;;                         ("poll': listener recv failed — address was dropped")
 
-(:wat::core::defn :se/serve
+(:wat::core::defn :se::serve
   [self  <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>
    l     <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
    peers <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>]
@@ -26,23 +26,23 @@
         (:wat::kernel::TrySendOutcome::WouldBlock nil)
         (:wat::kernel::TrySendOutcome::Closed nil)
         ((:wat::kernel::TrySendOutcome::Lost _c) nil)))
-    ((:wat::spawn::ServiceEvent::Admin _m) (:se/serve self l peers))
+    ((:wat::spawn::ServiceEvent::Admin _m) (:se::serve self l peers))
     ((:wat::spawn::ServiceEvent::Connection peer)
-      (:se/serve self l (:wat::core::conj peers peer)))
+      (:se::serve self l (:wat::core::conj peers peer)))
     ((:wat::spawn::ServiceEvent::Message idx msg)
       (:wat::core::do
         (:wat::core::match (:wat::kernel::send (:wat::core::nth peers idx) msg)
           (:wat::kernel::SendOutcome::Sent nil)
           (:wat::kernel::SendOutcome::Closed nil)
           ((:wat::kernel::SendOutcome::Lost _c) nil))
-        (:se/serve self l peers)))
+        (:se::serve self l peers)))
     ((:wat::spawn::ServiceEvent::Closed idx)
-      (:se/serve self l (:wat::std::list::remove-at peers idx)))
+      (:se::serve self l (:wat::std::list::remove-at peers idx)))
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:se/serve self l (:wat::std::list::remove-at peers idx)))
+      (:se::serve self l (:wat::std::list::remove-at peers idx)))
     (_ nil)))
 
-(:wat::core::defn :se/try [c <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>
+(:wat::core::defn :se::try [c <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::kernel::send c 7)
@@ -59,7 +59,7 @@
         (:wat::kernel::println (:wat::core::string::concat label " => CLOSED"))))
     nil))
 
-(:wat::core::defn :se/row-tail [] -> :wat::core::nil
+(:wat::core::defn :se::row-tail [] -> :wat::core::nil
   (:wat::core::let
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
@@ -67,17 +67,17 @@
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
               -> :wat::core::nil
-              (:se/serve self l (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>))))
+              (:se::serve self l (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>))))
      c    (:wat::core::match (:wat::kernel::connect a)
             ((:wat::kernel::ConnectOutcome::Connected p) p)
             ((:wat::kernel::ConnectOutcome::Refused _f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
             ((:wat::kernel::ConnectOutcome::Rejected _f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
             ((:wat::kernel::ConnectOutcome::Failed _f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))
-     _    (:se/try c "row non-tail")]
+     _    (:se::try c "row non-tail")]
     ;; TAIL: the caller's env (holding `svc`, the lineage Thread' peer) is dropped by the
     ;; trampoline BEFORE this runs. `Thread::drop` → drain_and_join → the serve loop's
     ;; poll' index 0 EOFs. If the loop reaches the Shutdown arm, the client reads 999.
-    (:se/try c "row TAIL    ")))
+    (:se::try c "row TAIL    ")))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::do (:se/row-tail) nil))
+  (:wat::core::do (:se::row-tail) nil))

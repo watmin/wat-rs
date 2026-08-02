@@ -205,6 +205,12 @@ pub enum RuntimeErrorKind {
     DuplicateDefine(String),
     #[to_edn(key = "prefix")]
     ReservedPrefix(String),
+    /// A top-level name reached a registration gate with no namespace. Only
+    /// fn arguments and `let` bindings may be bare — those are lexical and
+    /// never reach a gate. Held against `Privilege::Stdlib` too; there is no
+    /// privilege escape from the namespacing wall.
+    #[to_edn(key = "name")]
+    UnnamespacedName(String),
     /// A declaration form (`:wat::core::def`, `:wat::core::define`, etc.)
     /// found in expression position at runtime. Declaration forms are
     /// top-level registration forms; calling one at expression position
@@ -528,6 +534,14 @@ impl RuntimeErrorKind {
                 prefix,
                 p,
                 crate::resolve::reserved_prefix_list()
+            ),
+            RuntimeErrorKind::UnnamespacedName(name) => write!(
+                f,
+                "{}top-level name '{}' is not namespaced — only fn arguments and let-bindings \
+                 may be bare; give it a namespace, e.g. ':my::{}'",
+                prefix,
+                name,
+                name.trim_start_matches(':')
             ),
             RuntimeErrorKind::DeclarationInExpressionPosition(head) => write!(
                 f,

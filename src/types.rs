@@ -557,6 +557,9 @@ impl TypeEnv {
             crate::resolve::Registration::Reserved => {
                 return Err(TypeError::new(span, TypeErrorKind::ReservedPrefix { name }))
             }
+            crate::resolve::Registration::Unnamespaced => {
+                return Err(TypeError::new(span, TypeErrorKind::UnnamespacedName { name }))
+            }
             crate::resolve::Registration::Insert => {}
         }
         // Reject cyclic aliases BEFORE insertion so `expand_alias` can
@@ -2208,6 +2211,7 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
         ),
         ("DuplicateDefine", vec![("name".into(), string())]),
         ("ReservedPrefix", vec![("prefix".into(), string())]),
+        ("UnnamespacedName", vec![("name".into(), string())]),
         ("DeclarationInExpressionPosition", vec![("head".into(), string())]),
         ("EvalForbidsMutationForm", vec![("head".into(), string())]),
         ("UserMainMissing", vec![]),

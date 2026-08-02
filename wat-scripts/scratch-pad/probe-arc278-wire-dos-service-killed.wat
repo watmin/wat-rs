@@ -48,7 +48,7 @@
          (:wat::core::string::length
            (:wat::core::nth (:dos::Bag::PutRequest/items req) 0)))))])
 
-(:wat::core::defn :dos/try
+(:wat::core::defn :dos::try
   [c <- :wat::kernel::Peer<dos::Bag::Op,dos::Bag::Reply>  label <- :wat::core::String
    req <- :dos::Bag::PutRequest] -> :wat::core::nil
   (:wat::core::match (:dos::Bag/put c req)
@@ -86,8 +86,8 @@
          ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))
-     _ (:dos/try a "attacker good " good)
-     _ (:dos/try a "attacker BAD  " bad)
+     _ (:dos::try a "attacker good " good)
+     _ (:dos::try a "attacker BAD  " bad)
      ;; a SECOND, INNOCENT client connects AFTER the bad frame
      b (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
          ((:wat::kernel::ConnectOutcome::Connected p) p)
@@ -101,5 +101,5 @@
      ;; moving its victim call to tail position, so it is a pre-existing drop-order artifact of the
      ;; probe's own shape, NOT a failure of the wall. Kept out of the way here so the observation
      ;; below reads what it is actually measuring.
-     _ (:dos/try b "victim   good " good)]
+     _ (:dos::try b "victim   good " good)]
     nil))

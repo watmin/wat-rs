@@ -7,8 +7,8 @@
 (:wat::holon::defrecord :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
 
 ;; Shared helpers for liskov checks
-(:wat::core::defn :wb [v <- :wat::core::Record] -> :wat::core::bool true)
-(:wat::core::defn :wh [v <- :wat::holon::Record] -> :wat::core::bool true)
+(:wat::core::defn :my::wb [v <- :wat::core::Record] -> :wat::core::bool true)
+(:wat::core::defn :my::wh [v <- :wat::holon::Record] -> :wat::core::bool true)
 
 ;; ─── BASE flavor ──────────────────────────────────────────────────────────────
 (:wat::core::defn :user::base-construct-and-field [] -> :wat::core::i64 (:my::Pt/x (:my::Pt :x 1 :y 2)))
@@ -30,9 +30,9 @@
   (:wat::holon::to-holon (:my::HPt :x 1 :y 2)))
 
 ;; ─── Liskov — positive cases (type-check confirms these are valid) ─────────────
-(:wat::core::defn :fb [p <- :my::Pt] -> :wat::core::bool (:wb p))
-(:wat::core::defn :fh [p <- :my::HPt] -> :wat::core::bool (:wb p))
-(:wat::core::defn :gh [p <- :my::HPt] -> :wat::core::bool (:wh p))
+(:wat::core::defn :my::fb [p <- :my::Pt] -> :wat::core::bool (:my::wb p))
+(:wat::core::defn :my::fh [p <- :my::HPt] -> :wat::core::bool (:my::wb p))
+(:wat::core::defn :my::gh [p <- :my::HPt] -> :wat::core::bool (:my::wh p))
 
 ;; ─── Cross-flavor ─────────────────────────────────────────────────────────────
 (:wat::core::defn :user::cross-flavor-same-data-true [] -> :wat::core::bool

@@ -44,7 +44,7 @@
   :impls
   [(put [s req] (:wat::service::Outcome::Reply s (:tl::Bag::PutResponse::Ok 1)))])
 
-(:wat::core::defn :tl/try [c <- :wat::kernel::Peer<tl::Bag::Op,tl::Bag::Reply>
+(:wat::core::defn :tl::try [c <- :wat::kernel::Peer<tl::Bag::Op,tl::Bag::Reply>
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -63,6 +63,6 @@
          ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
          ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))
      ;; CONTROL — the same call from a BINDING slot: served.
-     _ (:tl/try c "from let-BINDING")]
+     _ (:tl::try c "from let-BINDING")]
     ;; THE VIOLATION — the same call from the TAIL: closed.
-    (:tl/try c "from let-TAIL   ")))
+    (:tl::try c "from let-TAIL   ")))

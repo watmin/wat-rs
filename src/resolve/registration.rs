@@ -56,6 +56,18 @@ pub enum Registration {
     /// A new reserved-prefix name from unprivileged source — caller emits its own
     /// ReservedPrefix error.
     Reserved,
+    /// A new top-level name with no namespace — caller emits its own UnnamespacedName
+    /// error. Held even against `Privilege::Stdlib` — there is no privilege escape.
+    Unnamespaced,
+}
+
+/// A top-level name must carry a namespace. Only fn args and `let` bindings may be bare,
+/// and those are lexical — they never reach this gate.
+///
+/// NOT "starts with ':' and contains '::'": parametric heads drop the leading colon
+/// (`wat::kernel::Peer`), recorded in arc 170's 24t seam. The test is containment.
+pub fn is_namespaced(name: &str) -> bool {
+    name.contains("::")
 }
 
 /// THE gate. The rule + ordering, once:
@@ -63,8 +75,9 @@ pub enum Registration {
 /// ```text
 ///   Existing::Equivalent                        -> NoOp       (benign re-declaration)
 ///   Existing::Divergent                         -> Duplicate
-///   Absent + reserved + Privilege::User          -> Reserved
-///   Absent + (Privilege::Stdlib | !reserved)     -> Insert
+///   Absent + !namespaced                         -> Unnamespaced
+///   Absent + namespaced + reserved + Privilege::User -> Reserved
+///   Absent + namespaced + (Privilege::Stdlib | !reserved) -> Insert
 /// ```
 ///
 /// Idempotent-BEFORE-reserved is the ordering that fixes "you cannot declare an existing
@@ -73,12 +86,18 @@ pub enum Registration {
 /// definition). A DIVERGENT re-declaration still errors (`Duplicate`), and a genuinely
 /// NEW reserved name from `User` source is still rejected (`Reserved`) — the gate's
 /// purpose is fully preserved.
+///
+/// `Unnamespaced` is tested before `Reserved` because a bare name cannot be reserved
+/// (every reserved prefix contains `::`), and "not namespaced" is the more specific
+/// truth about it.
 pub fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registration {
     match existing {
         Existing::Equivalent => Registration::NoOp,
         Existing::Divergent => Registration::Duplicate,
         Existing::Absent => {
-            if privilege == Privilege::User && is_reserved_prefix(name) {
+            if !is_namespaced(name) {
+                Registration::Unnamespaced
+            } else if privilege == Privilege::User && is_reserved_prefix(name) {
                 Registration::Reserved
             } else {
                 Registration::Insert
@@ -125,5 +144,31 @@ mod tests {
     fn new_user_name_inserts_under_either_privilege() {
         assert_eq!(gate(":my::Thing", Privilege::User, Existing::Absent), Registration::Insert);
         assert_eq!(gate(":my::Thing", Privilege::Stdlib, Existing::Absent), Registration::Insert);
+    }
+
+    #[test]
+    fn bare_name_from_user_is_unnamespaced() {
+        assert_eq!(gate(":no-ns", Privilege::User, Existing::Absent), Registration::Unnamespaced);
+    }
+
+    #[test]
+    fn namespaced_user_name_inserts() {
+        assert_eq!(gate(":my::ok", Privilege::User, Existing::Absent), Registration::Insert);
+    }
+
+    #[test]
+    fn parametric_head_without_leading_colon_is_namespaced() {
+        assert_eq!(gate("wat::kernel::Peer", Privilege::Stdlib, Existing::Absent), Registration::Insert);
+    }
+
+    #[test]
+    fn bare_name_from_stdlib_is_still_unnamespaced() {
+        // No privilege escape from the namespacing wall.
+        assert_eq!(gate(":no-ns", Privilege::Stdlib, Existing::Absent), Registration::Unnamespaced);
+    }
+
+    #[test]
+    fn bare_name_idempotent_replay_still_noops() {
+        assert_eq!(gate(":no-ns", Privilege::User, Existing::Equivalent), Registration::NoOp);
     }
 }
