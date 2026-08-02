@@ -141,11 +141,73 @@ real misread.
 at expansion for a required field with no default. Constraint "the fallback can never be omitted" needs
 no new machinery — declare it required.
 
-**STILL OPEN, and it belongs to the MINT strike, not this one:** whether the *operands* also go kwargs
-(`:numerator`/`:denominator`) or stay positional with only `:undefined` marked. The cast argued full
-kwargs for `/` — it is non-commutative, and bare `n d` is the same unreadable shape the builder already
-caught in `assertion-failed!`'s two bare `:None`s — while conceding the hybrid is defensible for a
-single-operand `first`. Unruled. Does not block the strike below.
+### The call shape — RULED 2026-08-02: positional operands, `:undefined` the only kwarg
+
+```clojure
+(:wat::rete::i64::+ a b       :undefined -1)
+(:wat::rete::i64::/ n d       :undefined -1)
+(:wat::rete::first  xs        :undefined 0)
+```
+
+The intueri cast argued **full** kwargs (`:numerator`/`:denominator`) from `/`'s non-commutativity, and
+the orchestrator relayed it. The builder killed it with one form:
+
+> *"`(+ :1 0 :2 2 :3 massive-int :undefined -1)` …. wtf is a kwarg for `+`?"*
+
+**`i64::+` is variadic and commutative.** There is no name for the third addend, nothing for keywords to
+disambiguate, and no spelling that isn't `:1 :2 :3`. The cast reasoned from `/` — binary, ordered — and
+generalized to all eight without writing the form out for the most common member of its own worklist
+(`i64::+`, 11 refused rows). Materializing the form is what catches this, and it wasn't done.
+
+**The principle, stated so it generalizes:** positional confusion is a defect when there is **no
+established order convention** — `assertion-failed!`'s two bare `:None`s (same type, no convention,
+genuinely unreadable) is the case the kwargs doctrine was ruled for. Division has a universally-known
+operand order; naming it buys nothing and costs ceremony on a form written constantly. Operands keep
+core's order, which callers already know; only the fallback — which has no positional convention and
+must be impossible to omit — is keyword-marked.
+
+### ✂ CUT: the "query DSL" — a parallel rete vocabulary. Considered, rejected, recorded so it is not re-derived.
+
+After T1 measured 8 partial verbs (not 4), the orchestrator proposed a full parallel op vocabulary —
+every op usable in a `where` getting a `:wat::rete::` name — arguing that under partial coverage *"the
+user must know which core ops are secretly partial to know which need the rete form."*
+
+**That argument is dead, and what killed it is the stone landed one commit earlier.** The fence now
+NAMES the offending head (`a787cd25`): `where expr is not total — ':wat::core::i64::+' is not total`.
+The user never needs to know in advance; the checker teaches at the point of failure, which is R29
+`RVINA ERVDIT` working exactly as designed. The orchestrator made the argument having just built the
+thing that refutes it.
+
+Re-run with the diagnostic accounted for, the smaller design wins outright: **Simple** (one conjunct on
+an existing fence vs a second namespace kept in agreement with core), **Honest** (no second
+hand-maintained list, so no drift class needing a derive mechanism to engineer around), **Obvious**
+(*a `where` admits only total ops, and the checker names any that aren't*). Builder: *"the 'dsl' here
+(poorly used) is imposing a stricter purity check on where clauses in rete."*
+
+Eight siblings adjacent to core. Not forty. Do not re-open this.
+
+> ### ⟲ REVERSED, same day — and the reversal is the record
+>
+> It WAS re-opened, hours later, and the wider design is now ratified:
+> **`DESIGN-STONE-where-admits-only-rete-ops.md`** (a full rete expression language, ~40–60 names).
+> This section stays because the reversal is worth more than a tidy file.
+>
+> **What changed is the JUSTIFICATION, not the scope.** The cut above was correct against the argument
+> then on the table — *"users must know which core ops are secretly partial"* — which the
+> fence-names-the-head stone dissolved an hour later. The reopened case rests on two different legs
+> the orchestrator never made:
+>
+> 1. **Compilability** (the builder's) — a closed head-space is what turns `where`-compilation from
+>    *"compile a large fraction of wat"* into a finite jump table. `compiled_cond.rs` and
+>    `compiled_rhs.rs` exist; `compiled_where.rs` does not, and the open op set is why. Clara admits
+>    arbitrary Clojure in `:test` and therefore cannot compile it at all — the reduction is the weapon.
+> 2. **The corpus cannot size this** — `[[feedback_optimize_for_the_expressivity_surface_not_the_corpus]]`:
+>    *the corpus is a record of what happened to COMPILE, so it is structurally blind to the fence.*
+>    T1's 8 verbs are a FLOOR, not a target. Sizing the vocabulary to 98 rows written under the old
+>    rules is designing to survivorship — which is what "eight, not forty" did.
+>
+> Kept visible rather than deleted: an argument can be right, be correctly cut, and later be right
+> again for a reason nobody had yet. Deleting this would hide that the *premise* moved, not the answer.
 
 ## 4. The strike is SPLIT — this stone's first rider does NOT arm the fence
 
