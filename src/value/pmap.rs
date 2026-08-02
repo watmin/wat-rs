@@ -161,6 +161,32 @@ impl PMap {
     pub fn is_trie(&self) -> bool {
         matches!(self, PMap::Trie(_))
     }
+
+    /// Adopt an existing trie, CHOOSING THE ARM BY SIZE. Never wrap a trie directly as
+    /// `PMap::Trie(t)` at a call site — a small map arriving that way would keep its HAMT
+    /// forever and silently opt out of promotion, the exact thing this type exists to prevent.
+    pub fn from_trie(t: rpds::HashTrieMapSync<Value, Value>) -> Self {
+        if t.size() <= PROMOTION_THRESHOLD {
+            PMap::Array(Arc::new(t.iter().map(|(k, v)| (k.clone(), v.clone())).collect()))
+        } else {
+            PMap::Trie(t)
+        }
+    }
+
+    /// The trie view, materialising one from the array arm when a reader genuinely needs rpds
+    /// (e.g. a boundary to code that is intentionally still trie-only, such as `Token.bindings`).
+    pub fn to_trie(&self) -> rpds::HashTrieMapSync<Value, Value> {
+        match self {
+            PMap::Trie(t) => t.clone(),
+            PMap::Array(entries) => {
+                let mut t = rpds::HashTrieMapSync::new_sync();
+                for (k, v) in entries.iter() {
+                    t.insert_mut(k.clone(), v.clone());
+                }
+                t
+            }
+        }
+    }
 }
 
 /// Entry-SET equality, never container equality. This is the arm that made the stone: the previous
@@ -237,17 +263,65 @@ mod tests {
         }
     }
 
-    // ⚠ THE MAP-AS-KEY ROW IS NOT HERE YET, AND IT IS THE ONE THAT MATTERS MOST.
-    //
-    // It cannot be written until `Value::wat__core__PersistentMap` holds a `PMap` instead of a raw
-    // `rpds::HashTrieMapSync` — there is no `Value` that wraps a `PMap` to use as a key. The law it
-    // must assert: a map built in the ARRAY arm, used as a key, is found by a probe holding the
-    // same entries in the TRIE arm, and vice versa. That is the only failure mode in this module
-    // that is SILENT — every other one is a visibly wrong value.
-    //
-    // It is a REQUIRED row on the migration stone, recorded in DESIGN-STONE-promoting-map.md's
-    // gate. Named here rather than left to be remembered, because "we'll add it with the swap" is
-    // exactly the shape of thing this arc keeps losing (UNADOPTED.md).
+    /// ★ THE MAP-AS-KEY LAW — the row `DESIGN-STONE-promoting-map.md` names as the only SILENT
+    /// failure mode in this stone. `{{:some :map} :as-a-key}` is legal EDN and round-trips today,
+    /// so a peer can send one over the wire; if cross-arm key lookup breaks, the map just misses
+    /// — no error, no panic, a wrong answer. Built one key via a small build (lands Array) and an
+    /// equal key via build-past-the-threshold-then-`dissoc`-back (stays Trie — promotion is
+    /// one-way), then looked up both directions, then through an EDN read -> write -> read round
+    /// trip.
+    #[test]
+    fn a_map_used_as_a_key_is_found_across_arms() {
+        // Same entries, one arm each.
+        let array_key = PMap::from_pairs((0..4i64).map(|i| (k(i), k(i))));
+        assert!(!array_key.is_trie(), "setup: expected the array arm");
+
+        let mut trie_key = PMap::from_pairs((0..12i64).map(|i| (k(i), k(i))));
+        assert!(trie_key.is_trie(), "setup: expected promotion to fire");
+        for i in 4..12i64 {
+            trie_key = trie_key.dissoc(&k(i));
+        }
+        assert!(trie_key.is_trie(), "setup: dissoc must not demote — see the contract above");
+        assert!(array_key == trie_key, "setup: the two keys must be equal entry-sets");
+
+        let found = Value::String(Arc::new("found".to_string()));
+
+        // Stored under the ARRAY-arm key, looked up with the TRIE-arm key.
+        let outer_a = PMap::from_pairs([(
+            Value::wat__core__PersistentMap(array_key.clone()),
+            found.clone(),
+        )]);
+        assert_eq!(
+            outer_a.get(&Value::wat__core__PersistentMap(trie_key.clone())),
+            Some(&found),
+            "a Trie-arm key must find an entry stored under its Array-arm twin"
+        );
+
+        // The reverse — stored under the TRIE-arm key, looked up with the ARRAY-arm key.
+        let outer_b = PMap::from_pairs([(
+            Value::wat__core__PersistentMap(trie_key.clone()),
+            found.clone(),
+        )]);
+        assert_eq!(
+            outer_b.get(&Value::wat__core__PersistentMap(array_key.clone())),
+            Some(&found),
+            "an Array-arm key must find an entry stored under its Trie-arm twin"
+        );
+
+        // The same, through an EDN read -> write -> read round trip — the wire-visible case.
+        let outer_a_value = Value::wat__core__PersistentMap(outer_a);
+        let s = crate::edn_shim::value_to_edn_string(&outer_a_value);
+        let back = crate::edn_shim::edn_string_to_value(&s).expect("round-trip parse");
+        let back_pm = match back {
+            Value::wat__core__PersistentMap(m) => m,
+            other => panic!("must round-trip to a PersistentMap, got {other:?}"),
+        };
+        assert_eq!(
+            back_pm.get(&Value::wat__core__PersistentMap(trie_key.clone())),
+            Some(&found),
+            "a map-as-key entry must survive an EDN round trip and still be found from the other arm"
+        );
+    }
 
     /// Promotion must actually FIRE, and the two build paths must converge. A promotion test where
     /// nothing promotes is vacuous.

@@ -894,14 +894,15 @@ pub(crate) fn eval_hashmap_values(
 
 // ─── Arc-278-0a — PersistentMap ops (mirror hashmap_* family) ────────────────
 //
-// rpds::HashTrieMapSync<Value, Value> is persistent: every mutating operation returns
-// a NEW map sharing structure with the old (O(log n)); the original is UNCHANGED.
-// No .clone() of map contents needed — that is the whole win over std HashMap.
+// `PMap` (DESIGN-STONE-promoting-map) is persistent: every mutating operation returns a NEW
+// map, the original UNCHANGED. Below the promotion threshold it is an array (structural-share
+// via `Arc`, cheap clone-on-write); above it, `rpds::HashTrieMapSync` (O(log n), no clone of
+// contents). The arm is an implementation detail — callers here never branch on it.
 
 /// Returns the length of a `Value::wat__core__PersistentMap` as `Value::i64`.
 pub(crate) fn persistentmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
-        Value::wat__core__PersistentMap(m) => Ok(Value::i64(m.size() as i64)),
+        Value::wat__core__PersistentMap(m) => Ok(Value::i64(m.len() as i64)),
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentMap/length".into(),
             expected: "PersistentMap<K,V>",
@@ -1040,8 +1041,9 @@ pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value)
                     got: Box::new(ValueSnapshot::of(k))
                 }).into());
             }
-            // rpds .insert returns a NEW map — no clone of contents. This is the whole point.
-            Ok(Value::wat__core__PersistentMap(m.insert(k.clone(), v.clone())))
+            // PMap::assoc returns a NEW map — no clone of contents in the array arm below the
+            // threshold, structural sharing in the trie arm above it.
+            Ok(Value::wat__core__PersistentMap(m.assoc(k.clone(), v.clone())))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -1080,7 +1082,7 @@ pub(crate) fn persistentmap_dissoc_inner(container: &Value, k: &Value) -> Result
                 // Nothing to remove — return the map unchanged (same as HashMap arm).
                 return Ok(Value::wat__core__PersistentMap(m.clone()));
             }
-            Ok(Value::wat__core__PersistentMap(m.remove(k)))
+            Ok(Value::wat__core__PersistentMap(m.dissoc(k)))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -1112,8 +1114,7 @@ pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalB
     const OP: &str = ":wat::core::PersistentMap/keys";
     match container {
         Value::wat__core__PersistentMap(m) => {
-            let ks: Vec<Value> = m.keys().cloned().collect();
-            Ok(Value::Vec(Arc::new(ks)))
+            Ok(Value::Vec(Arc::new(m.keys())))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -1144,8 +1145,7 @@ pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, Eva
     const OP: &str = ":wat::core::PersistentMap/values";
     match container {
         Value::wat__core__PersistentMap(m) => {
-            let vs: Vec<Value> = m.values().cloned().collect();
-            Ok(Value::Vec(Arc::new(vs)))
+            Ok(Value::Vec(Arc::new(m.values())))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -1191,7 +1191,7 @@ pub(crate) fn eval_persistentmap_ctor(
             )
         }).into());
     }
-    let mut map: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    let mut pairs: Vec<(Value, Value)> = Vec::with_capacity(args.len() / 2);
     for pair in args.chunks(2) {
         let k = eval_inner(&pair[0], env, sym)?.value_owned();
         let v = eval_inner(&pair[1], env, sym)?.value_owned();
@@ -1202,9 +1202,9 @@ pub(crate) fn eval_persistentmap_ctor(
                 got: Box::new(ValueSnapshot::of(&k))
             }).into());
         }
-        map.insert_mut(k, v);
+        pairs.push((k, v));
     }
-    Ok(Value::wat__core__PersistentMap(map))
+    Ok(Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs)))
 }
 
 // ─── Arc-278-A2 — Record ops (get/contains?/length/empty?) ─────────────────

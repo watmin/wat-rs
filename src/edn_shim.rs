@@ -2885,16 +2885,16 @@ fn tagged_to_value(
                 "wat.core/PersistentMap body must be a map, got non-map".to_string()
             ) }),
         };
-        let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+        let mut pairs: Vec<(Value, Value)> = Vec::new();
         for (k, v) in entries {
             let k_val = edn_to_value_caps(k, types, allow_caps, foreign)?;
             let v_val = edn_to_value_caps(v, types, allow_caps, foreign)?;
             if !crate::runtime::value_is_key_hashable(&k_val) {
                 return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentMap key: {}", k_val.type_name())) });
             }
-            pm.insert_mut(k_val, v_val);
+            pairs.push((k_val, v_val));
         }
-        return Ok(Value::wat__core__PersistentMap(pm));
+        return Ok(Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs)));
     }
 
     // Arc-278-0b — `#wat.core/PersistentVector [...]` tagged literal → PersistentVector.
@@ -4529,9 +4529,10 @@ mod tests {
     #[test]
     fn persistent_map_edn_round_trip() {
         // Build a PersistentMap with two entries.
-        let mut m: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
-        m.insert_mut(Value::String(Arc::new("a".to_string())), Value::i64(1));
-        m.insert_mut(Value::String(Arc::new("b".to_string())), Value::i64(2));
+        let m = crate::value::pmap::PMap::from_pairs([
+            (Value::String(Arc::new("a".to_string())), Value::i64(1)),
+            (Value::String(Arc::new("b".to_string())), Value::i64(2)),
+        ]);
         let pm = Value::wat__core__PersistentMap(m);
 
         // Serialize → tagged EDN string.

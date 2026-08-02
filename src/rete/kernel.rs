@@ -109,7 +109,7 @@ pub(crate) struct WorkingMemory {
 fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>>, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
-            let mut out: HashMap<i64, Vec<Value>> = HashMap::with_capacity(m.size());
+            let mut out: HashMap<i64, Vec<Value>> = HashMap::with_capacity(m.len());
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
@@ -169,7 +169,8 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
-    Value::wat__core__PersistentMap(pm)
+    // Never wrap a built trie directly — choose the arm by size.
+    Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(pm))
 }
 
 /// Decode a Value Token Record → native `Token` (lossless).
@@ -222,9 +223,10 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
                 got: Box::new(ValueSnapshot::of(other)),
             }).into()),
     };
-    // Decode bindings: PM → HashTrieMapSync
+    // Decode bindings: PM → HashTrieMapSync. `Token.bindings` stays a raw trie by ruling
+    // (DESIGN-STONE-element-bindings-array) — convert AT THE BOUNDARY, once per token decode.
     let bindings = match &struct_form[1] {
-        Value::wat__core__PersistentMap(m) => m.clone(),
+        Value::wat__core__PersistentMap(m) => m.to_trie(),
         other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "token bindings :wat::core::PersistentMap",
@@ -247,7 +249,9 @@ fn native_token_to_value(tok: Token) -> Value {
         (*token_class_fqdn()).clone(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches_pv),
-            Value::wat__core__PersistentMap(tok.bindings),
+            // Boundary encode: Token.bindings is a raw trie; choose the PMap arm by size rather
+            // than wrapping it directly, so a small token's bindings do not keep a HAMT forever.
+            Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(tok.bindings)),
         ]),
     )))
 }
@@ -258,7 +262,7 @@ fn native_token_to_value(tok: Token) -> Value {
 fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
-            let mut out: HashMap<i64, Vec<Token>> = HashMap::with_capacity(m.size());
+            let mut out: HashMap<i64, Vec<Token>> = HashMap::with_capacity(m.len());
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
@@ -304,7 +308,8 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
-    Value::wat__core__PersistentMap(pm)
+    // Never wrap a built trie directly — choose the arm by size.
+    Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(pm))
 }
 
 /// Decode a Value Element Record → native `Element` (lossless).
@@ -345,10 +350,9 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
 /// the wat contract still needs a `PersistentMap`, so this walks the array and builds one
 /// (DESIGN-STONE-element-bindings-array read-order §3); it is not the matcher's hot read path.
 fn native_element_to_value(el: Element) -> Value {
-    let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
-    for (k, v) in el.bindings.iter() {
-        pm.insert_mut(k.clone(), v.clone());
-    }
+    let pm = crate::value::pmap::PMap::from_pairs(
+        el.bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
+    );
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
         Arc::new(vec![el.fact, Value::wat__core__PersistentMap(pm)]),
@@ -361,7 +365,7 @@ fn native_element_to_value(el: Element) -> Value {
 fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
-            let mut out: HashMap<i64, Vec<Element>> = HashMap::with_capacity(m.size());
+            let mut out: HashMap<i64, Vec<Element>> = HashMap::with_capacity(m.len());
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
@@ -407,7 +411,8 @@ fn alpha_to_pm(alpha: HashMap<i64, Vec<Element>>) -> Value {
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
-    Value::wat__core__PersistentMap(pm)
+    // Never wrap a built trie directly — choose the arm by size.
+    Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(pm))
 }
 
 // ─── Public boundary ──────────────────────────────────────────────────────────
@@ -618,8 +623,8 @@ fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -
 /// The alpha/root-join/hash-join passes require ascending id order (topological).
 fn sorted_node_ids(network: &Value) -> Vec<i64> {
     let mut ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m.keys().filter_map(|k| {
-            if let Value::i64(n) = k { Some(*n) } else { None }
+        Value::wat__core__PersistentMap(m) => m.keys().into_iter().filter_map(|k| {
+            if let Value::i64(n) = k { Some(n) } else { None }
         }).collect(),
         _ => vec![],
     };
@@ -684,7 +689,7 @@ fn make_token(
         (*token_class_fqdn()).clone(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches),
-            Value::wat__core__PersistentMap(bindings),
+            Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(bindings)),
         ]),
     )))
 }
@@ -701,7 +706,7 @@ fn element_fact_bindings(el: &Element) -> (&Value, &Arc<[(Value, Value)]>) {
 /// Destructure a Value Token Record: (matches pv, bindings map). Panics on malformed.
 /// Retained for documentation; superseded by native `Token` field access in P11.
 #[allow(dead_code)]
-fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &rpds::HashTrieMapSync<Value, Value>) {
+fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &crate::value::pmap::PMap) {
     match tok {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
@@ -842,8 +847,8 @@ fn root_join_pass(wm: &mut WorkingMemory) {
 /// Mirrors `wat/rete.wat:629-650`. Returns -1 if not found.
 fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
     let node_ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m.keys().filter_map(|k| {
-            if let Value::i64(n) = k { Some(*n) } else { None }
+        Value::wat__core__PersistentMap(m) => m.keys().into_iter().filter_map(|k| {
+            if let Value::i64(n) = k { Some(n) } else { None }
         }).collect(),
         _ => return -1,
     };
@@ -1052,8 +1057,8 @@ fn hash_join_pass(wm: &mut WorkingMemory) {
 /// Returns -1 if not found. Mirrors `wat/rete.wat:779-798`.
 fn node_parent(child_id: i64, network: &Value) -> i64 {
     let node_ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m.keys().filter_map(|k| {
-            if let Value::i64(n) = k { Some(*n) } else { None }
+        Value::wat__core__PersistentMap(m) => m.keys().into_iter().filter_map(|k| {
+            if let Value::i64(n) = k { Some(n) } else { None }
         }).collect(),
         _ => return -1,
     };
@@ -1333,7 +1338,7 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
         let fired = fire_once_session(&session, sym)?;
         let production_pm = match &fired {
             Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[4].clone(),
-            _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+            _ => Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
         };
         let derived = collect_derived(&production_pm);
         let cur_facts = session_facts(&session);
@@ -1560,7 +1565,8 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
                 };
                 pm.insert_mut(k, Value::wat__core__PersistentVector(pv.push_back(fact.clone())));
             }
-            Some(Value::wat__core__PersistentMap(pm))
+            // Never wrap a built trie directly — choose the arm by size.
+            Some(Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(pm)))
         }
         // 8-custom: the head is a USER fold fn name. Gather the ?var values into a PV<i64>,
         // then eval `(user-fn __acc__)` with `__acc__` bound to the PV — the proven
@@ -3262,7 +3268,7 @@ fn fire_rules_stratified(
             (sf[0].clone(), sf[6].clone(), a.class.clone())
         }
         _ => (
-            Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+            Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
             Value::i64(0),
             // Unreachable in practice — callers only ever pass a compiled Session — but keep
             // a harmless placeholder class rather than panicking on a malformed input.
@@ -3391,7 +3397,8 @@ fn fire_rules_stratified(
                         nm.insert_mut(Value::i64(*id), dedupe_filter_children(v, &active_ids));
                     }
                 }
-                Value::wat__core__PersistentMap(nm)
+                // Never wrap a built trie directly — choose the arm by size.
+                Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(nm))
             }
             other => other.clone(),
         };
@@ -3405,9 +3412,9 @@ fn fire_rules_stratified(
             Arc::new(vec![
                 sliced_network,
                 stratum_rules,
-                Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
-                Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
-                Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+                Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
+                Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
+                Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
                 acc_facts.clone(),
                 next_id.clone(),
             ]),
@@ -3422,7 +3429,7 @@ fn fire_rules_stratified(
         // facts field equals the seed, not the closure. Reconstruct the closure explicitly below.
         let production_pm = match &fired {
             Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[4].clone(),
-            _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+            _ => Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
         };
         let new_derived = collect_derived(&production_pm);
 
@@ -3449,7 +3456,7 @@ fn fire_rules_stratified(
     for d in &acc_derived {
         prod_pv.push_back_mut(d.clone());
     }
-    let prod_pm = rpds::HashTrieMapSync::new_sync().insert(Value::i64(0), Value::wat__core__PersistentVector(prod_pv));
+    let prod_pm = crate::value::pmap::PMap::from_pairs([(Value::i64(0), Value::wat__core__PersistentVector(prod_pv))]);
 
     match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
@@ -3459,8 +3466,8 @@ fn fire_rules_stratified(
                 Arc::new(vec![
                     sf[0].clone(),                                             // network (original)
                     sf[1].clone(),                                             // rules (original)
-                    Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()), // alpha-memory
-                    Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()), // beta-memory
+                    Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()), // alpha-memory
+                    Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()), // beta-memory
                     Value::wat__core__PersistentMap(prod_pm),                  // production-memory
                     input_facts,                                               // facts = input
                     sf[6].clone(),                                             // next-id (original)
@@ -3782,7 +3789,8 @@ pub(crate) fn eval_fire_rules_explain(
         (*explained_class_fqdn()).clone(),
         Arc::new(vec![
             session_out,
-            Value::wat__core__PersistentMap(support_pm),
+            // Never wrap a built trie directly — choose the arm by size.
+            Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(support_pm)),
         ]),
     )));
 

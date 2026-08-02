@@ -98,11 +98,11 @@ pub enum Value {
     /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; K is the actual HashMap key directly.
     wat__std__HashMap(Arc<HashMap<Value, Value>>),
-    /// A `:wat::core::PersistentMap<K,V>` — rpds `HashTrieMapSync<Value, Value>`.
-    /// Structural sharing: `assoc`/`dissoc` return a NEW map (O(log n)); the original
-    /// is unchanged. The rpds type is already cheap-clone/shared — no `Arc` wrapper
-    /// needed. Stone arc-278-0a.
-    wat__core__PersistentMap(rpds::HashTrieMapSync<Value, Value>),
+    /// A `:wat::core::PersistentMap<K,V>` — [`crate::value::pmap::PMap`], the promoting map
+    /// (array below `PROMOTION_THRESHOLD`, `rpds::HashTrieMapSync` above it — one-way promotion
+    /// on `assoc`). Structural sharing: `assoc`/`dissoc` return a NEW map; the original is
+    /// unchanged. Stone arc-278-0a; promoted to `PMap` by DESIGN-STONE-promoting-map.
+    wat__core__PersistentMap(crate::value::pmap::PMap),
     /// A `:wat::core::PersistentVector<T>` — rpds `VectorSync<Value>`.
     /// Structural sharing: `conj` (`push_back`) returns a NEW vector (O(log n)); the
     /// original is unchanged. No `Arc` wrapper needed — rpds is already cheap-clone/shared.
@@ -782,20 +782,10 @@ impl std::hash::Hash for Value {
                 pair_hashes.sort_unstable();
                 pair_hashes.hash(state);
             }
-            // PersistentMap: order-independent hash — same strategy as HashMap.
-            // Arc-278-0a: sort (key_hash, val_hash) pairs so hash is iteration-order-agnostic.
+            // PersistentMap: order-independent hash. `PMap`'s own `Hash` impl is this exact
+            // sorted-pair routine, moved into pmap.rs — one routine now covers both arms.
             Value::wat__core__PersistentMap(m) => {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::Hasher;
-                let mut pair_hashes: Vec<(u64, u64)> = m.iter().map(|(k, v)| {
-                    let mut kh = DefaultHasher::new();
-                    k.hash(&mut kh);
-                    let mut vh = DefaultHasher::new();
-                    v.hash(&mut vh);
-                    (kh.finish(), vh.finish())
-                }).collect();
-                pair_hashes.sort_unstable();
-                pair_hashes.hash(state);
+                m.hash(state);
             }
             // PersistentVector: order-DEPENDENT hash — sequence hash over elements in order.
             // Arc-278-0b: a vector's order is semantic; discriminant already hashed above;

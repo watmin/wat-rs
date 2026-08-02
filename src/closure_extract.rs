@@ -1949,7 +1949,7 @@ fn encode_value_with_path(
             // back to the corresponding `(:wat::core::PersistentMap k1 v1 k2 v2 ...)`
             // constructor AST. PersistentMap ctor takes k/v pairs directly (no type header).
             // Arc-278-0a.
-            let mut out = Vec::with_capacity(map.size() * 2 + 1);
+            let mut out = Vec::with_capacity(map.len() * 2 + 1);
             out.push(WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()));
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};

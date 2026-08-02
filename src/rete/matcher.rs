@@ -115,6 +115,19 @@ impl Bindings for Vec<(Value, Value)> {
     }
 }
 
+/// The user-facing `:wat::core::PersistentMap` surface — `eval_step_payload` receives token
+/// bindings this way from a `:wat::rete::eval-step-payload'` caller. Delegates to `PMap`'s own
+/// `get`/`iter`, which already dispatch on the array/trie arm internally; this impl adds nothing
+/// beyond satisfying the trait, and per the trait's own rule above, it must never grow an `insert`.
+impl Bindings for crate::value::pmap::PMap {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        crate::value::pmap::PMap::get(self, k)
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        crate::value::pmap::PMap::iter(self)
+    }
+}
+
 // ─── Public entry point ────────────────────────────────────────────────────────
 
 /// `(:wat::rete::alpha-match cond fact) -> Option<PersistentMap<String, Value>>`
@@ -187,10 +200,9 @@ pub(crate) fn eval_alpha_match(
         // from the array here (not the matcher hot path; this is a primitive dispatch, not
         // per-element construction inside `alpha_pass`/`alpha_match_inner`'s own fold).
         Some(bindings) => {
-            let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
-            for (k, v) in bindings.iter() {
-                pm.insert_mut(k.clone(), v.clone());
-            }
+            let pm = crate::value::pmap::PMap::from_pairs(
+                bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
+            );
             Value::Option(Arc::new(Some(Value::wat__core__PersistentMap(pm))))
         }
         None => Value::Option(Arc::new(None)),
@@ -711,10 +723,13 @@ pub(crate) fn eval_insert(
         }
     };
 
-    // Evaluate arg[1]: must be Value::wat__core__PersistentMap (token bindings).
+    // Evaluate arg[1]: must be Value::wat__core__PersistentMap (token bindings). `build_insert_fact`
+    // is the hot-path production-pass helper and is typed to the trie directly (kernel.rs calls it
+    // with `&tok.bindings`, never converting) — so this wat-facing entry point converts AT THE
+    // BOUNDARY via `to_trie()`, materialising a trie only when the caller handed in the array arm.
     let bindings_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
     let bindings: rpds::HashTrieMapSync<Value, Value> = match bindings_val {
-        Value::wat__core__PersistentMap(ref m) => m.clone(),
+        Value::wat__core__PersistentMap(ref m) => m.to_trie(),
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -848,7 +863,10 @@ pub(crate) fn eval_step_payload(
     };
 
     // ── Extract the token bindings ────────────────────────────────────────────
-    let token_bindings: rpds::HashTrieMapSync<Value, Value> = match bindings_val {
+    // `resolve_operand` and `PMap::get` below are both generic-over/native-to `PMap` — no trie
+    // materialisation needed here, unlike `eval_insert`'s boundary into the trie-typed
+    // `build_insert_fact`.
+    let token_bindings: crate::value::pmap::PMap = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -1021,13 +1039,14 @@ pub(crate) fn eval_step_payload(
     }
 
     // ── Per-step bindings: project token bindings to binder_vars only ─────────
-    let mut step_bindings_pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    let mut step_bindings_pairs: Vec<(Value, Value)> = Vec::new();
     for var_name in &binder_vars {
         let key = Value::String(Arc::new(var_name.clone()));
         if let Some(v) = token_bindings.get(&key) {
-            step_bindings_pm.insert_mut(key, v.clone());
+            step_bindings_pairs.push((key, v.clone()));
         }
     }
+    let step_bindings_pm = crate::value::pmap::PMap::from_pairs(step_bindings_pairs);
 
     // ── Build DerivationStep record ───────────────────────────────────────────
     // Field order (declaration order in rete.wat):
