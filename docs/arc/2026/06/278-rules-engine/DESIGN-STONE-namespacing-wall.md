@@ -84,36 +84,71 @@ omitted `:` from the character class so every namespaced name truncated and look
 the same condition as the `push_back` lint (task #41), *"turned on at zero offenders."* The ~59
 non-corpus violations are scattered scratch probes and a handful of old test fixtures.
 
-## ⛔ THE BLOCKER — fix this first or the wall ships already holed
+## ~~⛔ THE BLOCKER~~ — RETRACTED 2026-08-01, it was mis-aimed
 
-From the 24w record: the **verb-side** rejection path currently only `eprintln!`s instead of
-returning a located error, because `from_symbols` returns `CheckEnv`, not `Result`. Its own note:
-*"It has never fired; a warning is not a wall."*
+> **The blocker below was wrong. Read the retraction before acting on the order of work.**
 
-If `Unnamespaced` lands on that path as-is, it **warns and the bare name registers anyway**. Shipping
-a decorative wall to close a gap caused by a wall nobody built would be the exact failure this stone
-exists to end. **Fix the eprintln path before arming.**
+The original text (kept, per *what is inscribed is inscribed*):
+
+> From the 24w record: the **verb-side** rejection path currently only `eprintln!`s instead of
+> returning a located error, because `from_symbols` returns `CheckEnv`, not `Result`. Its own note:
+> *"It has never fired; a warning is not a wall."* If `Unnamespaced` lands on that path as-is, it
+> **warns and the bare name registers anyway**. **Fix the eprintln path before arming.**
+
+**What the disk actually says.** That `eprintln!` is at `src/check/env.rs:158`, inside a loop that
+**replays an ALREADY-FROZEN symbol table**, called at `Privilege::Stdlib`, and its own comment states
+the reason: *"reserved-prefix policing for user code happens at define-registration, upstream of the
+freeze, so re-asserting it here would reject the stdlib's own `:wat::` functions."* **It is not a
+user-facing door.** It is a replay, and it cannot be the site where a user's bare name slips through,
+because the user's name was already gated upstream.
+
+The user-facing doors emit **located, hard errors today**:
+
+| door | `file:line` | on `Reserved` |
+|---|---|---|
+| all types (`defrecord`/`defenum`/`defstruct`/`defsurface`/`typealias`) | `src/types.rs:557` | `TypeError::new(span, ReservedPrefix { name })` |
+| user `def` (fn-shape) | `src/runtime.rs:917` | `RuntimeError::new(form_span, ReservedPrefix(path))` |
+
+`Unnamespaced` added beside `Reserved` lands on those same arms and inherits the same located
+rejection. **Step 3 is a real OWED item on a different path; it does not gate step 4.**
+
+*Kept visible because the record carried a false blocker for a day, and the correction only came from
+reading the callers — the grounding this stone's own "what is NOT grounded" section demanded.*
 
 ## Order of work
 
-1. **Rename the corpus's 89** (codemod; must derive the printed row label by stripping the namespace,
-   so the untouched `.clj` oracle still matches — see the rename brief).
-2. **Clear the remaining ~59** (scratch probes, old fixtures).
-3. **Fix the verb-side rejection** so it is a located error, not an `eprintln!`.
-4. **Arm the gate** — `Unnamespaced` beside `Reserved` — at zero offenders.
+1. ~~**Rename the corpus's 89**~~ — DONE (`b096e779`). *Measured correction: it was 99 occurrences /
+   91 unique names, not 89.*
+2. **Clear the remaining bare names** — **MEASURED 2026-08-01: 57 occurrences across 24 files**
+   (`wat-scripts/scratch-pad` 25 · `tests/types` 17 · `wat-tests/counter-actor-proof-process.wat` 6 ·
+   `wat-scripts/fixes` 5 · `tests/resolve` 4). **stdlib `wat/` = 0, corpus = 0.**
+3. **Arm the gate** — `Unnamespaced` beside `Reserved`. **No longer blocked on the eprintln path.**
+4. *(Separate, still owed)* make the `check/env.rs:158` replay rejection a located error rather than
+   an `eprintln!` — 24w's OWED, on its own merits.
 
-Steps 1–2 are safe ahead of the wall. Step 4 must not precede step 3.
+**★ The arming is itself the enumeration, twice over.** `Registration` is matched exhaustively at
+~11 call sites (`types.rs:552`, `macros/registry.rs:63`, `check/env.rs:322`, and `runtime.rs`
+`:916` `:949` `:2496` `:2682` `:2743` `:2856` `:3383` `:3457` `:6522`). Adding a variant makes
+**rustc name every door that must decide** — no grep, no caller map. Then freezing the corpus makes
+**the 24 wat files name themselves**. R52 `QVOD LEX ACCENDIT` at both layers.
 
-## What is NOT grounded
+Order 2-vs-3 is free: the wall fires only on a *first* registration (`Equivalent → NoOp` short-circuits
+ahead of it), and neither stdlib nor the corpus holds an offender.
 
-`gate()` has been read. **Nothing else of the registration path has.** Threading a new `Registration`
-variant through the error taxonomy and every caller is a real change of unknown size, and it will not
-be estimated from one function body. **Grounding the callers is the first act of the stone.**
+## Rulings (2026-08-01)
 
-Also unruled, and the builder's call:
+- **`Privilege::Stdlib` IS held to it.** It costs nothing (stdlib is already 0), and exempting the
+  code most likely to be copied as an exemplar is the imitation-tell 24t named (*"a scaffold left
+  standing becomes architecture, and the tell is IMITATION"*).
+- **One `::` is enough.** No required root: `:usr::`, `:my::`, `:app::`, `:probe::` are all legitimate
+  and in live use. The predicate is `name.contains("::")` — **NOT** "starts with `:` and contains
+  `::`", because parametric heads drop the leading colon (`wat::kernel::Peer`, recorded in 24t).
 
-- **Does `Privilege::Stdlib` get held to it too?** It costs nothing today (stdlib is already clean),
-  and exempting it would leave a hole for exactly the code most likely to be copied as an exemplar.
-- **What counts as namespaced** — is one `::` enough, or is there a required root?
-- **Generated names**: accessors (`Type/method`), enum variants, macro-minted companions. These pass
-  through registration too; the stone must not reject the substrate's own emissions.
+## The one genuine unknown — STOP-1 of the strike
+
+**Generated names**: struct/record accessors (`Type/method`), enum variants, macro-minted companions,
+the surface-minted `<Surface>::<op>/Request|Response` aliases (`69d7dd5a`). These reach the gate at
+`runtime.rs:2743` / `:2856` and elsewhere. They are *derived* from a parent name, so a namespaced
+parent should yield a namespaced child — **but the exact registered string has not been read.** If any
+of the substrate's own emissions registers bare, arming breaks the substrate before it touches a single
+heretic. That is a STOP, not an exemption to carve.
