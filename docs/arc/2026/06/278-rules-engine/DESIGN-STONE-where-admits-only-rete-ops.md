@@ -451,6 +451,38 @@ nor present in anything. One is a sentinel; the other is the truth.
 - `:wat::holon::coincident?` and `:wat::holon::presence?` **stay plain `bool`** and become **total**:
   a degenerate operand yields `false`, by documented contract. This is 33 of the family's 56 call sites
   that do **not** become matches.
+
+> ### ⚠ AMENDED 2026-08-02, after #52 — this ruling had a GAP, and the two predicates are NOT a pair
+>
+> The ruling above addresses **one** failure mode. `coincident?` has **two**, and only the first was
+> covered:
+>
+> 1. **degenerate operand** → `cosine` returns `0.0` → the predicate answers `false`. ✅ ruled above.
+> 2. **dimension mismatch** → `pair_values_to_vectors` (`runtime.rs:18539-18546`) **RAISES a
+>    `TypeMismatch`**, before any cosine is computed. ❌ never addressed.
+>
+> **A predicate cannot be "total by contract" while a different failure raises underneath it.** So
+> `coincident?` is **`total: false` today** and stays that way until the cosine family's dimension
+> handling is resolved — i.e. it is **blocked on the held cosine strike**, a dependency this ruling
+> did not state.
+>
+> **And the two are asymmetric — treating them as a pair was the error.** `presence?`
+> (`eval_algebra_presence_q:18623`) takes `require_holon` on **both** args (a `Vector` is rejected
+> outright), then encodes both at one ambient `program_dim`. It **cannot reach**
+> `pair_values_to_vectors` at all — so it is **genuinely total today**, and #52 marked it so.
+> `coincident?` (`:18677`) is polymorphic over `(HolonAST, Vector)` and routes both operands through
+> that shared helper. *That* is the whole difference.
+>
+> **Interlock worth knowing:** `presence?`'s totality depends on `presence_floor(sym)`, which invokes
+> the ambient sigma fn — so it rests on the pure ∧ deterministic ∧ total sigma gate landed the same day
+> (`4049fadd`). Without that gate, `presence?` could not have been marked total.
+>
+> **On reachability, stated honestly:** whether a dimension mismatch is reachable at all is **unproven
+> in both directions**. The obvious route closed hours before #52 ran (`9eb0f4c1` — `bytes-vector`'s
+> cross-dim check was vacuous and now compares against `ctx.dim_count`), and with `set-dim-count!` a
+> static once-only constant every *encoded* Vector shares one `d`. What is NOT enumerated is whether a
+> `Value::Vector` crosses a process boundary via the **generic EDN record path**. `total: false` here is
+> **default-deny for an unmeasured verb**, and must not be read as "mismatch is reachable."
 - **A user may follow the same logic.** A user fn whose float arithmetic can reach NaN/±Inf takes the
   measurement's full form; wrapping it in their own `bool` predicate is legitimate, and their predicate
   is then exact for their question.

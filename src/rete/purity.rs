@@ -386,9 +386,12 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     restriction (a well-typed call always returns; type mismatches are the type checker's
     //     concern, not this axis's, exactly the convention `pure`/`deterministic` already use).
     //   `i64::>` `i64::<` `i64::>=` `i64::<=` — comparisons never overflow (only +/-/*// do).
-    //   `i64::to-f64` — a total, lossy-but-never-raising conversion.
-    //   `f64::>` `f64::*` — f64 arithmetic/comparison is IEEE 754: never raises (verified
-    //     `eval_f64_arith` — even `0.0/0.0` yields `NaN`, not an error).
+    //   `i64::to-f64` — a total, lossy-but-never-raising conversion (i64::MAX ≈ 9.2e18 is nowhere
+    //     near f64's overflow boundary ≈1.8e308, so the result is always finite, never ±Inf).
+    //   `f64::>` — a comparison, not an arithmetic op: `eval_f64_compare` returns a `bool` for any
+    //     two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never a raise), so the
+    //     OUTPUT itself can never be the undefined thing this axis polices — same shape as the
+    //     `coincident?`/`presence?` predicates below.
     //   `PersistentVector/length` `/contains?` — always defined.
     //   `PersistentVector/get` — ALREADY total by design (returns `Option`, `None` on
     //     out-of-range — verified `persistentvector_get_inner`, never raises for a valid index).
@@ -401,6 +404,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     new one. `map`/`filter`/`reduce`/`foldr` are extremely likely total by the identical
     //     argument but are NOT included — no `where` row in the corpus uses them, so nothing
     //     measured the claim. Flagged, not classified.
+    //   `:wat::holon::presence?` — see the VSA-seam block below (BRIEF-total-column-honest.md
+    //     Direction 2); grouped with the string/holon verbs there, not repeated here.
     //
     // Explicitly and deliberately LEFT `false` (genuinely partial, confirmed by reading the
     // implementation, not assumed from the design stone's guess) even though every one appears
@@ -413,6 +418,20 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     independently for `+` (documented as "the same class of event" as division-by-zero).
     //   `i64::mod` `i64::rem` `i64::quot` — verified: raise `DivisionByZero` at a zero divisor.
     //   `string::subs` — verified: raises `MalformedForm` on an out-of-range start/end.
+    //
+    // ── BRIEF-total-column-honest.md Direction 1 (2026-08-02) — a false marked TRUE, removed ────
+    //
+    //   `f64::*` — WAS `total: true` by T1's default-deny-then-never-revisited sweep; that was the
+    //     gap this strike exists to close. `eval_f64_arith` dispatches `f64::*` to a bare `a * b`
+    //     (`runtime.rs:4993`) — raw IEEE 754 multiply, NO overflow guard. Under the builder-ruled
+    //     stricter definition (total = ordinary value on every input; NaN/±Inf are UNDEFINED, not a
+    //     free pass), `f64::*` is NOT total two separate ways: (1) two large finite operands
+    //     overflow to `±Inf` (e.g. `1e200 * 1e200`); (2) `0.0 * f64::INFINITY` (both are ordinary,
+    //     reachable f64 values — Infinity is a legal f64 the moment ANY prior op produces one) is
+    //     `NaN` by IEEE 754. `f64::>` (kept true, above) is unaffected — it is a comparison whose
+    //     OUTPUT is a bool, never itself the undefined value. `f64::+`/`f64::-`/`f64::/` were never
+    //     marked true (already correctly `false`, same overflow-to-Inf reasoning) — no action needed
+    //     there, per STOP-3 (do not widen the audit past entries already `true`).
     let total = matches!(
         head,
         ":wat::core::="
@@ -429,7 +448,6 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64::<="
             | ":wat::core::i64::to-f64"
             | ":wat::core::f64::>"
-            | ":wat::core::f64::*"
             | ":wat::core::PersistentVector/length"
             | ":wat::core::PersistentVector/contains?"
             | ":wat::core::PersistentVector/get"
@@ -439,6 +457,69 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::String/contains?"
             | ":wat::core::String/empty?"
             | ":wat::core::foldl"
+            // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
+            //
+            // Only ONE of the four holon verbs opened 2026-08-01 (`purity.rs`'s VSA-seam block,
+            // above) is genuinely total. Per-verb evidence, not a blanket grant — the design
+            // stone's `MEASUREMENT vs PREDICATE` ruling (`DESIGN-STONE-where-admits-only-rete-ops.md`
+            // "RULED 2026-08-02 — THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT") gives the SHAPE
+            // of the eventual answer, but that ruling's `coincident?`/`presence? become total` is a
+            // FUTURE-TENSE description of a strike this brief's STOP-1 forbids doing now (converting
+            // `cosine` to an outcome enum, and correspondingly hardening `coincident?`/`presence?`'s
+            // OWN bodies to swallow the degenerate case instead of raising) — so each of the four is
+            // graded against what its implementation ACTUALLY does today, not the ruling's target
+            // state:
+            //
+            //   `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
+            //     takes both args through `require_holon` (HolonAST only — a raw `Vector` is
+            //     rejected as a `TypeMismatch`, the ordinary "type checker's concern" exclusion this
+            //     axis already uses elsewhere), then encodes BOTH at the same ambient `d`
+            //     (`program_dim` → one `enc`, `runtime.rs:18646-18649`) — so there is no code path by
+            //     which its two vectors can disagree in dimension; unlike its three siblings below it
+            //     never reaches `pair_values_to_vectors`. Its only float op is `cosine >
+            //     enc.presence_floor(sym)` — a comparison, total for the same reason `f64::>` is
+            //     (returns `bool`, never raises, never itself NaN/Inf) — so even the `norm < 1e-10 →
+            //     0.0` mask in `Similarity::cosine` (`holon-rs/src/kernel/similarity.rs:79-81`) does
+            //     not threaten totality here: whatever `cosine` returns, `>` against it is defined.
+            //     `presence?` is ALREADY total today, no future strike required.
+            //
+            //   `:wat::holon::coincident?` — left FALSE, diverging from the design stone's naive
+            //     table entry (found by grounding, not by trusting the name — STOP-4). Unlike
+            //     `presence?`, `eval_algebra_coincident_q` (`runtime.rs:18677`) is polymorphic over
+            //     (HolonAST, Vector) pairs and routes BOTH args through `pair_values_to_vectors`
+            //     (`runtime.rs:18699`, same call `cosine`/`dot` make) — which raises
+            //     `RuntimeErrorKind::TypeMismatch` when two pre-encoded Vectors disagree in
+            //     dimension (`runtime.rs:18539-18546`) — exactly `dot`'s already-grounded
+            //     "dimension mismatch, not arithmetic" partiality, on the identical shared helper.
+            //
+            //     ⚠ REACHABILITY IS **UNPROVEN IN BOTH DIRECTIONS**, and this entry rests on
+            //     DEFAULT-DENY, not on a demonstrated hazard. The obvious route was closed HOURS
+            //     before this audit ran: `bytes-vector` used to admit a foreign-`d` Vector (its
+            //     cross-dim check was VACUOUS — `encoders.get` materializes an encoder at any `d`
+            //     it is handed), and `9eb0f4c1` replaced it with `dim != ctx.dim_count` →
+            //     `VectorDecodeOutcome::DimensionMismatch` (`runtime.rs:19446`). With
+            //     `set-dim-count!` a static, once-only entry-file constant (`config.rs:431`),
+            //     every ENCODED Vector in a program shares one `d`. What is NOT proven is whether a
+            //     `Value::Vector` can cross a process boundary via the GENERIC EDN record path
+            //     rather than `bytes-vector` — nobody has enumerated that, so the world is not
+            //     provably closed either. `total: false` is therefore the correct posture for an
+            //     UNMEASURED verb, and must not be read as "mismatch is reachable."
+            //     The design stone's "`coincident?`...become[s] total" is that FUTURE strike's
+            //     target (hardening this verb's own body to swallow the mismatch as `false` instead
+            //     of raising) — STOP-1 forbids doing that work now, so marking it `total: true`
+            //     today would recreate this exact audit's own defect one level up: a false marked
+            //     true, this time ahead of its implementation rather than behind it.
+            //
+            //   `:wat::holon::cosine`, `:wat::holon::dot` — left FALSE, per the brief's own grounded
+            //     citations: `dot`'s arithmetic cannot overflow (`Vector.data: Vec<i8>`, `dot_raw`
+            //     accumulates in `i64`, unreachable at real dimensions) and `cosine`'s zero-magnitude
+            //     case cannot NaN (guarded to `0.0`) — but BOTH share `coincident?`'s reachable
+            //     dimension-mismatch raise via `pair_values_to_vectors`, and `cosine`'s `0.0` is a
+            //     live semantic mask on a reachable input (probe
+            //     `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`, 2026-08-02: genuine
+            //     unrelatedness reads `-0.0086`, never exactly `0.0`) that the ruled fix is an
+            //     outcome enum for, not a `total: true` stamp. Unchanged from T1.
+            | ":wat::holon::presence?"
     );
 
     if pure_det {
