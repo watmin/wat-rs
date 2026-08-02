@@ -190,7 +190,15 @@ zero `token:` census sites — **this stone builds on clean ground and must not 
    check a *fast wrong answer* passes everything else on.
 5. **`filter` and `hash-join` do not regress** in `node_share_fire_phase_census` — Token bindings are
    read in both, and this is where the lookup win should show if it shows anywhere.
-6. **Release floor and clippy 0**, by my own re-run. Baseline at HEAD: **4262/4262**.
+6. **Release floor and clippy 0**, by my own re-run. Baseline at HEAD: **4260/4260**.
+
+   > **Corrected 2026-08-01, after the stone was weighed.** This row first said 4262 — a number
+   > carried across a compaction and written down as verified without re-running the floor after the
+   > census revert. It is wrong, and the arithmetic that caught it: my own verified floor *with* the
+   > census WIP was 4263/4263 at 262 skipped; that WIP added 3 test fns; so HEAD is 4260. The stone's
+   > diff adds 1 test and removes 0 (`git diff | grep -c '^+\s*#\[test\]'` → 1, `-` → 0, ignores
+   > ±0), predicting 4261 — which is exactly what the floor returned. Nothing was lost; the baseline
+   > was. `[[feedback_a_claims_support_does_not_travel_with_the_claim]]`.
 7. **`PMap`'s six laws still green** — this stone must not loosen the wall the last one built.
 
 ## Out of scope = REJECTED
