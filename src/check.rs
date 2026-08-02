@@ -19275,6 +19275,29 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // BRIEF-the-fence-names-the-head — a third sibling beside pure?/deterministic?, additive only
+    // (STOP-1: those two are UNCHANGED). Same walk, surfacing the violation instead of discarding
+    // it. `:wat::rete::AxisViolation` and `:wat::rete::Axis` are declared via `defrecord`/`defenum`
+    // in `wat/rete.wat` (mirrors `:wat::rete::DerivationStep` — no separate `register_builtin`
+    // needed for either type here). PROVISIONAL name, cast owed.
+    // Builder-ruled (CLOSED-SET RULE, REALIZATIONS.md:2676): the axis argument is the
+    // `:wat::rete::Axis` enum, not a free keyword — a closed 2-member set about to gain a 3rd.
+    // (:wat::rete::axis-violation <expr: :wat::WatAST> <axis: :wat::rete::Axis>) -> :wat::core::Option<wat::rete::AxisViolation>
+    env.register(
+        ":wat::rete::axis-violation".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::rete::Axis".into()),
+            ],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(":wat::rete::AxisViolation".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // Arc 278 Stone 6b-i — eval-test: the runtime evaluator for where/:test predicates.
     // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
     env.register(

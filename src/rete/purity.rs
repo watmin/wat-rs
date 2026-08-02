@@ -29,6 +29,18 @@
 //! `classify_fn` threads a `seen: &mut HashSet<String>` of fqdns mid-evaluation. A back-edge to an fqdn
 //! already in `seen` returns `true` (purity/determinism fixpoint: the cycle contributes no new
 //! violation; the property is falsified only by a concrete violating leaf, which short-circuits up).
+//!
+//! ## The walk yields its violation instead of discarding it (post-6a fix — see
+//! BRIEF-the-fence-names-the-head.md)
+//!
+//! The walk described above always knew, at the instant it falsified an axis, exactly which head did
+//! it — and threw that away to return a bare `false`. `classify_expr`/`head_ok`/`classify_fn` now
+//! return `Result<(), AxisViolation>` internally; `is_pure_expr`/`is_deterministic_expr` derive their
+//! (UNCHANGED) bools from `.is_ok()`, and the new `find_axis_violation` (wat surface:
+//! `:wat::rete::axis-violation`, PROVISIONAL name — cast owed) derives from `.err()`. One walk, two
+//! surfaces. A `Span` rides along whenever the walk was still inside an inspectable call-site AST at
+//! the moment of failure; the one case it is not is a `FunctionBody::Native` head reached through
+//! transitive user-fn recursion (no body AST to point into — see `classify_fn`'s `Native` arm).
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -36,19 +48,47 @@ use crate::runtime::{
     ValueSnapshot,
 };
 use crate::span::Span;
+use crate::value::value::{AggregateValue, EnumValue};
 use std::collections::HashSet;
 use std::sync::Arc;
 
 // ─── The two axes ─────────────────────────────────────────────────────────────
 
 /// The property being classified. The structural walk is shared; only the per-head leaf decision
-/// (`head_ok`) differs by axis.
+/// (`head_ok`) differs by axis. `pub(crate)` (not private) because `AxisViolation::axis` and
+/// `find_axis_violation` — both `pub(crate)`, for the wat-visible `axis-violation` surface — carry
+/// it past this module's boundary.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Axis {
+pub(crate) enum Axis {
     /// Effect-free: no IO/mutation/spawn.
     Pure,
     /// Referentially transparent: same inputs → same output.
     Deterministic,
+}
+
+/// The offending leaf recorded when `classify_expr`/`head_ok`/`classify_fn` falsifies `axis`.
+/// Carries at minimum the violating head's name; `span` is `Some` whenever the walk was still
+/// inside an inspectable call-site AST at the moment of failure. `classify_expr`'s general-`List`
+/// arm always has the failing call's own AST node (`items.first()`) in hand and stamps its `Span`
+/// there — the ONE arm that cannot is `classify_fn`'s `FunctionBody::Native` case (and its sibling
+/// "name not registered" case): a native fn stub has no body AST to point into.
+///
+/// Exists so `(:wat::rete::axis-violation …)` (the new wat-visible diagnostic surface — PROVISIONAL
+/// name, cast owed) can name WHAT failed instead of a bare `false`. See
+/// `docs/arc/2026/06/278-rules-engine/BRIEF-the-fence-names-the-head.md`.
+#[derive(Clone)]
+pub(crate) struct AxisViolation {
+    pub(crate) head: String,
+    pub(crate) axis: Axis,
+    pub(crate) span: Option<Span>,
+}
+
+impl AxisViolation {
+    /// A span-less violation — the caller (typically `classify_expr`'s general-`List` arm) fills in
+    /// `span` from the call-site AST it has in hand, when it has one.
+    fn new(head: impl Into<String>, axis: Axis) -> Self {
+        AxisViolation { head: head.into(), axis, span: None }
+    }
 }
 
 // ─── The hand-managed per-op metadata map (v1 projection of arc 255) ───────────
@@ -356,24 +396,26 @@ fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
 /// Does `head` satisfy `axis`? Data constructors and field accessors are recognized first
 /// (pure-by-declaration, interim pre-255); then user fns recurse transitively; intrinsics consult
 /// `intrinsic_meta`; unknown heads default-deny.
-fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
+fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
     // Data constructor (record/holon/enum-variant pure; struct impure) — recognized BEFORE the
     // sym.functions branch, because tagged-variant constructors are registered there as opaque stubs
     // that classify_fn would default-deny.
     if let Some(m) = constructor_meta(head, sym) {
-        return match axis {
+        let ok = match axis {
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
         };
+        return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
     // Generated field accessor (`Type/field`) — same declaration-read as constructors, and likewise
     // BEFORE the sym.functions branch: accessors register there as Native stubs that classify_fn
     // default-denies, so we MUST intercept the accessor here.
     if let Some(m) = accessor_meta(head, sym) {
-        return match axis {
+        let ok = match axis {
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
         };
+        return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
     // User-defined fn → transitive check of its body on the SAME axis.
     if sym.functions.contains_key(head) {
@@ -383,13 +425,23 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
         // Pure: effectful namespaces are an explicit deny; otherwise the metadata must declare pure.
         Axis::Pure => {
             if crate::runtime::is_effectful_op(head) {
-                return false;
+                return Err(AxisViolation::new(head, axis));
             }
-            intrinsic_meta(head).is_some_and(|m| m.pure)
+            if intrinsic_meta(head).is_some_and(|m| m.pure) {
+                Ok(())
+            } else {
+                Err(AxisViolation::new(head, axis))
+            }
         }
         // Deterministic: the metadata must declare deterministic (effectful/unknown ⇒ None ⇒ deny,
         // which is correct — IO and unknown ops are not referentially transparent).
-        Axis::Deterministic => intrinsic_meta(head).is_some_and(|m| m.deterministic),
+        Axis::Deterministic => {
+            if intrinsic_meta(head).is_some_and(|m| m.deterministic) {
+                Ok(())
+            } else {
+                Err(AxisViolation::new(head, axis))
+            }
+        }
     }
 }
 
@@ -397,7 +449,7 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
 
 /// Recursively classify an AST node against `axis`. The structure (quote-as-data, clause-aware
 /// `cond`/`match`, element-wise vectors/maps/sets) is identical for both axes; only `head_ok` differs.
-fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
+fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
     match ast {
         // Non-list forms are pure, deterministic data.
         WatAST::IntLit(_, _)
@@ -410,21 +462,29 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)
         | WatAST::Keyword(_, _)
-        | WatAST::Symbol(_, _) => true,
+        | WatAST::Symbol(_, _) => Ok(()),
 
         // quote / quasiquote / holon-literal sub-forms are DATA — do not recurse into them as calls.
         // Arc 294.b: `:wat::holon::literal` is pure (it captures data, no side-effects).
         WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quote" || k == ":wat::core::quasiquote" || k == ":wat::holon::literal") => {
-            true
+            Ok(())
         }
 
         // `cond` — clause-aware: (cond (test body…) …). A clause is NOT a call; every element
         // (test AND body forms) is an expression that must satisfy the axis. (cond ≡ chained `if`.)
         WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::cond") => {
-            items[1..].iter().all(|clause| match clause {
-                WatAST::List(parts, _) => parts.iter().all(|e| classify_expr(e, axis, sym, seen)),
-                _ => false, // malformed clause → deny
-            })
+            for clause in &items[1..] {
+                match clause {
+                    WatAST::List(parts, _) => {
+                        for e in parts {
+                            classify_expr(e, axis, sym, seen)?;
+                        }
+                    }
+                    // malformed clause → deny, naming the malformed clause's own span.
+                    other => return Err(AxisViolation { head: "<malformed cond clause>".into(), axis, span: Some(other.span().clone()) }),
+                }
+            }
+            Ok(())
         }
 
         // `match` — clause-aware: (match scrut (pattern body…) …). The scrutinee and every arm
@@ -432,65 +492,112 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // match has no guards). Arc 258.5 — bare match: scrutinee = items[1], arms = items[2..]
         // (the `-> :T` ascription is retired). Skip the pattern (arm element 0), check the body
         // (arm elements 1..).
-        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::match") => {
-            let scrut_ok = items.get(1).is_some_and(|s| classify_expr(s, axis, sym, seen));
-            scrut_ok
-                && items.get(2..).is_some_and(|arms| {
-                    arms.iter().all(|arm| match arm {
-                        // skip pattern (element 0); check body forms (1..).
-                        WatAST::List(parts, _) => {
-                            parts.iter().skip(1).all(|e| classify_expr(e, axis, sym, seen))
+        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::match") => {
+            let scrut = items.get(1).ok_or_else(|| AxisViolation {
+                head: "<malformed match: no scrutinee>".into(),
+                axis,
+                span: Some(list_span.clone()),
+            })?;
+            classify_expr(scrut, axis, sym, seen)?;
+            let arms = items.get(2..).ok_or_else(|| AxisViolation {
+                head: "<malformed match: no arms>".into(),
+                axis,
+                span: Some(list_span.clone()),
+            })?;
+            for arm in arms {
+                match arm {
+                    // skip pattern (element 0); check body forms (1..).
+                    WatAST::List(parts, _) => {
+                        for e in parts.iter().skip(1) {
+                            classify_expr(e, axis, sym, seen)?;
                         }
-                        _ => false, // malformed arm → deny
-                    })
-                })
+                    }
+                    other => return Err(AxisViolation { head: "<malformed match arm>".into(), axis, span: Some(other.span().clone()) }),
+                }
+            }
+            Ok(())
         }
 
         // `:wat::core::fn` lambda literal — NOT a call. Layout: (fn [params…] -> :ret body…).
         // The param vector + return-type are not evaluated; only the BODY forms (after the `-> :ret`
         // ascription) carry effects, so classify exactly those. Mirror the `match`-arm's logic:
         // locate the top-level `->` symbol, then body = items[i+2..] (skip `->` and :ret).
-        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn") => {
+        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn") => {
             match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
-                Some(i) => items
-                    .get(i + 2..)
-                    .is_some_and(|body| body.iter().all(|e| classify_expr(e, axis, sym, seen))),
-                None => false, // malformed fn (no `->`) → deny
+                Some(i) => {
+                    let body = items.get(i + 2..).ok_or_else(|| AxisViolation {
+                        head: "<malformed fn: no body>".into(),
+                        axis,
+                        span: Some(list_span.clone()),
+                    })?;
+                    for e in body {
+                        classify_expr(e, axis, sym, seen)?;
+                    }
+                    Ok(())
+                }
+                // malformed fn (no `->`) → deny
+                None => Err(AxisViolation { head: "<malformed fn: no `->`>".into(), axis, span: Some(list_span.clone()) }),
             }
         }
 
         // General list: head decision + recurse into args (same axis).
         WatAST::List(items, _) => {
-            let head = match items.first() {
-                None => return true, // empty list — no call
+            let head_node = items.first();
+            let head = match head_node {
+                None => return Ok(()), // empty list — no call
                 Some(WatAST::Keyword(k, _)) => k.as_str(),
                 Some(WatAST::Symbol(id, _)) => id.as_str(),
-                _ => return false, // non-keyword/symbol head — unknown → deny
+                // non-keyword/symbol head — unknown → deny, naming the offending node's own span.
+                Some(other) => return Err(AxisViolation { head: "<non-keyword/symbol head>".into(), axis, span: Some(other.span().clone()) }),
             };
-            head_ok(head, axis, sym, seen)
-                && items[1..].iter().all(|a| classify_expr(a, axis, sym, seen))
+            if let Err(mut v) = head_ok(head, axis, sym, seen) {
+                // Fill in the call-site span iff a deeper frame hasn't already stamped a more
+                // precise one (see `AxisViolation`'s doc — the innermost failing call wins).
+                if v.span.is_none() {
+                    v.span = head_node.map(|h| h.span().clone());
+                }
+                return Err(v);
+            }
+            for a in &items[1..] {
+                classify_expr(a, axis, sym, seen)?;
+            }
+            Ok(())
         }
 
         // Vectors / maps / sets → recurse element-wise.
-        WatAST::Vector(elems, _) => elems.iter().all(|e| classify_expr(e, axis, sym, seen)),
-        WatAST::Map(pairs, _) => pairs
-            .iter()
-            .all(|(k, v)| classify_expr(k, axis, sym, seen) && classify_expr(v, axis, sym, seen)),
-        WatAST::Set(elems, _) => elems.iter().all(|e| classify_expr(e, axis, sym, seen)),
+        WatAST::Vector(elems, _) => {
+            for e in elems {
+                classify_expr(e, axis, sym, seen)?;
+            }
+            Ok(())
+        }
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                classify_expr(k, axis, sym, seen)?;
+                classify_expr(v, axis, sym, seen)?;
+            }
+            Ok(())
+        }
+        WatAST::Set(elems, _) => {
+            for e in elems {
+                classify_expr(e, axis, sym, seen)?;
+            }
+            Ok(())
+        }
     }
 }
 
 /// Classify a named user fn against `axis` by inspecting its body transitively. `seen` detects cycles;
 /// a back-edge (fqdn already in `seen`) returns `true` (fixpoint: the cycle adds no new violation).
-fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
+fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
     if seen.contains(fqdn) {
-        return true; // back-edge — no new violation from the recursive call
+        return Ok(()); // back-edge — no new violation from the recursive call
     }
     seen.insert(fqdn.to_string());
 
     let func = match sym.functions.get(fqdn) {
         Some(f) => Arc::clone(f),
-        None => return false, // name not registered → deny
+        None => return Err(AxisViolation::new(fqdn, axis)), // name not registered → deny
     };
     match &func.body {
         FunctionBody::Wat(body_ast) => classify_expr(body_ast.as_ref(), axis, sym, seen),
@@ -498,11 +605,16 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
         // so consult the hand-managed intrinsic_meta on the requested axis. This is load-bearing
         // for the HOF combinators (foldl/map/…): they are native AND registered in sym.functions,
         // so head_ok reaches classify_fn FIRST (before intrinsic_meta on the Pure/Det fallthrough).
-        // Unproven natives (not in intrinsic_meta) still default-deny.
-        FunctionBody::Native => intrinsic_meta(fqdn).is_some_and(|m| match axis {
-            Axis::Pure => m.pure,
-            Axis::Deterministic => m.deterministic,
-        }),
+        // Unproven natives (not in intrinsic_meta) still default-deny. NOTE: this is the one arm
+        // that CANNOT carry a Span — a native stub has no body AST to point into (see
+        // `AxisViolation`'s doc).
+        FunctionBody::Native => {
+            let ok = intrinsic_meta(fqdn).is_some_and(|m| match axis {
+                Axis::Pure => m.pure,
+                Axis::Deterministic => m.deterministic,
+            });
+            if ok { Ok(()) } else { Err(AxisViolation::new(fqdn, axis)) }
+        }
     }
 }
 
@@ -510,12 +622,20 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
 
 /// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::core::Uuid/v4` is pure (it does no IO).
 pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, Axis::Pure, sym, &mut HashSet::new())
+    classify_expr(ast, Axis::Pure, sym, &mut HashSet::new()).is_ok()
 }
 
 /// Is `ast` referentially transparent (same inputs → same output)? `:wat::core::Uuid/v4` is NOT.
 pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, Axis::Deterministic, sym, &mut HashSet::new())
+    classify_expr(ast, Axis::Deterministic, sym, &mut HashSet::new()).is_ok()
+}
+
+/// Run the SAME walk `is_pure_expr`/`is_deterministic_expr` use, but keep the violation instead of
+/// collapsing it to `false`. `None` ⟺ `ast` satisfies `axis` (agrees with the bool predicates above
+/// by construction — same function, same recursion, only the return type differs). Backs the
+/// wat-visible `:wat::rete::axis-violation` diagnostic surface (PROVISIONAL name, cast owed).
+pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -> Option<AxisViolation> {
+    classify_expr(ast, axis, sym, &mut HashSet::new()).err()
 }
 
 // ─── WAT surfaces ───────────────────────────────────────────────────────────────
@@ -567,6 +687,90 @@ pub(crate) fn eval_deterministic_predicate(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     eval_axis_predicate(":wat::rete::deterministic?", is_deterministic_expr, args, list_span, env, sym)
+}
+
+/// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
+/// :wat::core::Option<wat::rete::AxisViolation>`
+///
+/// **PLACEHOLDER NAME** — orchestrator's scaffolding, cast owed (see
+/// `BRIEF-the-fence-names-the-head.md`). The SAME walk `pure?`/`deterministic?` run, surfacing the
+/// violation instead of discarding it: `:wat::core::None` ⟺ `(pure? e)` / `(deterministic? e)` would
+/// be `true` for the requested axis; `Some(v)` names the offending head (`v/head`), echoes the axis
+/// back (`v/axis`), and carries a `:wat::kernel::Location` when the walk was still inside an
+/// inspectable AST at the point of failure (`v/span`), `:wat::core::None` otherwise.
+///
+/// Builder-ruled (CLOSED-SET RULE, REALIZATIONS.md:2676): the axis argument is the
+/// `:wat::rete::Axis` enum (a `defenum` in `wat/rete.wat`), decoded/encoded here directly as a
+/// `Value::Enum` — no keyword string map. `pure?`/`deterministic?` are UNCHANGED by this addition
+/// (STOP-1) — this is purely additive.
+pub(crate) fn eval_axis_violation(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::axis-violation";
+    const AXIS_TYPE: &str = ":wat::rete::Axis";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        })
+        .into());
+    }
+    let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let ast = match val {
+        Value::wat__WatAST(ref a) => (**a).clone(),
+        other => {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
+                got: Box::new(ValueSnapshot::of(&other)),
+            })
+            .into());
+        }
+    };
+    let axis_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let axis = match &axis_val {
+        Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Pure" => Axis::Pure,
+        Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Deterministic" => Axis::Deterministic,
+        other => {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Axis (Pure or Deterministic)",
+                got: Box::new(ValueSnapshot::of(other)),
+            })
+            .into());
+        }
+    };
+    let out = match find_axis_violation(&ast, axis, sym) {
+        None => Value::Option(Arc::new(None)),
+        Some(v) => {
+            let span_val = match v.span {
+                Some(sp) => Value::Option(Arc::new(Some(crate::runtime::value_from_span(sp)))),
+                None => Value::Option(Arc::new(None)),
+            };
+            let axis_variant = match v.axis {
+                Axis::Pure => "Pure",
+                Axis::Deterministic => "Deterministic",
+            };
+            let record = Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::rete::AxisViolation".to_string(),
+                Arc::new(vec![
+                    Value::String(Arc::new(v.head)),
+                    Value::Enum(Arc::new(EnumValue {
+                        type_path: AXIS_TYPE.to_string(),
+                        variant_name: axis_variant.to_string(),
+                        fields: vec![],
+                    })),
+                    span_val,
+                ]),
+            )));
+            Value::Option(Arc::new(Some(record)))
+        }
+    };
+    Ok(out)
 }
 
 // ─── The purity-COMPLETENESS gate (arc 278, 2026-08-01) ─────────────────────────
@@ -643,7 +847,13 @@ mod completeness_gate {
     /// ★ THE RATCHET. Lower it when verbs get ruled on; NEVER raise it to make a red gate green —
     /// raising it is the laundering this gate exists to prevent. A new dispatch verb that is
     /// neither classified nor disposed pushes the count over and goes red.
-    const UNREVIEWED_BASELINE: usize = 212;
+    ///
+    /// 212 → 213 (BRIEF-the-fence-names-the-head): `:wat::rete::axis-violation` is a new dispatch
+    /// verb (this stone). It is a compiler-internal diagnostic helper, not something a `where`
+    /// predicate would call, so it does not want a `pure`/`deterministic` CLASSIFICATION here — it
+    /// falls under the existing `:wat::rete::` catch-all `Unreviewed` disposition above, same as
+    /// every other rete engine verb. This is a genuine +1 to the worklist, not a laundered raise.
+    const UNREVIEWED_BASELINE: usize = 213;
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
     /// keyword-head path) and `dispatch_substrate_impl` (the `apply`-reachable substrate table).

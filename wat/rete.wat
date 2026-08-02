@@ -539,6 +539,85 @@
   [state     <- :wat::rete::CompileState
    parent-id <- :wat::core::i64])
 
+;; Axis — BRIEF-the-fence-names-the-head, builder-ruled: the CLOSED-SET RULE
+;; (REALIZATIONS.md:2676 — "a closed set is an enum, name holds value; open identifiers stay
+;; Keyword/String"). WHICH axis `:wat::rete::axis-violation` is being asked about. Closed at 2
+;; members today; a 3rd (:Total) is queued right behind this stone, and an ENUM makes that landing
+;; a compile error everywhere it isn't handled — see `axis-violation-message`'s exhaustive match
+;; below, which is the whole payoff.
+;;
+;; ★ NAME COLLISION — read before editing this line: the nature marker `:wat::enum::Pure` right
+;; after the type name is UNRELATED to the `:Pure` VARIANT two lines under it. The marker declares
+;; THIS ENUM's own runtime representation holds pure data (trivially true — every variant here is a
+;; bare unit tag, no payload, so it can never carry a live resource, same as
+;; `:wat::runtime::Purity`/`:wat::runtime::Determinism` in runtime-meta.wat). The `:Pure` VARIANT is
+;; the axis constant meaning "check effect-freedom." Same word, two unrelated things — do not
+;; conflate them when you read or extend this form.
+(:wat::core::defenum :wat::rete::Axis :wat::enum::Pure
+  :Pure
+  :Deterministic)
+
+;; AxisViolation — BRIEF-the-fence-names-the-head. The result of `:wat::rete::axis-violation`:
+;; the offending head when a `where`/accumulator expr falsifies :pure or :deterministic.
+;;   head: the violating verb's fqdn (e.g. ":wat::io::IOReader/open-file", ":wat::core::Uuid/v4").
+;;   axis: which axis was asked about (:wat::rete::Axis::Pure or ::Deterministic) — echoed back for
+;;         self-description.
+;;   span: the failing call's source Location when the walk was still inside an inspectable AST at
+;;         the moment of failure; None for the one case it wasn't (a native fn stub with no body).
+;; PROVISIONAL NAME + fields — cast owed (see the brief).
+(:wat::core::defrecord :wat::rete::AxisViolation
+  [head <- :wat::core::String
+   axis <- :wat::rete::Axis
+   span <- :wat::core::Option<wat::kernel::Location>])
+
+;; first-failing-axis — given is-pure/is-det (the SAME booleans a fence's `(and is-pure is-det)`
+;; already computed), names WHICH axis to explain, mirroring `and`'s left-to-right short-circuit:
+;; if is-pure held, only is-det could have failed → :Deterministic; else :Pure is reported (checked
+;; first, exactly as `and` would have short-circuited on it). Never called when both hold — both
+;; fence call sites reach this only inside the branch where the accept check already failed.
+(:wat::core::defn :wat::rete::first-failing-axis
+  [is-pure <- :wat::core::bool
+   is-det  <- :wat::core::bool]
+  -> :wat::rete::Axis
+  (:wat::core::if is-pure
+    :wat::rete::Axis::Deterministic
+    :wat::rete::Axis::Pure))
+
+;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
+;; rejection. `context` names the fenced site ("where" / "accumulator"); `failing-axis` is the axis
+;; `first-failing-axis` picked. This function NEVER changes accept/reject (STOP-3) — both call sites
+;; reach it only after `(and is-pure is-det)` was already false — it only names the failure that was
+;; already found. `:wat::core::Option/expect`'s message argument is evaluated lazily (only on the
+;; None/rejected branch — `expect_panic` in runtime.rs), so this walk never runs on an accepted expr
+;; even though it is wired as a plain argument expression.
+;;
+;; The `match` below is EXHAUSTIVE over `:wat::rete::Axis` — that is the payoff of the enum over a
+;; free keyword: when a 3rd variant (:Total) is minted, this function's match becomes non-exhaustive
+;; and FAILS TO COMPILE until an arm is added here. A keyword could not have enumerated its own
+;; consumers this way; the checker now does.
+(:wat::core::defn :wat::rete::axis-violation-message
+  [context      <- :wat::core::String
+   expr         <- :wat::WatAST
+   failing-axis <- :wat::rete::Axis]
+  -> :wat::core::String
+  (:wat::core::match failing-axis
+    (:wat::rete::Axis::Pure
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Pure)
+       ((:wat::core::Some v)
+        (:wat::core::string::concat "compile-condition: " context " expr is not pure — '"
+                                     (:wat::rete::AxisViolation/head v) "' is not pure"))
+       (:wat::core::None
+        (:wat::core::string::concat "compile-condition: " context
+                                     " expr is not pure (offending head could not be attributed)"))))
+    (:wat::rete::Axis::Deterministic
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Deterministic)
+       ((:wat::core::Some v)
+        (:wat::core::string::concat "compile-condition: " context " expr is not deterministic — '"
+                                     (:wat::rete::AxisViolation/head v) "' is not deterministic"))
+       (:wat::core::None
+        (:wat::core::string::concat "compile-condition: " context
+                                     " expr is not deterministic (offending head could not be attributed)"))))))
+
 (:wat::core::defn :wat::rete::compile-condition
   [acc  <- :wat::rete::CondFoldAcc
    cond <- :wat::WatAST]
@@ -559,14 +638,17 @@
     (:wat::core::if is-where
       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
       (:wat::core::let [expr      (:wat::core::second cond-ch)
-                        ;; fence: pure ∧ deterministic — raise at compile if false
+                        ;; fence: pure ∧ deterministic — raise at compile if false. The message
+                        ;; names the offending head + axis (BRIEF-the-fence-names-the-head); it is
+                        ;; computed lazily by `Option/expect` (only on the None/reject branch), so
+                        ;; the diagnostic walk never runs on an accepted expr.
                         is-pure   (:wat::rete::pure? expr)
                         is-det    (:wat::rete::deterministic? expr)
-                        _fence    (:wat::core::Option/expect  
+                        _fence    (:wat::core::Option/expect
                                       (:wat::core::if (:wat::core::and is-pure is-det)
                                         (:wat::core::Some nil)
                                         :wat::core::None)
-                                      "compile-condition: where expr must be pure and deterministic")
+                                      (:wat::rete::axis-violation-message "where" expr (:wat::rete::first-failing-axis is-pure is-det)))
                         ;; mint the TestNode
                         network0  (:wat::rete::CompileState/network state0)
                         next-id0  (:wat::rete::CompileState/next-id state0)
@@ -686,16 +768,22 @@
                             is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (:wat::core::quasiquote
                                             ((:wat::core::unquote acc-hd) __acc__))
-                            _acc-fence   (:wat::core::Option/expect  
+                            ;; fence: pure ∧ deterministic (skipped for :wat::rete::acc::* builtins,
+                            ;; which are trusted). is-pure/is-det are computed unconditionally — same
+                            ;; shape as the `where` fence above — which is safe even for a builtin
+                            ;; acc-hd: pure?/deterministic? default-deny gracefully on an unrecognized
+                            ;; head, never panic. The message names the offending head + axis
+                            ;; (BRIEF-the-fence-names-the-head, "accumulator" not "where"); it is
+                            ;; computed lazily by `Option/expect` (only on the None/reject branch).
+                            is-pure      (:wat::rete::pure? fence-call)
+                            is-det       (:wat::rete::deterministic? fence-call)
+                            _acc-fence   (:wat::core::Option/expect
                                              (:wat::core::if is-builtin
                                                (:wat::core::Some nil)
-                                               (:wat::core::if
-                                                 (:wat::core::and
-                                                   (:wat::rete::pure? fence-call)
-                                                   (:wat::rete::deterministic? fence-call))
+                                               (:wat::core::if (:wat::core::and is-pure is-det)
                                                  (:wat::core::Some nil)
                                                  :wat::core::None))
-                                             "compile-condition: custom accumulator must be pure and deterministic")
+                                             (:wat::rete::axis-violation-message "accumulator" fence-call (:wat::rete::first-failing-axis is-pure is-det)))
                             ;; assert items[3] is :from (structural validation)
                             from-kw      (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 3)

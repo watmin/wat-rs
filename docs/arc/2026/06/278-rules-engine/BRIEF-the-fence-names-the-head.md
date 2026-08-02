@@ -40,11 +40,14 @@ destroyed at a boundary. The fix is information restoration, not new analysis.
 1. `src/rete/purity.rs` module doc (`:1-31`) — the two-axis model, DEFAULT-DENY, the arc-255 successor.
 2. `src/rete/purity.rs:44-52` — `enum Axis`; `:59-62` `OpMeta`; `:98+` `intrinsic_meta` (7 construction
    sites, and the 110-verb `matches!` at `:116`).
-3. `src/rete/purity.rs:552-570` — `eval_pure_predicate` / `eval_deterministic_predicate` and the shared
-   `eval_axis_predicate`.
+3. `src/rete/purity.rs` — the shared `eval_axis_predicate` at `:525`, then its two public faces
+   `eval_pure_predicate` at `:553` and `eval_deterministic_predicate` at `:563`.
 4. `wat/rete.wat:560-570` — the `where` fence. `:690-700` — the accumulator fence (same message, same fix).
-5. `src/check.rs:19227-19245` — where `:wat::rete::pure?` / `deterministic?` are registered. A third
-   sibling registers beside them.
+   Both re-verified on the disk 2026-08-02; the `Option/expect` message strings are at `:569` and `:698`.
+5. `src/check.rs:19257-19270` — where `:wat::rete::pure?` / `deterministic?` are registered. A third
+   sibling registers beside them. (Re-grounded 2026-08-02 — this brief originally said `:19227-19245`;
+   the scalar-def gate landed ~30 lines above it in `b18888f8`. Line numbers in this arc drift; confirm
+   any citation before you trust it.)
 
 ## The shape
 
@@ -105,7 +108,9 @@ on it before this lands. Naming decisions are cast, never narrated.
    gate, so a deliberately-bad one goes permanently red).
 4. Report whether a `Span` was reachable at the failing leaf.
 
-**Do NOT run `cargo nextest`** — the orchestrator weighs the floor centrally (4266/4266 at `72a1ac3d`).
+**Do NOT run `cargo nextest`** — the orchestrator weighs the floor centrally. Baseline re-grounded
+2026-08-02: **4268 run / 4268 passed / 0 failed / 262 skipped at `c246bc23`** (this brief originally
+cited 4266/4266 at `72a1ac3d`, which predates the namespacing wall's follow-on stones).
 Do not commit, push, stash, or revert.
 
 ## Report
