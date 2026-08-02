@@ -78,7 +78,15 @@ produces a visibly wrong value; this one is silent.
 
 ## STOP triggers — rejection criteria. Ship nothing; report the gap.
 
-**STOP-1.** If `Token.bindings` (`kernel.rs:49`) appears to need changing — STOP. It stays a raw
+**⚠ STOP-1 WAS WRONG — corrected 2026-08-01, after the migration landed.** It is left verbatim
+below because the rider obeyed it and the record should show what it obeyed. The builder overturned
+it: *"the entire array up to 8, trie for rest came from this exact situation… and chose not to use
+it?"* Our own `element-bindings-array.md:94` says *"The 8-crossover stays interesting for
+`Token.bindings`"* — that stone NAMED Token as where this mattered, and ruled the other way only
+because the choice was then binary (array XOR trie, once, globally). A promoting map is the third
+option it never had. `DESIGN-STONE-token-bindings-promoting.md` is the correction.
+
+**STOP-1 (as written, and obeyed).** If `Token.bindings` (`kernel.rs:49`) appears to need changing — STOP. It stays a raw
 `HashTrieMapSync` by ruling (`DESIGN-STONE-element-bindings-array.md` measured build/lookup/clone/
 drop at every width and kept the trie). Convert at the boundary with `from_trie`/`to_trie`; do not
 migrate Token.
