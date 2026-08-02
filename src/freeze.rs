@@ -459,7 +459,7 @@ impl FrozenWorld {
                     )));
                 }
             };
-            check_sigma_fn_signature("set-presence-sigma!", &func)?;
+            check_sigma_fn_contract("set-presence-sigma!", &func, &symbols)?;
             // Stone 255.1a — sigma fns come from user-provided fn values; always Wat.
             let path = match func.name.clone() {
                 Some(name) => name,
@@ -494,7 +494,7 @@ impl FrozenWorld {
                     )));
                 }
             };
-            check_sigma_fn_signature("set-coincident-sigma!", &func)?;
+            check_sigma_fn_contract("set-coincident-sigma!", &func, &symbols)?;
             // Stone 255.1a — sigma fns come from user-provided fn values; always Wat.
             let path = match func.name.clone() {
                 Some(name) => name,
@@ -594,8 +594,14 @@ pub enum StartupError {
     Stdlib(StdlibError),
     /// `(:wat::config::set-presence-sigma! <expr>)` or
     /// `(:wat::config::set-coincident-sigma! <expr>)` committed an AST
-    /// that did not evaluate to a function value at freeze, or whose
-    /// signature did not match `:fn(:i64) -> :i64`.
+    /// that did not evaluate to a function value at freeze, whose
+    /// signature did not match `:fn(:i64) -> :i64`, or — arc 278,
+    /// BRIEF-sigma-fn-must-be-pure-total-deterministic.md — whose body
+    /// is not provably pure ∧ deterministic ∧ total. `presence?` /
+    /// `coincident?` invoke the installed fn to compute their floor and
+    /// are themselves classified `pure: true, deterministic: true`; an
+    /// unchecked user body was the one place that classification could
+    /// still lie.
     SigmaFn(String),
     /// Arc 170 — the `:user::main` wall, imposed at `startup_from_source`.
     /// Fires when a declared `:user::main` is not exactly `[] -> :wat::core::nil`
@@ -617,13 +623,26 @@ impl fmt::Display for StartupError {
     }
 }
 
-/// Signature check for `set-presence-sigma!` / `set-coincident-sigma!`.
-/// Both expect `:fn(:i64) -> :i64` — takes dim, returns σ count.
-/// Fns that lack declared types skip the check (same policy as
-/// dim-router).
-fn check_sigma_fn_signature(
+/// Install-time contract for `set-presence-sigma!` / `set-coincident-sigma!`.
+///
+/// Two independent halves:
+/// - **Signature**: `:fn(:i64) -> :i64` — takes dim, returns σ count. Fns that lack declared
+///   types skip this half (same policy as the old dim-router). Unchanged from the pre-278 check
+///   this fn replaces (formerly `check_sigma_fn_signature` — renamed because it now checks more
+///   than the signature; a name that stops telling the truth is a name this repo does not keep).
+/// - **Purity ∧ determinism ∧ totality** (arc 278,
+///   `docs/arc/2026/06/278-rules-engine/BRIEF-sigma-fn-must-be-pure-total-deterministic.md`):
+///   `presence?` / `coincident?` invoke the installed fn to compute their floor and are
+///   themselves classified `pure: true, deterministic: true` (`rete/purity.rs`) — an unchecked
+///   user fn body was the one place that classification could lie (it could `println`, read a
+///   clock, or raise). `total` is named as its OWN axis, not folded into "pure ∧ det excludes
+///   entropy" — that exclusion is an ACCIDENT of `Uuid/v4`'s `total: false` being unmeasured,
+///   not a proof (see the BRIEF's "Why THREE axes" section); a future honest `total: true` on
+///   `Uuid/v4` would otherwise slip an entropy-seeded sigma past a pure∧total-only gate.
+fn check_sigma_fn_contract(
     setter: &str,
     func: &crate::runtime::Function,
+    sym: &SymbolTable,
 ) -> Result<(), StartupError> {
     if func.params.len() != 1 {
         return Err(StartupError::SigmaFn(format!(
@@ -648,6 +667,46 @@ fn check_sigma_fn_signature(
             )));
         }
     }
+
+    // Diagnostic label only — mirrors the ANON_FN_SYMBOL / named-path convention this fn's
+    // caller uses when it stores the installed fn (freeze.rs, a few lines below this call),
+    // but — unlike that later match — never panics on `FunctionBody::Native`. A purity GATE
+    // must be able to NAME a refusal for every reachable case; `unreachable!()` here would
+    // turn "a native sigma fn showed up" into a panic instead of a StartupError. See STOP-1.
+    let label = func.name.clone().unwrap_or_else(|| match &func.body {
+        FunctionBody::Wat(_) => crate::value::ANON_FN_SYMBOL.to_string(),
+        FunctionBody::Native => "<native>".to_string(),
+    });
+
+    use crate::rete::purity::{classify_native_fn, find_axis_violation, Axis};
+    for (axis, axis_name) in [
+        (Axis::Pure, "pure"),
+        (Axis::Deterministic, "deterministic"),
+        (Axis::Total, "total"),
+    ] {
+        let violation = match &func.body {
+            FunctionBody::Wat(ast) => find_axis_violation(ast, axis, sym),
+            // STOP-1: mirror `classify_fn`'s `FunctionBody::Native` arm exactly — consult
+            // `intrinsic_meta` (via `classify_native_fn`) on the fn's own path, default-deny
+            // an unproven native. Presently unreachable in practice: nothing in this codebase
+            // constructs a `Function` with `FunctionBody::Native` (verified against every
+            // `Function { .. }` construction site), so a sigma fn's body is always `Wat`
+            // today — kept for when arc 255.1b+ starts constructing native fn values.
+            FunctionBody::Native => classify_native_fn(&label, axis).err(),
+        };
+        if let Some(v) = violation {
+            return Err(StartupError::SigmaFn(format!(
+                "{setter} function `{label}` is not {axis_name}: `{head}` is not proven \
+                 {axis_name} (sigma fns must be pure, deterministic, and total — see \
+                 docs/arc/2026/06/278-rules-engine/BRIEF-sigma-fn-must-be-pure-total-deterministic.md)",
+                setter = setter,
+                label = label,
+                axis_name = axis_name,
+                head = v.head,
+            )));
+        }
+    }
+
     Ok(())
 }
 

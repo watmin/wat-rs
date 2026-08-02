@@ -752,6 +752,27 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
     }
 }
 
+/// Classify a NATIVE (bodiless) fn against `axis` by consulting `intrinsic_meta` on its OWN
+/// path — the exact logic `classify_fn`'s `FunctionBody::Native` arm uses, extracted so a
+/// caller holding a bare `Function` (not reached through `sym.functions` transitive recursion)
+/// can apply the identical default-deny rule. Exposed for `freeze.rs`'s sigma-fn install-time
+/// purity/determinism/totality gate (arc 278,
+/// `docs/arc/2026/06/278-rules-engine/BRIEF-sigma-fn-must-be-pure-total-deterministic.md`,
+/// STOP-1): a sigma fn's `Function` value is always `FunctionBody::Wat` today — nothing in
+/// this codebase constructs a `Function` with `FunctionBody::Native` (see
+/// `value::environment::FunctionBody`'s doc) — so this arm is presently unreachable for a
+/// sigma fn in practice. Kept, not `unreachable!()`, because a purity GATE default-denying
+/// is a controlled refusal; a gate that panics instead of refusing is worse than one that
+/// never fires.
+pub(crate) fn classify_native_fn(path: &str, axis: Axis) -> Result<(), AxisViolation> {
+    let ok = intrinsic_meta(path).is_some_and(|m| match axis {
+        Axis::Pure => m.pure,
+        Axis::Deterministic => m.deterministic,
+        Axis::Total => m.total,
+    });
+    if ok { Ok(()) } else { Err(AxisViolation::new(path, axis)) }
+}
+
 // ─── Public axis classifiers (fresh `seen` per call) — also for stone 6b+ ──────
 
 /// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::core::Uuid/v4` is pure (it does no IO).
