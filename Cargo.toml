@@ -97,7 +97,10 @@ name = "cargo-wat"
 path = "src/bin/cargo-wat.rs"
 
 [dependencies]
-holon = { path = "../holon-rs" }
+# `simd` is NOT holon's default (its `default = []`), so wat ran the scalar
+# `dot_raw` loop for the whole of the substrate's life. Turned on 2026-08-02 —
+# the SIMD similarity path is what the DDoS lab proved at line rate.
+holon = { path = "../holon-rs", features = ["simd"] }
 sha2 = "0.10"
 ed25519-dalek = "2"
 base64 = "0.22"
