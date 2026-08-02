@@ -98,6 +98,27 @@ same value and must behave identically. That is the wall, not an optimization.
   well-worn boundary rather than a number fitted to code we wrote. Changing it wants a measurement
   over generated maps, not over our test suite.
 
+## Build state (2026-08-01)
+
+**LANDED — `src/value/pmap.rs`:** the `PMap` type, `assoc`/`dissoc`/`get`/`len`/`iter`/`keys`/
+`values`, one-way promotion at 8, entry-set `PartialEq`, representation-agnostic `Hash`. Five laws
+green: the cross-representation law at 0/1/7/8/9/64, promotion-actually-fires (with both build paths
+converging), replace-never-promotes, dissoc-does-not-demote-but-stays-equal-to-its-array-twin, and
+insertion-order-is-not-observable.
+
+**NOT LANDED — the migration**, and one gate row goes with it:
+
+★ **REQUIRED ROW, currently unproven: a map used as a KEY, across arms.** A map built in the Array
+arm, used as a key, must be found by a probe holding the same entries in the Trie arm, and the
+reverse. It cannot be written until `Value::wat__core__PersistentMap` holds a `PMap` — there is no
+`Value` wrapping a `PMap` to use as a key yet. It is **the only silent failure mode in this stone**;
+every other one produces a visibly wrong value. Named here and in `pmap.rs` rather than left to be
+remembered, because "we'll add it with the swap" is the exact shape this arc keeps losing
+(`UNADOPTED.md`).
+
+The migration itself is the substrate-as-teacher cascade: change the variant's payload, then let the
+compiler enumerate the 62 sites.
+
 ## Honest state
 
 The two crawl findings above are grounded (`value.rs:613`, `:787`, and the kernel/matcher split).

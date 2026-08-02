@@ -30,6 +30,7 @@ pub mod encoding_ctx;
 pub mod environment;
 pub mod frame;
 pub mod observe;
+pub mod pmap;
 pub mod signal;
 pub mod symbol_table;
 // The home's namesake module is value.rs (the Value enum); crate::value::Value collapses the path via the re-export below. The lint fires on the domain-required internal organization.
