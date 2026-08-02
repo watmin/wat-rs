@@ -380,21 +380,27 @@ Deliberate and load-bearing — it keeps the ops testable and composable as plai
 walled garden reachable only through the engine, and "grow the expressivity" means adding ordinary
 functions, not extending a special form.
 
-## Strike order
+## ★ STRIKE ORDER — THIS TABLE IS THE LIST. The board mirrors it; it does not replace it.
 
+> **Two numbering schemes exist and they do NOT line up.** The `S`-labels are this stone's; the `#`s are
+> the harness board's, and they are offset because some stones merged. **This column is the only place
+> the two are reconciled — read the pair, never one alone.** Always cite both: *"#52 (S1+S2)"*.
+>
 > **NOT strictly serial.** S1+S2 and S3a are mutually independent and start together; only from S3b
-> onward does the chain force an order. The numbering is a label, not a schedule.
+> onward does the chain force an order.
 
-| | |
-|---|---|
-| ~~**S0**~~ | ~~Rule the fork~~ — **RULED: law A, namespace-based.** |
-| **S1+S2** | **MERGED — one act, one table.** Get `intrinsic_meta`'s `total` column honest in BOTH directions: remove falses-marked-true (the NaN re-audit) and add trues-marked-false (the 4 holon verbs). They edit the same `matches!` (`purity.rs:224-230` and `:372-373`), so splitting them is a merge conflict, not a seam. Board: #52. |
-| **S3a** | **Ground STOP-A** — which arithmetic path does a `where` traverse? Decides where the surface hangs. |
-| **S3b** | Mint the fallback-carrying ops as a second handler on the shared kernel. **Native.** |
-| **S4** | Give the already-total families their rete presence (class-1 aliases) + the module-set admission test in `head_ok`. |
-| **S5** | The form mirrors — head-table (`if`/`let`/`do`/`when`) and structural-guard widening (`cond`/`match`/`fn`). |
-| **S6** | Migrate the 39 refused corpus rows. |
-| **S7** | **ARM** — the third conjunct at the fence. Never before S6. |
+| stone | board | | state |
+|---|---|---|---|
+| ~~**S0**~~ | — | ~~Rule the fork~~ — **RULED: law A, namespace-based.** | ✅ done |
+| **S1+S2** | **#52** | **MERGED — one act, one table.** Get `intrinsic_meta`'s `total` column honest in BOTH directions: remove falses-marked-true (the NaN re-audit) and add trues-marked-false (the 4 holon verbs). They edit the same `matches!` (`purity.rs:224-230` and `:372-373`), so splitting them is a merge conflict, not a seam. | ▶ startable now |
+| **S3a** | **#54** | **Ground STOP-A** — which arithmetic path does a `where` traverse? Decides where the surface hangs. | ▶ startable now |
+| **S3b + S4** | **#55** | Mint the fallback-carrying ops (**native**) + the already-total class-1 aliases + the module-set admission test in `head_ok`. | blocked by #52, #54 |
+| **S5** | **#56** | The form mirrors — head-table (`if`/`let`/`do`/`when`) and structural-guard widening (`cond`/`match`/`fn`). Two classes, do not conflate. | blocked by #55 |
+| **S6 → S7** | **#57** | Migrate the 39 refused corpus rows (wat-fix codemod), **then** ARM the third conjunct. Never arm before the migration. | blocked by #56 |
+| *(the IR)* | **#49** | `compiled_where` — the Op enum. **Last, because the vocabulary IS its specification.** | blocked by all |
+
+*(S3b and S4 were drawn separately but are one strike on the board; S6 and S7 likewise. The `S`-labels
+are kept because the prose above refers to them by name.)*
 
 **S3b must be NATIVE, not wat wrappers.** A wat `defn` wrapping `i64::/` gets walked by `classify_fn`,
 which sees the partial core op in its body and classifies the wrapper non-total — it would fail the
