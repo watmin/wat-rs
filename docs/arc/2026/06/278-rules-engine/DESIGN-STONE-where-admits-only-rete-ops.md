@@ -158,6 +158,61 @@ interpreted `eval_test_core` walk (`matcher.rs:1125`) we have today and the comp
 specified. Both must give the same answer for `:wat::rete::i64::+`. The shared kernel is what makes that
 true by construction instead of by two implementations that happen to agree.
 
+## ★★ RULED 2026-08-02 — COMPILATION IS A FORCING FUNCTION FOR CORRECTNESS. *PVGNANDO EMERGO.*
+
+> *"i will not accept 'we don't compile' as an excuse — it is an administrative forcing function for
+> correctness we can apply to the rest of the code base as we see fit. Once we have proven how to
+> compile forms we will address the remaining rete optimizations. The expressivity axis is forcing our
+> hands more than we realize and we will emerge stronger — this is the emergence protocol."*
+
+**The compilability leg is not justified by its speedup, and never was.** It is justified because a
+compiler demands **total knowledge** of what every op does — so asking *"how do we compile this?"* is
+the strictest audit that can be run on a language surface, and it audits whether you aimed it there or
+not. That is R63 (`INTERROGATIO VENATVR`) turned from an observation into a policy: the audit is the
+**deliverable**; the speedup is the side effect.
+
+**296 R7 `PVGNANDO EMERGO`** is the protocol this instantiates — *a flaw surfaces → the substrate is
+made to make it SCREAM → combat is joined → a wall is planted so the class cannot regrow → wat emerges
+more rigid, more real, more itself*, and the darkness is the **forge**, not merely the foe. A compiler
+is a machine for making a surface scream. Once the technique is proven on `where`, it can be aimed at
+anything.
+
+### ⛔ The framing this REPLACES, kept visible because it was mine and it was wrong twice
+
+After measuring the census I wrote: *"the dominant win is not compiling the predicate — indexing is the
+big multiple, compilation the smaller one on top."* Wrong on both counts:
+
+1. **They are a dependency chain, not alternatives.** Indexing needs a structured representation to
+   recognise `(= const expr)` and prove two sub-expressions equal — *"against raw WatAST you write that
+   analysis twice"* (task #49's own reasoning). **Compilation is the PREREQUISITE for indexing.** The
+   4.4× is not compilation's value; compilation's value is that it makes the 50× reachable.
+2. **Ranking the work by measured multiple is choosing a design axis by its number** — the same species
+   as choosing by difficulty, which `[[feedback_choose_correct_not_cheap_difficulty_is_not_a_design_axis]]`
+   already forbids. The measurement sizes the work. It does not decide whether to do it.
+
+### The census, MEASURED 2026-08-02 (own run, `node_share_filter_eval_census`)
+
+```
+rules  items |    evals    passes   wasted  waste%   evals/rule
+   10    200 |     2000       200     1800   90.0%       200.0
+   25    200 |     5000       200     4800   96.0%       200.0
+   50    200 |    10000       200     9800   98.0%       200.0
+```
+
+`evals = rules × 200`, flat at 200 evals/rule — **the join does not prune.** Every token is tested
+against every TestNode; at N=50 that is 10,000 evaluations of which **9,800 are guaranteed failures**,
+and the waste fraction GROWS with rule count.
+
+**Task #49's "the 10,000 is derived, not measured" caution is STALE** — `node_share_filter_eval_census`
+had already measured it, and `matcher.rs:4747` says so. The derived estimate was right. Sizing, not
+justification: indexing removes the linear-in-rule-count term (10,000 → 200); compiling the predicate is
+~4.4× on what remains (Step 0: env-build 122.5 ns/eval = 22.7%, `eval_inner` walk 77.3%).
+
+**⚠ Still unsplit:** nobody has decomposed `filter`'s 89.5% into **predicate vs the per-TestNode
+`new_tokens = ts.clone()`** (`kernel.rs:2701`, task #50) — on a shared-prefix axis the same 200-token
+vector is cloned once per TestNode, which is inside that 89.5% and is **not** the predicate. So the
+multiplier is known; **what it multiplies is not.**
+
 ## Why — three legs, and only two are measured
 
 | leg | claim | status |
