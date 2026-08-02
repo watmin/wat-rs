@@ -104,9 +104,58 @@ turns out not to be where the fence draws it.
   this note does not rule that, and the Rust walk (`constructor_meta` / `intrinsic_meta`) has NOT been
   re-read by me — ground it before drawing the stone.
 
-### Not yet checked, and it is the obvious next question
+---
 
-`cond` is one macro. **The corpus has not established whether every other macro reachable from a
-`where` fails the same way** — the reproduction covers `cond` specifically. If the class is "any
-macro head," the hidden-failure surface is much larger than one verb, and enumerating it is the
-cheap next probe.
+## ⚠ ESCALATION (same day, `where-collection`): it is NOT just macros — and the fence does not check TYPES or TOTALITY either
+
+The section above asked whether `cond` was one verb or a class. **It is a class, and a wider one than
+"macros."** Three further instances, all reported with reproductions:
+
+| form | fence | first fire |
+|---|---|---|
+| `(length (map f ?coll))` | PASSES (both verbs individually pure) | **raises `TypeMismatch`** — `length` does not take a `Stream` |
+| `(> (first ?t) 0)` where some `?t` is `[]` | PASSES (`first` unconditionally classified pure) | **raises `MalformedForm`, kills the fire** |
+| 2-arity `reduce` (no seed) | PASSES | identical hazard — `wat/seq.wat:207` bottoms out in `(first coll)` |
+
+So the fence is a **syntactic purity walk**. It does not check:
+
+- **macro-vs-primitive** (`cond` — the original instance),
+- **types in composition** (each verb pure, the pipeline ill-typed),
+- **totality** (`first` is partial; the fence treats it as total).
+
+### The `first`-on-empty case is the worst of all of them, and it is a different kind of bad
+
+The others fail on the first fire, every time, for everyone — loud and immediate. This one is
+**DATA-DEPENDENT**: the rule compiles, fires correctly, and keeps firing correctly until a fact
+carrying an empty collection arrives — and then it kills the whole fire. A predicate that has worked
+in production for a month can be detonated by one empty vector.
+
+### This is the missing `total?` axis, and the record designed it a month ago
+
+`NOTE-overlay-read-path-and-distributed-horizon.md` Part 5 (2026-06-20) already ruled the fix, in
+detail: **`total?` as a THIRD axis on the 6a fence** (`pure? ∧ deterministic? ∧ total?`), the same
+structural walk, rejecting at registration what it cannot prove terminates — eBPF's road, explicitly
+chosen over runtime fuel. It was designed and never built.
+
+It was argued there as a **multi-tenant resource-safety** requirement, for running strangers' code.
+That framing understated it. `first`-on-empty shows the missing axis is not only a defence against a
+hostile tenant — it is a live correctness hole for **our own first-party rules**, reachable today, in
+the form the corpus says users will write.
+
+### And the over-rejection direction widened too
+
+`nth` and `filter`-then-`into` are also refused (both bottom out in deliberately-unclassified verbs —
+`Option/expect` and `rest`). Meanwhile `:wat::core::every?` and `:wat::core::some?` **do not exist at
+all** — not a fence rejection, an absence; the corpus emulates them with `foldl`.
+
+**The one genuinely good news:** a real higher-order verb IS admitted. `foldl`/`reduce` at 3-arity
+(explicit seed) closing over a user `fn`, applied to a bound collection, composes through the fence
+and runs correctly — including safely on empty input, because the seed makes it total. Four corpus
+rows exercise it. That is the shape that works, and it works *because* it is total.
+
+### The count now
+
+Five instances, in two directions, from two families that went looking. The specification for #49a
+cannot be "whatever the purity fence accepts" — the fence is neither sound (it admits the
+unrunnable) nor complete (it refuses the pure), and the unsoundness includes a data-dependent case
+that no amount of green testing will reliably surface.
