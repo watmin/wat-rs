@@ -349,10 +349,58 @@ The degenerate case is already guarded. Designing a `:undefined` for it would be
 grounded classifications, not four fallback-carrying mints. (`dot` still needs its own check: can a
 large-dim f64 vector reach ±Inf?)
 
-**⚠ OPEN, and it follows from the NaN ruling:** that guard returns `0.0`, which in cosine's semantics
-means *"orthogonal, unrelated"* — a plausible-looking answer for an undefined comparison, and arguably
-worse than NaN because NaN propagates visibly while `0.0` sails through `(f64::> … 0.9)` as a confident
-*no match*. Should `rete::holon::cosine` require `:undefined` for the degenerate case? **Builder's call.**
+**✅ RESOLVED — the guard's `0.0` is a live mask, the case is PROVEN reachable, and the names are cast.**
+
+That guard returns `0.0`, which in cosine's semantics means *"orthogonal, unrelated"* — worse than NaN,
+because NaN propagates visibly while `0.0` sails through `(f64::> … 0.9)` as a confident *no match*.
+Proven reachable by run (see blocker 1 above; `-0.0086` is what genuine unrelatedness reads).
+
+### The measurement vocabulary — intueri-cast 2026-08-02, verdict weighed
+
+```clojure
+(:wat::core::defenum :wat::holon::CosineOutcome
+  (:Similarity       [similarity <- :wat::core::f64])
+  (:Degenerate       [side       <- :wat::holon::DegenerateSide])
+  (:DimensionMismatch [expected  <- :wat::core::i64  got <- :wat::core::i64]))
+
+(:wat::core::defenum :wat::holon::DotOutcome
+  (:Computed         [product   <- :wat::core::f64])
+  (:DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64]))
+
+(:wat::core::defenum :wat::holon::DegenerateSide :Target :Reference :Both)
+```
+
+**TWO enums, not one — because `dot` has NO degenerate case.** Grounded: `Similarity::dot` performs no
+division (`i8::dot` / a plain `sum((x as i64)*(y as i64))`), so a zero-magnitude operand yields an
+**honest** `0.0` — a zero vector really does dot to zero. A shared enum would hand `dot` an arm it can
+never construct. The in-family precedent picks itself: `CombineOutcome` shares because bind/bundle/blend
+have *identical* outcome spaces; `TrySendOutcome` split from `SendOutcome` because one verb has an
+outcome the other structurally cannot produce. **Cosine/dot is the TrySendOutcome case.**
+
+Once split, the "what do we call a success that fits both?" problem **evaporates** — `Similarity` is
+simply true of cosine, and `Computed[product]` names a dot product. That struggle was a symptom of the
+shared-enum premise, not a real naming difficulty. Fields name what they *are* (`similarity`,
+`product`), never `value` — the family's convention (`msg`, `cause`, `vector`, `exit`, `peer`).
+
+**`Degenerate` is ONE variant carrying which-side, not three variants.** The caller acts identically on
+all three ("this comparison is meaningless"), and the decode ruling's licence to split does not
+transfer: there the variants carried *genuinely different fields* (`at` vs `expected`/`got`); here there
+is **one failure kind** — a division by zero — with a diagnostic. `DimensionMismatch[expected, got]` is
+the in-family precedent for a diagnostic as *fields* rather than variant proliferation.
+
+> **⚠ Orchestrator's amendment to the cast.** The ward proposed
+> `Degenerate[target-zero <- bool, reference-zero <- bool]`. That makes **`(false, false)` representable
+> — a `Degenerate` that is not degenerate**, in a substrate whose standing doctrine is *the wrong state
+> has no form*. The conclusion (one variant, diagnostic-as-field) is kept; the encoding becomes a
+> three-valued `DegenerateSide`, which is exhaustive and admits no illegal state. `target`/`reference`
+> are the implementation's own operand names, not invented ones.
+
+**Implementation cost, corrected DOWN from the ward's estimate:** it flagged that this "requires
+touching `Similarity::cosine` to check the norms separately." **Both arms already do** — SIMD computes
+`dot_aa`/`dot_bb` separately, and the scalar arm literally *tests* them separately
+(`norm_a < 1e-10 || norm_b < 1e-10`) before discarding which one fired. The work is *stop throwing the
+distinction away*, not *compute it*. (It is still a `holon-rs` edit — a sibling repo, and the builder's
+call.)
 
 ## The call shape — RULED, and probe-verified
 
