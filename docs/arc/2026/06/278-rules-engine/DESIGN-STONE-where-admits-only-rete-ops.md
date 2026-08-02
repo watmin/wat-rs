@@ -361,6 +361,56 @@ very fence it exists to satisfy. Implement as Rust surfaces over the shared kern
 - **No IO, spawn, service, mutation or clock ops enter this vocabulary**, ever. The boundary is a rule
   *condition*, not general computation.
 
+## ★★ RULED 2026-08-02 — THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT
+
+> *"if somebody's float ops func returns a {NaN, Inf, -Inf} and they wrap it in a bool predicate they
+> can follow our logic — the measurement is full, the predicate is exact for their question."*
+
+**This is a general law of the substrate, not a special case for `cosine`.** It settles which shape a
+verb takes when its domain has a hole, and it applies to user code exactly as it applies to ours.
+
+| kind | shape | undefined input yields |
+|---|---|---|
+| **MEASUREMENT** — returns a magnitude, a position on a scale | a **faced value**: an outcome enum at the core surface, `:undefined` at the rete surface | the named variant / the declared fallback — **never** a value drawn from the answer's own range |
+| **PREDICATE** — returns a decision, a `bool` | a plain **`bool`**, total | the honest answer *to the question actually asked* — for coincidence and presence, `false` |
+
+**Why they differ, and it is not arbitrary.** `0.0` from `cosine` is a **wrong answer**: it asserts a
+specific measurement ("unrelated") that is false, and a caller can average it, re-threshold it, compare
+it against other cosines — the fabrication propagates into arithmetic that treats it as data. `false`
+from `coincident?` is a **correct answer**: the predicate asks *"is the distance below the floor?"*, an
+undefined distance is not below the floor, and a thing with no direction is not coincident with anything
+nor present in anything. One is a sentinel; the other is the truth.
+
+**Consequences, ruled:**
+
+- `:wat::holon::cosine` returns an outcome enum. Its degenerate case is **proven reachable**
+  (see blocker 1 below) so the variant is real, not an unreachable arm.
+- `:wat::holon::coincident?` and `:wat::holon::presence?` **stay plain `bool`** and become **total**:
+  a degenerate operand yields `false`, by documented contract. This is 33 of the family's 56 call sites
+  that do **not** become matches.
+- **A user may follow the same logic.** A user fn whose float arithmetic can reach NaN/±Inf takes the
+  measurement's full form; wrapping it in their own `bool` predicate is legitimate, and their predicate
+  is then exact for their question.
+
+### ⚠ The line against this morning's NaN ruling — stated so it is never re-litigated
+
+The NaN ruling says an undefined float must be **faced**, precisely because *every comparison against
+NaN is false, so the rule silently does not fire*. `coincident?` returning `false` on an undefined
+comparison is that same silent non-firing. **The two are not in conflict, and the distinguishing fact
+is this:**
+
+> **NaN's `false` is an IEEE ACCIDENT leaking through an expression the user wrote, declared by nobody.
+> A predicate's `false` is a DOCUMENTED TOTAL CONTRACT on a named verb.** An accident versus a decision.
+
+A measurement may not quietly absorb its own undefined case. A predicate may, **because absorbing it is
+the predicate's stated job** — and the full measurement remains available right beside it for anyone who
+must distinguish *"genuinely not coincident"* from *"that comparison was meaningless."*
+
+**The cost, named rather than buried:** a predicate cannot tell you your data is broken. *"None of my
+10,000 items are coincident with the probe"* reads identically whether they truly are not, or whether
+3,000 are degenerate vectors from an upstream bug. That is the right trade — a predicate's job is the
+decision, not the diagnosis — but it is a trade, and the diagnosis lives in `cosine`'s outcome.
+
 ## ✅ RULED 2026-08-02 — the match is the shield, and it is not laid down
 
 > *"our stance has always been the match verbosity is our shield… for rete forms we can have an
