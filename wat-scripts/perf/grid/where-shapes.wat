@@ -24,19 +24,31 @@
 ;; rather than swapping in idiomatic `mod`, so the row measures the constraint and not a translation
 ;; choice.
 ;;
-;; Rows 2-5 to follow, against this proven shape: record accessor · String verb · collection verb ·
-;; a user-defined pure fn. Rows 3 and 4 were UNCOMPILABLE here until 0d439a55 opened the purity
-;; fence; row 5 is the one a compiled executor cannot model and must hand back to the interpreter.
+;; ROWS 2-5 (2026-08-01, BRIEF-where-shapes-rows-2-5.md): record accessor · String verb ·
+;; collection verb · a user-defined pure fn. Rows 3 and 4 were UNCOMPILABLE here until 0d439a55
+;; opened the purity fence; row 5 is the one a compiled executor cannot model and must hand back to
+;; the interpreter.
 ;;
-;; size = [items]. Fires the NATIVE `:wat::rete::fire-rules` (compile + seed are un-timed setup).
+;; EVERY row's leading condition binds ALL FOUR fields (?k ?c ?n ?t), even the ones its own
+;; `where` ignores — changed once here, never again per row (rule 1 of the brief) — so adding a
+;; shape only ever touches the trailing predicate, never the token stream every row shares.
+;;
+;; size = [items row]. Fires the NATIVE `:wat::rete::fire-rules` (compile + seed are un-timed setup).
 ;; :derived is the FULL SORTED Hit set as i64 keys, so it compares byte-for-byte against Clara's
 ;; rendering of the identical workload (gen-where-shapes.sh).
 ;;
-;; Usage (stdin = an i64 vector [items]; stdout = one #grid/Result EDN line):
-;;   echo '[200]' | ./target/release/wat ./wat-scripts/perf/grid/where-shapes.wat
-;;   => #grid/Result {:axis "where-shapes" :size [200] :derived [3 13 23 ...] :native-ns N}
+;; Usage (stdin = an i64 vector [items row]; stdout = one #grid/Result EDN line):
+;;   echo '[200 1]' | ./target/release/wat ./wat-scripts/perf/grid/where-shapes.wat
+;;   => #grid/Result {:axis "where-shapes" :size [200 1] :derived [3 13 23 ...] :native-ns N}
 
-(:wat::core::defrecord :wsh::Req [k <- :wat::core::i64])   ;; the shared fact stream
+(:wat::core::defrecord :wsh::Client [rep <- :wat::core::i64])   ;; row 2's nested accessor target
+
+(:wat::core::defrecord :wsh::Req
+  [k      <- :wat::core::i64
+   client <- :wsh::Client
+   name   <- :wat::core::String
+   tags   <- :wat::core::PersistentVector<wat::core::i64>])    ;; the shared fact stream
+
 (:wat::core::defrecord :wsh::Hit [k <- :wat::core::i64])   ;; the single production type
 
 (:wat::core::defrecord :grid::Result
@@ -45,10 +57,17 @@
    derived   <- :wat::core::PersistentVector<wat::core::i64>
    native-ns <- :wat::core::i64])
 
-;; ROW 1 — arithmetic. Hit(k) :- Req(?k) AND (3 == k - (k/10)*10).
-;; The leading condition is the one every later row will share; only `where-c` varies per row.
+;; row 5's user-defined pure fn — the shape a compiled executor CANNOT model and must hand back to
+;; the interpreter. big?(k) := k mod 7 > 3 (k mod 7 in {4,5,6}), so it discriminates a proper subset.
+(:wat::core::defn :wsh::big? [k <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::i64::>
+    (:wat::core::i64::- k (:wat::core::i64::* (:wat::core::i64::/ k 7) 7))
+    3))
+
+;; ROW 1 — arithmetic. Hit(k) :- Req(?k ?c ?n ?t) AND (3 == k - (k/10)*10).
+;; The leading condition is the one every later row shares; only `where-c` varies per row.
 (:wat::core::defn :wsh::rule-arith [] -> :wat::rete::Rule
-  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k)))
+  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::core::= 3
@@ -56,6 +75,47 @@
                                     (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
                     ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
     (:wat::rete::Rule :name "arith"
+      :lhs (:wat::core::PersistentVector conds where-c)
+      :rhs (:wat::core::PersistentVector ins))))
+
+;; ROW 2 — record accessor. Hit(k) :- Req(?k ?c ?n ?t) AND (Client/rep ?c) > 0.
+;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} — 2/5 of the stream.
+(:wat::core::defn :wsh::rule-accessor [] -> :wat::rete::Rule
+  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wsh::Client/rep ?c) 0)))
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
+    (:wat::rete::Rule :name "accessor"
+      :lhs (:wat::core::PersistentVector conds where-c)
+      :rhs (:wat::core::PersistentVector ins))))
+
+;; ROW 3 — String verb. Hit(k) :- Req(?k ?c ?n ?t) AND (starts-with? ?n "ad").
+;; name(k) = "ad"+k when k mod 3 == 0, else "zz"+k — starts-with? selects 1/3 of the stream.
+(:wat::core::defn :wsh::rule-string [] -> :wat::rete::Rule
+  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/starts-with? ?n "ad")))
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
+    (:wat::rete::Rule :name "string"
+      :lhs (:wat::core::PersistentVector conds where-c)
+      :rhs (:wat::core::PersistentVector ins))))
+
+;; ROW 4 — collection verb. Hit(k) :- Req(?k ?c ?n ?t) AND (length ?t) > 1.
+;; tags(k) has length (k mod 4) — length > 1 selects k mod 4 in {2,3}, half the stream.
+(:wat::core::defn :wsh::rule-collection [] -> :wat::rete::Rule
+  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) 1)))
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
+    (:wat::rete::Rule :name "collection"
+      :lhs (:wat::core::PersistentVector conds where-c)
+      :rhs (:wat::core::PersistentVector ins))))
+
+;; ROW 5 — user-defined pure fn. Hit(k) :- Req(?k ?c ?n ?t) AND (big? ?k).
+;; The predicate is a CALL, not an inline expression — the shape #49a's compiled executor cannot
+;; model and must hand back to the interpreter.
+(:wat::core::defn :wsh::rule-userfn [] -> :wat::rete::Rule
+  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wsh::big? ?k)))
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
+    (:wat::rete::Rule :name "userfn"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
@@ -73,19 +133,38 @@
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1) (:wsh::rule-arith))
+      ((:wat::core::= row 2) (:wsh::rule-accessor))
+      ((:wat::core::= row 3) (:wsh::rule-string))
+      ((:wat::core::= row 4) (:wsh::rule-collection))
+      ((:wat::core::= row 5) (:wsh::rule-userfn))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-shapes: unknown row " (:wat::core::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
+;;
+;; Every field is a FORMULA over i (rule 3 of the brief), independently computable on the Clara
+;; side (gen-where-shapes.sh) so nothing rots as a hand-kept table:
+;;   rep(i)  = (i mod 5) - 2               — mixed sign, row 2
+;;   name(i) = "ad"+i if i mod 3 == 0 else "zz"+i  — row 3
+;;   tags(i) = a vector of length (i mod 4), contents [0, len)  — row 4
 (:wat::core::defn :wsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
                       -> :wat::core::PersistentVector<wat::core::Record>
-        (:wat::core::PersistentVector/conj acc (:wsh::Req i)))
+        (:wat::core::let [rep      (:wat::core::i64::- (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 5) 5)) 2)
+                          is-ad    (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 3) 3)))
+                          nm       (:wat::core::if is-ad
+                                      (:wat::core::String/concat "ad" (:wat::core::i64::to-string i))
+                                      (:wat::core::String/concat "zz" (:wat::core::i64::to-string i)))
+                          tags-len (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 4) 4))
+                          tags     (:wat::core::into (:wat::core::PersistentVector)
+                                     (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 tags-len)))]
+          (:wat::core::PersistentVector/conj acc
+            (:wsh::Req :k i :client (:wsh::Client :rep rep) :name nm :tags tags))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
