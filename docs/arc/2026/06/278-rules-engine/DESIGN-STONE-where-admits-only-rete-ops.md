@@ -382,11 +382,13 @@ functions, not extending a special form.
 
 ## Strike order
 
+> **NOT strictly serial.** S1+S2 and S3a are mutually independent and start together; only from S3b
+> onward does the chain force an order. The numbering is a label, not a schedule.
+
 | | |
 |---|---|
 | ~~**S0**~~ | ~~Rule the fork~~ — **RULED: law A, namespace-based.** |
-| **S1** | Re-audit T1's `total: true` entries against the ruled definition. Bounded, mechanical. |
-| **S2** | Classify the 4 holon verbs (grounded per-verb; `dot`'s ±Inf reachability checked). |
+| **S1+S2** | **MERGED — one act, one table.** Get `intrinsic_meta`'s `total` column honest in BOTH directions: remove falses-marked-true (the NaN re-audit) and add trues-marked-false (the 4 holon verbs). They edit the same `matches!` (`purity.rs:224-230` and `:372-373`), so splitting them is a merge conflict, not a seam. Board: #52. |
 | **S3a** | **Ground STOP-A** — which arithmetic path does a `where` traverse? Decides where the surface hangs. |
 | **S3b** | Mint the fallback-carrying ops as a second handler on the shared kernel. **Native.** |
 | **S4** | Give the already-total families their rete presence (class-1 aliases) + the module-set admission test in `head_ok`. |
