@@ -1,4 +1,43 @@
-# NOTE (arc 109 — FQDN doctrine refinement) — user code may live in ROOT; only `wat` + `rust` are reserved
+# ~~NOTE — user code may live in ROOT~~ · **SUPERSEDED 2026-08-02**
+
+> ## ⛔ SUPERSEDED. The direction below was overturned by a builder ruling. Read this first.
+>
+> **The ruling (builder, 2026-08-02, verbatim):**
+>
+> > *"i no longer **accept** user symbols in the root namespace unless they are in args or lets or
+> > similar … anything that's a def declaration must be namespaced … symbols may only be
+> > un-namespaced when they are in use in some kind of dsl like… a match against enum argv or let
+> > bindings or rete `?name` or… you get the idea… def's gotta be namespaced… **the root is for
+> > scoped bindings**."*
+>
+> **The doctrine, stated positively — and it is a clean split, not a restriction:**
+>
+> | a name is… | may it be bare? | because |
+> |---|---|---|
+> | a **declaration** (`def`, `defn`, `defrecord`, `defenum`, `defsurface`, `defrule`, `typealias`, …) | **NO — must be namespaced** | it is a globally-visible registration in a shared world |
+> | a **scoped binding** — fn args, `let`, `match` patterns, argv destructuring, rete `?vars`, any DSL binder | **YES — bare is its home** | it is LEXICAL; it never registers and cannot collide |
+>
+> **`::` means declared. Bare means scoped.** The root namespace is not a place to *install*
+> things; it is where scoped bindings live.
+>
+> **This retires this note's direction entirely** — there is to be no root-namespace *resolution*
+> path for top-level definitions, and `(wat.core/defn my-fn …)` calling bare `(my-fn)` is NOT the
+> target. What the note got right and what survives: the **reserved set is exactly `wat` and
+> `rust`** (confirmed on the disk, `src/resolve/reserved.rs:25-27`); every other namespace,
+> including `:user::`, is free — `:user::` being *purposed* for rendezvous points, not privileged.
+>
+> **Built, not queued.** `72a1ac3d` armed `Registration::Unnamespaced` at the shared gate; the
+> corpus was migrated by codemod the same day. The wall's own claim — *"args and let-bindings are
+> lexical and never reach the gate, so there are no exceptions to carve"* — is exactly this ruling,
+> and the ruling widens it: **every DSL binder is lexical too.** That the corpus went green
+> (4266/4266) with the wall armed is the evidence that no binder reaches a registration door.
+>
+> *The original note is kept below, unedited. It was the builder's own queued direction and it was
+> reversed by him; hiding it would erase the reversal, and the reversal is the record.*
+
+---
+
+## The original note, as filed (2026-07-21) — SUPERSEDED, do not act on
 
 **Filed 2026-07-21 (surfaced mid arc-278 item (c), designing a marker for reactor-internal
 service ops).** Queued, **NOT built** — a future refinement of the arc-109 FQDN doctrine, at
