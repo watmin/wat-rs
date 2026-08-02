@@ -361,9 +361,60 @@ very fence it exists to satisfy. Implement as Rust surfaces over the shared kern
 - **No IO, spawn, service, mutation or clock ops enter this vocabulary**, ever. The boundary is a rule
   *condition*, not general computation.
 
+## ✅ RULED 2026-08-02 — the match is the shield, and it is not laid down
+
+> *"our stance has always been the match verbosity is our shield… for rete forms we can have an
+> `:undefined` value provided in our rete forms to make it more ergonomic — but the expressive match
+> is our shield and we will not lay it down."*
+
+This closes the guarded-`0.0` open and it closes it on **both** surfaces, exactly as the shared-kernel
+law predicts:
+
+- **Core `:wat::holon::cosine` (and its family) returns a matchable outcome.** Every domain gap —
+  a dimension disagreement, a degenerate zero-magnitude vector — becomes a named variant the caller
+  faces. The manufactured `0.0` that reads as *"orthogonal, unrelated"* dies. Verbosity is the price
+  and it is the point.
+- **`:wat::rete::holon::cosine` takes `:undefined`.** The seam's canonical one-liner stays a one-liner
+  *inside a `where`*, because the fence has already constrained everything reachable there. `:undefined`
+  buys ergonomics where the constraint earns it — **it does not replace the match at the core surface.**
+
+One kernel, two terminal handlers: core hands you the outcome to face; rete substitutes the fallback
+you declared.
+
+### The strike this implies — 4 verbs, 56 call sites, ONE guard
+
+`pair_values_to_vectors` (`runtime.rs:18506`) is the shared helper carrying the single dimension guard
+for the whole family — one place to convert:
+
+| verb | fn | wat-corpus callers |
+|---|---|---|
+| `cosine` | `eval_algebra_cosine:18587` | 22 |
+| `presence?` | `eval_algebra_presence_q:18623` | 17 |
+| `coincident?` | `eval_algebra_coincident_q:18677` | 16 |
+| `coincident-explain` | `eval_algebra_coincident_explain:18723` | 1 |
+
+### ⛔ TWO THINGS BLOCK DRAWING THE BRIEF
+
+1. **The degenerate case's reachability is UNGROUNDED**, and it decides whether the outcome carries two
+   variants or three. `Similarity::cosine` guards `norm < 1e-10 → 0.0`; a zero-magnitude Vector needs
+   all-zero cells. **Suspicion, not a finding:** `vector-bundle` / `vector-blend` may cancel to zero,
+   which would make the case reachable *through verbs this arc just converted*. Prove it with a
+   disconfirming probe before minting a variant — an unreachable arm accumulates lies, and this stone
+   already carries that STOP.
+2. **The sigma/determinism finding is unruled and lands on 33 of the 56 sites.** `presence?` and
+   `coincident?` compute their floor from an **ambient, user-settable** sigma
+   (`sigma.rs:77-86` — `WatFnSigmaFn::sigma_at` `apply_function`s an arbitrary user wat fn installed via
+   `set-presence-sigma!` / `set-coincident-sigma!`), yet both are classified `deterministic: true`
+   (`purity.rs:372-373`) and the fence is armed on pure ∧ det **today**. If the ruling is that the
+   setters go, their shape may not change the way `cosine`'s does; if the ruling is that they are
+   non-deterministic, the fence refuses them regardless and their rete surface is moot. **Ruling sigma
+   first may shrink or reshape this strike** — sequence it ahead.
+
 ## Open — the builder's
 
-1. **`rete::holon::cosine` and the guarded `0.0`** — sentinel, or an acceptable answer?
+1. **The sigma setters** (blocker 2 above) — do `set-presence-sigma!` / `set-coincident-sigma!` survive?
+   They make two ruled-pure seam verbs read ambient mutable state, which breaks pure replay (R5) and the
+   oracle differential if either reaches a `where`.
 2. **Does `=` on f64 belong at all?** Float equality is a hazard independent of NaN.
 3. **The ingested-NaN limit** — accept as stated, or is there a wall for it?
 4. **Naming inside a `where`** — `:wat::rete::i64::+` is faithful to FQDN-always but long for a form
