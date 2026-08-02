@@ -395,12 +395,28 @@ for the whole family — one place to convert:
 
 ### ⛔ TWO THINGS BLOCK DRAWING THE BRIEF
 
-1. **The degenerate case's reachability is UNGROUNDED**, and it decides whether the outcome carries two
-   variants or three. `Similarity::cosine` guards `norm < 1e-10 → 0.0`; a zero-magnitude Vector needs
-   all-zero cells. **Suspicion, not a finding:** `vector-bundle` / `vector-blend` may cancel to zero,
-   which would make the case reachable *through verbs this arc just converted*. Prove it with a
-   disconfirming probe before minting a variant — an unreachable arm accumulates lies, and this stone
-   already carries that STOP.
+1. ~~**The degenerate case's reachability is UNGROUNDED**~~ — **RESOLVED BY A RUN, 2026-08-02: it is
+   REACHABLE, trivially.** Probe: `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`.
+
+   ```
+   control-self-cos               1.0
+   control-real-vs-other-real    -0.008566926657235702    <- genuine unrelatedness is NOT 0.0
+   zero-vs-real                   0.0                      <- exact
+   zero-vs-zero                   0.0                      <- exact
+   two-cancellations-identical    true                     <- from DIFFERENT atoms
+   ```
+
+   `(:wat::holon::vector-blend v v 1.0 -1.0)` cancels every i8 cell to zero — **two lines of ordinary
+   wat, through a verb this arc just converted.** The last row is the proof rather than an inference:
+   cancellations of two *unrelated* atoms yield the **same** vector, which two non-zero derived vectors
+   never would; both are the zero vector.
+
+   **And the control is the finding's teeth.** Genuine unrelatedness reads ≈ `-0.0086`; the sentinel
+   reads **exactly `0.0`**. Both pass `(f64::> … 0.9)` as *no match*, so a rule author cannot distinguish
+   *"these are unrelated"* from *"you compared against a degenerate vector."* The mask is live on
+   reachable input.
+
+   ⇒ The degenerate variant is **NOT** an unreachable arm. `cosine`'s outcome carries it.
 2. **The sigma/determinism finding is unruled and lands on 33 of the 56 sites.** `presence?` and
    `coincident?` compute their floor from an **ambient, user-settable** sigma
    (`sigma.rs:77-86` — `WatFnSigmaFn::sigma_at` `apply_function`s an arbitrary user wat fn installed via
