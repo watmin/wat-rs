@@ -541,10 +541,11 @@
 
 ;; Axis — BRIEF-the-fence-names-the-head, builder-ruled: the CLOSED-SET RULE
 ;; (REALIZATIONS.md:2676 — "a closed set is an enum, name holds value; open identifiers stay
-;; Keyword/String"). WHICH axis `:wat::rete::axis-violation` is being asked about. Closed at 2
-;; members today; a 3rd (:Total) is queued right behind this stone, and an ENUM makes that landing
-;; a compile error everywhere it isn't handled — see `axis-violation-message`'s exhaustive match
-;; below, which is the whole payoff.
+;; Keyword/String"). WHICH axis `:wat::rete::axis-violation` is being asked about. `:Total` landed
+;; BRIEF-total-t1-the-axis-unarmed — and, as designed, minting it broke `axis-violation-message`'s
+;; exhaustive match below until its arm was added: the checker enumerated its own consumers instead
+;; of anyone remembering by hand. `:Total` is UNARMED — `compile-condition` does not consult
+;; `:wat::rete::total?` yet (see `purity.rs`'s module doc, "A third axis, `Total`").
 ;;
 ;; ★ NAME COLLISION — read before editing this line: the nature marker `:wat::enum::Pure` right
 ;; after the type name is UNRELATED to the `:Pure` VARIANT two lines under it. The marker declares
@@ -555,13 +556,14 @@
 ;; conflate them when you read or extend this form.
 (:wat::core::defenum :wat::rete::Axis :wat::enum::Pure
   :Pure
-  :Deterministic)
+  :Deterministic
+  :Total)
 
 ;; AxisViolation — BRIEF-the-fence-names-the-head. The result of `:wat::rete::axis-violation`:
 ;; the offending head when a `where`/accumulator expr falsifies :pure or :deterministic.
 ;;   head: the violating verb's fqdn (e.g. ":wat::io::IOReader/open-file", ":wat::core::Uuid/v4").
-;;   axis: which axis was asked about (:wat::rete::Axis::Pure or ::Deterministic) — echoed back for
-;;         self-description.
+;;   axis: which axis was asked about (:wat::rete::Axis::Pure, ::Deterministic or ::Total) — echoed
+;;         back for self-description.
 ;;   span: the failing call's source Location when the walk was still inside an inspectable AST at
 ;;         the moment of failure; None for the one case it wasn't (a native fn stub with no body).
 ;; PROVISIONAL NAME + fields — cast owed (see the brief).
@@ -592,9 +594,12 @@
 ;; even though it is wired as a plain argument expression.
 ;;
 ;; The `match` below is EXHAUSTIVE over `:wat::rete::Axis` — that is the payoff of the enum over a
-;; free keyword: when a 3rd variant (:Total) is minted, this function's match becomes non-exhaustive
-;; and FAILS TO COMPILE until an arm is added here. A keyword could not have enumerated its own
-;; consumers this way; the checker now does.
+;; free keyword: BRIEF-total-t1-the-axis-unarmed minted `:Total` and this match went non-exhaustive
+;; until the arm below was added — the checker enumerated its own consumer instead of anyone
+;; remembering by hand. NOTE: `total?` is UNARMED — `compile-condition` never computes a `:Total`
+;; `failing-axis` (that would require consulting `total?` at the fence, which this stone does NOT
+;; do), so the `:Total` arm below is currently unreachable from `compile-condition`, but the match
+;; must still name it for the function to compile at all — same discipline as the two live arms.
 (:wat::core::defn :wat::rete::axis-violation-message
   [context      <- :wat::core::String
    expr         <- :wat::WatAST
@@ -616,7 +621,15 @@
                                      (:wat::rete::AxisViolation/head v) "' is not deterministic"))
        (:wat::core::None
         (:wat::core::string::concat "compile-condition: " context
-                                     " expr is not deterministic (offending head could not be attributed)"))))))
+                                     " expr is not deterministic (offending head could not be attributed)"))))
+    (:wat::rete::Axis::Total
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Total)
+       ((:wat::core::Some v)
+        (:wat::core::string::concat "compile-condition: " context " expr is not total — '"
+                                     (:wat::rete::AxisViolation/head v) "' is not total"))
+       (:wat::core::None
+        (:wat::core::string::concat "compile-condition: " context
+                                     " expr is not total (offending head could not be attributed)"))))))
 
 (:wat::core::defn :wat::rete::compile-condition
   [acc  <- :wat::rete::CondFoldAcc

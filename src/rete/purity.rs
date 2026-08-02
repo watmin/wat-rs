@@ -41,6 +41,18 @@
 //! surfaces. A `Span` rides along whenever the walk was still inside an inspectable call-site AST at
 //! the moment of failure; the one case it is not is a `FunctionBody::Native` head reached through
 //! transitive user-fn recursion (no body AST to point into — see `classify_fn`'s `Native` arm).
+//!
+//! ## A third axis, `Total` — UNARMED (BRIEF-total-t1-the-axis-unarmed.md)
+//!
+//! `Total` asks a DIFFERENT question than the two above: is the op defined on all its inputs, not
+//! merely effect-free and referentially transparent? `first`/`i64::/`/`i64::mod` are all pure AND
+//! deterministic — the fence above admits them — yet all three are **partial** (undefined on an
+//! empty vector / a zero divisor), so a rule using one compiles clean and then aborts the entire
+//! `fire-rules` call the first time a poisoned token reaches it. `is_total_expr`/`eval_total_predicate`
+//! mirror the two siblings exactly (same walk, same `OpMeta` shape, same default-deny). **`total?` is
+//! callable but `compile-condition` does NOT consult it** — arming the fence needs the `:undefined`-
+//! carrying total variants (T2/T3) to exist first, or a refused `first` has nowhere to go. This stone
+//! only mints the axis and measures which verbs a live corpus row actually demands be classified.
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -64,6 +76,9 @@ pub(crate) enum Axis {
     Pure,
     /// Referentially transparent: same inputs → same output.
     Deterministic,
+    /// Defined on all its inputs (domain-total) — UNARMED this stone (see module doc's "A third
+    /// axis, `Total`" section). `compile-condition` does not consult it yet.
+    Total,
 }
 
 /// The offending leaf recorded when `classify_expr`/`head_ok`/`classify_fn` falsifies `axis`.
@@ -99,6 +114,12 @@ impl AxisViolation {
 struct OpMeta {
     pure: bool,
     deterministic: bool,
+    /// Domain-total: defined on ALL its inputs? DEFAULT-DENY, same discipline as `pure`/
+    /// `deterministic` — `false` unless a live corpus row demonstrated the need (see
+    /// BRIEF-total-t1-the-axis-unarmed.md's measurement). NOT derived from `pure`/`deterministic`:
+    /// `i64::/` is pure∧deterministic yet undefined at a zero divisor (and, separately, at the one
+    /// input pair that overflows i64) — the three axes are genuinely orthogonal.
+    total: bool,
 }
 
 /// The hand-managed map (enumerated from `dispatch_keyword_head_value` in `runtime.rs`).
@@ -136,21 +157,38 @@ struct OpMeta {
 /// - *the `eval-*-coincident?` family* — these evaluate submitted forms; purity depends on what
 ///   they are handed, exactly like `apply`.
 fn intrinsic_meta(head: &str) -> Option<OpMeta> {
-    // Pure but NON-deterministic: random.
+    // Pure but NON-deterministic: random. Not corpus-demanded for `total` (Uuid/v4 can never
+    // reach a `where` fence today — it already fails the determinism conjunct — so DEFAULT-DENY
+    // stands; it is trivially total in the absolute sense but that claim was never measured).
     if head == ":wat::core::Uuid/v4" {
-        return Some(OpMeta { pure: true, deterministic: false });
+        return Some(OpMeta { pure: true, deterministic: false, total: false });
     }
     // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
+    // `total` is NOT blanket over the prefix (unlike pure/deterministic): `string::subs` is
+    // GENUINELY PARTIAL — verified `string_ops.rs::eval_string_subs` raises `MalformedForm` when
+    // `start`/`end` fall outside the string's char-length (out-of-range indices), the exact
+    // domain-fault shape this axis exists to catch. The three below are the ones the where-corpus
+    // (`where-string.wat`) demonstrates a need for, each verified total by reading its own
+    // implementation (`string_ops.rs`): `length`/`trim`/`to-lowercase` always return, for any
+    // string input, no raise. Every other `string::`/`regex::` verb (incl. `subs`, `split`,
+    // `to-uppercase`, the whole `regex::` family) is left `false` — undemanded, unmeasured.
     if head.starts_with(":wat::core::string::") || head.starts_with(":wat::core::regex::") {
-        return Some(OpMeta { pure: true, deterministic: true });
+        let total = matches!(
+            head,
+            ":wat::core::string::length" | ":wat::core::string::trim" | ":wat::core::string::to-lowercase"
+        );
+        return Some(OpMeta { pure: true, deterministic: true, total });
     }
     // The whole `:wat::edn::` namespace is pure data transforms — parse/serialize/navigate
     // (read, read-foreign, write, write-pretty, write-json, write-json-natural,
     // ForeignRecord/get, ForeignRecord/class, ForeignVariant/variant, ForeignVariant/enum-class,
     // ForeignVariant/fields), no IO, no entropy. Root-level by namespace, not a per-verb
     // hand-list — the next foreign verb slips past a hand-list.
+    // `total`: DEFAULT-DENY — no `where` in the corpus calls an edn verb, so nothing measured it
+    // (`read`/`read-foreign` are the obvious partial candidates — malformed input — so a blanket
+    // `true` here would be exactly the mass-assert this axis's doc forbids).
     if head.starts_with(":wat::edn::") {
-        return Some(OpMeta { pure: true, deterministic: true });
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
     }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
@@ -334,8 +372,77 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::holon::cosine" | ":wat::holon::dot"
             | ":wat::holon::coincident?" | ":wat::holon::presence?"
     );
+
+    // ── `total` — BRIEF-total-t1-the-axis-unarmed.md's measurement, NOT a mass-assert ──────────
+    //
+    // DEFAULT-DENY over the WHOLE `pure_det` list above: every verb defaults to `total: false`
+    // regardless of membership in `pure_det` (pure∧deterministic says nothing about totality —
+    // `i64::/` is both, and undefined at a zero divisor). This sub-list is exactly the verbs the
+    // 9-file / 98-row `where`-corpus (`wat-scripts/perf/grid/where-*.wat`) uses inside a `where`
+    // (directly or via a transitively-checked user fn), each verified total by READING its own
+    // implementation in `runtime.rs` (never inferred from the name):
+    //
+    //   generic `=`/`not=`/`<`/`and`/`or`/`not`/`if`/`let` — value/control-flow ops with no domain
+    //     restriction (a well-typed call always returns; type mismatches are the type checker's
+    //     concern, not this axis's, exactly the convention `pure`/`deterministic` already use).
+    //   `i64::>` `i64::<` `i64::>=` `i64::<=` — comparisons never overflow (only +/-/*// do).
+    //   `i64::to-f64` — a total, lossy-but-never-raising conversion.
+    //   `f64::>` `f64::*` — f64 arithmetic/comparison is IEEE 754: never raises (verified
+    //     `eval_f64_arith` — even `0.0/0.0` yields `NaN`, not an error).
+    //   `PersistentVector/length` `/contains?` — always defined.
+    //   `PersistentVector/get` — ALREADY total by design (returns `Option`, `None` on
+    //     out-of-range — verified `persistentvector_get_inner`, never raises for a valid index).
+    //   `String/concat` `/starts-with?` `/ends-with?` `/contains?` `/empty?` — verified
+    //     (`string_ops.rs`) total for any two strings, no domain restriction.
+    //   `foldl` — CONDITIONALLY total exactly like its pure∧det entry above: the verb ITSELF never
+    //     raises (an empty seq returns the seed), so marking the head total and letting
+    //     `classify_expr`'s general-list arm recurse into the fn-literal argument (checking ITS
+    //     body against `Axis::Total` too) is the same mechanism already built for pure/det, not a
+    //     new one. `map`/`filter`/`reduce`/`foldr` are extremely likely total by the identical
+    //     argument but are NOT included — no `where` row in the corpus uses them, so nothing
+    //     measured the claim. Flagged, not classified.
+    //
+    // Explicitly and deliberately LEFT `false` (genuinely partial, confirmed by reading the
+    // implementation, not assumed from the design stone's guess) even though every one appears
+    // inside a `where` in this corpus — these are exactly the T2 mint candidates:
+    //   `i64::+` `i64::-` `i64::*` `i64::/` — verified `checked_add`/`checked_sub`/`checked_mul`/
+    //     `checked_div` in `runtime.rs`: ALL FOUR raise `IntegerOverflow` at the i64 boundary
+    //     (`i64::/` additionally raises `DivisionByZero`) — this generalizes past the design
+    //     stone's own guess, which named only `/`/`mod`/`rem`/`quot` as partial; `+`/`-`/`*`
+    //     overflow too, and the corpus's own `where-numeric.wat` header already measured this
+    //     independently for `+` (documented as "the same class of event" as division-by-zero).
+    //   `i64::mod` `i64::rem` `i64::quot` — verified: raise `DivisionByZero` at a zero divisor.
+    //   `string::subs` — verified: raises `MalformedForm` on an out-of-range start/end.
+    let total = matches!(
+        head,
+        ":wat::core::="
+            | ":wat::core::not="
+            | ":wat::core::<"
+            | ":wat::core::and"
+            | ":wat::core::or"
+            | ":wat::core::not"
+            | ":wat::core::if"
+            | ":wat::core::let"
+            | ":wat::core::i64::>"
+            | ":wat::core::i64::<"
+            | ":wat::core::i64::>="
+            | ":wat::core::i64::<="
+            | ":wat::core::i64::to-f64"
+            | ":wat::core::f64::>"
+            | ":wat::core::f64::*"
+            | ":wat::core::PersistentVector/length"
+            | ":wat::core::PersistentVector/contains?"
+            | ":wat::core::PersistentVector/get"
+            | ":wat::core::String/concat"
+            | ":wat::core::String/starts-with?"
+            | ":wat::core::String/ends-with?"
+            | ":wat::core::String/contains?"
+            | ":wat::core::String/empty?"
+            | ":wat::core::foldl"
+    );
+
     if pure_det {
-        Some(OpMeta { pure: true, deterministic: true })
+        Some(OpMeta { pure: true, deterministic: true, total })
     } else {
         None
     }
@@ -351,10 +458,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// until arc 255's builtin-registry becomes the single queryable purity source and subsumes it.
 fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let types = sym.types.as_deref()?;
+    // `total`: DEFAULT-DENY, `false` at both sites below. Neither is corpus-demanded — no `where`
+    // in the 98-row corpus calls a constructor — so it stays unmeasured rather than inferred, even
+    // though "a constructor always builds a value, given well-typed args" is a plausible structural
+    // argument (mirroring how `pure` is derived here from `nature.is_pure()` rather than a hand
+    // list). Left `false` on discipline, not because a counter-example was found.
     // TypeEnv keys carry the leading colon (e.g. ":p::Rec") — use the head verbatim.
     // 1. Aggregate constructor (record / holon / struct) — the head IS the type name.
     if let Some(crate::types::TypeDef::Aggregate(a)) = types.get(head) {
-        return Some(OpMeta { pure: a.nature.is_pure(), deterministic: true });
+        return Some(OpMeta { pure: a.nature.is_pure(), deterministic: true, total: false });
     }
     // 2. Enum-variant constructor — the head is `{EnumPath}::{Variant}` (unit or tagged).
     if let Some((enum_path, variant)) = head.rsplit_once("::") {
@@ -364,7 +476,7 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
                 crate::types::EnumVariant::Tagged { name, .. } => name == variant,
             });
             if is_variant {
-                return Some(OpMeta { pure: e.purity.is_pure(), deterministic: true });
+                return Some(OpMeta { pure: e.purity.is_pure(), deterministic: true, total: false });
             }
         }
     }
@@ -384,7 +496,17 @@ fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let (type_path, field) = head.rsplit_once('/')?;
     if let Some(crate::types::TypeDef::Aggregate(a)) = types.get(type_path) {
         if a.field_names().any(|n| n == field) {
-            return Some(OpMeta { pure: a.nature.is_pure(), deterministic: true });
+            // `total: true` — UNLIKE `constructor_meta`, this one IS corpus-demonstrated:
+            // `where-record.wat` calls `Client/rep`, `L2/u`, `L3/w`, `L4/v`, `Client/l2`,
+            // `L2/l3`, `L3/l4`, `Client/tags`, `Client/bag`, `Bag/items` directly inside `where`
+            // predicates. And it is sound, not inferred from a name: a field declared on an
+            // Aggregate exists on EVERY instance of that type by construction of the type itself
+            // (there is no partial record — every field is populated at construction), so a
+            // well-typed accessor call cannot fail on domain grounds, only on a type mismatch
+            // (out of this axis's scope, same convention `pure`/`deterministic` already use).
+            // Declaration-derived like `pure` above, not a hand-audited verb list — the exact
+            // asymmetry the axis's default-deny doc warns about does not apply here.
+            return Some(OpMeta { pure: a.nature.is_pure(), deterministic: true, total: true });
         }
     }
     // Enum-variant field accessors (tagged-variant field readers) are left to None here — their
@@ -404,6 +526,7 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
         let ok = match axis {
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
+            Axis::Total => m.total,
         };
         return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
@@ -414,6 +537,7 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
         let ok = match axis {
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
+            Axis::Total => m.total,
         };
         return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
@@ -437,6 +561,15 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
         // which is correct — IO and unknown ops are not referentially transparent).
         Axis::Deterministic => {
             if intrinsic_meta(head).is_some_and(|m| m.deterministic) {
+                Ok(())
+            } else {
+                Err(AxisViolation::new(head, axis))
+            }
+        }
+        // Total (BRIEF-total-t1-the-axis-unarmed.md) — same default-deny discipline as
+        // Deterministic: the metadata must declare total, unknown ⇒ None ⇒ deny.
+        Axis::Total => {
+            if intrinsic_meta(head).is_some_and(|m| m.total) {
                 Ok(())
             } else {
                 Err(AxisViolation::new(head, axis))
@@ -612,6 +745,7 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
             let ok = intrinsic_meta(fqdn).is_some_and(|m| match axis {
                 Axis::Pure => m.pure,
                 Axis::Deterministic => m.deterministic,
+                Axis::Total => m.total,
             });
             if ok { Ok(()) } else { Err(AxisViolation::new(fqdn, axis)) }
         }
@@ -628,6 +762,13 @@ pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// Is `ast` referentially transparent (same inputs → same output)? `:wat::core::Uuid/v4` is NOT.
 pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, Axis::Deterministic, sym, &mut HashSet::new()).is_ok()
+}
+
+/// Is `ast` domain-total (defined on all its inputs)? UNARMED (BRIEF-total-t1-the-axis-unarmed.md) —
+/// callable, but `compile-condition` does not consult it. `:wat::core::i64::/` is NOT (undefined at
+/// a zero divisor, and separately at the one input pair that overflows i64).
+pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
+    classify_expr(ast, Axis::Total, sym, &mut HashSet::new()).is_ok()
 }
 
 /// Run the SAME walk `is_pure_expr`/`is_deterministic_expr` use, but keep the violation instead of
@@ -689,6 +830,18 @@ pub(crate) fn eval_deterministic_predicate(
     eval_axis_predicate(":wat::rete::deterministic?", is_deterministic_expr, args, list_span, env, sym)
 }
 
+/// `(:wat::rete::total? <quoted-expr>) -> :bool` — domain-total (defined on all its inputs)?
+/// UNARMED (BRIEF-total-t1-the-axis-unarmed.md): callable, but NOT consulted by
+/// `compile-condition` this stone.
+pub(crate) fn eval_total_predicate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_axis_predicate(":wat::rete::total?", is_total_expr, args, list_span, env, sym)
+}
+
 /// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
 /// :wat::core::Option<wat::rete::AxisViolation>`
 ///
@@ -735,10 +888,11 @@ pub(crate) fn eval_axis_violation(
     let axis = match &axis_val {
         Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Pure" => Axis::Pure,
         Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Deterministic" => Axis::Deterministic,
+        Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Total" => Axis::Total,
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::rete::Axis (Pure or Deterministic)",
+                expected: ":wat::rete::Axis (Pure, Deterministic, or Total)",
                 got: Box::new(ValueSnapshot::of(other)),
             })
             .into());
@@ -754,6 +908,7 @@ pub(crate) fn eval_axis_violation(
             let axis_variant = match v.axis {
                 Axis::Pure => "Pure",
                 Axis::Deterministic => "Deterministic",
+                Axis::Total => "Total",
             };
             let record = Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::rete::AxisViolation".to_string(),
@@ -853,7 +1008,13 @@ mod completeness_gate {
     /// predicate would call, so it does not want a `pure`/`deterministic` CLASSIFICATION here — it
     /// falls under the existing `:wat::rete::` catch-all `Unreviewed` disposition above, same as
     /// every other rete engine verb. This is a genuine +1 to the worklist, not a laundered raise.
-    const UNREVIEWED_BASELINE: usize = 213;
+    ///
+    /// 213 → 214 (BRIEF-total-t1-the-axis-unarmed): `:wat::rete::total?` is a new dispatch verb
+    /// (a third axis predicate beside `pure?`/`deterministic?`, which were themselves never
+    /// classified by `intrinsic_meta` — they are rete engine verbs, not value operations a `where`
+    /// would call on ITSELF). Same reasoning as `axis-violation` above: falls under the existing
+    /// `:wat::rete::` catch-all, a genuine +1, not a raise to green a red gate.
+    const UNREVIEWED_BASELINE: usize = 214;
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
     /// keyword-head path) and `dispatch_substrate_impl` (the `apply`-reachable substrate table).

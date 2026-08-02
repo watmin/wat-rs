@@ -4756,6 +4756,10 @@ fn dispatch_keyword_head_value(
         // (:wat::rete::deterministic? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
         ":wat::rete::deterministic?" => crate::rete::purity::eval_deterministic_predicate(args, list_span, env, sym),
+        // BRIEF-total-t1-the-axis-unarmed — the THIRD axis: domain-total (defined on all inputs)?
+        // UNARMED: callable, but `compile-condition` does not consult it this stone.
+        // (:wat::rete::total? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
+        ":wat::rete::total?" => crate::rete::purity::eval_total_predicate(args, list_span, env, sym),
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it. PROVISIONAL name, cast owed.
         // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> :wat::core::Option<wat::rete::AxisViolation>

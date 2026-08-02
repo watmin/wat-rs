@@ -92,3 +92,76 @@ substrate's own answers rather than by hand.
 - **intueri on the `:else` variant names** — the builder ruled the shape, explicitly not the names.
 - The mint list: which verbs get an `:else` sibling. **Allow-list, not deny-list.** Some totals already
   exist (`PersistentVector/get` + `match`, `foldl` with a seed).
+
+---
+
+# ✦ STATUS UPDATE — 2026-08-02, `a787cd25`
+
+*The body above is the original stone, kept unedited. Four things changed under it today.*
+
+## 1. The prerequisite is PAID
+
+`BRIEF-the-fence-names-the-head` landed (`a787cd25`). The fence now names the offending head and the
+axis; `find_axis_violation` / `eval_axis_violation` expose the violating leaf the walk always held.
+Step 4 of "The strike" above therefore costs nothing extra: the message machinery already exists and
+a third axis inherits it.
+
+## 2. The axis is an ENUM, not a keyword — and that is where the payoff sits
+
+`(:wat::core::defenum :wat::rete::Axis :Pure :Deterministic)` now exists (`wat/rete.wat:556`),
+builder-ruled under the CLOSED-SET RULE (*"a closed set is an enum... verbose exhaustive match — that's
+our form"*). `axis_from_keyword` / `axis_keyword` were deleted, not made careful.
+
+**Minting `:Total` therefore BREAKS `axis-violation-message`'s exhaustive match, by design.** That is
+the mechanism working — the checker enumerating its own consumers — and it is verified, not assumed:
+`check.rs:5700` really does reject a non-exhaustive enum match.
+
+> ### ⛔ STOP — the launder that would un-arm this
+>
+> `check.rs:5700`'s message ends *"(or include `_` wildcard)"*. The `_`-arm-on-an-enum ban is
+> **doctrine** (`109/NOTE-full-enum-match-mandatory-no-wildcard-arm.md`) whose **checker rule is still
+> deferred and unbuilt**. So when `:Total` breaks the match, adding `_` is a one-keystroke way to make
+> the break disappear — and it silently un-arms the exact mechanism this design rests on.
+>
+> **Name every variant. A `_` arm here is a rejected strike, not a shortcut.** Three
+> designed-but-deferred walls were walked into in one session earlier in this arc; this is the fourth
+> waiting to happen.
+
+## 3. The fallback keyword is RULED: `:undefined`
+
+Builder-ruled after an intueri cast. Not `:else` — that is `cond`'s word for a *branch* chosen when
+tests fail, whereas this substitutes a *value* when an input falls outside a function's domain. Two
+concepts, and the ward found they aren't even enforced by the same mechanism (`cond`'s mandatory-ness
+is a macro scanning a variadic clause list, `wat/core.wat:1240-1246`; a required kwarg's is ordinary
+arity checking, `wat/core.wat:632-633`). `:or` was specifically rejected — `:wat::core::or` is the
+boolean intrinsic in this same purity table, so `:or -1` beside `(or a b)` in one `where` invites a
+real misread.
+
+**Mandatory-ness comes free.** `kwargs-lower` already raises `"kwargs-lower: missing argument :<field>"`
+at expansion for a required field with no default. Constraint "the fallback can never be omitted" needs
+no new machinery — declare it required.
+
+**STILL OPEN, and it belongs to the MINT strike, not this one:** whether the *operands* also go kwargs
+(`:numerator`/`:denominator`) or stay positional with only `:undefined` marked. The cast argued full
+kwargs for `/` — it is non-commutative, and bare `n d` is the same unreadable shape the builder already
+caught in `assertion-failed!`'s two bare `:None`s — while conceding the hybrid is defensible for a
+single-operand `first`. Unruled. Does not block the strike below.
+
+## 4. The strike is SPLIT — this stone's first rider does NOT arm the fence
+
+"Enumerate first, arm last" is the whole discipline, so the work is at least two strikes:
+
+| strike | scope | ships |
+|---|---|---|
+| **T1 — the axis, unarmed** | `Axis::Total`, `OpMeta.total`, `is_total_expr`, `eval_total_predicate`, register `:wat::rete::total?`, the arm that unbreaks the exhaustive match. **The fence does NOT consult it.** Then MEASURE: run `total?` over every `where` expr in the 98-row corpus and report exactly which verbs a live row demands. | the axis + **the worklist** |
+| **T2 — the mint** | the `:undefined` variants for whatever T1's enumeration actually named (allow-list, not deny-list), operand-spelling ruled first | the destination |
+| **T3 — migrate, then ARM** | corpus onto the total variants; only then the third conjunct at the fence | the wall |
+
+**T1 is the deliverable that makes T2 honest.** Do not guess the mint list — the corpus names it. And
+`total?` being callable-but-unconsulted means T1 cannot move the accepted-`where` set by one row, which
+is its own STOP.
+
+**Default-deny is not softened by the split.** Everything is `total: false` until a live corpus row
+demands otherwise. Do NOT mass-assert `total: true` over the 110 verbs in the `matches!` — they were
+vetted for a *different* property, and carrying that claim across is exactly the hand-audit stem the
+file's own doc condemns. The enumeration exists so the classification is demanded rather than assumed.
