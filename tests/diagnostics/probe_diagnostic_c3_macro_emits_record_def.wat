@@ -9,7 +9,11 @@
     [base-str (:wat::core::keyword/to-string base)
      req-name (:wat::core::keyword/from-string (:wat::core::string::concat base-str "::Req"))
      op-name  (:wat::core::keyword/from-string (:wat::core::string::concat base-str "::Op"))
-     go-name  (:wat::core::keyword/from-string (:wat::core::string::concat base-str "/go"))
+     ;; `::` composes a NAMESPACE; `/` selects a MEMBER OF A TYPE. `<base>/go` claimed a member of
+     ;; a type `demo` that does not exist — the five sibling names below already build with `::`
+     ;; (and `::Req/n` uses both correctly in one string). Only this one departed, and the
+     ;; namespacing wall rejects it at registration.
+     go-name  (:wat::core::keyword/from-string (:wat::core::string::concat base-str "::go"))
      ;; the wrapped-record field type keyword for the Op variant: :<base>::Req
      req-ty   (:wat::core::keyword/from-string (:wat::core::string::concat base-str "::Req"))
      ;; the accessor: :<base>::Req/n

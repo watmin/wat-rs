@@ -29,10 +29,10 @@ fn macro_output_reexpands_record_def_and_enum_wraps_it() {
                  and a defenum variant field may be the emitted record (record emitted first)");
     let func = world
         .symbols()
-        .get(":demo/go")
-        .expect(":demo/go must be defined by :t::mk's macro expansion");
+        .get(":demo::go")
+        .expect(":demo::go must be defined by :t::mk's macro expansion");
     let got = apply_function(func.clone(), vec![Value::i64(5)], world.symbols(), wat::rust_caller_span!())
-        .unwrap_or_else(|e| panic!("demo/go raised: {e:?}"));
+        .unwrap_or_else(|e| panic!("demo::go raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),
         "expected 5: :t::mk's macro output (defrecord Req + defenum Op wraps Req + defn go) must \
