@@ -393,7 +393,10 @@ for the whole family — one place to convert:
 | `coincident?` | `eval_algebra_coincident_q:18677` | 16 |
 | `coincident-explain` | `eval_algebra_coincident_explain:18723` | 1 |
 
-### ⛔ TWO THINGS BLOCK DRAWING THE BRIEF
+### The two things that were said to block the brief — BOTH RESOLVED, nothing blocks it
+
+*(One by a run, one by a retraction. Kept in place rather than deleted so the reasoning that produced
+a false blocker stays visible.)*
 
 1. ~~**The degenerate case's reachability is UNGROUNDED**~~ — **RESOLVED BY A RUN, 2026-08-02: it is
    REACHABLE, trivially.** Probe: `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`.
@@ -417,20 +420,32 @@ for the whole family — one place to convert:
    reachable input.
 
    ⇒ The degenerate variant is **NOT** an unreachable arm. `cosine`'s outcome carries it.
-2. **The sigma/determinism finding is unruled and lands on 33 of the 56 sites.** `presence?` and
-   `coincident?` compute their floor from an **ambient, user-settable** sigma
-   (`sigma.rs:77-86` — `WatFnSigmaFn::sigma_at` `apply_function`s an arbitrary user wat fn installed via
-   `set-presence-sigma!` / `set-coincident-sigma!`), yet both are classified `deterministic: true`
-   (`purity.rs:372-373`) and the fence is armed on pure ∧ det **today**. If the ruling is that the
-   setters go, their shape may not change the way `cosine`'s does; if the ruling is that they are
-   non-deterministic, the fence refuses them regardless and their rete surface is moot. **Ruling sigma
-   first may shrink or reshape this strike** — sequence it ahead.
+2. ~~**The sigma/determinism finding lands on 33 of the 56 sites**~~ — **RETRACTED 2026-08-02. The
+   claim was WRONG and it is NOT a blocker.**
+
+   I claimed `presence?`/`coincident?` are misclassified `deterministic: true` because their floor
+   (`sigma(d)/sqrt(d)`) comes from ambient user-settable state. Grounded: `set-presence-sigma!` /
+   `set-coincident-sigma!` are **entry-file config**, collected statically (`config.rs:463`/`:483`),
+   duplicate-rejected, and installed **once at freeze** (`freeze.rs:441-508`) — exactly like
+   `set-dim-count!`. Sigma is a **program constant**. Same holons → same floor → same answer.
+   **`deterministic: true` is correct.**
+
+   The error's shape, kept visible: I saw a `set-*!` verb and assumed a runtime mutation without
+   checking it is entry-file-collected — *after establishing that exact fact about `dim-count` earlier
+   in the same session*. By the bad standard, `encode` would be non-deterministic too, since
+   `dim-count` shapes every encoding.
+
+   **What genuinely survives, and it is small:** `check_sigma_fn_signature` (`freeze.rs:624-652`)
+   validates **arity and types only** (1 param, `:i64 -> :i64`). It does **not** require the installed
+   fn to be pure or deterministic, so a sigma fn could `println` or read a clock — and
+   `Encoders::presence_floor`'s `OnceLock` memoization latches the first call's value, making the floor
+   depend on evaluation order. Representable, narrow, and closable with one call at the install site
+   (`is_pure_expr` / `is_deterministic_expr` already exist in `purity.rs`). **Its own small stone, not
+   a blocker on anything.**
 
 ## Open — the builder's
 
-1. **The sigma setters** (blocker 2 above) — do `set-presence-sigma!` / `set-coincident-sigma!` survive?
-   They make two ruled-pure seam verbs read ambient mutable state, which breaks pure replay (R5) and the
-   oracle differential if either reaches a `where`.
+1. **The sigma-fn purity gate** — should `set-presence-sigma!` / `set-coincident-sigma!` require the installed fn to be pure ∧ deterministic at freeze? (Small, closable in one call; see the retraction above. NOT a blocker.)
 2. **Does `=` on f64 belong at all?** Float equality is a hazard independent of NaN.
 3. **The ingested-NaN limit** — accept as stated, or is there a wall for it?
 4. **Naming inside a `where`** — `:wat::rete::i64::+` is faithful to FQDN-always but long for a form
