@@ -1,3 +1,11 @@
+> ⛔ **SUPERSEDED 2026-08-01 (the strike it ordered LANDED — `af3df329`).** Its four rules and four
+> STOP triggers still hold and are carried forward into the corpus files' own headers, but its
+> MECHANICS are gone: `gen-where-shapes.sh` is deleted, `run-axis.sh` no longer serves this axis, and
+> `size = [items row]` is retired. The corpus is now two static programs — `where-shapes.wat` and
+> `where-shapes.clj` — each holding EVERY row, run once each and compared by `diff`
+> (`check-where-shapes.sh`). Kept unedited below as the record of what was asked; read the files, not
+> this, for how it works now.
+
 # BRIEF — the `where`-expressivity axis: rows 2–5 against the proven row 1
 
 Design: `DESIGN-expressivity-axis.md` (the three rulings). Seed fixture:
