@@ -17058,10 +17058,11 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Path(":wat::holon::Vector".into())],
-            },
+            // Arc 278 the dimension-heresy strike — was
+            // `:Option<wat::holon::Vector>`, collapsing four distinct
+            // wire-decode failures into one reason-free `:None`. See
+            // `VectorDecodeOutcome`'s registration in types.rs.
+            ret: TypeExpr::Path(":wat::holon::VectorDecodeOutcome".into()),
             rest_param_type: None,
         },
     );
@@ -17473,12 +17474,17 @@ fn register_builtins(env: &mut CheckEnv) {
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.
     let vector_ty = || TypeExpr::Path(":wat::holon::Vector".into());
+    // Arc 278 the dimension-heresy strike — bind/bundle/blend each USED to
+    // return a bare `Vector` and RAISE `TypeMismatch` on differing operand
+    // dimensions; now they return the shared `CombineOutcome` (types.rs) so a
+    // differing `d` is a matchable value, not a crash.
+    let combine_outcome_ty = || TypeExpr::Path(":wat::holon::CombineOutcome".into());
     env.register(
         ":wat::holon::vector-bind".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![vector_ty(), vector_ty()],
-            ret: vector_ty(),
+            ret: combine_outcome_ty(),
             rest_param_type: None,
         },
     );
@@ -17490,7 +17496,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Vector".into(),
                 args: vec![vector_ty()],
             }],
-            ret: vector_ty(),
+            ret: combine_outcome_ty(),
             rest_param_type: None,
         },
     );
@@ -17499,7 +17505,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![vector_ty(), vector_ty(), f64_ty(), f64_ty()],
-            ret: vector_ty(),
+            ret: combine_outcome_ty(),
             rest_param_type: None,
         },
     );

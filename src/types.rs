@@ -1920,6 +1920,117 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::holon::VectorDecodeOutcome — Arc 278 the dimension-heresy strike
+    // (BRIEF-dimension-heresy-screams.md). `:wat::holon::bytes-vector` used to
+    // return a bare `:Option<wat::holon::Vector>`, collapsing FOUR structurally
+    // distinct wire-decode failures (short header, wrong data length, foreign
+    // encoding dimension, reserved 0b11 cell pattern) into one reason-free
+    // `:None`. Per the builder's ruling on this strike — "the entire check is
+    // 'are these two dims the same vec length?' — that's it. This is trivially
+    // measured and is not deserving of a crash but an expressive enum to be
+    // handled" — each failure becomes its own named variant, not a lumped
+    // `Malformed[reason, at]`: the failure space is a CLOSED set already
+    // explicitly branched in the decoder's own source (unlike
+    // `RequestMalformed`'s open-ended String, which is honest precisely
+    // because ITS space is open-ended). The tell: `at` is meaningful only for
+    // `InvalidCell` — a shared field honest for one member and vacuous for the
+    // rest is the evidence a lumped shape would be wrong here.
+    //   :Decoded           [vector <- Vector]     — the happy path.
+    //   :DimensionMismatch [expected <- i64  got <- i64] — the wire header's
+    //                        dim disagrees with this program's constant
+    //                        `dim-count` (`config::collect_entry_file`).
+    //                        Neither vector is "foreign" in the combine sense
+    //                        below — this one DOES cross a wire, so the
+    //                        disagreement is against the ambient program's d.
+    //   :TruncatedHeader   [got <- i64]            — fewer than 4 header bytes;
+    //                        no `expected` field — the 4-byte minimum is a
+    //                        protocol constant, not a per-call datum, and the
+    //                        actual (short) length is the one thing a log wants.
+    //   :LengthMismatch    [expected <- i64  got <- i64] — header dim parsed
+    //                        fine, but the data bytes don't match `ceil(dim/4)`.
+    //   :InvalidCell       [at <- i64]             — a 2-bit cell decoded to
+    //                        the reserved `0b11` pattern at cell index `at`.
+    // PURE — `:wat::holon::Vector` is fully EDN-reconstructable ternary cell
+    // data (the very reason `vector-bytes`/`bytes-vector` exist to serialize
+    // it), and every other field is a bare `i64`. Registered as a builtin
+    // (peer with the other outcome walls) for load-order robustness, though
+    // `bytes-vector` itself has zero wat-corpus callers today.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::holon::VectorDecodeOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Decoded".into(),
+                fields: vec![("vector".into(), TypeExpr::Path(":wat::holon::Vector".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "DimensionMismatch".into(),
+                fields: vec![
+                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
+                ],
+            },
+            EnumVariant::Tagged {
+                name: "TruncatedHeader".into(),
+                fields: vec![("got".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "LengthMismatch".into(),
+                fields: vec![
+                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
+                ],
+            },
+            EnumVariant::Tagged {
+                name: "InvalidCell".into(),
+                fields: vec![("at".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            },
+        ],
+    }));
+
+    // :wat::holon::CombineOutcome — Arc 278 the dimension-heresy strike, part
+    // 2. `vector-bind` / `vector-bundle` / `vector-blend` each RAISED a
+    // `TypeMismatch` on differing Vector dimensions; per the same ruling as
+    // `VectorDecodeOutcome` above, a differing `d` is cheap to detect and
+    // meaningful to recover from, so it becomes a matchable value instead.
+    // ONE shared enum for all three verbs, not three per-verb siblings —
+    // unlike `RecvOutcome`/`SendOutcome`/`TrySendOutcome` (whose split is
+    // earned because their outcome SHAPES genuinely differ), bind/bundle/blend
+    // have an IDENTICAL outcome space: both reduce to `[expected, got]`.
+    //   :Combined          [vector <- Vector]                — the happy path
+    //                        (bind's XOR-compose / bundle's superposition /
+    //                        blend's weighted linear combination — three
+    //                        verbs, one shape of success).
+    //   :DimensionMismatch [expected <- i64  got <- i64]      — the operands
+    //                        disagree. Deliberately the SAME variant name as
+    //                        `VectorDecodeOutcome::DimensionMismatch` — one
+    //                        fact reached by two routes. NOT `ForeignDimension`:
+    //                        here neither vector is foreign (both are ordinary
+    //                        in-program values that simply disagree), unlike
+    //                        the wire-decode case above where one honestly did
+    //                        cross a boundary.
+    // PURE, for the same reason `VectorDecodeOutcome` is: a bare `Vector` +
+    // two `i64`s, all EDN-reconstructable.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::holon::CombineOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Combined".into(),
+                fields: vec![("vector".into(), TypeExpr::Path(":wat::holon::Vector".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "DimensionMismatch".into(),
+                fields: vec![
+                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
+                ],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — the matchable outcome of running a program:
     // `:wat::kernel::run-sandboxed`, `:wat::test::run-thread` /
     // `run-hermetic'`, and (via the `:wat::test::TestResult` alias) every

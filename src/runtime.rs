@@ -19320,20 +19320,72 @@ fn eval_holon_vector_bytes(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-/// `(:wat::holon::bytes-vector bs)` → `:Option<wat::holon::Vector>`
-/// (arc 061). Deserialize a byte buffer back into a Vector. Returns
-/// `:None` on:
-///   - input shorter than 4-byte dim header
-///   - dim header doesn't match the ambient encoder's d at the
-///     surfaced dim (cross-universe transmission would still let
-///     this through; cross-DIM is the structural error this
-///     validates against)
-///   - data length doesn't match `ceil(dim/4)` bytes
-///   - any cell decodes to the reserved 0b11 pattern
-///
-/// The `:None` discipline mirrors `:wat::core::string::to-i64`
-/// (parse-or-None) and arc 056's `from-iso8601`. Failure is a
-/// binary outcome from the caller's perspective.
+/// Arc 278 the dimension-heresy strike — the type path of `bytes-vector`'s
+/// matchable decode outcome enum (`:wat::holon::VectorDecodeOutcome`,
+/// registered in `types.rs`).
+const VECTOR_DECODE_OUTCOME_TYPE: &str = ":wat::holon::VectorDecodeOutcome";
+
+/// `VectorDecodeOutcome::Decoded [vector <- Vector]` — the happy path.
+fn vector_decode_outcome_decoded(v: holon::Vector) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
+        variant_name: "Decoded".into(),
+        fields: vec![Value::Vector(Arc::new(v))],
+    }))
+}
+
+/// `VectorDecodeOutcome::DimensionMismatch [expected <- i64  got <- i64]` —
+/// the wire header's dim disagrees with this program's constant `dim-count`.
+fn vector_decode_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
+        variant_name: "DimensionMismatch".into(),
+        fields: vec![Value::i64(expected), Value::i64(got)],
+    }))
+}
+
+/// `VectorDecodeOutcome::TruncatedHeader [got <- i64]` — fewer than the
+/// 4-byte dim header. No `expected` field — 4 is a protocol constant, not a
+/// per-call datum.
+fn vector_decode_outcome_truncated_header(got: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
+        variant_name: "TruncatedHeader".into(),
+        fields: vec![Value::i64(got)],
+    }))
+}
+
+/// `VectorDecodeOutcome::LengthMismatch [expected <- i64  got <- i64]` — the
+/// header's dim parsed fine, but the data bytes don't match `ceil(dim/4)`.
+fn vector_decode_outcome_length_mismatch(expected: i64, got: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
+        variant_name: "LengthMismatch".into(),
+        fields: vec![Value::i64(expected), Value::i64(got)],
+    }))
+}
+
+/// `VectorDecodeOutcome::InvalidCell [at <- i64]` — a 2-bit cell decoded to
+/// the reserved `0b11` pattern at cell index `at`.
+fn vector_decode_outcome_invalid_cell(at: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
+        variant_name: "InvalidCell".into(),
+        fields: vec![Value::i64(at)],
+    }))
+}
+
+/// `(:wat::holon::bytes-vector bs)` → `:wat::holon::VectorDecodeOutcome`
+/// (arc 061; arc 278 the dimension-heresy strike upgraded the bare
+/// `:Option<Vector>` to a matchable outcome — see `VectorDecodeOutcome`'s
+/// registration in `types.rs` for the full "why five variants" reasoning).
+/// Deserialize a byte buffer back into a Vector. Returns a failure variant on:
+///   - input shorter than 4-byte dim header → `TruncatedHeader`
+///   - data length doesn't match `ceil(dim/4)` bytes → `LengthMismatch`
+///   - dim header doesn't match the ambient encoder's d (cross-universe
+///     transmission would still let this through; cross-DIM is the
+///     structural error this validates against) → `DimensionMismatch`
+///   - any cell decodes to the reserved 0b11 pattern → `InvalidCell`
 fn eval_holon_bytes_vector(
     args: &[WatAST],
     list_span: &Span,
@@ -19375,21 +19427,27 @@ fn eval_holon_bytes_vector(
     }
     // Header.
     if bytes.len() < 4 {
-        return Ok(Value::Option(Arc::new(None)));
+        return Ok(vector_decode_outcome_truncated_header(bytes.len() as i64));
     }
     let header = [bytes[0], bytes[1], bytes[2], bytes[3]];
     let dim = u32::from_le_bytes(header) as usize;
     let expected_data_len = dim.div_ceil(4);
     if bytes.len() != 4 + expected_data_len {
-        return Ok(Value::Option(Arc::new(None)));
+        return Ok(vector_decode_outcome_length_mismatch(
+            (4 + expected_data_len) as i64,
+            bytes.len() as i64,
+        ));
     }
-    // Cross-dim validation: ensure ambient encoder is at this dim
-    // (arc 037's router materializes per-d encoders). If a vector
-    // arrives at a d the ambient world doesn't know about, treat as
-    // structural failure — return :None.
+    // Cross-dim validation: this program's dim-count is a static, once-only
+    // constant (`config::collect_entry_file`); a vector whose wire header
+    // names a different d is a foreign-dimension value, not a structural
+    // parse failure — matchable, not fatal (BRIEF-dimension-heresy-screams.md).
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    if ctx.encoders.get(dim).vm.dimensions() != dim {
-        return Ok(Value::Option(Arc::new(None)));
+    if dim != ctx.dim_count {
+        return Ok(vector_decode_outcome_dimension_mismatch(
+            ctx.dim_count as i64,
+            dim as i64,
+        ));
     }
     // Decode cells.
     let mut cells: Vec<i8> = Vec::with_capacity(dim);
@@ -19403,17 +19461,20 @@ fn eval_holon_bytes_vector(
                 0b00 => 0,
                 0b01 => 1,
                 0b10 => -1,
-                _ => return Ok(Value::Option(Arc::new(None))),
+                _ => return Ok(vector_decode_outcome_invalid_cell(cells.len() as i64)),
             };
             cells.push(cell);
         }
     }
-    if cells.len() != dim {
-        return Ok(Value::Option(Arc::new(None)));
-    }
-    Ok(Value::Option(Arc::new(Some(Value::Vector(Arc::new(
-        holon::Vector::from_data(cells),
-    ))))))
+    // arc 278 STOP-6 (grounded, not assumed): `cells.len() != dim` here is
+    // UNREACHABLE and was deleted rather than mapped to a variant. The length
+    // check above guarantees `bytes[4..].len() == dim.div_ceil(4)`, so this
+    // loop has `4 * dim.div_ceil(4) >= dim` decodable bit-pairs available —
+    // always enough to reach `cells.len() == dim` (the `break` never lets it
+    // exceed dim, and an early return already fires above on any invalid
+    // cell). There is no byte-length value that reaches this point with
+    // `cells.len() != dim`.
+    Ok(vector_decode_outcome_decoded(holon::Vector::from_data(cells)))
 }
 
 // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
@@ -19529,8 +19590,47 @@ fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, EvalBreak> {
     }
 }
 
-/// `(:wat::holon::vector-bind v1 v2) -> :Vector` — XOR-like bind on
-/// two materialized Vectors. Arc 053.
+/// Arc 278 the dimension-heresy strike, part 2 — the type path of the
+/// matchable outcome enum shared by `vector-bind` / `vector-bundle` /
+/// `vector-blend` (`:wat::holon::CombineOutcome`, registered in `types.rs`).
+/// ONE shared enum, not three per-verb siblings — the three verbs' outcome
+/// spaces are identical (`[expected, got]` on disagreement), unlike
+/// `RecvOutcome`/`SendOutcome`/`TrySendOutcome` whose split is earned by a
+/// genuine shape difference.
+const COMBINE_OUTCOME_TYPE: &str = ":wat::holon::CombineOutcome";
+
+/// `CombineOutcome::Combined [vector <- Vector]` — the happy path (bind's
+/// XOR-compose / bundle's superposition / blend's weighted linear
+/// combination — one shape of success across all three verbs).
+fn combine_outcome_combined(v: holon::Vector) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COMBINE_OUTCOME_TYPE.into(),
+        variant_name: "Combined".into(),
+        fields: vec![Value::Vector(Arc::new(v))],
+    }))
+}
+
+/// `CombineOutcome::DimensionMismatch [expected <- i64  got <- i64]` — the
+/// operands disagree. Deliberately the same variant name as
+/// `VectorDecodeOutcome::DimensionMismatch` (one fact, two routes) — but
+/// neither vector here is "foreign": both are ordinary in-program values
+/// that simply disagree.
+fn combine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COMBINE_OUTCOME_TYPE.into(),
+        variant_name: "DimensionMismatch".into(),
+        fields: vec![Value::i64(expected), Value::i64(got)],
+    }))
+}
+
+/// `(:wat::holon::vector-bind v1 v2) -> :wat::holon::CombineOutcome` —
+/// XOR-like bind on two materialized Vectors. Arc 053; arc 278 the
+/// dimension-heresy strike upgraded the differing-dimension RAISE to the
+/// matchable `CombineOutcome` (was a `TypeMismatch` raise — a mismatched-dim
+/// pair is cheap to detect and meaningful to recover from, per the standing
+/// law: "for any options — four-questions — we deliver an enum for code to
+/// handle exceptions with; raise is uncatchable on purpose, a thing that
+/// must never happen").
 ///
 /// Mirrors `:wat::holon::Bind` (the AST constructor) at the Vector
 /// tier. Use when you have two Vectors already materialized and want
@@ -19551,23 +19651,25 @@ fn eval_holon_vector_bind(
     let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?.value_owned())?;
     let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?.value_owned())?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::holon::vector-bind".into(),
-            expected: "Vector pair with matching dimensions",
-            got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-            // arc 138: no per-value AST span — dimensions from Vector values, not AST; list_span (call site) used instead
-        }).into());
+        return Ok(combine_outcome_dimension_mismatch(
+            va.dimensions() as i64,
+            vb.dimensions() as i64,
+        ));
     }
     let result = holon::primitives::Primitives::bind(&va, &vb);
-    Ok(Value::Vector(Arc::new(result)))
+    Ok(combine_outcome_combined(result))
 }
 
-/// `(:wat::holon::vector-bundle vs) -> :Vector` — superposition over
-/// a `:wat::core::Vector<Vector>`. Arc 053.
+/// `(:wat::holon::vector-bundle vs) -> :wat::holon::CombineOutcome` —
+/// superposition over a `:wat::core::Vector<Vector>`. Arc 053; arc 278 the
+/// dimension-heresy strike (see `vector-bind` above for the raise-to-outcome
+/// rationale).
 ///
-/// Mirrors `:wat::holon::Bundle` at the Vector tier. Empty Vec input
-/// errors (no zero-vector default — use the substrate's encode path
-/// if a "neutral" vector is needed).
+/// Mirrors `:wat::holon::Bundle` at the Vector tier. Empty Vec input still
+/// RAISES — there is no dimension to report a mismatch against, so this
+/// stays a must-never-happen call-site bug, not a handleable outcome (no
+/// zero-vector default; use the substrate's encode path if a "neutral"
+/// vector is needed).
 fn eval_holon_vector_bundle(
     args: &[WatAST],
     list_span: &Span,
@@ -19610,21 +19712,21 @@ fn eval_holon_vector_bundle(
     let d = owned[0].dimensions();
     for v in &owned[1..] {
         if v.dimensions() != d {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::holon::vector-bundle".into(),
-                expected: "Vec of Vectors with matching dimensions",
-                got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector in Vec")),
-                // arc 138: no per-value AST span — dimensions from Vector values, not AST; list_span (call site) used instead
-            }).into());
+            return Ok(combine_outcome_dimension_mismatch(
+                d as i64,
+                v.dimensions() as i64,
+            ));
         }
     }
     let refs: Vec<&holon::Vector> = owned.iter().map(|v| v.as_ref()).collect();
     let result = holon::primitives::Primitives::bundle(&refs);
-    Ok(Value::Vector(Arc::new(result)))
+    Ok(combine_outcome_combined(result))
 }
 
-/// `(:wat::holon::vector-blend v1 v2 w1 w2) -> :Vector` — weighted
-/// linear combination of two Vectors. Arc 053.
+/// `(:wat::holon::vector-blend v1 v2 w1 w2) -> :wat::holon::CombineOutcome` —
+/// weighted linear combination of two Vectors. Arc 053; arc 278 the
+/// dimension-heresy strike (see `vector-bind` above for the raise-to-outcome
+/// rationale).
 ///
 /// Mirrors `:wat::holon::Blend` at the Vector tier. Used by Reject /
 /// Project / weighted prototype updates.
@@ -19646,15 +19748,13 @@ fn eval_holon_vector_blend(
     let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
     let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?.value_owned(), list_span)?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::holon::vector-blend".into(),
-            expected: "Vector pair with matching dimensions",
-            got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-            // arc 138: no per-value AST span — dimensions from Vector values, not AST; list_span (call site) used instead
-        }).into());
+        return Ok(combine_outcome_dimension_mismatch(
+            va.dimensions() as i64,
+            vb.dimensions() as i64,
+        ));
     }
     let result = holon::primitives::Primitives::blend_weighted(&va, &vb, w1, w2);
-    Ok(Value::Vector(Arc::new(result)))
+    Ok(combine_outcome_combined(result))
 }
 
 /// `(:wat::holon::vector-permute v k) -> :Vector` — circular shift
@@ -31760,12 +31860,18 @@ mod tests {
               [v
                 (:wat::holon::encode (:wat::holon::to-holon "round-trip-test"))
                bs (:wat::holon::vector-bytes v)
-               maybe-v
+               decode-outcome
                 (:wat::holon::bytes-vector bs)
                v2
-                (:wat::core::match maybe-v
-                  ((:wat::core::Some v2) v2)
-                  (:wat::core::None
+                (:wat::core::match decode-outcome
+                  ((:wat::holon::VectorDecodeOutcome::Decoded v2) v2)
+                  ((:wat::holon::VectorDecodeOutcome::DimensionMismatch _e _g)
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel")))
+                  ((:wat::holon::VectorDecodeOutcome::TruncatedHeader _g)
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel")))
+                  ((:wat::holon::VectorDecodeOutcome::LengthMismatch _e _g)
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel")))
+                  ((:wat::holon::VectorDecodeOutcome::InvalidCell _at)
                     (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))))]
               (:wat::holon::cosine v v2))
         "#;
@@ -31802,7 +31908,9 @@ mod tests {
 
     #[test]
     fn bytes_vector_rejects_short_input() {
-        // Three bytes — not enough for the 4-byte dim header.
+        // Three bytes — not enough for the 4-byte dim header. Arc 278 the
+        // dimension-heresy strike: expect the named `TruncatedHeader`
+        // variant, not a reason-free `:None`.
         // Integer literals default to :i64; cast each through
         // :wat::core::u8 so the Vec stores u8 elements.
         let src = r#"
@@ -31812,19 +31920,24 @@ mod tests {
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
-              ((:wat::core::Some _) false)
-              (:wat::core::None true))
+              ((:wat::holon::VectorDecodeOutcome::Decoded _v) false)
+              ((:wat::holon::VectorDecodeOutcome::DimensionMismatch _e _g) false)
+              ((:wat::holon::VectorDecodeOutcome::TruncatedHeader _g) true)
+              ((:wat::holon::VectorDecodeOutcome::LengthMismatch _e _g) false)
+              ((:wat::holon::VectorDecodeOutcome::InvalidCell _at) false))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
             Value::bool(true) => {}
-            v => panic!("expected None on short input, got {:?}", v),
+            v => panic!("expected TruncatedHeader on short input, got {:?}", v),
         }
     }
 
     #[test]
     fn bytes_vector_rejects_truncated_data() {
         // 4-byte header claiming dim=10000 followed by zero data
-        // bytes — data length doesn't match expected.
+        // bytes — data length doesn't match expected. Arc 278 the
+        // dimension-heresy strike: expect the named `LengthMismatch`
+        // variant, not a reason-free `:None`.
         // dim=10000 little-endian u32 = 16 39 00 00.
         let src = r#"
             (:wat::core::match
@@ -31834,12 +31947,15 @@ mod tests {
                   (:wat::core::u8 39)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
-              ((:wat::core::Some _) false)
-              (:wat::core::None true))
+              ((:wat::holon::VectorDecodeOutcome::Decoded _v) false)
+              ((:wat::holon::VectorDecodeOutcome::DimensionMismatch _e _g) false)
+              ((:wat::holon::VectorDecodeOutcome::TruncatedHeader _g) false)
+              ((:wat::holon::VectorDecodeOutcome::LengthMismatch _e _g) true)
+              ((:wat::holon::VectorDecodeOutcome::InvalidCell _at) false))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
             Value::bool(true) => {}
-            v => panic!("expected None on truncated input, got {:?}", v),
+            v => panic!("expected LengthMismatch on truncated input, got {:?}", v),
         }
     }
 
