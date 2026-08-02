@@ -1,0 +1,10 @@
+;; Negative fixture: arc 278 BRIEF-scalar-def-reaches-the-gate.
+;;
+;; A bare (unnamespaced) top-level SCALAR def — no `fn` shape. `register_defines`
+;; (runtime.rs) only routes fn-shaped `def`s through `resolve::gate`; a scalar def
+;; falls through to `rest` and, before this fix, never reached `gate()` at all —
+;; it compiled clean. This is the NEW specimen the codemod migration in `72a1ac3d`
+;; retired from the corpus (the six `wat_arc157_def_*` fixtures that used to hold
+;; bare scalar defs were namespaced), so nothing else on the floor exercises this
+;; hole. Must fail with `UnnamespacedName`, naming `:pi`.
+(:wat::core::def :pi 3.14)

@@ -486,9 +486,18 @@
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
-;; prepend `(def :wat::spawn::service-locus (process))` (the transport literal lives HERE,
+;; prepend `(def :user::spawn::service-locus (process))` (the transport literal lives HERE,
 ;; not in defservice), concat service-forms (which contains the agnostic child :user::main
-;; that binds on :wat::spawn::service-locus), spawn via spawn-program', handshake:
+;; that binds on :user::spawn::service-locus), spawn via spawn-program', handshake:
+;;
+;; The coordinate is `:user::`, not `:wat::` — and that is the doctrine, not a preference.
+;; `:user::` is the RENDEZVOUS COORDINATE SPACE (see bracket.wat's header: "not a user's
+;; namespace; a rendezvous space"), direction-agnostic: a name a parent PLANTS and a child
+;; RESOLVES at startup. The exact precedent is `:user::bracket::work-fn`. And it must be
+;; `:user::`: privilege does NOT survive a process boundary — by the time the child freezes
+;; these forms they are the post-register_defines USER residue, so a `def` minting into the
+;; RESERVED `:wat::` tree is what `resolve::gate -> Reserved` exists to refuse. It compiled
+;; for as long as it did only because a scalar `def` never reached that gate.
 ;;   recv' the child-minted Address' (capability handoff — arc 272 6a)
 ;;   send' state0 to the child over the lineage (arc 272 6b-ii-α)
 ;; Returns Launched{handle=Process', address=child-minted Address'}.
@@ -505,7 +514,7 @@
     (:wat::core::let
       [prog (:wat::core::concat
               (:wat::core::forms
-                (:wat::core::def :wat::spawn::service-locus (:wat::spawn::process)))
+                (:wat::core::def :user::spawn::service-locus (:wat::spawn::process)))
               service-forms)
        svc  (:wat::kernel::spawn-program self prog)
        ;; arc 278 the send'-outcome wall — the crash-aware `recv' svc` right below faces

@@ -212,6 +212,22 @@ pub enum CheckErrorKind {
         #[to_edn(key = "prior-loc")]
         original_def_span: Span,
     },
+    /// Arc 278 BRIEF-scalar-def-reaches-the-gate — a top-level `:wat::core::def`
+    /// binding with no namespace on its name. `register_defines` (runtime.rs)
+    /// only routes FN-SHAPED defs through `resolve::gate`; a plain scalar def
+    /// falls to `extract_def_binding` / `collect_splice_defs_ctx` at check-time,
+    /// which is now the door that calls `resolve::gate` for the shape the
+    /// runtime-side door never sees. Fourth taxonomy entry for
+    /// `Registration::Unnamespaced` — `TypeErrorKind`, `RuntimeErrorKind` and
+    /// `MacroErrorKind` got theirs in `72a1ac3d`.
+    UnnamespacedName { name: String },
+    /// Arc 278 BRIEF-scalar-def-reaches-the-gate — a top-level `:wat::core::def`
+    /// binding whose name uses a reserved prefix (`:wat::` / `:rust::`) from
+    /// unprivileged (user) source. Same door as `UnnamespacedName` above: a
+    /// scalar def never reached `resolve::gate` before this change, so this
+    /// hole was open too — found by grounding the BRIEF's `Reserved` question
+    /// with a run, not closed as a silent bonus.
+    ReservedPrefix { name: String },
     /// Arc 170 slice 1e — `:user::main` with non-canonical signature.
     ///
     /// D1: primary span was `:location`; normalized to `:span`.
@@ -578,6 +594,21 @@ impl CheckErrorKind {
                     prefix, name, prior_type, new_type, prior_loc
                 )
             }
+            CheckErrorKind::UnnamespacedName { name } => write!(
+                f,
+                "{}top-level name '{}' is not namespaced — only fn arguments and let-bindings \
+                 may be bare; give it a namespace, e.g. ':my::{}'",
+                prefix,
+                name,
+                name.trim_start_matches(':')
+            ),
+            CheckErrorKind::ReservedPrefix { name } => write!(
+                f,
+                "{}cannot define {} — reserved prefix ({}); user defines must use their own prefix",
+                prefix,
+                name,
+                crate::resolve::reserved_prefix_list()
+            ),
             CheckErrorKind::BareLegacyMainSignature => write!(
                 f,
                 "{}`:user::main` declared with a non-canonical signature is retired (arc 170 slice 1e — REALIZATIONS pass 7 + pass 10); canonical shape is `[] -> :wat::core::nil`. The four-arg shape (stdin/stdout/stderr/argv) retired: argv moves to the ambient `(:wat::runtime::argv)`; stdio access moves to the three substrate services (`:wat::kernel::StdInService` / `StdOutService` / `StdErrService` per slice 1f). `nil` IS the success exit code — clean nil-return maps to libc::exit(0); panic-cascade maps to libc::exit(N) via the StdErrService epilogue. User code never participates in exit-code arithmetic. Migrate the define to:\n  (:wat::core::defn :user::main [] -> :wat::core::nil \n    <body that does work and returns :wat::core::nil>)\nor with `defn`:\n  (:wat::core::defn :user::main [] -> :wat::core::nil\n    <body>)",

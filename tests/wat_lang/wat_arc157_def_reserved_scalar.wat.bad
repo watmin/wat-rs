@@ -1,0 +1,10 @@
+;; Negative fixture: arc 278 BRIEF-scalar-def-reaches-the-gate, the `Reserved`
+;; question grounded.
+;;
+;; A top-level SCALAR def naming a RESERVED prefix (`:wat::`) from user source.
+;; Same hole as the sibling `_bare_scalar_unnamespaced` fixture: a scalar def
+;; never reached `resolve::gate` before this fix, so this was unpoliced too —
+;; ground-truthed with `target/release/wat --check` before the change (exit 0,
+;; accepted) and after (rejected). Must fail with `ReservedPrefix`, naming
+;; `:wat::core::pi`.
+(:wat::core::def :wat::core::pi 3.14)

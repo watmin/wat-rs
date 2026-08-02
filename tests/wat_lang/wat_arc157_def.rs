@@ -135,6 +135,35 @@ fn def_redef_forbidden_strict_default() {
     );
 }
 
+// ─── Arc 278 BRIEF-scalar-def-reaches-the-gate — 2 tests ─────────────────
+//
+// The hole: `register_defines` (runtime.rs) only routes FN-SHAPED `def`s
+// through `resolve::gate`; a plain scalar def falls to `extract_def_binding` /
+// `collect_splice_defs_ctx` at check-time, which never called `gate()` before
+// this fix. The six `wat_arc157_def_*` fixtures that used to hold bare scalar
+// defs were namespaced by the `72a1ac3d` codemod, so nothing else on the floor
+// exercises this — these two are the NEW specimens.
+
+#[test]
+fn def_bare_scalar_unnamespaced_rejected() {
+    let err = startup_err("tests/wat_lang/wat_arc157_def_bare_scalar_unnamespaced.wat.bad");
+    wat::assert_edn_eq!(
+        err,
+        include_str!("wat_arc157_def__bare_scalar_unnamespaced.edn"),
+        "expected UnnamespacedName naming :pi — a bare scalar def was accepted before arc 278 BRIEF-scalar-def-reaches-the-gate"
+    );
+}
+
+#[test]
+fn def_reserved_scalar_rejected() {
+    let err = startup_err("tests/wat_lang/wat_arc157_def_reserved_scalar.wat.bad");
+    wat::assert_edn_eq!(
+        err,
+        include_str!("wat_arc157_def__reserved_scalar.edn"),
+        "expected ReservedPrefix naming :wat::core::pi — a scalar def targeting a reserved prefix was accepted before arc 278 BRIEF-scalar-def-reaches-the-gate"
+    );
+}
+
 // ─── Runtime resolution — 3 tests ────────────────────────────────────────
 
 #[test]

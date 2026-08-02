@@ -588,14 +588,23 @@
                       ephemeral-peer-surfaces)
      ;; peer-forms-calls: Vector<WatAST> of `(:S::surface-forms)` call nodes — one per :peers surface.
      ;; Spliced into the service-forms concat (below) so each dialed surface's forms cross the fork.
+     ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: each contributor to
+     ;; service-forms ships only when the child cannot already have it. A `:wat::`-rooted
+     ;; peer surface can only have been declared by baked stdlib source (`:wat::` is
+     ;; reserved — `src/resolve/reserved.rs:25-27` — so the gate refuses a user-privilege
+     ;; registration under it); the child's own bake already has it, so its
+     ;; `::surface-forms` call is dropped here rather than concatenated.
      peer-forms-calls (:wat::core::foldl
                         (:wat::core::fn [acc   <- :wat::core::Vector<wat::WatAST>
                                          s-str <- :wat::core::String]
                           -> :wat::core::Vector<wat::WatAST>
-                          (:wat::core::let
-                            [sf-kw (:wat::core::keyword/from-string
-                                     (:wat::core::string::concat s-str "::surface-forms"))]
-                            (:wat::core::conj acc `(~sf-kw))))
+                          (:wat::core::if (:wat::core::string::starts-with? s-str "wat::")
+
+                            acc
+                            (:wat::core::let
+                              [sf-kw (:wat::core::keyword/from-string
+                                       (:wat::core::string::concat s-str "::surface-forms"))]
+                              (:wat::core::conj acc `(~sf-kw)))))
                         (:wat::core::Vector :wat::WatAST)
                         peers-surfaces)
 
@@ -1663,10 +1672,13 @@
      ;; service-forms-kw: the keyword :<fqdn>::service-forms — the name of the emitted def.
      service-forms-kw (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{b}::service-forms" :b fqdn-base))
-     ;; The agnostic child :user::main: binds on :wat::spawn::service-locus (a FREE
+     ;; The agnostic child :user::main: binds on :user::spawn::service-locus (a FREE
      ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends
-     ;; `(def :wat::spawn::service-locus (process))` before spawning, so the child
-     ;; universe resolves service-locus at startup to a ProcessOpts value.
+     ;; `(def :user::spawn::service-locus (process))` before spawning, so the child
+     ;; universe resolves service-locus at startup to a ProcessOpts value. `:user::` is
+     ;; the RENDEZVOUS space (bracket.wat's header), the same shape as
+     ;; `:user::bracket::work-fn` — and it is REQUIRED, not stylistic: in the child these
+     ;; forms are user residue, so a `:wat::`-tree def is a reserved-prefix violation.
      ;; self-peer S=addr-ty (child sends minted Address up), R=ship-ty (parent sends
      ;; the EDN ship value down). The child recvs the ship value, applies init to build State,
      ;; then calls serve. serve is invoked via apply (dynamic keyword) — the child main
@@ -1707,7 +1719,7 @@
                           ;; instance is: one erased instantiation. At RUNTIME the decode target
                           ;; a type var names is opaque (`edn_to_typed_value`'s var arm) — the
                           ;; concrete fields around it are still decoded and enforced exactly.
-                          [~cm-b-sym    (:wat::kernel::listener :wat::spawn::service-locus
+                          [~cm-b-sym    (:wat::kernel::listener :user::spawn::service-locus
                                             ~proto-op-ty-kw ~proto-reply-ty-kw ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
                            ~cm-ship-sym (:wat::core::match (:wat::kernel::recv ~cm-self-sym) 
@@ -1743,21 +1755,31 @@
      ;; The ProcessOpts launch arm receives the Vector value (the runtime evaluates the
      ;; call before dispatch, so it arrives as the actual Vec).
      ;; own-forms-call: the full service-forms body (this service's server internals + child main).
-     own-forms-call  `(:wat::core::forms
-                        ~record-def
-                        ~state-def
-                        ~service-op-def
-                        ~@service-op-derive-items
-                        (:wat::core::defn ~serve-name ~serve-params
-                          -> :wat::core::nil ~serve-body)
-                        ~init-def
-                        ~stop-project-def
-                        ~hibernate-project-def
-                        ~admin-enum-def
-                        ~status-enum-def
-                        ~dispatch-admin-def
-                        ~extract-addr-def
-                        ~child-main-form)
+     ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: a `:wat::`-rooted fqdn-base
+     ;; can only be baked stdlib source (the reserved-prefix wall admits no other origin —
+     ;; `src/resolve/reserved.rs:25-27`), so the child already has every internal below;
+     ;; re-shipping them is what turned `resolve::gate -> Reserved` red in the child. The ONE
+     ;; thing shipped unconditionally is `child-main-form` — generated per service, in no
+     ;; bake, and the child's entry point; dropping it leaves the child with nothing to run.
+     fqdn-is-wat-rooted? (:wat::core::string::starts-with? fqdn-base "wat::")
+     own-forms-call  (:wat::core::if fqdn-is-wat-rooted?
+
+                       `(:wat::core::forms ~child-main-form)
+                       `(:wat::core::forms
+                          ~record-def
+                          ~state-def
+                          ~service-op-def
+                          ~@service-op-derive-items
+                          (:wat::core::defn ~serve-name ~serve-params
+                            -> :wat::core::nil ~serve-body)
+                          ~init-def
+                          ~stop-project-def
+                          ~hibernate-project-def
+                          ~admin-enum-def
+                          ~status-enum-def
+                          ~dispatch-admin-def
+                          ~extract-addr-def
+                          ~child-main-form))
      ;; ── Arc 278 S4c: the surface OWNS its protocol; SHIP it. ──────────────────────
      ;; The satisfied surface's `<S>::surface-forms` carrier (emitted by defsurface in Rust) is
      ;; a Vector<WatAST> of the surface's own forms (its :messages records/enums + the defsurface
@@ -1772,12 +1794,22 @@
      ;;   (concat (concat … (concat (OwnSurface::surface-forms) (S1::surface-forms)) …) own-forms-call)
      ;; peers-forms-node folds each `(:Si::surface-forms)` onto the own-surface call; empty :peers
      ;; → peers-forms-node is just `(OwnSurface::surface-forms)` (identical to the pre-S4d concat).
+     ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: the OWN surface's
+     ;; `<S>::surface-forms` call is the base of the fold. A `:wat::`-rooted proto-base
+     ;; can only be a baked stdlib surface, so the child already has it — the base becomes
+     ;; the empty `(:wat::core::forms)` rather than the call, and peer-forms-calls (already
+     ;; filtered above) folds onto that instead.
+     proto-is-wat-rooted? (:wat::core::string::starts-with? proto-base "wat::")
+     own-surface-forms-node (:wat::core::if proto-is-wat-rooted?
+
+                               `(:wat::core::forms)
+                               `(~surface-forms-kw))
      peers-forms-node (:wat::core::foldl
                         (:wat::core::fn [acc       <- :wat::WatAST
                                          call-node <- :wat::WatAST]
                           -> :wat::WatAST
                           `(:wat::core::concat ~acc ~call-node))
-                        `(~surface-forms-kw)
+                        own-surface-forms-node
                         peer-forms-calls)
      service-forms-def `(:wat::core::defn ~service-forms-kw
                           [] -> :wat::core::Vector<wat::WatAST>

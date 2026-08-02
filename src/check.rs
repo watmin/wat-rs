@@ -7797,34 +7797,64 @@ fn collect_splice_defs_ctx(
     match head {
         ":wat::core::def" if is_top => {
             if let Some((name, ty, span)) = extract_def_binding(form, env, fresh, errors) {
-                if !env.defined_values.contains_key(&name) {
-                    // First binding — always register. Also store the body AST for
-                    // arc-054 byte-equivalence checking on redef (infer_def consults
-                    // `get_defined_value_ast` to allow identical re-declarations).
-                    if let WatAST::List(items, _) = form {
-                        let expr_idx = if items.len() == 4 { 3 } else { 2 };
-                        if let Some(ast) = items.get(expr_idx) {
-                            env.register_defined_value_ast(&name, ast.clone());
-                        }
+                // Arc 278 BRIEF-scalar-def-reaches-the-gate — THE ONE DOOR.
+                // `register_defines` (runtime.rs) only routes FN-SHAPED defs through
+                // `resolve::gate`; a plain scalar def falls through to `rest` and never
+                // touches it. This is the check-side registration for `def` — the door
+                // that closes the hole for the shape the runtime-side door never sees.
+                //
+                // Presence maps to `Existing::Equivalent`, never `Divergent`: `def`'s OWN
+                // redef discipline (`DefRedefForbidden` / `DefRedefTypeChange`, emitted by
+                // `infer_def` above) stays authoritative over divergence. Mirrors the
+                // runtime-side door at runtime.rs:912 exactly.
+                let existing = if env.defined_values.contains_key(&name) {
+                    crate::resolve::Existing::Equivalent
+                } else {
+                    crate::resolve::Existing::Absent
+                };
+                match crate::resolve::gate(&name, crate::resolve::Privilege::User, existing) {
+                    crate::resolve::Registration::Unnamespaced => {
+                        errors.push(CheckError { span, kind: CheckErrorKind::UnnamespacedName { name } });
                     }
-                    env.register_defined_value(name, ty, span);
-                } else if env.redef_allowed {
-                    // Arc 157 slice 1a-ii — opt-in redef with type-stability.
-                    // If types match (already verified in infer_def), replace
-                    // the prior entry so subsequent references see the
-                    // current type. If types differ, infer_def already emitted
-                    // DefRedefTypeChange; don't overwrite.
-                    let prior_str = env.get_defined_value_type(&name)
-                        .map(format_type)
-                        .unwrap_or_default();
-                    let new_str = format_type(&ty);
-                    if prior_str == new_str {
+                    crate::resolve::Registration::Reserved => {
+                        errors.push(CheckError { span, kind: CheckErrorKind::ReservedPrefix { name } });
+                    }
+                    crate::resolve::Registration::Insert => {
+                        // First binding — always register. Also store the body AST for
+                        // arc-054 byte-equivalence checking on redef (infer_def consults
+                        // `get_defined_value_ast` to allow identical re-declarations).
+                        if let WatAST::List(items, _) = form {
+                            let expr_idx = if items.len() == 4 { 3 } else { 2 };
+                            if let Some(ast) = items.get(expr_idx) {
+                                env.register_defined_value_ast(&name, ast.clone());
+                            }
+                        }
                         env.register_defined_value(name, ty, span);
                     }
-                    // else: type mismatch — don't overwrite the prior entry.
+                    crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {
+                        // The existing redef path — UNCHANGED. `Duplicate` never actually
+                        // arises here (we only ever pass `Equivalent` or `Absent` above),
+                        // matched alongside `NoOp` for the same reason every other gate
+                        // call site does: uniform handling if that ever changes.
+                        if env.redef_allowed {
+                            // Arc 157 slice 1a-ii — opt-in redef with type-stability.
+                            // If types match (already verified in infer_def), replace
+                            // the prior entry so subsequent references see the
+                            // current type. If types differ, infer_def already emitted
+                            // DefRedefTypeChange; don't overwrite.
+                            let prior_str = env.get_defined_value_type(&name)
+                                .map(format_type)
+                                .unwrap_or_default();
+                            let new_str = format_type(&ty);
+                            if prior_str == new_str {
+                                env.register_defined_value(name, ty, span);
+                            }
+                            // else: type mismatch — don't overwrite the prior entry.
+                        }
+                        // else: redef_allowed = false → DefRedefForbidden already
+                        // emitted by infer_def; don't overwrite.
+                    }
                 }
-                // else: redef_allowed = false → DefRedefForbidden already
-                // emitted by infer_def; don't overwrite.
             }
         }
         // Stone 237.2 — defclause registration. Parse the form via the

@@ -332,10 +332,11 @@ pub fn extract_closure(
     //
     // Capture rewrite has ALREADY run above; lifted forms that
     // reference closed-env captures already carry the rewritten
-    // synthetic keyword form (`:__captured_X`). Captured_binding
-    // defines are in the prologue BEFORE the lifted prelude forms
-    // (prologue assembly step 2 precedes step 5 below), so the
-    // `:__captured_X` keyword resolves correctly at child startup.
+    // synthetic keyword form (`:user::closure-capture::X`).
+    // Captured_binding defines are in the prologue BEFORE the lifted
+    // prelude forms (prologue assembly step 2 precedes step 5 below),
+    // so the `:user::closure-capture::X` keyword resolves correctly at
+    // child startup.
     //
     // Non-do bodies (single expression, let, etc.) are left unchanged:
     // `split_body_prelude` returns (empty, body) for non-do shapes.
@@ -343,7 +344,7 @@ pub fn extract_closure(
 
     // Assemble prologue in topological order:
     //   1. Type definitions (types in topological order)
-    //   2. Captured-binding defines (`(def :__captured_X <encoded>)`)
+    //   2. Captured-binding defines (`(def :user::closure-capture::X <encoded>)`)
     //   3. User dependency defines (in topological order)
     //   4. (Arc 170 slice 3 Gap H) Lifted fn-body prelude forms —
     //      define/struct/enum forms extracted from the fn body's
@@ -352,7 +353,7 @@ pub fn extract_closure(
     //      before the body runs. Appended AFTER parent-types (step
     //      1, F-3) and captured values (step 2) so that lifted
     //      defines that reference closed-env captures resolve to
-    //      `:__captured_X` keywords that are already bound.
+    //      `:user::closure-capture::X` keywords that are already bound.
     //   5. (keyword-path input only) the entry fn's define form,
     //      with rewritten body — appended after all deps. For
     //      inline-lambda, the entry never appears in prologue.
@@ -562,12 +563,27 @@ pub fn eval_kernel_fn_forms(
 // stay.
 
 fn synthesize_capture_name(local: &str) -> String {
-    // Captured locals are bare symbols. We emit them as bare-name
-    // top-level keyword paths under `:__captured_<local>`. The body
-    // rewrite swaps the bare-Symbol reference for a Keyword that
-    // resolves to the def-bound value at runtime via `def`'s
-    // runtime_def_values pathway.
-    format!(":__captured_{}", sanitize_local_for_keyword(local))
+    // Captured locals are bare symbols. We emit them as top-level keyword
+    // paths under `:user::closure-capture::<local>` — never bare (a
+    // bare top-level name is a located `Registration::Unnamespaced`
+    // error at every registration door) and never `:wat::`-rooted
+    // (privilege does not survive a process boundary: in the child
+    // these planted forms are user residue, so a `:wat::`-rooted mint
+    // is refused as a reserved prefix — `ReservedPrefix`). `:user::` is
+    // the rendezvous coordinate space (see `wat/bracket.wat`'s header —
+    // "not a user's namespace; a rendezvous space"), so that is where
+    // these belong. The `closure-capture` segment is deliberate: the
+    // old `__` marker is gone, and that segment now carries the
+    // collision-avoidance duty the `__` prefix used to carry (the duty
+    // itself is unchanged — see the retirement note above; only where
+    // it is discharged has moved, from a string prefix to a namespace
+    // segment). The body rewrite swaps the bare-Symbol reference for a
+    // Keyword that resolves to the def-bound value at runtime via
+    // `def`'s runtime_def_values pathway.
+    format!(
+        ":user::closure-capture::{}",
+        sanitize_local_for_keyword(local)
+    )
 }
 
 fn sanitize_local_for_keyword(s: &str) -> String {
@@ -2505,9 +2521,9 @@ fn rewrite_fn(
 // ─── ClosurePackage assembly helpers ────────────────────────────────────
 
 fn capture_define_form(cb: &CapturedBinding) -> WatAST {
-    // Use `(:wat::core::def :__captured_X <encoded>)` to bind the
-    // captured value at top level. Per arc 157, def-bound names
-    // resolve at the keyword arm of `eval` after unit_variants.
+    // Use `(:wat::core::def :user::closure-capture::X <encoded>)` to
+    // bind the captured value at top level. Per arc 157, def-bound
+    // names resolve at the keyword arm of `eval` after unit_variants.
     let span = crate::rust_caller_span!();
     WatAST::List(
         vec![
@@ -2910,8 +2926,8 @@ mod tests {
     // (capture-binding naming is unchanged).
 
     #[test]
-    fn synthetic_capture_name_prefixes_double_underscore() {
+    fn synthetic_capture_name_is_user_closure_capture_namespaced() {
         let n = synthesize_capture_name("my-config");
-        assert_eq!(n, ":__captured_my-config");
+        assert_eq!(n, ":user::closure-capture::my-config");
     }
 }

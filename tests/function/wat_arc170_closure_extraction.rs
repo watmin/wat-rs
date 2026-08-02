@@ -376,7 +376,7 @@ fn t5_inline_lambda_captures_let_scope_struct() {
     let type_decls = collect_type_decl_names(&package.prologue);
     assert!(type_decls.iter().any(|x| x == ":my::Config"));
     let captures = collect_def_names(&package.prologue);
-    assert!(captures.iter().any(|n| n == ":__captured_cfg"),
+    assert!(captures.iter().any(|n| n == ":user::closure-capture::cfg"),
             "expected `cfg` capture; got {:?}", captures);
     // Behavior equivalence.
     let fresh = re_freeze(package.prologue);
@@ -401,10 +401,10 @@ fn t6_lambda_captures_multiple_mixed_types() {
     // though the body doesn't reference it — capture collection is
     // driven by closed_env). Verify n and xs are present; cfg is
     // optional.
-    assert!(captures.iter().any(|c| c == ":__captured_n"),
-            "missing :__captured_n; got {:?}", captures);
-    assert!(captures.iter().any(|c| c == ":__captured_xs"),
-            "missing :__captured_xs; got {:?}", captures);
+    assert!(captures.iter().any(|c| c == ":user::closure-capture::n"),
+            "missing :user::closure-capture::n; got {:?}", captures);
+    assert!(captures.iter().any(|c| c == ":user::closure-capture::xs"),
+            "missing :user::closure-capture::xs; got {:?}", captures);
     let fresh = re_freeze(package.prologue);
     // n=7, length(xs)=3, m=10 => 10+7+3 = 20.
     let result =
@@ -423,7 +423,7 @@ fn t7_factory_pattern() {
     // lambda; it has no canonical name).
     let _shape = assert_entry_form_fn_form(&package.entry_form);
     let captures = collect_def_names(&package.prologue);
-    assert!(captures.iter().any(|c| c == ":__captured_config"),
+    assert!(captures.iter().any(|c| c == ":user::closure-capture::config"),
             "expected `config` capture (the factory's arg); got {:?}", captures);
     let fresh = re_freeze(package.prologue);
     let result =
