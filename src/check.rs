@@ -2329,6 +2329,22 @@ fn infer_list(
 
     if let WatAST::Keyword(k, head_span) = head {
         let args = &items[1..];
+        // Arc 278 #55 (S3b+S4) slice one — Form-class rete ops route generically to the SAME
+        // inference helper their mirrored core form uses. Table-driven (`rete::vocabulary::
+        // RETE_OPS`), keyed off `class` alone — NOT a hardcoded second FQDN literal in this
+        // match (STOP-2: no rete op named in more than one file). Slice one's only Form is
+        // `:wat::rete::core::and` (mirrors `:wat::core::and`'s `infer_boolean_shortcircuit` arm
+        // below); `cond`/`match`/`fn` are structural guards, out of scope (STOP-4).
+        if let Some(op) = crate::rete::vocabulary::rete_op_for(k.as_str()) {
+            if op.class == crate::rete::vocabulary::OpClass::Form {
+                let (val, mut errs) = infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+        }
         match k.as_str() {
             // Arc 157 — `:wat::core::def` type-check arm.
             // Position checking happens via `validate_def_position`
@@ -15439,6 +15455,40 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // Arc 278 #55 (S3b+S4) slice one — THE ONE TABLE (`rete::vocabulary::RETE_OPS`), fed into a
+    // registration loop exactly like the i64 comparison family immediately above (the pattern
+    // this stone generalises, per the design stone's own citation). `Alias`/`Fallback` classes
+    // get a `TypeScheme` here — a plain arity+type registration is enough; the generic
+    // "unregistered-scheme fallback" path (this function's own doc, `k.as_str()`'s final `_ =>`
+    // arm below) does the rest, exactly as it already does for `:wat::core::i64::>` with zero
+    // dedicated match arm. `Form`-class rows (no scheme) are filtered out here — they get the
+    // dedicated `infer_boolean_shortcircuit` dispatch near this function's `and`/`or` arm instead.
+    for op in crate::rete::vocabulary::RETE_OPS.iter() {
+        if matches!(op.class, crate::rete::vocabulary::OpClass::Alias | crate::rete::vocabulary::OpClass::Fallback) {
+            env.register(
+                op.rete_name.to_string(),
+                TypeScheme {
+                    type_params: vec![],
+                    params: op.params.iter().map(|p| p.to_type_expr()).collect(),
+                    ret: op.ret.to_type_expr(),
+                    rest_param_type: None,
+                },
+            );
+        }
+    }
+    // Arc 278 #55 slice one — the admission test's own wat surface (`tests/rete/` probe),
+    // decoupled from `pure?`/`deterministic?`/`total?` above: classifies a HEAD NAME against the
+    // module-set boundary alone, independent of whether that head is pure. UNARMED, same
+    // discipline as its siblings.
+    env.register(
+        ":wat::rete::vocabulary-admitted?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::bool".into()),
+            rest_param_type: None,
+        },
+    );
     // Stone 237.8b — f64 ordering family (NaN-correct; 4 primitives).
     // Stone 237.8d — `:f64::=` / `:f64::not=` HARD CUT: equality is a RELATIONAL
     // intrinsic; uniform `:wat::core::=` / `:wat::core::not=` are the canonical path.

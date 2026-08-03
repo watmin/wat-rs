@@ -61,3 +61,8 @@ pub(crate) mod compiled_cond;
 // the reference implementation and the differential's other half; this is the mechanism that stops
 // the RHS's static program being re-derived dynamically.
 pub(crate) mod compiled_rhs;
+// Arc 278 #55 (S3b+S4) slice one — THE ONE table of rete-namespaced vocabulary ops
+// (`RETE_OPS`), the module-set admission test (`RETE_MODULES` / `rete_vocabulary_admitted`),
+// and the generic per-class shapes `check.rs`/`runtime.rs`/`purity.rs` iterate. See the
+// module doc for the full contract (one list, three readers — STOP-2).
+pub(crate) mod vocabulary;

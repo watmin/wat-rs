@@ -4471,6 +4471,23 @@ fn dispatch_keyword_head_value(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    // Arc 278 #55 (S3b+S4) slice one — THE ONE TABLE (`rete::vocabulary::RETE_OPS`), consulted
+    // FIRST for rete-namespaced heads. Routes generically by `class` (`dispatch_rete_op`, below)
+    // — never a per-op match arm added to the giant match that follows (STOP-2: no rete op named
+    // in more than one file). This is the "a `where` traverses `dispatch_keyword_head_value`"
+    // path proven by `wat-scripts/scratch-pad/probe-stop-a-where-arith-path.wat` — the SAME
+    // function `:wat::core::i64::+`'s arm (below) lives in, so a rete op registered here is
+    // automatically reachable from a `where`, with no `:4829`/`:9753` kernel unification needed.
+    // The namespace gate comes FIRST and is the whole cost for non-rete heads: ONE prefix
+    // compare, which is false for essentially every form any wat program evaluates. Without it
+    // `rete_op_for`'s linear scan over the table runs on EVERY keyword dispatch in the runtime —
+    // and this function is that dispatch, not the `where` path, so compiling `where` (#49a) would
+    // never have removed the tax. Cheaper than the benchmark that would have justified caring.
+    if head.starts_with(crate::rete::vocabulary::RETE_PREFIX) {
+        if let Some(op) = crate::rete::vocabulary::rete_op_for(head) {
+            return dispatch_rete_op(op, head, args, list_span, env, sym);
+        }
+    }
     match head {
         // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
         // Universal escape hatch: takes a keyword head + [-> :T] annotation +
@@ -4760,6 +4777,11 @@ fn dispatch_keyword_head_value(
         // UNARMED: callable, but `compile-condition` does not consult it this stone.
         // (:wat::rete::total? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::total?" => crate::rete::purity::eval_total_predicate(args, list_span, env, sym),
+        // Arc 278 #55 slice one — THE ADMISSION TEST's wat surface: classifies a HEAD NAME
+        // against the rete-vocabulary module-set boundary alone (decoupled from pure/
+        // deterministic/total, which classify an EXPRESSION). UNARMED, same discipline.
+        // (:wat::rete::vocabulary-admitted? <head: :wat::WatAST, a QUOTED keyword>) -> :wat::core::bool
+        ":wat::rete::vocabulary-admitted?" => crate::rete::vocabulary::eval_vocabulary_admitted_predicate(args, list_span, env, sym),
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it. PROVISIONAL name, cast owed.
         // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> :wat::core::Option<wat::rete::AxisViolation>
@@ -7882,6 +7904,80 @@ where
             expected: "i64",
             got: Box::new(ValueSnapshot::of(b.value()))
         }).into()),
+    }
+}
+
+/// Arc 278 #55 (S3b+S4) slice one — generic dispatch for every row of THE ONE TABLE
+/// (`rete::vocabulary::RETE_OPS`). The `class`, never a per-op FQDN, drives the routing — this
+/// function's own body names classes, not rete ops (STOP-2).
+///
+/// `Alias`/`Form` re-invoke `dispatch_keyword_head_value` on `core_name` with the SAME `args` —
+/// literally the identical arm the core op already uses (`:wat::core::i64::>`'s `eval_compare`
+/// call; `:wat::core::and`'s `eval_and`), never a second implementation.
+///
+/// `Fallback` is the one class with its own logic, and it is a SECOND TERMINAL HANDLER over the
+/// shared kernel, not a duplicate: it re-invokes `dispatch_keyword_head_value` on `core_name`
+/// (reaching the exact `eval_i64_arith` call the `:wat::core::i64::+` arm above uses — the SAME
+/// function the design stone's STOP-A probe proved a `where` traverses) and catches ONLY the
+/// `IntegerOverflow` it can raise, substituting the caller's `:undefined` value instead of
+/// propagating. **STOP-3 did NOT fire**: the design stone anticipated needing either a
+/// `:4829`-onto-`:9753` kernel unification or an apply-only surface (`arith_i64_i64_inner` /
+/// `I64ArithErr`, the pre-evaluated substrate table, is reached only via `apply` — not via a
+/// `where`). Recursing through `dispatch_keyword_head_value` sidesteps that entirely: it is the
+/// SAME function `:4829`'s arm already lives in, so no kernel move was needed at all — the
+/// measured size of the anticipated refactor is zero, not merely "contained."
+fn dispatch_rete_op(
+    op: &crate::rete::vocabulary::ReteOp,
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    use crate::rete::vocabulary::OpClass;
+    match op.class {
+        OpClass::Alias | OpClass::Form => dispatch_keyword_head_value(op.core_name, args, list_span, env, sym),
+        OpClass::Fallback => {
+            if args.len() != 4 {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+                    op: head.into(),
+                    expected: 4,
+                    got: args.len(),
+                }).into());
+            }
+            // The literal keyword `:undefined` is a mandatory marker in slot 3 — a kwargs
+            // SURFACE would lower this away before an intrinsic ever saw it (proven by
+            // `wat-scripts/scratch-pad/probe-slice-one-registry-seam.wat` row A); this op is a
+            // plain positional Rust intrinsic instead (no `wat/` defmacro — out of this slice's
+            // scope), so the marker is inspected here, directly, on the raw AST.
+            match &args[2] {
+                WatAST::Keyword(k, _) if k == ":undefined" => {}
+                other => return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::MalformedForm {
+                    head: head.into(),
+                    reason: "the fallback-carrying rete op requires the literal keyword `:undefined` as its third argument, e.g. `(:wat::rete::i64::+ a b :undefined fallback)`".into(),
+                }).into()),
+            }
+            match dispatch_keyword_head_value(op.core_name, &args[0..2], list_span, env, sym) {
+                Ok(v) => Ok(v),
+                // A fallback-carrying op is TOTAL, so it must face EVERY way its core op can fail
+                // on well-typed args — not just the one the first row happened to need. With the
+                // args already checked as (i64, i64), the i64 arithmetic family raises exactly
+                // two domain failures and no third: overflow (+ - * and the MIN/-1 division
+                // edge) and division by zero (/ mod rem quot). Both are the undefined point the
+                // caller's `:undefined` value exists to cover. This is an EXHAUSTIVE list for
+                // this family, not a catch-all: a type error or an arity error is a bug in the
+                // caller and still propagates.
+                Err(EvalBreak::Diagnostic(e))
+                    if matches!(
+                        e.kind(),
+                        RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
+                    ) =>
+                {
+                    eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                }
+                Err(e) => Err(e),
+            }
+        }
     }
 }
 

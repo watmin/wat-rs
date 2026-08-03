@@ -110,16 +110,19 @@ impl AxisViolation {
 
 /// Declared properties of a known intrinsic. The single hand source of truth until arc 255 lifts it
 /// to a queryable registry. DEFAULT-DENY: a head NOT covered here returns `None` ⇒ neither property.
+/// `pub(crate)` (arc 278 #55 slice one): `rete::vocabulary::ReteOp` embeds this type directly
+/// (its `meta` field) so the table's rows can declare their whitelist entry inline — "reuse
+/// purity.rs's type" per the design stone's own sketch, rather than a second, parallel struct.
 #[derive(Clone, Copy)]
-struct OpMeta {
-    pure: bool,
-    deterministic: bool,
+pub(crate) struct OpMeta {
+    pub(crate) pure: bool,
+    pub(crate) deterministic: bool,
     /// Domain-total: defined on ALL its inputs? DEFAULT-DENY, same discipline as `pure`/
     /// `deterministic` — `false` unless a live corpus row demonstrated the need (see
     /// BRIEF-total-t1-the-axis-unarmed.md's measurement). NOT derived from `pure`/`deterministic`:
     /// `i64::/` is pure∧deterministic yet undefined at a zero divisor (and, separately, at the one
     /// input pair that overflows i64) — the three axes are genuinely orthogonal.
-    total: bool,
+    pub(crate) total: bool,
 }
 
 /// The hand-managed map (enumerated from `dispatch_keyword_head_value` in `runtime.rs`).
@@ -157,6 +160,13 @@ struct OpMeta {
 /// - *the `eval-*-coincident?` family* — these evaluate submitted forms; purity depends on what
 ///   they are handed, exactly like `apply`.
 fn intrinsic_meta(head: &str) -> Option<OpMeta> {
+    // Arc 278 #55 slice one — rete-namespaced heads consult THE ONE TABLE first (STOP-2: no rete
+    // op named in more than one file — this is an exact match against `RETE_OPS`'s rows, never a
+    // bare `:wat::rete::` prefix per STOP-1, so the engine's own API — `fire-rules`/`insert`/
+    // `compile`/`Session`/`AlphaNode`/… — is untouched by this arm; it simply isn't a row).
+    if let Some(op) = crate::rete::vocabulary::rete_op_for(head) {
+        return Some(op.meta);
+    }
     // Pure but NON-deterministic: random. Not corpus-demanded for `total` (Uuid/v4 can never
     // reach a `where` fence today — it already fails the determinism conjunct — so DEFAULT-DENY
     // stands; it is trivially total in the absolute sense but that claim was never measured).
@@ -625,6 +635,25 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
     // User-defined fn → transitive check of its body on the SAME axis.
     if sym.functions.contains_key(head) {
         return classify_fn(head, axis, sym, seen);
+    }
+    // Arc 278 #55 slice one — THE ADMISSION TEST, a FOURTH consideration alongside the three
+    // above (additive, never a replacement — the design stone's own framing). A head inside a
+    // declared rete-vocabulary sub-namespace (module-set membership — `rete_vocabulary_admitted`;
+    // STOP-1: NOT a bare `:wat::rete::` prefix, which would wrongly admit the engine's own API)
+    // is judged by THE ONE TABLE's declared meta directly. Admission is necessary, not
+    // sufficient: an admitted namespace whose specific verb is not yet a `RETE_OPS` row still
+    // default-denies here, rather than falling through to the generic effectful-namespace /
+    // `intrinsic_meta` logic below (which does not know about rete-namespaced heads at all,
+    // beyond the `intrinsic_meta` table consultation this arm makes redundant for admitted
+    // heads specifically). Every non-rete-namespaced head (i.e. the entire 99-form `where`
+    // corpus today) never reaches this branch — STOP-6's unmoved-corpus proof.
+    if crate::rete::vocabulary::rete_vocabulary_admitted(head) {
+        let ok = crate::rete::vocabulary::rete_op_for(head).is_some_and(|op| match axis {
+            Axis::Pure => op.meta.pure,
+            Axis::Deterministic => op.meta.deterministic,
+            Axis::Total => op.meta.total,
+        });
+        return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
     match axis {
         // Pure: effectful namespaces are an explicit deny; otherwise the metadata must declare pure.
@@ -1132,22 +1161,247 @@ mod completeness_gate {
         (":wat::core::", Disp::Unreviewed, "the classified majority live here via `intrinsic_meta`; what falls through is the real worklist — the AST/meta family, apply, struct/Record ops, and the generic seq verbs named in `intrinsic_meta`'s doc"),
     ];
 
-    /// ★ THE RATCHET. Lower it when verbs get ruled on; NEVER raise it to make a red gate green —
-    /// raising it is the laundering this gate exists to prevent. A new dispatch verb that is
-    /// neither classified nor disposed pushes the count over and goes red.
+    /// ★ THE LEDGER — the frozen NAMES of every dispatched verb that has no purity ruling yet.
     ///
-    /// 212 → 213 (BRIEF-the-fence-names-the-head): `:wat::rete::axis-violation` is a new dispatch
-    /// verb (this stone). It is a compiler-internal diagnostic helper, not something a `where`
-    /// predicate would call, so it does not want a `pure`/`deterministic` CLASSIFICATION here — it
-    /// falls under the existing `:wat::rete::` catch-all `Unreviewed` disposition above, same as
-    /// every other rete engine verb. This is a genuine +1 to the worklist, not a laundered raise.
+    /// This replaced a bare count (`UNREVIEWED_BASELINE: usize = 214`) on 2026-08-02, at the
+    /// builder's ruling: *"shouldn't this just be > 0, not some static ref? measuring an exact
+    /// count is foolish."* He is right, and the hole was worse than imprecision — a count cannot
+    /// tell these two worlds apart:
     ///
-    /// 213 → 214 (BRIEF-total-t1-the-axis-unarmed): `:wat::rete::total?` is a new dispatch verb
-    /// (a third axis predicate beside `pure?`/`deterministic?`, which were themselves never
-    /// classified by `intrinsic_meta` — they are rete engine verbs, not value operations a `where`
-    /// would call on ITSELF). Same reasoning as `axis-violation` above: falls under the existing
-    /// `:wat::rete::` catch-all, a genuine +1, not a raise to green a red gate.
-    const UNREVIEWED_BASELINE: usize = 214;
+    ///     rule on one verb  +  add one unruled verb   =  the SAME number, gate stays GREEN
+    ///
+    /// A brand-new unruled verb walked in free whenever a strike also ruled on one, which is the
+    /// normal case for a strike. The gate wanted SET MEMBERSHIP and measured CARDINALITY. It also
+    /// could not name the offender — the old message said "Newly unreviewed, first 20" and then
+    /// printed the first 20 of ALL of them, alphabetically, because it never knew which was new.
+    ///
+    /// `> 0` is the real goal and cannot be the gate today: these 215 are genuinely unruled, so a
+    /// zero-tolerance check is permanently red. This list IS the debt, by name, and it is a
+    /// RATCHET IN BOTH DIRECTIONS:
+    ///
+    /// - a verb NOT in this list  ⇒ RED. A new dispatch verb needs a ruling, always.
+    /// - a verb in this list that is no longer unreviewed ⇒ RED. Rule on it, delete its line.
+    ///
+    /// So the list can only shrink, and it cannot silently rot. Never add a line to make a red
+    /// gate green — that is the laundering this gate exists to prevent; CLASSIFY the verb in
+    /// `intrinsic_meta`, or give its namespace a disposition in `RULES` with the reason.
+    const KNOWN_UNREVIEWED: &[&str] = &[
+    ":wat::core::Option/expect",
+    ":wat::core::Option/try",
+    ":wat::core::Record/assoc",
+    ":wat::core::Record/field-at",
+    ":wat::core::Record/same-data?",
+    ":wat::core::Record::of",
+    ":wat::core::Result/expect",
+    ":wat::core::Result/try",
+    ":wat::core::Tuple",
+    ":wat::core::aggregate-new",
+    ":wat::core::ann-form",
+    ":wat::core::apply",
+    ":wat::core::assoc",
+    ":wat::core::char/of",
+    ":wat::core::conforms?",
+    ":wat::core::conj",
+    ":wat::core::def",
+    ":wat::core::defclause",
+    ":wat::core::derive",
+    ":wat::core::drop",
+    ":wat::core::find-last-index",
+    ":wat::core::fn",
+    ":wat::core::forms",
+    ":wat::core::keyword/from-string",
+    ":wat::core::keyword/to-string",
+    ":wat::core::kwargs-construct",
+    ":wat::core::last",
+    ":wat::core::macroexpand",
+    ":wat::core::macroexpand-1",
+    ":wat::core::match",
+    ":wat::core::quasiquote",
+    ":wat::core::quote",
+    ":wat::core::range",
+    ":wat::core::record->map",
+    ":wat::core::rest",
+    ":wat::core::reverse",
+    ":wat::core::seqable->stream",
+    ":wat::core::show",
+    ":wat::core::sort'",  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+    ":wat::core::struct->form",
+    ":wat::core::struct-field",
+    ":wat::core::struct-new",
+    ":wat::core::subtype?",
+    ":wat::core::take",
+    ":wat::core::to-record",
+    ":wat::core::type",
+    ":wat::core::use!",
+    ":wat::core::variant",
+    ":wat::form::matches?",
+    ":wat::holon::Atom",
+    ":wat::holon::Bind",
+    ":wat::holon::Bind/left",
+    ":wat::holon::Bind/right",
+    ":wat::holon::Blend",
+    ":wat::holon::Bundle",
+    ":wat::holon::Bundle/children",
+    ":wat::holon::Bundle/first",
+    ":wat::holon::Engram/eigenvalue-signature",
+    ":wat::holon::Engram/n",
+    ":wat::holon::Engram/name",
+    ":wat::holon::Engram/residual",
+    ":wat::holon::EngramLibrary/add",
+    ":wat::holon::EngramLibrary/contains",
+    ":wat::holon::EngramLibrary/len",
+    ":wat::holon::EngramLibrary/match-vec",
+    ":wat::holon::EngramLibrary/names",
+    ":wat::holon::EngramLibrary/new",
+    ":wat::holon::Hologram/capacity",
+    ":wat::holon::Hologram/find",
+    ":wat::holon::Hologram/get",
+    ":wat::holon::Hologram/len",
+    ":wat::holon::Hologram/make",
+    ":wat::holon::Hologram/put",
+    ":wat::holon::Hologram/remove",
+    ":wat::holon::List",
+    ":wat::holon::Map",
+    ":wat::holon::OnlineSubspace/dim",
+    ":wat::holon::OnlineSubspace/eigenvalues",
+    ":wat::holon::OnlineSubspace/k",
+    ":wat::holon::OnlineSubspace/n",
+    ":wat::holon::OnlineSubspace/new",
+    ":wat::holon::OnlineSubspace/project",
+    ":wat::holon::OnlineSubspace/reconstruct",
+    ":wat::holon::OnlineSubspace/residual",
+    ":wat::holon::OnlineSubspace/threshold",
+    ":wat::holon::OnlineSubspace/update",
+    ":wat::holon::Permute",
+    ":wat::holon::Reckoner/curve",
+    ":wat::holon::Reckoner/dims",
+    ":wat::holon::Reckoner/labels",
+    ":wat::holon::Reckoner/new-continuous",
+    ":wat::holon::Reckoner/new-discrete",
+    ":wat::holon::Reckoner/observe",
+    ":wat::holon::Reckoner/predict",
+    ":wat::holon::Reckoner/resolve",
+    ":wat::holon::Record::of",
+    ":wat::holon::Set",
+    ":wat::holon::Thermometer",
+    ":wat::holon::Tuple",
+    ":wat::holon::Vector",
+    ":wat::holon::bytes-vector",
+    ":wat::holon::coincident-explain",
+    ":wat::holon::coincident-floor",
+    ":wat::holon::encode",
+    ":wat::holon::eval-coincident?",
+    ":wat::holon::eval-digest-coincident?",
+    ":wat::holon::eval-digest-string-coincident?",
+    ":wat::holon::eval-edn-coincident?",
+    ":wat::holon::eval-signed-coincident?",
+    ":wat::holon::eval-signed-string-coincident?",
+    ":wat::holon::extract-classifier",
+    ":wat::holon::from-holon",
+    ":wat::holon::from-wat",
+    ":wat::holon::is-Keyword?",
+    ":wat::holon::is-List?",
+    ":wat::holon::is-Map?",
+    ":wat::holon::is-Nil?",
+    ":wat::holon::is-Set?",
+    ":wat::holon::is-Symbol?",
+    ":wat::holon::is-Tag?",
+    ":wat::holon::is-Tuple?",
+    ":wat::holon::is-Vector?",
+    ":wat::holon::is?",
+    ":wat::holon::leaf",
+    ":wat::holon::literal",
+    ":wat::holon::presence-floor",
+    ":wat::holon::simhash",
+    ":wat::holon::statement-length",
+    ":wat::holon::term::matches?",
+    ":wat::holon::term::ranges",
+    ":wat::holon::term::slots",
+    ":wat::holon::term::template",
+    ":wat::holon::therm-form",
+    ":wat::holon::to-holon",
+    ":wat::holon::to-record",
+    ":wat::holon::to-wat",
+    ":wat::holon::vector-bind",
+    ":wat::holon::vector-blend",
+    ":wat::holon::vector-bundle",
+    ":wat::holon::vector-bytes",
+    ":wat::holon::vector-permute",
+    ":wat::rete::alpha-match",
+    ":wat::rete::axis-violation",
+    ":wat::rete::collect-rules",
+    ":wat::rete::deterministic?",
+    ":wat::rete::eval-insert",
+    ":wat::rete::eval-test",
+    ":wat::rete::fire-once'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::fire-rules'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::fire-rules-explain'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::insert'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::insert-all'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::pure?",
+    ":wat::rete::step-payload'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::total?",
+    ":wat::rete::vocabulary-admitted?",
+    ":wat::std::list::map-with-index",
+    ":wat::std::list::remove-at",
+    ":wat::std::list::window",
+    ":wat::std::list::zip",
+    ":wat::std::math::cos",
+    ":wat::std::math::exp",
+    ":wat::std::math::ln",
+    ":wat::std::math::log",
+    ":wat::std::math::pi",
+    ":wat::std::math::sin",
+    ":wat::std::math::sqrt",
+    ":wat::std::stat::mean",
+    ":wat::std::stat::stddev",
+    ":wat::std::stat::variance",
+    ":wat::stdlib::sources",
+    ":wat::stream::cons",
+    ":wat::stream::empty",
+    ":wat::stream::lazy",
+    ":wat::time::+",
+    ":wat::time::-",
+    ":wat::time::Day",
+    ":wat::time::Hour",
+    ":wat::time::Microsecond",
+    ":wat::time::Millisecond",
+    ":wat::time::Minute",
+    ":wat::time::Nanosecond",
+    ":wat::time::Second",
+    ":wat::time::ago",
+    ":wat::time::at",
+    ":wat::time::at-millis",
+    ":wat::time::at-nanos",
+    ":wat::time::days",
+    ":wat::time::days-ago",
+    ":wat::time::days-from-now",
+    ":wat::time::epoch-millis",
+    ":wat::time::epoch-nanos",
+    ":wat::time::epoch-seconds",
+    ":wat::time::from-iso8601",
+    ":wat::time::from-now",
+    ":wat::time::hours",
+    ":wat::time::hours-ago",
+    ":wat::time::hours-from-now",
+    ":wat::time::microseconds",
+    ":wat::time::microseconds-ago",
+    ":wat::time::microseconds-from-now",
+    ":wat::time::milliseconds",
+    ":wat::time::milliseconds-ago",
+    ":wat::time::milliseconds-from-now",
+    ":wat::time::minutes",
+    ":wat::time::minutes-ago",
+    ":wat::time::minutes-from-now",
+    ":wat::time::nanoseconds",
+    ":wat::time::nanoseconds-ago",
+    ":wat::time::nanoseconds-from-now",
+    ":wat::time::now",
+    ":wat::time::seconds",
+    ":wat::time::seconds-ago",
+    ":wat::time::seconds-from-now",
+    ":wat::time::to-iso8601",
+    ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
     /// keyword-head path) and `dispatch_substrate_impl` (the `apply`-reachable substrate table).
@@ -1215,12 +1469,13 @@ mod completeness_gate {
             "\nPURITY COMPLETENESS — {} dispatched verbs\n\
              \x20 classified pure (intrinsic_meta)  {classified:>4}\n\
              \x20 disposed impure (namespace rule)  {impure:>4}\n\
-             \x20 UNREVIEWED (the worklist)         {:>4}   baseline {UNREVIEWED_BASELINE}\n\
+             \x20 UNREVIEWED (the worklist)         {:>4}   ledger {}\n\
              \x20 note: constructors + field accessors are NOT here — `constructor_meta` and\n\
              \x20 `accessor_meta` DERIVE from the frozen TypeEnv, so they cannot go stale. Only the\n\
              \x20 hand-managed `intrinsic_meta` needs a gate.\n",
             verbs.len(),
             unreviewed.len(),
+            KNOWN_UNREVIEWED.len(),
         );
 
         // The worklist, grouped by namespace — the INVENTORY is the deliverable, not the count
@@ -1240,20 +1495,33 @@ mod completeness_gate {
         }
         println!();
 
+        let known: std::collections::BTreeSet<&str> = KNOWN_UNREVIEWED.iter().copied().collect();
+        let live: std::collections::BTreeSet<&str> = unreviewed.iter().map(|v| v.as_str()).collect();
+
+        let newly: Vec<&&str> = live.difference(&known).collect();
         assert!(
-            unreviewed.len() <= UNREVIEWED_BASELINE,
-            "UNREVIEWED grew to {} (baseline {UNREVIEWED_BASELINE}).\n\n\
-             A verb was added to the runtime's dispatch table without a purity classification or a \
-             disposition. That is not cosmetic: `compile-condition` PANICS on `pure? = false`, so \
-             every rule using this verb CANNOT COMPILE, and nothing else in the suite will say so. \
-             This is the exact defect that hid 35 verbs — including the whole `String/` family and \
-             the VSA seam — for months.\n\n\
-             Fix it by CLASSIFYING the verb in `intrinsic_meta` (if it is genuinely pure — a ruling, \
-             not an inference from its name) or by adding a disposition in `RULES` with the reason. \
-             Do NOT raise the baseline.\n\n\
-             Newly unreviewed, first 20:\n{}\n",
-            unreviewed.len(),
-            unreviewed.iter().take(20).map(|v| format!("  {v}")).collect::<Vec<_>>().join("\n"),
+            newly.is_empty(),
+            "{} dispatch verb(s) have NO purity ruling and are NOT in the ledger:\n{}\n\n\
+             That is not cosmetic: `compile-condition` PANICS on `pure? = false`, so every rule \
+             using one of these CANNOT COMPILE, and nothing else in the suite will say so. This is \
+             the exact defect that hid 35 verbs — including the whole `String/` family and the VSA \
+             seam — for months.\n\n\
+             Fix it by CLASSIFYING the verb in `intrinsic_meta` (if it is genuinely pure — a \
+             ruling, not an inference from its name), or by giving its namespace a disposition in \
+             `RULES` with the reason. Adding it to `KNOWN_UNREVIEWED` is the LAST resort and is \
+             only honest for a verb whose ruling is genuinely open — say why in the commit.\n",
+            newly.len(),
+            newly.iter().map(|v| format!("  {v}")).collect::<Vec<_>>().join("\n"),
+        );
+
+        let stale: Vec<&&str> = known.difference(&live).collect();
+        assert!(
+            stale.is_empty(),
+            "{} verb(s) in `KNOWN_UNREVIEWED` are no longer unreviewed — they have been ruled on \
+             (or no longer dispatched). DELETE their lines; the ledger must shrink as the debt is \
+             paid, or it rots into a list nobody trusts:\n{}\n",
+            stale.len(),
+            stale.iter().map(|v| format!("  {v}")).collect::<Vec<_>>().join("\n"),
         );
     }
 }
