@@ -14,10 +14,21 @@
 //!   Gets a `TypeScheme` (fed from `params`/`ret` below) AND a dispatch arm — but the dispatch
 //!   arm is GENERIC (`runtime.rs`'s `dispatch_rete_op`), reached by re-invoking
 //!   `dispatch_keyword_head_value` on `core_name`. Never a second implementation.
-//! - **`Form`** — lazy / short-circuiting (`and`/`or`/`if`/`let`/`do`/`when`'s family). No
-//!   `TypeScheme` — the checker gets a dedicated inference arm (`check.rs`'s
-//!   `infer_boolean_shortcircuit`, mirrored generically via this table, never a hardcoded second
-//!   FQDN literal). The runtime side is the SAME generic re-dispatch as `Alias`.
+//! - **`Form`** — lazy / short-circuiting. No `TypeScheme` — the checker gets a dedicated
+//!   inference arm (`check.rs`'s `infer_boolean_shortcircuit`, mirrored generically via this
+//!   table, never a hardcoded second FQDN literal). The runtime side is the SAME generic
+//!   re-dispatch as `Alias`.
+//!
+//!   **Its boundary, stated because a row is otherwise cheap enough to add wrongly:** the checker
+//!   side routes `class == Form` UNCONDITIONALLY to `infer_boolean_shortcircuit`, so `Form`
+//!   currently means **boolean short-circuit form** — `and` and `or`, whose core arm in `check.rs`
+//!   is literally one shared `":wat::core::and" | ":wat::core::or"` match. `if` and `let` are
+//!   lazy too but their inference is NOT that arm (`if` unifies its branches under a bool
+//!   condition; `let` opens a binding scope), so adding them as rows would silently type them as
+//!   boolean short-circuits. They need the Form dispatch taught to route by `core_name` first —
+//!   a real, small checker edit, and NOT one row. `cond`/`match`/`fn` are a third thing again:
+//!   structural guards matched in `rete/purity.rs`'s `classify_expr`, which never reach
+//!   `head_ok` at all.
 //! - **`Fallback`** — an alias PLUS a second terminal handler: the caller supplies a mandatory
 //!   `:undefined` fallback value (4th positional arg, preceded by the literal keyword
 //!   `:undefined` as a marker in the 3rd slot) that is substituted for the raise the alias's
@@ -235,6 +246,33 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── #56, the head-table form mirrors (12 + 8 corpus `where` forms respectively).
+    //
+    // `not` is an ALIAS, not a form — the design stone corrected the parent stone on exactly this:
+    // `and`/`or` must short-circuit and route to `eval_and`/`eval_or`, but `not` is a plain strict
+    // fn with an ordinary `TypeScheme` (`check.rs`'s `:wat::core::not` registration) dispatched to
+    // `eval_not` (`runtime.rs`). It belongs beside the comparisons, not beside `and`.
+    ReteOp {
+        rete_name: ":wat::rete::core::not",
+        core_name: ":wat::core::not",
+        class: OpClass::Alias,
+        params: &[ParamType::Bool],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // `or` is `and`'s twin at every site that matters: the checker handles them in ONE arm
+    // (`check.rs`'s `":wat::core::and" | ":wat::core::or"` → `infer_boolean_shortcircuit`), which
+    // is precisely the arm the `Form` class re-dispatches to, and the runtime routes both to their
+    // own lazy eval arms via the generic `core_name` re-dispatch. So this is a row and nothing
+    // else. (`if`/`let` are NOT — see this table's doc note on the Form class's boundary.)
+    ReteOp {
+        rete_name: ":wat::rete::core::or",
+        core_name: ":wat::core::or",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
 ];

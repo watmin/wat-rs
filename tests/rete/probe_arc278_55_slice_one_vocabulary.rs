@@ -14,7 +14,7 @@
 //! Run: cargo test --release --test rete
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeErrorKind, Value};
 
 fn is_true(entry: &str) -> bool { matches!(call_beside_value(file!(), entry).expect("eval"), Value::bool(true)) }
 fn is_false(entry: &str) -> bool { matches!(call_beside_value(file!(), entry).expect("eval"), Value::bool(false)) }
@@ -73,6 +73,50 @@ fn form_dispatches_to_the_same_short_circuit_routine() {
 #[test]
 fn fallback_fires_on_overflow_instead_of_raising() {
     assert_eq!(eval_i64(":user::fallback-overflow"), -1, "i64::MAX + 1 overflows; the `:undefined` fallback substitutes -1, no raise");
+}
+
+// ─── #56: the two head-table form mirrors ────────────────────────────────────────
+
+/// `:wat::rete::core::not` is an `Alias`, not a `Form` — a plain strict fn with an ordinary
+/// `TypeScheme`, dispatched to the same `eval_not` its core name uses. (The parent stone grouped
+/// `and`/`or`/`not` together as "plain"; two of the three are wrong, and this is the one that
+/// isn't.)
+#[test]
+fn not_dispatches_as_a_plain_alias() {
+    assert!(is_true(":user::alias-not"), "negating false must yield true");
+}
+
+/// `:wat::rete::core::or` SHORT-CIRCUITS. This is the gate that decides `Form` vs `Alias`: an
+/// `Alias` evaluates both operands strictly, so a strict `or` would raise on the divide-by-zero
+/// second operand instead of returning `true`. Answering `true` is not the assertion — *never
+/// reaching the second operand* is.
+#[test]
+fn or_short_circuits_and_does_not_evaluate_the_raising_operand() {
+    assert!(
+        is_true(":user::form-or-short-circuits"),
+        "a true first operand must return true WITHOUT evaluating the raising second operand — if this goes red, or became strict"
+    );
+}
+
+/// The NON-VACUITY CONTROL for the test above. The identical raising operand, actually reached,
+/// DOES abort — so the short-circuit test is proving laziness rather than passing on an operand
+/// that happened to be harmless. Without this control, both tests could be green with `or`
+/// strict and the divide silently total.
+///
+/// Asserts the SPECIFIC failure, not merely `is_err()`: a bare `is_err()` would also be satisfied
+/// by a typo'd entry name, which is the same vacuity this control exists to prevent.
+#[test]
+fn or_control_the_same_operand_reached_does_raise() {
+    let err = call_beside_value(file!(), ":user::form-or-control-raises")
+        .expect_err("a false first operand MUST reach the second and raise — otherwise the short-circuit test above is vacuous");
+    // Matched on the typed KIND, not on a rendered substring: the failure must be the DIVIDE, and
+    // a substring check would also be satisfied by a missing entry or an unrelated error — which
+    // is the very vacuity this control exists to rule out.
+    assert!(
+        matches!(err.kind(), RuntimeErrorKind::DivisionByZero),
+        "the control must fail on the divide itself; got kind: {:?}",
+        err.kind()
+    );
 }
 
 // ─── row 6: COMPOSITION survives, proven BY A RUN ────────────────────────────────
