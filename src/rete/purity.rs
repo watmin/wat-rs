@@ -603,23 +603,133 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 
 // ─── Per-head leaf decision ─────────────────────────────────────────────────────
 
-/// Data constructors are pure∧deterministic BY CONSTRUCTION — they build a value, no effects, no
-/// entropy — EXCEPT a struct constructor: a struct can hold a live resource (the wire-wall, arc 293.W),
-/// so it is NOT pure (still deterministic). Mirrors the canonical `is_pure_type` (check.rs): an
-/// Aggregate's purity is `Nature::is_pure()` (Record/HolonRecord pure, Struct impure); an enum's is its
-/// declared `:wat::enum::*` marker (`EnumDef.purity`). INTERIM recognizer keyed on the frozen TypeEnv,
-/// until arc 255's builtin-registry becomes the single queryable purity source and subsumes it.
+/// `constructor_meta`'s two sites, AUDITED (BRIEF-constructor-meta-audit.md) — closing the
+/// inconsistency `b98cf189` named and did not touch: that strike classified the EXPANDED
+/// constructor verbs (`aggregate-new` / `kwargs-construct`, the block above) `pure ∧
+/// deterministic ∧ total` and left THIS function's two return sites — the SURFACE form (a bare
+/// `(:T arg…)` / `(:Enum::Variant arg…)` written directly, e.g. inside a quoted `:then`/`:when`
+/// item, never macro-expanded there — on the OLD default-deny discipline. Ground, per site,
+/// per axis, independently; do not average the two sites and do not inherit the expanded
+/// verdict without re-deriving it (the surface and expanded forms are walked by DIFFERENT
+/// code, so agreement is not automatic).
+///
+/// ## `pure` — UNIFIED with the expanded verdict, now independently grounded (not inherited)
+///
+/// `constructor_meta` used to derive `pure` from the target's declared purity marker
+/// (`Nature::is_pure()` for an aggregate — Record/HolonRecord pure, Struct impure;
+/// `Purity::is_pure()` for an enum's `:wat::enum::Pure`/`Impure` marker) — i.e. purity of the
+/// THING BUILT, not of the ACT of building it. `b98cf189` dropped that dependency for the
+/// EXPANDED forms, arguing construction is assignment: it binds already-evaluated field values
+/// into a shape, acquires nothing, and any actual resource ACQUISITION inside an argument is
+/// caught independently, because `classify_expr`'s "General list" arm (below) recurses into
+/// EVERY argument of EVERY call form on the SAME axis, `head_ok`'s verdict at the outer head
+/// notwithstanding (`classify_expr`, the `WatAST::List` arm: `head_ok(...)?` then
+/// `for a in &items[1..] { classify_expr(a, axis, sym, seen)?; }` — unconditional, common code,
+/// not specific to any one `head_ok` branch).
+///
+/// That recursion is IDENTICAL regardless of which branch of `head_ok` admitted the outer head —
+/// this function's aggregate/enum-variant branches recurse through the exact same call site as
+/// the `aggregate-new`/`kwargs-construct` branch above. So an acquisition nested in a surface
+/// constructor's argument (`(:usr::Handle :conn (:wat::io::IOReader/open-file "…"))`) is refused
+/// at the ARGUMENT's own head regardless of what this function returns for the outer `:usr::Handle`
+/// — STOP-2's question (a route by which a resource reaches a constructor argument, bypassing the
+/// fence) has no answer: `?var`/literal arguments (`(:usr::Handle :conn ?bound-resource)`) are
+/// values that already exist (the legitimate, intended case: read a resource out of one fact,
+/// carry it into another), `let`/`fn`/`cond`/`match` sub-forms are walked element-wise by their
+/// own dedicated `classify_expr` arms (each sub-expression re-enters the same recursive walk), and
+/// a user-fn argument recurses through `classify_fn` into that fn's own body on the same axis. No
+/// gap found by reading the walk.
+///
+/// The nature/purity-marker dependence is ALSO vacuous on the "declared pure" side for both
+/// sites: `validate_aggregate_containment` (check.rs:12578) is a post-registration freeze pass
+/// that rejects STARTUP for a `Nature::Record`/`HolonRecord` aggregate declaring an impure field
+/// (`TypeErrorKind::ImpureFieldInPureAggregate`) — AND, arc 293.W.2b, for its "enum counterpart":
+/// a `:wat::enum::Pure` enum may declare only pure variant fields (check.rs:12598). So
+/// `nature.is_pure()`/`e.purity.is_pure()` can only ever discriminate the "declared impure"
+/// side (`Nature::Struct`, `Purity::Impure`) — exactly the side the argument above already covers
+/// (`eval_variant`, runtime.rs:13608-13658, mirrors `construct_aggregate`'s pure "evaluate args,
+/// wrap into a value" shape — no IO, no mutation, on either path). Both sites: `pure: true`,
+/// unconditionally, matching the expanded forms — the reasoning applies to the ACT of
+/// construction regardless of which of the two syntactic forms (surface or expanded) performs it.
+///
+/// ## `total` — STAYS `false` at BOTH sites, but now MEASURED, not defaulted, and for DIFFERENT
+/// reasons per site (the two constructs do not fail alike)
+///
+/// `b98cf189` earned `total: true` for the EXPANDED forms by closing two checker gaps — (a)
+/// `infer_aggregate_new_check`/`infer_kwargs_construct_check` (check.rs) validate arity/field
+/// names, and (b) `freeze::validate_holon_record_capacity` validates a HolonRecord's dim budget
+/// — both running whenever the CONSTRUCTING CODE (a `defn` body) is itself type-checked. The
+/// surface form's problem is structural, not a missing check to port: a `:then`/`:when` item is
+/// captured under `(:wat::core::quote …)` by `defrule`'s macro template (`wat/rete.wat:2251`),
+/// and `expand_form`'s recursive macro-expansion walk stops dead at that `quote` boundary
+/// (`src/macros/expand.rs:436-444`) — so the bare surface head is what a `:then`/`:when` item
+/// carries forever, and `--check`'s `infer` does not recurse into quoted data either
+/// (`check.rs:3076-3088`, `:wat::core::quote` returns `:wat::WatAST` without inspecting its
+/// argument). NEITHER of gap (a)'s checkers, nor `--check` generally, ever sees this form. Gap
+/// (b) alone transfers cleanly (it is keyed on the TYPE, at freeze, independent of which call
+/// form constructs it) — it is (a)'s closure that does not carry over, and it does not carry over
+/// identically for the two sites:
+///
+/// **Aggregate site** — the ONLY freeze-time wall covering a surface aggregate constructor is
+/// `validate_and_reorder_then` (`src/rete/validate.rs:633-751`), and it covers *only* a `:then`
+/// item's OWN top-level `(:Type arg…)` shape — it never recurses into a nested operand that is
+/// itself a call form. Two reachable, EMPIRICALLY CONFIRMED failure modes follow (proof: the
+/// probes cited in the gate list below):
+///   1. A nested surface aggregate constructor (an operand's VALUE, not the `:then` item's own
+///      head — e.g. `:then [(:usr::Outer :inner (:usr::Inner :x 1))]`) compiles clean (pure∧det
+///      both hold) and then dies at FIRE time with `RuntimeErrorKind::UnknownFunction` — every
+///      time, unconditionally, regardless of arity. `resolve_rhs_value`
+///      (`matcher.rs:753-765`) falls through to `eval_rhs_expr` → `eval_inner` → `eval_list` →
+///      `dispatch_keyword_head_value` for any operand that is not `?var`/`:field`/literal; that
+///      generic evaluator has NO arm recognizing a bare aggregate-type keyword as a constructor
+///      (unlike the TOP-level `:then` item, which `build_insert_fact`, matcher.rs:624-681,
+///      special-cases BEFORE ever reaching the generic evaluator) — its final fallback
+///      (runtime.rs:6270-6275) treats an unmatched keyword only as a possible 1-arg field
+///      accessor and otherwise raises `UnknownFunction` (runtime.rs:6274) unconditionally. A
+///      bare aggregate head reached this way can never construct, at any arity.
+///   2. Even at the TOP-level `:then` item the wall is incomplete for the KWARGS RHS shape
+///      specifically: `reorder_kwargs_by_field_name`'s own doc (`validate.rs:269-271`) states a
+///      kwargs RHS "need not cover every field … any field with no matching pair is simply
+///      absent from the output" — an UNDER-SUPPLIED kwargs construction (`(:usr::Rate :count
+///      7)` where `Rate` declares `count`+`window`) passes `validate_and_reorder_then` (every
+///      SUPPLIED name is real; supplying fewer than all is not checked), and
+///      `build_insert_fact`'s fast path (matcher.rs:679) constructs the record with WHATEVER
+///      field count came out — no arity check there either (unlike `construct_aggregate`,
+///      runtime.rs:15560-15568, which the surface form never reaches). The result is a
+///      SILENTLY malformed value (fewer fields than its own type declares); the raise is
+///      deferred to whenever something later reads the missing field by name
+///      (`Record/field-at`, runtime.rs:1643, an index-out-of-bounds `TypeMismatch`) — worse
+///      than an immediate abort, since `fire-rules` itself reports success.
+///
+/// **Enum-variant site** — a tagged-variant constructor IS a real, directly-callable
+/// `FunctionBody::Wat` function (`register_enum_methods`, runtime.rs:1741-1789 — its body is
+/// literally `(:wat::core::variant :Enum :Variant p1…pn)`), reached through the SAME
+/// `sym.get(canonical)` / `apply_function` path as any ordinary fn call (runtime.rs:6170-6172),
+/// so — unlike the aggregate site — there is no dead/inert shape: EVERY call, wherever it is
+/// reached from, hits `apply_function`'s unconditional arity gate (runtime.rs:21190-21223,
+/// `if actual_arity != fixed_arity { return Err(ArityMismatch) }`) before its body ever runs.
+/// But that gate fires at RUNTIME, not at `--check`/freeze — there is no freeze-time wall
+/// analogous to `validate_and_reorder_then` for a bare `:Enum::Variant` head (`lookup_fields`,
+/// validate.rs:556-562, resolves only `TypeDef::Aggregate`, so an enum-variant head is invisible
+/// to that validator), and the ordinary `--check` path that would catch this in NON-quoted code
+/// never runs here either (same `quote` boundary as the aggregate site). So a WRONG-ARITY call
+/// to a tagged-variant constructor, nested inside a fenced `:then`/`:when` position, compiles
+/// clean and aborts `fire-rules` on first use with a clean, located `ArityMismatch` — exactly the
+/// "checker gap" pattern gap (a) closed for the expanded forms, unclosed here. A cleaner failure
+/// mode than the aggregate site's (a located raise, not silent corruption or an unconditional
+/// dead call), but still a genuine, reachable Total violation with no wall in front of it.
+///
+/// Both sites: `total: false`, MEASURED (each with its own reachable counter-example), not
+/// defaulted — the debt this audit was sent to close.
+///
+/// INTERIM recognizer keyed on the frozen TypeEnv, until arc 255's builtin-registry becomes the
+/// single queryable purity/totality source and subsumes it.
 fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let types = sym.types.as_deref()?;
-    // `total`: DEFAULT-DENY, `false` at both sites below. Neither is corpus-demanded — no `where`
-    // in the 98-row corpus calls a constructor — so it stays unmeasured rather than inferred, even
-    // though "a constructor always builds a value, given well-typed args" is a plausible structural
-    // argument (mirroring how `pure` is derived here from `nature.is_pure()` rather than a hand
-    // list). Left `false` on discipline, not because a counter-example was found.
     // TypeEnv keys carry the leading colon (e.g. ":p::Rec") — use the head verbatim.
     // 1. Aggregate constructor (record / holon / struct) — the head IS the type name.
-    if let Some(crate::types::TypeDef::Aggregate(a)) = types.get(head) {
-        return Some(OpMeta { pure: a.nature.is_pure(), deterministic: true, total: false });
+    if let Some(crate::types::TypeDef::Aggregate(_)) = types.get(head) {
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
     }
     // 2. Enum-variant constructor — the head is `{EnumPath}::{Variant}` (unit or tagged).
     if let Some((enum_path, variant)) = head.rsplit_once("::") {
@@ -629,7 +739,7 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
                 crate::types::EnumVariant::Tagged { name, .. } => name == variant,
             });
             if is_variant {
-                return Some(OpMeta { pure: e.purity.is_pure(), deterministic: true, total: false });
+                return Some(OpMeta { pure: true, deterministic: true, total: false });
             }
         }
     }
