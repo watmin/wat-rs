@@ -16,7 +16,7 @@
      (?k   <- :kph)
      (:wat::core::> ?k 30))]
   :then
-  (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))
+  [(:weather::ColdAndWindy :location ?loc)])
 
 ;; The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the
 ;; derived facts (wrapped in `length` so the Rust driver just-evals to a scalar).

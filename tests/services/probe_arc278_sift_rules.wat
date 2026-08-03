@@ -28,10 +28,10 @@
          (:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])]
   :rules [(:wat::rete::defrule :usr::hot-rule
             :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-            :then (:wat::rete::insert (:usr::Hot :c ?c)))
+            :then [(:usr::Hot :c ?c)])
           (:wat::rete::defrule :usr::warn-rule
             :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-            :then (:wat::rete::insert (:usr::Warn :c ?c)))])
+            :then [(:usr::Warn :c ?c)])])
 
 ;; ── shared log-building helper form, inlined per :user:: fn (a plain top-level defn would not
 ;; cross a PROCESS fork's sift service child, so each entry point builds its own 240-log Vector) ──

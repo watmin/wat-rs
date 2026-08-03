@@ -93,35 +93,35 @@
   [(:acp::Group (?g <- :g))
    (?n <- (:wat::rete::acc::count) :from (:acp::Reading (?g <- :g)))]
   :then
-  (:wat::rete::insert (:acp::CountF ?g ?n)))
+  [(:acp::CountF ?g ?n)])
 
 (:wat::rete::defrule :acp::sum-rule
   :when
   [(:acp::Group (?g <- :g))
    (?n <- (:wat::rete::acc::sum ?v) :from (:acp::Reading (?g <- :g) (?v <- :v)))]
   :then
-  (:wat::rete::insert (:acp::SumF ?g ?n)))
+  [(:acp::SumF ?g ?n)])
 
 (:wat::rete::defrule :acp::min-rule
   :when
   [(:acp::Group (?g <- :g))
    (?n <- (:wat::rete::acc::min ?v) :from (:acp::Reading (?g <- :g) (?v <- :v)))]
   :then
-  (:wat::rete::insert (:acp::MinF ?g ?n)))
+  [(:acp::MinF ?g ?n)])
 
 (:wat::rete::defrule :acp::max-rule
   :when
   [(:acp::Group (?g <- :g))
    (?n <- (:wat::rete::acc::max ?v) :from (:acp::Reading (?g <- :g) (?v <- :v)))]
   :then
-  (:wat::rete::insert (:acp::MaxF ?g ?n)))
+  [(:acp::MaxF ?g ?n)])
 
 (:wat::rete::defrule :acp::exists-rule
   :when
   [(:acp::Group (?g <- :g))
    (:wat::rete::exists (:acp::Reading (?g <- :g)))]
   :then
-  (:wat::rete::insert (:acp::ExistsF ?g)))
+  [(:acp::ExistsF ?g)])
 
 (:wat::core::defn :acp::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]

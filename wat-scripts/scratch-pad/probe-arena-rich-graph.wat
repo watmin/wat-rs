@@ -30,35 +30,35 @@
          (:wat::rete::where (:wat::core::> (:arena::Timing/total-ns ?timing) 500000))
          (:wat::rete::where (:wat::core::< (:arena::Client/reputation ?client) 0))
          (:wat::rete::where (:wat::core::= (:arena::Geo/country (:arena::Client/geo ?client)) "XX"))]
-  :then (:wat::rete::insert (:arena::Suspect :client ?client :route ?route :timing ?timing :bytes ?bytes)))
+  :then [(:arena::Suspect :client ?client :route ?route :timing ?timing :bytes ?bytes)])
 
 (:wat::rete::defrule :arena::anomaly-rule
   :when [(:arena::Suspect (?client <- :client) (?route <- :route) (?timing <- :timing))
          (:wat::rete::where (:wat::core::> (:arena::Timing/total-ns ?timing) 5000000))
          (:wat::rete::where (:wat::core::= (:arena::Route/status ?route) 200))]
-  :then (:wat::rete::insert (:arena::Anomaly :client ?client)))
+  :then [(:arena::Anomaly :client ?client)])
 
 (:wat::rete::defrule :arena::breach-rule
   :when [(:arena::Suspect (?client <- :client) (?route <- :route) (?timing <- :timing))
          (:wat::rete::where (:wat::core::> (:arena::Timing/total-ns ?timing) 2000000))
          (:wat::rete::where (:wat::core::= (:arena::Route/status ?route) 200))]
-  :then (:wat::rete::insert (:arena::Breach :client ?client)))
+  :then [(:arena::Breach :client ?client)])
 
 (:wat::rete::defrule :arena::overflow-rule
   :when [(:arena::Event (?bytes <- :bytes))
          (:wat::rete::where (:wat::core::> ?bytes 10000000))]
-  :then (:wat::rete::insert (:arena::Overflow :bytes ?bytes)))
+  :then [(:arena::Overflow :bytes ?bytes)])
 
 (:wat::rete::defrule :arena::flagged-rule
   :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing))
          (:wat::rete::where (:wat::core::= (:arena::Route/method ?route) :arena::Method::POST))
          (:wat::rete::where (:wat::core::< (:arena::Client/reputation ?client) -50))]
-  :then (:wat::rete::insert (:arena::Flagged :client ?client :route ?route :timing ?timing)))
+  :then [(:arena::Flagged :client ?client :route ?route :timing ?timing)])
 
 (:wat::rete::defrule :arena::critical-rule
   :when [(:arena::Flagged (?client <- :client) (?timing <- :timing))
          (:wat::rete::where (:wat::core::> (:arena::Timing/dns-ns ?timing) 300000))]
-  :then (:wat::rete::insert (:arena::Critical :client ?client)))
+  :then [(:arena::Critical :client ?client)])
 
 (:wat::core::defn :arena::mk
   [ctry <- :wat::core::String rep <- :wat::core::i64 method <- :arena::Method status <- :wat::core::i64

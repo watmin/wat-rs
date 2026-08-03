@@ -33,7 +33,7 @@
   :when
   [(:nia::Reading (?g <- :g))]
   :then
-  (:wat::rete::insert (:nia::Out ?g)))
+  [(:nia::Out ?g)])
 
 (:wat::core::defn :nia::base [] -> :wat::rete::Session
   (:wat::rete::compile (:wat::rete::collect-rules :nia)))

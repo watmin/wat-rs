@@ -21,7 +21,7 @@
          (:wat::rete::where (:wat::core::> ?lat 1000000))
          (:wat::rete::where (:wat::core::< (:usr::Client/reputation ?client) 0))
          (:wat::rete::where (:wat::core::= (:usr::Geo/country (:usr::Client/geo ?client)) "XX"))]
-  :then (:wat::rete::insert (:usr::Suspect :client ?client :route ?route :lat ?lat)))
+  :then [(:usr::Suspect :client ?client :route ?route :lat ?lat)])
 
 ;; RULE 2 (Lemma → Deduction, the cascade): fire on the derived Suspect, `where`-filter its carried
 ;; records (very-high latency AND route.status == 200) → Anomaly (terminal).
@@ -29,7 +29,7 @@
   :when [(:usr::Suspect (?client <- :client) (?route <- :route) (?lat <- :lat))
          (:wat::rete::where (:wat::core::> ?lat 5000000))
          (:wat::rete::where (:wat::core::= (:usr::Route/status ?route) 200))]
-  :then (:wat::rete::insert (:usr::Anomaly :client ?client)))
+  :then [(:usr::Anomaly :client ?client)])
 
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Event] -> :wat::core::String
   (:wat::core::let

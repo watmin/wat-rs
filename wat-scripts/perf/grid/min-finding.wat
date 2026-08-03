@@ -67,7 +67,7 @@
                                 (?n <- (:wat::rete::acc::count) :from (:mf::Reading (?loc <- :loc))))
                     where-c   (:wat::core::quasiquote
                                 (:wat::rete::where (:wat::core::>= ?n (:wat::core::unquote threshold))))
-                    ins       (:wat::core::quasiquote (:wat::rete::insert (:mf::Busy ?loc ?n)))]
+                    ins       (:wat::core::quasiquote (:mf::Busy ?loc ?n))]
     (:wat::rete::Rule :name "min-finding"
       :lhs (:wat::core::PersistentVector station-c acc-c where-c)
       :rhs (:wat::core::PersistentVector ins))))

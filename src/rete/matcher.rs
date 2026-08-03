@@ -556,16 +556,21 @@ pub(crate) fn resolve_operand<B: Bindings>(
 
 /// `build_insert_fact` — the pure inner of `eval_insert`.
 ///
-/// Given the outer `insert-form` AST (a `(:wat::rete::insert (:RecordType arg…))` list)
-/// and the token `bindings`, validates the form, resolves each fact-arg via `resolve_operand`
-/// (empty fact-fields/names: RHS has no current fact), and builds the `Value::wat__core__Record`.
+/// Arc 278 Stone A (DESIGN-STONE-then-is-a-vector-of-singular-facts.md): `:then` is now a
+/// vector of BARE fact-forms — the `(:wat::rete::insert …)` RHS marker wrapper is gone (the
+/// engine is inserts-only by doctrine, so naming it per entry said nothing). `fact_form` IS
+/// the fact-form directly: `(:RecordType arg…)`.
+///
+/// Given `fact_form` and the token `bindings`, validates the form, resolves each fact-arg via
+/// `resolve_operand` (empty fact-fields/names: RHS has no current fact), and builds the
+/// `Value::wat__core__Record`.
 ///
 /// Called from `eval_insert` (after arg evaluation) and from the production pass in
 /// `kernel.rs` (which already has the form + bindings and calls this directly).
 ///
 /// Raises `RuntimeError` on malformed form or unresolved operand. Never panics.
 pub(crate) fn build_insert_fact(
-    insert_form: &WatAST,
+    fact_form: &WatAST,
     bindings: &crate::value::pmap::PMap,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
@@ -576,49 +581,16 @@ pub(crate) fn build_insert_fact(
     // level where a timer would tax the thing it measures.
     let __pv = crate::rete::kernel::phase_start();
 
-    // Validate the insert form: must be a List `(:wat::rete::insert <fact-form>)`.
+    // Validate the fact form: must be a List `(:RecordType arg…)` with a keyword head.
     // Borrow (do NOT clone) — this runs once per derived fact; cloning the form AST per fact was
-    // pure waste (the fan-out residual). We only read items[0]/[1]/len here.
-    let insert_items = match insert_form {
-        WatAST::List(items, _) if !items.is_empty() => items,
-        _ => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "List (:wat::rete::insert <fact-form>)",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(insert_form.clone())))),
-            }).into());
-        }
-    };
-    // Head must be the keyword :wat::rete::insert.
-    let insert_head = match &insert_items[0] {
-        WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert" => k.as_str(),
-        other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "keyword :wat::rete::insert as form head",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
-            }).into());
-        }
-    };
-    let _ = insert_head; // validated; not used further
-    // Exactly 2 children: the :wat::rete::insert keyword + <fact-form>.
-    if insert_items.len() != 2 {
-        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: insert_items.len(),
-        }).into());
-    }
-
-    // Extract the fact-form: <fact-form> = (:RecordType arg…) — a List with a keyword head.
-    let fact_form_ast = &insert_items[1];
-    let fact_items = match fact_form_ast {
+    // pure waste (the fan-out residual). We only read items[0]/len here.
+    let fact_items = match fact_form {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => {
             return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "fact-form List (:RecordType arg…)",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{fact_form_ast:?}"))))),
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(fact_form.clone())))),
             }).into());
         }
     };
@@ -685,11 +657,12 @@ pub(crate) fn build_insert_fact(
     Ok(out)
 }
 
-/// `(:wat::rete::eval-insert <insert-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
+/// `(:wat::rete::eval-insert <fact-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
 /// -> :wat::core::Record`
 ///
 /// The RHS dual of `eval_alpha_match`: where alpha-match is `(cond, fact) → Option<bindings>`,
-/// eval-insert is `(insert-form, bindings) → fact`. Both sides reuse `resolve_operand`.
+/// eval-insert is `(fact-form, bindings) → fact`. Both sides reuse `resolve_operand`. Arc 278
+/// Stone A: `fact-form` is a bare `(:Type arg…)` — the `insert` RHS-marker wrapper is gone.
 ///
 /// Entry point dispatched by `dispatch_keyword_head_value` in `runtime.rs`.
 /// Evaluates both arguments, then delegates to `build_insert_fact` for the pure inner.
@@ -718,7 +691,7 @@ pub(crate) fn eval_insert(
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::WatAST (insert form from quote)",
+                expected: ":wat::WatAST (fact form from quote)",
                 got: Box::new(ValueSnapshot::of(&other)),
             }).into());
         }

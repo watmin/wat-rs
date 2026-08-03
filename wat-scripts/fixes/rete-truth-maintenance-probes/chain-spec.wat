@@ -5,13 +5,13 @@
 ;; R1: A → B (single input match)
 (:wat::rete::defrule :c::r1
   :when [(:c::A (?k <- :k))]
-  :then (:wat::rete::insert (:c::B ?k)))
+  :then [(:c::B ?k)])
 
 ;; R2: B JOIN A (derived B joined with the ORIGINAL input A, same k) → C
 (:wat::rete::defrule :c::r2
   :when [(:c::B (?k <- :k))
          (:c::A (?k <- :k))]
-  :then (:wat::rete::insert (:c::C ?k)))
+  :then [(:c::C ?k)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [s0    (:wat::rete::compile (:wat::rete::collect-rules :c))

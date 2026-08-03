@@ -11,7 +11,7 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:test::big? ?c))]
   :then
-  (:wat::rete::insert (:wb::Gate :celsius ?c)))
+  [(:wb::Gate :celsius ?c)])
 
 ;; 3 — a USER-fn predicate in the where works through the network: big?(150) → one Gate.
 (:wat::core::defn :user::run-gate-c150 [] -> :wat::core::i64

@@ -58,7 +58,7 @@
                                 (:wat::core::= (:wat::core::unquote i)
                                   (:wat::core::i64::- ?k
                                     (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:nsp::Out ?k)))]
+                    ins     (:wat::core::quasiquote (:nsp::Out ?k))]
     (:wat::rete::Rule :name (:wat::core::i64::to-string i)
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))

@@ -59,7 +59,7 @@
      keys    (:wat::core::i64::/ items (:wat::core::i64::* fanout fanout))
      c1      (:wat::core::quote (:dd::Left  (?k <- :key) (?l <- :lid)))
      c2      (:wat::core::quote (:dd::Right (?k <- :key) (?r <- :rid)))
-     rhs     (:wat::core::quote (:wat::rete::insert (:dd::Pair ?k ?l ?r)))
+     rhs     (:wat::core::quote (:dd::Pair ?k ?l ?r))
      rule    (:wat::rete::Rule :name "dd" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
      staged  (:dd::seed (:wat::rete::compile (:wat::core::PersistentVector rule)) keys fanout)
 

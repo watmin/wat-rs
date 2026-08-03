@@ -10,7 +10,7 @@
   [(:w::Station (?loc <- :location))
    (:wat::rete::exists (:w::Reading (?loc <- :location)))]
   :then
-  (:wat::rete::insert (:w::Watched :location ?loc)))
+  [(:w::Watched :location ?loc)])
 
 ;; Fire via `fire` after the given inserts; count derived Watched facts. Four scenarios x {native, oracle}.
 

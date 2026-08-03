@@ -13,9 +13,10 @@
 //!   condition head AND every clause holds. Pure: no `Environment`, no `eval_inner`.
 //! - Stone 2b — alpha-memory (`insert`); consumes `eval_alpha_match`.
 //! - Stone 3 — cross-fact join (beta network); builds on alpha-memory.
-//! - **Stone 4a** (`matcher.rs`) — `eval_insert`: given an insert form (DATA, a quoted
-//!   `(:wat::rete::insert (:RecordType arg…))`) and a token's bindings map, resolve each
-//!   fact-arg via `resolve_operand` (?var + literal only; no current fact) and return the
+//! - **Stone 4a** (`matcher.rs`) — `eval_insert`: given a fact form (DATA, a quoted
+//!   `(:RecordType arg…)` — arc 278 Stone A dropped the `insert` RHS-marker wrapper) and a
+//!   token's bindings map, resolve each fact-arg via `resolve_operand` (?var + literal only;
+//!   no current fact) and return the
 //!   derived `:wat::core::Record`. The RHS dual of `eval_alpha_match`. Raises on malformed form /
 //!   unresolved operand (never silently drops).
 //!

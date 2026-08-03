@@ -35,7 +35,7 @@ fn world(gate: &str) -> String {
             (?s <- (:w::sum-of-squares ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           (:wat::rete::insert (:w::Flagged :location ?loc)))"
+           [(:w::Flagged :location ?loc)])"
     )
 }
 
@@ -105,7 +105,7 @@ fn fence_rejects_impure_fold() {
            [(:w::Reading (?loc <- :location) (?v <- :value))\n\
             (?s <- (:w::bad-fold ?v) :from (:w::Reading (?loc2 <- :location) (?v2 <- :value)))]\n\
            :then\n\
-           (:wat::rete::insert (:w::Flagged :location ?loc)))\n\
+           [(:w::Flagged :location ?loc)])\n\
          ";
     let w = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .expect("world should freeze (the impure fold is defined; the rule using it is the violation)");

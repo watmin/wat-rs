@@ -69,7 +69,7 @@
    (:wat::rete::where (:wat::core::not ?post-arrow))
    (:wat::rete::where (:wat::core::not (:fix::type-shaped-keyword-str? ?name)))]
   :then
-  (:wat::rete::insert (:fix::HeadConv :offset ?offset :len ?len :name ?name)))
+  [(:fix::HeadConv :offset ?offset :len ?len :name ?name)])
 
 ;; arrow→conv: kind=symbol ∧ (name="<-" ∨ name="->") → deduce ArrowConv(offset, len).
 ;;   The drive emits the literal ":-".
@@ -85,7 +85,7 @@
                         (:wat::core::= ?name "<-")
                         (:wat::core::= ?name "->")))]
   :then
-  (:wat::rete::insert (:fix::ArrowConv :offset ?offset :len ?len)))
+  [(:fix::ArrowConv :offset ?offset :len ?len)])
 
 ;; type-keyword→conv: kind=keyword ∧ (post-arrow ∨ type-shaped)
 ;;   → deduce TypeConv(offset, len, name). The drive turns name into (keyword/to-type-form name).
@@ -102,7 +102,7 @@
                         ?post-arrow
                         (:fix::type-shaped-keyword-str? ?name)))]
   :then
-  (:wat::rete::insert (:fix::TypeConv :offset ?offset :len ?len :name ?name)))
+  [(:fix::TypeConv :offset ?offset :len ?len :name ?name)])
 
 ;; ── per-scenario named entries — one asserted Node, fired, queried ────────────────
 ;; Each test's node literal and query tail are fixed and enumerable — no runtime parameterization.

@@ -64,7 +64,7 @@
   :when
   [(:ins::Reading (?g <- :g))]
   :then
-  (:wat::rete::insert (:ins::Out ?g)))
+  [(:ins::Out ?g)])
 
 (:wat::core::defrecord :ins::Split
   [n                <- :wat::core::i64

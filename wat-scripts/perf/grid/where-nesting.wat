@@ -117,28 +117,28 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c2 ?k) 10))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 2 — depth-3 chain. c3 > 15 <=> c1 in {10,11,12} -> 45 of 200.
 (:wat::rete::defrule :wnst::depth3
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c3 ?k) 15))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 3 — depth-4 chain. c4 > 15 <=> c1 in {7..12} -> 90 of 200.
 (:wat::rete::defrule :wnst::depth4
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c4 ?k) 15))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 4 — depth-5 chain. c5 > 20 <=> c1 in {9,10,11,12} -> 60 of 200.
 (:wat::rete::defrule :wnst::depth5
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c5 ?k) 20))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 5 — depth-10 chain, the "keeps going past 5" witness kept live in the gate.
 ;; c10 = c1 + 27. c10 > 32 <=> c1 in {6..12} -> 105 of 200.
@@ -146,7 +146,7 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::c10 ?k) 32))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 6 — deep INLINE expression tree, 6 arithmetic levels, ZERO fn calls: the pure-structural-depth
 ;; reference, separate from call depth. g1=k+10 g2=g1*2 g3=g2-15 g4=g3/3 g5=g4+7 g6=g5*2 -> g6>157
@@ -167,14 +167,14 @@
                                     2)
                                   157))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 7 — TWO bound vars, both live at test time. twoarg(?k, ?m) = (?k+?m) > 113 -> 108 of 200.
 (:wat::rete::defrule :wnst::two-arg
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::twoarg ?k ?m))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 8 — the where-clause's OWN top-level call takes a call to a DIFFERENT pure fn as its argument:
 ;; (wrap (c2 ?k)). wrap(v) = v mod 4 == 0. c2(k) = c1(k)+3 in {4,8,12} <=> c1 in {1,5,9} -> 46 of 200.
@@ -182,7 +182,7 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k)))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 9 — mutual/chained helpers: f calls g AND h, both of which call the shared hub.
 ;; hub in {4..12} (mod 17) -> 108 of 200.
@@ -190,7 +190,7 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::f ?k))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 10 — a user fn returning a NON-bool (i64), compared from OUTSIDE the call.
 ;; score(k) = (3k) mod 11; score > 6 -> 72 of 200.
@@ -198,7 +198,7 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::core::i64::> (:wnst::score ?k) 6))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; ROW 11 — the CONTRAST with row 10: a user fn returning bool DIRECTLY (internally calling score),
 ;; used bare in the where clause with no external comparison. is-good(k) = score(k) even -> 109 of 200.
@@ -206,7 +206,7 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::is-good ?k))]
   :then
-  (:wat::rete::insert (:wnst::Hit ?k)))
+  [(:wnst::Hit ?k)])
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wnst::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

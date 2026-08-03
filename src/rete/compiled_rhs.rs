@@ -4,7 +4,7 @@
 //! ## ⚠ Not a perf stone (mirrors `compiled_cond.rs`'s amendment)
 //!
 //! `build_insert_fact` (`matcher.rs`) re-derives its program from a `WatAST` on **every derived
-//! fact**: it re-validates the `(:wat::rete::insert (:Type arg…))` form shape, re-detects
+//! fact**: it re-validates the `(:Type arg…)` fact-form shape, re-detects
 //! kwargs-vs-positional, re-allocates the class `String`, and — via `resolve_operand` — rebuilds
 //! each `?var` lookup key with a fresh `Value::String(Arc::new(name.to_string()))`, a `String`
 //! allocation plus an `Arc` allocation, for a key fixed at rule-compile time. Measured on the
@@ -66,28 +66,17 @@ pub(crate) struct CompiledRhs {
     ops: Vec<RhsOp>,
 }
 
-/// Compile one `(:wat::rete::insert (:Type arg…))` form. All the validation `build_insert_fact`
-/// does per fact — form shape, `:wat::rete::insert` head, arity, fact-form shape, kwargs-vs-
-/// positional detection, and classifying each value-position AST node — happens HERE, once.
+/// Compile one `(:Type arg…)` fact-form (arc 278 Stone A: no more `:wat::rete::insert`
+/// wrapper). All the validation `build_insert_fact` does per fact — fact-form shape,
+/// kwargs-vs-positional detection, and classifying each value-position AST node — happens
+/// HERE, once.
 ///
 /// Returns `None` whenever `build_insert_fact` would either raise an error for this form (a
 /// static, compile-time-provable property — the fallback then raises the identical error at
 /// fire time) or contains a value-position node this stone's two-op model does not represent
 /// (STOP-1): a bare non-`?` symbol, a `:field` keyword reference, or a nested form. Never panics.
-pub(crate) fn compile_rhs(insert_form: &WatAST) -> Option<CompiledRhs> {
-    let insert_items = match insert_form {
-        WatAST::List(items, _) if !items.is_empty() => items,
-        _ => return None,
-    };
-    match &insert_items[0] {
-        WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert" => {}
-        _ => return None,
-    }
-    if insert_items.len() != 2 {
-        return None;
-    }
-
-    let fact_items = match &insert_items[1] {
+pub(crate) fn compile_rhs(fact_form: &WatAST) -> Option<CompiledRhs> {
+    let fact_items = match fact_form {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => return None,
     };
@@ -218,14 +207,14 @@ mod tests {
         let bound = bindings_of(&[("?k", 1), ("?l", 2), ("?r", 3)]);
         let cases: &[(&str, &crate::value::pmap::PMap)] = &[
             // 1. positional, every ?var bound
-            ("(:wat::rete::insert (:fan::Pair ?k ?l ?r))", &bound),
+            ("(:fan::Pair ?k ?l ?r)", &bound),
             // 2. kwargs — the arc-294 9a form
-            ("(:wat::rete::insert (:fan::Pair :key ?k :lid ?l))", &bound),
+            ("(:fan::Pair :key ?k :lid ?l)", &bound),
             // 3. every literal kind, mixed with a bind
-            ("(:wat::rete::insert (:fan::Pair ?k 7 true))", &bound),
-            ("(:wat::rete::insert (:fan::Pair 1.5 \"s\" ?r))", &bound),
+            ("(:fan::Pair ?k 7 true)", &bound),
+            ("(:fan::Pair 1.5 \"s\" ?r)", &bound),
             // 4. ★ AN UNBOUND ?var — RED before the byte-identical error fix
-            ("(:wat::rete::insert (:fan::Pair ?k ?nope ?r))", &bound),
+            ("(:fan::Pair ?k ?nope ?r)", &bound),
         ];
 
         for (src, binds) in cases {

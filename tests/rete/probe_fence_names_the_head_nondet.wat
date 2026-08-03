@@ -12,7 +12,7 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:wat::core::record? (:wat::core::Uuid/v4)))]
   :then
-  (:wat::rete::insert (:wf::Gate :celsius ?c)))
+  [(:wf::Gate :celsius ?c)])
 
 (:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64
   (:wat::core::length

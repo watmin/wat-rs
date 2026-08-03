@@ -19,7 +19,7 @@
   :when
   [(:nin::Reading (?g <- :g))]
   :then
-  (:wat::rete::insert (:nin::Out ?g)))
+  [(:nin::Out ?g)])
 
 (:wat::core::defn :nin::base [] -> :wat::rete::Session
   (:wat::rete::compile (:wat::rete::collect-rules :nin)))

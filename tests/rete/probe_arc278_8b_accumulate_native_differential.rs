@@ -25,7 +25,7 @@ fn world(acc: &str, gate: &str) -> String {
             {acc}\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           (:wat::rete::insert (:w::Busy :location ?loc :n ?n)))"
+           [(:w::Busy :location ?loc :n ?n)])"
     )
 }
 

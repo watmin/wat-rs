@@ -67,7 +67,7 @@
   [(:ur::Station (?loc <- :loc))
    (?s <- (:ur::sum-of-squares ?v) :from (:ur::Reading (?loc <- :loc) (?v <- :value)))]
   :then
-  (:wat::rete::insert (:ur::Agg ?loc ?s)))
+  [(:ur::Agg ?loc ?s)])
 
 ;; seed-loc session loc reads — stage Station(loc) then Reading(loc, (loc+j) mod 7) for j in [0,reads).
 ;; loc-facts acc loc reads — Station(loc) then its `reads` Readings, appended to a FACT VECTOR.

@@ -13,7 +13,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -25,7 +25,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -37,7 +37,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -49,7 +49,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -62,7 +62,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -75,7 +75,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -89,7 +89,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -103,7 +103,7 @@
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      s0    (:wat::rete::compile (:wat::core::PersistentVector rule))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))

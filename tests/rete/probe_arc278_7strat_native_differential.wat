@@ -13,12 +13,12 @@
 ;; derive Bad for k=2 only
 (:wat::rete::defrule :n::mark-bad
   :when [(:n::A (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
-  :then (:wat::rete::insert (:n::Bad :k ?k)))
+  :then [(:n::Bad :k ?k)])
 
 ;; Ok = A with NO Bad (negation over a DERIVED fact — needs stratification)
 (:wat::rete::defrule :n::ok
   :when [(:n::A (?k <- :k)) (:wat::rete::not (:n::Bad (?k <- :k)))]
-  :then (:wat::rete::insert (:n::Ok :k ?k)))
+  :then [(:n::Ok :k ?k)])
 
 ;; ── 3-STRATUM negation chain (the harder case: facts must thread across TWO negation layers) ──
 ;; A(1),A(2),A(3): Bad for k=2 (stratum 0); Warn = A with no Bad (stratum 1); Safe = A with no Warn (stratum 2).
@@ -31,13 +31,13 @@
 
 (:wat::rete::defrule :n3::mark-bad
   :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
-  :then (:wat::rete::insert (:n3::Bad :k ?k)))
+  :then [(:n3::Bad :k ?k)])
 (:wat::rete::defrule :n3::mark-warn
   :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]
-  :then (:wat::rete::insert (:n3::Warn :k ?k)))
+  :then [(:n3::Warn :k ?k)])
 (:wat::rete::defrule :n3::mark-safe
   :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]
-  :then (:wat::rete::insert (:n3::Safe :k ?k)))
+  :then [(:n3::Safe :k ?k)])
 
 ;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──
 ;; The .rs names one entry and passes the fire fn (fire-rules native / fire-rules-spec oracle);

@@ -49,7 +49,7 @@
                                 (:wat::core::if (:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2)))
                                   true
                                   false)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:pcf::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:pcf::Hit ?k))]
     (:wat::rete::Rule :name "if-control"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -63,7 +63,7 @@
                                 (:wat::core::cond
                                   ((:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2))) true)
                                   (:else false))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:pcf::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:pcf::Hit ?k))]
     (:wat::rete::Rule :name "cond-subject"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))

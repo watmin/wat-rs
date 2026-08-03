@@ -19280,8 +19280,9 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
-    // (:wat::rete::eval-insert insert-form bindings) → :wat::core::Record
-    // insert-form: :wat::WatAST (a quoted `(:wat::rete::insert (:RecordType arg…))` form)
+    // (:wat::rete::eval-insert fact-form bindings) → :wat::core::Record
+    // fact-form: :wat::WatAST (a quoted `(:RecordType arg…)` form — arc 278 Stone A dropped
+    //            the `insert` RHS-marker wrapper)
     // bindings:    :wat::core::PersistentMap (the token's bound ?vars → values)
     // Returns the derived :wat::core::Record; raises RuntimeError on malformed form / unresolved operand.
     // Pure: no Environment, no eval_inner on fact-args; resolve_operand handles ?var + literal only.

@@ -11,13 +11,13 @@
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 0))
    (:weather::WindSpeed   (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]
   :then
-  (:wat::rete::insert (:weather::ColdAndWindy ?c ?k)))
+  [(:weather::ColdAndWindy ?c ?k)])
 
 (:wat::rete::defrule :weather::alert
   :when
   [(:weather::ColdAndWindy (?c <- :celsius) (?k <- :kph))]
   :then
-  (:wat::rete::insert (:weather::WeatherAlert :celsius ?c :kph ?k)))
+  [(:weather::WeatherAlert :celsius ?c :kph ?k)])
 
 ;; The shared lifecycle prefix (collect → compile → insert ×2 → fire-rules-explain, binding `ex`) is
 ;; inlined into each entry point below — one per probe assertion.

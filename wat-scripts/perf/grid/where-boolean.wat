@@ -77,42 +77,42 @@
   (:wat::core::quasiquote (:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l))))
 
 (:wat::core::defn :wsb::ins [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wat::rete::insert (:wsb::Hit ?k))))
+  (:wat::core::quasiquote (:wsb::Hit ?k)))
 
 ;; ROW 1 — and/2. Hit :- Req(…) AND (a and b).  k mod 2==0 and k mod 3==0 => k mod 6==0 => 35/210.
 (:wat::rete::defrule :wsb::and2
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 2 — or/2. Hit :- Req(…) AND (a or b).  |a|+|b|-|a&b| = 105+70-35 => 140/210.
 (:wat::rete::defrule :wsb::or2
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::or ?a ?b))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 3 — not/1. Hit :- Req(…) AND (not c).  210 - 42 => 168/210.
 (:wat::rete::defrule :wsb::not1
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not ?c))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 4 — and/3. (a and b and c).  k mod 30==0 => 7/210.
 (:wat::rete::defrule :wsb::and3
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b ?c))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 5 — or/3. (a or b or c).  inclusion-exclusion => 154/210.
 (:wat::rete::defrule :wsb::or3
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::or ?a ?b ?c))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 6 — and/4, the full conjunction. k mod 210==0 => only k=0 => 1/210. Deliberately extreme
 ;; (still a PROPER subset — 0 < 1 < 210) to exercise 4-ary `and`, the widest arity this corpus uses.
@@ -120,7 +120,7 @@
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::and ?a ?b ?c ?d))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 7 — NESTED, two levels: (and (or a b) (not c)).
 ;; |a∨b| = 140 (row 2). Restrict to c=false: of the 168 facts with c=false, exclude those with
@@ -130,7 +130,7 @@
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and (:wat::core::or ?a ?b) (:wat::core::not ?c)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 8 — NESTED, two levels: (or (and a b) (and c d)).
 ;; |a∧b|=35, |c∧d|=6, |a∧b∧c∧d|=1 (inclusion-exclusion on the two conjunctions) => 35+6-1=40/210.
@@ -139,7 +139,7 @@
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::or (:wat::core::and ?a ?b) (:wat::core::and ?c ?d)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 9 — THREE LEVELS DEEP: (and (or (and a b) c) (not (and c d))).
 ;; Let X = (a∧b)∨c, Y = ¬(c∧d); count(X∧Y) enumerated over the 16 (a,b,c,d) truth combinations
@@ -152,7 +152,7 @@
                                    (:wat::core::or (:wat::core::and ?a ?b) ?c)
                                    (:wat::core::not (:wat::core::and ?c ?d))))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 10 / ROW 11 — DE MORGAN PAIR #1: ¬(a∧b)  ≡  (¬a)∨(¬b). Both MUST derive the identical set.
 ;; 210 - |a∧b| = 210 - 35 = 175/210 on both rows.
@@ -160,14 +160,14 @@
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not (:wat::core::and ?a ?b)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 (:wat::rete::defrule :wsb::demorgan-nand-b
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::or (:wat::core::not ?a) (:wat::core::not ?b)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 12 / ROW 13 — DE MORGAN PAIR #2: ¬(a∨b)  ≡  (¬a)∧(¬b). Both MUST derive the identical set.
 ;; 210 - |a∨b| = 210 - 140 = 70/210 on both rows.
@@ -175,14 +175,14 @@
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::core::not (:wat::core::or ?a ?b)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 (:wat::rete::defrule :wsb::demorgan-nor-b
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and (:wat::core::not ?a) (:wat::core::not ?b)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 14 — a BOOLEAN-VALUED USER FN composed with inline boolean operators at the call site.
 ;; Hit :- Req(…) AND (edge?(k) and not c).  edge? is 60/210 on its own; of those, 12 are divisible
@@ -192,7 +192,7 @@
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::core::and (:wsb::edge? ?k) (:wat::core::not ?c)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; ROW 15 — SHORT-CIRCUIT-SENSITIVE. Hit :- Req(…) AND (l != 0 and (100/l) > 20).
 ;;
@@ -211,7 +211,7 @@
                                    (:wat::core::not= ?l 0)
                                    (:wat::core::i64::> (:wat::core::i64::/ 100 ?l) 20)))]
   :then
-  (:wat::rete::insert (:wsb::Hit ?k)))
+  [(:wsb::Hit ?k)])
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wsb::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

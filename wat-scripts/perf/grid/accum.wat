@@ -57,35 +57,35 @@
   [(:acc::Group (?g <- :g))
    (?n <- (:wat::rete::acc::count) :from (:acc::Reading (?g <- :g)))]
   :then
-  (:wat::rete::insert (:acc::CountF ?g ?n)))
+  [(:acc::CountF ?g ?n)])
 
 (:wat::rete::defrule :acc::sum-rule
   :when
   [(:acc::Group (?g <- :g))
    (?n <- (:wat::rete::acc::sum ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
   :then
-  (:wat::rete::insert (:acc::SumF ?g ?n)))
+  [(:acc::SumF ?g ?n)])
 
 (:wat::rete::defrule :acc::min-rule
   :when
   [(:acc::Group (?g <- :g))
    (?n <- (:wat::rete::acc::min ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
   :then
-  (:wat::rete::insert (:acc::MinF ?g ?n)))
+  [(:acc::MinF ?g ?n)])
 
 (:wat::rete::defrule :acc::max-rule
   :when
   [(:acc::Group (?g <- :g))
    (?n <- (:wat::rete::acc::max ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
   :then
-  (:wat::rete::insert (:acc::MaxF ?g ?n)))
+  [(:acc::MaxF ?g ?n)])
 
 (:wat::rete::defrule :acc::exists-rule
   :when
   [(:acc::Group (?g <- :g))
    (:wat::rete::exists (:acc::Reading (?g <- :g)))]
   :then
-  (:wat::rete::insert (:acc::ExistsF ?g)))
+  [(:acc::ExistsF ?g)])
 
 ;; val g j — the deterministic reading value at (group g, index j): (g*31 + j*17) mod 1000.
 ;; No i64::mod op exists (only +,-,*,/), so mod is manual: x - (x/1000)*1000 (x>=0, truncating /).

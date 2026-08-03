@@ -84,7 +84,7 @@
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 10)))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 2 — FOUR bound vars in one predicate. (a+b) mod (c+1) == d.
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 36 of 200.
@@ -95,7 +95,7 @@
                    (:wat::core::i64::mod (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 1))
                    ?d))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 3 — FIVE bound vars in one predicate, combined with `and`.
 ;; (a mod 2 == 0) AND (b > c) AND (d > e).  a=i%11, b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 40 of 200.
@@ -107,7 +107,7 @@
                    (:wat::core::i64::> ?b ?c)
                    (:wat::core::i64::> ?d ?e)))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 4 — TRANSITIVE CHAIN. d < c AND c < b — the same var (`c`) anchors both legs of the chain,
 ;; so the predicate cannot be split into two independent single-var tests without still needing c
@@ -117,14 +117,14 @@
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::core::and (:wat::core::i64::< ?d ?c) (:wat::core::i64::< ?c ?b)))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 5 — arithmetic ACROSS vars: (?a + ?b) > ?c.  a=i%11, b=i%13, c=i%7 ⇒ 183 of 200.
 (:wat::rete::defrule :wmv::sum-vars
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::+ ?a ?b) ?c))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 6 — arithmetic ACROSS vars: (?a * ?b) > (?c + ?d).
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 150 of 200.
@@ -135,7 +135,7 @@
                    (:wat::core::i64::* ?a ?b)
                    (:wat::core::i64::+ ?c ?d)))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 7 — the SAME var used SEVERAL TIMES in one predicate: (?a * ?a) - ?a > 20.
 ;; `?a` is bound once by the leading condition but read three times by the predicate — the compiler
@@ -147,7 +147,7 @@
                    (:wat::core::i64::- (:wat::core::i64::* ?a ?a) ?a)
                    20))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 8 — a pure fn taking FOUR bound vars at once: (combo? ?a ?b ?c ?d).
 ;; combo?(a,b,c,d) = a*c > b*d.  Like where-shapes row 5, this is a CALL the compiler must hand back
@@ -156,7 +156,7 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::combo? ?a ?b ?c ?d))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 9 — vars of DIFFERENT TYPES compared through a fn: (length ?s) > ?c.
 ;; `?s` is a String, `?c` is an i64; `string::length` bridges the type gap before the comparison.
@@ -166,7 +166,7 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?s) ?c))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 10 — binds MANY vars, READS only one: ?a mod 3 == 0.
 ;; The leading condition binds all seven of (?k ?a ?b ?c ?d ?e ?s) per rule 1 — same as every other
@@ -178,7 +178,7 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::= 0 (:wat::core::i64::mod ?a 3)))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 11 — a pure fn taking FIVE bound vars at once: (pent? ?a ?b ?c ?d ?e).
 ;; pent?(a,b,c,d,e) = (a+b+c) mod (d+e+1) == 0 ⇒ 73 of 200.
@@ -188,7 +188,7 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::pent? ?a ?b ?c ?d ?e))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; ROW 12 — chain AND arithmetic combined: (?b < ?c) AND ((?c + ?d) > (?e * 3)).
 ;; The first leg is a bound-var-to-bound-var chain link, the second is arithmetic across three vars
@@ -200,7 +200,7 @@
                    (:wat::core::i64::< ?b ?c)
                    (:wat::core::i64::> (:wat::core::i64::+ ?c ?d) (:wat::core::i64::* ?e 3))))]
   :then
-  (:wat::rete::insert (:wmv::Hit ?k)))
+  [(:wmv::Hit ?k)])
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

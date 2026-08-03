@@ -16,4 +16,4 @@
   :when
   [(:weather::Temperature :celsius (?loc <- :location) :location (?c <- :celsius))]
   :then
-  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+  [(:alert::Unattended :location ?loc)])

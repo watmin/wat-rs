@@ -71,7 +71,7 @@
   [(:stopa::Big (?k <- :k) (?n <- :n))
    (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::+ ?n 1) 0))]
   :then
-  (:wat::rete::insert (:stopa::Hit ?k)))
+  [(:stopa::Hit ?k)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

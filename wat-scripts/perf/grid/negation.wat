@@ -49,7 +49,7 @@
         (:wat::core::quasiquote (:neg::Item (?k <- :k)))
         (:wat::core::quasiquote (:wat::rete::not (:neg::Bad (?k <- :k)))))
       :rhs (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:wat::rete::insert (:neg::Ok ?k)))))))
+        (:wat::core::quasiquote (:neg::Ok ?k))))))
 
 ;; seed session items — stage Item(i) for every i in [0, items), plus Bad(i) for every EVEN i,
 ;; threading the staging session (mirrors strat-neg.wat's seed-items, with the extra Bad insert).

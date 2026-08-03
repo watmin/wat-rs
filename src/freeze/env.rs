@@ -432,7 +432,7 @@ mod rete_wall_probe {
   :when
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius))]
   :then
-  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+  [(:alert::Unattended :location ?loc)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
         let env = build_env(forms).expect("build_env must not choke on the quoted rule interior");

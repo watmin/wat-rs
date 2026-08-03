@@ -10,6 +10,6 @@
 
 (:wat::rete::defrule :nf::compute
   :when  [(:nf::In (?a <- :a))]
-  :then  (:wat::rete::insert (:nf::Out (:wat::core::+ ?a 1))))
+  :then  [(:nf::Out (:wat::core::+ ?a 1))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

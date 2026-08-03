@@ -23,7 +23,7 @@
                     fanout (:wat::core::Option/expect   (:wat::core::get params 1) "[keys fanout]")
                     c1   (:wat::core::quote (:fan::Left  (?k <- :key) (?l <- :lid)))
                     c2   (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
-                    rhs  (:wat::core::quote (:wat::rete::insert (:fan::Pair ?k ?l ?r)))
+                    rhs  (:wat::core::quote (:fan::Pair ?k ?l ?r))
                     rule (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
                     s0   (:wat::rete::compile (:wat::core::PersistentVector rule))
                     staged (:wat::core::foldl

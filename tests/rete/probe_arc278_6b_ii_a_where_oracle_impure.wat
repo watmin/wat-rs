@@ -9,7 +9,7 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:wat::core::record? (:wat::io::IOReader/open-file "x")))]
   :then
-  (:wat::rete::insert (:wf::Gate :celsius ?c)))
+  [(:wf::Gate :celsius ?c)])
 
 ;; 4 — the compile FENCE rejects an impure `where` (io): compiling the rule raises.
 (:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64

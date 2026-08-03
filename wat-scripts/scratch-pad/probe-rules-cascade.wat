@@ -15,13 +15,13 @@
 
 (:wat::rete::defrule :usr::hot
   :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-  :then (:wat::rete::insert (:usr::Hot :c ?c)))
+  :then [(:usr::Hot :c ?c)])
 (:wat::rete::defrule :usr::alert
   :when [(:usr::Hot (?c <- :c))]
-  :then (:wat::rete::insert (:usr::Alert :c ?c)))
+  :then [(:usr::Alert :c ?c)])
 (:wat::rete::defrule :usr::critical
   :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 90))]
-  :then (:wat::rete::insert (:usr::Critical :c ?c)))
+  :then [(:usr::Critical :c ?c)])
 
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Temp] -> :wat::core::String
   (:wat::core::let

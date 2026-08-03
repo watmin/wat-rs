@@ -68,16 +68,16 @@
 ;; place the MAX_STRATA=10 ceiling is enforced (the :else branch raises).
 (:wat::core::defn :strat::insert-form [lvl <- :wat::core::i64] -> :wat::WatAST
   (:wat::core::cond
-    ((:wat::core::= lvl 0) (:wat::core::quasiquote (:wat::rete::insert (:strat::S0 ?k))))
-    ((:wat::core::= lvl 1) (:wat::core::quasiquote (:wat::rete::insert (:strat::S1 ?k))))
-    ((:wat::core::= lvl 2) (:wat::core::quasiquote (:wat::rete::insert (:strat::S2 ?k))))
-    ((:wat::core::= lvl 3) (:wat::core::quasiquote (:wat::rete::insert (:strat::S3 ?k))))
-    ((:wat::core::= lvl 4) (:wat::core::quasiquote (:wat::rete::insert (:strat::S4 ?k))))
-    ((:wat::core::= lvl 5) (:wat::core::quasiquote (:wat::rete::insert (:strat::S5 ?k))))
-    ((:wat::core::= lvl 6) (:wat::core::quasiquote (:wat::rete::insert (:strat::S6 ?k))))
-    ((:wat::core::= lvl 7) (:wat::core::quasiquote (:wat::rete::insert (:strat::S7 ?k))))
-    ((:wat::core::= lvl 8) (:wat::core::quasiquote (:wat::rete::insert (:strat::S8 ?k))))
-    ((:wat::core::= lvl 9) (:wat::core::quasiquote (:wat::rete::insert (:strat::S9 ?k))))
+    ((:wat::core::= lvl 0) (:wat::core::quasiquote (:strat::S0 ?k)))
+    ((:wat::core::= lvl 1) (:wat::core::quasiquote (:strat::S1 ?k)))
+    ((:wat::core::= lvl 2) (:wat::core::quasiquote (:strat::S2 ?k)))
+    ((:wat::core::= lvl 3) (:wat::core::quasiquote (:strat::S3 ?k)))
+    ((:wat::core::= lvl 4) (:wat::core::quasiquote (:strat::S4 ?k)))
+    ((:wat::core::= lvl 5) (:wat::core::quasiquote (:strat::S5 ?k)))
+    ((:wat::core::= lvl 6) (:wat::core::quasiquote (:strat::S6 ?k)))
+    ((:wat::core::= lvl 7) (:wat::core::quasiquote (:strat::S7 ?k)))
+    ((:wat::core::= lvl 8) (:wat::core::quasiquote (:strat::S8 ?k)))
+    ((:wat::core::= lvl 9) (:wat::core::quasiquote (:strat::S9 ?k)))
     (:else (:wat::core::Option/expect  :wat::core::None
              (:wat::core::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"

@@ -5,13 +5,13 @@
 ;; R1: A → B (single input match)
 (:wat::rete::defrule :c::r1
   :when [(:c::A (?k <- :k))]
-  :then (:wat::rete::insert (:c::B ?k)))
+  :then [(:c::B ?k)])
 
 ;; R2: B JOIN A (derived B joined with the ORIGINAL input A, same k) → C
 (:wat::rete::defrule :c::r2
   :when [(:c::B (?k <- :k))
          (:c::A (?k <- :k))]
-  :then (:wat::rete::insert (:c::C ?k)))
+  :then [(:c::C ?k)])
 
 ;; Bug repro for fire_fixpoint_delta asymmetric-arrival drop:
 ;; A (right side of R2's hash join) arrives in round 1 while B (left) is not yet derived.

@@ -58,19 +58,19 @@
 ;; G1 keyword?
 (:wat::rete::defrule :fix::g1-keyword
   :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::core::= ?kind "keyword"))]
-  :then (:wat::rete::insert (:fix::Keyword ?off)))
+  :then [(:fix::Keyword ?off)])
 
 ;; G2 symbol?
 (:wat::rete::defrule :fix::g2-symbol
   :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::core::= ?kind "symbol"))]
-  :then (:wat::rete::insert (:fix::Symbol ?off)))
+  :then [(:fix::Symbol ?off)])
 
 ;; G3 genuine?  — span source-len == name-len (a desugared sigil never passes; THE SKIP)
 (:wat::rete::defrule :fix::g3-genuine
   :when [(:fix::Keyword (?off <- :offset))
          (:fix::Node (?off <- :offset) (?len <- :len) (?slen <- :span-len))
          (:wat::rete::where (:wat::core::= ?slen ?len))]
-  :then (:wat::rete::insert (:fix::Genuine ?off)))
+  :then [(:fix::Genuine ?off)])
 
 ;; ══ LAYER 2 · LEXICAL SHAPE (only genuine keywords) ═════════════════════════
 ;; G4 namespaced?
@@ -78,14 +78,14 @@
   :when [(:fix::Genuine (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
          (:wat::rete::where (:fix::has-ns? ?name))]
-  :then (:wat::rete::insert (:fix::Namespaced ?off)))
+  :then [(:fix::Namespaced ?off)])
 
 ;; G5 type-shaped?
 (:wat::rete::defrule :fix::g5-type-shaped
   :when [(:fix::Genuine (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
          (:wat::rete::where (:fix::type-shaped? ?name))]
-  :then (:wat::rete::insert (:fix::TypeShaped ?off)))
+  :then [(:fix::TypeShaped ?off)])
 
 ;; ══ LAYER 3 · POSITION (joins) ══════════════════════════════════════════════
 ;; G6 arrow?  — a bare <- / -> symbol
@@ -93,7 +93,7 @@
   :when [(:fix::Symbol (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
          (:wat::rete::where (:wat::core::or (:wat::core::= ?name "<-") (:wat::core::= ?name "->")))]
-  :then (:wat::rete::insert (:fix::Arrow ?off)))
+  :then [(:fix::Arrow ?off)])
 
 ;; G7 post-arrow?  — the node one child-index after an arrow, same parent (SELF-JOIN)
 (:wat::rete::defrule :fix::g7-post-arrow
@@ -101,17 +101,17 @@
          (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
          (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
          (:wat::rete::where (:wat::core::= ?bi (:wat::core::+ ?ai 1)))]
-  :then (:wat::rete::insert (:fix::PostArrow ?boff)))
+  :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)
 (:wat::rete::defrule :fix::tc-from-shaped
   :when [(:fix::TypeShaped (?off <- :offset))]
-  :then (:wat::rete::insert (:fix::TypeCandidate ?off)))
+  :then [(:fix::TypeCandidate ?off)])
 
 (:wat::rete::defrule :fix::tc-from-postarrow
   :when [(:fix::PostArrow (?off <- :offset))
          (:fix::Genuine (?off <- :offset))]
-  :then (:wat::rete::insert (:fix::TypeCandidate ?off)))
+  :then [(:fix::TypeCandidate ?off)])
 
 ;; ══ LAYER 4 · TERMINAL CLASSIFICATION ═══════════════════════════════════════
 ;; T1 HeadConv ← Namespaced ∩ ¬TypeShaped ∩ ¬PostArrow
@@ -120,19 +120,19 @@
          (:fix::Node (?off <- :offset) (?len <- :len) (?name <- :name))
          (:wat::rete::not (:fix::TypeShaped (?off <- :offset)))
          (:wat::rete::not (:fix::PostArrow (?off <- :offset)))]
-  :then (:wat::rete::insert (:fix::HeadConv ?off ?len ?name)))
+  :then [(:fix::HeadConv ?off ?len ?name)])
 
 ;; T2 TypeConv ← TypeCandidate (∩ ¬IfType — added in Stage B)
 (:wat::rete::defrule :fix::t2-type-conv
   :when [(:fix::TypeCandidate (?off <- :offset))
          (:fix::Node (?off <- :offset) (?len <- :len) (?name <- :name))]
-  :then (:wat::rete::insert (:fix::TypeConv ?off ?len ?name)))
+  :then [(:fix::TypeConv ?off ?len ?name)])
 
 ;; T3 ArrowConv ← Arrow (∩ ¬IfArrow — added in Stage B)
 (:wat::rete::defrule :fix::t3-arrow-conv
   :when [(:fix::Arrow (?off <- :offset))
          (:fix::Node (?off <- :offset) (?len <- :len))]
-  :then (:wat::rete::insert (:fix::ArrowConv ?off ?len)))
+  :then [(:fix::ArrowConv ?off ?len)])
 
 ;; ══ THE OBSERVATION WALK — emit :fix::Node facts (pure; zero classification) ══
 (:wat::core::defn :fix::walk-seq

@@ -115,7 +115,7 @@
   (:wat::core::quasiquote (:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid))))
 
 (:wat::core::defn :wc::ins [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wat::rete::insert (:wc::Hit ?k))))
+  (:wat::core::quasiquote (:wc::Hit ?k)))
 
 ;; ROW 1 — LENGTH vs a BOUND i64 VAR (not a constant). length(tags) > bound.
 ;; tags-len in {0..5}, bound in {0..7}; simulated => 48/200.
@@ -123,7 +123,7 @@
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) ?b))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 2 — ELEMENT ACCESS at a CONSTANT index, feeding a comparison, TOTAL on a short/empty vector.
 ;; `nth` (STOP-1, see header) raises the purity fence; the surface's actual total, pure form is
@@ -137,14 +137,14 @@
                                    ((Some x) (:wat::core::i64::> x 5))
                                    (None false)))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 3 — MEMBERSHIP. tags contains 6. Simulated => 38/200.
 (:wat::rete::defrule :wc::contains
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::core::PersistentVector/contains? ?t 6))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 4 — NESTED COLLECTION, two levels in. grid is Vector<Vector<i64>>; reach the FIRST inner
 ;; vector (Option, None when grid is empty — i mod 3 == 0, 67 facts) and test ITS length.
@@ -156,7 +156,7 @@
                                    ((Some inner) (:wat::core::i64::> (:wat::core::PersistentVector/length inner) 1))
                                    (None false)))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 5 — HIGHER-ORDER + CROSS-VAR. sum(tags) > bound, via `foldl` closing over a pure `fn`.
 ;; foldl's own arg-recursion makes this admissible: the fence classifies `foldl` conditionally pure
@@ -171,7 +171,7 @@
                                      0 ?t)
                                    ?b))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 6 — ELEMENT ACCESS at a DYNAMIC (bound-var) index — the index itself is `?b`, not a literal.
 ;; get(tags,bound) -> Some x, x>3; None (bound out of range for this tags) -> false.
@@ -183,7 +183,7 @@
                                    ((Some x) (:wat::core::i64::> x 3))
                                    (None false)))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 7 — a PURE FN taking the WHOLE bound collection and returning bool (`:wc::heavy?` above),
 ;; the shape a compiled executor cannot inline and must hand back to the interpreter (mirrors
@@ -192,7 +192,7 @@
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wc::heavy? ?t))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 8 — HIGHER-ORDER, `every?` EMULATED (the verb itself does not exist — see header).
 ;; `(foldl and true tags)` — every tag is even. Seed `true` is the vacuous-truth answer, so the 34
@@ -206,7 +206,7 @@
                                      (:wat::core::and acc (:wat::core::= 0 (:wat::core::i64::mod x 2))))
                                    true ?t))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 9 — HIGHER-ORDER, `some?` EMULATED. `(foldl or false tags)` — some tag equals 0. Seed
 ;; `false` is the vacuous-falsity answer, so the same 34 empty-tags facts land OUTSIDE this set
@@ -219,7 +219,7 @@
                                      (:wat::core::or acc (:wat::core::= x 0)))
                                    false ?t))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; ROW 10 — NESTED + HIGHER-ORDER + CROSS-VAR, all three composed: reach the first inner vector
 ;; (two levels in, Option-safe), THEN fold its elements, THEN compare against the bound var.
@@ -237,7 +237,7 @@
                                        ?b))
                                    (None false)))]
   :then
-  (:wat::rete::insert (:wc::Hit ?k)))
+  [(:wc::Hit ?k)])
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

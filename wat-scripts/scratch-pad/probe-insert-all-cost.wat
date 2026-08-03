@@ -30,7 +30,7 @@
   :when
   [(:iac::Reading (?g <- :g))]
   :then
-  (:wat::rete::insert (:iac::Out ?g)))
+  [(:iac::Out ?g)])
 
 (:wat::core::defrecord :iac::Cost
   [n              <- :wat::core::i64

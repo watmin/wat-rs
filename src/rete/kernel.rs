@@ -3123,18 +3123,13 @@ fn fact_type_head(fact_form: &WatAST) -> Option<String> {
 }
 
 /// Extract the produced type FQDNs from a Rule's RHS forms.
-/// Each RHS form's second child (`items[1]`) is the fact-form being inserted; no check on the
-/// RHS form's own head — the oracle unconditionally reads the second child. Mirrors
-/// `rule-produces` (`wat/rete.wat:1546-1565`).
+/// Arc 278 Stone A: each RHS form IS the fact-form directly (the `:wat::rete::insert` wrapper
+/// is gone) — no more unwrapping a second child. Mirrors `rule-produces` (`wat/rete.wat`).
 fn rule_produces(rhs: &[WatAST]) -> Vec<String> {
     let mut out = Vec::new();
     for form in rhs {
-        if let WatAST::List(items, _) = form {
-            if let Some(fact_form) = items.get(1) {
-                if let Some(name) = fact_type_head(fact_form) {
-                    out.push(name);
-                }
-            }
+        if let Some(name) = fact_type_head(form) {
+            out.push(name);
         }
     }
     out
@@ -3834,7 +3829,7 @@ mod tests {
      (?k   <- :kph)\n\
      (:wat::core::> ?k 30))]\n\
   :then\n\
-  (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
+  [(:weather::ColdAndWindy ?loc)])\n\
 \n\
 ";
 
@@ -4405,7 +4400,7 @@ mod tests {
                                 (:wat::core::= (:wat::core::unquote i)\n\
                                   (:wat::core::i64::- ?k\n\
                                     (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))\n\
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:nsh::Out ?k)))]\n\
+                    ins     (:wat::core::quasiquote (:nsh::Out ?k))]\n\
     (:wat::rete::Rule :name (:wat::core::i64::to-string i)\n\
       :lhs (:wat::core::PersistentVector a-c b-c where-c)\n\
       :rhs (:wat::core::PersistentVector ins))))\n\
@@ -4486,21 +4481,21 @@ mod tests {
   [(:agc::Group (?g <- :g))\n\
    (?n <- (:wat::rete::acc::count) :from (:agc::Reading (?g <- :g)))]\n\
   :then\n\
-  (:wat::rete::insert (:agc::CountF ?g ?n)))\n\
+  [(:agc::CountF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :agc::sum-rule\n\
   :when\n\
   [(:agc::Group (?g <- :g))\n\
    (?n <- (:wat::rete::acc::sum ?v) :from (:agc::Reading (?g <- :g) (?v <- :v)))]\n\
   :then\n\
-  (:wat::rete::insert (:agc::SumF ?g ?n)))\n\
+  [(:agc::SumF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :agc::exists-rule\n\
   :when\n\
   [(:agc::Group (?g <- :g))\n\
    (:wat::rete::exists (:agc::Reading (?g <- :g)))]\n\
   :then\n\
-  (:wat::rete::insert (:agc::ExistsF ?g)))\n\
+  [(:agc::ExistsF ?g)])\n\
 \n\
 (:wat::core::defn :agc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
@@ -4557,27 +4552,27 @@ mod tests {
 (:wat::rete::defrule :apx::count-rule\n\
   :when [(:apx::Group (?g <- :g))\n\
          (?n <- (:wat::rete::acc::count) :from (:apx::Reading (?g <- :g)))]\n\
-  :then (:wat::rete::insert (:apx::CountF ?g ?n)))\n\
+  :then [(:apx::CountF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::sum-rule\n\
   :when [(:apx::Group (?g <- :g))\n\
          (?n <- (:wat::rete::acc::sum ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then (:wat::rete::insert (:apx::SumF ?g ?n)))\n\
+  :then [(:apx::SumF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::min-rule\n\
   :when [(:apx::Group (?g <- :g))\n\
          (?n <- (:wat::rete::acc::min ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then (:wat::rete::insert (:apx::MinF ?g ?n)))\n\
+  :then [(:apx::MinF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::max-rule\n\
   :when [(:apx::Group (?g <- :g))\n\
          (?n <- (:wat::rete::acc::max ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then (:wat::rete::insert (:apx::MaxF ?g ?n)))\n\
+  :then [(:apx::MaxF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::exists-rule\n\
   :when [(:apx::Group (?g <- :g))\n\
          (:wat::rete::exists (:apx::Reading (?g <- :g)))]\n\
-  :then (:wat::rete::insert (:apx::ExistsF ?g)))\n\
+  :then [(:apx::ExistsF ?g)])\n\
 \n\
 (:wat::core::defn :apx::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64\n\
   (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]\n\
@@ -5193,11 +5188,11 @@ mod tests {
         const COUNT_RULE: &str = "(:wat::rete::defrule :one::count-rule\n\
   :when [(:one::Group (?g <- :g))\n\
          (?n <- (:wat::rete::acc::count) :from (:one::Reading (?g <- :g)))]\n\
-  :then (:wat::rete::insert (:one::Out ?g ?n)))";
+  :then [(:one::Out ?g ?n)])";
         const SUM_RULE: &str = "(:wat::rete::defrule :one::sum-rule\n\
   :when [(:one::Group (?g <- :g))\n\
          (?n <- (:wat::rete::acc::sum ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then (:wat::rete::insert (:one::Out ?g ?n)))";
+  :then [(:one::Out ?g ?n)])";
 
         const RUNS: usize = 3;
         let (g, w) = (200i64, 200i64);
@@ -5233,7 +5228,7 @@ mod tests {
 (:wat::core::defrecord :bnd::Out     [g <- :wat::core::i64])\n\
 (:wat::rete::defrule :bnd::r\n\
   :when [{reading_cond}]\n\
-  :then (:wat::rete::insert (:bnd::Out ?g)))\n\
+  :then [(:bnd::Out ?g)])\n\
 (:wat::core::defn :bnd::seed [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
@@ -5652,7 +5647,7 @@ mod tests {
 (:wat::core::defn :bcd::seed [n <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::let [c1   (:wat::core::quote (:bcd::Temperature (?loc <- :location) (?t <- :celsius)))\n\
                     c2   (:wat::core::quote (:bcd::WindSpeed (?loc <- :location) (?w <- :kph)))\n\
-                    rhs1 (:wat::core::quote (:wat::rete::insert (:bcd::Cw ?loc ?t ?w)))\n\
+                    rhs1 (:wat::core::quote (:bcd::Cw ?loc ?t ?w))\n\
                     rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\n\
                     s0   (:wat::rete::compile (:wat::core::PersistentVector rule))]\n\
     (:wat::core::foldl\n\
@@ -6063,8 +6058,8 @@ mod tests {
   (:wat::core::let [prev (:wat::core::i64::- k 1)\n\
                     c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::core::= ?l (:wat::core::unquote prev))))\n\
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::core::= ?m (:wat::core::unquote prev))))\n\
-                    t1 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Node (:wat::core::unquote k) ?id)))\n\
-                    t2 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Tag  (:wat::core::unquote k) ?id)))]\n\
+                    t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))\n\
+                    t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]\n\
     (:wat::rete::Rule :name (:wat::core::i64::to-string k)\n\
       :lhs (:wat::core::PersistentVector c1 c2)\n\
       :rhs (:wat::core::PersistentVector t1 t2))))\n\
@@ -6354,7 +6349,7 @@ mod tests {
   [(:fan::Left  (?k <- :key) (?l <- :lid))\n\
    (:fan::Right (?k <- :key) (?r <- :rid))]\n\
   :then\n\
-  (:wat::rete::insert (:fan::Pair ?k ?l ?r)))\n";
+  [(:fan::Pair ?k ?l ?r)])\n";
 
     /// THREE conditions — the shape neither the fanout nor the cascade produces.
     ///
@@ -6392,7 +6387,7 @@ mod tests {
    (:tri::B (?k <- :key) (?b <- :b))\n\
    (:tri::C (?k <- :key) (?c <- :c))]\n\
   :then\n\
-  (:wat::rete::insert (:tri::Trip ?k ?a ?b ?c)))\n";
+  [(:tri::Trip ?k ?a ?b ?c)])\n";
 
     /// Diagnostic — DESIGN-STONE-compiled-rhs.md's zero-allocation gate, not a positive count.
     ///

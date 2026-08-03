@@ -110,7 +110,7 @@
   (:wat::core::quasiquote (:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o))))
 
 (:wat::core::defn :wsc::ins [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wat::rete::insert (:wsc::Hit ?k))))
+  (:wat::core::quasiquote (:wsc::Hit ?k)))
 
 ;; ROW 1 — `if` returning a bool, as the WHOLE predicate.
 ;; Hit :- Req(…) AND (if n (a > 1) (a < 2)).  n holds for i mod 6==0 (30/180); of those, a=i mod 4>1
@@ -127,7 +127,7 @@
                                    (:wat::core::i64::> ?a 1)
                                    (:wat::core::i64::< ?a 2)))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 2 — `if` NESTED inside a comparison: the `if` returns an i64, then that i64 is compared.
 ;; Hit :- Req(…) AND ((if n a b) > 4).  n true (i mod 6==0, 30 facts): compares a=i mod 4, always
@@ -142,7 +142,7 @@
                                    (:wat::core::if ?n ?a ?b)
                                    4))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 3 — CHAINED `if` as the WHOLE predicate — see the STOP-1 note above the `cond` finding:
 ;; this is the SAME branching logic originally written with `cond` ((a==0)->true (a==1)->false
@@ -162,7 +162,7 @@
                                        true
                                        false))))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 4 — `let` binding a LOCAL inside the predicate, used TWICE. THE BIG ONE: if `let` is
 ;; admitted, a compiler must model local scope inside a where; if rejected, that is a hard
@@ -178,7 +178,7 @@
                                      (:wat::core::i64::> s 4)
                                      (:wat::core::i64::< s 12))))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 5 — a `let` whose bound value is a CALL to a pure fn, used in two places
 ;; (common-subexpression shape). Hit :- Req(…) AND (let [c (bump a)] (and (> c 1) (< c 5))).
@@ -192,7 +192,7 @@
                                      (:wat::core::i64::> c 1)
                                      (:wat::core::i64::< c 5))))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 6 — `match` on an i64-VALUED expr (the language's structural-match, exercised over an
 ;; ordinary value rather than an enum — the plainest permitted shape). Hit :- Req(…) AND
@@ -207,7 +207,7 @@
                                    (2 false)
                                    (3 true)))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 7 — Option handling via `match` (no raising verb). Hit :- Req(…) AND
 ;; (match o ((Some v) (> v 90)) (None false)).  o = Some(i) when i mod 3 != 0 (120/180), else None.
@@ -220,7 +220,7 @@
                                    ((:wat::core::Some v) (:wat::core::i64::> v 90))
                                    (:wat::core::None false)))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 8 — a NESTED `if` inside a `let` inside a boolean composition — the DEEP control shape.
 ;; Hit :- Req(…) AND (let [s (+ a b)] (and n (if (> s 6) true (< s 3)))).
@@ -237,7 +237,7 @@
                                        true
                                        (:wat::core::i64::< s 3)))))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; ROW 9 — the `cond`-shaped branch-with-a-`let`-arm, respelled with `if` for the same STOP-1
 ;; reason as row 3: Hit :- Req(…) AND (if n (let [s (+ a b)] (> s 8)) (< b 3)).
@@ -254,7 +254,7 @@
                                      (:wat::core::i64::> s 8))
                                    (:wat::core::i64::< ?b 3)))]
   :then
-  (:wat::rete::insert (:wsc::Hit ?k)))
+  [(:wsc::Hit ?k)])
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wsc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

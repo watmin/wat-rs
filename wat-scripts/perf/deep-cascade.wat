@@ -33,8 +33,8 @@
   (:wat::core::let [prev (:wat::core::i64::- k 1)
                     c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::core::= ?l (:wat::core::unquote prev))))
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::core::= ?m (:wat::core::unquote prev))))
-                    t1 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Node (:wat::core::unquote k) ?id)))
-                    t2 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Tag  (:wat::core::unquote k) ?id)))]
+                    t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))
+                    t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]
     (:wat::rete::Rule :name (:wat::core::i64::to-string k)
       :lhs (:wat::core::PersistentVector c1 c2)
       :rhs (:wat::core::PersistentVector t1 t2))))

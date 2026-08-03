@@ -125,7 +125,8 @@
 ;;   (2) Deduction extraction: `Session/facts` does NOT carry derived facts post-fire (proven false
 ;;       — probed: pre == post even though the rules demonstrably fired); the query-per-type
 ;;       fallback DOES (STOP-3b's designated fallback). So this macro walks every rule's `:then`
-;;       `(insert (:Type …))` forms, collects the UNIQUE derived type names, and emits one
+;;       fact-forms (arc 278 Stone A: `:then` is a vector of bare facts, no `insert` wrapper),
+;;       collects the UNIQUE derived type names, and emits one
 ;;       `(:wat::rete::query fired :Type)` per unique type, flat-mapped via `:wat::core::concat`.
 ;;
 ;; Everything (both extractions above, the Journal page read, the class-guarded foreign decode, the
@@ -168,9 +169,10 @@
      defs-children  (:wat::core::ast->children defs-node)
      rules-children (:wat::core::ast->children rules-node)
 
-     ;; ── (1) rule-lits: Vector<WatAST> of `(make-rule name-str (quote when-vec) (quote [then…]))`
-     ;; call literals — one per :rules form. Mirrors defrule's own body (rete.wat:1971) exactly,
-     ;; minus the defn wrapper (see the doc comment above).
+     ;; ── (1) rule-lits: Vector<WatAST> of `(make-rule name-str (quote when-vec) (quote then-vec))`
+     ;; call literals — one per :rules form. Mirrors defrule's own body (rete.wat:2150) exactly,
+     ;; minus the defn wrapper (see the doc comment above). Arc 278 Stone A: `:then` is now a
+     ;; VECTOR (child[5] of rch), quoted as-is — symmetric with when-vec; no more splicing.
      rule-lits
        (:wat::core::foldl
          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> rf <- :wat::WatAST]
@@ -183,32 +185,32 @@
                            (:wat::core::string::subs raw-rname 1 (:wat::core::string::length raw-rname))
                            raw-rname)
               when-vec   (:wat::core::Option/expect (:wat::core::get rch 3) "sift-rules-defsvc: rule missing :when")
-              then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest rch)))))
-              rule-lit   `(:wat::rete::make-rule ~rname-str (:wat::core::quote ~when-vec) (:wat::core::quote [~@then-forms]))]
+              then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "sift-rules-defsvc: rule missing :then")
+              rule-lit   `(:wat::rete::make-rule ~rname-str (:wat::core::quote ~when-vec) (:wat::core::quote ~then-vec))]
              (:wat::core::conj acc rule-lit)))
          (:wat::core::Vector :wat::WatAST)
          rules-children)
 
-     ;; ── (2) derived-type-strs: UNIQUE type names across every rule's `:then (insert (:Type …))`
-     ;; forms — the set of types this Rules-form ever DERIVES (query'd back per type; the proven
-     ;; fallback, since Session/facts doesn't carry them).
+     ;; ── (2) derived-type-strs: UNIQUE type names across every rule's `:then` fact-forms — the
+     ;; set of types this Rules-form ever DERIVES (query'd back per type; the proven fallback,
+     ;; since Session/facts doesn't carry them). Arc 278 Stone A: each `:then` member IS the
+     ;; fact-form directly (no more `(insert (:Type …))` wrapper to unwrap).
      derived-type-strs
        (:wat::core::foldl
          (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> rf <- :wat::WatAST]
            -> :wat::core::Vector<wat::core::String>
            (:wat::core::let
              [rch (:wat::core::ast->children rf)
-              then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest rch)))))]
+              then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "sift-rules-defsvc: rule missing :then")
+              then-forms (:wat::core::ast->children then-vec)]
              (:wat::core::foldl
                (:wat::core::fn [acc2 <- :wat::core::Vector<wat::core::String> tf <- :wat::WatAST]
                  -> :wat::core::Vector<wat::core::String>
                  (:wat::core::let
-                   [tch  (:wat::core::ast->children tf)
-                    ctor (:wat::core::Option/expect (:wat::core::get tch 1)
-                           "sift-rules-defsvc: :then form must be (insert (:Type …))")
-                    cch  (:wat::core::ast->children ctor)
+                   ;; tf IS the fact-form directly (arc 278 Stone A dropped the insert wrapper).
+                   [cch  (:wat::core::ast->children tf)
                     tkw  (:wat::core::Option/expect (:wat::core::get cch 0)
-                           "sift-rules-defsvc: :then insert ctor missing a type")
+                           "sift-rules-defsvc: :then fact-form missing a type")
                     traw (:wat::core::ast-name tkw)
                     tstr (:wat::core::if (:wat::core::= (:wat::core::string::subs traw 0 1) ":")
                            (:wat::core::string::subs traw 1 (:wat::core::string::length traw))

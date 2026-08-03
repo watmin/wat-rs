@@ -88,7 +88,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::quot ?a 7) 0))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 2 — rem, negative dividend. rem takes the sign of the DIVIDEND. Hit(k) :- Num(…) AND
 ;; rem(a,7) < 0, i.e. a<0 AND a not evenly divisible by 7. VERIFIED: 86 of 200.
@@ -96,7 +96,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::rem ?a 7) 0))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 3 — mod, NEGATIVE DIVISOR. mod is floored — its sign follows the DIVISOR, so mod(a,-7) lands
 ;; in (-7,0]. Hit(k) :- Num(…) AND mod(a,-7) < -3. VERIFIED: 85 of 200.
@@ -104,7 +104,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::< (:wat::core::i64::mod ?a -7) -3))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 4 — i64::/ (truncating), NEGATIVE DIVISOR. Dividing by -3 truncates toward zero, so the sign
 ;; flips relative to `a`'s own sign except at the exact multiples. Hit(k) :- Num(…) AND
@@ -113,7 +113,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::/ ?a -3) 0))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 5 — rem/mod DIVERGENCE, the pinned sign difference made into a predicate rather than a
 ;; literal-operand oracle row. rem and mod agree everywhere EXCEPT when the dividend is negative
@@ -126,7 +126,7 @@
                                   (:wat::core::i64::rem ?a 6)
                                   (:wat::core::i64::mod ?a 6)))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 6 — comparison CHAIN: a range test (>=, <=) ANDed with an exclusion (not= on a mod). The
 ;; first row whose predicate NESTS two `and`s and touches four distinct comparison/equality ops in
@@ -140,7 +140,7 @@
                                     (:wat::core::i64::<= ?a 50)
                                     (:wat::core::not= (:wat::core::i64::mod ?a 3) 0))))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 7 — the NUMERIC TOWER'S implicit-promotion boundary. `i64::+ - * /` are STRICT same-type
 ;; (arc 300, `feedback_no_implicit_coercion`) — but the GENERIC comparison `:wat::core::<` is NOT:
@@ -154,7 +154,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::< ?a 0.5))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 8 — f64-vs-i64 MIXING via an EXPLICIT `i64::to-f64` conversion feeding a per-Type f64
 ;; comparison (contrast row 7's IMPLICIT generic mixing — this is the strict per-Type path where a
@@ -164,7 +164,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::f64::> ?y (:wat::core::i64::to-f64 ?a)))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 9 — f64 ARITHMETIC composed with an f64 comparison (a genuine `where`-side computation, not
 ;; just a reader). Hit(k) :- Num(…) AND x*x > 100.0, i.e. |x|>10.
@@ -173,7 +173,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::f64::> (:wat::core::f64::* ?x ?x) 100.0))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 10 — generic `=` (equality, not comparison) ANDed with a range test on a DIFFERENT field
 ;; than the sign-heavy rows above (`k` rather than `a`) — the numeric tower's polymorphic equality
@@ -186,7 +186,7 @@
                                   (:wat::core::= (:wat::core::i64::mod ?k 4) 0)
                                   (:wat::core::i64::>= ?k 101)))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; ROW 11 — DIVISION BY A BOUND VAR THAT IS ZERO FOR SOME FACTS. `z` is zero for 40 of the 200
 ;; facts (i mod 5 == 2), starting at i=2 — the very third fact inserted, so this raises almost
@@ -198,7 +198,7 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::/ ?a ?z) 1))]
   :then
-  (:wat::rete::insert (:wnm::Hit ?k)))
+  [(:wnm::Hit ?k)])
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure (mirrors where-shapes.wat).
 (:wat::core::defn :wnm::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

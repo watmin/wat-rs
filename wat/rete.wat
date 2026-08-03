@@ -1723,8 +1723,9 @@
    derived <- :wat::core::PersistentVector])
 
 ;; rule-produces — extract produced type-FQDNs (colon-free) from a Rule's RHS.
-;; Each RHS form is (:wat::rete::insert (:ProducedType …)); the type head is the
-;; first child of the second child of the insert form (per the insert surface grammar).
+;; Arc 278 Stone A: each RHS entry IS the fact-form directly (:ProducedType …) — the
+;; `:wat::rete::insert` wrapper is gone, so the type head is the first child of `form`
+;; itself (no more unwrapping a second child).
 (:wat::core::defn :wat::rete::rule-produces
   [rule <- :wat::rete::Rule]
   -> :wat::core::PersistentVector<wat::core::String>
@@ -1733,9 +1734,7 @@
       (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
                        form <- :wat::WatAST]
         -> :wat::core::PersistentVector<wat::core::String>
-        (:wat::core::let [form-ch   (:wat::core::ast->children form)
-                          fact-form (:wat::core::second form-ch)
-                          fact-ch   (:wat::core::ast->children fact-form)
+        (:wat::core::let [fact-ch   (:wat::core::ast->children form)
                           type-hd   (:wat::core::first fact-ch)
                           raw-nm    (:wat::core::ast-name type-hd)
                           ;; strip leading colon → bare FQDN matching (:wat::core::type fact)
@@ -2133,19 +2132,23 @@
 ;; defrule — homoiconic rule macro: expand a readable rule form into a zero-arg defn
 ;; returning a Rule. The zero-arg fn is the reflection marker for collect-rules (stone 5b).
 ;;
-;; Surface:
+;; Surface (arc 278 DESIGN-STONE-then-is-a-vector-of-singular-facts, Stone A):
 ;;   (:wat::rete::defrule :weather::cold-and-windy
 ;;     :when [<cond1> <cond2> …]
-;;     :then <insert1> <insert2> …)
+;;     :then [<fact1> <fact2> …])
+;;
+;; Both :when and :then are VECTORS. Each :then member is a single fact to insert — the
+;; `:wat::rete::insert` RHS-marker wrapper is GONE (the engine is inserts-only by doctrine,
+;; so naming it per entry said nothing; see matcher.rs's `build_insert_fact`).
 ;;
 ;; Expands to:
 ;;   (:wat::core::defn :weather::cold-and-windy [] -> :wat::rete::Rule
 ;;     (:wat::rete::make-rule "weather::cold-and-windy"
 ;;       (:wat::core::quote [<cond1> <cond2> …])
-;;       (:wat::core::quote [<insert1> <insert2> …])))
+;;       (:wat::core::quote [<fact1> <fact2> …])))
 ;;
-;; The macro is kept TRIVIAL: it quotes the whole :when vector and splices all :then
-;; forms into a vector literal. make-rule (above) does the per-element split at runtime.
+;; The macro is kept TRIVIAL: it quotes both vectors as-is — symmetric with when-vec.
+;; make-rule (above) does the per-element split at runtime.
 ;; Assumes canonical :when then :then order (STOP if a general parse is needed).
 (:wat::core::defmacro :wat::rete::defrule
   [name <- :wat::WatAST
@@ -2158,21 +2161,17 @@
                     name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
                                  (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
                                  raw-name)
-                    ;; rest = (:when <when-vec> :then <insert-form> …); canonical order assumed.
-                    when-vec  (:wat::core::Option/expect  
+                    ;; rest = (:when <when-vec> :then <then-vec>); canonical order assumed.
+                    when-vec  (:wat::core::Option/expect
                                  (:wat::core::get rest 1)
                                  "defrule: missing :when conditions vector")
-                    ;; Arc 118.2a — `drop` flipped LAZY (returns Stream); unquote-splicing needs
-                    ;; a concrete Vec, but `defrule`'s body is a program-body macro, restricted
-                    ;; to the F5 pure-total allow-list (`is_pure_total` in src/macros/eval.rs) —
-                    ;; `to-vec`/`into`/`mapv`/`filterv` are NOT on it, so they can't be used here.
-                    ;; `rest` stays eager/container-preserving on a real Vector and IS allow-listed,
-                    ;; so drop the first 3 elements via 3x `rest` instead of `drop`.
-                    then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest rest)))]
+                    then-vec  (:wat::core::Option/expect
+                                 (:wat::core::get rest 3)
+                                 "defrule: missing :then facts vector")]
     `(:wat::core::defn ~name [] -> :wat::rete::Rule
        (:wat::rete::make-rule ~name-str
          (:wat::core::quote ~when-vec)
-         (:wat::core::quote [~@then-forms])))))
+         (:wat::core::quote ~then-vec)))))
 
 ;; ─── acc:: — pure wat accumulator fold library (Stone 8-i) ─────────────────
 ;;

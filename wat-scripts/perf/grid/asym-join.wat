@@ -49,12 +49,12 @@
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
       :lhs (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k <- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:asym::B ?k)))))
+      :rhs (:wat::core::PersistentVector (:wat::core::quote (:asym::B ?k))))
     (:wat::rete::Rule :name "r2"
       :lhs (:wat::core::PersistentVector
         (:wat::core::quote (:asym::B (?k <- :k)))
         (:wat::core::quote (:asym::A (?k <- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:asym::C ?k)))))))
+      :rhs (:wat::core::PersistentVector (:wat::core::quote (:asym::C ?k))))))
 
 ;; seed-items session items — stage A(i) for i in [0, items), threading the staging session.
 ;; Every A arrives (round 0) before ANY B/C is derived — the asymmetric-arrival condition.

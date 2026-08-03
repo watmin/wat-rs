@@ -13,10 +13,10 @@
     (:wat::core::PersistentVector
       (:wat::rete::make-rule "usr::hot-rule"
         (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))])
-        (:wat::core::quote [(:wat::rete::insert (:usr::Hot :c ?c))]))
+        (:wat::core::quote [(:usr::Hot :c ?c)]))
       (:wat::rete::make-rule "usr::warn-rule"
         (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))])
-        (:wat::core::quote [(:wat::rete::insert (:usr::Warn :c ?c))])))))
+        (:wat::core::quote [(:usr::Warn :c ?c)])))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

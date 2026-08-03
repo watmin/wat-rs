@@ -168,14 +168,14 @@
     (:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note))))
 
 (:wat::core::defn :wr::ins [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wat::rete::insert (:wr::Hit ?k))))
+  (:wat::core::quasiquote (:wr::Hit ?k)))
 
 ;; ROW 1 — 2-level accessor chain. u2(i) > 8 <=> i mod 13 in {9,10,11,12} -> 60 of 200.
 (:wat::rete::defrule :wr::chain2
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::core::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 2 — 3-level accessor chain. w3(i) > 7 <=> i mod 11 in {7,8,9,10} -> 72 of 200.
 (:wat::rete::defrule :wr::chain3
@@ -183,7 +183,7 @@
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
                  (:wat::core::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 3 — 4-level accessor chain. v4(i) > 5 <=> i mod 9 in {6,7,8} -> 66 of 200.
 (:wat::rete::defrule :wr::chain4
@@ -193,7 +193,7 @@
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                    5))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 4 — a record field that IS a collection, reached and then measured. tagslen(i) > 2
 ;; <=> i mod 5 in {3,4} -> 80 of 200.
@@ -202,7 +202,7 @@
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
                  (:wat::core::i64::> (:wat::core::PersistentVector/length (:wr::Client/tags ?c)) 2))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 5 — a record field that holds ANOTHER RECORD holding a collection: Client/bag -> Bag/items.
 ;; bagitemslen(i) > 1 <=> i mod 4 in {2,3} -> 100 of 200.
@@ -213,7 +213,7 @@
                    (:wat::core::PersistentVector/length (:wr::Bag/items (:wr::Client/bag ?c)))
                    1))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 6 — the SAME bound var, TWO DIFFERENT accessor chains, compared to each other:
 ;; rep(c) > v4-via-4-level-chain(c). rep in [-2,2], v4-chain in [0,8] -> 15 of 200.
@@ -224,7 +224,7 @@
                    (:wr::Client/rep ?c)
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 7 — TWO DIFFERENT bound vars (?c and ?c2), the SAME one-level accessor chain off each,
 ;; compared to each other: rep(c) > rep(c2). rep(i) > rep(j(i)) -> 80 of 200.
@@ -232,7 +232,7 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::core::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 8 — a PURE FN taking the WHOLE RECORD and reaching inside it: (rep-pos? ?c).
 ;; rep(i) > 0 <=> i mod 5 in {3,4} -> 80 of 200.
@@ -240,7 +240,7 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::rep-pos? ?c))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 9 — the CONTRAST with row 8: the CALLER reaches in and hands the fn a bare SCALAR:
 ;; (pos? (Client/rep ?c)). Same constraint, same derived set as row 8 (80 of 200) — the point is the
@@ -249,7 +249,7 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::pos? (:wr::Client/rep ?c)))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 10 — an ENUM/VARIANT field, matched inside a `where`: (is-risky? ?st).
 ;; m=i mod 3: m=0 needs level>3 (i mod 5 in {4}), m=1 never, m=2 needs reason>1 (i mod 4 in {2,3})
@@ -258,7 +258,7 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::is-risky? ?st))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 11 — an OPTION-TYPED field, matched inside a `where`: (note-positive? ?nt).
 ;; (i mod 4)==0 -> None (never); else Some(i mod 6), positive needs i mod 6 in {3,4,5} -> 82 of 200.
@@ -266,7 +266,7 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::note-positive? ?nt))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 12 — COMBINED: a deep chain AND a shallow field, same var, joined with `and`.
 ;; rep(i) > 0 AND v4(i) > 3 -> 44 of 200.
@@ -279,7 +279,7 @@
                      (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                      3)))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; ROW 13 — TWO DIFFERENT bound vars, the SAME 2-level accessor chain off each, compared:
 ;; u2-chain(c) > u2-chain(c2). u2(i) > u2(j(i)) -> 55 of 200.
@@ -290,7 +290,7 @@
                    (:wr::L2/u (:wr::Client/l2 ?c))
                    (:wr::L2/u (:wr::Client/l2 ?c2))))]
   :then
-  (:wat::rete::insert (:wr::Hit ?k)))
+  [(:wr::Hit ?k)])
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wr::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

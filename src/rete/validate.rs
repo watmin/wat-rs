@@ -54,7 +54,7 @@ use crate::types::{TypeDef, TypeEnv};
 #[derive(Debug, Clone, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::RETE)]
 pub enum ReteCheckErrorKind {
-    /// A `:when` condition's fact-type head, or a `:then` insert's fact-type head, or an
+    /// A `:when` condition's fact-type head, or a `:then` fact-form's fact-type head, or an
     /// accumulate's `:from` fact-type head, is not a registered aggregate type.
     UnknownFactType { rule: String, fact_type: String },
     /// A `:when` clause (or a `:when`-entry wrapper) does not match any recognized rete-DSL
@@ -75,7 +75,7 @@ pub enum ReteCheckErrorKind {
         field: String,
         available_fields: Vec<String>,
     },
-    /// A positional `:then` insert's argument count does not match the fact type's declared
+    /// A positional `:then` fact-form's argument count does not match the fact type's declared
     /// field count.
     RhsArityMismatch {
         rule: String,
@@ -83,7 +83,7 @@ pub enum ReteCheckErrorKind {
         expected: usize,
         got: usize,
     },
-    /// A `:then` insert's VALUE-position operand can never resolve at fire time, whatever the
+    /// A `:then` fact-form's VALUE-position operand can never resolve at fire time, whatever the
     /// bindings: a nested form, a `:field` keyword (a RHS has no current fact to read a field
     /// from), or a bare non-`?` symbol. `resolve_operand` returns `None` for all three and
     /// `build_insert_fact` then raises — but it raised *per derived fact, mid-fire*, for a
@@ -93,7 +93,7 @@ pub enum ReteCheckErrorKind {
     /// (R18 `NEGATIO COMPLETVM POSCIT` — "the ill-defined program given no form"), a lying
     /// `extend-type` is a compile error (R28 `SOLVIMVS NE MENTIRETVR`), and `()` stopped being a
     /// value (arc 179) because a second spelling walks around every wall built on the first.
-    /// `validate_and_reorder_then` already checked the insert's SHAPE — head, fact type, field
+    /// `validate_and_reorder_then` already checked the fact-form's SHAPE — fact type, field
     /// names, positional arity — and stopped short of looking *inside* an argument, which is why
     /// `(:Out (:wat::core::+ ?a 1))` passed `--check` with arity 1 == 1 field and then exploded
     /// mid-fire.
@@ -358,11 +358,12 @@ fn validate_and_reorder_rule(mr: &mut [WatAST], types: &TypeEnv, errors: &mut Ve
         }
     }
 
-    // :then (mr[3] = (quote [<insert>…])) — validate + reorder in place.
+    // :then (mr[3] = (quote [<fact-form>…])) — validate + reorder in place. Arc 278 Stone A:
+    // each member is a bare fact-form, no more `insert` wrapper.
     if let Some(WatAST::List(quote_items, _)) = mr.get_mut(3) {
         if let Some(WatAST::Vector(then_forms, _)) = quote_items.get_mut(1) {
-            for insert_form in then_forms.iter_mut() {
-                validate_and_reorder_then(insert_form, &rule_name, types, errors);
+            for fact_form in then_forms.iter_mut() {
+                validate_and_reorder_then(fact_form, &rule_name, types, errors);
             }
         }
     }
@@ -573,11 +574,13 @@ fn malformed(span: Span, rule_name: &str, fact_type: &str, clause: &WatAST) -> R
 
 // ─── :then validation + reorder (S3) ─────────────────────────────────────────────────────────
 
-/// `insert_form` = `(:wat::rete::insert (:Type arg…))`. Validates the fact-type head and,
-/// for a kwargs RHS, every `:field` name — then REWRITES the fact-form's args to declaration
-/// order in place (mutating `residue`, so `build_insert_fact` sees declaration order at fire
-/// time). A positional RHS is checked for arity only (unchanged shape; no rewrite needed).
-/// A `:then` value-position operand that can NEVER resolve at fire time — whatever the bindings.
+/// `fact_form` = `(:Type arg…)` — a `:then` vector member (arc 278 Stone A: no more
+/// `:wat::rete::insert` wrapper; every member IS the fact-form directly). Validates the
+/// fact-type head and, for a kwargs RHS, every `:field` name — then REWRITES the fact-form's
+/// args to declaration order in place (mutating `residue`, so `build_insert_fact` sees
+/// declaration order at fire time). A positional RHS is checked for arity only (unchanged
+/// shape; no rewrite needed). A `:then` value-position operand that can NEVER resolve at fire
+/// time — whatever the bindings.
 ///
 /// Mirrors `resolve_operand`'s accepted set (`matcher.rs`) exactly, minus the `?var` case whose
 /// boundness this stone does not judge: a literal resolves, a `?var` MAY resolve, and everything
@@ -619,32 +622,13 @@ fn check_rhs_operands(
 }
 
 fn validate_and_reorder_then(
-    insert_form: &mut WatAST,
+    fact_form: &mut WatAST,
     rule_name: &str,
     types: &TypeEnv,
     errors: &mut Vec<ReteCheckError>,
 ) {
-    let outer_span = insert_form.span().clone();
-    let items = match insert_form {
-        WatAST::List(items, _) if items.len() == 2 => items,
-        WatAST::List(_, _) => {
-            errors.push(malformed(outer_span, rule_name, "", insert_form));
-            return;
-        }
-        other => {
-            errors.push(malformed(outer_span, rule_name, "", other));
-            return;
-        }
-    };
-    let is_insert_head = matches!(&items[0], WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert");
-    if !is_insert_head {
-        let form_copy = insert_form.clone();
-        errors.push(malformed(outer_span, rule_name, "", &form_copy));
-        return;
-    }
-
-    let fact_span = items[1].span().clone();
-    let fact_items = match &mut items[1] {
+    let fact_span = fact_form.span().clone();
+    let fact_items = match fact_form {
         WatAST::List(fi, _) if !fi.is_empty() => fi,
         other => {
             let form_copy = other.clone();
@@ -861,7 +845,7 @@ mod tests {
   :when
   [(:weather::Temperature :celsius (?loc <- :location) :location (?c <- :celsius))]
   :then
-  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+  [(:alert::Unattended :location ?loc)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
         let boxed = match build_env(forms) {
@@ -885,7 +869,7 @@ mod tests {
   :when
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius))]
   :then
-  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+  [(:alert::Unattended :location ?loc)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
         // build_env hooks validate_rete_rules internally (step 7.8) — a well-formed rule
@@ -905,7 +889,7 @@ mod tests {
   :when
   [(:weather::Temperature (?loc <- :location) (?bad <- :not-a-field))]
   :then
-  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+  [(:alert::Unattended :location ?loc)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
         let boxed = match build_env(forms) {
@@ -932,7 +916,7 @@ mod tests {
   :when
   [(:weather2::Temp (?c <- :celsius) (?loc <- :location))]
   :then
-  (:wat::rete::insert (:alert2::Cold :celsius ?c :location ?loc)))
+  [(:alert2::Cold :celsius ?c :location ?loc)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
         // build_env hooks validate_rete_rules internally (step 7.8) — the reorder already
@@ -948,12 +932,8 @@ mod tests {
             WatAST::Vector(v, _) => v,
             other => panic!("then payload is a Vector; got {other:?}"),
         };
-        let insert_form = &then_vec[0];
-        let insert_items = match insert_form {
-            WatAST::List(items, _) => items,
-            other => panic!("insert form is a List; got {other:?}"),
-        };
-        let fact_items = match &insert_items[1] {
+        let fact_form = &then_vec[0];
+        let fact_items = match fact_form {
             WatAST::List(items, _) => items,
             other => panic!("fact form is a List; got {other:?}"),
         };

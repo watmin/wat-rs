@@ -106,7 +106,7 @@
     (:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded))))
 
 (:wat::core::defn :wst::ins [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wat::rete::insert (:wst::Hit ?k))))
+  (:wat::core::quasiquote (:wst::Hit ?k)))
 
 ;; ROW 1 — String/starts-with?. Hit :- Req(…) AND (starts-with? ?n "cat").
 ;; True only for r=1 ("cat" itself) — r=2 has "zz" first, r=3 has "ねこ" first, r=4 is "DOG",
@@ -115,7 +115,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/starts-with? ?n "cat"))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 2 — String/ends-with?. True for r=1 ("cat" ends "cat") and r=3 ("ねこcat" ends "cat"), but
 ;; NOT r=2 ("zzcatzz" ends "zz") — the row that tells starts/ends/contains apart. Two of five
@@ -124,7 +124,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/ends-with? ?n "cat"))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 3 — String/contains?. True for r=1, r=2, AND r=3 (the needle anywhere) — three of five
 ;; categories ⇒ 240/400. Compare against row 2: r=2 flips from false (ends-with) to true
@@ -134,7 +134,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/contains? ?n "cat"))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 4 — String/empty?. True ONLY for r=0 (the empty-string category itself) ⇒ 80/400. THE direct
 ;; empty-string witness: every other row's r=0 facts flow through starts/ends/contains as legitimate
@@ -143,7 +143,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/empty? ?n))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 5 — string::length vs a BOUND i64 VAR (?minlen), not a constant. length(n) is fixed per
 ;; category: r=0→0, r=1→3, r=2→7, r=3→5, r=4→3 (chars, not bytes, for r=3). minlen = k mod 8.
@@ -155,7 +155,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?n) ?minlen))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 6 — the ARGUMENT is built AT TEST TIME, not a literal: needle = (String/concat ?tag "t"),
 ;; so the compiler must know the second arg to `contains?` can be a runtime value, not a constant
@@ -168,7 +168,7 @@
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::String/contains? ?n (:wat::core::String/concat ?tag "t")))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 7 — a String verb INSIDE a boolean composition: (contains "cat") AND (NOT (starts-with
 ;; "cat")). Contains ⇒ {r1,r2,r3}; excluding starts-with's {r1} leaves {r2,r3} ⇒ 160/400.
@@ -179,7 +179,7 @@
                                    (:wat::core::String/contains? ?n "cat")
                                    (:wat::core::not (:wat::core::String/starts-with? ?n "cat"))))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 8 — a String verb feeding an i64 comparison, itself composed with `and`: (contains "cat")
 ;; AND (?minlen > 3). Contains ⇒ {r1,r2,r3} (3 of 5 r-values); minlen>3 ⇒ m in {4,5,6,7} (4 of 8).
@@ -191,7 +191,7 @@
                                    (:wat::core::String/contains? ?n "cat")
                                    (:wat::core::i64::> ?minlen 3)))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 9 — the user-defined pure fn (String -> bool). Hit :- Req(…) AND (feline? ?n).
 ;; See :wst::feline? above: true for r=2, r=3 ⇒ 160/400.
@@ -199,7 +199,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wst::feline? ?n))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 10 — a String verb feeding ANOTHER String verb's argument (value composition, not boolean):
 ;; (starts-with? (to-lowercase ?n) "dog"). Only r=4 ("DOG") lowercases to "dog" and matches — this
@@ -211,7 +211,7 @@
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::core::String/starts-with? (:wat::core::string::to-lowercase ?n) "dog"))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 11 — SHORT-CIRCUIT-SENSITIVE (see header). `(string::subs ?n 0 3)` raises when
 ;; `length(?n) < 3` (r=0, the empty string, is exactly that fact). Guarding it behind
@@ -228,7 +228,7 @@
                                    (:wat::core::i64::>= (:wat::core::string::length ?n) 3)
                                    (:wat::core::String/starts-with? (:wat::core::string::subs ?n 0 3) "cat")))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; ROW 12 — string::trim feeding `=`, over the WHITESPACE edge. padded = "  cat  " (even k) or
 ;; "  dog  " (odd k); trimming and comparing to the literal "cat" selects exactly the even half.
@@ -237,7 +237,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::= (:wat::core::string::trim ?padded) "cat"))]
   :then
-  (:wat::rete::insert (:wst::Hit ?k)))
+  [(:wst::Hit ?k)])
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wst::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>

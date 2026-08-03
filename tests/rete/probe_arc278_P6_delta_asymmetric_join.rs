@@ -63,10 +63,10 @@ fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
 /// Build the chain let-expression for `N` input A records. `FIRE_VERB` is a placeholder.
 fn chain_expr(n: usize, query_type: &str) -> String {
     let r1c = "(:wat::core::quote (:chain::A (?k <- :k)))";
-    let r1t = "(:wat::core::quote (:wat::rete::insert (:chain::B ?k)))";
+    let r1t = "(:wat::core::quote (:chain::B ?k))";
     let r2c1 = "(:wat::core::quote (:chain::B (?k <- :k)))";
     let r2c2 = "(:wat::core::quote (:chain::A (?k <- :k)))";
-    let r2t = "(:wat::core::quote (:wat::rete::insert (:chain::C ?k)))";
+    let r2t = "(:wat::core::quote (:chain::C ?k))";
     let mut binds = format!(
         "  r1 (:wat::rete::Rule :name \"r1\" \
              :lhs (:wat::core::PersistentVector {r1c}) \
@@ -122,17 +122,17 @@ fn triple_expr(n: usize, query_type: &str) -> String {
     let rules = "\
         r1 (:wat::rete::Rule :name \"r1\" \
              :lhs (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
-             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::B ?k)))))\n\
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::B ?k))))\n\
         r2 (:wat::rete::Rule :name \"r2\" \
              :lhs (:wat::core::PersistentVector \
                (:wat::core::quote (:tri::B (?k <- :k))) \
                (:wat::core::quote (:tri::A (?k <- :k)))) \
-             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::C ?k)))))\n\
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::C ?k))))\n\
         r3 (:wat::rete::Rule :name \"r3\" \
              :lhs (:wat::core::PersistentVector \
                (:wat::core::quote (:tri::C (?k <- :k))) \
                (:wat::core::quote (:tri::B (?k <- :k)))) \
-             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::D ?k)))))\n\
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::D ?k))))\n\
         s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2 r3))\n";
     let mut binds = rules.to_string();
     let mut prev = 0usize;
@@ -184,7 +184,7 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
              :lhs (:wat::core::PersistentVector \
                (:wat::core::quote (:xyz::X (?k <- :k))) \
                (:wat::core::quote (:xyz::Y (?k <- :k)))) \
-             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:xyz::Z ?k)))))\n\
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:xyz::Z ?k))))\n\
         s0 (:wat::rete::compile (:wat::core::PersistentVector r1))\n";
     let mut binds = rule.to_string();
     let mut prev = 0usize;

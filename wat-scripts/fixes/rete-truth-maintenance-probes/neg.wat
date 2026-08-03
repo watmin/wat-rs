@@ -4,11 +4,11 @@
 ;; derive Bad for k=2 only
 (:wat::rete::defrule :n::mark-bad
   :when [(:n::A (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
-  :then (:wat::rete::insert (:n::Bad ?k)))
+  :then [(:n::Bad ?k)])
 ;; Ok = A with NO Bad (negation over a DERIVED fact)
 (:wat::rete::defrule :n::ok
   :when [(:n::A (?k <- :k)) (:wat::rete::not (:n::Bad (?k <- :k)))]
-  :then (:wat::rete::insert (:n::Ok ?k)))
+  :then [(:n::Ok ?k)])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [s0    (:wat::rete::compile (:wat::rete::collect-rules :n))
                     s1    (:wat::rete::insert s0 (:n::A 1))

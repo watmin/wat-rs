@@ -9,7 +9,7 @@
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))
    (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]
   :then
-  (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))
+  [(:weather::ColdAndWindy :location ?loc)])
 
 ;; Calling the generated zero-arg fn yields a Rule with the expected name + lhs/rhs arity.
 (:wat::core::defn :user::rule-name [] -> :wat::core::String

@@ -13,7 +13,7 @@
 (:wat::core::defn :afs::built [] -> :wat::rete::Session
   (:wat::core::let
     [cond  (:wat::core::quote (:afs::Temp (?t <- :value) (:wat::core::> ?t 20)))
-     rhs1  (:wat::core::quote (:wat::rete::insert (:afs::Hot ?t)))
+     rhs1  (:wat::core::quote (:afs::Hot ?t))
      rule  (:wat::rete::Rule :name "afs" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector rhs1))
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:afs::Temp :value 25))

@@ -9,7 +9,7 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:wat::core::> ?c 0))]
   :then
-  (:wat::rete::insert (:wg::Gate :celsius ?c)))
+  [(:wg::Gate :celsius ?c)])
 
 ;; 1 — the where PASSES: Temp(5), (> 5 0) true → exactly one Gate derived.
 (:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64

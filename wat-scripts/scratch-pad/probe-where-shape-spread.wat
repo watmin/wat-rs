@@ -54,7 +54,7 @@
 (:wat::core::defn :shape::rule-arith [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::= 3 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "arith"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -63,7 +63,7 @@
 (:wat::core::defn :shape::rule-accessor [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?c <- :client)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:shape::Client/rep ?c) 0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "accessor"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -72,7 +72,7 @@
 (:wat::core::defn :shape::rule-accessor-nested [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?c <- :client)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::= (:shape::Geo/country (:shape::Client/geo ?c)) "XX")))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "accessor-nested"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -81,7 +81,7 @@
 (:wat::core::defn :shape::rule-string [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?n <- :name)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::String/starts-with? ?n "ad")))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "string"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -90,7 +90,7 @@
 (:wat::core::defn :shape::rule-collection [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?t <- :tags)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) 1)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "collection"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -99,7 +99,7 @@
 (:wat::core::defn :shape::rule-map [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?m <- :attrs)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::PersistentMap/contains-key? ?m "hot")))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "map"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -108,7 +108,7 @@
 (:wat::core::defn :shape::rule-userfn [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:shape::big? ?k)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "userfn"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -117,7 +117,7 @@
 (:wat::core::defn :shape::rule-multivar-deep [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?a <- :a) (?b <- :b)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::i64::> (:wat::core::i64::+ ?a (:wat::core::i64::* ?b (:wat::core::i64::- ?k (:wat::core::i64::/ (:wat::core::i64::+ ?a ?b) 2)))) 0)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "multivar-deep"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
@@ -126,7 +126,7 @@
 (:wat::core::defn :shape::rule-bool [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?f <- :flag)))
                     where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::not ?f)))
-                    ins     (:wat::core::quasiquote (:wat::rete::insert (:shape::Hit ?k)))]
+                    ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "bool"
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))

@@ -64,7 +64,7 @@
                                   (:wat::core::= 3
                                     (:wat::core::i64::- ?k
                                       (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
-                      ins     (:wat::core::quasiquote (:wat::rete::insert (:ovl::Hit ?k)))]
+                      ins     (:wat::core::quasiquote (:ovl::Hit ?k))]
       (:wat::rete::Rule :name "mod10"
         :lhs (:wat::core::PersistentVector conds where-c)
         :rhs (:wat::core::PersistentVector ins)))))

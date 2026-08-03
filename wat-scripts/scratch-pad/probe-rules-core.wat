@@ -13,11 +13,11 @@
 
 (:wat::rete::defrule :usr::hot-rule
   :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-  :then (:wat::rete::insert (:usr::Hot :c ?c)))
+  :then [(:usr::Hot :c ?c)])
 
 (:wat::rete::defrule :usr::warn-rule
   :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-  :then (:wat::rete::insert (:usr::Warn :c ?c)))
+  :then [(:usr::Warn :c ?c)])
 
 ;; deduce-one: fire ONE seed from the fresh template, flat-map its deductions into a PV<Value>
 ;; (Hot's + Warn's — heterogeneous, up-cast to the universal top :wat::core::Value).

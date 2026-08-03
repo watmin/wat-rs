@@ -12,10 +12,10 @@
                      (:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])]
               :rules [(:wat::rete::defrule :usr::hot-rule
                         :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-                        :then (:wat::rete::insert (:usr::Hot :c ?c)))
+                        :then [(:usr::Hot :c ?c)])
                       (:wat::rete::defrule :usr::warn-rule
                         :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
-                        :then (:wat::rete::insert (:usr::Warn :c ?c)))]))
+                        :then [(:usr::Warn :c ?c)])]))
      expanded (:wat::core::macroexpand-1 form)
      src (:wat::core::ast->source expanded)]
     (:wat::kernel::println src)))

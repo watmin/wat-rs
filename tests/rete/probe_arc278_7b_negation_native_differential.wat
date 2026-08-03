@@ -10,7 +10,7 @@
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius))
    (:wat::rete::not (:ops::Maintenance (?loc <- :location)))]
   :then
-  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+  [(:alert::Unattended :location ?loc)])
 
 ;; Fire via `fire` after the given inserts; count derived Unattended facts. Six combos:
 ;; {native, oracle} x {absent, present-matching, present-different}.

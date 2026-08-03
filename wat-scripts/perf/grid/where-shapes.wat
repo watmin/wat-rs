@@ -93,7 +93,7 @@
                                   (:wat::core::i64::- ?k
                                     (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10))))]
   :then
-  (:wat::rete::insert (:wsh::Hit ?k)))
+  [(:wsh::Hit ?k)])
 
 ;; ROW 2 — record accessor. Hit(k) :- Req(…) AND (Client/rep ?c) > 0.
 ;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} ⇒ 80 of 200.
@@ -101,7 +101,7 @@
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> (:wsh::Client/rep ?c) 0))]
   :then
-  (:wat::rete::insert (:wsh::Hit ?k)))
+  [(:wsh::Hit ?k)])
 
 ;; ROW 3 — String verb. Hit(k) :- Req(…) AND (starts-with? ?n "ad").
 ;; name(k) = "ad"+k when k mod 3 == 0, else "zz"+k ⇒ 67 of 200.
@@ -109,7 +109,7 @@
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::String/starts-with? ?n "ad"))]
   :then
-  (:wat::rete::insert (:wsh::Hit ?k)))
+  [(:wsh::Hit ?k)])
 
 ;; ROW 4 — collection verb. Hit(k) :- Req(…) AND (length ?t) > 1.
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
@@ -117,7 +117,7 @@
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) 1))]
   :then
-  (:wat::rete::insert (:wsh::Hit ?k)))
+  [(:wsh::Hit ?k)])
 
 ;; ROW 5 — user-defined pure fn. Hit(k) :- Req(…) AND (big? ?k).  k mod 7 > 3 ⇒ 84 of 200.
 ;; The predicate is a CALL, not an inline expression — the shape #49a's compiled executor cannot
@@ -126,7 +126,7 @@
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wsh::big? ?k))]
   :then
-  (:wat::rete::insert (:wsh::Hit ?k)))
+  [(:wsh::Hit ?k)])
 
 ;; ROW 6 — CROSS-VARIABLE comparison. Hit(k) :- Req(…) AND ?k > ?l.
 ;;
@@ -143,7 +143,7 @@
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::core::i64::> ?k ?l))]
   :then
-  (:wat::rete::insert (:wsh::Hit ?k)))
+  [(:wsh::Hit ?k)])
 
 ;; build-rules row — THE ROW DISPATCH, and the extension point every future shape lands on.
 ;;
