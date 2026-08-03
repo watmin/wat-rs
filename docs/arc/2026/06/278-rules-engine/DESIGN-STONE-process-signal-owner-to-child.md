@@ -1,6 +1,6 @@
 # DESIGN-STONE — the owner signals the child it spawned
 
-> **Status: RULED 2026-08-03 by the builder — Option A, on `Process'`.** Supersedes task **#65**'s
+> **Status: RULED 2026-08-03 by the builder — Option A, on `Process`.** Supersedes task **#65**'s
 > framing (*"a wat program cannot signal itself"*), which was the wrong subject; see **§ #65 was
 > misfiled**. Downstream beneficiary: the five in-process signal tests and the three
 > `libc::raise(SIGTERM)` harness tests, rebuilt as wat deftests over the spawn tooling.
@@ -34,7 +34,7 @@ Everything in that description is on the disk **except the signal**. This is ass
 |---|---|---|
 | spawn a whole wat world in a process | `wat/spawn.wat:311-322` → `spawn_process_peer` (`kernel/spawn.rs:802`) | ✅ built |
 | the child runs real signal handlers | `bin/wat.rs:23` → `distribution::run` → `install_substrate_signal_handlers()` (`distribution/mod.rs:347`) → `SIGUSR1/2/HUP` at `process/child.rs:84-92` | ✅ built |
-| the owner holds the child | `spawn-program'` returns `:wat::kernel::Process<I,O>`; `Process'` **derives** `Peer'` (`wat/spawn.wat:238`) | ✅ built |
+| the owner holds the child | `spawn-program` returns `:wat::kernel::Process<I,O>`; `Process` **derives** `Peer` (`wat/spawn.wat:238`) | ✅ built |
 | **the pidfd is in that peer** | `kernel/peer.rs:539` — `pub(crate) pidfd: crate::process::Pidfd` | ✅ built |
 | reuse-safe signal delivery | `Pidfd::send_signal(sig: i32)` (`process/clone.rs:195`) — **already generic over the signal** | ✅ built, one caller |
 | drive the child (stdin) | `peer.rs:313` `send` / `:328` `send_wire` | ✅ built |
@@ -90,7 +90,7 @@ resolves pid → owned pidfd.**
 Two disk facts decided it before the questions:
 
 1. **`ProcessLaunch{pid}` is a during-spawn callback value.** `wat/spawn.wat:307` — post-spawn-fn
-   *"runs owner-side after the peer is spawned, **before `spawn-program'` returns**, for effects."*
+   *"runs owner-side after the peer is spawned, **before `spawn-program` returns**, for effects."*
    The caller does not hold the handle yet. Which is exactly why all twelve sites **smuggle the
    integer out** over a channel. B would make that smuggle load-bearing.
 2. **The pidfd is in the peer** (`peer.rs:539`) — the owner already holds reuse-safe delivery.
@@ -104,18 +104,33 @@ Two disk facts decided it before the questions:
 
 **RULED: A.** B fails three of three before UX is weighed.
 
-## ★★ THE REFINEMENT — `Process'`, NOT `Peer'`. This is the load-bearing part.
+## ★★ THE REFINEMENT — `Process`, NOT `Peer`. This is the load-bearing part.
 
-`Peer'` is the parent of both `Thread'` and `Process'` (`wat/spawn.wat:238` — *"Thread'/Process' ARE
-Peer's"*). **A thread peer has no process to signal**, and the user-signal flags are *process*-global,
-so signalling one would be incoherent even where pthread-level delivery exists.
+`Peer` is the parent of both `Thread` and `Process` — grounded on the **code**, `wat/spawn.wat:245-246`:
 
-- On `Peer'` the verb is **PARTIAL** — a domain hole named *"the peer is a thread."*
-- On `Process'` the verb is **TOTAL**.
+```clojure
+(:wat::core::derive :wat::kernel::Thread  :wat::kernel::Peer)
+(:wat::core::derive :wat::kernel::Process :wat::kernel::Peer)
+```
+
+**A thread peer has no process to signal**, and the user-signal flags are *process*-global, so
+signalling one would be incoherent even where pthread-level delivery exists.
+
+> **⛔ A CORRECTION, KEPT VISIBLE.** The first draft of this stone cited `wat/spawn.wat:238` —
+> *"arc 291 3a-ii-β: Thread'/Process' ARE Peer's"* — as the anchor for this ruling. **That line is a
+> COMMENT, and it is STALE**: arc 278 `"0z"` (`70fe856d`, 2026-08-02) stripped the primes from every
+> IPC/kernel name, types included (`wat-scripts/fixes/reclaim-ipc-prime-names.wat:64-67` maps
+> `Peer'`→`Peer`, `Thread'`→`Thread`, `Process'`→`Process`). The whole first draft was written in the
+> retired spelling. The **ruling** survived the correction; every **spelling** in it did not. Caught
+> by the intueri cast, verified by own read (`":wat::kernel::send"` at `runtime.rs:5717`; zero primed
+> hits in `runtime.rs`/`check.rs`). Cite the derives, not the prose about them.
+
+- On `Peer` the verb is **PARTIAL** — a domain hole named *"the peer is a thread."*
+- On `Process` the verb is **TOTAL**.
 
 This is this arc's own ruling applied one layer out — the same reason `i64::>` beat generic `>` on
 2026-08-03: **monomorphising does not merely narrow the type, it deletes the domain hole.** Per-type,
-period. A `Peer'`-typed signal verb would need an outcome variant for *"this peer cannot be
+period. A `Peer`-typed signal verb would need an outcome variant for *"this peer cannot be
 signalled,"* which is a fence hole dressed as an enum.
 
 ## The shape
@@ -128,9 +143,9 @@ Provisional, **naming is intueri-owed** (see § Owed):
 (:wat::spawn::process/signal proc :user1)   ;; proc <- :wat::kernel::Process<I,O>
 ```
 
-**No `{:restricted-to …}`.** Holding the `Process'` **is** the capability — you cannot signal what
+**No `{:restricted-to …}`.** Holding the `Process` **is** the capability — you cannot signal what
 you did not spawn. That is the ocap argument (Miller, R15's constellation), and it is stronger than a
-namespace list: the wall is the value, not a caller check. `spawn-program'` is restricted because it
+namespace list: the wall is the value, not a caller check. `spawn-program` is restricted because it
 *mints* the capability; consuming a capability you already hold needs no second gate.
 
 ### The signal argument is a CLOSED SET, therefore an enum
@@ -213,11 +228,11 @@ peer.
 
 ```
 owner                                   child (a real wat world)
-  spawn-program' ──────────────────────▶ starts, handlers installed
-  recv' ◀──────────────── #probe/Ready {}          (child announces; owner now knows it is alive)
+  spawn-program ──────────────────────▶ starts, handlers installed
+  recv ◀──────────────── #probe/Ready {}          (child announces; owner now knows it is alive)
   process/signal proc :user1 ──────────▶ handler sets KERNEL_SIGUSR1
-  send' :observe ──────────────────────▶ (stdin)
-  recv' ◀── #probe/Observed {:user1 true :user2 false :hangup false}
+  send :observe ──────────────────────▶ (stdin)
+  recv ◀── #probe/Observed {:user1 true :user2 false :hangup false}
   wait  ◀──────────────── exit 0
 ```
 
@@ -253,8 +268,8 @@ handler does not run.* That is the mechanism; nothing else is being claimed.
 
 ## STOPs — rejection criteria, ship nothing and surface
 
-- **⛔ STOP-1 — the verb goes on `Process'`.** If the implementation path pushes toward `Peer'`
-  (shared codegen, a derive, a convenience), STOP and surface. A `Peer'` verb is partial and this
+- **⛔ STOP-1 — the verb goes on `Process`.** If the implementation path pushes toward `Peer`
+  (shared codegen, a derive, a convenience), STOP and surface. A `Peer` verb is partial and this
   stone exists partly to refuse it.
 - **⛔ STOP-2 — prove `Gone` is reachable before minting it.** Write a probe that signals a child
   which has exited but not been reaped, and observe `ESRCH`. If it is not reachable through the
@@ -279,7 +294,7 @@ handler does not run.* That is the mechanism; nothing else is being claimed.
 |---|---|---|
 | **P0** | Cast **intueri** on the vocabulary: the verb, `SignalOutcome` + its variants, the signal enum + its variants. Materialize the whole set as a `.wat` artifact and spawn the ward. | ▶ first, blocks the mint |
 | **P1** | The RED probe — spawn + attempt signal, fails on exactly the missing head. Committed. | ▶ startable now, independent of P0 |
-| **P2** | **Mint**: the signal enum, `SignalOutcome` in `types.rs`, the `Process'` verb over `Pidfd::send_signal`, the `MUST_USE_TYPES` entry. STOP-2 gates the `Gone` arm. | blocked by P0, P1 |
+| **P2** | **Mint**: the signal enum, `SignalOutcome` in `types.rs`, the `Process` verb over `Pidfd::send_signal`, the `MUST_USE_TYPES` entry. STOP-2 gates the `Gone` arm. | blocked by P0, P1 |
 | **P3** | The three flag tests → wat deftests over the spawn tooling; the two cause-tests stop touching globals. **The deliberate break runs here.** | blocked by P2 |
 | **P4** | The three `libc::raise(SIGTERM)` harness tests → the same mechanism. | blocked by P3 |
 
@@ -289,7 +304,7 @@ P0 and P1 are mutually independent and start together.
 
 - **intueri on the whole vocabulary** (P0) — no name in this document is ratified. The verb spelling,
   `SignalOutcome`, the variant names, and the signal-enum variants are all provisional. Precedent
-  check found **no existing verb on a `Process'`/`Peer'` value in `wat/*.wat`**, so there is no house
+  check found **no existing verb on a `Process`/`Peer` value in `wat/*.wat`**, so there is no house
   style to inherit; the cast is doing real work, not rubber-stamping.
 - **The builder's SIGKILL call** — in or out.
 - **#65 retitled** to the self-signal capability question, unbuilt, with the misfiling recorded.

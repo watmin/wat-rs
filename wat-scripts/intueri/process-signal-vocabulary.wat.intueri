@@ -9,40 +9,58 @@
 ;;
 ;; ── WHAT THE VERB DOES (so the name can be honest about it) ────────────────────────────────────
 ;;
-;; Given a Process' the caller ALREADY HOLDS (it spawned the child), deliver a signal to that
+;; Given a Process the caller ALREADY HOLDS (it spawned the child), deliver a signal to that
 ;; child's process. Delivery routes through the kernel Pidfd the peer holds — NEVER kill(pid),
 ;; which our own clone.rs:215-216 documents as unsafe ("this PID may be reused").
 ;;
-;;   - It is OWNER->CHILD. Holding the Process' IS the capability; you cannot signal what you did
+;;   - It is OWNER->CHILD. Holding the Process IS the capability; you cannot signal what you did
 ;;     not spawn. There is no :restricted-to gate — the value is the wall (ocap).
-;;   - It is on Process', NOT Peer'. Peer' is the parent of Thread' AND Process'; a thread peer has
-;;     no process to signal and the flags are process-global, so a Peer'-typed verb would be PARTIAL
-;;     (a domain hole named "the peer is a thread"). On Process' it is TOTAL.
+;;   - It is on Process, NOT Peer. Peer is the parent of Thread AND Process; a thread peer has
+;;     no process to signal and the flags are process-global, so a Peer-typed verb would be PARTIAL
+;;     (a domain hole named "the peer is a thread"). On Process it is TOTAL.
 ;;   - It is IMPURE (an effect on another process) and NOT total-in-the-fence sense — it returns an
 ;;     outcome because the child may already be gone.
 ;;
 ;; ── SIBLING VERBS it sits beside (the peer surface — anchors for register + the prime convention) ─
 ;;
-;;   (:wat::kernel::send'    peer msg)   -> SendOutcome
-;;   (:wat::kernel::recv'    peer)       -> RecvOutcome<O>
-;;   (:wat::kernel::connect' addr)       -> ConnectOutcome<S,R>
-;;   (:wat::kernel::accept'  listener)   -> AcceptOutcome<R,S>
-;;   (:wat::kernel::close'   peer)       -> CloseOutcome
-;;   (:wat::kernel::poll'    peers)      -> ServiceEvent<...>
+;;   (:wat::kernel::send    peer msg)   -> SendOutcome
+;;   (:wat::kernel::recv    peer)       -> RecvOutcome<O>
+;;   (:wat::kernel::connect addr)       -> ConnectOutcome<S,R>
+;;   (:wat::kernel::accept  listener)   -> AcceptOutcome<R,S>
+;;   (:wat::kernel::close   peer)       -> CloseOutcome
+;;   (:wat::kernel::poll    peers)      -> ServiceEvent<...>
 ;;
-;; ⚠ THE PRIME `'` IS A REAL QUESTION, NOT DECORATION. Every peer verb above carries it. Weigh
-;; whether this one does — and say WHY, because the convention's meaning must not be guessed at.
+;; ✅ THE PRIME `'` QUESTION IS SETTLED — NO PRIME. And the way it was settled is the lesson.
+;;
+;;    The first draft of this target asserted "every peer verb above carries the prime" and asked
+;;    the ward to weigh whether this one should. THAT PREMISE WAS FALSE ON DISK. Arc 278 `"0z"`
+;;    (`70fe856d`, 2026-08-02 — THIS arc, the day before this cast) stripped the primes from the
+;;    whole IPC/kernel surface: `wat-scripts/fixes/reclaim-ipc-prime-names.wat` is the recorded
+;;    migration, and its table maps send'->send, recv'->recv, close'->close, connect'->connect,
+;;    accept'->accept, poll'->poll, select'->select, spawn-program'->spawn-program, AND the types
+;;    Peer'->Peer, Thread'->Thread, Process'->Process (lines 45-71).
+;;
+;;    Verified by own read: `":wat::kernel::send"` at runtime.rs:5717; ZERO primed hits across
+;;    runtime.rs and check.rs.
+;;
+;;    WHERE THE FALSE PREMISE CAME FROM, recorded because it is the recurring trap: the primes were
+;;    read out of COMMENTS (check.rs's must-use doc blocks still say "an unfaced `send'`") and out of
+;;    the REALIZATIONS (R53/R55/R57, all written before "0z"). A comment is not the code, and a
+;;    record written before a migration describes the world the migration ended.
+;;
+;;    So: a verb minted in the same arc that just finished removing the prime from every sibling
+;;    does NOT reintroduce it. No prime.
 ;;
 ;; ── WHERE IT COULD LIVE (the namespace is part of the name) ────────────────────────────────────
 ;;
 ;;   :wat::kernel::  — where every peer verb above lives; the raw IPC surface.
-;;   :wat::spawn::   — where spawn-program' / ProcessOpts / ProcessLaunch live; the LAUNCH surface.
+;;   :wat::spawn::   — where spawn-program / ProcessOpts / ProcessLaunch live; the LAUNCH surface.
 ;;                     Note `:wat::spawn::process/post-spawn` already exists (a ProcessOpts builder),
 ;;                     so a `process/` segment here has precedent — but that precedent is for
-;;                     OPTIONS BUILDERS, not for verbs acting on a live Process'.
+;;                     OPTIONS BUILDERS, not for verbs acting on a live Process.
 ;;
 ;; ⚠ PRECEDENT CHECK, GROUNDED: there is currently NO verb anywhere in wat/*.wat that acts on a
-;; live Process'/Peer' VALUE by that noun (only `:wat::kernel::` verbs taking a peer as an argument).
+;; live Process/Peer VALUE by that noun (only `:wat::kernel::` verbs taking a peer as an argument).
 ;; So there is no house style to inherit here — this cast is doing real work, not rubber-stamping.
 ;;
 ;; ── THE SIGNAL SET — CLOSED, AND IT NAMES WHAT THE HANDLER DOES ────────────────────────────────
@@ -116,10 +134,10 @@
 ;;
 ;; THE VERB — the use site reads:  (<verb> proc <signal>)  where proc <- Process<I,O>
 ;;
-;;   signal        — bare, obvious, reads as the noun-as-verb. Beside send'/recv' does it fit?
+;;   signal        — bare, obvious, reads as the noun-as-verb. Beside send/recv does it fit?
 ;;                   But `signal` is also a NOUN here (the 2nd argument IS a signal) — does the verb
 ;;                   colliding with its own argument's kind muddy the form?
-;;   send-signal   — mirrors the Rust below (Pidfd::send_signal). Explicit, but `send'` already means
+;;   send-signal   — mirrors the Rust below (Pidfd::send_signal). Explicit, but `send` already means
 ;;                   "put a message on the peer's channel" — does `send-signal` read as a channel
 ;;                   send with a signal payload? That would be a lie.
 ;;   raise         — TAKEN. `:wat::kernel::raise!` is the language-level panic. Disqualified.
