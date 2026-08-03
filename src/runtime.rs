@@ -3816,7 +3816,25 @@ fn eval_tail(
     let args = &items[1..];
     match &items[0] {
         WatAST::Keyword(k, _) => {
-            let head = k.as_str();
+            let mut head = k.as_str();
+            // Arc 278 #56 (S5) phase 1b — mirrors `dispatch_keyword_head_value`'s rete gate
+            // (below, at the `RETE_PREFIX` check): a rete `Form` in TAIL POSITION must reach the
+            // SAME `*_tail` routine its core twin does, or it silently trades TCO for a native
+            // stack overflow (SIGSEGV at depth, proven by
+            // `tests/rete/probe_arc278_55_slice_one_vocabulary.rs`'s TCO gate — NOT a located
+            // error, because this function has no chance to raise one: the overflow happens in
+            // the recursive Rust call stack itself). Resolving to `core_name` BEFORE the match
+            // below — rather than adding a parallel rete-keyed arm per form — means a future Form
+            // row that mirrors one of these four heads is covered with zero further edit here;
+            // only a mirror of a head NOT in this match (e.g. `and`/`or`) falls through to the
+            // catch-all `eval_inner`, unaffected, exactly as before this gate existed.
+            if head.starts_with(crate::rete::vocabulary::RETE_PREFIX) {
+                if let Some(op) = crate::rete::vocabulary::rete_op_for(head) {
+                    if op.class == crate::rete::vocabulary::OpClass::Form {
+                        head = op.core_name;
+                    }
+                }
+            }
             match head {
                 ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),

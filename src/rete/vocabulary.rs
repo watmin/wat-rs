@@ -14,21 +14,27 @@
 //!   Gets a `TypeScheme` (fed from `params`/`ret` below) AND a dispatch arm — but the dispatch
 //!   arm is GENERIC (`runtime.rs`'s `dispatch_rete_op`), reached by re-invoking
 //!   `dispatch_keyword_head_value` on `core_name`. Never a second implementation.
-//! - **`Form`** — lazy / short-circuiting. No `TypeScheme` — the checker gets a dedicated
-//!   inference arm (`check.rs`'s `infer_boolean_shortcircuit`, mirrored generically via this
-//!   table, never a hardcoded second FQDN literal). The runtime side is the SAME generic
-//!   re-dispatch as `Alias`.
+//! - **`Form`** — lazy / short-circuiting, OR otherwise syntactic (not a plain strict fn). No
+//!   `TypeScheme` — the checker's `infer_rete_form` (`check.rs`, just above `infer_list`) routes
+//!   by `core_name` to the SAME inference helper the mirrored core form uses, never a hardcoded
+//!   rete FQDN. The runtime side is the SAME generic re-dispatch as `Alias`
+//!   (`dispatch_rete_op`'s `Alias | Form` arm).
 //!
-//!   **Its boundary, stated because a row is otherwise cheap enough to add wrongly:** the checker
-//!   side routes `class == Form` UNCONDITIONALLY to `infer_boolean_shortcircuit`, so `Form`
-//!   currently means **boolean short-circuit form** — `and` and `or`, whose core arm in `check.rs`
-//!   is literally one shared `":wat::core::and" | ":wat::core::or"` match. `if` and `let` are
-//!   lazy too but their inference is NOT that arm (`if` unifies its branches under a bool
-//!   condition; `let` opens a binding scope), so adding them as rows would silently type them as
-//!   boolean short-circuits. They need the Form dispatch taught to route by `core_name` first —
-//!   a real, small checker edit, and NOT one row. `cond`/`match`/`fn` are a third thing again:
-//!   structural guards matched in `rete/purity.rs`'s `classify_expr`, which never reach
-//!   `head_ok` at all.
+//!   **Its history, kept because the mistake is cheap to re-make:** #55 shipped this class with
+//!   the Form dispatch routing UNCONDITIONALLY to `infer_boolean_shortcircuit` — correct only for
+//!   `and`/`or` (whose core arm in `check.rs` is one shared `":wat::core::and" | ":wat::core::or"`
+//!   match). `if` and `let` are lazy too but their inference is NOT that arm (`if` unifies its
+//!   branches under a bool condition; `let` opens a binding scope) — as rows under the old
+//!   unconditional route they would have silently typed as boolean short-circuits. #56 phase 1
+//!   fixed this: `infer_rete_form` matches on `core_name` explicitly, with a LOUD located error
+//!   (never a silent fallthrough) for a Form row nobody taught it to route (STOP-1).
+//!   `cond`/`match`/`fn` are a further thing again: structural guards matched in
+//!   `rete/purity.rs`'s `classify_expr`, which never reach `head_ok` at all — a mirrored `match`
+//!   is STILL a `Form` row for `infer_rete_form`'s purposes (routes to `infer_match`), but ALSO
+//!   needs its structural guard's match-guard widened to recognise the rete name (a second,
+//!   independent edit — STOP-4: do not conflate the two). `fn` is the odd member: it is not
+//!   merely a structural guard away from working (see `infer_rete_form`'s STOP-3 note, `check.rs`)
+//!   and has no row here as of #56.
 //! - **`Fallback`** — an alias PLUS a second terminal handler: the caller supplies a mandatory
 //!   `:undefined` fallback value (4th positional arg, preceded by the literal keyword
 //!   `:undefined` as a marker in the 3rd slot) that is substituted for the raise the alias's
@@ -266,7 +272,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // (`check.rs`'s `":wat::core::and" | ":wat::core::or"` → `infer_boolean_shortcircuit`), which
     // is precisely the arm the `Form` class re-dispatches to, and the runtime routes both to their
     // own lazy eval arms via the generic `core_name` re-dispatch. So this is a row and nothing
-    // else. (`if`/`let` are NOT — see this table's doc note on the Form class's boundary.)
+    // else. (`if`/`let`, below, needed the two mechanism edits this table's doc note on the
+    // `Form` class's history describes — they are NOT "a row and nothing else" the way `or` is.)
     ReteOp {
         rete_name: ":wat::rete::core::or",
         core_name: ":wat::core::or",
@@ -274,6 +281,66 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         params: &[],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── #56 phase 1, the head-table pair. Both were ALREADY admitted structurally by
+    // `head_ok`'s plain `matches!` list (`purity.rs:246-249`, the very list `+`/`-`/`*` are
+    // admitted through) — mirroring them was never an ADMISSION question, only a ROUTING one,
+    // and the routing edit is `infer_rete_form` (`check.rs`, just above `infer_list`): `if`
+    // unifies its two branches under a bool condition (`infer_if`); `let` opens a binding scope
+    // (`infer_let`) — neither is `infer_boolean_shortcircuit`, the arm the old unconditional Form
+    // route would have sent them to. `meta` mirrors `:wat::core::if`/`:wat::core::let`'s own
+    // hand-list entries exactly (`purity.rs`'s pure∧det list, `:256`/`:257`; its `total` list,
+    // `:453`/`:454`) — same values as the `and`/`or` rows above.
+    //
+    // The SECOND mechanism edit `if`/`let` needed — gating `eval_tail` (`runtime.rs:3807`) so a
+    // rete `if`/`let` in TAIL POSITION reaches the same `eval_if_tail`/`eval_let_tail` its core
+    // twin does — is not table-driven at all (nothing here to consult beyond `core_name`); see
+    // `eval_tail`'s own doc for the gate and `tests/rete/probe_arc278_55_slice_one_vocabulary.rs`'s
+    // TCO gate for the proof it is load-bearing (a rete `if` minted without it is a strictly WORSE
+    // `if`: identical semantics, silently no TCO — SIGSEGV at depth instead of a stack-overflow
+    // error).
+    ReteOp {
+        rete_name: ":wat::rete::core::if",
+        core_name: ":wat::core::if",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::core::let",
+        core_name: ":wat::core::let",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── #56 phase 2, the FIRST of the structural-guard pair. `match` is admitted through a
+    // completely different door than `if`/`let`: `head_ok` (the ADMISSION-consulting fn) never
+    // even sees a match head, because `rete/purity.rs`'s `classify_expr` intercepts a match FORM
+    // structurally (skip the scrutinee's pattern positions, walk only the arm BODIES) before the
+    // generic call-shape arm that would call `head_ok` ever runs. That structural guard matched
+    // the literal core keyword only; widening it to also recognise this row's `rete_name` (by
+    // resolving to `core_name` first — the table's own field, never a duplicated arm body) is a
+    // SEPARATE edit from minting this row (STOP-4), and this row alone does nothing until that
+    // widening lands.
+    //
+    // `meta` is therefore closer to VESTIGIAL than load-bearing for this specific row: nothing
+    // reads it for an ordinary `(:wat::rete::core::match ...)` expression, because `classify_expr`
+    // decides that expression's purity/determinism structurally (recursing into each arm body,
+    // never consulting `head_ok`/`RETE_OPS.meta` for the match head itself) — `head_ok`'s
+    // admission branch (which DOES read `meta`) is reachable for this head only if the structural
+    // guard were somehow bypassed, which the widening below prevents. Kept accurate anyway, for
+    // STOP-2 completeness and any future direct consumer: `total: false` because a non-exhaustive
+    // match raises `NoMatchingArm` — genuinely partial, unlike `if`/`let` (always total for
+    // well-typed args, per their own hand-list entries).
+    ReteOp {
+        rete_name: ":wat::rete::core::match",
+        core_name: ":wat::core::match",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: false },
     },
 ];
 
@@ -306,6 +373,17 @@ pub(crate) const RETE_MODULES: &[&str] = &[
 /// (STOP-1 applies here too: a prefix match would silently "admit" any typo under a real module).
 pub(crate) fn rete_op_for(head: &str) -> Option<&'static ReteOp> {
     RETE_OPS.iter().find(|op| op.rete_name == head)
+}
+
+/// Arc 278 #56 phase 2 — resolves a head to its `core_name` if it is a minted rete row,
+/// otherwise returns `head` unchanged. THE single discriminator a structural-guard match arm
+/// (`rete/purity.rs`'s `classify_expr` — `cond`/`match`/`fn`) consults to recognise a rete-named
+/// twin WITHOUT duplicating its arm body (STOP-4's "do not conflate" applies here too: the guard
+/// widening is this one indirection, never a second copy of the structural logic keyed on the
+/// rete name). A non-rete head (the entire core corpus) round-trips through unchanged — this is
+/// a pure lookup, zero behavior change for anything not in [`RETE_OPS`].
+pub(crate) fn resolve_core_name(head: &str) -> &str {
+    rete_op_for(head).map(|op| op.core_name).unwrap_or(head)
 }
 
 /// THE ADMISSION TEST. Does `head` fall inside a declared rete-vocabulary sub-namespace? Module-

@@ -43,6 +43,63 @@
 (:wat::core::defn :user::form-or-control-raises [] -> :wat::core::bool
   (:wat::rete::core::or false (:wat::core::i64::> (:wat::core::i64::/ 1 0) 0)))
 
+;; ── #56 phase 1: the head-table pair (`if`/`let`) ───────────────────────────────────────────
+;; EXPECTATIONS row 3 — `if` routes to `infer_if`, NOT the bool short-circuit arm: non-bool
+;; branches (i64) must unify and type-check clean. Pre-phase-1 this would have been routed to
+;; `infer_boolean_shortcircuit`, which requires every arg to be `:bool` — this entry would have
+;; FAILED TO LOAD (a type error on the branches) if that bug were still present.
+(:wat::core::defn :user::rete-if-non-bool-branches [] -> :wat::core::i64
+  (:wat::rete::core::if true 1 2))
+
+;; row 4 — `if` does not evaluate the untaken branch: the untaken (else) branch raises.
+(:wat::core::defn :user::rete-if-short-circuits [] -> :wat::core::i64
+  (:wat::rete::core::if true 1 (:wat::core::i64::/ 1 0)))
+
+;; row 5 — the NON-VACUITY CONTROL for row 4: the identical raising operand, actually REACHED
+;; (condition now false, so the else branch fires), DOES raise.
+(:wat::core::defn :user::rete-if-control-raises [] -> :wat::core::i64
+  (:wat::rete::core::if false 1 (:wat::core::i64::/ 1 0)))
+
+;; row 6 — `let` actually scopes a binding: bind, then read it back.
+(:wat::core::defn :user::rete-let-scopes [] -> :wat::core::i64
+  (:wat::rete::core::let [x 42] x))
+
+;; row 7/8 — THE TCO GATE. A rete `if` in TAIL POSITION must reach `eval_if_tail` exactly as its
+;; core twin does, or this recursion trades TCO for a native stack frame per call and SIGSEGVs
+;; long before 200000 (proven: `wat-scripts/scratch-pad/probe-s5-tail-position-is-load-bearing.wat`,
+;; whose `and`-tailed sibling — a Form `eval_tail` does NOT intercept — segfaults at this exact
+;; depth). Depth chosen to match that proof exactly, not a smaller number that TCO doesn't need.
+(:wat::core::defn :probe::rete-countdown-if [n <- :wat::core::i64] -> :wat::core::i64
+  (:wat::rete::core::if (:wat::core::i64::<= n 0)
+    0
+    (:probe::rete-countdown-if (:wat::core::i64::- n 1))))
+
+(:wat::core::defn :user::rete-if-tail-tco-survives-depth [] -> :wat::core::i64
+  (:probe::rete-countdown-if 200000))
+
+;; ── #56 phase 2: `match`, the first of the structural-guard pair ────────────────────────────
+;; row 10 — a rete `match` whose PATTERN would fail as an expression classifies clean. A tagged
+;; enum variant (user-declared, so `constructor_meta` recognizes it — deliberately NOT
+;; `:wat::core::Option`'s `Some`/`None`, which are natively-typed and hit an orthogonal,
+;; pre-existing purity gap unrelated to this stone): `(:test::S5Shape::Circle r)`'s pattern head
+;; is a LIST (not a Keyword/Symbol). If `classify_expr` ever walked this arm generically instead
+;; of skipping the pattern structurally, the "General list" arm's own head-shape check rejects a
+;; non-keyword/non-symbol head outright, so this would be misclassified as an axis violation
+;; despite the match itself being perfectly pure.
+(:wat::core::defenum :test::S5Shape :wat::enum::Pure
+  :Circle [r <- :wat::core::i64]
+  :Square)
+
+(:wat::core::defn :test::rete-match-shape-area [s <- :test::S5Shape] -> :wat::core::i64
+  (:wat::rete::core::match s
+    ((:test::S5Shape::Circle r) (:wat::core::i64::* r r))
+    (:test::S5Shape::Square    0)))
+
+(:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-pure [] -> :wat::core::bool
+  (:wat::rete::pure? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle 5)))))
+(:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-det [] -> :wat::core::bool
+  (:wat::rete::deterministic? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle 5)))))
+
 ;; ── rows 3-5: THE ADMISSION TEST, in BOTH directions ────────────────────────────────────────
 ;; row 3 — a rete-module head IS admitted.
 (:wat::core::defn :user::admit-rete-module? [] -> :wat::core::bool

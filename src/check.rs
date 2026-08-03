@@ -2303,6 +2303,66 @@ fn infer_err_constructor(
     }
 }
 
+/// Arc 278 #56 (S5) — routes a `Form`-class rete op's inference to the SAME helper its mirrored
+/// core form uses, keyed off `core_name` (`rete::vocabulary::RETE_OPS`'s own field — never a
+/// hardcoded rete FQDN literal here, per STOP-2). Extracted to its own fn, rather than inlined at
+/// `infer_list`'s call site, so STOP-1's `other` arm — a Form row nobody taught this to route — is
+/// unit-testable directly (`tests` module, bottom of this file) without minting a bogus
+/// `RETE_OPS` row just to exercise a dead branch.
+///
+/// `and`/`or` share ONE arm (`infer_boolean_shortcircuit`, mirroring the identical core arm two
+/// screens down); `if`/`let` each need their own (`infer_if` unifies branches under a bool
+/// condition, `infer_let` opens a binding scope — neither is a boolean short-circuit, which is
+/// exactly the bug the table's pre-#56 unconditional Form route would have shipped). `match`
+/// routes here too (to `infer_match`) — its OTHER need, a `rete/purity.rs` structural-guard
+/// widening, is a separate, independent edit (STOP-4).
+///
+/// **STOP-3 — `fn` has NO arm here and no `RETE_OPS` row, by design.** Grounded (not guessed):
+/// unlike `match`, `fn`'s gap is not "one more structural guard" — `runtime.rs`'s def-registration
+/// parsers (`try_parse_fn_shape_def`, its variadic sibling, both walking `fn_items.first()? ==
+/// Keyword(":wat::core::fn")` literally) are how `(:wat::core::def :name (:wat::core::fn …))`
+/// becomes a callable entry in `sym.functions` at all — a rete-named `fn` would not be recognised
+/// as a function-definition SHAPE by these parsers, so `:name` likely never registers as callable,
+/// not merely mis-infers. `check.rs:520` (`is_fn_form_expr`, gating duplicate-diagnostic
+/// suppression) and two Process-scope walkers at `check.rs:1654`/`:1735` (which stop recursion at
+/// a literal `:wat::core::fn`/`:let` boundary) would also silently misbehave. Mirroring `fn`
+/// therefore needs teaching MULTIPLE registration-time/structural sites, not one inference route
+/// — exactly the shape STOP-3 exists to catch. Left unmirrored.
+fn infer_rete_form(
+    core_name: &str,
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    match core_name {
+        ":wat::core::and" | ":wat::core::or" => infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst),
+        ":wat::core::if" => infer_if(args, head_span, env, locals, fresh, subst),
+        ":wat::core::let" => infer_let(args, head_span, env, locals, fresh, subst),
+        // Arc 278 #56 phase 2 — `match` is a structural guard in `rete/purity.rs`'s
+        // `classify_expr` (a SEPARATE, independent edit — STOP-4), but for TYPE INFERENCE it
+        // reaches this same `infer_list` dispatch just like every other keyword-headed list, so
+        // it gets a route here too, mirroring `infer_match`'s own arm two screens down.
+        ":wat::core::match" => infer_match(args, head_span, env, locals, fresh, subst),
+        // STOP-1: LOUD and LOCATED, never a silent fallthrough to `infer_boolean_shortcircuit`.
+        // Reachable only by a future `RETE_OPS` row minting `class: Form` with a `core_name` this
+        // match was never taught — a bug in the vocabulary table's authoring, not a user error,
+        // so it names the unrouted core name rather than pretending to succeed.
+        other => CheckResult::errs(vec![CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::MalformedForm {
+                head: other.to_string(),
+                reason: format!(
+                    "rete Form op mirrors core form '{other}', but infer_rete_form has no inference route registered for it — add one before shipping this row"
+                ),
+                remedies: vec![],
+            },
+        }]),
+    }
+}
+
 fn infer_list(
     items: &[WatAST],
     list_span: &Span,
@@ -2329,20 +2389,17 @@ fn infer_list(
 
     if let WatAST::Keyword(k, head_span) = head {
         let args = &items[1..];
-        // Arc 278 #55 (S3b+S4) slice one — Form-class rete ops route generically to the SAME
-        // inference helper their mirrored core form uses. Table-driven (`rete::vocabulary::
-        // RETE_OPS`), keyed off `class` alone — NOT a hardcoded second FQDN literal in this
-        // match (STOP-2: no rete op named in more than one file). Slice one's only Form is
-        // `:wat::rete::core::and` (mirrors `:wat::core::and`'s `infer_boolean_shortcircuit` arm
-        // below); `cond`/`match`/`fn` are structural guards, out of scope (STOP-4).
+        // Arc 278 #56 (S5) — Form-class rete ops route by `core_name` to the SAME inference
+        // helper their mirrored core form uses (`infer_rete_form`, above). Table-driven
+        // (`rete::vocabulary::RETE_OPS`), keyed off `class` — NOT a hardcoded second FQDN literal
+        // in this match (STOP-2: no rete op named in more than one file). Pre-#56 this route was
+        // UNCONDITIONAL to `infer_boolean_shortcircuit` — correct only for `and`/`or`; `if`/`let`
+        // needed the fix (see `infer_rete_form`'s own doc). `match`/`fn` are structural guards in
+        // `rete/purity.rs`'s `classify_expr` — a SEPARATE edit from this one (STOP-4), even where
+        // `match` also gets an `infer_rete_form` arm for its type inference.
         if let Some(op) = crate::rete::vocabulary::rete_op_for(k.as_str()) {
             if op.class == crate::rete::vocabulary::OpClass::Form {
-                let (val, mut errs) = infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+                return infer_rete_form(op.core_name, args, head_span, env, locals, fresh, subst);
             }
         }
         match k.as_str() {
@@ -20111,6 +20168,39 @@ mod tests {
                      mutable_key_type exists to prevent, and it is now reachable"
                 ),
             }
+        }
+    }
+
+    // ─── Arc 278 #56 (S5) STOP-1 — the unrouted Form is LOUD ─────────────────────────
+
+    /// STOP-1 (`BRIEF-s5-the-form-mirrors.md`): a `Form`-class rete row whose `core_name`
+    /// `infer_rete_form` was never taught to route must produce a LOUD, LOCATED error — never a
+    /// silent fallthrough to `infer_boolean_shortcircuit`. Calls `infer_rete_form` directly with
+    /// a made-up core name; no real `RETE_OPS` row needs to exist to exercise this (STOP-2's
+    /// table stays untouched by this test — it is testing the routing fn's own exhaustiveness,
+    /// not the table's contents).
+    #[test]
+    fn infer_rete_form_names_an_unrouted_core_name_instead_of_defaulting_to_boolean_shortcircuit() {
+        let (_stdlib_sym, _stdlib_macros, stdlib_types) = stdlib_loaded();
+        let env = CheckEnv::with_builtins_and_types(stdlib_types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst: Subst = HashMap::new();
+        let head_span = crate::rust_caller_span!();
+
+        // Not a boolean anywhere in sight — if this silently routed to
+        // `infer_boolean_shortcircuit`, an empty arg list would still type-check as `:bool`
+        // (its zero-args-is-ok shape), so the assertion below is a real discriminator, not a
+        // vacuous one.
+        let (val, errs) = infer_rete_form(":wat::core::cond", &[], &head_span, &env, &locals, &mut fresh, &mut subst).into_parts();
+
+        assert!(val.is_none(), "an unrouted Form core name must produce NO type, not even a defaulted :bool from infer_boolean_shortcircuit");
+        assert_eq!(errs.len(), 1, "expected exactly one located error");
+        match &errs[0].kind {
+            CheckErrorKind::MalformedForm { head, .. } => {
+                assert_eq!(head, ":wat::core::cond", "the error must name the unrouted core_name");
+            }
+            other => panic!("expected MalformedForm naming the unrouted core name; got {other:?}"),
         }
     }
 }

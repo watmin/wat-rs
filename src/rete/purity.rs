@@ -735,7 +735,14 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // match has no guards). Arc 258.5 — bare match: scrutinee = items[1], arms = items[2..]
         // (the `-> :T` ascription is retired). Skip the pattern (arm element 0), check the body
         // (arm elements 1..).
-        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::match") => {
+        //
+        // Arc 278 #56 phase 2 — the guard resolves through `resolve_core_name` (THE ONE
+        // discriminator, `rete/vocabulary.rs`) so `:wat::rete::core::match` is recognised here
+        // too, without a second copy of this arm's body keyed on the rete name (STOP-4: the
+        // structural-guard widening is this one indirection, never a duplicated arm). A
+        // non-rete head (the entire core corpus) round-trips through `resolve_core_name`
+        // unchanged — zero behavior change for anything not in `RETE_OPS`.
+        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::match") => {
             let scrut = items.get(1).ok_or_else(|| AxisViolation {
                 head: "<malformed match: no scrutinee>".into(),
                 axis,

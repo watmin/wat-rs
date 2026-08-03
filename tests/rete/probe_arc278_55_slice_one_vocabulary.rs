@@ -119,6 +119,75 @@ fn or_control_the_same_operand_reached_does_raise() {
     );
 }
 
+// ─── #56 phase 1: the head-table pair (`if`/`let`) ────────────────────────────────
+
+/// Row 3: `:wat::rete::core::if` routes to `infer_if`, NOT `infer_boolean_shortcircuit`. Non-bool
+/// (i64) branches must unify and type-check clean — pre-phase-1 this fixture would have FAILED TO
+/// LOAD (a type error demanding `:bool` branches), so a successful `eval` here is itself the
+/// discriminator, not merely the returned value.
+#[test]
+fn rete_if_routes_to_if_inference_not_boolean_shortcircuit() {
+    assert_eq!(eval_i64(":user::rete-if-non-bool-branches"), 1, "the taken (true) branch's value");
+}
+
+/// Row 4: `:wat::rete::core::if` does not evaluate the untaken branch — the untaken else branch
+/// raises, so reaching a return value at all proves it was never evaluated.
+#[test]
+fn rete_if_does_not_evaluate_the_untaken_branch() {
+    assert_eq!(eval_i64(":user::rete-if-short-circuits"), 1, "the taken (true) branch's value, only reachable if the raising else branch was never evaluated");
+}
+
+/// Row 5: the NON-VACUITY CONTROL for row 4 — the identical raising operand, actually reached
+/// (condition now false), DOES raise. Matched on the typed KIND, not a rendered substring
+/// (`no_loose_string_assert`): a substring check would also pass on a missing entry or an
+/// unrelated failure, which is the very vacuity this control exists to rule out.
+#[test]
+fn rete_if_control_the_untaken_branch_reached_does_raise() {
+    let err = call_beside_value(file!(), ":user::rete-if-control-raises")
+        .expect_err("the false condition MUST take the else branch and raise — otherwise row 4 is vacuous");
+    assert!(
+        matches!(err.kind(), RuntimeErrorKind::DivisionByZero),
+        "the control must fail on the divide itself; got kind: {:?}",
+        err.kind()
+    );
+}
+
+/// Row 6: `:wat::rete::core::let` actually scopes a binding — bind, then read it back.
+#[test]
+fn rete_let_actually_scopes_a_binding() {
+    assert_eq!(eval_i64(":user::rete-let-scopes"), 42);
+}
+
+/// Rows 7+8 — THE TCO GATE (the pair that matters; neither counts alone per EXPECTATIONS). A
+/// tail-recursive fn whose tail form is a rete `if` must survive depth 200000 exactly as its core
+/// twin does (`probe-s5-tail-position-is-load-bearing.wat`'s own proof of the same depth) —
+/// without `eval_tail`'s gate this SIGSEGVs (exit 139) well before returning, which would abort
+/// this whole test binary rather than fail one assertion. Row 8 (removing the gate, watching this
+/// go red, restoring it) is a manual one-time verification reported in prose, not encoded as a
+/// toggle here — there is no safe way to "expect" a SIGSEGV from inside the process it would kill.
+#[test]
+fn rete_if_tail_position_preserves_tco_at_depth() {
+    assert_eq!(eval_i64(":user::rete-if-tail-tco-survives-depth"), 0, "the base case's value, reachable only if 200000 tail calls all reused the same native stack frame");
+}
+
+// ─── #56 phase 2: `match`, the first of the structural-guard pair ─────────────────
+
+/// Row 10: a rete `match` whose arm PATTERN would fail as an expression classifies clean —
+/// `:wat::rete::pure?` must recurse into the fn body via the structural (skip-the-pattern)
+/// treatment, not the generic call-shape walk that would choke on `(:wat::core::Some n)`'s
+/// list-shaped pattern head.
+#[test]
+fn rete_match_pattern_is_not_classified_as_an_expression_pure() {
+    assert!(is_true(":user::rete-match-pattern-not-classified-as-expr-pure"), "the pattern must be skipped structurally, not walked as a call");
+}
+
+/// ...and the same discipline holds on the deterministic axis (the other independent classifier
+/// sharing the same `classify_expr` walk).
+#[test]
+fn rete_match_pattern_is_not_classified_as_an_expression_deterministic() {
+    assert!(is_true(":user::rete-match-pattern-not-classified-as-expr-det"));
+}
+
 // ─── row 6: COMPOSITION survives, proven BY A RUN ────────────────────────────────
 
 /// A user `defn` composed of all four ops classifies PURE transitively — `classify_fn` still
