@@ -11513,6 +11513,29 @@ fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
 ///
 /// Unlike `record_of_specific_type` (which parses `(:wat::core::keyword/from-string "...")`)
 /// the class here is a bare keyword literal — no sub-form to unwrap.
+/// BRIEF-construction-inside-a-fn.md, gap (a) — validates the supplied field VALUES
+/// against the ctor scheme's OWN declared parameter types (arity + per-field), closing
+/// the hole where a wrong field count/type used to pass `--check` clean and only raise
+/// `ArityMismatch` at runtime (`construct_aggregate`, runtime.rs:15560-15568).
+///
+/// Deliberately does NOT mirror `infer_kwargs_construct_check`'s synthetic-call-to-`:T'`
+/// approach, despite both looking like "the same kind of gap" — a first attempt at
+/// exactly that broke every generic self-constructing type in the stdlib (`Bound<S,R>`,
+/// `Launched<S,R,Sh,Lu>`, `Cache::Entry<K,V>`, …), and the reason is architectural, not a
+/// bug in that attempt: `register_aggregate_methods` (runtime.rs:1510-1559, "THE ONE
+/// aggregate constructor mint" for every nature) mints `:T'`'s OWN body as EXACTLY
+/// `(:wat::core::aggregate-new :T field-syms…)` — `aggregate-new` is invoked in this ONE
+/// place, architecturally, for every aggregate type that exists. So checking it is
+/// ALWAYS checking `:T'`'s body against `:T'`'s OWN declared signature — the same type
+/// variables, not a call site. `kwargs-construct` is the opposite: it is invoked
+/// EXTERNALLY (kwargs sugar used outside `:T'`), so its synthetic call correctly
+/// `instantiate()`s a FRESH copy of the scheme per call site (ordinary let-polymorphism).
+/// Reusing that here would do the same for a self-referential case, minting a fresh
+/// renamed copy of the body's own return type that no longer identifies with the
+/// function's own declared return type — same PRINTED name, different bound identity —
+/// which `ensure_fn`'s return-type check then (correctly) flags as a mismatch. Unifying
+/// against the scheme's RAW (un-instantiated) `params`, and returning its RAW `ret`
+/// unchanged, is what a checker does to verify a definition against its own signature.
 fn infer_aggregate_new_check(
     head_span: &Span,
     args: &[WatAST],
@@ -11532,45 +11555,72 @@ fn infer_aggregate_new_check(
         return CheckResult::errs(local_errors);
     }
 
-    // Infer all field args (args[1..]) for side effects (type propagation, error harvest).
-    for arg in args.iter().skip(1) {
-        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    }
-
     // Extract specific type from args[0]: expected to be a direct keyword literal.
     //
     // For the macro-expanded case, the keyword may include a type-params suffix
     // (e.g. `:wat::core::HashMap<K,V>`) because ~fqdn in the macro template is
     // the raw source keyword. TypeEnv stores keys WITHOUT the suffix (":wat::core::HashMap"),
     // so strip `<…>` before lookup.
-    //
-    // We look up the CTOR SCHEME from env rather than reconstructing the type from
-    // the TypeEnv's type_params. The scheme's ret field already has the correct
-    // parametric form — Rust-registered structs use Path("I") (no colon) via
-    // parametric_decl_type; WAT-parsed macro-generated types use Path(":I") via
-    // parse_type_inner. Reconstructing from type_params would produce the wrong
-    // form for one of these two sources, causing unify to fail even though both
-    // format_type displays appear identical (format_type_inner strips the colon).
     let ty = if let WatAST::Keyword(k, _) = &args[0] {
         let bare_k: &str = if let Some(pos) = k.find('<') { &k[..pos] } else { k.as_str() };
-        // Look up the ctor scheme — its ret IS the specific type in the correct form.
-        //
         // Arc 294 item 9a — the positional ctor scheme moved to the type-name PRIME
         // (`:X'`); the bare `:X` is now the kwargs companion MACRO, which registers no
         // type scheme. `aggregate-new`'s class arg is the bare `:X` (the flip codegen at
-        // runtime.rs pushes `agg.name`), so resolve the ret via the PRIME scheme first —
-        // its ret is the correct parametric self-type (`:X<S,R>`), which the bare-path
-        // fallback loses for generic aggregates (body `:X` ≠ declared `:X<S,R>`). Fall
-        // back to the bare scheme (any pre-flip / non-flipped aggregate), then the path.
+        // runtime.rs pushes `agg.name`), so resolve via the PRIME scheme first — its
+        // params/ret carry the correct parametric self-type (`:X<S,R>`), which the
+        // bare-path fallback loses for generic aggregates (body `:X` ≠ declared
+        // `:X<S,R>`). Fall back to the bare scheme (any pre-flip / non-flipped
+        // aggregate), then the bare path.
         let prime_k = format!("{}'", bare_k);
-        if let Some(scheme) = env.get(&prime_k).or_else(|| env.get(bare_k)) {
+        if let Some(scheme) = env.get(&prime_k).or_else(|| env.get(bare_k)).cloned() {
+            // Field VALUES are args[1..] — validate against the scheme's OWN params,
+            // no `instantiate()` (see this fn's doc for why not).
+            let field_args = &args[1..];
+            if field_args.len() != scheme.params.len() {
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::ArityMismatch {
+                        callee: CALLEE.into(),
+                        expected: scheme.params.len(),
+                        got: field_args.len(),
+                    },
+                });
+                // Best-effort: still infer each supplied value for side effects/error harvest.
+                for arg in field_args {
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+            } else {
+                for (i, (arg, expected)) in field_args.iter().zip(&scheme.params).enumerate() {
+                    let arg_ty = infer_component_against(arg, expected, env, locals, fresh, subst, &mut local_errors);
+                    if let Some(arg_ty) = arg_ty {
+                        if !assignable(&arg_ty, expected, subst, env) {
+                            local_errors.push(CheckError {
+                                span: arg.span().clone(),
+                                kind: CheckErrorKind::TypeMismatch {
+                                    callee: CALLEE.into(),
+                                    param: format!("#{}", i + 1),
+                                    expected: format_type(&apply_subst(expected, subst)),
+                                    got: format_type(&apply_subst(&arg_ty, subst)),
+                                },
+                            });
+                        }
+                    }
+                }
+            }
             scheme.ret.clone()
         } else {
-            // No scheme registered yet (will error at resolve time); return the bare path.
+            // No scheme registered yet (will error at resolve time) — infer field args
+            // for side effects (type propagation, error harvest); return the bare path.
+            for arg in args.iter().skip(1) {
+                let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            }
             TypeExpr::Path(bare_k.to_string())
         }
     } else {
-        // Non-static class arg — infer for side effects; fall back to fresh TypeVar.
+        // Non-static class arg — infer everything for side effects; fall back to fresh TypeVar.
+        for arg in args.iter().skip(1) {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
         let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         fresh.fresh()
     };

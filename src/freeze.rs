@@ -401,6 +401,41 @@ pub struct FrozenWorld {
     pub program: Vec<WatAST>,
 }
 
+/// BRIEF-construction-inside-a-fn.md, gap (b) — post-registration, freeze-time counterpart
+/// of `check::validate_aggregate_containment` (same "walk every registered aggregate once"
+/// shape), for the OTHER static-per-type fact `aggregate-new`/`kwargs-construct` used to
+/// leave to a runtime raise: whether a `Nature::HolonRecord`'s OWN declared field count fits
+/// the encoding budget at THIS program's configured dimension.
+///
+/// `bundle_capacity_verdict`'s two inputs — a type's `fields.len()` and `ctx.capacity`
+/// (`floor(sqrt(dim_count))`, cached at freeze) — are BOTH freeze-time constants once
+/// registration and config resolution finish; unlike a `where`/`:then` construction's
+/// per-CALL field VALUES (which genuinely need runtime evaluation), the field COUNT is a
+/// property of the TYPE, invariant across every instance ever constructed. So a program
+/// that clears this check can never reach `build_holon_hologram`'s runtime capacity raise —
+/// that raise becomes an unreachable backstop, kept as defense in depth rather than removed.
+fn validate_holon_record_capacity(types: &TypeEnv, ctx: &EncodingCtx) -> Result<(), TypeError> {
+    use crate::types::TypeDef;
+    for (name, def) in types.iter() {
+        if let TypeDef::Aggregate(a) = def {
+            if a.nature == crate::types::Nature::HolonRecord {
+                let field_count = a.fields.len();
+                if let Some((cost, budget)) = crate::runtime::bundle_capacity_verdict(field_count, ctx) {
+                    return Err(TypeError::new(
+                        crate::rust_caller_span!(),
+                        crate::types::TypeErrorKind::HolonRecordCapacityExceeded {
+                            aggregate: name.clone(),
+                            field_count: cost as usize,
+                            budget: budget as usize,
+                        },
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 impl FrozenWorld {
     /// Construct a frozen world from the registries built during
     /// startup. Takes ownership of each — the caller cannot mutate
@@ -422,6 +457,14 @@ impl FrozenWorld {
         loader: Arc<dyn crate::load::SourceLoader>,
     ) -> Result<Self, StartupError> {
         let ctx = Arc::new(EncodingCtx::from_config(&config));
+        // BRIEF-construction-inside-a-fn.md, gap (b) — the HolonRecord bundle-capacity
+        // budget (`bundle_capacity_verdict`, runtime.rs) is a freeze-time-computable fact
+        // per TYPE (declared field count × the frozen encoding dimension), not a per-call
+        // or per-instance quantity — no construction of an over-budget type could ever
+        // succeed, so check it ONCE here rather than at the first `aggregate-new`/
+        // `kwargs-construct` call that happens to reach it. `types` and `ctx` are both
+        // finally, simultaneously available at this exact point.
+        validate_holon_record_capacity(&types, &ctx)?;
         symbols.set_encoding_ctx(ctx);
         symbols.set_source_loader(loader);
         // Arc 030: runtime macroexpand / macroexpand-1 primitives need

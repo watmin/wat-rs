@@ -6,12 +6,35 @@
 ;; direct `(:wat::test::spawn-peer (:wat::spawn::process) (:wat::core::forms …))`
 ;; child + `(:wat::kernel::recv' p)`. `RunResult` is GONE from this file.
 ;;
-;; Body: dim_count=1 → budget=floor(sqrt(1))=1; a Bundle with 2 atoms exceeds capacity
-;; and triggers panic!("...: capacity exceeded ...") — a bare Rust String panic, NOT an
-;; AssertionPayload. This is the only reliably reachable non-AssertionPayload panic path
-;; from a wat body. The child crash surfaces over the wire as recv' → Lost[cause] with
-;; cause = LociDiedError::Panic; the panic's String rides Panic.message. We return that
-;; message as a plain String for the Rust driver to assert on.
+;; ★ SUBJECT (do not confuse with the vehicle below): a bare Rust panic (`panic!()`, NOT an
+;; `AssertionPayload`) that happens in a forked child crosses the PRIMED wire as a STRUCTURED
+;; `LociDiedError::Panic`, with the panic's own String riding `Panic.message` verbatim — never
+;; degraded to the exit-code-only fallback "forked program exited N". This is the ONLY thing this
+;; probe exists to prove; the panic's SOURCE is incidental and has already been swapped once
+;; (BRIEF-construction-inside-a-fn.md) without touching this claim.
+;;
+;; ★ VEHICLE HISTORY — why the old one died, why THIS one cannot die the same way:
+;; The original vehicle set `dim_count=1` (budget=`floor(sqrt(1))=1`) and Bundled a 2-ELEMENT
+;; LITERAL vector — cost=2 > budget=1 → `panic!` inside `eval_algebra_bundle`. That vehicle died
+;; when `freeze::validate_holon_record_capacity` (BRIEF-construction-inside-a-fn.md, gap (b))
+;; started checking every registered `HolonRecord`'s OWN declared field count against the SAME
+;; budget at STARTUP: at `dim_count=1`, budget=1 is so small that the STDLIB'S OWN built-in
+;; HolonRecord types (e.g. `:wat::telemetry::Scope`, 4 fields) now fail to even START UP, so the
+;; child never reaches `:user::main` at all — the vehicle's failure mode moved from "runtime
+;; panic" to "the freeze-time check I closed", which is a DIFFERENT, now-INTENTIONAL death, not
+;; the bare-panic one this probe is supposed to exercise.
+;;
+;; The fix is not a bigger literal — a literal vector's element COUNT is exactly the kind of
+;; static AST shape a future checker/freeze pass COULD learn to count (the same class of gap gap
+;; (a)/(b) just closed). So THIS vehicle builds the vector at RUNTIME via `foldl` over `range 0 n`
+;; — its length is the result of actually EXECUTING a fold, not a literal AST shape, so no static
+;; analysis (checker OR freeze) can ever bound it ahead of time; it can only be discovered by
+;; running the program, which is exactly the "genuine bare Rust panic with no freeze-time
+;; analogue" this probe now needs. `dim_count=100` → budget=`floor(sqrt(100))=10`, comfortably
+;; above every stdlib HolonRecord's own field count (verified: `dim_count=100` alone, no Bundle
+;; call at all, starts up clean) — so the STDLIB never trips the freeze-time check; only the
+;; test's OWN 12-atom runtime-built vector (12 > 10) exceeds capacity, in `:user::main`'s body,
+;; exactly where the panic needs to fire.
 ;;
 ;; The child runs in a SEPARATE process with its own runtime, so `set-dim-count!` /
 ;; `set-capacity-mode!` are private to the child — the hermetic property the retired
@@ -24,17 +47,20 @@
            ;; entry-file pass — they MUST sit at the top level of the forms,
            ;; preceding all other forms (they are not runtime functions callable
            ;; from inside :user::main's body — that surfaces UnknownFunction).
-           (:wat::config::set-dim-count! 1)
+           (:wat::config::set-dim-count! 100)
            (:wat::config::set-capacity-mode! :panic)
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             ;; Two Atom children exceed floor(sqrt(1))=1 budget
+             ;; A RUNTIME-BUILT (not literal) 12-atom vector exceeds floor(sqrt(100))=10 budget
              ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
+             ;; See this file's header for why the length must be runtime-derived, not a literal.
              (:wat::core::let
-               [_bundle
-                 (:wat::holon::Bundle
-                   (:wat::core::Vector :wat::holon::HolonAST
-                     (:wat::holon::to-holon "key1")
-                     (:wat::holon::to-holon "key2")))]
+               [n     12
+                atoms (:wat::core::foldl
+                        (:wat::core::fn [acc <- :wat::core::Vector<wat::holon::HolonAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::holon::HolonAST>
+                          (:wat::core::conj acc (:wat::holon::to-holon i)))
+                        (:wat::core::Vector :wat::holon::HolonAST)
+                        (:wat::core::range 0 n))
+                _bundle (:wat::holon::Bundle atoms)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")

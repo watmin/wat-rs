@@ -17938,7 +17938,13 @@ fn eval_algebra_bind(
 ///   * `build_holon_hologram` (`:wat::core::aggregate-new` for HolonRecord)
 ///     — on `Some`, returns `Err(RuntimeError { MalformedForm })` (loud,
 ///     mode-agnostic: construction cannot return a Result).
-fn bundle_capacity_verdict(cost: usize, ctx: &EncodingCtx) -> Option<(i64, i64)> {
+///
+/// `pub(crate)` (BRIEF-construction-inside-a-fn.md, gap (b)) — a THIRD caller,
+/// `freeze::validate_holon_record_capacity`, reuses this SAME guard at freeze time
+/// (every registered `Nature::HolonRecord`'s OWN field count against the SAME budget),
+/// closing the gap where a program could pass `--check` and freeze clean, then raise here
+/// at the first construction. "ONE guard, {two->three} callers" — none duplicates the math.
+pub(crate) fn bundle_capacity_verdict(cost: usize, ctx: &EncodingCtx) -> Option<(i64, i64)> {
     // ctx.capacity is floor(sqrt(ctx.dim_count)).max(1), cached at freeze.
     // For any realistic d (>= 1) this equals (d as f64).sqrt().floor() as usize.
     let budget = ctx.capacity;

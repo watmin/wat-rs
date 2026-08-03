@@ -200,6 +200,70 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head.starts_with(":wat::edn::") {
         return Some(OpMeta { pure: true, deterministic: true, total: false });
     }
+    // `:wat::core::aggregate-new` / `:wat::core::kwargs-construct` (BRIEF-construction-inside-a-
+    // fn.md) — the two verbs a record/struct's macro-expanded kwargs/positional construction
+    // lowers to (`wat/Record.wat:183-190`, `wat/core.wat:1780-1788` — defstruct's OWN bare-name
+    // companion macro emits the identical `kwargs-construct` call a record's does).
+    //
+    // PURE: construction is assignment — it evaluates already-supplied field VALUES and binds
+    // them into a new container; it opens nothing, reads no ambient state, mutates nothing
+    // (`construct_aggregate`, runtime.rs:15519-15592, and `build_holon_hologram`'s structural
+    // `to_holon_inner` fold, runtime.rs:15426-15461 — no IO, no RNG on either path). This holds
+    // regardless of the target's `Nature`: a Struct MAY hold a live resource, but resource
+    // ACQUISITION is a property of how a value was obtained, not of the assignment that later
+    // carries it, and any acquisition (e.g. `:wat::io::IOReader/open-file`) is caught independently
+    // at THAT op's own head by this same walk (`classify_expr` recurses into every field-value
+    // argument on the same axis). A pure aggregate can never smuggle one in either way:
+    // `validate_aggregate_containment` (check.rs:12511-12573) is a post-registration freeze-time
+    // pass that REJECTS STARTUP for any `Nature::Record`/`HolonRecord` type declaring an impure
+    // field (`TypeErrorKind::ImpureFieldInPureAggregate`) — a pure-nature aggregate cannot even be
+    // registered with a resource-shaped field, let alone constructed holding one. Matches this
+    // file's own existing precedent for container ops (`PersistentVector/conj`, `HashMap/assoc`
+    // above): the ACT of binding a value into a structure is pure independent of what runtime type
+    // that value happens to be.
+    //
+    // DETERMINISTIC: true, unconditionally — no ambient/random dependency on either path.
+    //
+    // TOTAL: true — BOTH named gaps this classification originally found are now CLOSED, not
+    // merely unarmed-and-therefore-moot. Recorded so a future reader does not have to re-derive
+    // why this holds:
+    //
+    //   (a) was `aggregate-new`-only — a CHECKER hole. `infer_kwargs_construct_check`
+    //       (check.rs:11597-11727) closed unknown-field/bad-arity/retired-positional-shape for
+    //       `kwargs-construct` by delegating to the prime ctor's own checked call, but
+    //       `infer_aggregate_new_check` never unified the supplied positional values against the
+    //       declared field count, so a wrong arity passed `--check` and only raised at runtime
+    //       (`construct_aggregate`, runtime.rs:15560-15568). CLOSED (check.rs:11516-11607,
+    //       `infer_aggregate_new_check`) — but NOT by mirroring kwargs-construct's synthetic-call
+    //       approach verbatim: `aggregate-new` is invoked in exactly one place architecturally,
+    //       `:T'`'s own generated body (`register_aggregate_methods`, runtime.rs:1510-1559 mints
+    //       EVERY nature's ctor as `(:wat::core::aggregate-new :T field-syms…)`), so checking it
+    //       is always checking a definition against its OWN signature, not a call site. Routing it
+    //       through a synthetic re-call (as first attempted) minted a FRESH instantiation of the
+    //       type's own generics and broke every generic self-constructing type in the stdlib
+    //       (`Bound<S,R>`, `Launched<S,R,Sh,Lu>`, `Cache::Entry<K,V>`, …); the fix instead unifies
+    //       each field value against the scheme's RAW (un-instantiated) `params` and returns its
+    //       raw `ret` unchanged — see that function's own doc for the full account.
+    //   (b) BOTH verbs, for `Nature::HolonRecord` — a FREEZE-TIME-closeable hole, not a checker
+    //       one: `bundle_capacity_verdict` (runtime.rs, `pub(crate)`) checks a type's declared
+    //       field count against `ctx.capacity`, and BOTH are freeze-time constants per TYPE (not
+    //       per call or per instance), so a program that clears it can never reach the runtime
+    //       raise for that type again. CLOSED by `freeze::validate_holon_record_capacity`
+    //       (freeze.rs), a new post-registration pass mirroring `validate_aggregate_containment`'s
+    //       own timing, called from `FrozenWorld::freeze` right after `EncodingCtx` resolves
+    //       `dim_count` — rejecting STARTUP (`TypeErrorKind::HolonRecordCapacityExceeded`) for any
+    //       over-budget HolonRecord before any rule ever compiles. The runtime check in
+    //       `build_holon_hologram` is now an unreachable backstop, kept as defense in depth rather
+    //       than removed (a program that reaches `fire-rules` at all has, by definition, already
+    //       cleared freeze).
+    //
+    // `total?` is still UNARMED at both `compile-condition` and `then-item-fence` (#57's own
+    // work), so this entry costs nothing operationally today either way — but it is recorded as
+    // `true` because it now genuinely IS, with both closures on the board, not because the axis
+    // happens not to be consulted yet.
+    if head == ":wat::core::aggregate-new" || head == ":wat::core::kwargs-construct" {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
         head,
@@ -1207,7 +1271,6 @@ mod completeness_gate {
     ":wat::core::Result/expect",
     ":wat::core::Result/try",
     ":wat::core::Tuple",
-    ":wat::core::aggregate-new",
     ":wat::core::ann-form",
     ":wat::core::apply",
     ":wat::core::assoc",
@@ -1223,7 +1286,6 @@ mod completeness_gate {
     ":wat::core::forms",
     ":wat::core::keyword/from-string",
     ":wat::core::keyword/to-string",
-    ":wat::core::kwargs-construct",
     ":wat::core::last",
     ":wat::core::macroexpand",
     ":wat::core::macroexpand-1",

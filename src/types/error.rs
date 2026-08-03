@@ -212,6 +212,21 @@ pub enum TypeErrorKind {
         field: String,
         field_ty: String,
     },
+
+    /// BRIEF-construction-inside-a-fn.md, gap (b) — a `HolonRecord` aggregate's OWN
+    /// declared field count exceeds the encoding budget (`floor(sqrt(dim_count))`,
+    /// `bundle_capacity_verdict`, runtime.rs) at the dimension the program is frozen at.
+    /// Both `field_count` (a property of the TYPE's declaration) and `budget` (a property
+    /// of the frozen `EncodingCtx`) are freeze-time constants for a given program — not a
+    /// per-call-site or per-instance quantity — so every construction of this type would
+    /// fail identically at runtime (`build_holon_hologram`); refused at freeze instead so
+    /// the failure is reported once, at start, naming the type, rather than at the first
+    /// `:then`/`aggregate-new` call that happens to reach it.
+    HolonRecordCapacityExceeded {
+        aggregate: String,
+        field_count: usize,
+        budget: usize,
+    },
 }
 
 
@@ -334,6 +349,14 @@ impl fmt::Display for TypeErrorKind {
                  {field_ty:?}, which cannot be reconstructed from EDN bytes across an address-space \
                  boundary. Declare the enum :wat::enum::Impure if it must hold a live resource (it then \
                  stays in shared memory and never crosses)."
+            ),
+            TypeErrorKind::HolonRecordCapacityExceeded { aggregate, field_count, budget } => write!(
+                f,
+                "holon record {aggregate:?} declares {field_count} fields, exceeding the encoding \
+                 budget of {budget} (floor(sqrt(dim_count)) at this program's configured \
+                 dimension) — every construction of this type would fail this same capacity check \
+                 at runtime; reduce the field count or raise the encoding dimension \
+                 (:wat::config::set-dim-count!)."
             ),
         }
     }

@@ -1,0 +1,15 @@
+;; tests/rete/probe_construction_arity_check_rejects.wat.bad — BRIEF-construction-inside-a-fn.md,
+;; gap (a) closure proof. `infer_aggregate_new_check` (check.rs) used to accept ANY positional
+;; arity for `:wat::core::aggregate-new` (it read the ctor's registered return type without ever
+;; unifying the supplied VALUES against the declared field count) — a wrong-arity direct call
+;; passed `--check` clean and only raised `ArityMismatch` at runtime (`construct_aggregate`,
+;; runtime.rs). `:caz::Rate` declares TWO fields; this supplies ONE. Must now be a `--check`-time
+;; rejection, located at the call site, naming `:wat::core::aggregate-new` and the arity.
+;; Loaded via `startup_from_file`, which runs check as part of the pipeline — a `.wat.bad` fixture
+;; is expected to fail to load, per the repo's own `.wat.bad` convention (see e.g.
+;; tests/resolve/probe_arc251_implicit_generics_bare.wat.bad).
+
+(:wat::core::defrecord :caz::Rate [count <- :wat::core::i64 window <- :wat::core::i64])
+
+(:wat::core::defn :user::bad [] -> :caz::Rate
+  (:wat::core::aggregate-new :caz::Rate 1))

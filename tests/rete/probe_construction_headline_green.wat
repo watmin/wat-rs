@@ -1,0 +1,41 @@
+;; tests/rete/probe_construction_headline_green.wat — BRIEF-construction-inside-a-fn.md, the
+;; HEADLINE Stone B was blocked on (ac90d262): a `defn` that CONSTRUCTS and RETURNS a fresh
+;; record from bound `:then` terms, not merely extracts an existing one
+;; (`probe_arc278_then_user_forms_userfn.wat`'s own doc explains why THAT fixture had to work
+;; around this exact gap). `:cg::make-rate`'s body is `(:cg::Rate :count c :window w)`, which
+;; macro-expands to `:wat::core::kwargs-construct` — the verb classification this brief closes.
+
+(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
+(:wat::core::defrecord :cg::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
+
+(:wat::core::defn :cg::make-rate
+  [c <- :wat::core::i64
+   w <- :wat::core::i64]
+  -> :cg::Rate
+  (:cg::Rate :count c :window w))
+
+(:wat::rete::defrule :cg::gather
+  :when [(:cg::Anchor (?x <- :x))]
+  :then [(:cg::make-rate 7 9)])
+
+;; Fires via the WAT ORACLE.
+(:wat::core::defn :user::run-oracle [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :cg)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:cg::Anchor :x 0))
+     fired   (:wat::rete::fire-rules-spec session)
+     derived (:wat::rete::query-by-type-string fired "cg::Rate")
+     r       (:wat::core::first derived)]
+    (:cg::Rate/count r)))
+
+;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
+(:wat::core::defn :user::run-native [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :cg)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert' session (:cg::Anchor :x 0))
+     fired   (:wat::rete::fire-rules' session)
+     derived (:wat::rete::query-by-type-string fired "cg::Rate")
+     r       (:wat::core::first derived)]
+    (:cg::Rate/count r)))
