@@ -636,6 +636,77 @@ a false blocker stays visible.)*
    (`is_pure_expr` / `is_deterministic_expr` already exist in `purity.rs`). **Its own small stone, not
    a blocker on anything.**
 
+## ✅ CORRECTED 2026-08-02 — `fn` IS mirrorable, and the structural guards BYPASS the fence
+
+Two corrections, both grounded after #56 landed. The second is the load-bearing one.
+
+### 1. The `fn`-is-categorically-harder claim is RETRACTED
+
+#56's rider STOP-3'd `fn`, reporting that a rete-named `fn` "would likely never register as
+callable" because `runtime.rs`'s `try_parse_fn_shape_def` matches the literal `:wat::core::fn`. The
+orchestrator relayed that to the builder without weighing it — the exact failure
+`[[feedback_weigh_subagent_findings_never_relay]]` exists to prevent.
+
+**It is a claim about the DEF path, and it does not touch an anonymous lambda.** Proven by run: an
+anonymous `fn` passed straight to `foldl` — never bound, never in a `def` — evaluates fine.
+
+| cited site | what it actually is | effect on a rete `fn` |
+|---|---|---|
+| `try_parse_fn_shape_def` (+ variadic sibling) | recognises **`(def :name (fn …))`**, the definition shape only | irrelevant — nobody writes `(def :name (rete-fn …))`; definitions use `defn` at top level |
+| `is_fn_form_expr` (`check.rs:520`) | suppresses a **duplicate diagnostic** | cosmetic; worst case a doubled `ReturnTypeMismatch :anonymous` |
+| two arc-212 walkers (`check.rs:1654`/`:1735`) | treat `fn`/`let` as **scope boundaries**, stop descending | narrow, process-spawn path only — the task-#60 class |
+
+⇒ **`fn` is the same size as `match` was:** one `infer_rete_form` arm → `crate::function::infer_fn`
+(already a clean helper, exactly like `infer_if`/`infer_let`/`infer_match`), one `resolve_core_name`
+widening at `purity.rs:775`, one `RETE_OPS` row. **Runtime: nothing** — the generic re-dispatch
+reaches `eval_fn`, and a `fn` form never tail-calls so `eval_tail` is not involved.
+
+The builder's target form, in both spellings:
+
+```clojure
+;; today
+(:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::rete::i64::+ 0 x :undefined -1))
+
+;; the future surface
+(wat.rete.core/fn [x :- wat.type/i64] :- wat.type/i64
+  (wat.rete.i64/+ 0 x :undefined -1))
+```
+
+Note the module: `+` is **`rete::i64::+`**, not `rete::core::+`. Core's `+` is a defclause dispatch
+over types; the rete surface is per-type by construction, which is the same reason the admission
+test is a MODULE SET and not a bare prefix.
+
+### 2. ★ THE STRUCTURAL GUARDS NEVER REACH THE ADMISSION TEST
+
+`head_ok` is called from **exactly one site** — `purity.rs:803`, inside `classify_expr`'s
+generic-call arm. The three structural arms (`cond` `:718`, `match` `:745`, `fn` `:775`) match
+*earlier* in the same `match` and return without ever reaching it.
+
+⇒ **Arming law A would NOT refuse `(:wat::core::match …)`, `(:wat::core::fn …)` or
+`(:wat::core::cond …)` inside a `where`.** They bypass the fence entirely.
+
+So this stone's own sentence — *"a `where` admits only `:wat::rete::` ops"* — is **false for three
+forms**, and mirroring them does not by itself make it true. Two readings:
+
+- **(1) The mirrors are uniformity.** Core structural forms stay admissible; a `where` may mix.
+  *Obvious?* NO — a reader cannot explain why `(:wat::core::match …)` passes while
+  `(:wat::core::i64::+ …)` is refused. *Honest?* NO — the stone's headline sentence stays false.
+- **(2) Arming means the structural arms require the RETE name.** One rule, no exceptions:
+  everything in a `where` is rete-namespaced. *Obvious?* YES. *Honest?* YES.
+
+**(2) wins on the four questions, and it makes the mirrors load-bearing rather than cosmetic** — the
+rete name must EXIST before an armed structural arm can require it. Consequence, stated so it is not
+discovered later: **#57's corpus migration grows by the structural-form sites** — `match` 6 uses,
+`fn` 4, `cond` 0 → ~10 more, on top of the 14-rename / 25-mint split already measured.
+
+**⛔ BUILDER'S CALL — this expands #57's scope.** The `fn` mirror is worth landing either way (it is
+two small edits and it closes S5); what needs ruling is whether arming flips the structural arms to
+rete-only.
+
+*Honest caveat: the bypass is established by reading the single `head_ok` call site and the arm
+order — NOT by observing a refusal, which is impossible while the fence is unarmed.*
+
 ## Open — the builder's
 
 1. **The sigma-fn purity gate** — should `set-presence-sigma!` / `set-coincident-sigma!` require the installed fn to be pure ∧ deterministic at freeze? (Small, closable in one call; see the retraction above. NOT a blocker.)
