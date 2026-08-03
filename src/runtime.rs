@@ -3849,6 +3849,13 @@ fn eval_tail(
                 // for eval_tail's caller (apply_function trampoline uses bare Value).
                 ":wat::core::let" => eval_let_tail(args, &list_span, env, sym).map(|tv| tv.value_owned()),
                 ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
+                // Arc 278 #59 — `and`/`or`/`ann-form` mirror the `if`/`match`/`let`/`do` pattern
+                // above: each is a legitimate tail context (see eval_and_tail/eval_or_tail/
+                // eval_ann_form_tail's docs for what each one does and, for and/or, the RULED
+                // trade this makes).
+                ":wat::core::and" => eval_and_tail(args, &list_span, env, sym),
+                ":wat::core::or" => eval_or_tail(args, &list_span, env, sym),
+                ":wat::core::ann-form" => eval_ann_form_tail(args, &list_span, env, sym),
                 // A user-defined function call in tail position — signal.
                 // Head resolves in sym.functions; anything else (kernel/
                 // algebra/config primitive, :rust:: shim) runs through
@@ -4108,6 +4115,104 @@ fn eval_match_tail(
     Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::PatternMatchFailed {
         value_type: scrutinee.type_name()
     }).into())
+}
+
+/// Tail-position twin of [`eval_and`]. Mirrors [`eval_if_tail`]'s shape: every operand but the
+/// LAST keeps `eval_and`'s ordinary strict, checked evaluation (short-circuiting `false`); the
+/// last operand is handed to [`eval_tail`] so a self- or mutually-recursive tail call underneath
+/// it reuses the native stack frame instead of growing it.
+///
+/// **Arc 278 #59 — the RULED weakening (builder, 2026-08-02), documented rather than hidden per
+/// this arc's law that nothing weakens quietly.** `eval_and` type-checks EVERY operand at runtime
+/// and raises a located `TypeMismatch` on a non-bool. Tail-calling the last operand means its
+/// value is never inspected here, so `eval_and_tail` cannot raise that check on the last operand —
+/// there is no shape that keeps both the check and the TCO, and the TCO was chosen. This is safe
+/// in all STATICALLY CHECKED source: `infer_boolean_shortcircuit` (check.rs) already forces every
+/// `and` operand, including the last, to `:bool` before eval ever runs, so the runtime check this
+/// skips is belt-and-braces duplicating a checker guarantee there. The difference is observable
+/// only on a path that reaches the runtime WITHOUT going through that checker — `:wat::eval-ast!`
+/// evaluates a `WatAST` value at runtime with no type-check pass ("trust-the-caller"), and a
+/// `:wat::core::fn` literal built inside a `quote` is never visited by the checker at all (only
+/// its own call site's result type is checked, not its body). Pinned by
+/// `and_or_tail_skip_the_last_operand_check_on_the_unchecked_eval_ast_path` in
+/// `tests/rete/probe_arc278_59_tco_and_or_ann_form.rs`.
+fn eval_and_tail(
+    args: &[WatAST],
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span (mirrors `eval_and`)
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.is_empty() {
+        return Ok(Value::bool(true));
+    }
+    let last = args.len() - 1;
+    for arg in &args[..last] {
+        let arg_span = arg.span().clone();
+        match eval_inner(arg, env, sym)?.value_owned() {
+            Value::bool(false) => return Ok(Value::bool(false)),
+            Value::bool(true) => continue,
+            other => {
+                return Err(RuntimeError::new(arg_span, RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::core::and".into(),
+                    expected: "bool",
+                    got: Box::new(ValueSnapshot::of(&other))
+                }).into())
+            }
+        }
+    }
+    eval_tail(&args[last], env, sym)
+}
+
+/// Tail-position twin of [`eval_or`]. Sibling of [`eval_and_tail`] — same shape (short-circuit on
+/// every operand but the last, tail-call the last), same RULED weakening (last operand's runtime
+/// bool check is traded for TCO; see `eval_and_tail`'s doc for the full rationale and the pinning
+/// test, `and_or_tail_skip_the_last_operand_check_on_the_unchecked_eval_ast_path`).
+fn eval_or_tail(
+    args: &[WatAST],
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span (mirrors `eval_or`)
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.is_empty() {
+        return Ok(Value::bool(false));
+    }
+    let last = args.len() - 1;
+    for arg in &args[..last] {
+        let arg_span = arg.span().clone();
+        match eval_inner(arg, env, sym)?.value_owned() {
+            Value::bool(true) => return Ok(Value::bool(true)),
+            Value::bool(false) => continue,
+            other => {
+                return Err(RuntimeError::new(arg_span, RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::core::or".into(),
+                    expected: "bool",
+                    got: Box::new(ValueSnapshot::of(&other))
+                }).into())
+            }
+        }
+    }
+    eval_tail(&args[last], env, sym)
+}
+
+/// Tail-position twin of [`eval_ann_form`]. A type ascription is a pure, checked, type-erased
+/// pass-through — the wrapped expression's value is returned untouched — so TCO here is
+/// observationally free. Unlike `eval_and_tail`/`eval_or_tail`, nothing is skipped or weakened:
+/// the arity guard is unconditional (mirrors `eval_ann_form`) and the wrapped expression is handed
+/// to `eval_tail` exactly as `eval_ann_form` hands it to `eval_inner`.
+fn eval_ann_form_tail(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::ann-form".into(),
+            expected: 2,
+            got: args.len()
+        }).into());
+    }
+    eval_tail(&args[0], env, sym)
 }
 
 /// Evaluate a single form in the given scope. Internal implementation;
