@@ -1,0 +1,160 @@
+;; process-signal-vocabulary.wat — the naming target for the owner->child signal surface
+;; (arc 278, DESIGN-STONE-process-signal-owner-to-child.md, ruled 2026-08-03).
+;;
+;; THREE THINGS NEED NAMES. They are weighed together because they appear together at one use site.
+;;
+;;   1. THE VERB      — an owner signals the child process it spawned.
+;;   2. THE SIGNAL    — a CLOSED SET of what an owner may send  => an enum.
+;;   3. THE OUTCOME   — a matchable value, never a raise        => an enum.
+;;
+;; ── WHAT THE VERB DOES (so the name can be honest about it) ────────────────────────────────────
+;;
+;; Given a Process' the caller ALREADY HOLDS (it spawned the child), deliver a signal to that
+;; child's process. Delivery routes through the kernel Pidfd the peer holds — NEVER kill(pid),
+;; which our own clone.rs:215-216 documents as unsafe ("this PID may be reused").
+;;
+;;   - It is OWNER->CHILD. Holding the Process' IS the capability; you cannot signal what you did
+;;     not spawn. There is no :restricted-to gate — the value is the wall (ocap).
+;;   - It is on Process', NOT Peer'. Peer' is the parent of Thread' AND Process'; a thread peer has
+;;     no process to signal and the flags are process-global, so a Peer'-typed verb would be PARTIAL
+;;     (a domain hole named "the peer is a thread"). On Process' it is TOTAL.
+;;   - It is IMPURE (an effect on another process) and NOT total-in-the-fence sense — it returns an
+;;     outcome because the child may already be gone.
+;;
+;; ── SIBLING VERBS it sits beside (the peer surface — anchors for register + the prime convention) ─
+;;
+;;   (:wat::kernel::send'    peer msg)   -> SendOutcome
+;;   (:wat::kernel::recv'    peer)       -> RecvOutcome<O>
+;;   (:wat::kernel::connect' addr)       -> ConnectOutcome<S,R>
+;;   (:wat::kernel::accept'  listener)   -> AcceptOutcome<R,S>
+;;   (:wat::kernel::close'   peer)       -> CloseOutcome
+;;   (:wat::kernel::poll'    peers)      -> ServiceEvent<...>
+;;
+;; ⚠ THE PRIME `'` IS A REAL QUESTION, NOT DECORATION. Every peer verb above carries it. Weigh
+;; whether this one does — and say WHY, because the convention's meaning must not be guessed at.
+;;
+;; ── WHERE IT COULD LIVE (the namespace is part of the name) ────────────────────────────────────
+;;
+;;   :wat::kernel::  — where every peer verb above lives; the raw IPC surface.
+;;   :wat::spawn::   — where spawn-program' / ProcessOpts / ProcessLaunch live; the LAUNCH surface.
+;;                     Note `:wat::spawn::process/post-spawn` already exists (a ProcessOpts builder),
+;;                     so a `process/` segment here has precedent — but that precedent is for
+;;                     OPTIONS BUILDERS, not for verbs acting on a live Process'.
+;;
+;; ⚠ PRECEDENT CHECK, GROUNDED: there is currently NO verb anywhere in wat/*.wat that acts on a
+;; live Process'/Peer' VALUE by that noun (only `:wat::kernel::` verbs taking a peer as an argument).
+;; So there is no house style to inherit here — this cast is doing real work, not rubber-stamping.
+;;
+;; ── THE SIGNAL SET — CLOSED, AND IT NAMES WHAT THE HANDLER DOES ────────────────────────────────
+;;
+;; A wat program has NEVER thought in signal integers. Its model is the three user-signal predicates
+;; and the stop predicate. So the variants should name the OBSERVABLE EFFECT IN WAT, not POSIX.
+;;
+;;   what we send   what the child's installed handler does      what the child then observes
+;;   ------------   -----------------------------------------    ----------------------------
+;;   SIGUSR1        substrate_on_sigusr1 -> KERNEL_SIGUSR1        (:wat::kernel::sigusr1?)  => true
+;;   SIGUSR2        substrate_on_sigusr2 -> KERNEL_SIGUSR2        (:wat::kernel::sigusr2?)  => true
+;;   SIGHUP         substrate_on_sighup  -> KERNEL_SIGHUP         (:wat::kernel::sighup?)   => true
+;;   SIGTERM        substrate_on_stop_signal -> KERNEL_STOPPED    (:wat::kernel::stopped?)  => true
+;;
+;; ★★ BUILDER'S RULING 2026-08-03, LOAD-BEARING FOR THE NAMING:
+;;    "we map SIG{INT,TERM} to stopped .... we treat them as equal in wat..."
+;;
+;;    So the stop variant is ONE variant, not two. SIGINT and SIGTERM are the SAME THING in wat's
+;;    model — both reach substrate_on_stop_signal, both surface as (stopped?). This DISQUALIFIES
+;;    `Interrupt` and `Terminate` as variant names: each would imply a POSIX distinction the
+;;    substrate deliberately refuses to make, and a name that implies a distinction that does not
+;;    exist is a name that does not keep its promise. The variant must name the wat-level meaning.
+;;    (Delivery picks SIGTERM as the wire signal — an implementation fact, not a semantic one.)
+;;
+;; NOT IN THE SET, deliberately, and each is a separate question the cast should NOT try to settle:
+;;   SIGKILL — the builder's open call (ChildHandle's Drop already sends it, handle.rs:138).
+;;   SIGINT  — collapsed into the stop variant by the ruling above.
+;;
+;; ── THE OUTCOME — SHIPPED SIBLINGS ARE THE ANCHOR (do not invent a new shape) ──────────────────
+;;
+;;   :wat::kernel::SendOutcome         Sent | Closed | Lost[cause <- Failure]
+;;   :wat::kernel::RecvOutcome<O>      Message[..] | Closed | Lost[cause]
+;;   :wat::kernel::CloseOutcome        Closed[exit <- Option<i64>] | Signaled[signal <- i64] | Failed[cause]
+;;   :wat::kernel::ConnectOutcome<S,R> Connected[peer] | Refused[cause] | Rejected[cause] | Failed[cause]
+;;
+;; ⚠ NOTE THE TENSION worth a verdict: CloseOutcome ALREADY reports a signal, as a BARE i64
+;; (`Signaled [signal <- i64]`, types.rs:1747). That is the RECEIVE side — "the child was killed by
+;; signal N", where N may be any signal from anywhere, so an open i64 is honest there. This new verb
+;; is the SEND side — a closed set of what WE may send, so an enum is honest here. Weigh whether two
+;; different spellings of "a signal" across one substrate is a defensible asymmetry (open domain vs
+;; closed domain) or an inconsistency that will read as sloppy at the use site.
+;;
+;; THE OUTCOME'S ARMS (the middle one is CONDITIONAL — STOP-2 in the stone requires proving ESRCH is
+;; reachable through a pidfd before the arm is minted; an unreachable arm accumulates lies):
+;;   delivered          — the signal reached the child
+;;   already-gone       — the child had already exited (ESRCH); a REAL race the owner must face
+;;   failed[cause]      — io failure
+;; Must-never-happen stays a RAISE: EINVAL (unrepresentable — the enum forbids it), EBADF (our bug).
+
+;; ── CANDIDATE NAMES — which one KEEPS ITS PROMISE at the use site? ─────────────────────────────
+;;
+;; THE VERB — the use site reads:  (<verb> proc <signal>)  where proc <- Process<I,O>
+;;
+;;   signal        — bare, obvious, reads as the noun-as-verb. Beside send'/recv' does it fit?
+;;                   But `signal` is also a NOUN here (the 2nd argument IS a signal) — does the verb
+;;                   colliding with its own argument's kind muddy the form?
+;;   send-signal   — mirrors the Rust below (Pidfd::send_signal). Explicit, but `send'` already means
+;;                   "put a message on the peer's channel" — does `send-signal` read as a channel
+;;                   send with a signal payload? That would be a lie.
+;;   raise         — TAKEN. `:wat::kernel::raise!` is the language-level panic. Disqualified.
+;;   kill          — POSIX-faithful and instantly obvious to a systems reader — but it says
+;;                   TERMINATE, and three of the four signals do NOT terminate anything. A name that
+;;                   describes a minority of its own domain.
+;;   notify        — names the effect for the three user signals (the child observes a flag) but is
+;;                   wrong for stop. Does the stop variant break it?
+;;   interrupt     — same problem inverted, and collides with the SIGINT word the ruling just merged.
+;;
+;; THE SIGNAL ENUM TYPE:
+;;   Signal            — bare, obvious; but is it too broad (it is NOT "any POSIX signal", it is the
+;;                       four an owner may send)?
+;;   OwnerSignal       — names WHO may send it; honest about the closed set, heavier at the use site.
+;;   ProcessSignal     — names the target's kind.
+;;   Notification      — names the effect, loses "signal" entirely; too soft for stop?
+;;
+;; THE SIGNAL ENUM VARIANTS (name the wat-level effect, per the ruling above):
+;;   {User1, User2, Hangup, Stop}        — terse; `Stop` matches (stopped?) exactly.
+;;   {Usr1, Usr2, Hup, Term}             — POSIX-abbreviated; rejected? (it re-imports the vocabulary
+;;                                          the substrate spent arcs replacing, and `Term` reopens
+;;                                          the INT/TERM distinction the ruling closed)
+;;   {SigUsr1, SigUsr2, SigHup, Stop}    — matches the PREDICATE names (sigusr1?/sigusr2?/sighup?)
+;;                                          the child uses to observe them — the strongest
+;;                                          call/response pairing? But mixes registers with `Stop`.
+;;   {Wake1, Wake2, Reload, Stop}        — names INTENT rather than mechanism (SIGHUP conventionally
+;;                                          means reload). Honest, or presumptuous about what a user
+;;                                          means by a user-signal?
+;;
+;; ⚠ THE STRONGEST CONSTRAINT ON THE VARIANT NAMES, weigh it explicitly: the child OBSERVES these
+;; through `(sigusr1?)` / `(sigusr2?)` / `(sighup?)` / `(stopped?)`. The send-side name and the
+;; observe-side predicate are two halves of ONE round trip, and a reader will hold both in view:
+;;       owner:  (<verb> proc <variant>)
+;;       child:  (:wat::kernel::sigusr1?)
+;; Which variant naming makes that pairing self-evident WITHOUT renaming the shipped predicates?
+;;
+;; THE OUTCOME ENUM TYPE + VARIANTS (anchored on the four shipped siblings above):
+;;   SignalOutcome     Delivered | Gone[cause] | Failed[cause]
+;;   SignalOutcome     Sent      | Gone[cause] | Failed[cause]     ; `Sent` mirrors SendOutcome::Sent
+;;   SignalOutcome     Delivered | Exited[cause] | Failed[cause]
+;;   SignalOutcome     Delivered | Closed | Failed[cause]          ; `Closed` mirrors Send/RecvOutcome
+;; Weigh: does reusing `Sent`/`Closed` from SendOutcome help (one vocabulary) or hurt (a signal is
+;; not a message, and `Closed` means "the channel closed", not "the process exited")?
+
+;; ── THE PROBE FORM — the name goes here; judge it at THIS use site ─────────────────────────────
+;;
+;; (:wat::core::defn :naming::PROBE
+;;   [proc <- :wat::kernel::Process<:wat::core::i64,:wat::core::i64>]
+;;   -> :wat::kernel::SIGNAL-OUTCOME-NAME
+;;   (:wat::core::match (<VERB-NAME> proc <SIGNAL-TYPE>::<USER1-VARIANT>)
+;;     (<SIGNAL-OUTCOME>::<DELIVERED-VARIANT> nil)
+;;     ((<SIGNAL-OUTCOME>::<GONE-VARIANT>   c) nil)
+;;     ((<SIGNAL-OUTCOME>::<FAILED-VARIANT> c) nil)))
+;;
+;; And the round trip a reader holds in view, which is the real test of the naming:
+;;
+;;   owner side:  (<VERB-NAME> proc <SIGNAL-TYPE>::<USER1-VARIANT>)
+;;   child side:  (:wat::kernel::sigusr1?)          ; SHIPPED — not renameable by this cast
