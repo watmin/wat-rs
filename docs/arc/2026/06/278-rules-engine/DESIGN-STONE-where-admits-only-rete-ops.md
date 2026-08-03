@@ -271,14 +271,52 @@ deliberate-RED impure/nondeterministic heads**, which must stay refused.
 | **UNSURE — audit, do not guess** | generic `>` (13) · generic `>=` (1) · generic `+` (1) · `PersistentMap/contains-key?` (1) · `f64::>` (2, and NOT in this document's f64 row — a gap in the table, not the census) |
 | **alias — the HOF combinators** | `foldl` (4) **and its four siblings `foldr` / `map` / `filter` / `reduce`, minted together whether or not the census found each one used.** They are core primitives, they are not rete, so rete provides them — same rule as `i64::+`. Their meta is *conditionally* pure ∧ det ∧ total (the axis falls out of the walk into the fn-argument); the rete rows inherit that unchanged. Paired with the `Native`-door ordering fix — see "THE HOF COMBINATORS ARE PRIMITIVES" above — which is what makes the core spelling actually refuse. |
 
-**★ THE GENERIC-VS-PER-TYPE SPELLING, and it is the census's real prize.** The corpus uses BOTH
-`:wat::core::i64::>` (mirrored) and bare `:wat::core::>` (not). They are **distinct heads**. Generic
-`<` is in the `total` audit; generic `>`/`>=` are not — an asymmetry the audit's own comment admits is
-corpus-driven rather than derived, which is survivorship exactly as this document warns about
-elsewhere. And a generic head is a **defclause dispatch over types**, while the rete surface is
-per-type *by construction* — the same fact that makes the admission test a MODULE SET. So these cannot
-simply be mirrored: either the sites migrate to the per-type spelling, or the rete surface needs a
-dispatch it was designed not to have. **Ruling owed before round 1.**
+### ★★ RULED 2026-08-03 — THE RETE SURFACE IS PER-TYPE, PERIOD. No generic dispatch, ever.
+
+> *"The sites migrate to per-type spelling — rete is per-type, period."*
+
+The census found the corpus uses BOTH spellings inside a `where`: `:wat::core::i64::>` (mirrored) and
+bare `:wat::core::>` (not). **21 sites** — generic `>` 13 · `<` 6 · `>=` 1 · `+` 1. Distinct heads;
+the rete mirror exists only for the per-type form.
+
+**They migrate. Rete never grows a generic dispatch.** And the reason is TOTALITY, not style and not
+compilability — which matters, because two weaker arguments were tried first and both were wrong:
+
+```rust
+// eval_compare (runtime.rs) — the generic comparator
+let order = match values_compare(&a, &b) {
+    None => return Err(… RuntimeErrorKind::TypeMismatch …),   // incomparable operands
+```
+
+**Generic `>` is PARTIAL.** Its domain hole is *"these two operands are not comparable."* `i64::>` has
+no such hole — any two i64s compare. **Monomorphising does not merely make it faster; it deletes the
+domain hole.** Per-type IS the total version. A generic rete comparator would have to carry an
+`:undefined` or return an outcome enum to be admissible at all — strictly worse ergonomics than naming
+the type.
+
+Arithmetic reaches the same ruling by its own route: the fallback differs BY TYPE (`i64::+` overflows,
+`f64::+` reaches ±Inf), so one generic `:undefined` cannot serve both.
+
+**⛔ Two mechanism claims in this document were wrong; both are corrected here rather than deleted.**
+
+1. An earlier revision of this section called the generic comparator *"a defclause dispatch over
+   types."* **It is not.** `:wat::core::>` is a **native polymorphic comparator** dispatching inside
+   `eval_compare`. The `defclause` claim is true of `:wat::core::+` (`wat/core.wat:58`) and was
+   wrongly generalised to the comparators.
+2. The first argument offered for per-type was **compilability** — "a jump table needs monomorphic
+   ops." That is **not sufficient**: a polymorphic compare can perfectly well be one opcode that does
+   a type match internally. The argument only became decisive on reading `eval_compare` and finding
+   the raise.
+
+**MIGRATION COST — hand work, NOT a codemod.** A textual rename cannot know an operand's type, and
+per-type spelling requires it. 21 sites, hand-checkable; a grep of the nine differential-corpus files
+found exactly **one**, so the remainder live in probes and tests. Budget them individually.
+
+**⚠ Still open, folds into round 1:** four heads the census marked UNSURE rather than guessing —
+generic `>` / `>=` / `+` (their per-type twins are audited; the generics are not),
+`PersistentMap/contains-key?` (pure ∧ det but absent from the corpus-audited `total` list, unlike its
+`PersistentVector` sibling), and `f64::>` (**not in this document's f64 row at all** — a gap in the
+table, not in the census). Each needs a totality audit, same discipline as #52.
 
 **Three claims in this document, now settled:**
 
