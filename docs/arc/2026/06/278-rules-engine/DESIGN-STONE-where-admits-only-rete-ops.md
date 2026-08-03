@@ -686,23 +686,54 @@ generic-call arm. The three structural arms (`cond` `:718`, `match` `:745`, `fn`
 ⇒ **Arming law A would NOT refuse `(:wat::core::match …)`, `(:wat::core::fn …)` or
 `(:wat::core::cond …)` inside a `where`.** They bypass the fence entirely.
 
-So this stone's own sentence — *"a `where` admits only `:wat::rete::` ops"* — is **false for three
-forms**, and mirroring them does not by itself make it true. Two readings:
+**This is NOT a safety hole, and the first draft of this section wrongly implied one.** Everything
+*inside* a structural form still reaches `head_ok` — the scrutinee, every arm body, the `fn` body.
+The fence polices every OPERATION in a `where`; what escapes it is only the syntax keyword wrapping
+them, and `match` computes nothing. Nothing about core `match` is broken.
 
-- **(1) The mirrors are uniformity.** Core structural forms stay admissible; a `where` may mix.
-  *Obvious?* NO — a reader cannot explain why `(:wat::core::match …)` passes while
-  `(:wat::core::i64::+ …)` is refused. *Honest?* NO — the stone's headline sentence stays false.
-- **(2) Arming means the structural arms require the RETE name.** One rule, no exceptions:
-  everything in a `where` is rete-namespaced. *Obvious?* YES. *Honest?* YES.
+What it means is narrower and it is about **closure**: this stone's own sentence — *"a `where` admits
+only `:wat::rete::` ops"* — is false for three forms, and we were heading for **two legal spellings
+of `match` in a `where`, forever** (core's, which works today with 6 corpus uses, and #56's rete
+mirror). That is the `()`-vs-`nil` shape arc 179 has just finished killing: *a second spelling of
+one thing is a second door around every wall built on the first.*
 
-**(2) wins on the four questions, and it makes the mirrors load-bearing rather than cosmetic** — the
-rete name must EXIST before an armed structural arm can require it. Consequence, stated so it is not
-discovered later: **#57's corpus migration grows by the structural-form sites** — `match` 6 uses,
-`fn` 4, `cond` 0 → ~10 more, on top of the 14-rename / 25-mint split already measured.
+### ★★ RULED 2026-08-02 (builder, ratified) — EVERYTHING IN A `where` IS RETE-NAMESPACED
 
-**⛔ BUILDER'S CALL — this expands #57's scope.** The `fn` mirror is worth landing either way (it is
-two small edits and it closes S5); what needs ruling is whether arming flips the structural arms to
-rete-only.
+> *"it feels like wat-core's match shouldn't be used and wat-rete's match should be…? we're building
+> a complete DSL for rete querying?"*
+
+Yes. **A complete DSL is closed over its own vocabulary** — SQL's `CASE` is SQL's; you do not drop
+into the host language for the conditional. A `where` that reaches into `:wat::core::` for its syntax
+is not a DSL, it is wat with a list of restrictions — and "a list of restrictions" is exactly what
+the closed set exists to replace.
+
+**The four questions, run against the alternative** ("operations are rete-spelled, syntax stays
+core-spelled; no mirrors for `match`/`fn`/`cond`"):
+
+| | the syntax-stays-core alternative |
+|---|---|
+| **Obvious?** | **NO — and this is what kills it.** `if` and `match` are BOTH syntax, but `if` *must* be mirrored (it reaches `head_ok`) and `match` *needn't* (it does not). So the boundary is not "operation vs syntax" at all — it is *"wherever `classify_expr` happens to have a structural arm."* An implementation detail of the checker, leaking into the surface, underivable without reading `purity.rs`. |
+| **Simple?** | NO — two categories divided by that same invisible line. |
+| **Honest?** | NO — the headline sentence stays false and the exemption is undiscoverable. |
+| **Good UX?** | NO — `(:wat::rete::core::if …)` beside `(:wat::core::match …)` in one `where`, with no statable rule. |
+
+Against one sentence with no exceptions: *inside a `where`, every head is `:wat::rete::…`* — obvious,
+simple, honest, and one namespace to learn. **It also rescues the compilability argument this whole
+stone rests on:** a finite jump table over ONE namespace, not a jump table plus an exception list for
+three forms.
+
+**Consequences, recorded so they are not rediscovered:**
+
+- The mirrors are **prerequisites for arming** — the rete name must exist before an armed structural
+  arm can require it. (The first draft of this section reached that conclusion for the wrong reason,
+  calling them load-bearing because of a "hole." The real reason is DSL closure.)
+- **Arming flips the three structural arms to require the rete name** — a guard change, not a new
+  mechanism. That is #57's work, not #56's.
+- **#57's corpus migration grows by the structural-form sites**: `match` 6 uses, `fn` 4, `cond` 0 →
+  ~10 more, on top of the measured 14-rename / 25-mint split.
+- **#56's `match` row was right.** It stays.
+- `cond` waits for a caller (zero corpus demand). B does not require mirroring preemptively — only
+  that whatever IS used is rete-spelled.
 
 *Honest caveat: the bypass is established by reading the single `head_ok` call site and the arm
 order — NOT by observing a refusal, which is impossible while the fence is unarmed.*
