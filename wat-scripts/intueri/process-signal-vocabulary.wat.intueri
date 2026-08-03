@@ -55,21 +55,41 @@
 ;;   SIGUSR1        substrate_on_sigusr1 -> KERNEL_SIGUSR1        (:wat::kernel::sigusr1?)  => true
 ;;   SIGUSR2        substrate_on_sigusr2 -> KERNEL_SIGUSR2        (:wat::kernel::sigusr2?)  => true
 ;;   SIGHUP         substrate_on_sighup  -> KERNEL_SIGHUP         (:wat::kernel::sighup?)   => true
+;;   SIGINT         substrate_on_stop_signal -> KERNEL_STOPPED    (:wat::kernel::stopped?)  => true
 ;;   SIGTERM        substrate_on_stop_signal -> KERNEL_STOPPED    (:wat::kernel::stopped?)  => true
 ;;
-;; ★★ BUILDER'S RULING 2026-08-03, LOAD-BEARING FOR THE NAMING:
-;;    "we map SIG{INT,TERM} to stopped .... we treat them as equal in wat..."
+;;   ^ FIVE signals, FOUR observations. SIGINT and SIGTERM are distinct on the wire and identical
+;;     in what the child can see. That is the shape — see the ruling below.
 ;;
-;;    So the stop variant is ONE variant, not two. SIGINT and SIGTERM are the SAME THING in wat's
-;;    model — both reach substrate_on_stop_signal, both surface as (stopped?). This DISQUALIFIES
-;;    `Interrupt` and `Terminate` as variant names: each would imply a POSIX distinction the
-;;    substrate deliberately refuses to make, and a name that implies a distinction that does not
-;;    exist is a name that does not keep its promise. The variant must name the wat-level meaning.
-;;    (Delivery picks SIGTERM as the wire signal — an implementation fact, not a semantic one.)
+;; ★★ BUILDER'S RULING 2026-08-03, LOAD-BEARING FOR THE NAMING — and it was CORRECTED mid-cast.
 ;;
-;; NOT IN THE SET, deliberately, and each is a separate question the cast should NOT try to settle:
+;;    First statement:  "we map SIG{INT,TERM} to stopped .... we treat them as equal in wat..."
+;;    The correction:   "SIGINT and SIGTERM can be named.. independently... but they flow into
+;;                       `stopped?`..."
+;;
+;;    ⛔ THE FIRST READING WAS WRONG AND IS WITHDRAWN. The apparatus read "equal in wat" as "one
+;;    variant, and `Interrupt`/`Terminate` are disqualified names." That CONFLATED two different
+;;    things: *these produce the same observation* is not *these are the same thing*. The shared
+;;    (stopped?) is a HANDLER decision — both reach substrate_on_stop_signal — not an identity
+;;    claim about the signals. SIGINT and SIGTERM are two distinct wire signals with two distinct
+;;    numbers and two distinct conventional meanings.
+;;
+;;    ✅ SO: SIGINT and SIGTERM ARE NAMED INDEPENDENTLY. Two variants, both documented as flowing
+;;    into (stopped?). `Interrupt` and `Terminate` are NOT disqualified — weigh them on their own
+;;    merits like every other candidate.
+;;
+;;    AND NOTE WHY THE COLLAPSE WAS ALSO DISHONEST: a single `Stop` variant has to pick one signal
+;;    to actually put on the wire, and then the form no longer tells the reader WHICH signal went
+;;    out. An `strace`, a `ps`, a non-wat observer, or a future non-wat child all see the
+;;    difference. Naming them separately keeps the wire faithful; documenting the shared landing
+;;    keeps the wat-level collapse stated rather than hidden. Both axes honest.
+;;
+;;    ⚠ The tension this leaves is REAL and the cast should rule on it, not paper over it: two
+;;    variants that produce an IDENTICAL observable in wat invite "which do I use?" with no
+;;    wat-level answer. Does the naming carry that, or does it need the doc comment to carry it?
+;;
+;; NOT IN THE SET, deliberately — a separate question the cast should NOT try to settle:
 ;;   SIGKILL — the builder's open call (ChildHandle's Drop already sends it, handle.rs:138).
-;;   SIGINT  — collapsed into the stop variant by the ruling above.
 ;;
 ;; ── THE OUTCOME — SHIPPED SIBLINGS ARE THE ANCHOR (do not invent a new shape) ──────────────────
 ;;
