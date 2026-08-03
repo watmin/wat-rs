@@ -346,13 +346,37 @@ handler does not run.* That is the mechanism; nothing else is being claimed.
   NOT reap. `ChildHandle::Drop` remains the only unconditional SIGKILL+reap (`handle.rs:17`). A `Kill`
   that also reaps destroys the very thing the variant exists for — killing and then still inspecting.
 
+## ⛔ A CONSTRAINT ON P3/P4, DISCOVERED AT P2 — there is NO wat door into `close`
+
+Found while building row 5's fixture, and grounded by own read at `src/resolve/registration.rs`:
+
+```text
+Absent + namespaced + reserved + Privilege::User -> Reserved
+```
+
+A test fixture is `Privilege::User`, so it **cannot define anything under `:wat::`** — and `close`
+is `#[restricted_to(":wat::kernel::")]`. The `:wat::kernel::`-namespaced helper that would bridge to
+it is refused at *registration*, before `restricted_to` is ever consulted. **So no wat-level fixture
+can reach `close` at all** — not awkwardly, not at all.
+
+**Consequence, and P3 must plan around it rather than rediscover it:** the `Kill` case cannot be
+asserted at the wat surface today. P2's row-5 fixture therefore asserts
+`ExitStatus::Signaled(SIGKILL)` through `peer.wait()` in Rust — the exact mechanism `close` itself
+calls, one layer beneath the unreachable verb. **The kill IS proven delivered and the child proven
+terminated BY SIGKILL; the wat-level `CloseOutcome::Signaled` value is NOT proven constructed.**
+That is an honest degradation, documented in the fixture's own header, and it is the one row of this
+stone that did not ship as specified.
+
+Closing it needs a sanctioned wat path to `close` — its own question, not this stone's, and not
+something to route around with a privilege escape.
+
 ## Strike order
 
 | stone | what | state |
 |---|---|---|
 | ~~**P0**~~ | ~~Cast **intueri** on the vocabulary~~ — **CAST + WEIGHED 2026-08-03.** Target at `wat-scripts/intueri/process-signal-vocabulary.wat.intueri`; verdict folded into § The shape. Its first finding was against the target itself (the stale prime premise), verified by own read and corrected. | ✅ done |
 | **P1** | The RED probe — spawn + attempt signal, fails on exactly the missing head. Committed. | ▶ **startable now** |
-| **P2** | **Mint**: `Signal` (6 variants, 3 tiers) + `SignalOutcome` in `types.rs`, `:wat::kernel::signal` over `Pidfd::send_signal`, the `MUST_USE_TYPES` entry, the tier table as the enum's doc comment. STOP-2 gates `Gone`. | blocked by P1 |
+| ~~**P2**~~ | ~~Mint~~ — **LANDED `ae662ba0`**, weighed by own `--release` re-run. Floor `4342/4342/0/262`, clippy clean, both discard doors refuse, `Gone` NOT minted (STOP-2 held — a zombie's pidfd returns `Ok(())`; ESRCH only after reaping, which only `close` does, and it consumes the peer). Row 4 **broken on purpose** (send `User2`, child checks `sigusr1?`) → RED, then restored byte-exact → green. Row 5 honestly degraded, see the constraint above. | ✅ done |
 | **P3** | The three flag tests → wat deftests over the spawn tooling; the two cause-tests stop touching globals. **The deliberate break runs here.** | blocked by P2 |
 | **P4** | The three `libc::raise(SIGTERM)` harness tests → the same mechanism. | blocked by P3 |
 
