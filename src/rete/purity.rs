@@ -652,75 +652,74 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// unconditionally, matching the expanded forms — the reasoning applies to the ACT of
 /// construction regardless of which of the two syntactic forms (surface or expanded) performs it.
 ///
-/// ## `total` — STAYS `false` at BOTH sites, but now MEASURED, not defaulted, and for DIFFERENT
-/// reasons per site (the two constructs do not fail alike)
+/// ## `total` — NOW `true` at BOTH sites. BRIEF-construction-total-three-walls.md closed the
+/// three fire-time failures `d6c32cf5`'s audit measured (below, for the record — this doc used
+/// to justify `false` with them; it now records what CLOSED each one, so it never ages into a
+/// stale justification the way the pre-audit comment did).
 ///
 /// `b98cf189` earned `total: true` for the EXPANDED forms by closing two checker gaps — (a)
 /// `infer_aggregate_new_check`/`infer_kwargs_construct_check` (check.rs) validate arity/field
 /// names, and (b) `freeze::validate_holon_record_capacity` validates a HolonRecord's dim budget
 /// — both running whenever the CONSTRUCTING CODE (a `defn` body) is itself type-checked. The
-/// surface form's problem is structural, not a missing check to port: a `:then`/`:when` item is
+/// surface form's problem was structural, not a missing check to port: a `:then`/`:when` item is
 /// captured under `(:wat::core::quote …)` by `defrule`'s macro template (`wat/rete.wat:2251`),
 /// and `expand_form`'s recursive macro-expansion walk stops dead at that `quote` boundary
 /// (`src/macros/expand.rs:436-444`) — so the bare surface head is what a `:then`/`:when` item
 /// carries forever, and `--check`'s `infer` does not recurse into quoted data either
 /// (`check.rs:3076-3088`, `:wat::core::quote` returns `:wat::WatAST` without inspecting its
 /// argument). NEITHER of gap (a)'s checkers, nor `--check` generally, ever sees this form. Gap
-/// (b) alone transfers cleanly (it is keyed on the TYPE, at freeze, independent of which call
-/// form constructs it) — it is (a)'s closure that does not carry over, and it does not carry over
-/// identically for the two sites:
+/// (b) alone transferred cleanly (it is keyed on the TYPE, at freeze, independent of which call
+/// form constructs it) — it was (a)'s closure that did not carry over, and it did not carry over
+/// identically for the two sites, so each needed its OWN wall:
 ///
-/// **Aggregate site** — the ONLY freeze-time wall covering a surface aggregate constructor is
-/// `validate_and_reorder_then` (`src/rete/validate.rs:633-751`), and it covers *only* a `:then`
-/// item's OWN top-level `(:Type arg…)` shape — it never recurses into a nested operand that is
-/// itself a call form. Two reachable, EMPIRICALLY CONFIRMED failure modes follow (proof: the
-/// probes cited in the gate list below):
-///   1. A nested surface aggregate constructor (an operand's VALUE, not the `:then` item's own
-///      head — e.g. `:then [(:usr::Outer :inner (:usr::Inner :x 1))]`) compiles clean (pure∧det
-///      both hold) and then dies at FIRE time with `RuntimeErrorKind::UnknownFunction` — every
-///      time, unconditionally, regardless of arity. `resolve_rhs_value`
-///      (`matcher.rs:753-765`) falls through to `eval_rhs_expr` → `eval_inner` → `eval_list` →
-///      `dispatch_keyword_head_value` for any operand that is not `?var`/`:field`/literal; that
-///      generic evaluator has NO arm recognizing a bare aggregate-type keyword as a constructor
-///      (unlike the TOP-level `:then` item, which `build_insert_fact`, matcher.rs:624-681,
-///      special-cases BEFORE ever reaching the generic evaluator) — its final fallback
-///      (runtime.rs:6270-6275) treats an unmatched keyword only as a possible 1-arg field
-///      accessor and otherwise raises `UnknownFunction` (runtime.rs:6274) unconditionally. A
-///      bare aggregate head reached this way can never construct, at any arity.
-///   2. Even at the TOP-level `:then` item the wall is incomplete for the KWARGS RHS shape
-///      specifically: `reorder_kwargs_by_field_name`'s own doc (`validate.rs:269-271`) states a
-///      kwargs RHS "need not cover every field … any field with no matching pair is simply
-///      absent from the output" — an UNDER-SUPPLIED kwargs construction (`(:usr::Rate :count
-///      7)` where `Rate` declares `count`+`window`) passes `validate_and_reorder_then` (every
-///      SUPPLIED name is real; supplying fewer than all is not checked), and
-///      `build_insert_fact`'s fast path (matcher.rs:679) constructs the record with WHATEVER
-///      field count came out — no arity check there either (unlike `construct_aggregate`,
-///      runtime.rs:15560-15568, which the surface form never reaches). The result is a
-///      SILENTLY malformed value (fewer fields than its own type declares); the raise is
-///      deferred to whenever something later reads the missing field by name
-///      (`Record/field-at`, runtime.rs:1643, an index-out-of-bounds `TypeMismatch`) — worse
-///      than an immediate abort, since `fire-rules` itself reports success.
+/// **Aggregate site** — closed by TWO new/widened freeze-time walls, both in
+/// `src/rete/validate.rs`, plus one runtime wiring fix (`src/runtime.rs`):
+///   1. (#1, the one WIRED rather than rejected) A nested surface aggregate constructor (an
+///      operand's VALUE, not the `:then` item's own head — e.g. `:then [(:usr::Outer :inner
+///      (:usr::Inner :x 1))]`) used to compile clean and die at FIRE time with
+///      `RuntimeErrorKind::UnknownFunction`, unconditionally, regardless of arity —
+///      `dispatch_keyword_head_value`'s fallback (`runtime.rs`, ahead of its final
+///      `UnknownFunction`/keyword-accessor arms) had no arm recognizing a bare aggregate-type
+///      keyword as a constructor. Nothing about the form was illegal — it was simply never
+///      wired: the fallback now recognizes a bare keyword resolving to `TypeDef::Aggregate` and
+///      delegates to `eval_kwargs_construct` (the SAME dispatch the macro-expanded
+///      `:wat::core::kwargs-construct` verb already used), so a nested constructor now
+///      evaluates identically to its expanded-form twin.
+///   2. (#2) `validate_and_reorder_then`'s kwargs branch used to check every SUPPLIED field name
+///      is real but never that ALL declared fields were supplied — `reorder_kwargs_by_field_name`
+///      itself still doesn't require full coverage (see its own doc), but its callers now do.
+///      STOP-A audited the whole corpus for a `:then` that under-supplies before closing this:
+///      NONE found (every kwargs `:then` in `wat/`, `wat-scripts/`, and `tests/` already supplies
+///      every declared field) — the doc line calling under-supply "pre-existing, unchanged" was
+///      describing an accident nobody depended on, so closing it was free. A new
+///      `RhsMissingFields` finding now names the rule, the type, and the missing fields.
+///   3. A THIRD failure mode surfaced only once #1 was WIRED (it could not be measured before,
+///      since any nested constructor died `UnknownFunction` regardless of its own shape): a
+///      nested constructor operand can itself be malformed (unknown/missing field, or a
+///      multi-arg RAW POSITIONAL call — `eval_kwargs_construct` unconditionally retires that
+///      shape at a bare aggregate name). `validate_and_reorder_then` now walks every `:then`
+///      value-position operand RECURSIVELY (`walk_nested_constructors`, unbounded depth, mirroring
+///      `classify_expr`'s own unconditional per-argument recursion for `pure`, above) and
+///      validates any nested aggregate-constructor call it finds the same way it validates a
+///      `:then` item's own top-level shape.
 ///
-/// **Enum-variant site** — a tagged-variant constructor IS a real, directly-callable
-/// `FunctionBody::Wat` function (`register_enum_methods`, runtime.rs:1741-1789 — its body is
-/// literally `(:wat::core::variant :Enum :Variant p1…pn)`), reached through the SAME
-/// `sym.get(canonical)` / `apply_function` path as any ordinary fn call (runtime.rs:6170-6172),
-/// so — unlike the aggregate site — there is no dead/inert shape: EVERY call, wherever it is
-/// reached from, hits `apply_function`'s unconditional arity gate (runtime.rs:21190-21223,
-/// `if actual_arity != fixed_arity { return Err(ArityMismatch) }`) before its body ever runs.
-/// But that gate fires at RUNTIME, not at `--check`/freeze — there is no freeze-time wall
-/// analogous to `validate_and_reorder_then` for a bare `:Enum::Variant` head (`lookup_fields`,
-/// validate.rs:556-562, resolves only `TypeDef::Aggregate`, so an enum-variant head is invisible
-/// to that validator), and the ordinary `--check` path that would catch this in NON-quoted code
-/// never runs here either (same `quote` boundary as the aggregate site). So a WRONG-ARITY call
-/// to a tagged-variant constructor, nested inside a fenced `:then`/`:when` position, compiles
-/// clean and aborts `fire-rules` on first use with a clean, located `ArityMismatch` — exactly the
-/// "checker gap" pattern gap (a) closed for the expanded forms, unclosed here. A cleaner failure
-/// mode than the aggregate site's (a located raise, not silent corruption or an unconditional
-/// dead call), but still a genuine, reachable Total violation with no wall in front of it.
+/// **Enum-variant site** — closed by resolving a bare `:Enum::Variant` head at freeze, which
+/// `lookup_fields` never did (it resolves only `TypeDef::Aggregate`). A tagged-variant
+/// constructor IS a real, directly-callable `FunctionBody::Wat` function
+/// (`register_enum_methods`, runtime.rs — its body is literally `(:wat::core::variant :Enum
+/// :Variant p1…pn)`), reached through the SAME `sym.get(canonical)` / `apply_function` path as
+/// any ordinary fn call, so — unlike the aggregate site's dead/unwired shape — every call always
+/// reached `apply_function`'s unconditional arity gate; that gate just fired at RUNTIME, not at
+/// `--check`/freeze, and the ordinary `--check` path that would catch this in NON-quoted code
+/// never ran here either (same `quote` boundary as the aggregate site). `walk_nested_constructors`
+/// (the SAME recursive walk #1's third failure mode needed) now also resolves a bare
+/// `{EnumPath}::{Variant}` head against the `TypeEnv`'s `TypeDef::Enum` and compares the
+/// variant's declared field count (`Unit` → 0, `Tagged` → `fields.len()`) against the supplied
+/// arg count, naming the rule, the full variant path, and the actual/expected arity.
 ///
-/// Both sites: `total: false`, MEASURED (each with its own reachable counter-example), not
-/// defaulted — the debt this audit was sent to close.
+/// Both sites: `total: true`, EARNED — every failure mode the audit measured (and the one #1's
+/// own wiring newly exposed) now has a freeze-time wall naming it, in place of a fire-time
+/// surprise naming only the reader that tripped over it.
 ///
 /// INTERIM recognizer keyed on the frozen TypeEnv, until arc 255's builtin-registry becomes the
 /// single queryable purity/totality source and subsumes it.
@@ -728,10 +727,16 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let types = sym.types.as_deref()?;
     // TypeEnv keys carry the leading colon (e.g. ":p::Rec") — use the head verbatim.
     // 1. Aggregate constructor (record / holon / struct) — the head IS the type name.
+    //    `total: true` — EARNED, arc 278 BRIEF-construction-total-three-walls.md: #1 wired a
+    //    nested surface constructor to the same dispatch the expanded form uses, #2 walled
+    //    top-level kwargs under-supply, and the recursive `walk_nested_constructors` walls a
+    //    nested constructor's own shape (unknown/missing field, retired raw-positional) too.
     if let Some(crate::types::TypeDef::Aggregate(_)) = types.get(head) {
-        return Some(OpMeta { pure: true, deterministic: true, total: false });
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
     // 2. Enum-variant constructor — the head is `{EnumPath}::{Variant}` (unit or tagged).
+    //    `total: true` — EARNED, #3: `walk_nested_constructors` now resolves a bare
+    //    `:Enum::Variant` head against the TypeEnv and walls a wrong-arity call at freeze.
     if let Some((enum_path, variant)) = head.rsplit_once("::") {
         if let Some(crate::types::TypeDef::Enum(e)) = types.get(enum_path) {
             let is_variant = e.variants.iter().any(|v| match v {
@@ -739,7 +744,7 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
                 crate::types::EnumVariant::Tagged { name, .. } => name == variant,
             });
             if is_variant {
-                return Some(OpMeta { pure: true, deterministic: true, total: false });
+                return Some(OpMeta { pure: true, deterministic: true, total: true });
             }
         }
     }

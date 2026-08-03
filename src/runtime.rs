@@ -6227,6 +6227,28 @@ fn dispatch_keyword_head_value(
                             }).into());
                         }
                     }
+                    // Arc 278 BRIEF-construction-total-three-walls.md #1 — nested surface
+                    // aggregate-constructor dispatch. `build_insert_fact` special-cases a
+                    // `:then`/`:when` item's OWN top-level `(:Type arg…)` shape before ever
+                    // reaching this generic evaluator, but a constructor written as a NESTED
+                    // operand (e.g. `:then [(:usr::Outer :inner (:usr::Inner :x 1))]`) reaches
+                    // here with `other` = the bare aggregate-type keyword and no fn registered
+                    // under that name — it used to fall all the way to UnknownFunction below.
+                    // Nothing about the form is illegal (STOP: this is the one wall that gets
+                    // WIRED, not tightened) — a bare aggregate-type keyword head is unambiguous
+                    // (TypeEnv keys carry the leading colon, matching `other` verbatim once any
+                    // `<T,...>` suffix is stripped, same as `construct_aggregate`'s own
+                    // `bare_name` derivation), so delegate to the SAME kwargs/positional
+                    // dispatch `:wat::core::kwargs-construct` already gives the macro-expanded
+                    // form — a nested surface constructor now evaluates identically to its
+                    // expanded-form twin, arity/field-name errors included.
+                    let bare_type: &str = if let Some(pos) = other.find('<') { &other[..pos] } else { other };
+                    if matches!(sym.types().and_then(|t| t.get(bare_type)), Some(crate::types::TypeDef::Aggregate(_))) {
+                        let mut synth_args: Vec<WatAST> = Vec::with_capacity(args.len() + 1);
+                        synth_args.push(WatAST::Keyword(other.to_string(), list_span.clone()));
+                        synth_args.extend(args.iter().cloned());
+                        return eval_kwargs_construct(&synth_args, list_span, env, sym);
+                    }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
                     // When head is an unknown verb AND args.len() == 1 AND receiver is
                     // {Value::Aggregate (Record/HolonRecord/Struct), wat__std__HashMap}, dispatch as field accessor.

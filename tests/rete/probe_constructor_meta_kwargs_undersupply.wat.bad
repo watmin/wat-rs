@@ -1,0 +1,21 @@
+;; tests/rete/probe_constructor_meta_kwargs_undersupply.wat.bad — BRIEF-construction-total-three-
+;; walls.md #2, negative fixture. `:cr2::Rate` declares TWO fields (`count`, `window`); this
+;; `:then` item supplies only `count`. Before the fix this passed `validate_and_reorder_then`
+;; clean (every SUPPLIED field name is real — supplying fewer than all was never checked) and
+;; `build_insert_fact`'s kwargs fast path (`matcher.rs`) constructed a SILENTLY malformed
+;; two-field record with only one field — the raise deferred to whenever something later read
+;; the missing field by name. STOP-A (the corpus audit `BRIEF-construction-total-three-walls.md`
+;; required before closing this) found no `:then` in the corpus that relies on this — the
+;; under-supply was an accident nobody depended on.
+;;
+;; Must now fail `startup_from_file` with a located `ReteCheckErrorKind::RhsMissingFields`
+;; naming the rule, the type, and the missing field `window`.
+
+(:wat::core::defrecord :cr2::Anchor [x <- :wat::core::i64])
+(:wat::core::defrecord :cr2::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
+
+(:wat::rete::defrule :cr2::gather
+  :when [(:cr2::Anchor (?x <- :x))]
+  :then [(:cr2::Rate :count 7)])
+
+(:wat::core::defn :user::run [] -> :wat::core::i64 0)

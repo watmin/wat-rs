@@ -46,7 +46,7 @@ use wat_edn::{Keyword, OwnedValue, Tag};
 use crate::ast::WatAST;
 use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
 use crate::span::Span;
-use crate::types::{TypeDef, TypeEnv};
+use crate::types::{EnumVariant, TypeDef, TypeEnv};
 
 // ─── Error types (Pattern A: span at the outer struct, kind carries variant data) ────────────
 
@@ -76,7 +76,13 @@ pub enum ReteCheckErrorKind {
         available_fields: Vec<String>,
     },
     /// A positional `:then` fact-form's argument count does not match the fact type's declared
-    /// field count.
+    /// field count. Arc 278 BRIEF-construction-total-three-walls.md #1/#3 — also reused for a
+    /// NESTED constructor operand's own arity, closing the two counterparts the audit measured
+    /// once #1 wired a nested surface constructor to actually evaluate: a single positional-value
+    /// aggregate operand (`(:usr::Inner 1)`, mirroring `eval_kwargs_construct`'s `rest.len() <= 1`
+    /// passthrough) and a bare `:Enum::Variant` call (`lookup_fields` only ever resolved
+    /// `TypeDef::Aggregate`, so an enum-variant head was invisible to freeze-time validation
+    /// entirely before this — `fact_type` carries the FULL `Enum::Variant` path for that case).
     RhsArityMismatch {
         rule: String,
         fact_type: String,
@@ -112,6 +118,34 @@ pub enum ReteCheckErrorKind {
         /// `RVINA ERVDIT`), mirroring `UnknownField`'s `available_fields`.
         accepted: Vec<String>,
     },
+    /// Arc 278 BRIEF-construction-total-three-walls.md #2 — a kwargs `:then` RHS under-supplies
+    /// `fact_type`'s declared fields. `reorder_kwargs_by_field_name`'s own doc used to call this
+    /// "pre-existing behavior, unchanged" (a supplied-fewer-than-all kwargs RHS silently built a
+    /// short record); STOP-A (the audit that grounded this wall) found no `:then` in the corpus
+    /// that actually relies on it — the doc line was describing an accident nobody depended on.
+    /// `build_insert_fact`'s kwargs fast path (`matcher.rs`) has no independent arity check, so
+    /// the malformed record used to construct silently and raise only when something later read
+    /// the missing field by name (`Record/field-at`, an index-out-of-bounds `TypeMismatch`) —
+    /// this wall names the RULE, the TYPE, and the missing fields by NAME, at freeze, instead.
+    RhsMissingFields {
+        rule: String,
+        fact_type: String,
+        missing: Vec<String>,
+    },
+    /// Arc 278 BRIEF-construction-total-three-walls.md #1 — a NESTED surface aggregate-
+    /// constructor operand (an operand's VALUE, not a `:then` item's own top-level head) written
+    /// with MORE THAN ONE positional argument. Once #1 wires a nested constructor to actually
+    /// reach `:wat::core::kwargs-construct`'s dispatch (`eval_kwargs_construct`, runtime.rs), that
+    /// dispatch unconditionally retires multi-arg RAW POSITIONAL construction at a bare aggregate
+    /// name (kwargs, or a single positional value, are the only two supported nested shapes) —
+    /// regardless of whether `got` happens to equal the type's field count, so this is NOT an
+    /// arity mismatch (a correct count would still be refused); walled here with its own message
+    /// rather than borrowing `RhsArityMismatch`'s "expected N" framing, which would misstate it.
+    RhsPositionalConstructionRetired {
+        rule: String,
+        fact_type: String,
+        got: usize,
+    },
 }
 
 impl fmt::Display for ReteCheckErrorKind {
@@ -139,6 +173,17 @@ impl fmt::Display for ReteCheckErrorKind {
                 "defrule `{rule}`: `:then` insert of `:{fact_type}` has operand `{operand}`, which can \
                  never resolve at fire time — a RHS operand must be {}",
                 accepted.join(", or ")
+            ),
+            ReteCheckErrorKind::RhsMissingFields { rule, fact_type, missing } => write!(
+                f,
+                "defrule `{rule}`: `:then` insert of `:{fact_type}` is missing required field(s): [{}]",
+                missing.join(", ")
+            ),
+            ReteCheckErrorKind::RhsPositionalConstructionRetired { rule, fact_type, got } => write!(
+                f,
+                "defrule `{rule}`: `:then` insert nests a raw positional construction of `:{fact_type}` \
+                 with {got} argument(s) — positional construction at a bare aggregate name is retired; \
+                 use kwargs (`:field val …`) or a single positional value"
             ),
         }
     }
@@ -266,11 +311,17 @@ fn render_form(ast: &WatAST) -> String {
 /// order — ONE helper, single-sourced. The (C) spliced-construction reorder pass calls this
 /// too (a separate strike; not wired here) — do NOT inline this at either call site.
 ///
-/// `kv_pairs` need not cover every field in `field_order` (a `:then` RHS may under-supply
-/// fields today — pre-existing behavior, unchanged by this pass, see `matcher.rs`'s
-/// `build_insert_fact`); any field in `field_order` with no matching pair is simply absent
-/// from the output. Every SUPPLIED field name, however, must be real: the first unknown
-/// name is returned as `Err(field_name)` so the caller can build its own contextual error.
+/// The HELPER itself still does not require `kv_pairs` to cover every field in `field_order`
+/// — any field with no matching pair is simply absent from the output; every SUPPLIED field
+/// name, however, must be real: the first unknown name is returned as `Err(field_name)` so the
+/// caller can build its own contextual error. Full coverage is each CALLER's job, and both
+/// callers now enforce it: `eval_kwargs_construct` (runtime.rs) relies on `construct_aggregate`'s
+/// arity check plus check.rs's `infer_kwargs_construct_check` (the macro-expanded form); the
+/// surface-form caller below, `validate_and_reorder_then`, used to be the one caller that did
+/// NOT — arc 278 BRIEF-construction-total-three-walls.md #2 closed that: STOP-A audited the
+/// whole corpus for a `:then` that under-supplies (none found — the old "pre-existing,
+/// unchanged" note here described an accident nobody depended on) and `validate_and_reorder_then`
+/// now rejects an under-supplied kwargs RHS before ever reaching this reorder (`RhsMissingFields`).
 pub(crate) fn reorder_kwargs_by_field_name(
     field_order: &[&str],
     kv_pairs: &[(&str, WatAST)],
@@ -630,6 +681,147 @@ fn check_rhs_operands(
     }
 }
 
+/// Arc 278 BRIEF-construction-total-three-walls.md #1/#3 — walk a `:then` item's value-position
+/// operand recursively for a NESTED constructor call, and validate it. Mirrors the runtime's own
+/// recursive evaluation: `dispatch_keyword_head_value`/`eval_kwargs_construct` reach a nested
+/// aggregate or enum-variant constructor exactly the way a top-level `:then` item is reached,
+/// just one (or more) `eval_inner` deeper (`eval_list` walks every argument of every call form,
+/// unconditionally — the SAME shape `classify_expr`'s general-list arm uses for `pure`,
+/// `purity.rs:862-884`). So this walk is unbounded-depth too, not a single peek one level down.
+///
+/// Two constructor heads are recognized (both invisible to `lookup_fields`, which resolves only
+/// `TypeDef::Aggregate` by NAME, not by asking "is this keyword any kind of constructor head"):
+///   - a bare aggregate-type keyword (`:usr::Inner`) — validated with the SAME kwargs-coverage /
+///     positional-shape rules `validate_and_reorder_then` gives a `:then` item's own top-level
+///     shape (#2's fix, generalized: unknown field, missing field, or — the shape #2's top-level
+///     branch never has to consider, since `build_insert_fact`'s top-level fast path supports
+///     legacy positional unconditionally — a RETIRED multi-arg positional call, since a NESTED
+///     constructor reaches `eval_kwargs_construct`'s dispatch, not `build_insert_fact`'s).
+///   - a bare `:Enum::Variant` keyword — arity-checked against the variant's declared field count
+///     (#3: no freeze wall resolved this at all before now).
+///
+/// No AST rewrite here (unlike the top-level kwargs branch): a nested operand's kwargs are
+/// reordered again at FIRE time by `eval_kwargs_construct` regardless of what freeze validated
+/// (arc 278 #1), so this pass only has to prove the shape is constructible, never to reorder it.
+fn walk_nested_constructors(
+    operand: &WatAST,
+    rule_name: &str,
+    types: &TypeEnv,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let WatAST::List(items, span) = operand else { return };
+    if items.is_empty() {
+        return;
+    }
+    if let WatAST::Keyword(head, _) = &items[0] {
+        let args = &items[1..];
+        // Bare aggregate-type constructor head.
+        if let Some(TypeDef::Aggregate(_)) = types.get(head) {
+            let nested_type = head.trim_start_matches(':').to_string();
+            let field_names = lookup_fields(types, &nested_type).unwrap_or_default();
+            let is_kwargs = args.len() >= 2
+                && args.len() % 2 == 0
+                && args.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
+            if is_kwargs {
+                let mut supplied: Vec<String> = Vec::with_capacity(args.len() / 2);
+                for pair in args.chunks(2) {
+                    let field = match &pair[0] {
+                        WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+                        _ => unreachable!("is_kwargs confirmed a Keyword at every even index"),
+                    };
+                    if !field_names.iter().any(|f| f == &field) {
+                        errors.push(ReteCheckError {
+                            span: span.clone(),
+                            kind: ReteCheckErrorKind::UnknownField {
+                                rule: rule_name.to_string(),
+                                fact_type: nested_type.clone(),
+                                field: field.clone(),
+                                available_fields: field_names.clone(),
+                            },
+                        });
+                    }
+                    supplied.push(field);
+                }
+                let missing: Vec<String> =
+                    field_names.iter().filter(|f| !supplied.contains(f)).cloned().collect();
+                if !missing.is_empty() {
+                    errors.push(ReteCheckError {
+                        span: span.clone(),
+                        kind: ReteCheckErrorKind::RhsMissingFields {
+                            rule: rule_name.to_string(),
+                            fact_type: nested_type.clone(),
+                            missing,
+                        },
+                    });
+                }
+            } else if args.len() <= 1 {
+                // Single-arg / zero-arg positional passthrough — mirrors `eval_kwargs_construct`'s
+                // own `rest.len() <= 1` passthrough straight to `construct_aggregate`.
+                if args.len() != field_names.len() {
+                    errors.push(ReteCheckError {
+                        span: span.clone(),
+                        kind: ReteCheckErrorKind::RhsArityMismatch {
+                            rule: rule_name.to_string(),
+                            fact_type: nested_type.clone(),
+                            expected: field_names.len(),
+                            got: args.len(),
+                        },
+                    });
+                }
+            } else {
+                // Multi-arg, not kwargs — `eval_kwargs_construct` retires this shape
+                // unconditionally at fire time; wall it here with its own message.
+                errors.push(ReteCheckError {
+                    span: span.clone(),
+                    kind: ReteCheckErrorKind::RhsPositionalConstructionRetired {
+                        rule: rule_name.to_string(),
+                        fact_type: nested_type.clone(),
+                        got: args.len(),
+                    },
+                });
+            }
+            for arg in args {
+                walk_nested_constructors(arg, rule_name, types, errors);
+            }
+            return;
+        }
+        // Bare enum-variant constructor head (`{EnumPath}::{Variant}`) — mirrors
+        // `constructor_meta`'s own resolution (`purity.rs`).
+        if let Some((enum_path, variant)) = head.rsplit_once("::") {
+            if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
+                let expected = e.variants.iter().find_map(|v| match v {
+                    EnumVariant::Unit(n) if n == variant => Some(0usize),
+                    EnumVariant::Tagged { name, fields } if name == variant => Some(fields.len()),
+                    _ => None,
+                });
+                if let Some(expected) = expected {
+                    let got = args.len();
+                    if got != expected {
+                        errors.push(ReteCheckError {
+                            span: span.clone(),
+                            kind: ReteCheckErrorKind::RhsArityMismatch {
+                                rule: rule_name.to_string(),
+                                fact_type: head.trim_start_matches(':').to_string(),
+                                expected,
+                                got,
+                            },
+                        });
+                    }
+                    for arg in args {
+                        walk_nested_constructors(arg, rule_name, types, errors);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+    // Not a recognized constructor head — recurse into every item anyway (a plain call's
+    // arguments, e.g. `(:wat::core::+ (:usr::Inner 1) ?a)`, may still nest a constructor deeper).
+    for item in items {
+        walk_nested_constructors(item, rule_name, types, errors);
+    }
+}
+
 fn validate_and_reorder_then(
     fact_form: &mut WatAST,
     rule_name: &str,
@@ -701,13 +893,38 @@ fn validate_and_reorder_then(
                 all_known = false;
             }
         }
-        if !all_known {
+        // Arc 278 BRIEF-construction-total-three-walls.md #2 — every declared field must be
+        // supplied. STOP-A audited the corpus first (every kwargs `:then` found fully supplies
+        // its type's fields; none rely on the old under-supply); closing this is free. Checked
+        // even when `all_known` is false — batch every finding, this validator's own contract.
+        let missing: Vec<String> = field_names
+            .iter()
+            .filter(|f| !kv_pairs.iter().any(|(k, _)| k == *f))
+            .cloned()
+            .collect();
+        let has_missing = !missing.is_empty();
+        if has_missing {
+            errors.push(ReteCheckError {
+                span: fact_span.clone(),
+                kind: ReteCheckErrorKind::RhsMissingFields {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.clone(),
+                    missing,
+                },
+            });
+        }
+        if !all_known || has_missing {
             return; // do not rewrite a form already flagged invalid
         }
         // The wall, kwargs side. Checked BEFORE the reorder rewrites `fact_items` in place, so
         // the operand reported is the one the author wrote, at the span they wrote it at.
         let kwargs_values: Vec<WatAST> = kv_pairs.iter().map(|(_, v)| v.clone()).collect();
         check_rhs_operands(&kwargs_values, rule_name, &fact_type, errors);
+        // Arc 278 #1/#3 — recurse for a NESTED constructor operand (e.g. `:inner (:usr::Inner
+        // :x 1)`); the top-level shape above only covers THIS item's own head.
+        for v in &kwargs_values {
+            walk_nested_constructors(v, rule_name, types, errors);
+        }
 
         let field_order: Vec<&str> = field_names.iter().map(|s| s.as_str()).collect();
         let kv_ref: Vec<(&str, WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
@@ -734,6 +951,10 @@ fn validate_and_reorder_then(
         // wrong-arity AND carry an unresolvable operand, and batching every finding is this
         // validator's whole contract (`validate_rete_rules` returns them all, not the first).
         check_rhs_operands(args, rule_name, &fact_type, errors);
+        // Arc 278 #1/#3 — recurse for a NESTED constructor operand, same as the kwargs branch.
+        for a in args {
+            walk_nested_constructors(a, rule_name, types, errors);
+        }
 
         // Positional: arg count must equal the type's field count.
         if args.len() != field_names.len() {

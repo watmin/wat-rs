@@ -1,0 +1,40 @@
+;; tests/rete/probe_constructor_meta_surface_total_enum.wat.bad — BRIEF-constructor-meta-audit.md
+;; (d6c32cf5), RE-POINTED by BRIEF-construction-total-three-walls.md #3. Was `.wat` (a GREEN
+;; startup that died only at fire); is now `.wat.bad` (must NEVER successfully start up) — the
+;; extension change IS the flip.
+;;
+;; WHAT THIS FORM USED TO DO (`d6c32cf5`): a wrong-arity nested enum-variant constructor call
+;; (`(:cg::Status::Active 1 2 3)` — `Active` declares ONE field) written as a FIELD VALUE inside
+;; `(:cg::Wrap :s …)` compiled CLEAN (`lookup_fields`, `src/rete/validate.rs`, resolves only
+;; `TypeDef::Aggregate`, so a bare `:Enum::Variant` head was invisible to freeze-time validation
+;; entirely) and aborted `fire-rules` on first use with a clean, LOCATED `ArityMismatch` — a
+;; cleaner failure than the aggregate site's (#1's), but still fire-time, not freeze-time. This
+;; kept `constructor_meta`'s enum-variant site `total: false`.
+;;
+;; WHAT IT DOES NOW (BRIEF-construction-total-three-walls.md #3): `validate_and_reorder_then`'s
+;; new recursive walk (`walk_nested_constructors`, `src/rete/validate.rs`) resolves a bare
+;; `{EnumPath}::{Variant}` head against the frozen `TypeEnv`'s `TypeDef::Enum` and compares the
+;; variant's declared field count against the supplied arg count — so this file must NOW fail
+;; `startup_from_file` with a located `ReteCheckErrorKind::RhsArityMismatch` naming the rule, the
+;; full variant path (`cg::Status::Active`), and the actual/expected arity (got 3, expected 1).
+;; `constructor_meta`'s enum-variant site is `total: true`.
+
+(:wat::core::defenum :cg::Status :wat::enum::Pure
+  :Active [level <- :wat::core::i64])
+
+(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
+(:wat::core::defrecord :cg::Wrap   [s <- :cg::Status])
+
+(:wat::rete::defrule :cg::gather
+  :when [(:cg::Anchor (?x <- :x))]
+  :then [(:cg::Wrap :s (:cg::Status::Active 1 2 3))])
+
+(:wat::core::defn :user::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :cg)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:cg::Anchor :x 0))
+     fired   (:wat::rete::fire-rules-spec session)
+     derived (:wat::rete::query-by-type-string fired "cg::Wrap")
+     r       (:wat::core::first derived)]
+    0))
