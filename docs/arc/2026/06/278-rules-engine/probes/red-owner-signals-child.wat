@@ -23,21 +23,39 @@
 ;;   positive-control the arbiter before believing either colour.
 ;;   (This is `reference_check_is_not_a_complete_red_arbiter` lived, not recalled.)
 ;;
+;; ⛔ A FORM THIS PROBE ORIGINALLY TAUGHT, AND MUST NOT — corrected 2026-08-03 at the builder's catch.
+;;    The first draft split the work into `:user::compute` and then wrote main as:
+;;
+;;        (:wat::core::defn :user::main [] -> :wat::core::nil
+;;          (:wat::core::let [_ (:user::compute)] nil))
+;;
+;;    Pure ceremony. `compute` is `[] -> nil` and `main` is `[] -> nil`, so calling it IS a complete
+;;    main body — no `let`, no trailing `nil`, and in a probe no reason for two functions at all.
+;;    Collapsed into one `main` here.
+;;
+;;    THE REASON IT MATTERS IS NOT TIDINESS: `(let [_ X] nil)` is spelled EXACTLY like the swallow the
+;;    `let`-`_` discard door exists to catch — the door the send/recv walls spent an arc closing, and
+;;    the one SignalOutcome is about to join. It is harmless here only because the discarded value is
+;;    `nil`. As a TAUGHT form it is the defect: a reader learns the wrapper as boilerplate and applies
+;;    it to a must-use outcome. "Do not educate bad forms." It had already propagated into a live
+;;    rider's control files before it was caught.
+;;
 ;; TURNS GREEN AT P2. When `:wat::kernel::signal` + `:wat::kernel::Signal` + `:wat::kernel::SignalOutcome`
 ;; are minted, this file must run to completion — and the `_sig` binding must then be FACED (matched
 ;; over the SignalOutcome variants), because SignalOutcome joins MUST_USE_TYPES and a dropped outcome
 ;; is a compile error in both discard doors. The un-faced `let` binding below is deliberate: it is
 ;; what a caller writes BEFORE the wall exists, and P2's must-use gate must reject it.
 
-(:wat::core::defn :user::compute [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [proc (:wat::test::spawn-peer
             (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::kernel::println "child up"))))
-     _sig (:wat::kernel::signal proc :wat::kernel::Signal::User1)]
+     ;; ⚠ DELIBERATELY UN-FACED, AND THE BINDING MUST BE THE BARE `_` — see the header.
+     ;;    `_sig` does NOT work here: the gate is an EXACT match on the one-character symbol
+     ;;    (`check.rs:10926`, `ident.as_str() == "_"`), so `_sig` is an ordinary named binding
+     ;;    and sails through. This line is the gate's evidence; it only bites as `_`.
+     _ (:wat::kernel::signal proc :wat::kernel::Signal::User1)]
     nil))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [_ (:user::compute)] nil))

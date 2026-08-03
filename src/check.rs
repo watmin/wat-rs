@@ -3927,6 +3927,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
+            // — STOP-1: `signal` is `Process<I,O>`-ONLY (unlike close', not shared with
+            // Thread'/Peer' — a thread peer has no process to signal). See infer_signal.
+            ":wat::kernel::signal" => {
+                let (val, mut errs) = infer_signal(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 278 RST stone — `serve-dispatch-op'`: `clients` is checked
             // for internal consistency only (do-style, unconstrained — same
             // discipline as `poll'`'s `listener` arg); `body`'s type IS the
@@ -7017,10 +7028,18 @@ fn infer_if(
 /// closing the swallow door on the handleable teardown failures the wall converted
 /// from raises. A 0-site pre-arm today (0 wat call sites — teardown is RAII Drop);
 /// it gates the FIRST future kernel-namespace teardown caller, not vacuous-dishonest.
+///
+/// `:wat::kernel::SignalOutcome` (BRIEF-process-signal-p2-mint.md,
+/// DESIGN-STONE-process-signal-owner-to-child.md) — non-parametric, same slot
+/// as `CloseOutcome` (the peer is BORROWED, not consumed, but the outcome
+/// itself holds no live resource). A *faced* `signal` (matched over
+/// `Delivered`/`Failed`) has an arm-joined type, never `SignalOutcome`, so this
+/// fires only on a raw dropped `signal` call, closing both discard doors.
 const MUST_USE_TYPES: &[&str] = &[
     ":wat::kernel::SendOutcome",
     ":wat::kernel::TrySendOutcome",
     ":wat::kernel::CloseOutcome",
+    ":wat::kernel::SignalOutcome",
 ];
 
 /// Parametric must-use heads — a `TypeExpr::Parametric { head, .. }` whose head
@@ -7094,6 +7113,8 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
         ("connect", "Connected/Refused/Rejected/Failed")
     } else if ty_name.contains("ReadlnOutcome") {
         ("readln", "Datum/Eof/Stopped")
+    } else if ty_name.contains("SignalOutcome") {
+        ("signal", "Delivered/Failed")
     } else {
         ("send", "Sent/Closed/Lost")
     };
@@ -10422,6 +10443,93 @@ fn infer_close_prime(
         CheckResult::ok(ret)
     } else {
         CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_signal` is INTRINSIC, and narrower than
+// `infer_close_prime`. STOP-1 (DESIGN-STONE-process-signal-owner-to-child.md /
+// BRIEF-process-signal-p2-mint.md): the verb takes `Process<I,O>` ONLY — a
+// Thread' peer has no process to signal, so unlike close' (loci-agnostic over
+// Thread'/Process') this is deliberately NOT shared codegen over both tiers.
+/// Type-check `(:wat::kernel::signal proc sig)`.
+///
+/// Two positional args: `args[0]` proc (`:wat::kernel::Process<I,O>`), `args[1]`
+/// sig (`:wat::kernel::Signal`). Result: `:wat::kernel::SignalOutcome` — a
+/// must-use type (see `MUST_USE_TYPES`): a dropped outcome is a compile error,
+/// same discipline as `close'`.
+fn infer_signal(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::signal";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let outcome = || TypeExpr::Path(":wat::kernel::SignalOutcome".into());
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(outcome(), local_errors);
+    }
+
+    let proc_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            return CheckResult::partial_with(outcome(), local_errors);
+        }
+    };
+    let proc_surface = apply_subst(&proc_ty, subst);
+    let proc_reduced = reduce(&proc_surface, subst, env.types());
+    match &proc_reduced {
+        TypeExpr::Parametric { head, args: targs }
+            if head == "wat::kernel::Process" && targs.len() == 2 => {}
+        other => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "proc".into(),
+                    expected: "Process<I,O>".into(),
+                    got: format_type(other),
+                },
+            });
+        }
+    }
+
+    let sig_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(outcome(), local_errors);
+        }
+    };
+    if unify(&sig_ty, &TypeExpr::Path(":wat::kernel::Signal".into()), subst, env.types()).is_err() {
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "sig".into(),
+                expected: ":wat::kernel::Signal".into(),
+                got: format_type(&apply_subst(&sig_ty, subst)),
+            },
+        });
+    }
+
+    if local_errors.is_empty() {
+        CheckResult::ok(outcome())
+    } else {
+        CheckResult::partial_with(outcome(), local_errors)
     }
 }
 

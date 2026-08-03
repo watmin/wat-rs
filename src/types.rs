@@ -1754,6 +1754,92 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::Signal — Arc 278 process-signal-owner-to-child stone
+    // (DESIGN-STONE-process-signal-owner-to-child.md § "The shape";
+    // BRIEF-process-signal-p2-mint.md). A CLOSED SET (R27: a closed set is an
+    // enum; the name holds the value) — a bare i64 signal number would be the
+    // string-key mistake with a different hat. Six variants, three tiers,
+    // deliberately NOT uniform in what they cause:
+    //
+    //   tier   variant     POSIX     who observes, and how
+    //   flag   User1       SIGUSR1   the CHILD, and it keeps running — (sigusr1?) reads true
+    //   flag   User2       SIGUSR2   the CHILD, and it keeps running — (sigusr2?) reads true
+    //   flag   Hangup      SIGHUP    the CHILD, and it keeps running — (sighup?) reads true
+    //   stop   Interrupt   SIGINT    the CHILD, and it chooses when to stop — (stopped?) reads true
+    //   stop   Terminate   SIGTERM   the CHILD, and it chooses when to stop — (stopped?) reads true
+    //   kill   Kill        SIGKILL   the OWNER — the child observes nothing and stops mid-instruction
+    //
+    // THIS TABLE IS THE ENUM'S DOC COMMENT, not commentary alongside it — it is
+    // the only honest home for two facts about the SET that no single variant
+    // name can carry:
+    //   1. `Interrupt` and `Terminate` share ONE landing (both reach
+    //      `substrate_on_stop_signal`; the child cannot tell them apart). Named
+    //      independently anyway (RULED 2026-08-03): the shared landing is a
+    //      HANDLER decision, not an identity claim about the signals — a
+    //      non-wat observer (`strace`, `ps`) still sees the difference even
+    //      though wat's own handler does not, and collapsing them to one `Stop`
+    //      variant would forfeit the ability to say which one went out.
+    //   2. `Kill` has NO child-side observable at all — SIGKILL is uncatchable
+    //      (a POSIX guarantee, not a substrate choice; `handle.rs`: "SIGKILL is
+    //      unignorable"). The round trip still closes, on the OWNER side, via
+    //      `CloseOutcome::Signaled[signal <- i64]`.
+    //
+    // WHY the send side (this enum) is closed while the receive side
+    // (`CloseOutcome::Signaled`'s bare i64) is open: we choose what is
+    // SENDABLE — a closed, finite set we author — but we do not control what
+    // KILLS you — any process on the box can send any signal. One concept,
+    // two honest shapes for two different directions of control, not an
+    // inconsistency to unify.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::Signal".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("User1".into()),
+            EnumVariant::Unit("User2".into()),
+            EnumVariant::Unit("Hangup".into()),
+            EnumVariant::Unit("Interrupt".into()),
+            EnumVariant::Unit("Terminate".into()),
+            EnumVariant::Unit("Kill".into()),
+        ],
+    }));
+
+    // :wat::kernel::SignalOutcome — the matchable outcome of
+    // `(:wat::kernel::signal proc sig)` (BRIEF-process-signal-p2-mint.md).
+    // Non-parametric — the peer is BORROWED, not consumed (unlike close', a
+    // process may be signalled any number of times before it is closed), and
+    // no variant holds a live resource. Same MUST_USE_TYPES slot as
+    // CloseOutcome/SendOutcome (see check.rs `MUST_USE_TYPES`): a dropped
+    // outcome is a compile error, closing both discard doors.
+    //
+    // `Delivered`, not `Sent` — `Sent` names the OWNER's action and is silent
+    // on arrival, which is the entire reason this type exists.
+    //
+    // ⚠ STOP-2 — `Gone` (ESRCH) was NOT minted. Measured by a dedicated probe
+    // (own run, 2026-08-03, `Pidfd::send_signal` against a child that had
+    // exited but was deliberately left un-reaped): sending a signal to that
+    // pidfd returns `Ok(())`, not ESRCH — delivery to a zombie is a silent
+    // no-op, not an error. ESRCH appeared ONLY after the pidfd had already
+    // been reaped — and in this substrate nothing reaps a `Process` peer's
+    // pidfd except `close` (`eval_peer_close_prime`), which CONSUMES the peer
+    // (`Option::take`). So the only way to reach an already-reaped pidfd
+    // through this verb is to call it on an already-closed peer, and that path
+    // is intercepted before the syscall (the same "peer already closed" guard
+    // close' itself uses) — a live `signal` call can never observe ESRCH. Two
+    // arms and a raise, per the stone's own named fallback for this outcome.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::SignalOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("Delivered".into()),
+            EnumVariant::Tagged {
+                name: "Failed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
+            },
+        ],
+    }));
+
     // :wat::edn::Validation — Arc 278 the REQUEST-MALFORMED wall (Stone 1,
     // DESIGN-request-malformed-input-sanitization.md). The outcome of
     // `(:wat::edn::validate <value> :DeclaredType)` — the DEEP shape check at a

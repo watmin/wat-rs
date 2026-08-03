@@ -5731,6 +5731,13 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::close" => {
             eval_peer_close_prime(args, list_span, env, sym)
         }
+        // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
+        // — owner-to-child signal delivery. STOP-1: Process<I,O> only, no shared
+        // codegen with Thread'/Peer'. STOP-3: routes through Pidfd::send_signal, never
+        // kill(pid, sig). See eval_signal.
+        ":wat::kernel::signal" => {
+            eval_signal(args, list_span, env, sym)
+        }
         // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
         // select' : Vector<peer<I,O>> -> Tuple<i64, O>
         ":wat::kernel::select" => {
@@ -23549,6 +23556,46 @@ fn close_outcome_failed(reason: String) -> Value {
     }))
 }
 
+/// DESIGN-STONE-process-signal-owner-to-child.md — the type path of the closed
+/// signal enum `:wat::kernel::signal` takes as its second arg (registered in
+/// `types.rs`). Users construct variants via the generic unit-variant path
+/// (`:wat::kernel::Signal::User1`, etc. — `register_enum_methods`); nothing in
+/// this file constructs a `Signal` value.
+const SIGNAL_TYPE: &str = ":wat::kernel::Signal";
+
+/// The type path of `signal`'s matchable outcome enum
+/// (`:wat::kernel::SignalOutcome`, registered in `types.rs`). Non-parametric —
+/// the peer is BORROWED (not consumed), and the outcome itself holds no live
+/// resource.
+const SIGNAL_OUTCOME_TYPE: &str = ":wat::kernel::SignalOutcome";
+
+/// `SignalOutcome::Delivered` — the kernel accepted the signal for that
+/// process (`pidfd_send_signal` returned success). Says nothing about what the
+/// child DOES with it — `User1`/`User2`/`Hangup` keep running and flip a flag,
+/// `Interrupt`/`Terminate` land on the child's own shutdown choice, `Kill` is
+/// uncatchable and the child observes nothing at all. See the `Signal` enum's
+/// doc comment (types.rs) for the per-variant table.
+fn signal_outcome_delivered() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SIGNAL_OUTCOME_TYPE.into(),
+        variant_name: "Delivered".into(),
+        fields: vec![],
+    }))
+}
+
+/// `SignalOutcome::Failed [cause <- Failure]` — an io failure from
+/// `pidfd_send_signal` other than the must-never-happen EINVAL/EBADF cases
+/// (those stay raises — STOP-7). Built via `message_only_failure`, the SAME
+/// structured carrier `send'`/`recv'`/`close'` use for their own `Failed`/`Lost`
+/// arms.
+fn signal_outcome_failed(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SIGNAL_OUTCOME_TYPE.into(),
+        variant_name: "Failed".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
 /// Arc 278 peer-lifecycle Strike 3 — the type path of `accept'`'s matchable outcome
 /// enum (`:wat::kernel::AcceptOutcome<R,S>`, registered in `types.rs`). PARAMETRIC +
 /// Impure, mirroring `RecvOutcome<O>` — `Accepted` holds a live `Peer'`.
@@ -26711,6 +26758,144 @@ fn eval_peer_close_prime(
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "peer (Thread<I,O> | Process<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            })
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::signal proc sig)` — DESIGN-STONE-process-signal-owner-to-
+/// child.md; BRIEF-process-signal-p2-mint.md.
+///
+/// STOP-1: `Process<I,O>` ONLY — no shared codegen with Thread'/Peer' (a thread
+/// peer has no process to signal). STOP-3: routes through `Pidfd::send_signal`,
+/// never `kill(pid, sig)` (`clone.rs:215-216` documents why the bare PID is
+/// unsafe to reuse). STOP-4: `Kill` sends and returns; it does NOT reap —
+/// `ChildHandle::Drop`/`close'` remain the only paths that reap.
+///
+/// Unlike `close'`, this does NOT consume the peer (`with_ref`, not
+/// `with_mut` + `take`) — a process may be signalled any number of times
+/// before it is closed.
+///
+/// STOP-2 (own probe, 2026-08-03): `SignalOutcome::Gone` was NOT minted —
+/// `pidfd_send_signal` against a child that had exited but was deliberately
+/// left un-reaped returned `Ok(())`, not ESRCH (delivery to a zombie is a
+/// silent no-op). ESRCH appeared only against an ALREADY-REAPED pidfd, and
+/// nothing in this substrate reaps a `Process` peer's pidfd except `close'`,
+/// which consumes it — so the only way to reach that state through THIS verb
+/// is to call it on an already-closed peer, which is intercepted below
+/// (`"peer already closed"`) before the syscall ever runs. A live `signal`
+/// call cannot observe ESRCH.
+fn eval_signal(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::signal";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() })
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let sig_val = eval_inner(&args[1], env, sym)?.value_owned();
+
+    // STOP-6: no `_` wildcard — every Signal variant is named explicitly.
+    let sig_posix: libc::c_int = match &sig_val {
+        Value::Enum(e) if e.type_path == SIGNAL_TYPE => match e.variant_name.as_str() {
+            "User1" => libc::SIGUSR1,
+            "User2" => libc::SIGUSR2,
+            "Hangup" => libc::SIGHUP,
+            "Interrupt" => libc::SIGINT,
+            "Terminate" => libc::SIGTERM,
+            "Kill" => libc::SIGKILL,
+            other_variant => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "unknown Signal variant {other_variant:?} (substrate bug: checker-prevented)"
+                    ),
+                })
+            .into()),
+        },
+        other => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "sig (:wat::kernel::Signal)",
+                got: Box::new(ValueSnapshot::of(other)),
+            })
+        .into()),
+    };
+
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessSelectable>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+
+            // Local sentinel: the `with_ref` closure cannot early-return an
+            // `Err` (it is FnOnce(&T) -> R, not -> Result<R, _>) — classify
+            // first, act on the classification after the borrow ends.
+            enum SignalAttempt {
+                Sent(std::io::Result<()>),
+                Timer,
+                Closed,
+            }
+            let attempt = cell
+                .with_ref(OP, |opt_bundle| match opt_bundle {
+                    Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
+                        SignalAttempt::Sent(bundle.peer.pidfd.send_signal(sig_posix))
+                    }
+                    Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => SignalAttempt::Timer,
+                    None => SignalAttempt::Closed,
+                })
+                .map_err(EvalBreak::from)?;
+
+            match attempt {
+                SignalAttempt::Closed => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "peer already closed".into(),
+                    })
+                .into()),
+                // arc 292 L3 — timer peers carry no child process to signal.
+                SignalAttempt::Timer => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "signal on a timer peer is not supported (it is consumed by select)".into(),
+                    })
+                .into()),
+                SignalAttempt::Sent(Ok(())) => Ok(signal_outcome_delivered()),
+                // STOP-7: EINVAL (unrepresentable signal — the enum forbids it) and
+                // EBADF (closed pidfd — a substrate bug) are must-never-happen: raises,
+                // not outcomes. Every other io failure is a genuine handleable `Failed`.
+                SignalAttempt::Sent(Err(io_err)) => match io_err.raw_os_error() {
+                    Some(libc::EINVAL) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "pidfd_send_signal: EINVAL (unrepresentable signal — substrate bug): {}",
+                                io_err
+                            ),
+                        })
+                    .into()),
+                    Some(libc::EBADF) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "pidfd_send_signal: EBADF (closed pidfd — substrate bug): {}",
+                                io_err
+                            ),
+                        })
+                    .into()),
+                    _ => Ok(signal_outcome_failed(format!("pidfd_send_signal failed: {}", io_err))),
+                },
+            }
+        }
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "proc (Process<I,O>)",
                 got: Box::new(ValueSnapshot::of(other)),
             })
         .into()),
