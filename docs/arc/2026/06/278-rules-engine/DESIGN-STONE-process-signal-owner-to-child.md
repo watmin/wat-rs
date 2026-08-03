@@ -1,6 +1,9 @@
 # DESIGN-STONE — the owner signals the child it spawned
 
-> **Status: RULED 2026-08-03 by the builder — Option A, on `Process`.** Supersedes task **#65**'s
+> **Status: FULLY RULED 2026-08-03 — READY TO BUILD, resuming at P1.** Option A on `Process`; the
+> vocabulary intueri-cast and weighed; SIGINT/SIGTERM independent; `Kill` IN as a variant. **No open
+> questions remain.** Builder: *"it has been reasoned - get our docs in order and build it."*
+> Supersedes task **#65**'s
 > framing (*"a wat program cannot signal itself"*), which was the wrong subject; see **§ #65 was
 > misfiled**. Downstream beneficiary: the five in-process signal tests and the three
 > `libc::raise(SIGTERM)` harness tests, rebuilt as wat deftests over the spawn tooling.
@@ -133,61 +136,114 @@ This is this arc's own ruling applied one layer out — the same reason `i64::>`
 period. A `Peer`-typed signal verb would need an outcome variant for *"this peer cannot be
 signalled,"* which is a fence hole dressed as an enum.
 
-## The shape
+## The shape — RATIFIED 2026-08-03 (intueri cast + the builder's rulings)
 
-### The verb
-
-Provisional, **naming is intueri-owed** (see § Owed):
+### The verb — `:wat::kernel::signal`, NO PRIME
 
 ```clojure
-(:wat::spawn::process/signal proc :user1)   ;; proc <- :wat::kernel::Process<I,O>
+(:wat::kernel::signal proc :wat::kernel::Signal::User1)   ;; proc <- :wat::kernel::Process<I,O>
 ```
 
+**No prime.** Arc 278 `"0z"` (`70fe856d`) stripped the primes from the whole IPC/kernel surface the
+day before this stone was drawn. A verb minted in the same arc that just finished removing the mark
+does not reintroduce it. *(The first draft asserted the opposite from stale comments — see the
+correction box in § THE REFINEMENT.)*
+
+**`:wat::kernel::`, not `:wat::spawn::`.** Every value-acting peer verb lives in `kernel`
+(`send`/`recv`/`close`/`poll`). `:wat::spawn::`'s `process/*` names are `ProcessOpts` **builders** —
+a different grammatical class (methods on a config record, not verbs on a live handle).
+
 **No `{:restricted-to …}`.** Holding the `Process` **is** the capability — you cannot signal what
-you did not spawn. That is the ocap argument (Miller, R15's constellation), and it is stronger than a
-namespace list: the wall is the value, not a caller check. `spawn-program` is restricted because it
-*mints* the capability; consuming a capability you already hold needs no second gate.
+you did not spawn. That is the ocap argument, and it is stronger than a namespace list: the wall is
+the value, not a caller check. `spawn-program` is restricted because it *mints* the capability;
+consuming one you already hold needs no second gate.
 
-### The signal argument is a CLOSED SET, therefore an enum
+### `:wat::kernel::Signal` — a CLOSED SET, therefore an enum, and it has THREE TIERS
 
-The closed-set rule, from the telemetry design (R27): *a closed set is an enum; the name holds the
-value.* A bare `i64` signal number would be the string-key mistake with a different hat.
+The closed-set rule (R27): *a closed set is an enum; the name holds the value.* A bare `i64` signal
+number would be the string-key mistake with a different hat. Name verified free — zero hits for
+`wat::kernel::Signal` across `src/` and `wat/`.
 
-**And the variants should name what the SUBSTRATE'S OWN HANDLERS DO, not the POSIX numbers.** A wat
-program's model is `(:wat::kernel::sigusr1?)` and `(:wat::kernel::stopped?)` — it has never once
-thought in signal integers. Provisional, intueri-owed:
+**Six variants, and they are not uniform in what they cause. The tiers are the point:**
 
-| variant | POSIX | what the child's installed handler does |
-|---|---|---|
-| `User1` | SIGUSR1 | sets `KERNEL_SIGUSR1` → `(sigusr1?)` reads true |
-| `User2` | SIGUSR2 | sets `KERNEL_SIGUSR2` → `(sigusr2?)` reads true |
-| `Hangup` | SIGHUP | sets `KERNEL_SIGHUP` → `(sighup?)` reads true |
-| `Stop` | SIGTERM | `substrate_on_stop_signal` → `(stopped?)` reads true |
+| tier | variant | POSIX | who observes, and how |
+|---|---|---|---|
+| **flag** | `User1` | SIGUSR1 | the **child**, and it keeps running — `(sigusr1?)` reads true |
+| **flag** | `User2` | SIGUSR2 | the **child**, and it keeps running — `(sigusr2?)` reads true |
+| **flag** | `Hangup` | SIGHUP | the **child**, and it keeps running — `(sighup?)` reads true |
+| **stop** | `Interrupt` | SIGINT | the **child**, and it chooses when to stop — `(stopped?)` reads true |
+| **stop** | `Terminate` | SIGTERM | the **child**, and it chooses when to stop — `(stopped?)` reads true |
+| **kill** | `Kill` | SIGKILL | the **OWNER** — the child observes nothing and stops mid-instruction |
 
-**⛔ SIGKILL is a builder question, deliberately NOT decided here.** `ChildHandle`'s Drop already
-sends it (`handle.rs:138`), so the mechanism is present and the capability is *de facto* the
-substrate's. Exposing it to wat means an owner can hard-kill a child that cannot refuse — which may
-be exactly right (it owns the child) or may belong only to teardown. **Not needed by any consumer in
-this stone.** Left out of the initial mint; raised, not smuggled.
+**⚠ THIS TABLE IS THE ENUM'S DOC COMMENT. It is not commentary on the design; it is the only place
+two load-bearing facts can honestly live**, because both are facts about the **set**, not about any
+single name:
 
-**SIGINT is also omitted** — it routes to the same `substrate_on_stop_signal` as SIGTERM, so `Stop`
-already covers the observable behaviour. A second spelling of one outcome is the `()`/`nil` shape arc
-179 just finished killing.
+1. **`Interrupt` and `Terminate` share one landing.** Both reach `substrate_on_stop_signal`; the
+   child cannot tell them apart. The intueri cast ruled explicitly that **the names cannot carry
+   this** — no word for "interrupt" also means "and by the way this is indistinguishable from
+   terminate" — and that smuggling it in (`InterruptStop`) would be a mumble restating a fact about
+   the enum in every variant. So it lives here.
+2. **`Kill` has no child-side observable at all.** SIGKILL is uncatchable (`handle.rs:136`: *"SIGKILL
+   is unignorable"*) — a POSIX guarantee, not a substrate choice. The round trip still closes, on the
+   **owner**: `CloseOutcome::Signaled[signal <- i64]` (`types.rs:1747`) is documented as *"process
+   TERMINATED by a signal."*
 
-### The outcome is a matchable VALUE, never a raise
+**★ RULED 2026-08-03 — SIGINT and SIGTERM are named INDEPENDENTLY.** The builder: *"SIGINT and
+SIGTERM can be named.. independently... but they flow into `stopped?`."* An earlier draft collapsed
+them to one `Stop` variant, reading *"we treat them as equal in wat"* as an identity claim. **That
+conflated the observation with the identity** — the shared landing is a HANDLER decision, not a fact
+about the signals. And the collapse was independently dishonest: one `Stop` variant must pick a
+signal to put on the wire, and the form then stops saying which one went out, while `strace`, `ps`,
+and any non-wat observer still see the difference.
 
-The builder's LAW, recorded at the peer-lifecycle walls: *"for any options — four-questions — we
-deliver an enum for code to handle exceptions with; raise is uncatchable on purpose, a thing that
-must never happen."*
+**★ RULED 2026-08-03 — `Kill` IS IN, as a variant of this enum.** Four-questioned twice:
 
-Provisional shape, and **the middle arm is conditional on a reachability proof** (see STOP-2):
+*Is `Kill` in the surface at all?* **IN.** Omitting it fails **Honest**, because
+**omission is not absence**: `handle.rs:17` — *"Drop now owns the only unconditional SIGKILL+reap
+path"* — so the authority **already exists**, and leaving the variant out removes only its *name*. A
+surface that silently holds an authority it refuses to name is dishonest by construction. The UX gap
+is concrete: `Drop` is SIGKILL **then `wait_status()` with the result discarded** (`:138-139`), so
+killing a wedged child today forfeits its exit status, and `wait_or_cached_exit` first does not help
+— it blocks on the very child that is wedged. **You cannot kill-then-inspect.** `Kill` is not new
+authority; it is existing authority made legible at the call site.
+
+*A variant, or its own `kill` verb?* **A VARIANT.** A separate verb fails **Obvious** and **Simple**:
+its boundary would be *"does the OS permit the process to handle it"* — a distinction wat's surface
+draws nowhere else and no reader can derive without POSIX knowledge. **That is structurally the same
+failure this arc already rejected** when the `where` stone threw out "syntax stays core-spelled"
+because its boundary was *"wherever `classify_expr` happens to have a structural arm"* — an
+implementation detail leaking into surface shape. Same shape, different layer. And the receive side
+already groups every signal uniformly: `Signaled[i64]` reports SIGKILL exactly like the rest.
+
+**Drop's invariant is untouched** — its claim is about the *unconditional* path, and `Kill` is
+conditional by construction.
+
+### `:wat::kernel::SignalOutcome` — a matchable VALUE, never a raise
+
+The builder's LAW at the peer-lifecycle walls: *"for any options — four-questions — we deliver an
+enum for code to handle exceptions with; raise is uncatchable on purpose, a thing that must never
+happen."*
 
 ```clojure
 :wat::kernel::SignalOutcome        ;; non-parametric — returns no live resource
-  Delivered                         ;; the signal reached the child
-  Gone[cause <- Failure]            ;; the child already exited (ESRCH) — a REAL race the owner must face
+  Delivered                         ;; the kernel accepted it for that process
+  Gone                              ;; the child had already exited (ESRCH)   ⚠ SEE STOP-2
   Failed[cause <- Failure]          ;; io failure
 ```
+
+**`Delivered`, not `Sent`.** `Sent` names the *owner's* action and is silent on arrival — which is
+the entire reason this type exists. Reusing `SendOutcome::Sent` for a different guarantee is a
+meaning transplant.
+
+**`Gone`, not `Closed` or `Exited`.** `Closed` already means *"the channel is cleanly shut"* in three
+sibling enums; reusing it for *"the whole process is gone"* collides two closure concepts under one
+word. `Exited` implies clean termination, which ESRCH does not.
+
+**⚠ `Gone` CARRIES NO FIELD, and STOP-2 now covers two things.** The cast caught that a
+`cause <- Failure` on an arm whose only trigger is ESRCH is a field that never varies — one the
+reader carries for nothing. So STOP-2 is sharpened: prove the arm is **reachable** *and* that a field
+would **earn its place**, before minting either.
 
 **Must-never-happen stays a raise:** `EINVAL` (bad signal — unrepresentable, the enum forbids it),
 `EBADF` (closed pidfd — a substrate bug). Those are arity/type-class faults, not handleable
@@ -286,34 +342,41 @@ handler does not run.* That is the mechanism; nothing else is being claimed.
   per-runtime refactor to make testing easier is a rejected strike.
 - **⛔ STOP-6 — no `_` wildcard on the outcome enum.** Doctrine whose checker rule is unbuilt, so
   nothing will stop a rider taking it. Taking it is a rejected strike.
-- **⛔ Do not fold in SIGKILL.** Raised above; the builder's call; no consumer needs it here.
+- **⛔ STOP-7 — `Kill` does not get a second SIGKILL+reap path.** `Kill` sends and returns; it does
+  NOT reap. `ChildHandle::Drop` remains the only unconditional SIGKILL+reap (`handle.rs:17`). A `Kill`
+  that also reaps destroys the very thing the variant exists for — killing and then still inspecting.
 
 ## Strike order
 
 | stone | what | state |
 |---|---|---|
-| **P0** | Cast **intueri** on the vocabulary: the verb, `SignalOutcome` + its variants, the signal enum + its variants. Materialize the whole set as a `.wat` artifact and spawn the ward. | ▶ first, blocks the mint |
-| **P1** | The RED probe — spawn + attempt signal, fails on exactly the missing head. Committed. | ▶ startable now, independent of P0 |
-| **P2** | **Mint**: the signal enum, `SignalOutcome` in `types.rs`, the `Process` verb over `Pidfd::send_signal`, the `MUST_USE_TYPES` entry. STOP-2 gates the `Gone` arm. | blocked by P0, P1 |
+| ~~**P0**~~ | ~~Cast **intueri** on the vocabulary~~ — **CAST + WEIGHED 2026-08-03.** Target at `wat-scripts/intueri/process-signal-vocabulary.wat.intueri`; verdict folded into § The shape. Its first finding was against the target itself (the stale prime premise), verified by own read and corrected. | ✅ done |
+| **P1** | The RED probe — spawn + attempt signal, fails on exactly the missing head. Committed. | ▶ **startable now** |
+| **P2** | **Mint**: `Signal` (6 variants, 3 tiers) + `SignalOutcome` in `types.rs`, `:wat::kernel::signal` over `Pidfd::send_signal`, the `MUST_USE_TYPES` entry, the tier table as the enum's doc comment. STOP-2 gates `Gone`. | blocked by P1 |
 | **P3** | The three flag tests → wat deftests over the spawn tooling; the two cause-tests stop touching globals. **The deliberate break runs here.** | blocked by P2 |
 | **P4** | The three `libc::raise(SIGTERM)` harness tests → the same mechanism. | blocked by P3 |
 
-P0 and P1 are mutually independent and start together.
-
 ## Owed
 
-- **intueri on the whole vocabulary** (P0) — no name in this document is ratified. The verb spelling,
-  `SignalOutcome`, the variant names, and the signal-enum variants are all provisional. Precedent
-  check found **no existing verb on a `Process`/`Peer` value in `wat/*.wat`**, so there is no house
-  style to inherit; the cast is doing real work, not rubber-stamping.
-- **The builder's SIGKILL call** — in or out.
-- **#65 retitled** to the self-signal capability question, unbuilt, with the misfiling recorded.
+- **A WHY comment bridging the send/receive asymmetry** — the cast ruled the enum-on-send /
+  bare-`i64`-on-receive split **defensible** (closed domain vs open domain: we choose what is
+  sendable; we do not control what kills you) **but currently undocumented in shipped code.** A
+  reader touching both sides sees one concept spelled two ways with nothing bridging them. One line
+  on `CloseOutcome::Signaled` or on `Signal` closes it. Land it with P2.
+- **#65 retitled** to the self-signal capability question, unbuilt, with the misfiling recorded. ✅
 - **A note against #48** — `ProcessLaunch/pid` is identity-only *by design*; it must not be read as
   unadopted capability by a future census.
+- **FOLLOW-ON, out of this stone's scope, tracked not smuggled:** `check.rs`'s `MUST_USE` doc blocks
+  are stale on the de-prime axis — they name `send'`/`recv'` for verbs that shed the prime in `"0z"`.
+  A stale comment lies actively, and this stone was itself misled by exactly that class today.
 
 ## Open — the builder's
 
-1. **SIGKILL:** does an owner get to hard-kill a child from wat, or does that stay teardown-only?
-2. **Does the child need a `Stop` consumer test at all**, or do the three cascade tests (P4) already
-   cover `Stop` end-to-end? If they do, the initial signal enum could ship `User1`/`User2`/`Hangup`
-   only, and `Stop` arrives with P4 — smaller first mint, one fewer unexercised variant.
+**Both prior questions are RULED; none remain.**
+
+1. ~~SIGKILL in or out~~ → **IN**, as `Kill`, a variant. Four-questioned twice; see § The shape.
+2. ~~Does the enum ship `Stop` before P4 exercises it~~ → moot. The question presumed one collapsed
+   `Stop`; `Interrupt` and `Terminate` are now independent variants, and P4 exercises `Terminate`
+   end-to-end via the cascade tests. `Interrupt` and `Kill` ship exercised by P3's own cases —
+   `Kill`'s is the sharpest gate in the stone, because **no handler can fake it: there is no
+   handler.** Kill the child; assert the owner reads `Signaled`.
