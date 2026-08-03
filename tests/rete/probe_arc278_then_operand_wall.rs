@@ -2,13 +2,20 @@
 //!
 //! `validate_and_reorder_then` already checked a `:then` insert's SHAPE — head, fact type,
 //! field names, positional arity — and stopped short of looking INSIDE a value-position
-//! argument. So `(:nf::Out (:wat::core::+ ?a 1))` passed `--check` with arity 1 == 1 field and
+//! argument. So `(:nf::Out bogus-bare-symbol)` passed `--check` with arity 1 == 1 field and
 //! then raised mid-fire, once per derived fact, for a property of the RULE that no fact could
 //! change — with a Rust `Debug` dump of the AST as the user-facing `got`.
 //!
 //! This is arc 278's third statement of one ruling: a negation cycle is a compile error (R18),
 //! a lying `extend-type` is a compile error (R28), `()` stopped being a value (arc 179). An
 //! illegal expression must be illegal, not merely diagnosed politely at runtime.
+//!
+//! ★ Arc 278 Stone B narrowed this wall's SCOPE (DESIGN-STONE-then-is-a-vector-of-singular-facts.md
+//! § "Stone B") — a NESTED FORM (a call, e.g. the original fixture's `(:wat::core::+ ?a 1)`) is no
+//! longer categorically unresolvable: it may be a fenced expression, judged by the wat-side
+//! `then-item-fence` instead of this Rust wall. This fixture was narrowed to a BARE non-`?` symbol
+//! — a shape no fence at any layer can ever resolve — so the permanent red-proof keeps proving
+//! what is still true, rather than proving something Stone B deliberately made legal.
 //!
 //! WHY THIS FILE EXISTS rather than a hand-run probe: the wall was proven red once, by hand, in
 //! `/tmp`. That is an anecdote — the instrument supplying its own result. Committed, the red is
@@ -18,9 +25,9 @@
 use wat::freeze::{startup_from_file, StartupError};
 
 #[test]
-fn nested_form_in_then_is_a_compile_error() {
+fn bare_symbol_in_then_is_a_compile_error() {
     let err = startup_from_file("tests/rete/probe_arc278_then_operand_wall.wat.bad")
-        .expect_err("a nested form in a :then value position must fail check, not fire");
+        .expect_err("a bare non-`?` symbol in a :then value position must fail check, not fire");
     // The rete wall registers through the generic freeze-validator hook (`inventory::submit!`
     // in `src/rete/validate.rs`), so its findings surface as `Validator`, not a rete-specific
     // variant. `src/freeze/env.rs`'s comment claiming `StartupError::Rete(..)` is stale.
@@ -45,9 +52,9 @@ fn nested_form_in_then_is_a_compile_error() {
     assert!(rendered.contains("nf::compute"), "error does not name the rule:\n{rendered}");
     // rune:lint(loose-assert) — same span/path reason. Asserts the operand renders as WAT SOURCE
     // (`render_form`) and not as a Rust `Debug` dump of the AST, which is the defect this wall was
-    // built to stop; a Debug rendering would read `List([Keyword(...), Symbol(Identifier {...})])`
-    // and would NOT contain this.
-    assert!(rendered.contains("wat.core/+"),
+    // built to stop; a Debug rendering would read `Symbol(Identifier {...})` and would NOT
+    // contain this.
+    assert!(rendered.contains("bogus-bare-symbol"),
         "the operand must render as wat source, not Rust Debug:\n{rendered}");
     // rune:lint(loose-assert) — same span/path reason. Asserts the error TEACHES (R29) rather
     // than merely refusing, mirroring how `UnknownField` carries `available_fields`.

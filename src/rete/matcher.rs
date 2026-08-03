@@ -568,10 +568,18 @@ pub(crate) fn resolve_operand<B: Bindings>(
 /// Called from `eval_insert` (after arg evaluation) and from the production pass in
 /// `kernel.rs` (which already has the form + bindings and calls this directly).
 ///
+/// Arc 278 Stone B (DESIGN-STONE-then-is-a-vector-of-singular-facts.md § "Stone B") — takes
+/// `sym` now: widening (a) means `fact_items[0]` may name a plain fn instead of a fact-type
+/// constructor, and only `sym.types()`/`sym.functions` can tell the two apart at fire time (the
+/// freeze-time wat fence, `then-item-fence`, already proved whichever this is is legal — this is
+/// the SAME registry read, once more, to pick the execution shape). See
+/// [`build_insert_fact_call`] for the fn-call branch.
+///
 /// Raises `RuntimeError` on malformed form or unresolved operand. Never panics.
 pub(crate) fn build_insert_fact(
     fact_form: &WatAST,
     bindings: &crate::value::pmap::PMap,
+    sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
     // Arc 278 — splitting the production pass (34.9ms, 34% of a fact-heavy fire) into its parts
@@ -605,6 +613,22 @@ pub(crate) fn build_insert_fact(
             }).into());
         }
     };
+    // Arc 278 Stone B, widening (a) — the item head may now be EITHER a fact-type constructor
+    // (the fast path below, UNCHANGED) OR a fn whose declared return type is a fact type ("has
+    // its own argument convention" — plain positional call args, not field values;
+    // `BRIEF-then-user-forms.md` § "(a) THE ITEM HEAD"). `sym.types()` is the SAME registry
+    // `validate_and_reorder_then`'s `lookup_fields` reads at freeze time (Rust-side); here it
+    // disambiguates at FIRE time. The freeze-time wat fence (`then-item-fence`, wired into
+    // `compile-rule`) already proved this item legal before this ever runs — this check only
+    // picks which of the two (already-proven-safe) execution shapes to take.
+    let is_known_aggregate = matches!(
+        sym.types().and_then(|t| t.get(type_keyword)),
+        Some(crate::types::TypeDef::Aggregate(_))
+    );
+    if !is_known_aggregate {
+        return build_insert_fact_call(fact_form, type_keyword, &fact_items[1..], bindings, sym);
+    }
+
     // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
     // A String allocated per derived fact for a class name fixed at compile time — NOT counted by
     // `match:key-alloc`, which arms only the two resolve_operand sites.
@@ -637,12 +661,12 @@ pub(crate) fn build_insert_fact(
     crate::rete::kernel::phase_end("  ├ prod:shape", __ps);
     let __pr = crate::rete::kernel::phase_start();
     for arg in value_asts {
-        match resolve_operand(arg, &[], &[], bindings) {
+        match resolve_rhs_value(arg, bindings, sym)? {
             Some(v) => fields.push(v),
             None => {
                 return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "resolvable operand (?var or literal) in RHS fact-form",
+                    expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
                     got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
                 }).into());
             }
@@ -655,6 +679,107 @@ pub(crate) fn build_insert_fact(
     let out = Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields))));
     crate::rete::kernel::phase_end("  ├ prod:construct", __pc);
     Ok(out)
+}
+
+/// Arc 278 Stone B, widening (a) — the FN-CALL branch of [`build_insert_fact`]: `head` does not
+/// name a known aggregate type, so (by the freeze-time `then-item-fence`'s own proof) it names a
+/// user fn whose declared return type is a fact type. Its "arguments" are the fn's OWN positional
+/// parameters — a DIFFERENT convention from a constructor's field values, so no kwargs detection
+/// applies here (`BRIEF-then-user-forms.md` § "(a) THE ITEM HEAD": *"the kwargs
+/// reorder-to-declaration-order logic … applies to a constructor, not to a fn call, which has its
+/// own argument convention"*).
+///
+/// Resolves each arg via [`resolve_rhs_value`] (widening (b) applies to a fn call's args too),
+/// applies the fn, and checks the result is a fact (an `Aggregate`) — defensively: the
+/// freeze-time fence already proved the fn's DECLARED return type is a fact type, so reaching a
+/// non-`Aggregate` result here would mean the fence was bypassed or a checker gap let a
+/// mistyped fn through, never an expected path. Never panics, never silently drops.
+fn build_insert_fact_call(
+    fact_form: &WatAST,
+    head: &str,
+    args: &[WatAST],
+    bindings: &crate::value::pmap::PMap,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::eval-insert";
+    let func = match sym.functions.get(head) {
+        Some(f) => f.clone(),
+        None => {
+            return Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "':then' item head '{head}' names neither a known fact-type constructor nor \
+                     a registered fn — the rule-compile fence should have refused this"
+                ),
+            }).into());
+        }
+    };
+    let mut vals: Vec<Value> = Vec::with_capacity(args.len());
+    for arg in args {
+        match resolve_rhs_value(arg, bindings, sym)? {
+            Some(v) => vals.push(v),
+            None => {
+                return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "resolvable operand (?var, literal, or a fenced expression) in a RHS fn-call arg",
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
+                }).into());
+            }
+        }
+    }
+    let result = crate::runtime::apply_function(func, vals, sym, fact_form.span().clone())
+        .map_err(EvalBreak::from)?;
+    match result {
+        Value::Aggregate(_) => Ok(result),
+        other => Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "the fn to return a fact (a Record/Struct) — the rule-compile fence should \
+                       have refused a non-fact return type",
+            got: Box::new(ValueSnapshot::of(&other)),
+        }).into()),
+    }
+}
+
+/// Arc 278 Stone B — the RHS-only operand resolver: tries the plain [`resolve_operand`] first
+/// (unchanged fast path — `?var` / `:field` / literal), and if that returns `None` AND `arg` is a
+/// call form (a `List`), falls through to a FENCED evaluation (widening (b)). Lives here, NOT
+/// inside `resolve_operand` itself, so `:when`'s LHS matching (which shares that fn) is untouched
+/// (`BRIEF-then-user-forms.md` STOP-5: "Do NOT touch `:when`").
+///
+/// The freeze-time wat fence (`then-item-fence`) has already proven any `List` reaching here is
+/// pure ∧ deterministic and rete-namespaced-or-composed — the SAME warrant `eval_test_core`
+/// already relies on for a `where` predicate. [`eval_rhs_expr`] is that same evaluation, reused,
+/// not a second implementation.
+pub(crate) fn resolve_rhs_value(
+    arg: &WatAST,
+    bindings: &crate::value::pmap::PMap,
+    sym: &SymbolTable,
+) -> Result<Option<Value>, EvalBreak> {
+    if let Some(v) = resolve_operand(arg, &[], &[], bindings) {
+        return Ok(Some(v));
+    }
+    match arg {
+        WatAST::List(..) => Ok(Some(eval_rhs_expr(arg, bindings, sym)?)),
+        _ => Ok(None),
+    }
+}
+
+/// Arc 278 Stone B — evaluate a fenced `:then` expression (an operand, or — via
+/// `compiled_rhs::RhsOp::Expr` — the compiled path's own third op) against one token's bindings.
+/// Shared by the interpreted path ([`resolve_rhs_value`]) and the compiled path
+/// (`compiled_rhs::exec_compiled_rhs`) so the two can never independently drift — the "shared
+/// kernel, two surfaces" law (`DESIGN-STONE-where-admits-only-rete-ops.md` § "the implementation
+/// law"). Mirrors [`build_test_env`]'s own child-`Environment`-over-`bindings` construction
+/// exactly (the same one `eval_test_core` uses for a `where` predicate): a fresh base
+/// `Environment` is correct here for the same reason it is there — the only names a fenced
+/// `:then` expression may reference are its `?vars` and `sym`'s registered functions.
+pub(crate) fn eval_rhs_expr(
+    expr: &WatAST,
+    bindings: &crate::value::pmap::PMap,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let expr_env = build_test_env(bindings, &Environment::new());
+    Ok(crate::runtime::eval_inner(expr, &expr_env, sym)?.value_owned())
 }
 
 /// `(:wat::rete::eval-insert <fact-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
@@ -713,7 +838,7 @@ pub(crate) fn eval_insert(
     };
 
     // Delegate to the pure inner (the production pass calls this directly with the form + bindings).
-    build_insert_fact(&form_ast, &bindings)
+    build_insert_fact(&form_ast, &bindings, sym)
 }
 
 // ─── Field read ───────────────────────────────────────────────────────────────

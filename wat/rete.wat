@@ -874,15 +874,93 @@
         ;; 5. advance parent to join-id for the next condition
         (:wat::rete::CondFoldAcc :state state4 :parent-id join-id))))))))
 
+;; then-item-fence — Stone B (arc 278 DESIGN-STONE-then-is-a-vector-of-singular-facts.md §
+;; "Stone B"): the RHS fence, mirroring `compile-condition`'s `where` fence (above,
+;; :wat::rete::compile-condition's `is-where` branch) and the accumulator fence's synthetic-call
+;; trick (the `is-accumulate` branch) — except a `:then` item is ALREADY a call form
+;; `(<head> arg…)`, so no synthesis is needed: `pure?`/`deterministic?` on the item itself walks
+;; the head (constructor_meta / sym.functions, `purity.rs::head_ok`) AND recurses into every
+;; operand. ONE check covers BOTH widenings named in `BRIEF-then-user-forms.md`: (a) the item
+;; head may be a fn (not only a fact-type constructor — `head_ok` dispatches on either via the
+;; SAME declaration-derived / sym.functions doors already used for `where`) and (b) an operand
+;; may be a composed expression, not only `?var`/`:field`/literal (classify_expr's generic
+;; list-call arm already recurses into every argument on the same axis).
+;;
+;; SECOND check, new to `:then` (not shared with `where`, which never claims to produce
+;; anything): the item must RETURN A FACT. Evaluate the head to its fn value — `eval-ast!`, since
+;; `item-ch`'s head is already a `:wat::WatAST` value — then read its declared return type
+;; (`return-type-of`) and confirm that type is a registered record/struct
+;; (`field-names-of` raises otherwise — the SAME registry `validate_and_reorder_then`'s
+;; `lookup_fields` reads on the Rust side, reached here in wat because that Rust validator
+;; carries `types` but not `sym`, per `BRIEF-then-user-forms.md`'s "the fence goes where the
+;; where fence already is").
+;;
+;; A bare record-type keyword (e.g. `:usr::Rate`) evaluates to a KEYWORD, not its constructor fn
+;; (arc 294 item 9a's construction flip — `runtime.rs::eval_return_type_of`'s own doc) — resolve
+;; through the PRIME `:T'` in that case, the exact `:wat::rete::query` macro idiom
+;; ("types-as-forms"). A plain `:wat::core::defn` has no such indirection and already resolved to
+;; a fn on the bare read.
+;;
+;; foldl-compatible: `(acc, item) -> acc`, so `compile-rule` folds this straight over `rhs`
+;; without a lambda wrapper — the accumulator is a throwaway `i64`, unused except to satisfy
+;; foldl's shape; every check here is a side-effecting raise (an axis violation panics via
+;; `Option/expect`, exactly like `where`'s fence; "does not return a fact" raises normally,
+;; via `field-names-of`'s own diagnostic — both are freeze-time-only, never per derived fact).
+(:wat::core::defn :wat::rete::then-item-fence
+  [acc  <- :wat::core::i64
+   item <- :wat::WatAST]
+  -> :wat::core::i64
+  (:wat::core::let [is-pure   (:wat::rete::pure? item)
+                    is-det    (:wat::rete::deterministic? item)
+                    _fence    (:wat::core::Option/expect
+                                  (:wat::core::if (:wat::core::and is-pure is-det)
+                                    (:wat::core::Some nil)
+                                    :wat::core::None)
+                                  (:wat::rete::axis-violation-message "then" item (:wat::rete::first-failing-axis is-pure is-det)))
+                    item-ch   (:wat::core::ast->children item)
+                    head      (:wat::core::first item-ch)
+                    head-val0 (:wat::core::Result/expect
+                                  (:wat::eval-ast! head)
+                                  "compile-rule: :then item head failed to evaluate")
+                    ;; `:wat::core::type` returns the COLON-FREE FQDN (`Value::declared_type_name`)
+                    ;; — compare against "wat::core::fn", not ":wat::core::fn".
+                    is-fn-val (:wat::core::= (:wat::core::type head-val0) "wat::core::fn")
+                    ;; A bare record-type keyword evaluates to a KEYWORD — re-resolve through its
+                    ;; PRIME `:T'` to reach the constructor fn (see this defn's doc). A plain
+                    ;; `defn` already resolved to a fn above and takes the `is-fn-val` branch.
+                    prime-kw  (:wat::core::keyword-node
+                                  (:wat::core::string::concat (:wat::core::ast-name head) "'"))
+                    head-fn   (:wat::core::if is-fn-val
+                                  head-val0
+                                  (:wat::core::Result/expect
+                                     (:wat::eval-ast! prime-kw)
+                                     "compile-rule: :then item head failed to resolve to a fn"))
+                    ;; return-type-of raises "unknown type" itself if head-fn is STILL a bare
+                    ;; keyword (a genuinely unrecognised head) — no separate check needed here.
+                    ret-ty    (:wat::runtime::return-type-of head-fn)
+                    ;; `keyword/from-string` wants COLON-FREE input (it adds the sigil itself);
+                    ;; `return-type-of` already returns a colon-free FQDN — do not re-prepend one.
+                    ret-kw    (:wat::core::keyword/from-string ret-ty)
+                    ;; raises unless ret-kw names a registered record/struct — "produces a fact."
+                    _fact-ty  (:wat::runtime::field-names-of ret-kw)]
+    acc))
+
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
 ;; the ProductionNode as a child of the final join (the "leaf" terminal).
+;;
+;; Arc 278 Stone B — fences `rhs` (the rule's `:then` items) via `then-item-fence` BEFORE folding
+;; `lhs`, so a malformed RHS is caught before any network nodes are minted for this rule. Mirrors
+;; how `where`/accumulate are fenced inline during the LHS fold — this is the RHS's own
+;; freeze-time-only pass, over the SAME `rule` this fn already receives.
 (:wat::core::defn :wat::rete::compile-rule
   [state <- :wat::rete::CompileState
    rule  <- :wat::rete::Rule]
   -> :wat::rete::CompileState
-  (:wat::core::let [lhs       (:wat::rete::Rule/lhs rule)
-                    rname     (:wat::rete::Rule/name rule)
+  (:wat::core::let [lhs        (:wat::rete::Rule/lhs rule)
+                    rhs        (:wat::rete::Rule/rhs rule)
+                    rname      (:wat::rete::Rule/name rule)
+                    _rhs-fence (:wat::core::foldl :wat::rete::then-item-fence 0 rhs)
                     ;; fold conditions left→right; parent-id starts at -1 (none)
                     init-acc  (:wat::rete::CondFoldAcc :state state :parent-id -1)
                     final-acc (:wat::core::foldl

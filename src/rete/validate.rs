@@ -584,8 +584,16 @@ fn malformed(span: Span, rule_name: &str, fact_type: &str, clause: &WatAST) -> R
 ///
 /// Mirrors `resolve_operand`'s accepted set (`matcher.rs`) exactly, minus the `?var` case whose
 /// boundness this stone does not judge: a literal resolves, a `?var` MAY resolve, and everything
-/// else — a nested form, a `:field` keyword (a RHS has no current fact), a bare non-`?` symbol —
-/// resolves to `None` for every possible token. Purely syntactic, so it cannot reject a legal rule.
+/// else — a `:field` keyword (a RHS has no current fact), a bare non-`?` symbol, a Vector/Map/Set
+/// literal — resolves to `None` for every possible token. Purely syntactic, so it cannot reject a
+/// legal rule.
+///
+/// Arc 278 Stone B, widening (b) — a `List` (a call form) is REMOVED from the never-resolves set.
+/// It is no longer necessarily dead: it may be a fenced expression composed of
+/// `:wat::rete::`-namespaced ops (or a user fn bottoming out in them), which the wat-side fence
+/// (`then-item-fence`) proves legal — or refuses, naming the offending head + axis — at
+/// rule-compile time. This function does not have `sym`, so it cannot judge a List itself; it
+/// only stops flagging a shape that is no longer categorically illegal.
 fn rhs_operand_can_never_resolve(arg: &WatAST) -> bool {
     !matches!(
         arg,
@@ -593,6 +601,7 @@ fn rhs_operand_can_never_resolve(arg: &WatAST) -> bool {
             | WatAST::FloatLit(_, _)
             | WatAST::BoolLit(_, _)
             | WatAST::StringLit(_, _)
+            | WatAST::List(_, _)
     ) && !matches!(arg, WatAST::Symbol(ident, _) if ident.as_str().starts_with('?'))
 }
 
@@ -647,13 +656,18 @@ fn validate_and_reorder_then(
     let fact_type = type_kw.trim_start_matches(':').to_string();
     let field_names = match lookup_fields(types, &fact_type) {
         Some(f) => f,
-        None => {
-            errors.push(ReteCheckError {
-                span: fact_span,
-                kind: ReteCheckErrorKind::UnknownFactType { rule: rule_name.to_string(), fact_type },
-            });
-            return;
-        }
+        // Arc 278 Stone B (DESIGN-STONE-then-is-a-vector-of-singular-facts.md § "Stone B") —
+        // RELAXES rather than tightens: a head this validator cannot resolve in `types` is no
+        // longer an error HERE. It is no longer necessarily a constructor at all — Stone B
+        // widens an item's head to "a fn whose declared return type is a fact type," and this
+        // validator carries `types: &TypeEnv` but not `sym` (no `sym.functions`, so it cannot
+        // classify a fn head or its transitively-composed body — threading `sym` through the
+        // whole static validate.rs call tree is the param cascade `BRIEF-then-user-forms.md`'s
+        // STOP-1 forbids). The wat-side fence (`wat/rete.wat`'s `then-item-fence`, wired into
+        // `compile-rule`) takes over enforcing head-legality, the three axes, and
+        // "returns-a-fact" for this item — at rule-COMPILE time, same as `where`'s fence. A
+        // genuinely unknown/malformed head still surfaces there, just not from this function.
+        None => return,
     };
 
     // Arc 294 item 9a — the SAME kwargs-shape test `build_insert_fact` uses

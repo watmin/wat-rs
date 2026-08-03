@@ -1,15 +1,25 @@
 ;; NEGATIVE FIXTURE — must FAIL `--check`. Arc 278, the :then operand wall.
 ;;
-;; `(:wat::core::+ ?a 1)` in a :then value position can never resolve at fire time:
-;; `resolve_operand` accepts a literal or a `?var`, and returns None for a nested form.
-;; Before the wall this file type-checked CLEAN (arity 1 == :Out's 1 field, and nobody
-;; looked inside the argument) and then raised mid-fire, per derived fact, with a Rust
-;; `Debug` dump of the AST as its diagnostic.
+;; A bare non-`?` symbol in a :then value position can never resolve at fire time:
+;; `resolve_operand` accepts a literal or a `?var` only. Before the wall this file
+;; type-checked CLEAN (arity 1 == :Out's 1 field, and nobody looked inside the argument) and
+;; then raised mid-fire, per derived fact, with a Rust `Debug` dump of the AST as its
+;; diagnostic.
+;;
+;; Arc 278 Stone B (DESIGN-STONE-then-is-a-vector-of-singular-facts.md § "Stone B") widened a
+;; `:then` value-position operand to admit a fenced EXPRESSION (a call form) — so a nested
+;; form like `(:wat::core::+ ?a 1)` is no longer categorically illegal here; this Rust-side
+;; wall (`validate_and_reorder_then`) now defers a call-form operand to the wat-side fence
+;; (`then-item-fence`, `wat/rete.wat`), which judges it on purity/determinism/composition, not
+;; shape. What this wall STILL catches — because it can never resolve under ANY fence, at ANY
+;; layer — is a bare non-`?` symbol: not a literal, not a `?var`, not a call. See
+;; `probe_arc278_then_user_forms_expr_widening.wat` for the now-legal nested-form sibling of
+;; this fixture.
 (:wat::core::defrecord :nf::In  [a <- :wat::core::i64])
 (:wat::core::defrecord :nf::Out [a <- :wat::core::i64])
 
 (:wat::rete::defrule :nf::compute
   :when  [(:nf::In (?a <- :a))]
-  :then  [(:nf::Out (:wat::core::+ ?a 1))])
+  :then  [(:nf::Out bogus-bare-symbol)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

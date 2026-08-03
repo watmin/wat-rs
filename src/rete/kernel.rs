@@ -1084,7 +1084,7 @@ fn node_parent(child_id: i64, network: &Value) -> i64 {
 /// for each token × each RHS insert-form, build the derived fact via `build_insert_fact`,
 /// push to `production[prod_id]`.
 /// Mirrors `wat/rete.wat:867-881` + `wat/rete.wat:828-865`.
-fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
+fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
     let node_ids = sorted_node_ids(&wm.network);
     // Collect rules into a Vec (wm.rules is a passthrough PV of Rule records).
     let rules: Vec<Value> = match &wm.rules {
@@ -1143,7 +1143,7 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
         // tok.bindings is a native PMap — pass directly (no intermediate clone).
         for tok in &tokens {
             for form in &rhs_forms {
-                let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
+                let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings, sym)?;
                 wm.production.entry(*node_id).or_default().push(derived);
             }
         }
@@ -1173,7 +1173,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     alpha_pass(&mut wm, sym);
     root_join_pass(&mut wm);
     hash_join_pass(&mut wm);
-    production_pass(&mut wm)?;
+    production_pass(&mut wm, sym)?;
 
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
     // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
@@ -2244,7 +2244,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 _ => vec![],
             };
             let compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> =
-                rhs.iter().map(crate::rete::compiled_rhs::compile_rhs).collect();
+                rhs.iter().map(|f| crate::rete::compiled_rhs::compile_rhs(f, sym)).collect();
             compiled_rhs_cache.insert(rname.to_string(), compiled);
             rule_rhs_cache.insert(rname.to_string(), rhs);
         }
@@ -2906,13 +2906,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     let derived = match compiled {
                         Some(c) => {
                             let __prhs = phase_start();
-                            let derived = crate::rete::compiled_rhs::exec_compiled_rhs(c, &tok.bindings)?;
+                            let derived = crate::rete::compiled_rhs::exec_compiled_rhs(c, &tok.bindings, sym)?;
                             phase_end("  ├ prod:compiled-rhs", __prhs);
                             derived
                         }
                         // Defensive fallback only — see the comment where `compiled_rhs_cache` is
                         // built. `build_insert_fact`'s own four `prod:*` marks still fire here.
-                        None => crate::rete::matcher::build_insert_fact(form, &tok.bindings)?,
+                        None => crate::rete::matcher::build_insert_fact(form, &tok.bindings, sym)?,
                     };
                     // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
                     // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
@@ -3948,7 +3948,7 @@ mod tests {
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
         hash_join_pass(&mut wm);
-        production_pass(&mut wm).expect("production_pass should succeed");
+        production_pass(&mut wm, sym).expect("production_pass should succeed");
 
         // Find the HashJoinNode (the parent of the ProductionNode) in the network.
         // A production-reaching token lives in beta[hash_join_node_id].
