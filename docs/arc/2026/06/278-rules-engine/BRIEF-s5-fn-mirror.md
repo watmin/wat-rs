@@ -1,8 +1,18 @@
 # BRIEF — S5's last form: mirror `fn`
 
 Closes **#56 (S5)**. Spec: `DESIGN-STONE-where-admits-only-rete-ops.md` § "✅ CORRECTED 2026-08-02 —
-`fn` IS mirrorable" — read that section first; it carries the retraction and the grounding this
-brief rests on.
+`fn` IS mirrorable, and the structural guards BYPASS the fence" — read that section first; it
+carries the retraction, the grounding this brief rests on, and the builder-ratified ruling below.
+
+**★ WHY THIS IS NOT OPTIONAL — ratified 2026-08-02.** *Everything inside a `where` is
+rete-namespaced.* A complete DSL is closed over its own vocabulary; a `where` reaching into
+`:wat::core::` for its syntax is not a DSL but wat with a list of restrictions. So the rete `fn`
+name must EXIST before #57 can arm the structural arms to require it. This mirror is a prerequisite
+for arming, not a cosmetic.
+
+**Tree state:** HEAD `48b62a76`. Floor 4315/4315/0/262, rete 237/0/9, lint 66/0, clippy zero,
+corpus 9 pairs / 98 rows. #59 has just added `and`/`or`/`ann-form` arms to `eval_tail` — **that is
+unrelated to you; `fn` never tail-calls and gets no `eval_tail` arm** (STOP-4).
 
 ## You are a rider, not the orchestrator
 
@@ -84,7 +94,7 @@ Target form:
 | 5 | ★ control for row 4 | the same shape with a pure body classifies pure |
 | 6 | ★ the structural guard fires (pattern/params not walked as exprs) | mirrors `match`'s gate |
 | 7 | ★★ row 6 goes RED without the widening | revert the guard to literal-only, watch it die, restore — **report both observations** |
-| 8 | `cargo test --release --test rete` | ≥ 225 passed, 0 failed |
+| 8 | `cargo test --release --test rete` | ≥ **237** passed, 0 failed (baseline at `48b62a76`) |
 | 9 | `cargo test --release --test lint` | 66 passed, 0 failed |
 | 10 | corpus unmoved | 9 pairs, 98 rows agreeing |
 | 11 | fence still unarmed | `wat/rete.wat` untouched |
