@@ -772,7 +772,14 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // The param vector + return-type are not evaluated; only the BODY forms (after the `-> :ret`
         // ascription) carry effects, so classify exactly those. Mirror the `match`-arm's logic:
         // locate the top-level `->` symbol, then body = items[i+2..] (skip `->` and :ret).
-        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn") => {
+        //
+        // Arc 278 (S5, closing #56's leftover) — widened through `resolve_core_name` (THE ONE
+        // discriminator, `rete/vocabulary.rs`) exactly as `match`'s guard above was widened, so
+        // `:wat::rete::core::fn` is recognised here too, without a second copy of this arm's body
+        // keyed on the rete name (STOP-4: one indirection, never a duplicated arm). A non-rete
+        // head (the entire core corpus) round-trips through `resolve_core_name` unchanged —
+        // zero behavior change for anything not in `RETE_OPS`.
+        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::fn") => {
             match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
                 Some(i) => {
                     let body = items.get(i + 2..).ok_or_else(|| AxisViolation {

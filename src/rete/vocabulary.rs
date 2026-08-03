@@ -30,11 +30,13 @@
 //!   (never a silent fallthrough) for a Form row nobody taught it to route (STOP-1).
 //!   `cond`/`match`/`fn` are a further thing again: structural guards matched in
 //!   `rete/purity.rs`'s `classify_expr`, which never reach `head_ok` at all — a mirrored `match`
-//!   is STILL a `Form` row for `infer_rete_form`'s purposes (routes to `infer_match`), but ALSO
-//!   needs its structural guard's match-guard widened to recognise the rete name (a second,
-//!   independent edit — STOP-4: do not conflate the two). `fn` is the odd member: it is not
-//!   merely a structural guard away from working (see `infer_rete_form`'s STOP-3 note, `check.rs`)
-//!   and has no row here as of #56.
+//!   or `fn` is STILL a `Form` row for `infer_rete_form`'s purposes (routes to `infer_match`/
+//!   `infer_fn` respectively), but ALSO needs its structural guard's own match-guard widened to
+//!   recognise the rete name (a second, independent edit — STOP-4: do not conflate the two).
+//!   `fn`'s earlier STOP-3 (#56 phase 1) is RETRACTED (design stone, "CORRECTED 2026-08-02"): it
+//!   was a claim about `(def :name (fn …))`, the definition-registration path, and does not touch
+//!   an anonymous `fn` value — `fn` is minted below by the exact same recipe `match` took,
+//!   nothing more.
 //! - **`Fallback`** — an alias PLUS a second terminal handler: the caller supplies a mandatory
 //!   `:undefined` fallback value (4th positional arg, preceded by the literal keyword
 //!   `:undefined` as a marker in the 3rd slot) that is substituted for the raise the alias's
@@ -341,6 +343,30 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         params: &[],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: false },
+    },
+    // ── #56's leftover, closed — `fn`, the second and last of the structural-guard pair.
+    // `fn`'s STOP-3 (#56 phase 1) is RETRACTED: it was a claim about `(def :name (fn …))`, the
+    // definition-registration path (`try_parse_fn_shape_def` + its variadic sibling, both
+    // matching the literal `:wat::core::fn`) — irrelevant to an anonymous `fn` VALUE, which is
+    // expressible today free-standing (proven by run: passed straight to `foldl`, never bound).
+    // Same shape as `match`: `infer_rete_form` routes to `infer_fn` (a clean helper, exactly like
+    // `infer_if`/`infer_let`/`infer_match`), and `rete/purity.rs`'s `fn`-literal structural guard
+    // (its OWN arm, distinct from `match`'s) is widened through `resolve_core_name` the same one
+    // way (STOP-4: one indirection, never a duplicated arm body).
+    //
+    // `meta` is vestigial here too, for the same reason as `match`'s row: `classify_expr`
+    // intercepts a `fn` literal structurally (walks the body forms only; params/return-type are
+    // never evaluated) before `head_ok` — which reads `meta` — is ever reached. Kept accurate
+    // anyway, for STOP-2 completeness: unlike `match` (which can raise `NoMatchingArm` on a
+    // non-exhaustive scrutinee), merely CONSTRUCTING a well-typed `fn` literal never raises, so
+    // `total: true` — the same as `if`/`let`'s own hand-list entries, not `match`'s `false`.
+    ReteOp {
+        rete_name: ":wat::rete::core::fn",
+        core_name: ":wat::core::fn",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
     },
 ];
 

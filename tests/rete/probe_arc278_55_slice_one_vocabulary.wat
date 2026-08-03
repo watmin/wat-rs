@@ -100,6 +100,60 @@
 (:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-det [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle 5)))))
 
+;; ── S5's last form (closing #56's leftover): `fn`, the second of the structural-guard pair ─────
+;; The builder's target form (BRIEF-s5-fn-mirror.md) — an anonymous rete `fn` type-checks (routes
+;; through `infer_rete_form` to `infer_fn`, same as `check.rs`'s own `":wat::core::fn"` arm) and
+;; EVALUATES as a value: applied via `:wat::core::apply` to a real argument. `0 + 5` never
+;; overflows, so the `:undefined -1` fallback is dead here — a plain positive-path proof, not the
+;; fallback mechanism (already covered by `:user::fallback-no-overflow` above).
+(:wat::core::defn :user::rete-fn-target-form [] -> :wat::core::i64
+  (:wat::core::apply
+    (:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+      (:wat::rete::i64::+ 0 x :undefined -1))
+    [5]))
+
+;; rows 4+5 — the fence checks the BODY, in BOTH directions (together, not separately — a
+;; body-check test that only shows the impure case proves nothing about the pure one). Return type
+;; is a plain flat keyword in both, so this pair isolates BODY purity specifically (the
+;; return-type-SLOT trick lives in the next section, testing a different thing).
+(:wat::core::defn :user::rete-fn-impure-body-is-not-pure [] -> :wat::core::bool
+  (:wat::rete::pure? (:wat::core::quote
+    (:wat::rete::core::fn [] -> :wat::core::i64
+      (:wat::io::IOReader/open-file "x")))))
+(:wat::core::defn :user::rete-fn-impure-body-is-not-deterministic [] -> :wat::core::bool
+  (:wat::rete::deterministic? (:wat::core::quote
+    (:wat::rete::core::fn [] -> :wat::core::i64
+      (:wat::io::IOReader/open-file "x")))))
+;; the control: the identical shape, pure body, classifies pure/deterministic.
+(:wat::core::defn :user::rete-fn-pure-body-is-pure [] -> :wat::core::bool
+  (:wat::rete::pure? (:wat::core::quote
+    (:wat::rete::core::fn [] -> :wat::core::i64
+      (:wat::rete::i64::+ 1 2)))))
+(:wat::core::defn :user::rete-fn-pure-body-is-deterministic [] -> :wat::core::bool
+  (:wat::rete::deterministic? (:wat::core::quote
+    (:wat::rete::core::fn [] -> :wat::core::i64
+      (:wat::rete::i64::+ 1 2)))))
+
+;; row 6 — the structural guard fires: the RETURN-TYPE SLOT (never evaluated — `parse_type_node`,
+;; `src/types.rs`, accepts a parametric `(Ctor arg…)` List there) holds an impure-LOOKING head.
+;; Never reached because this whole fn lives inside `quote` (never type-checked — same "quote
+;; never checks its content" property `probe_arc278_59...`'s tests rely on) AND because the
+;; structural guard isolates the body (`items.get(i+2..)`), skipping the params vector + the
+;; return-type slot entirely. If `classify_expr` ever fell through to the "General list" arm
+;; instead (the guard's literal-only pre-widening condition, reverted at row 7's manual gate),
+;; that arm recurses into EVERY element after the head — INCLUDING the return-type slot — and
+;; `:wat::io::IOReader/open-file` is a real `is_effectful_op` head, so it would deny purity despite
+;; the body being trivially pure. The body itself is pure arithmetic either way; this test isolates
+;; the SLOT, not the body (rows 4/5 already isolate the body).
+(:wat::core::defn :user::rete-fn-return-type-slot-not-classified-as-expr-pure [] -> :wat::core::bool
+  (:wat::rete::pure? (:wat::core::quote
+    (:wat::rete::core::fn [] -> (:wat::io::IOReader/open-file "unused-return-type-slot")
+      (:wat::rete::i64::+ 1 2)))))
+(:wat::core::defn :user::rete-fn-return-type-slot-not-classified-as-expr-det [] -> :wat::core::bool
+  (:wat::rete::deterministic? (:wat::core::quote
+    (:wat::rete::core::fn [] -> (:wat::io::IOReader/open-file "unused-return-type-slot")
+      (:wat::rete::i64::+ 1 2)))))
+
 ;; ── rows 3-5: THE ADMISSION TEST, in BOTH directions ────────────────────────────────────────
 ;; row 3 — a rete-module head IS admitted.
 (:wat::core::defn :user::admit-rete-module? [] -> :wat::core::bool

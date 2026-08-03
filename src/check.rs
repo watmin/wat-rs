@@ -2317,17 +2317,19 @@ fn infer_err_constructor(
 /// routes here too (to `infer_match`) — its OTHER need, a `rete/purity.rs` structural-guard
 /// widening, is a separate, independent edit (STOP-4).
 ///
-/// **STOP-3 — `fn` has NO arm here and no `RETE_OPS` row, by design.** Grounded (not guessed):
-/// unlike `match`, `fn`'s gap is not "one more structural guard" — `runtime.rs`'s def-registration
-/// parsers (`try_parse_fn_shape_def`, its variadic sibling, both walking `fn_items.first()? ==
-/// Keyword(":wat::core::fn")` literally) are how `(:wat::core::def :name (:wat::core::fn …))`
-/// becomes a callable entry in `sym.functions` at all — a rete-named `fn` would not be recognised
-/// as a function-definition SHAPE by these parsers, so `:name` likely never registers as callable,
-/// not merely mis-infers. `check.rs:520` (`is_fn_form_expr`, gating duplicate-diagnostic
-/// suppression) and two Process-scope walkers at `check.rs:1654`/`:1735` (which stop recursion at
-/// a literal `:wat::core::fn`/`:let` boundary) would also silently misbehave. Mirroring `fn`
-/// therefore needs teaching MULTIPLE registration-time/structural sites, not one inference route
-/// — exactly the shape STOP-3 exists to catch. Left unmirrored.
+/// **`fn`'s earlier STOP-3 is RETRACTED** (design stone, "✅ CORRECTED 2026-08-02 — `fn` IS
+/// mirrorable"). The original claim — that a rete-named `fn` "would likely never register as
+/// callable" — was about `runtime.rs`'s def-registration parsers (`try_parse_fn_shape_def`, its
+/// variadic sibling, both matching the literal `:wat::core::fn`), which recognise ONLY the
+/// `(:wat::core::def :name (:wat::core::fn …))` definition shape. That is irrelevant to an
+/// anonymous `fn` value: nobody writes `(def :name (rete-fn …))` (definitions use `defn` at top
+/// level), and an anonymous `fn` is expressible as a free value today regardless — proven by run,
+/// passed straight to `foldl`, never bound. `is_fn_form_expr` (`check.rs:520`, duplicate-
+/// diagnostic suppression) and the two arc-212 scope walkers (`check.rs:1654`/`:1735`) are
+/// likewise narrow and out of scope (task #60) — none of the three blocks routing a `fn`
+/// LITERAL's own type inference here. `fn` is therefore the same size `match` was: one arm below
+/// (to `infer_fn`, already a clean helper exactly like `infer_if`/`infer_let`/`infer_match`), plus
+/// its OWN independent structural-guard widening in `rete/purity.rs` (STOP-4, same as `match`'s).
 fn infer_rete_form(
     core_name: &str,
     args: &[WatAST],
@@ -2346,6 +2348,12 @@ fn infer_rete_form(
         // reaches this same `infer_list` dispatch just like every other keyword-headed list, so
         // it gets a route here too, mirroring `infer_match`'s own arm two screens down.
         ":wat::core::match" => infer_match(args, head_span, env, locals, fresh, subst),
+        // Arc 278 (S5, closing #56's leftover) — `fn` is a structural guard in
+        // `rete/purity.rs`'s `classify_expr` too (a SEPARATE, independent edit — STOP-4), but for
+        // TYPE INFERENCE it reaches this same `infer_list` dispatch just like `match`, so it gets
+        // a route here mirroring `check.rs`'s own `":wat::core::fn" => infer_fn` arm above
+        // (`infer_fn` takes no `head_span` — passed only the args it wants, same as that arm).
+        ":wat::core::fn" => crate::function::infer_fn(args, env, locals, fresh, subst),
         // STOP-1: LOUD and LOCATED, never a silent fallthrough to `infer_boolean_shortcircuit`.
         // Reachable only by a future `RETE_OPS` row minting `class: Form` with a `core_name` this
         // match was never taught — a bug in the vocabulary table's authoring, not a user error,

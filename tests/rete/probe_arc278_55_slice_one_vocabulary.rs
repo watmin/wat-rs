@@ -188,6 +188,57 @@ fn rete_match_pattern_is_not_classified_as_an_expression_deterministic() {
     assert!(is_true(":user::rete-match-pattern-not-classified-as-expr-det"));
 }
 
+// ─── S5's last form (closing #56's leftover): `fn` ────────────────────────────────
+
+/// Row 3: the builder's target form — a rete `fn` type-checks (`infer_rete_form` routes
+/// `":wat::core::fn"` to `infer_fn`) AND evaluates as a value, applied to a real argument.
+#[test]
+fn rete_fn_target_form_type_checks_and_evaluates() {
+    assert_eq!(eval_i64(":user::rete-fn-target-form"), 5, "0 + 5, the fallback never fires (no overflow)");
+}
+
+/// Row 4: a rete `fn`'s BODY is fence-checked — an impure body classifies NOT pure.
+#[test]
+fn rete_fn_impure_body_is_not_pure() {
+    assert!(is_false(":user::rete-fn-impure-body-is-not-pure"), "an IOReader/open-file body must deny purity");
+}
+
+/// ...and NOT deterministic (the other axis, same walk).
+#[test]
+fn rete_fn_impure_body_is_not_deterministic() {
+    assert!(is_false(":user::rete-fn-impure-body-is-not-deterministic"));
+}
+
+/// Row 5: the CONTROL for row 4 — the identical shape, pure body, classifies pure. Rows 4+5
+/// together, not separately: a body-check test that only shows the impure case proves nothing
+/// about the pure one.
+#[test]
+fn rete_fn_pure_body_is_pure() {
+    assert!(is_true(":user::rete-fn-pure-body-is-pure"), "a pure-arithmetic body must classify pure");
+}
+
+/// ...and deterministic (the other axis, same walk).
+#[test]
+fn rete_fn_pure_body_is_deterministic() {
+    assert!(is_true(":user::rete-fn-pure-body-is-deterministic"));
+}
+
+/// Row 6: the structural guard fires — a rete `fn` whose RETURN-TYPE SLOT holds an impure-LOOKING
+/// head (never evaluated; a parametric type-form List in that position, per `parse_type_node`)
+/// classifies clean. `:wat::rete::pure?` must recurse into the fn BODY via the structural
+/// (skip-params-and-return-type) treatment, not the generic call-shape walk that would treat the
+/// return-type slot as one more argument expression and deny on its `is_effectful_op` head.
+#[test]
+fn rete_fn_return_type_slot_is_not_classified_as_an_expression_pure() {
+    assert!(is_true(":user::rete-fn-return-type-slot-not-classified-as-expr-pure"), "the return-type slot must be skipped structurally, not walked as an expression");
+}
+
+/// ...and the same discipline holds on the deterministic axis.
+#[test]
+fn rete_fn_return_type_slot_is_not_classified_as_an_expression_deterministic() {
+    assert!(is_true(":user::rete-fn-return-type-slot-not-classified-as-expr-det"));
+}
+
 // ─── row 6: COMPOSITION survives, proven BY A RUN ────────────────────────────────
 
 /// A user `defn` composed of all four ops classifies PURE transitively — `classify_fn` still
