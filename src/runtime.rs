@@ -42,7 +42,7 @@
 
 use crate::ast::WatAST;
 use crate::span::Span;
-use holon::{encode, HolonAST, Similarity};
+use holon::{encode, HolonAST, Similarity, DEGENERATE_EPSILON};
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::ToPrimitive;
@@ -18722,13 +18722,29 @@ fn eval_holon_is_nil_q(
 /// Cross-dim Vector pairs error with `TypeMismatch`. There's no
 /// auto-promotion: a raw Vector at d=10000 has no source AST to
 /// re-encode at d=4096; the caller must produce matching-dim inputs.
+/// The measured outcome of resolving a `(Value, Value)` pair to a
+/// same-dimension `(Vector, Vector)` pair. Arc 278 the cosine outcome wall
+/// (`BRIEF-cosine-outcome-wall.md`) — a dimension disagreement between two
+/// operands used to make this helper RAISE a `TypeMismatch`, uncatchable,
+/// unwinding past every caller alike. It is now a domain fact this enum
+/// carries, so each of the five callers (`cosine`, `dot`, `coincident?`,
+/// `presence?` — which never reaches this helper at all, see its own
+/// comment — and `coincident-explain`) decides for itself what to DO with a
+/// mismatch, per its own return-shape contract. A value that is neither
+/// Vector nor HolonAST/Record still raises via this function's `Err` arm —
+/// that is a call-site type bug, not a domain hole this wall covers.
+enum PairedVectors {
+    Paired(holon::Vector, holon::Vector),
+    DimensionMismatch { expected: i64, got: i64 },
+}
+
 fn pair_values_to_vectors(
     op: &'static str,
     a: Value,
     b: Value,
     sym: &SymbolTable,
     list_span: &Span,
-) -> Result<(holon::Vector, holon::Vector), EvalBreak> {
+) -> Result<PairedVectors, EvalBreak> {
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     // Arc 234 Stone 234.5 — D3: normalize Value::Aggregate(HolonRecord) → HolonAST before dispatch.
     // HolonRecord carries a pre-built hologram; coerce both sides so the existing
@@ -18756,33 +18772,31 @@ fn pair_values_to_vectors(
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "Vector pair with matching dimensions",
-                    got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-                    // arc 138: no per-arg AST span (takes a Value pair) — list_span (the call site) used instead
-                }).into());
+                return Ok(PairedVectors::DimensionMismatch {
+                    expected: va.dimensions() as i64,
+                    got: vb.dimensions() as i64,
+                });
             }
-            Ok((va.as_ref().clone(), vb.as_ref().clone()))
+            Ok(PairedVectors::Paired(va.as_ref().clone(), vb.as_ref().clone()))
         }
         (Value::Vector(va), Value::holon__HolonAST(b)) => {
             let d = va.dimensions();
             let enc = ctx.encoders.get(d);
             let vb = encode(&b, &enc.vm, &enc.scalar);
-            Ok((va.as_ref().clone(), vb))
+            Ok(PairedVectors::Paired(va.as_ref().clone(), vb))
         }
         (Value::holon__HolonAST(a), Value::Vector(vb)) => {
             let d = vb.dimensions();
             let enc = ctx.encoders.get(d);
             let va = encode(&a, &enc.vm, &enc.scalar);
-            Ok((va, vb.as_ref().clone()))
+            Ok(PairedVectors::Paired(va, vb.as_ref().clone()))
         }
         (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
             let d = program_dim(op, sym, list_span)?;
             let enc = ctx.encoders.get(d);
             let va = encode(&a, &enc.vm, &enc.scalar);
             let vb = encode(&b, &enc.vm, &enc.scalar);
-            Ok((va, vb))
+            Ok(PairedVectors::Paired(va, vb))
         }
         (a, _) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -18793,16 +18807,95 @@ fn pair_values_to_vectors(
     }
 }
 
-/// `(:wat::holon::cosine target reference) -> :f64` — raw cosine
-/// measurement. Polymorphic since arc 052: accepts HolonAST or Vector
-/// inputs in any position. Mixed inputs are normalized (the AST side
-/// is encoded at the Vector side's d).
+/// Arc 278 the cosine outcome wall — type path of `:wat::holon::DegenerateSide`
+/// (registered in `types.rs`). Diagnostic payload for `CosineOutcome::Degenerate`.
+const DEGENERATE_SIDE_TYPE: &str = ":wat::holon::DegenerateSide";
+
+/// `DegenerateSide::Target []` — the `target` (first) operand is a
+/// zero-magnitude vector.
+fn degenerate_side_target() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: DEGENERATE_SIDE_TYPE.into(),
+        variant_name: "Target".into(),
+        fields: vec![],
+    }))
+}
+
+/// `DegenerateSide::Reference []` — the `reference` (second) operand is a
+/// zero-magnitude vector.
+fn degenerate_side_reference() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: DEGENERATE_SIDE_TYPE.into(),
+        variant_name: "Reference".into(),
+        fields: vec![],
+    }))
+}
+
+/// `DegenerateSide::Both []` — both operands are zero-magnitude vectors.
+fn degenerate_side_both() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: DEGENERATE_SIDE_TYPE.into(),
+        variant_name: "Both".into(),
+        fields: vec![],
+    }))
+}
+
+/// Arc 278 the cosine outcome wall — type path of `:wat::holon::CosineOutcome`
+/// (registered in `types.rs`).
+const COSINE_OUTCOME_TYPE: &str = ":wat::holon::CosineOutcome";
+
+/// `CosineOutcome::Similarity [similarity <- f64]` — the happy path, the raw
+/// cosine clamped to `[-1, 1]`.
+fn cosine_outcome_similarity(similarity: f64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COSINE_OUTCOME_TYPE.into(),
+        variant_name: "Similarity".into(),
+        fields: vec![Value::f64(similarity)],
+    }))
+}
+
+/// `CosineOutcome::Degenerate [side <- DegenerateSide]` — one operand (or
+/// both) is a zero-magnitude vector, so a direction — and therefore a cosine
+/// — is undefined. Was the guarded `0.0` in `Similarity::cosine`, which reads
+/// as "orthogonal, unrelated" in cosine's own codomain — a fabricated
+/// answer, not a result.
+fn cosine_outcome_degenerate(side: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COSINE_OUTCOME_TYPE.into(),
+        variant_name: "Degenerate".into(),
+        fields: vec![side],
+    }))
+}
+
+/// `CosineOutcome::DimensionMismatch [expected <- i64  got <- i64]` — the two
+/// operands disagree in dimension. Was `pair_values_to_vectors`'s
+/// `TypeMismatch` raise, now a domain fact.
+fn cosine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COSINE_OUTCOME_TYPE.into(),
+        variant_name: "DimensionMismatch".into(),
+        fields: vec![Value::i64(expected), Value::i64(got)],
+    }))
+}
+
+/// `(:wat::holon::cosine target reference) -> :wat::holon::CosineOutcome` —
+/// cosine measurement, TOTAL since arc 278 the cosine outcome wall
+/// (`BRIEF-cosine-outcome-wall.md`). Polymorphic since arc 052: accepts
+/// HolonAST or Vector inputs in any position. Mixed inputs are normalized
+/// (the AST side is encoded at the Vector side's d).
 ///
 /// Per FOUNDATION 1718 + OPEN-QUESTIONS line 419: algebra-substrate
-/// operation. Returns a value in `[-1, +1]`. The algebra does NOT
-/// binarize — callers that want a verdict reach for
-/// [`eval_algebra_presence_q`] (alias `presence?`), which compares
+/// operation. The algebra does NOT binarize — callers that want a verdict
+/// reach for [`eval_algebra_presence_q`] (alias `presence?`), which compares
 /// against the committed noise floor.
+///
+/// Was `:f64`, with two dishonest domain holes: a dimension mismatch raised
+/// `TypeMismatch` (uncatchable), and a zero-magnitude operand returned a
+/// guarded `0.0` — a fabricated "unrelated" that a rule author could not
+/// distinguish from genuine unrelatedness (probe-proven reachable,
+/// `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`: genuine
+/// unrelatedness reads `-0.0086`, the sentinel reads exactly `0.0`). Both
+/// holes are now named `CosineOutcome` variants every caller must face.
 fn eval_algebra_cosine(
     args: &[WatAST],
     list_span: &Span,
@@ -18818,12 +18911,35 @@ fn eval_algebra_cosine(
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
-    let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)?;
-    // Clamp to [-1, 1]: cosine similarity is mathematically bounded to this
-    // range, but floating-point arithmetic can produce values slightly outside
-    // (e.g., 1.0000000000000002 for identical vectors). Clamping is the honest
-    // substrate-level fix — the VSA semantics are defined on [-1, 1].
-    Ok(Value::f64(Similarity::cosine(&vt, &vr).clamp(-1.0, 1.0)))
+    let (vt, vr) = match pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)? {
+        PairedVectors::DimensionMismatch { expected, got } => {
+            return Ok(cosine_outcome_dimension_mismatch(expected, got));
+        }
+        PairedVectors::Paired(vt, vr) => (vt, vr),
+    };
+    // Arc 278 the cosine outcome wall — face the zero-magnitude case BEFORE
+    // calling `Similarity::cosine`, rather than letting holon-rs's guarded
+    // `0.0` sail through as data. `holon::Vector::norm()` is pub for exactly
+    // this: test each operand's own norm, decide which side (if any) is
+    // degenerate, and answer with the fact instead of a fabricated measurement.
+    let (na, nb) = (vt.norm(), vr.norm());
+    let side = match (na < DEGENERATE_EPSILON, nb < DEGENERATE_EPSILON) {
+        (true, true) => Some(degenerate_side_both()),
+        (true, false) => Some(degenerate_side_target()),
+        (false, true) => Some(degenerate_side_reference()),
+        (false, false) => None,
+    };
+    match side {
+        Some(side) => Ok(cosine_outcome_degenerate(side)),
+        None => {
+            // Clamp to [-1, 1]: cosine similarity is mathematically bounded to
+            // this range, but floating-point arithmetic can produce values
+            // slightly outside (e.g., 1.0000000000000002 for identical
+            // vectors). Clamping is the honest substrate-level fix — the VSA
+            // semantics are defined on [-1, 1].
+            Ok(cosine_outcome_similarity(Similarity::cosine(&vt, &vr).clamp(-1.0, 1.0)))
+        }
+    }
 }
 
 /// `(:wat::holon::presence? target reference) -> :bool` — boolean
@@ -18915,7 +19031,15 @@ fn eval_algebra_coincident_q(
     // promote the AST side at the Vector side's d. Coincident
     // sigma stays at 1 (the 1σ native-granularity floor — Ch 28),
     // applied at the actual encoding d.
-    let (va, vb) = pair_values_to_vectors(OP, a, b, sym, list_span)?;
+    let (va, vb) = match pair_values_to_vectors(OP, a, b, sym, list_span)? {
+        // Arc 278 the cosine outcome wall — `coincident?` is a PREDICATE
+        // (THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT): an undefined
+        // comparison is not below the floor, so the honest answer to the
+        // question actually asked ("are these the same point?") is `false`,
+        // by documented total contract — never a raise.
+        PairedVectors::DimensionMismatch { .. } => return Ok(Value::bool(false)),
+        PairedVectors::Paired(va, vb) => (va, vb),
+    };
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let enc = ctx.encoders.get(va.dimensions());
     let cosine = Similarity::cosine(&va, &vb);
@@ -18955,7 +19079,23 @@ fn eval_algebra_coincident_explain(
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
-    let (va, vb) = pair_values_to_vectors(OP, a, b, sym, list_span)?;
+    let (va, vb) = match pair_values_to_vectors(OP, a, b, sym, list_span)? {
+        // `coincident-explain`'s return shape is a fixed `CoincidentExplanation`
+        // struct (STOP-5: do not touch it) with no field able to honestly
+        // carry "these can't be compared" — unlike `cosine`/`dot`/`coincident?`,
+        // it keeps the guard's former behavior for this one hole: raise,
+        // exactly as `pair_values_to_vectors` itself used to raise before
+        // this wall (arc 278 the cosine outcome wall).
+        PairedVectors::DimensionMismatch { .. } => {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector pair with matching dimensions",
+                got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
+                // arc 138: no per-arg AST span (takes a Value pair) — list_span (the call site) used instead
+            }).into());
+        }
+        PairedVectors::Paired(va, vb) => (va, vb),
+    };
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let dim = va.dimensions();
     let enc = ctx.encoders.get(dim);
@@ -19324,6 +19464,43 @@ fn eval_holon_statement_length(
     Ok(Value::i64(n as i64))
 }
 
+/// Arc 278 the cosine outcome wall — type path of `:wat::holon::DotOutcome`
+/// (registered in `types.rs`). Sibling to `CosineOutcome`, not a reuse: `dot`
+/// performs no division (`Similarity::dot` sums `i8 × i8` products, bounded
+/// by `d × 127²` — reaching ±Inf needs `d ≈ 10³⁰⁴`, closed), so a
+/// zero-magnitude operand yields an HONEST `0.0` and `dot` gets no
+/// `Degenerate` arm to construct.
+const DOT_OUTCOME_TYPE: &str = ":wat::holon::DotOutcome";
+
+/// `DotOutcome::Computed [product <- f64]` — the happy path.
+fn dot_outcome_computed(product: f64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: DOT_OUTCOME_TYPE.into(),
+        variant_name: "Computed".into(),
+        fields: vec![Value::f64(product)],
+    }))
+}
+
+/// `DotOutcome::DimensionMismatch [expected <- i64  got <- i64]` — the two
+/// operands disagree in dimension. Was `pair_values_to_vectors`'s
+/// `TypeMismatch` raise, now a domain fact — the same fact
+/// `CosineOutcome::DimensionMismatch` carries, reached through the same
+/// shared guard.
+fn dot_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: DOT_OUTCOME_TYPE.into(),
+        variant_name: "DimensionMismatch".into(),
+        fields: vec![Value::i64(expected), Value::i64(got)],
+    }))
+}
+
+/// `(:wat::holon::dot target reference) -> :wat::holon::DotOutcome` — raw dot
+/// product, TOTAL since arc 278 the cosine outcome wall. Arc 052: polymorphic
+/// input, HolonAST or Vector in either position. Same dim-resolution rule as
+/// `cosine`. Was `:f64`; its one domain hole (dimension mismatch, via the
+/// shared `pair_values_to_vectors` guard) raised `TypeMismatch` and is now a
+/// named `DotOutcome::DimensionMismatch` — `dot` needs no `Degenerate` arm
+/// and no `:undefined`, see `DOT_OUTCOME_TYPE`'s comment.
 fn eval_algebra_dot(
     args: &[WatAST],
     list_span: &Span,
@@ -19341,8 +19518,13 @@ fn eval_algebra_dot(
     // position. Same dim-resolution rule as cosine.
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
-    let (vx, vy) = pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)?;
-    Ok(Value::f64(Similarity::dot(&vx, &vy)))
+    let (vx, vy) = match pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)? {
+        PairedVectors::DimensionMismatch { expected, got } => {
+            return Ok(dot_outcome_dimension_mismatch(expected, got));
+        }
+        PairedVectors::Paired(vx, vy) => (vx, vy),
+    };
+    Ok(dot_outcome_computed(Similarity::dot(&vx, &vy)))
 }
 
 /// `(:wat::holon::simhash holon) -> :i64` — Charikar SimHash over the
@@ -29464,6 +29646,39 @@ mod tests {
         eval_inner(&ast, &Environment::new(), &sym).map(|tv| tv.value_owned())
     }
 
+    /// Arc 278 the cosine outcome wall — `:wat::holon::cosine` returns
+    /// `:wat::holon::CosineOutcome`, not a bare f64. These tests all exercise
+    /// the well-defined, same-dimension, non-zero-magnitude path (they measure
+    /// a real substrate property, not the wall itself — the wall's own faces
+    /// are covered by `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`
+    /// and the dimension-mismatch match sites), so `Degenerate`/`DimensionMismatch`
+    /// here are test bugs, not cases to weaken the assertion for.
+    fn expect_cosine_similarity(v: Value) -> f64 {
+        match v {
+            Value::Enum(ev) if ev.type_path == ":wat::holon::CosineOutcome" => {
+                match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                    ("Similarity", [Value::f64(s)]) => *s,
+                    other => panic!("expected CosineOutcome::Similarity[f64], got {:?}", other),
+                }
+            }
+            other => panic!("expected CosineOutcome, got {:?}", other),
+        }
+    }
+
+    /// Arc 278 the cosine outcome wall — `:wat::holon::dot`'s test-side twin
+    /// of [`expect_cosine_similarity`].
+    fn expect_dot_computed(v: Value) -> f64 {
+        match v {
+            Value::Enum(ev) if ev.type_path == ":wat::holon::DotOutcome" => {
+                match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                    ("Computed", [Value::f64(p)]) => *p,
+                    other => panic!("expected DotOutcome::Computed[f64], got {:?}", other),
+                }
+            }
+            other => panic!("expected DotOutcome, got {:?}", other),
+        }
+    }
+
     #[test]
     fn presence_of_atom_in_itself_is_one() {
         // Arc 225 Stone 225.1 — to-holon lifts string primitives.
@@ -29474,10 +29689,8 @@ mod tests {
             1024,
         )
         .unwrap();
-        match result {
-            Value::f64(x) => assert!((x - 1.0).abs() < 1e-9, "expected ≈1.0, got {}", x),
-            other => panic!("expected f64, got {:?}", other),
-        }
+        let x = expect_cosine_similarity(result);
+        assert!((x - 1.0).abs() < 1e-9, "expected ≈1.0, got {}", x);
     }
 
     #[test]
@@ -29494,13 +29707,9 @@ mod tests {
             1024,
         )
         .unwrap();
-        match result {
-            Value::f64(x) => {
-                // Expect |v|² > 5*sqrt(d) (~160 at d=1024).
-                assert!(x > 5.0 * (1024f64).sqrt(), "got {}", x);
-            }
-            other => panic!("expected f64, got {:?}", other),
-        }
+        let x = expect_dot_computed(result);
+        // Expect |v|² > 5*sqrt(d) (~160 at d=1024).
+        assert!(x > 5.0 * (1024f64).sqrt(), "got {}", x);
     }
 
     #[test]
@@ -29509,28 +29718,24 @@ mod tests {
         // magnitudes are substrate-dependent; the ordering is the
         // load-bearing invariant for Gram-Schmidt (Reject / Project).
         // Arc 225 Stone 225.1 — to-holon lifts string primitives.
-        let self_dot = match eval_with_ctx(
-            r#"(:wat::holon::dot
+        let self_dot = expect_dot_computed(
+            eval_with_ctx(
+                r#"(:wat::holon::dot
                  (:wat::holon::to-holon "alice")
                  (:wat::holon::to-holon "alice"))"#,
-            1024,
-        )
-        .unwrap()
-        {
-            Value::f64(x) => x,
-            other => panic!("expected f64, got {:?}", other),
-        };
-        let cross_dot = match eval_with_ctx(
-            r#"(:wat::holon::dot
+                1024,
+            )
+            .unwrap(),
+        );
+        let cross_dot = expect_dot_computed(
+            eval_with_ctx(
+                r#"(:wat::holon::dot
                  (:wat::holon::to-holon "alice")
                  (:wat::holon::to-holon "charlie"))"#,
-            1024,
-        )
-        .unwrap()
-        {
-            Value::f64(x) => x,
-            other => panic!("expected f64, got {:?}", other),
-        };
+                1024,
+            )
+            .unwrap(),
+        );
         assert!(
             self_dot > cross_dot.abs() * 3.0,
             "self dot {} should dwarf cross dot {}",
@@ -30323,10 +30528,8 @@ mod tests {
             1024,
         )
         .unwrap();
-        match result {
-            Value::f64(x) => assert!((x - 1.0).abs() < 1e-9, "got {}", x),
-            v => panic!("expected f64, got {:?}", v),
-        }
+        let x = expect_cosine_similarity(result);
+        assert!((x - 1.0).abs() < 1e-9, "got {}", x);
     }
 
     #[test]
@@ -30380,18 +30583,14 @@ mod tests {
         .unwrap();
         // Arc 024: presence_floor = 15 * (1/sqrt(1024)) = 15/32 ≈ 0.469.
         let presence_floor = 15.0 / (1024f64).sqrt();
-        match result {
-            Value::f64(x) => {
-                // Cosine is ternary-vector small, well below the presence floor.
-                assert!(
-                    x < presence_floor,
-                    "expected cosine below presence floor {}, got {}",
-                    presence_floor,
-                    x
-                );
-            }
-            other => panic!("expected f64, got {:?}", other),
-        }
+        let x = expect_cosine_similarity(result);
+        // Cosine is ternary-vector small, well below the presence floor.
+        assert!(
+            x < presence_floor,
+            "expected cosine below presence floor {}, got {}",
+            presence_floor,
+            x
+        );
     }
 
     #[test]
@@ -30411,17 +30610,13 @@ mod tests {
         )
         .unwrap();
         let presence_floor = 15.0 / (1024f64).sqrt();
-        match result {
-            Value::f64(x) => {
-                assert!(
-                    x > presence_floor,
-                    "expected cosine above presence floor {}, got {}",
-                    presence_floor,
-                    x
-                );
-            }
-            other => panic!("expected f64, got {:?}", other),
-        }
+        let x = expect_cosine_similarity(result);
+        assert!(
+            x > presence_floor,
+            "expected cosine above presence floor {}, got {}",
+            presence_floor,
+            x
+        );
     }
 
     // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
@@ -32094,14 +32289,12 @@ mod tests {
                     (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))))]
               (:wat::holon::cosine v v2))
         "#;
-        match eval_with_ctx(src, 1024).unwrap() {
-            Value::f64(c) => assert!(
-                (c - 1.0).abs() < 1e-9,
-                "expected cosine == 1.0 (byte-perfect round-trip), got {}",
-                c
-            ),
-            v => panic!("expected f64, got {:?}", v),
-        }
+        let c = expect_cosine_similarity(eval_with_ctx(src, 1024).unwrap());
+        assert!(
+            (c - 1.0).abs() < 1e-9,
+            "expected cosine == 1.0 (byte-perfect round-trip), got {}",
+            c
+        );
     }
 
     #[test]
@@ -32641,14 +32834,12 @@ mod tests {
                h2 (:wat::holon::from-wat ast)]
               (:wat::holon::cosine h1 h2))
         "#;
-        match eval_with_ctx(src, 1024).unwrap() {
-            Value::f64(c) => assert!(
-                (c - 1.0).abs() < 1e-9,
-                "expected cosine ≈ 1.0 (Bundle round-trip), got {}",
-                c
-            ),
-            v => panic!("expected f64, got {:?}", v),
-        }
+        let c = expect_cosine_similarity(eval_with_ctx(src, 1024).unwrap());
+        assert!(
+            (c - 1.0).abs() < 1e-9,
+            "expected cosine ≈ 1.0 (Bundle round-trip), got {}",
+            c
+        );
     }
 
     #[test]

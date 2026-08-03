@@ -3772,9 +3772,29 @@ fn infer_list(
             // cosine's shape; differs only in the bool return type).
             // Arc 234 Stone 234.5 — extended to also accept :wat::core::Record via
             // is_holon_or_vector (which now includes :wat::core::Record).
-            ":wat::holon::cosine" | ":wat::holon::dot" => {
-                let (val, mut errs) = infer_polymorphic_holon_pair_to_f64(
+            //
+            // Arc 278 the cosine outcome wall — cosine/dot no longer return a
+            // bare f64 (that was `infer_polymorphic_holon_pair_to_f64`, now
+            // retired — this was its one call site). Each returns its own
+            // named outcome enum via the same `_to_path` helper
+            // `coincident-explain` already uses below — two enums, not one
+            // shared, per the design stone's `TrySendOutcome`-from-`SendOutcome`
+            // precedent (`dot` has no `Degenerate` case to hand a shared enum).
+            ":wat::holon::cosine" => {
+                let (val, mut errs) = infer_polymorphic_holon_pair_to_path(
                     k, head_span, args, env, locals, fresh, subst,
+                    ":wat::holon::CosineOutcome",
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::holon::dot" => {
+                let (val, mut errs) = infer_polymorphic_holon_pair_to_path(
+                    k, head_span, args, env, locals, fresh, subst,
+                    ":wat::holon::DotOutcome",
                 ).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -12290,66 +12310,6 @@ fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
     )
 }
 
-/// Arc 052 — polymorphic two-arg holon-algebra inference.
-///
-/// For `:wat::holon::cosine` and `:wat::holon::dot`. Both args must be
-/// HolonAST or Vector; result type is `:f64`. Mixed inputs are
-/// permitted (the runtime promotes the AST side by encoding at the
-/// Vector side's d).
-fn infer_polymorphic_holon_pair_to_f64(
-    op: &str,
-    head_span: &Span,
-    args: &[WatAST],
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    let f64_ty = TypeExpr::Path(":wat::core::f64".into());
-    if args.len() != 2 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: op.into(),
-            expected: 2,
-            got: args.len()
-        } });
-        for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        }
-        // HARVEST (236.2): existing diagnostic; holon pair ops return f64.
-        return CheckResult::partial_with(f64_ty, local_errors);
-    }
-    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(t) = &a_ty {
-        let resolved = apply_subst(t, subst);
-        // Arc 294.a — widen: accept any EDN-representable value (portable type) in addition
-        // to the algebra-native types. The runtime lifts via to_holon_inner internally.
-        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: op.into(),
-                param: "#1".into(),
-                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
-                got: format_type(&resolved)
-            } });
-        }
-    }
-    if let Some(t) = &b_ty {
-        let resolved = apply_subst(t, subst);
-        // Arc 294.a — widen: accept any EDN-representable value (portable type) in addition
-        // to the algebra-native types. The runtime lifts via to_holon_inner internally.
-        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: op.into(),
-                param: "#2".into(),
-                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
-                got: format_type(&resolved)
-            } });
-        }
-    }
-    if local_errors.is_empty() { CheckResult::ok(f64_ty) } else { CheckResult::partial_with(f64_ty, local_errors) }
-}
-
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bind`.
 ///
 /// Extends the TypeScheme (which accepted only `:wat::holon::HolonAST` in
@@ -12357,10 +12317,13 @@ fn infer_polymorphic_holon_pair_to_f64(
 /// via `coerce_to_holon_ast`; the check layer mirrors this polymorphism.
 ///
 /// Pattern: per `infer_record_of` (Stone 234.2a-CORRECTION) and
-/// `infer_polymorphic_holon_pair_to_f64` (arc 052). Custom dispatch arm in
-/// `match k.as_str()` takes precedence over the TypeScheme registration
-/// at line 14311 (which becomes dead code for `:wat::holon::Bind` calls
-/// when this arm is present; it is retained as documentation).
+/// `infer_polymorphic_holon_pair_to_path` (arc 052; arc 278 the cosine
+/// outcome wall retired the f64-returning sibling this comment used to
+/// name — cosine/dot route through `_to_path` now, same as
+/// `coincident-explain`). Custom dispatch arm in `match k.as_str()` takes
+/// precedence over the TypeScheme registration at line 14311 (which
+/// becomes dead code for `:wat::holon::Bind` calls when this arm is
+/// present; it is retained as documentation).
 fn infer_holon_bind(
     head_span: &Span,
     args: &[WatAST],
@@ -12699,8 +12662,8 @@ fn infer_holon_bundle(
 /// Arc 061 — polymorphic two-arg holon-algebra inference returning
 /// `:bool`. For `:wat::holon::coincident?` — accepts HolonAST or
 /// Vector in either position. Mirrors
-/// [`infer_polymorphic_holon_pair_to_f64`] exactly; differs only in
-/// return type.
+/// [`infer_polymorphic_holon_pair_to_path`] exactly; differs only in
+/// return type (a fixed `:bool` rather than a named path).
 fn infer_polymorphic_holon_pair_to_bool(
     op: &str,
     head_span: &Span,

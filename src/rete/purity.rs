@@ -469,18 +469,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::foldl"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
-            // Only ONE of the four holon verbs opened 2026-08-01 (`purity.rs`'s VSA-seam block,
-            // above) is genuinely total. Per-verb evidence, not a blanket grant — the design
-            // stone's `MEASUREMENT vs PREDICATE` ruling (`DESIGN-STONE-where-admits-only-rete-ops.md`
-            // "RULED 2026-08-02 — THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT") gives the SHAPE
-            // of the eventual answer, but that ruling's `coincident?`/`presence? become total` is a
-            // FUTURE-TENSE description of a strike this brief's STOP-1 forbids doing now (converting
-            // `cosine` to an outcome enum, and correspondingly hardening `coincident?`/`presence?`'s
-            // OWN bodies to swallow the degenerate case instead of raising) — so each of the four is
-            // graded against what its implementation ACTUALLY does today, not the ruling's target
-            // state:
-            //
-            //   `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
+            // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
             //     takes both args through `require_holon` (HolonAST only — a raw `Vector` is
             //     rejected as a `TypeMismatch`, the ordinary "type checker's concern" exclusion this
             //     axis already uses elsewhere), then encodes BOTH at the same ambient `d`
@@ -488,48 +477,57 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             //     which its two vectors can disagree in dimension; unlike its three siblings below it
             //     never reaches `pair_values_to_vectors`. Its only float op is `cosine >
             //     enc.presence_floor(sym)` — a comparison, total for the same reason `f64::>` is
-            //     (returns `bool`, never raises, never itself NaN/Inf) — so even the `norm < 1e-10 →
-            //     0.0` mask in `Similarity::cosine` (`holon-rs/src/kernel/similarity.rs:79-81`) does
-            //     not threaten totality here: whatever `cosine` returns, `>` against it is defined.
-            //     `presence?` is ALREADY total today, no future strike required.
+            //     (returns `bool`, never raises, never itself NaN/Inf) — so even the guarded `0.0`
+            //     `Similarity::cosine` can return does not threaten totality here: whatever `cosine`
+            //     returns, `>` against it is defined. `presence?` was ALREADY total before the strike
+            //     below and its path is UNCHANGED by it (STOP-3 — no diff in `eval_algebra_presence_q`).
             //
-            //   `:wat::holon::coincident?` — left FALSE, diverging from the design stone's naive
-            //     table entry (found by grounding, not by trusting the name — STOP-4). Unlike
-            //     `presence?`, `eval_algebra_coincident_q` (`runtime.rs:18677`) is polymorphic over
-            //     (HolonAST, Vector) pairs and routes BOTH args through `pair_values_to_vectors`
-            //     (`runtime.rs:18699`, same call `cosine`/`dot` make) — which raises
-            //     `RuntimeErrorKind::TypeMismatch` when two pre-encoded Vectors disagree in
-            //     dimension (`runtime.rs:18539-18546`) — exactly `dot`'s already-grounded
-            //     "dimension mismatch, not arithmetic" partiality, on the identical shared helper.
+            // ── BRIEF-cosine-outcome-wall.md (2026-08-03) — cosine/dot/coincident? join presence? ──
             //
-            //     ⚠ REACHABILITY IS **UNPROVEN IN BOTH DIRECTIONS**, and this entry rests on
-            //     DEFAULT-DENY, not on a demonstrated hazard. The obvious route was closed HOURS
-            //     before this audit ran: `bytes-vector` used to admit a foreign-`d` Vector (its
-            //     cross-dim check was VACUOUS — `encoders.get` materializes an encoder at any `d`
-            //     it is handed), and `9eb0f4c1` replaced it with `dim != ctx.dim_count` →
-            //     `VectorDecodeOutcome::DimensionMismatch` (`runtime.rs:19446`). With
-            //     `set-dim-count!` a static, once-only entry-file constant (`config.rs:431`),
-            //     every ENCODED Vector in a program shares one `d`. What is NOT proven is whether a
-            //     `Value::Vector` can cross a process boundary via the GENERIC EDN record path
-            //     rather than `bytes-vector` — nobody has enumerated that, so the world is not
-            //     provably closed either. `total: false` is therefore the correct posture for an
-            //     UNMEASURED verb, and must not be read as "mismatch is reachable."
-            //     The design stone's "`coincident?`...become[s] total" is that FUTURE strike's
-            //     target (hardening this verb's own body to swallow the mismatch as `false` instead
-            //     of raising) — STOP-1 forbids doing that work now, so marking it `total: true`
-            //     today would recreate this exact audit's own defect one level up: a false marked
-            //     true, this time ahead of its implementation rather than behind it.
+            // `:wat::holon::coincident?`, `:wat::holon::cosine`, `:wat::holon::dot` were each left
+            // `false` above (T1/Direction-2 audit) for the SAME reason: all three route through the
+            // shared `pair_values_to_vectors` guard (`runtime.rs`), which used to RAISE
+            // `RuntimeErrorKind::TypeMismatch` on a dimension-mismatched Vector pair — a raise is not
+            // total by this axis's own definition (an ordinary value on every input), full stop,
+            // regardless of what each verb's own arithmetic can or cannot do beyond that shared gate.
             //
-            //   `:wat::holon::cosine`, `:wat::holon::dot` — left FALSE, per the brief's own grounded
-            //     citations: `dot`'s arithmetic cannot overflow (`Vector.data: Vec<i8>`, `dot_raw`
-            //     accumulates in `i64`, unreachable at real dimensions) and `cosine`'s zero-magnitude
-            //     case cannot NaN (guarded to `0.0`) — but BOTH share `coincident?`'s reachable
-            //     dimension-mismatch raise via `pair_values_to_vectors`, and `cosine`'s `0.0` is a
-            //     live semantic mask on a reachable input (probe
-            //     `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`, 2026-08-02: genuine
-            //     unrelatedness reads `-0.0086`, never exactly `0.0`) that the ruled fix is an
-            //     outcome enum for, not a `total: true` stamp. Unchanged from T1.
+            // The cosine outcome wall retired that raise: the guard now returns the mismatch as a
+            // `PairedVectors::DimensionMismatch` fact instead of unwinding, and each caller decides
+            // what to do with it — per the design stone's ruled law (`DESIGN-STONE-where-admits-only-
+            // rete-ops.md`, "RULED 2026-08-02 — THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT"):
+            //
+            //   `:wat::holon::coincident?` — now TRUE. A dimension mismatch answers `Value::bool(false)`
+            //     (a PREDICATE absorbs its own undefined case — a documented total contract, not an
+            //     IEEE accident); every other path returns an ordinary `bool` as before. No raise
+            //     remains on any input.
+            //
+            //   `:wat::holon::cosine` — now TRUE. It is a MEASUREMENT, so per the same ruling it may
+            //     NOT absorb its own undefined case into a value drawn from its own range — a dimension
+            //     mismatch and a zero-magnitude operand (the guarded `0.0` `Similarity::cosine` used to
+            //     return, which reads as "orthogonal, unrelated" in cosine's own codomain — a
+            //     fabrication, proven reachable and indistinguishable from genuine unrelatedness by
+            //     `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`) both become named
+            //     `:wat::holon::CosineOutcome` variants (`Similarity`/`Degenerate`/`DimensionMismatch`)
+            //     instead. An enum construction never raises and is always a well-typed value — total.
+            //
+            //   `:wat::holon::dot` — now TRUE. Its arithmetic still cannot overflow (`Vector.data:
+            //     Vec<i8>`, bounded by `d × 127²`, unreachable at real dimensions — the family's one
+            //     open question, now closed: `d ≈ 10³⁰⁴` to reach ±Inf) and it needs no `Degenerate`
+            //     case (a zero-magnitude operand dots to an HONEST `0.0` — no division happens). The
+            //     one thing that made it partial was the same shared-guard raise `coincident?` had;
+            //     with that retired, `dot` returns `:wat::holon::DotOutcome`
+            //     (`Computed`/`DimensionMismatch`) on every input.
+            //
+            // `:wat::holon::coincident-explain` and `:wat::holon::presence?` are UNCHANGED and
+            // deliberately NOT added here: `coincident-explain`'s fixed `CoincidentExplanation` struct
+            // return shape has no field able to carry a mismatch honestly, so it re-raises on that one
+            // hole exactly as the guard itself used to (STOP-5 — its return shape was not touched, so
+            // its totality claim is not touched either); `presence?` never reached the guard in the
+            // first place (see its own paragraph above).
             | ":wat::holon::presence?"
+            | ":wat::holon::coincident?"
+            | ":wat::holon::cosine"
+            | ":wat::holon::dot"
     );
 
     if pure_det {

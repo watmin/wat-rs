@@ -25,14 +25,16 @@
   (:test::an::HR/a (:wat::core::aggregate-new :test::an::HR 7 8)))
 
 ;; the DERIVED hologram is correct: cosine of a holon record with itself = 1.0
-(:wat::core::defn :user::an-holon-self-cos [] -> :wat::core::f64
+;; Arc 278 the cosine outcome wall — cosine now returns :wat::holon::CosineOutcome,
+;; not a bare f64; the .rs side extracts the Similarity variant's field.
+(:wat::core::defn :user::an-holon-self-cos [] -> :wat::holon::CosineOutcome
   (:wat::core::let [h (:wat::core::aggregate-new :test::an::HR 7 8)]
     (:wat::holon::cosine h h)))
 
 ;; the DERIVED hologram is DATA-DEPENDENT (not a constant/empty bundle): two holon
 ;; records differing only in field b measure < 1.0. Self-cosine alone is trivially
 ;; 1.0 for any value; this proves the hologram actually encodes the fields.
-(:wat::core::defn :user::an-holon-diff-cos [] -> :wat::core::f64
+(:wat::core::defn :user::an-holon-diff-cos [] -> :wat::holon::CosineOutcome
   (:wat::holon::cosine
     (:wat::core::aggregate-new :test::an::HR 7 8)
     (:wat::core::aggregate-new :test::an::HR 7 9)))

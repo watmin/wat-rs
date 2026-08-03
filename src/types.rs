@@ -2031,6 +2031,120 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::holon::DegenerateSide — Arc 278 the cosine outcome wall
+    // (BRIEF-cosine-outcome-wall.md, DESIGN-STONE-where-admits-only-rete-ops.md
+    // "THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT" + its AMENDED
+    // 2026-08-03 block). Diagnostic payload for `CosineOutcome::Degenerate`
+    // below — WHICH operand had a zero-magnitude vector (the case cosine
+    // cannot honestly answer, since a direction is undefined for a
+    // zero-magnitude vector). Three-valued rather than two bools deliberately
+    // (orchestrator's amendment to the ward's original cast): a pair of bools
+    // makes `(false, false)` — a `Degenerate` that is not degenerate —
+    // representable, in a substrate whose standing doctrine is the wrong
+    // state has no form. `Target`/`Reference` are the implementation's own
+    // operand names (mirroring `pair_values_to_vectors`'s `target`/`reference`
+    // callers use), not invented ones.
+    // PURE — three nullary variants, no fields at all.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::holon::DegenerateSide".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("Target".into()),
+            EnumVariant::Unit("Reference".into()),
+            EnumVariant::Unit("Both".into()),
+        ],
+    }));
+
+    // :wat::holon::CosineOutcome — Arc 278 the cosine outcome wall. `cosine`
+    // had two domain holes, both dishonest: a dimension mismatch raised
+    // `TypeMismatch` (uncatchable, unwinds past the reader), and a
+    // zero-magnitude operand returned a guarded `0.0` — which in cosine's
+    // own codomain MEANS "orthogonal, unrelated", a fabricated answer that
+    // sails through `(f64::> ... 0.9)` as a confident no-match (probe
+    // `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`: genuine
+    // unrelatedness reads `-0.0086`, the sentinel reads exactly `0.0` — the
+    // two are indistinguishable to a caller without this wall). Per the
+    // design stone's ruled law (a MEASUREMENT may not absorb its own
+    // undefined case), both holes become named variants a caller faces:
+    //   :Similarity        [similarity <- f64]        — the happy path, the
+    //                        raw cosine, clamped to [-1, 1].
+    //   :Degenerate        [side <- DegenerateSide]    — one operand (or
+    //                        both) is a zero-magnitude vector, so a
+    //                        direction — and therefore a cosine — is
+    //                        undefined. ONE variant carrying which side,
+    //                        not three variants proliferated: the caller
+    //                        acts identically regardless of which side was
+    //                        degenerate, and the side is a diagnostic, not a
+    //                        behavioral fork — exactly the role
+    //                        `DimensionMismatch`'s fields already play below.
+    //   :DimensionMismatch [expected <- i64  got <- i64] — the two operands
+    //                        disagree in dimension; was the `pair_values_to_vectors`
+    //                        `TypeMismatch` raise, now a domain fact.
+    // PURE — non-parametric, holding only pure data: an f64, a `DegenerateSide`
+    // (itself pure), and two i64s. Fully EDN-reconstructable / wire-crossable;
+    // marking it Impure would lie. Registered as a builtin, peer with the
+    // other outcome walls in this family (`CombineOutcome`, `VectorDecodeOutcome`).
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::holon::CosineOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Similarity".into(),
+                fields: vec![("similarity".into(), TypeExpr::Path(":wat::core::f64".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Degenerate".into(),
+                fields: vec![(
+                    "side".into(),
+                    TypeExpr::Path(":wat::holon::DegenerateSide".into()),
+                )],
+            },
+            EnumVariant::Tagged {
+                name: "DimensionMismatch".into(),
+                fields: vec![
+                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
+                ],
+            },
+        ],
+    }));
+
+    // :wat::holon::DotOutcome — Arc 278 the cosine outcome wall's sibling for
+    // `dot`. TWO enums, not one shared with `CosineOutcome` — `dot` performs
+    // no division (`Similarity::dot` sums `i8 × i8` products, bounded by
+    // `d × 127²`, so reaching ±Inf needs `d ≈ 10³⁰⁴` — closed, not merely
+    // unlikely), so a zero-magnitude operand yields an HONEST `0.0`: a zero
+    // vector really does dot to zero. A shared enum would hand `dot` a
+    // `Degenerate` arm it can never construct — the `TrySendOutcome`-from-
+    // `SendOutcome` precedent: split earned by a genuine, structural
+    // difference in outcome space, not a naming convenience.
+    //   :Computed          [product <- f64]           — the happy path.
+    //   :DimensionMismatch [expected <- i64  got <- i64] — same fact,
+    //                        same shape as `CosineOutcome::DimensionMismatch`
+    //                        (one fact reached by two routes through the
+    //                        shared `pair_values_to_vectors` guard).
+    // PURE, for the same reason `CosineOutcome` is.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::holon::DotOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Computed".into(),
+                fields: vec![("product".into(), TypeExpr::Path(":wat::core::f64".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "DimensionMismatch".into(),
+                fields: vec![
+                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
+                ],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — the matchable outcome of running a program:
     // `:wat::kernel::run-sandboxed`, `:wat::test::run-thread` /
     // `run-hermetic'`, and (via the `:wat::test::TestResult` alias) every

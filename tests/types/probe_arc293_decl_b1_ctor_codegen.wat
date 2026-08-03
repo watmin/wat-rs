@@ -26,6 +26,8 @@
 ;; carry a hologram (cosine with itself = 1.0). At HEAD the register_aggregate_methods
 ;; fallback builds it via :wat::core::Record::of (BASE ctor) → no hologram → this misbehaves.
 ;; decl-b.1 routes the fallback through aggregate-new (nature-dispatched) → hologram derived.
-(:wat::core::defn :user::db-hr-cos [] -> :wat::core::f64
+;; Arc 278 the cosine outcome wall — cosine now returns :wat::holon::CosineOutcome,
+;; not a bare f64; the .rs side extracts the Similarity variant's field.
+(:wat::core::defn :user::db-hr-cos [] -> :wat::holon::CosineOutcome
   (:wat::core::let [h (:test::db::HR' 7 8)]
     (:wat::holon::cosine h h)))

@@ -53,14 +53,23 @@ fn aggregate_new_constructs_holon_record() {
 /// `aggregate-new`, not merely that a value was constructed.
 #[test]
 fn aggregate_new_holon_hologram_is_derived_correctly() {
+    // Arc 278 the cosine outcome wall — cosine now returns
+    // :wat::holon::CosineOutcome, not a bare f64; extract the Similarity
+    // variant's field (cosine(h, h) on a real, non-zero hologram is never
+    // Degenerate/DimensionMismatch).
     let got = call_beside_value(file!(), ":user::an-holon-self-cos").expect("eval an-holon-self-cos");
     match got {
-        Value::f64(c) => assert!(
-            (c - 1.0).abs() < 1e-6,
-            "aggregate-new holon hologram: cosine(h, h) must be 1.0 (derived correctly); got {}",
-            c
-        ),
-        other => panic!("aggregate-new holon self-cosine: expected f64, got {:?}", other),
+        Value::Enum(ev) if ev.type_path == ":wat::holon::CosineOutcome" => {
+            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                ("Similarity", [Value::f64(c)]) => assert!(
+                    (c - 1.0).abs() < 1e-6,
+                    "aggregate-new holon hologram: cosine(h, h) must be 1.0 (derived correctly); got {}",
+                    c
+                ),
+                other => panic!("aggregate-new holon self-cosine: expected CosineOutcome::Similarity[f64], got {:?}", other),
+            }
+        }
+        other => panic!("aggregate-new holon self-cosine: expected CosineOutcome, got {:?}", other),
     }
 }
 
@@ -70,14 +79,20 @@ fn aggregate_new_holon_hologram_is_derived_correctly() {
 /// constant or empty bundle.
 #[test]
 fn aggregate_new_holon_hologram_is_data_dependent() {
+    // Arc 278 the cosine outcome wall — see the self-cosine test above.
     let got = call_beside_value(file!(), ":user::an-holon-diff-cos").expect("eval an-holon-diff-cos");
     match got {
-        Value::f64(c) => assert!(
-            c < 1.0 - 1e-6 && c > -1.0 - 1e-6,
-            "aggregate-new holon hologram: two different-data records must measure a valid cosine < 1.0 \
-             (data-dependent, not constant); got {}",
-            c
-        ),
-        other => panic!("aggregate-new holon diff-cosine: expected f64, got {:?}", other),
+        Value::Enum(ev) if ev.type_path == ":wat::holon::CosineOutcome" => {
+            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                ("Similarity", [Value::f64(c)]) => assert!(
+                    c < &(1.0 - 1e-6) && c > &(-1.0 - 1e-6),
+                    "aggregate-new holon hologram: two different-data records must measure a valid cosine < 1.0 \
+                     (data-dependent, not constant); got {}",
+                    c
+                ),
+                other => panic!("aggregate-new holon diff-cosine: expected CosineOutcome::Similarity[f64], got {:?}", other),
+            }
+        }
+        other => panic!("aggregate-new holon diff-cosine: expected CosineOutcome, got {:?}", other),
     }
 }

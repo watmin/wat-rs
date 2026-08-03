@@ -27,19 +27,32 @@ fn probe_1_to_holon_returns_holon_form() {
 
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::holon::cosine r1 r2)` on two identical-class records returns f64.
+// `(:wat::holon::cosine r1 r2)` on two identical-class records returns
+// `:wat::holon::CosineOutcome` (arc 278 the cosine outcome wall — cosine is
+// no longer a bare f64). Two identical, non-zero-magnitude records can never
+// hit Degenerate/DimensionMismatch, so this asserts the Similarity variant.
 #[test]
 fn probe_2_cosine_accepts_records() {
     match run(":user::probe-2") {
-        Ok(Value::f64(f)) => {
-            assert!(f.is_finite(), "Probe 2: cosine should return finite f64; got {}", f);
-            assert!(
-                (-1.0..=1.0).contains(&f),
-                "Probe 2: cosine should be in [-1, 1]; got {}",
-                f
+        Ok(Value::Enum(ev)) => {
+            assert_eq!(
+                ev.type_path, ":wat::holon::CosineOutcome",
+                "Probe 2: expected CosineOutcome; got type_path {:?}",
+                ev.type_path
             );
+            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                ("Similarity", [Value::f64(f)]) => {
+                    assert!(f.is_finite(), "Probe 2: cosine should return finite f64; got {}", f);
+                    assert!(
+                        (-1.0..=1.0).contains(f),
+                        "Probe 2: cosine should be in [-1, 1]; got {}",
+                        f
+                    );
+                }
+                other => panic!("Probe 2: expected CosineOutcome::Similarity[f64]; got {:?}", other),
+            }
         }
-        Ok(other) => panic!("Probe 2: expected Value::f64; got {:?}", other),
+        Ok(other) => panic!("Probe 2: expected Value::Enum(CosineOutcome); got {:?}", other),
         Err(e) => panic!("Probe 2 FAILED: {}", e),
     }
 }

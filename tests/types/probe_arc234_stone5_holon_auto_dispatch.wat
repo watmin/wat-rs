@@ -9,7 +9,9 @@
   (:wat::core::let [v (:myapp::Voltage :magnitude 5.0)] (:wat::holon::to-holon v)))
 
 ;; ─── Probe 2: cosine accepts records ─────────────────────────────────────────
-(:wat::core::defn :user::probe-2 [] -> :wat::core::f64
+;; Arc 278 the cosine outcome wall — cosine now returns :wat::holon::CosineOutcome,
+;; not a bare f64; the .rs side extracts the Similarity variant's field.
+(:wat::core::defn :user::probe-2 [] -> :wat::holon::CosineOutcome
   (:wat::core::let
     [r1 (:myapp::Voltage :magnitude 5.0)
      r2 (:myapp::Voltage :magnitude 5.0)]

@@ -25,7 +25,11 @@
     (:wat::core::match
       (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va))
       ((:wat::holon::CombineOutcome::Combined bundled)
-        (:wat::core::if (:wat::core::> (:wat::holon::cosine va bundled) 0.99)  "near-1" "far"))
+        (:wat::core::match (:wat::holon::cosine va bundled)
+          ((:wat::holon::CosineOutcome::Similarity s)
+            (:wat::core::if (:wat::core::> s 0.99)  "near-1" "far"))
+          ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
+          ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch")))
       ((:wat::holon::CombineOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :valg::blend-weighted [] -> :wat::core::String
@@ -34,7 +38,11 @@
      vb (:wat::holon::encode (:wat::holon::to-holon "y"))]
     (:wat::core::match (:wat::holon::vector-blend va vb 1.0 0.0)
       ((:wat::holon::CombineOutcome::Combined blended)
-        (:wat::core::if (:wat::core::> (:wat::holon::cosine va blended) 0.95)  "near-1" "far"))
+        (:wat::core::match (:wat::holon::cosine va blended)
+          ((:wat::holon::CosineOutcome::Similarity s)
+            (:wat::core::if (:wat::core::> s 0.95)  "near-1" "far"))
+          ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
+          ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch")))
       ((:wat::holon::CombineOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :valg::permute-changes [] -> :wat::core::String

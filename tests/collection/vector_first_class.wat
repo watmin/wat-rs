@@ -25,40 +25,60 @@
      retrieved (:my::Engram/vec e)]
     (:wat::core::if (:wat::core::= v retrieved)  "yes" "no")))
 
+;; Arc 278 the cosine outcome wall — cosine and dot now return matchable
+;; CosineOutcome/DotOutcome instead of a bare f64; every call site faces
+;; the Degenerate/DimensionMismatch cases exhaustively (no `_` arm).
+;; None of these fixtures can reach either domain hole (same-dim, non-zero
+;; vectors), but the match must still name every variant.
+
 (:wat::core::defn :vfc::cosine-ast-ast [] -> :wat::core::String
   (:wat::core::let
     [a (:wat::holon::to-holon "x")
-     b (:wat::holon::to-holon "x")
-     c (:wat::holon::cosine a b)]
-    (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")))
+     b (:wat::holon::to-holon "x")]
+    (:wat::core::match (:wat::holon::cosine a b)
+      ((:wat::holon::CosineOutcome::Similarity c)
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
+      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
+      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :vfc::cosine-vec-vec [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-     vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-     c (:wat::holon::cosine va vb)]
-    (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")))
+     vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
+    (:wat::core::match (:wat::holon::cosine va vb)
+      ((:wat::holon::CosineOutcome::Similarity c)
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
+      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
+      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :vfc::cosine-ast-vec [] -> :wat::core::String
   (:wat::core::let
     [a (:wat::holon::to-holon "x")
-     vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-     c (:wat::holon::cosine a vb)]
-    (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")))
+     vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
+    (:wat::core::match (:wat::holon::cosine a vb)
+      ((:wat::holon::CosineOutcome::Similarity c)
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
+      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
+      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :vfc::cosine-vec-ast [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-     b (:wat::holon::to-holon "x")
-     c (:wat::holon::cosine va b)]
-    (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")))
+     b (:wat::holon::to-holon "x")]
+    (:wat::core::match (:wat::holon::cosine va b)
+      ((:wat::holon::CosineOutcome::Similarity c)
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
+      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
+      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :vfc::dot-vec-vec [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-     vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-     d (:wat::holon::dot va vb)]
-    (:wat::core::if (:wat::core::> d 0.0)  "positive" "non-positive")))
+     vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
+    (:wat::core::match (:wat::holon::dot va vb)
+      ((:wat::holon::DotOutcome::Computed d)
+        (:wat::core::if (:wat::core::> d 0.0)  "positive" "non-positive"))
+      ((:wat::holon::DotOutcome::DimensionMismatch _e _g) "mismatch"))))
 
 (:wat::core::defn :vfc::simhash-agree [] -> :wat::core::String
   (:wat::core::let
@@ -68,8 +88,13 @@
      k-vec (:wat::holon::simhash vec)]
     (:wat::core::if (:wat::core::= k-ast k-vec)  "same" "diff")))
 
-(:wat::core::defn :vfc::cosine-string [] -> :wat::core::f64
-  (:wat::core::let [sim (:wat::holon::cosine "hello" "world")] sim))
+;; Arc 278 the cosine outcome wall — cosine's return type is now
+;; :wat::holon::CosineOutcome, not a bare f64; this fixture exists purely to
+;; force type-checking of cosine on String args at startup_beside time (see
+;; the co-located .rs's `polymorphic_cosine_accepts_string`), so it returns
+;; the outcome directly rather than narrowing it.
+(:wat::core::defn :vfc::cosine-string [] -> :wat::holon::CosineOutcome
+  (:wat::holon::cosine "hello" "world"))
 
 (:wat::core::defn :vfc::encode-deterministic [] -> :wat::core::String
   (:wat::core::let

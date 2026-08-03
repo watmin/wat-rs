@@ -99,11 +99,18 @@ is what the fence-time test is allowed to assume.
 The second draft argued *"forms are not ops; you namespace functions, not syntax."* **That was wrong on
 the mechanism.** Grounded:
 
-- **`if` / `let` / `do` / `when` have no structural arm.** They go through `head_ok` and are admitted by
+- **`if` / `let` / `do` have no structural arm.** They go through `head_ok` and are admitted by
   the plain `matches!` list at `purity.rs:246-249`, exactly like `+`. Under law A they are refused
-  unless mirrored. The only alternative is a fence reading *"rete-namespaced **or** one of these four
+  unless mirrored. The only alternative is a fence reading *"rete-namespaced **or** one of these
   core forms"* — a second rule, an exception list, precisely the seam a closed set exists to delete.
-  **⇒ `:wat::rete::core::{if,let,do,when}` must exist.**
+  **⇒ `:wat::rete::core::{if,let,do}` must exist.**
+
+  > **CORRECTED 2026-08-03.** This list said `{if, let, do, when}`. **`:wat::core::when` does not
+  > exist** — it resolves to `UnknownFunction`, and its only trace is a phantom purity row
+  > (`purity.rs:259`) which is owed a deletion. The name is also already taken: `:when` is
+  > `defrule`'s **LHS keyword** (`:when [conds…]` / `:then [facts…]`). Clojure's `when` is a
+  > separate question tracked in `109/NOTE-when-is-a-one-armed-conditional-question.md`. There is
+  > no `when` to mirror.
 - **`cond` / `match` / `fn` (and `quote`/`quasiquote`/`holon::literal`) DO have structural arms**
   (`purity.rs:602`, `:608`, `:628`, `:658`), matched against a literal keyword string, and never reach
   `head_ok`. Mirroring these is **widening a match guard**, not registering an op. Small, but a
@@ -145,6 +152,42 @@ and the core spelling is what a `where` refuses. The second name is the key, not
 
 Most of the vocabulary is **class 1**. That is why "grow by demand" stays cheap: a new total op is a
 name pointing at a routine that already exists.
+
+### ★ THE MINT ROUNDS — added 2026-08-03. #57's mint list, and it is ordered by SHAPE.
+
+**What is minted today is 18 ops** (`RETE_OPS`, verified on disk): the whole `i64` module — `+ - * /
+mod rem quot < <= > >=` — plus `and or not if let match fn`. That is the **hard** class: the
+fallback-carrying arithmetic and the form mirrors. **The class-1 alias surface — most of this
+document's vocabulary table — was never minted.** #55 shipped the hard class and the admission test;
+the cheap-and-broad class was left to arrive by demand, and #57 *is* the demand arriving.
+
+**The rounds are ordered by IMPLEMENTATION SHAPE, not by module**, for the same reason S5 carries
+"do not conflate the two form classes": each shape is a different edit, and mixing them in one strike
+mixes three review problems.
+
+| round | shape | provisional members |
+|---|---|---|
+| **1** | **alias** — rete name → same routine, zero new logic | `=` `not=`, the `string::*` module, the `String/*` family, `length` / `contains?` / `get`, `i64::to-string`, `i64::to-f64`, and `presence?` (already `total: true`) |
+| **2** | **fallback surface** — second terminal handler + `:undefined` | `f64::{+ - * /}`, `string::subs`, `first`, `nth` |
+| **3** | **form mirror** — head-table entry / structural-guard widening | `do`, `cond` |
+| — | **classification, not mint** | `cosine` / `dot` / `coincident?` — blocked on the cosine outcome wall (`BRIEF-cosine-outcome-wall.md`), and **not a blocker for #57: the `where` corpus uses ZERO holon heads** |
+
+**⛔ THE ROUNDS CANNOT BE PARALLELISED.** All three edit `RETE_OPS` — one table, one file. Fanning
+riders at it is a merge conflict, not a seam (the same reasoning that merged S1+S2). One rider,
+sequential phases.
+
+**⚠ THE MEMBERS ABOVE ARE PROVISIONAL AND MUST NOT BE TREATED AS THE LIST.** They come from a
+whole-file `grep` of `wat-scripts/perf/grid/where-*.wat`, which cannot tell a head *inside* a `where`
+from one in the file's own harness (`defn`, `foldl`, `range`, `sort`, `map`, `into` are obviously
+driver code). It over-counts, and it cannot see nesting. **The list is settled by a form-tree walk** —
+`read-string` + `with-children`, `fix.wat`'s own machinery — which handles nesting and never sees a
+comment. Until that walk runs, the only measured fact is the direction: `:wat::core::=` occurs **127**
+times in those files and has no mirror, so the fence as it stands would refuse nearly every rule we
+have.
+
+**Two stale claims in this document, corrected by that same grep:** the vocabulary table's `when` does
+not exist (see the CORRECTED note above), and *"`cond` waits for a caller (zero corpus demand)"* is
+contradicted by 11 `cond` occurrences — whether any sit inside a `where` is the walk's to answer.
 
 ### ⛔ STOP-A — ground the arithmetic path before hanging the surface
 
@@ -573,6 +616,33 @@ law predicts:
 
 One kernel, two terminal handlers: core hands you the outcome to face; rete substitutes the fallback
 you declared.
+
+> ### ⚠ AMENDED 2026-08-03 — the strike was DRAWN, declared unblocked, and never briefed. It is now briefed.
+>
+> This section has said *"nothing blocks it"* since `c0b9ff3a` (2026-08-02) and no brief was ever
+> written; S5 and Stone A were struck instead. **`BRIEF-cosine-outcome-wall.md` +
+> `EXPECTATIONS-cosine-outcome-wall.md` now exist.** Three corrections the intervening day produced:
+>
+> 1. **The counts below are STALE.** Measured 2026-08-03: `cosine` **27** (not 22) · `dot` **3** (the
+>    table omits it entirely) · `coincident?` 16 · `presence?` 17 · `coincident-explain` 1 = **64**,
+>    not 56. `pair_values_to_vectors` is at **`runtime.rs:18725`**, not `:18506`. *(Measure with
+>    `grep -rhoF` — a `\b` after a `?` cannot match, and reported two false zeros before it was caught.)*
+> 2. **A dimension mismatch is now a PANIC, not a silent `0.0`.** holon-rs `0dbb388`/`0a2a78b` landed
+>    after this text and replaced the `unwrap_or(0.0)` lie with `assert_eq!`. That work made the family
+>    **honest**; it did not make it **total** — total means *produces an ordinary value on every input*,
+>    and a panic is not one. The design is unaffected (a lie and a panic both become
+>    `DimensionMismatch`); the framing needed the amendment.
+> 3. **The holon-rs edit shrinks to ONE LINE.** This section says the sibling must stop discarding
+>    which operand was degenerate. It doesn't have to: **`holon::Vector::norm()` is already `pub`**
+>    (`kernel/vector.rs:68`), so wat-rs can test both norms itself and return `Degenerate[side]`
+>    *before* calling `Similarity::cosine`. holon-rs needs only
+>    `pub const DEGENERATE_EPSILON: f64 = 1e-10;` (today a bare literal in eight places) so wat-rs
+>    consumes the threshold instead of duplicating it — a duplicated `1e-10` that drifts is how the
+>    mask comes back. No signature change, no behaviour change, no enum surgery in the sibling.
+>
+> **And one open question CLOSED:** *"can a large-dim f64 vector reach ±Inf in `dot`?"* — **no.**
+> `i8::dot` sums `i8 × i8` products, bounded by `d × 127²`, so ±Inf needs `d ≈ 10³⁰⁴`. `dot` gets no
+> `Degenerate` variant and no `:undefined`.
 
 ### The strike this implies — 4 verbs, 56 call sites, ONE guard
 

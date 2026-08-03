@@ -40,13 +40,22 @@ fn raw_recordtype_holon_has_codegen_ctor() {
 #[test]
 #[ignore = "RED until decl-b.1.0 (aggregate-new inheritance) + decl-b.1 (fallback→aggregate-new) land"]
 fn raw_recordtype_holon_has_a_hologram() {
+    // Arc 278 the cosine outcome wall — cosine now returns
+    // :wat::holon::CosineOutcome, not a bare f64; extract the Similarity
+    // variant's field (cosine(h,h) on a real hologram is never Degenerate/
+    // DimensionMismatch).
     let got = call_beside_value(file!(), ":user::db-hr-cos").expect("eval db-hr-cos");
     match got {
-        Value::f64(c) => assert!(
-            (c - 1.0).abs() < 1e-6,
-            "raw holon recordtype must carry a hologram: cosine(h,h) must be 1.0; got {}",
-            c
-        ),
-        other => panic!("raw holon cosine: expected f64, got {:?}", other),
+        Value::Enum(ev) if ev.type_path == ":wat::holon::CosineOutcome" => {
+            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                ("Similarity", [Value::f64(c)]) => assert!(
+                    (c - 1.0).abs() < 1e-6,
+                    "raw holon recordtype must carry a hologram: cosine(h,h) must be 1.0; got {}",
+                    c
+                ),
+                other => panic!("raw holon cosine: expected CosineOutcome::Similarity[f64], got {:?}", other),
+            }
+        }
+        other => panic!("raw holon cosine: expected CosineOutcome, got {:?}", other),
     }
 }

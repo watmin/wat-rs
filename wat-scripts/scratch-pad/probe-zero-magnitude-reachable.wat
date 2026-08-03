@@ -1,20 +1,32 @@
-;; probe-zero-magnitude-reachable.wat — arc 278, the dimension-heresy stone.
+;; probe-zero-magnitude-reachable.wat — arc 278, the dimension-heresy stone,
+;; now the cosine outcome wall (BRIEF-cosine-outcome-wall.md).
 ;;
-;; QUESTION: is a zero-magnitude Vector REACHABLE from wat?
+;; ORIGINAL QUESTION (2026-08-02): is a zero-magnitude Vector REACHABLE from
+;; wat? RESOLVED BY THIS PROBE, BY RUN: yes, trivially, via `vector-blend`
+;; with cancelling weights. `Similarity::cosine` used to guard
+;; `norm < 1e-10 -> 0.0` (holon-rs/src/kernel/similarity.rs) — a sentinel
+;; that reads as "orthogonal, unrelated" and sails through a `> 0.9`
+;; threshold as a confident NO-MATCH, indistinguishable from the genuine
+;; unrelatedness the non-vacuity control below reads (≈ -0.0086, never
+;; exactly 0.0). Reachability being proven is why `CosineOutcome::Degenerate`
+;; is a real, load-bearing variant and not an unreachable arm.
 ;;
-;; It decides whether `:wat::holon::cosine`'s outcome enum carries a degenerate
-;; variant or not. `Similarity::cosine` guards `norm < 1e-10 -> 0.0`
-;; (holon-rs/src/kernel/similarity.rs) — a sentinel that reads as "orthogonal,
-;; unrelated" and sails through a `> 0.9` threshold as a confident NO-MATCH.
-;; If the degenerate case is UNREACHABLE, minting a variant for it is an
-;; unreachable arm accumulating lies. If it IS reachable, the sentinel is live.
+;; THIS PROBE NOW ALSO PROVES THE FIX: `:wat::holon::cosine` returns
+;; `:wat::holon::CosineOutcome`, not a bare f64 — `println` renders it
+;; structurally, so `z-vs-v` / `z-vs-z` below print `Degenerate[...]`, never
+;; a bare `0.0` a caller could mistake for measured unrelatedness.
 ;;
-;; SUSPICION UNDER TEST: `vector-blend` with cancelling weights (w1=1, w2=-1 on
-;; the SAME vector) should produce an all-zero Vector — i.e. the degenerate case
-;; is reachable through a verb this arc just converted to `CombineOutcome`.
+;; NON-VACUITY CONTROL: `(cosine v v)` must still come back `Similarity[~1.0]`.
+;; Without it, a `Degenerate` from the candidate probe could just as easily
+;; mean the probe itself is broken.
 ;;
-;; NON-VACUITY CONTROL: `(cosine v v)` must come back ~1.0. Without it, a 0.0
-;; from the degenerate probe could just as easily mean the probe is broken.
+;; OUT OF SCOPE FOR THIS PROBE: `CosineOutcome::DimensionMismatch`'s own
+;; reachability from ordinary wat is a SEPARATE, still-open question (per the
+;; design stone's own "REACHABILITY IS UNPROVEN IN BOTH DIRECTIONS" — every
+;; obvious route produces same-`d` Vectors by construction, `dim-count` being
+;; a program-wide constant). This probe does not attempt to force it; it
+;; only proves the DEGENERATE hole is faced, which was the reachable,
+;; grounded hazard the wall exists to close.
 
 (:wat::core::defn :probe::run [] -> :wat::core::nil
   (:wat::core::let
