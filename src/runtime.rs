@@ -31058,76 +31058,32 @@ mod tests {
     // ─── User signals — kernel measures, userland owns transitions ─────
     //
     // The three user-signal flags are process-lifetime AtomicBool statics
-    // (KERNEL_SIGUSR1 / SIGUSR2 / SIGHUP in this file). Under cargo
-    // test's default parallel execution, multiple signal tests race on
-    // the shared state — one test's `reset_user_signals()` clobbers
-    // another test's `set_kernel_sigusr1()` assertion, producing
-    // heisenbugs.
+    // (KERNEL_SIGUSR1 / SIGUSR2 / SIGHUP in this file). P3
+    // (DESIGN-STONE-process-signal-owner-to-child.md) retired the three
+    // flag-state tests that used to live here: each called a setter and
+    // then a getter inside the harness's OWN process — no signal was ever
+    // delivered, no handler ever ran, and the comment this block replaces
+    // explained away their races as a runner-dependent accident rather than
+    // naming the deeper defect. Real process measurements now live as
+    // deftests in `wat-tests/process/` (`signal-user1-delivers-child-
+    // observes.wat`, `signal-user2-and-hangup-independent.wat`,
+    // `signal-reset-sigusr1-is-a-transition.wat`) — each spawns a real
+    // child, signals it, and asserts on what the CHILD reports observing.
     //
-    // wat's zero-Mutex discipline forbids reaching for `std::sync::Mutex`
-    // (or any equivalent spin-gate) in our own code, even in tests.
-    // The honest isolation is per-test fork: each signal test runs its
-    // body in a child process with independent atomic state. No shared
-    // mutable state; no race.
-    //
-    // Mechanism: the RUNNER provides it. nextest forks a process per test
-    // (.config/nextest.toml), so each signal test already owns its atomic
-    // state. The hand-rolled `run_in_fork` wrapper that used to do this
-    // (arc 012 side quest, promoted public in arc 024 slice 0) duplicated
-    // the runner and was annihilated once nextest became the floor.
-
-
-    #[test]
-    fn sigusr1_query_reflects_flag_state() {
-        reset_user_signals();
-        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-            Value::bool(false) => {}
-            v => panic!("expected false, got {:?}", v),
-        }
-        set_kernel_sigusr1();
-        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-            Value::bool(true) => {}
-            v => panic!("expected true, got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn sigusr2_and_sighup_independent() {
-        reset_user_signals();
-        set_kernel_sigusr2();
-        // sighup? must remain false even though sigusr2? is true.
-        match eval_expr("(:wat::kernel::sigusr2?)").unwrap() {
-            Value::bool(true) => {}
-            v => panic!("expected sigusr2 true, got {:?}", v),
-        }
-        match eval_expr("(:wat::kernel::sighup?)").unwrap() {
-            Value::bool(false) => {}
-            v => panic!("expected sighup false, got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn reset_sigusr1_flips_flag_false() {
-        reset_user_signals();
-        set_kernel_sigusr1();
-        let _ = eval_expr("(:wat::kernel::reset-sigusr1!)").expect("reset");
-        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-            Value::bool(false) => {}
-            v => panic!("expected false after reset, got {:?}", v),
-        }
-    }
+    // The two tests below survive because neither one actually asserts a
+    // flag: `reset_sighup_returns_unit` asserts the verb's return SHAPE
+    // (`Value::Unit`), independent of any prior flag state, and
+    // `user_signal_predicates_refuse_arguments` asserts `ArityMismatch`
+    // shape only. They no longer touch the process-global statics at all.
 
     #[test]
     fn reset_sighup_returns_unit() {
-        reset_user_signals();
-        set_kernel_sighup();
         let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
         assert!(matches!(v, Value::Unit));
     }
 
     #[test]
     fn user_signal_predicates_refuse_arguments() {
-        reset_user_signals();
         assert!(matches!(
             eval_expr("(:wat::kernel::sigusr1? 1)"),
             Err(EvalBreak::Diagnostic(e)) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. })
