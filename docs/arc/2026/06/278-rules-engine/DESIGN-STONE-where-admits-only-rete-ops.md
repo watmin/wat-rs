@@ -38,6 +38,58 @@ This corrects the second draft, which wrote *"call it 40–60 names"* as though 
 could say. It bounds the alphabet. It is SQL's actual shape: a closed operator set, and views on views
 on views.
 
+### ★★ THE LAW, STATED PLAINLY (added 2026-08-03 at the builder's direction)
+
+> *"User forms may only be permitted if their primitives are from rete. Dissect them to ensure they
+> are allowed."*
+
+**A user form is admitted if and only if EVERY head in its transitive walk is admissible.** One
+non-rete primitive anywhere, at any depth, and the whole form is refused. There is no partial credit,
+no "mostly rete," and no depth at which the walk stops caring.
+
+**This is not new machinery and it is not a design question — the dissection already runs.**
+`classify_fn` (`purity.rs:~855`) branches on the function's body:
+
+```rust
+match &func.body {
+    FunctionBody::Wat(body_ast) => classify_expr(body_ast.as_ref(), axis, sym, seen),  // WALK IT
+    FunctionBody::Native        => intrinsic_meta(fqdn).is_some_and(…),                // opaque
+}
+```
+
+A user fn has a body, so it is **walked**: every head inside goes back through `head_ok`, recursively,
+with cycle detection (`seen`, back-edge ⇒ `Ok`). Once law A is armed, a core-namespaced primitive
+found anywhere in that walk is denied, and the denial propagates up to refuse the calling form. The
+composition door is not a loophole in the law — **it is how the law reaches all the way down.**
+
+**Corollary, and it is why the door stays open:** admitting a user fn is not a decision about the fn's
+NAME. `:usr::risk-score` will never be rete-namespaced and does not need to be. It is admitted because
+its *contents* are, and refused the moment they are not. Namespacing governs the **primitives**; the
+walk governs everything built out of them.
+
+### ⛔ The ONE gap in that law — a native head is judged by the wrong test
+
+`head_ok` consults `sym.functions` (`:634`) **before** the rete admission test (`:648`). For a *user*
+fn that is correct and load-bearing — it is the walk above. But the HOF combinators
+(`foldl`/`foldr`/`map`/`filter`/`reduce`) are **native AND registered in `sym.functions`**, so they
+take the `FunctionBody::Native` arm and are judged by `intrinsic_meta` — never by the namespace test.
+
+⇒ After arming, `(:wat::core::foldl f init xs)` inside a `where` is still admitted, while
+`(:wat::core::i64::+ a b)` beside it is refused. **Two rules for two natives.** Not a safety hole —
+everything inside the closure is still walked and still fenced — but it is the same *two legal
+spellings* defect that `match`/`fn`/`cond` had before #56, in a fourth costume.
+
+**The fix is ORDERING, not a new mechanism, and it does not touch the composition door.** A head whose
+body is `FunctionBody::Native` is exactly the population the rete vocabulary is meant to cover, so it
+must be judged by the admission test; only `FunctionBody::Wat` takes the walk. The two are already
+distinguished by that match — no new distinction has to be invented.
+
+*(Recorded because an earlier reading of this got it wrong: it claimed native and user fns were
+"indistinguishable at that door" and posed a fork between requiring rete-spelled HOFs and keeping
+user fns transitively admissible. There is no tension and there was no fork — the branch above
+separates them today, and the builder cut the false dilemma on sight: "why are we not able to walk a
+user form and determine if its primitives are rete or core?" We are. We do.)*
+
 ## The fork, and how it was ruled
 
 The open question was whether the law is **namespace-based** (a `where` admits only `:wat::rete::` ops)
@@ -176,18 +228,57 @@ mixes three review problems.
 riders at it is a merge conflict, not a seam (the same reasoning that merged S1+S2). One rider,
 sequential phases.
 
-**⚠ THE MEMBERS ABOVE ARE PROVISIONAL AND MUST NOT BE TREATED AS THE LIST.** They come from a
-whole-file `grep` of `wat-scripts/perf/grid/where-*.wat`, which cannot tell a head *inside* a `where`
-from one in the file's own harness (`defn`, `foldl`, `range`, `sort`, `map`, `into` are obviously
-driver code). It over-counts, and it cannot see nesting. **The list is settled by a form-tree walk** —
-`read-string` + `with-children`, `fix.wat`'s own machinery — which handles nesting and never sees a
-comment. Until that walk runs, the only measured fact is the direction: `:wat::core::=` occurs **127**
-times in those files and has no mirror, so the fence as it stands would refuse nearly every rule we
-have.
+### ✅ THE CENSUS — SETTLED 2026-08-03 by a form-tree walk (`BRIEF-where-vocabulary-census.md`)
 
-**Two stale claims in this document, corrected by that same grep:** the vocabulary table's `when` does
-not exist (see the CORRECTED note above), and *"`cond` waits for a caller (zero corpus demand)"* is
-contradicted by 11 `cond` occurrences — whether any sit inside a `where` is the walk's to answer.
+The members above were provisional, from a whole-file grep. **They are now measured.** The instrument
+was `read-string` + structural recursion — `fix.wat`'s own machinery — which sees nesting and never
+sees a comment. **32 files parsed, 0 failures, 167 `where` forms, 415 head-occurrences, 97 distinct
+heads.**
+
+**⚠ FIRST, THE SCOPE DISTINCTION NOBODY HAD BEEN DRAWING.** "The corpus" has meant two different
+things in this document. The **nine** `where-*.wat` grid files are the **Clara-differential corpus**;
+the walk found real `where` forms in **23 more** files — three more in the grid directory
+(quasiquote-built), plus scratch-pad probes, `tests/rete`, `tests/services`, and `wat-scripts/fixes`.
+**Migrating a differential row and migrating a probe are different acts.** Two of those probes exist
+specifically to prove the fence REJECTS an impure/nondeterministic `where`
+(`probe_arc278_6b_ii_a_where_oracle_impure.wat`, `probe_fence_names_the_head_nondet.wat`) — a rider
+that "fixes" them has broken the thing they measure. #57's brief must carry this split.
+
+**THE MINT LIST — 23 distinct heads / 105 occurrences.** Excluded first, and these are NOT mint
+targets: **25 field accessors** (59 occurrences) admitted by the declaration-derived accessor door;
+**27 user-composed fns** (32 occurrences) admitted transitively by the walk above; and the **4
+deliberate-RED impure/nondeterministic heads**, which must stay refused.
+
+| bucket | heads |
+|---|---|
+| **alias** | `=` (42) · `not=` (3) · `i64::to-f64` (1) · `PersistentVector/{length,get,contains?}` (11) · `String/{starts-with?,contains?,ends-with?,empty?,concat}` (13) · `string::{length,trim,to-lowercase}` (5) |
+| **fallback** | `string::subs` (1) · `f64::*` (1) |
+| **UNSURE — audit, do not guess** | generic `>` (13) · generic `>=` (1) · generic `+` (1) · `PersistentMap/contains-key?` (1) · `f64::>` (2, and NOT in this document's f64 row — a gap in the table, not the census) |
+| **ordering, not a mint** | `foldl` (4) — see "The ONE gap in that law" above |
+
+**★ THE GENERIC-VS-PER-TYPE SPELLING, and it is the census's real prize.** The corpus uses BOTH
+`:wat::core::i64::>` (mirrored) and bare `:wat::core::>` (not). They are **distinct heads**. Generic
+`<` is in the `total` audit; generic `>`/`>=` are not — an asymmetry the audit's own comment admits is
+corpus-driven rather than derived, which is survivorship exactly as this document warns about
+elsewhere. And a generic head is a **defclause dispatch over types**, while the rete surface is
+per-type *by construction* — the same fact that makes the admission test a MODULE SET. So these cannot
+simply be mirrored: either the sites migrate to the per-type spelling, or the rete surface needs a
+dispatch it was designed not to have. **Ruling owed before round 1.**
+
+**Three claims in this document, now settled:**
+
+1. `when` does not exist — see the CORRECTED note above. Stands.
+2. *"`cond` waits for a caller (zero corpus demand)"* — **THE DOCUMENT WAS RIGHT.** An earlier
+   amendment here claimed 11 `cond` occurrences contradicted it; the walk shows **zero** inside any
+   `where` in the grid family. The single `cond`-in-a-`where` anywhere is a scratch-pad probe
+   deliberately reproducing the fence-says-yes/engine-says-`UnknownFunction` defect. The 11 were
+   comments and driver code. *That amendment was a grep over-read and is hereby withdrawn.*
+3. **The holon four are confirmed absent** — zero holon heads in any of the 167 `where` forms. The
+   cosine wall (`BRIEF-cosine-outcome-wall.md`) is not a blocker for #57.
+
+**⚠ And the row count is 99, not 98.** This document cites "98 rows" repeatedly; the walk counts 99
+real `where` forms in the nine grid files. Unresolved by one; worth five minutes before it is cited
+again.
 
 ### ⛔ STOP-A — ground the arithmetic path before hanging the surface
 

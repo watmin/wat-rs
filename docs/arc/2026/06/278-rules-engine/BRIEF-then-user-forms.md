@@ -97,6 +97,25 @@ those operands, it becomes a compile error. Say so in your report if you confirm
 7. `src/rete/purity.rs` `head_ok` / `classify_expr` — the fence's Rust side; read it to understand what
    `pure?`/`deterministic?` do, do not modify it.
 
+## ★ TWO ROOMS THE COSINE BRIEF MISSED YESTERDAY — find their twins here BEFORE you build
+
+Both cost a RED floor on the last stone. Neither was the rider's fault; the brief failed to name them.
+Go looking for their equivalents on this path as your **second** act, after the counts:
+
+1. **A SECOND VALIDATOR OF THE SAME SHAPE, elsewhere.** `check.rs` carried its own hardcoded
+   return-type inference for cosine/dot, wholly independent of the runtime's — so runtime + `types.rs`
+   shipped a wall the *type checker* did not know about, and every touched `.wat` failed `--check`.
+   **Grep for every place that reasons about a `:then` / RHS / insert-form shape**, not only
+   `validate_and_reorder_then`. The five-places note
+   (`109/NOTE-kwargs-or-positional-is-decided-in-five-places.md`) is your map: the kwargs-vs-positional
+   test alone is written out in **five** independent sites, three of them rete RHS phases. Assume the
+   thing you are changing has a twin until you have proved it does not.
+2. **INLINE WAT INSIDE RUST `src/**/*.rs` TEST STRINGS.** Rust unit tests embed wat source and assert
+   on its result. A `.wat` sweep is structurally blind to them, `--test lint` does not run them (they
+   are lib unit tests), and only a full `nextest` weigh surfaces them. **Grep `src/**/*.rs` for
+   `:then`, `defrule`, `make-rule` and the insert-form shape** and read every hit before you change a
+   contract they depend on.
+
 ## STOP triggers — rejection criteria. Ship nothing, report the gap.
 
 1. **STOP-1 — threading `sym` into `validate_rete_rules` turns into a param cascade.** That is the
