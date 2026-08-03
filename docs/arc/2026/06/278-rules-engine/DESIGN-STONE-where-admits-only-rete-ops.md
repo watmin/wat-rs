@@ -67,28 +67,43 @@ NAME. `:usr::risk-score` will never be rete-namespaced and does not need to be. 
 its *contents* are, and refused the moment they are not. Namespacing governs the **primitives**; the
 walk governs everything built out of them.
 
-### ⛔ The ONE gap in that law — a native head is judged by the wrong test
+### ⛔ THE HOF COMBINATORS ARE PRIMITIVES, SO RETE MUST PROVIDE THEM
 
-`head_ok` consults `sym.functions` (`:634`) **before** the rete admission test (`:648`). For a *user*
-fn that is correct and load-bearing — it is the walk above. But the HOF combinators
-(`foldl`/`foldr`/`map`/`filter`/`reduce`) are **native AND registered in `sym.functions`**, so they
-take the `FunctionBody::Native` arm and are judged by `intrinsic_meta` — never by the namespace test.
+`:wat::core::foldl` is not from the rete namespace. Neither are `foldr`, `map`, `filter`, `reduce`.
+**So they are refused, and rete mints its own** — exactly like `i64::+`, and for exactly the same
+reason. There is nothing special about them.
 
-⇒ After arming, `(:wat::core::foldl f init xs)` inside a `where` is still admitted, while
-`(:wat::core::i64::+ a b)` beside it is refused. **Two rules for two natives.** Not a safety hole —
-everything inside the closure is still walked and still fenced — but it is the same *two legal
-spellings* defect that `match`/`fn`/`cond` had before #56, in a fourth costume.
+> *"The DSL is for interfacing with rete and only rete forms are allowed. Users can build as complex
+> forms as they want but they must use rete primitives. SQL doesn't require you to write C code
+> sometimes."*
 
-**The fix is ORDERING, not a new mechanism, and it does not touch the composition door.** A head whose
-body is `FunctionBody::Native` is exactly the population the rete vocabulary is meant to cover, so it
-must be judged by the admission test; only `FunctionBody::Wat` takes the walk. The two are already
-distinguished by that match — no new distinction has to be invented.
+A user needs to fold inside a `where`, so folding is part of the alphabet. **`:wat::rete::core::foldl`
+and its four siblings are MINT TARGETS — round 1, alias shape** (rete name → the same routine, zero new
+logic). Their meta is *conditionally* pure ∧ det ∧ total — the combinator itself is referentially
+transparent and the axis falls out of the walk into its fn-argument — and that conditionality is
+already how `intrinsic_meta` records them; the rete rows inherit it unchanged.
 
-*(Recorded because an earlier reading of this got it wrong: it claimed native and user fns were
-"indistinguishable at that door" and posed a fork between requiring rete-spelled HOFs and keeping
-user fns transitively admissible. There is no tension and there was no fork — the branch above
-separates them today, and the builder cut the false dilemma on sight: "why are we not able to walk a
-user form and determine if its primitives are rete or core?" We are. We do.)*
+**Why nobody noticed they were missing** — and this is mechanism, not the finding: `head_ok` consults
+`sym.functions` (`:634`) **before** the admission test (`:648`). The HOFs are native AND registered in
+`sym.functions`, so they take the `FunctionBody::Native` arm and are judged by `intrinsic_meta`,
+never by namespace. Left as-is, arming would admit `(:wat::core::foldl …)` while refusing
+`(:wat::core::i64::+ …)` beside it — two rules for two primitives.
+
+**So the strike is two halves, and the mint is the substantive one:**
+
+1. **Mint the five rete HOFs** (round 1) — so a user has the spelling the law requires.
+2. **Order the doors** so a `FunctionBody::Native` head is judged by the admission test — which is what
+   makes the core spelling actually refuse. `Wat` vs `Native` are already distinguished by the match
+   above; no new distinction is invented, and the composition door for user fns is untouched.
+
+*(Two errors recorded rather than quietly fixed, because both would otherwise be re-derived. FIRST: an
+earlier reading claimed native and user fns were "indistinguishable at that door" and posed a fork
+between requiring rete-spelled HOFs and keeping user fns transitively admissible. There is no tension
+and there was no fork — the `Wat`/`Native` branch separates them today. SECOND, and the one that
+matters: even after that was corrected, this section described the ORDERING as the gap and never wrote
+down the obvious conclusion — that a core primitive used inside a `where` needs a rete twin. The
+builder, twice: "those are NOT from the rete namespace, are they? So they need to be provided by rete."
+Yes. The mechanism was never the question; the missing vocabulary was.)*
 
 ## The fork, and how it was ruled
 
@@ -254,7 +269,7 @@ deliberate-RED impure/nondeterministic heads**, which must stay refused.
 | **alias** | `=` (42) · `not=` (3) · `i64::to-f64` (1) · `PersistentVector/{length,get,contains?}` (11) · `String/{starts-with?,contains?,ends-with?,empty?,concat}` (13) · `string::{length,trim,to-lowercase}` (5) |
 | **fallback** | `string::subs` (1) · `f64::*` (1) |
 | **UNSURE — audit, do not guess** | generic `>` (13) · generic `>=` (1) · generic `+` (1) · `PersistentMap/contains-key?` (1) · `f64::>` (2, and NOT in this document's f64 row — a gap in the table, not the census) |
-| **ordering, not a mint** | `foldl` (4) — see "The ONE gap in that law" above |
+| **alias — the HOF combinators** | `foldl` (4) **and its four siblings `foldr` / `map` / `filter` / `reduce`, minted together whether or not the census found each one used.** They are core primitives, they are not rete, so rete provides them — same rule as `i64::+`. Their meta is *conditionally* pure ∧ det ∧ total (the axis falls out of the walk into the fn-argument); the rete rows inherit that unchanged. Paired with the `Native`-door ordering fix — see "THE HOF COMBINATORS ARE PRIMITIVES" above — which is what makes the core spelling actually refuse. |
 
 **★ THE GENERIC-VS-PER-TYPE SPELLING, and it is the census's real prize.** The corpus uses BOTH
 `:wat::core::i64::>` (mirrored) and bare `:wat::core::>` (not). They are **distinct heads**. Generic
