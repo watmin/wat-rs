@@ -48,22 +48,48 @@ The ruling is not only a fix — it is an **instrument**. Enumerate one side's s
 meaning for each on the other. Every variant without a twin is either a real difference you can
 *name*, or a hole.
 
-| `RecvError` | the send meaning | today |
+| `RecvError` | the send meaning | verdict |
 |---|---|---|
-| `Disconnected` | EPIPE — the reader's end is gone | ✅ the only thing send has |
-| `Shutdown` | the broadcast fired mid-write | ❌ **hole** — no poll arm; see § the poll |
-| `Failed(String)` | an io error, carrying its reason | ❌ **hole** — `Err(_)` discards it |
-| `FrameTooLarge` | the **outgoing** frame exceeds the cap | ❌ **hole** — read-checked, write-unchecked |
-| `PeerCrashed` | the peer died rather than closed | **?** — see below; likely a real difference |
+| `Disconnected` | EPIPE — the reader's end is gone | ✅ have |
+| `Shutdown` | the broadcast fired mid-write | ❌ **HOLE — build it** (the poll arm) |
+| `Failed(String)` | an io error, carrying its reason | ❌ **HOLE — build it** (`Err(_)` discards it) |
+| `FrameTooLarge` | the outgoing frame exceeds the cap | ⊘ **REAL DIFFERENCE — do not mirror** |
+| `PeerCrashed` | the peer died rather than closed | ⊘ **REAL DIFFERENCE — do not mirror** |
 
-**Three of five were holes.** Two hours of examining the send path through a wake-shaped lens found
-one of them. The mirror found the other two in minutes — including `FrameTooLarge`, which fails
-*silently*, and which no amount of thinking about shutdown would have surfaced.
+**Two holes, two named non-mirrors.** The mirror initially read as three holes; grounding turned
+one back into a difference — which is the test working *in both directions*. It does not only find
+gaps, it forces you to justify the non-gaps.
 
-`PeerCrashed` is the honest maybe. On recv it comes off the crash channel. A sender sees a dead peer
-as EPIPE and has no crash-channel access at the `comms::Sender` layer, so it plausibly collapses
-into `Disconnected`. **Name that reason in the code or mirror it — do not simply omit it.** That is
-the whole point of the gate below.
+### Why `FrameTooLarge` does NOT mirror — ruled + grounded 2026-08-03
+
+Builder: *"the client must be well behaved… only send what is allowed to be sent — bad clients are
+dismissed."*
+
+The receiver already implements exactly that: it detects `FrameTooLarge` and returns it distinctly
+*"so callers can tear down the peer immediately"* (`process.rs:1123`). **That dismissal IS the
+enforcement**, and it is correct today.
+
+And the structure agrees, which is what settles it rather than the policy alone:
+
+```rust
+pub struct Sender<T: EdnRepresentable> { write_fd: OwnedFd, _phantom: PhantomData<T> }
+```
+
+**Two fields. No budget.** `max_frame_bytes` lives only on the `Receiver` (`pair_with_budget` sets
+it there). A sender structurally *cannot* know the cap it would be checking against — so a
+send-side `FrameTooLarge` would be an arm with no producer.
+`[[feedback_an_unreachable_arm_accumulates_lies]]` forbids building it.
+
+*An earlier reading of mine, withdrawn: I called this "a guaranteed-fail send reported as success."
+It is not. The write genuinely succeeded, and the sender has no basis to claim otherwise. The
+dismissal is the receiver's job and it does it.*
+
+### Why `PeerCrashed` does not mirror
+
+On recv it comes off the crash channel. A sender sees a dead peer as EPIPE and has no
+crash-channel access at the `comms::Sender` layer, so it collapses honestly into `Disconnected`.
+**Record this reason at the type; do not silently omit it** — silence is what produced the other
+two holes.
 
 ## The strike — one type, then the two mechanisms that fill it
 
