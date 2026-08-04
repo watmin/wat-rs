@@ -8,8 +8,8 @@
 //! test in the tree — every existing comms probe either never fills the pipe
 //! (so the write never actually blocks) or drives a service test that never
 //! reaches this write loop at all. This probe fills a REAL OS pipe to kernel
-//! capacity, blocks a `Sender::send` on it from a background thread, fires
-//! the substrate shutdown broadcast, and proves the blocked send wakes with
+//! capacity, blocks a `Sender::send` on it, fires the substrate shutdown via
+//! a real SIGTERM, and proves the blocked send wakes with
 //! `SendError::Shutdown` instead of hanging forever.
 //!
 //! ## Shape — copied from tests/channel/probe_arc170_writer_joins_lockstep.rs
@@ -21,59 +21,70 @@
 //!     blocking mode — mirrors `src/comms/process.rs`'s own
 //!     non-blocking-probe-then-restore pattern (`Sender::try_send`) and the
 //!     arc170 probe's fill step verbatim.
-//!   - block on a BACKGROUND thread, never the test's main thread.
-//!   - rendezvous on a bounded(0) channel — the writer signals readiness
-//!     immediately before calling `send`.
-//!   - collect the outcome through a BOUNDED `recv_timeout`, NEVER a raw
-//!     `.join()` — so this probe itself can never hang even while the poll
-//!     arm is broken (the deliberate-break half of the brief proves this
-//!     rather than merely asserting it).
+//!   - block in a CHILD PROCESS, never this test's own process.
+//!   - collect the outcome through a BOUNDED channel `recv_timeout`, NEVER a
+//!     raw `.wait()` — so this probe itself can never hang even while the
+//!     poll arm is broken (the deliberate-break half of the brief proves
+//!     this rather than merely asserting it).
 //!
-//! ## Firing the broadcast — request_kernel_stop(), not libc::raise
+//! ## Shape B — re-exec the test binary (arc 278
+//! BRIEF-the-shutdown-cohort-moves-to-children.md)
 //!
-//! `libc::raise` is condemned in this project (a self-directed signal makes
-//! the measurer and the measured one process). This probe does not signal
-//! itself or spawn a child process to signal: `wat::runtime::
-//! request_kernel_stop()` is the EXACT call `substrate_on_stop_signal`'s
-//! SIGTERM/SIGINT handler makes (`src/process/child.rs:38`) — an
-//! `AtomicBool::store` plus an async-signal-safe `libc::write` of one byte to
-//! the shutdown worker's wake pipe. That write wakes the worker thread
-//! (`init_shutdown_signal_with_inputs`, `src/runtime.rs`), which writes the
-//! broadcast wake byte (POLLIN on `SHUTDOWN_BROADCAST_READ_FD`) and then, on
-//! return, drops the broadcast write-end (POLLHUP) — the IDENTICAL arm
-//! `Sender::send`'s poll depends on. Calling `request_kernel_stop()` directly
-//! is a strict subset of the real SIGTERM path: it skips only the OS
-//! signal-delivery hop, which is not the mechanism under test, and needs no
-//! child process to signal (this probe has none).
+//! `comms::process::Sender::send` is Rust-internal with no wat-visible door
+//! (see the same brief's Shape-A probe finding for the memory/pipefd recv
+//! files — that finding is about the recv side, but the send side has no
+//! door either: `send'` on a process-tier peer is the only wat-visible
+//! surface, and it is a THREAD-tier self-peer send in every reachable wat
+//! program, never this exact `comms::process::Sender` type directly). The
+//! dangerous half — `init_shutdown_signal` + a real blocked send — moves
+//! into a CHILD PROCESS: this test's own binary is re-exec'd via
+//! `std::env::current_exe()`, filtered to run ONLY this test, with the
+//! `ARC278_SEND_POLL_ARM_CHILD` env var set. The child installs the
+//! substrate's real signal handlers and fires the broadcast via a genuine
+//! external SIGTERM from the parent — NOT a direct `request_kernel_stop()`
+//! call and NOT a self-raised signal (which would make the measurer and the
+//! measured the same process, banned in this sweep). Sending a real signal
+//! cross-process exercises the identical path `substrate_on_stop_signal`
+//! takes in production (`request_kernel_stop()` fires from INSIDE the
+//! child's own handler, not from test code), so this is at least as
+//! faithful as the direct call the pre-sweep version used, without the
+//! process-global mutation ever touching this test's own process.
 //!
 //! ## Arming the broadcast
 //!
 //! `SHUTDOWN_BROADCAST_READ_FD` must be armed (`>= 0`) before the writer
 //! blocks, or `Sender::send`'s poll degenerates to POLLOUT-only and waits
 //! forever with nothing able to wake it — a DIFFERENT bug that would make
-//! this probe prove the opposite of what it claims. Asserted below, before
-//! the writer thread is spawned.
-//!
-//! ## Process isolation
-//!
-//! `.config/nextest.toml`: "each test runs in its OWN forked process" — this
-//! probe's `init_shutdown_signal()` / `request_kernel_stop()` calls mutate
-//! process-wide statics (`SHUTDOWN_BROADCAST_READ_FD`, `SHUTDOWN_TX_PTR`,
-//! `KERNEL_STOPPED`) but cannot leak into any other test's process.
+//! this probe prove the opposite of what it claims. Asserted in the child,
+//! before it blocks.
 
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use wat::comms::process::sender_receiver_from_split_fds;
-use wat::comms::SendError;
+/// Env var that selects the CHILD role below. Set ONLY by the parent half of
+/// this test (via `Command::env`) when it re-execs its own binary — never set
+/// by a human/CI invocation, so a normal `cargo test` / `cargo nextest run`
+/// invocation of this test always takes the PARENT branch first.
+const CHILD_ENV: &str = "ARC278_SEND_POLL_ARM_CHILD";
 
-/// Arc 278 — a `comms::process::Sender::send` blocked writing into a full,
-/// undrained pipe wakes and returns `SendError::Shutdown` when the substrate
-/// shutdown broadcast fires, instead of blocking forever.
-#[test]
-fn probe_sender_send_wakes_on_shutdown_broadcast() {
-    // ── Step 1: arm the shutdown broadcast BEFORE anything can block ───
+/// THE CHILD BRANCH — reached only in a re-exec'd copy of this test binary
+/// that the PARENT branch below spawned with `ARC278_SEND_POLL_ARM_CHILD`
+/// set and a `--exact` filter naming this same test. NOT dead code. This is
+/// the dangerous, process-global-mutating half of the probe (substrate
+/// shutdown infra + real signal handlers + a real blocked syscall) —
+/// isolated to its own disposable process so a hang or a corrupted global
+/// dies with it instead of leaking into the rest of the suite under a
+/// non-forking runner.
+fn run_as_child() -> ! {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    use wat::comms::process::sender_receiver_from_split_fds;
+    use wat::comms::SendError;
+
+    // ── arm the shutdown broadcast + real signal handlers BEFORE anything
+    // can block ─────────────────────────────────────────────────────────
     wat::runtime::init_shutdown_signal();
+    wat::process::install_substrate_signal_handlers();
     assert!(
         wat::runtime::SHUTDOWN_BROADCAST_READ_FD.load(std::sync::atomic::Ordering::SeqCst) >= 0,
         "SHUTDOWN_BROADCAST_READ_FD must be armed after init_shutdown_signal() — otherwise \
@@ -82,10 +93,7 @@ fn probe_sender_send_wakes_on_shutdown_broadcast() {
          claims)."
     );
 
-    // ── Step 2: raw OS pipe; fill the write end to kernel capacity ─────
-    // The read end is wrapped into a live Receiver (never `recv`'d, never
-    // dropped) for the whole probe — the pipe stays genuinely full; nothing
-    // EOFs, nothing drains, and the sole writer never sees EPIPE.
+    // ── raw OS pipe; fill the write end to kernel capacity ─────────────
     let mut pipe_fds = [0_i32; 2];
     let ret = unsafe { libc::pipe(pipe_fds.as_mut_ptr()) };
     assert_eq!(ret, 0, "libc::pipe must succeed for the data pipe");
@@ -122,60 +130,150 @@ fn probe_sender_send_wakes_on_shutdown_broadcast() {
 
     let (sender, receiver) = sender_receiver_from_split_fds::<String>(read_fd, write_fd)
         .expect("sender_receiver_from_split_fds over the pre-filled pipe");
-    // Held alive for the whole probe: dropping it would close the read end,
+    // Held alive for the whole child: dropping it would close the read end,
     // and the sole writer would see EPIPE (SendError::Disconnected) instead
     // of blocking — a different, unrelated outcome from the one under test.
     let _keep_receiver_alive = receiver;
 
-    // ── Step 3: rendezvous + spawn writer-thread ────────────────────────
-    let (ready_tx, ready_rx) = crossbeam_channel::bounded::<()>(0);
-    let (result_tx, result_rx) =
-        crossbeam_channel::bounded::<Result<(), SendError<String>>>(1);
+    // Protocol (READY / REPORT) rides on stderr, not stdout — under
+    // `--nocapture` libtest's own harness banner ("running 1 test", the
+    // "test <name> ... " prefix it fills in later on the SAME line) shares
+    // stdout, which corrupts a line-based protocol there. Stderr is
+    // libtest-silent for a non-panicking test, so it is the clean channel
+    // for this handshake (see the sibling arc170 probe, same fix).
+    eprintln!("READY");
+    std::io::stderr().flush().expect("flush READY");
 
-    std::thread::Builder::new()
-        .name("probe-comms-sender".into())
-        .spawn(move || {
-            // Rendezvous: blocks until the main thread is ready to receive
-            // (lock-step) — guarantees this thread is AT the send call point
-            // before the shutdown broadcast fires.
-            ready_tx.send(()).expect("ready signal send");
+    // One more frame into an already-full pipe — the fill loop above left
+    // zero free space, so this call blocks in Sender::send's poll loop
+    // until the parent's SIGTERM (or forever, pre-fix).
+    let outcome = sender.send("x".to_string());
 
-            // One more frame into an already-full pipe — the fill loop above
-            // left zero free space, so this call blocks in Sender::send's
-            // poll loop.
-            let outcome = sender.send("x".to_string());
-            let _ = result_tx.send(outcome);
-        })
-        .expect("writer-thread spawn succeeds");
+    match outcome {
+        Err(SendError::Shutdown(value)) => {
+            eprintln!("REPORT:Shutdown:{}", value);
+        }
+        other => {
+            eprintln!("REPORT:Other:{:?}", other);
+        }
+    }
+    std::io::stderr().flush().expect("flush REPORT");
+    std::process::exit(0);
+}
 
-    // ── Step 4: wait for writer-thread readiness, then fire the broadcast ──
-    ready_rx.recv().expect("ready signal recv");
+/// Arc 278 — a `comms::process::Sender::send` blocked writing into a full,
+/// undrained pipe wakes and returns `SendError::Shutdown` when the substrate
+/// shutdown broadcast fires, instead of blocking forever.
+#[test]
+fn probe_sender_send_wakes_on_shutdown_broadcast() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        run_as_child();
+    }
+
+    // ── PARENT: re-exec this binary, filtered to just this test ────────
+    let exe = std::env::current_exe().expect("current_exe");
+    let mut child = Command::new(&exe)
+        .arg("probe_arc278_send_poll_arm::probe_sender_send_wakes_on_shutdown_broadcast")
+        .arg("--exact")
+        .arg("--nocapture")
+        .arg("--test-threads=1")
+        .env(CHILD_ENV, "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn re-exec'd child");
+
+    // Protocol (READY / REPORT) rides on stderr — see `run_as_child`'s doc
+    // for why stdout is unusable as a line-based channel under `--nocapture`.
+    let mut child_stderr = BufReader::new(child.stderr.take().expect("child stderr"));
+
+    // READY: the child has armed the broadcast, filled the pipe, and is at
+    // the send call point. Unbounded, like the sibling arc170 probe and the
+    // `wat_cli::sigterm_reaches_a_program_blocked_on_stdin` exemplar this
+    // shape descends from — a child that never reaches READY is a startup
+    // failure, not the shutdown-cascade defect this probe targets.
+    let mut ready_line = String::new();
+    child_stderr
+        .read_line(&mut ready_line)
+        .expect("read READY line from child");
+    assert_eq!(
+        ready_line.trim(),
+        "READY",
+        "expected READY; got {ready_line:?}"
+    );
+
+    // Signal the CHILD via a REAL SIGTERM — not `request_kernel_stop()`
+    // called directly (that stayed in-process pre-sweep) and not a
+    // self-raised signal. `install_substrate_signal_handlers` in
+    // the child wires SIGTERM to `substrate_on_stop_signal`, which calls
+    // `request_kernel_stop()` for us — the one remaining call to it now
+    // lives entirely inside the child's own handler, never in test code.
     let t0 = Instant::now();
-    // Direct broadcast trigger — see module doc "Firing the broadcast" above
-    // for why this is used instead of libc::raise or signaling a child.
-    wat::runtime::request_kernel_stop();
+    unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGTERM) };
 
-    // ── Step 5: bounded wait — never a raw join ─────────────────────────
-    let outcome = result_rx.recv_timeout(Duration::from_secs(3)).unwrap_or_else(|_| {
+    // ── bounded wait for the child's report — never a raw blocking read ──
+    let (report_tx, report_rx) = std::sync::mpsc::channel::<String>();
+    std::thread::Builder::new()
+        .name("probe-report-reader".into())
+        .spawn(move || {
+            let mut report_line = String::new();
+            if child_stderr.read_line(&mut report_line).is_ok() {
+                let _ = report_tx.send(report_line);
+            }
+        })
+        .expect("report-reader thread spawn");
+
+    let report_line = report_rx.recv_timeout(Duration::from_secs(3)).unwrap_or_else(|_| {
+        // The read-thread above leaks (its blocking read may never return) —
+        // Rust threads cannot be killed safely; honest about that here, as
+        // `wat/test.wat`'s `:time-limit` doc already is for the same reason.
+        let _ = child.kill();
+        let _ = child.wait();
         panic!(
-            "Sender::send did not return within 3s of the shutdown broadcast firing (elapsed \
-             {:?}) — the write is blocked in the kernel with no way to observe the shutdown \
-             broadcast. This is the RED state when the poll arm is missing/broken \
-             (src/comms/process.rs Sender::send).",
-            t0.elapsed()
-        )
+            "the child did not report within 3s of the shutdown broadcast firing — the write \
+             is blocked in the kernel with no way to observe the shutdown broadcast. This is \
+             the RED state when the poll arm is missing/broken (src/comms/process.rs \
+             Sender::send)."
+        );
     });
     let elapsed = t0.elapsed();
 
-    // ── Assertions ────────────────────────────────────────────────────
-    match outcome {
-        Err(SendError::Shutdown(value)) => {
-            assert_eq!(value, "x", "SendError::Shutdown must carry the unsent value back");
+    // Bounded wait for the child's exit — never a raw `.wait()`.
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    let status = loop {
+        match child.try_wait().expect("try_wait") {
+            Some(s) => break Some(s),
+            None if std::time::Instant::now() >= deadline => break None,
+            None => std::thread::sleep(Duration::from_millis(10)),
         }
+    };
+    let mut stdout_text = String::new();
+    if let Some(mut o) = child.stdout.take() {
+        let _ = o.read_to_string(&mut stdout_text);
+    }
+    if status.is_none() {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!(
+            "the child reported {:?} but did not exit within 3s afterward\nstdout:\n{}",
+            report_line, stdout_text
+        );
+    }
+    assert_eq!(
+        status.unwrap().code(),
+        Some(0),
+        "child exited abnormally; report: {:?}\nstdout:\n{}",
+        report_line,
+        stdout_text
+    );
+
+    match report_line.trim() {
+        "REPORT:Shutdown:x" => {} // expected
         other => panic!(
-            "expected Err(SendError::Shutdown(_)) — the poll arm firing on the substrate \
-             shutdown broadcast; got {:?}",
-            other
+            "expected Err(SendError::Shutdown(_)) carrying \"x\" — the poll arm firing on the \
+             substrate shutdown broadcast; got {other:?}\nstdout:\n{}",
+            stdout_text
         ),
     }
     assert!(
