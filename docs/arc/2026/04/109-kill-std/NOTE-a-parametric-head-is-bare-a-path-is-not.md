@@ -15,6 +15,47 @@
 > site giving the reason, quoted below. This changes the cure: making the storage consistent would
 > BREAK unification. Corrections kept in place rather than rewritten away.
 
+> ## ⚠ AMENDED 2026-08-05 — a THIRD instance, and it was LATENT. Plus: the surface GREW.
+>
+> **(a) A latent instance existed after all, and this note's own conclusion needs qualifying.**
+> Below, this note concludes *"a REGRESSION introduced by the new mechanism, not a latent bug it
+> uncovered."* That was true of the **two sites it examined** and it is not true of the file.
+> `synthesize_surface_protocol`'s ruling-A SHAPE lock read
+> `if let TypeExpr::Path(resp_path) = ret` — so the whole *"every serviceable Response must carry
+> a well-shaped `RequestTooLarge`/`RequestMalformed`"* rule **never ran on a parametric response**,
+> silently, since 16.1c shipped. Not a regression; not introduced by the new mechanism; older than
+> both sites below. Proven with a non-vacuity control (parametric-without-RTL accepted silently
+> while its monomorphic twin was refused, located), fixed the same day (`f7bd58f9`), recorded in
+> `278/NOTE-ruling-a-lock-skips-parametric-responses.md`.
+>
+> **The pattern that hid it is the one this note already names**, applied to a *skip* rather than a
+> *concat*: the `Parametric` arm is rarely exercised, so a consumer that silently ignores it looks
+> identical to one that handles it. **Add that shape to the family — not only "a match that reads
+> both arms and gets one wrong", but "a match that only has one arm at all."** The second is worse:
+> the first produces a malformed name you can see, the second produces no output whatsoever.
+>
+> **(b) Instance 1 below is GONE.** `build_op_response_type_constants` was deleted outright by #74
+> (the builder ruled `<Op>Request`/`<Op>Response` into law, so nothing needs to read the declared
+> name any more). Instance 2 (Path B, `runtime.rs`) still reads `ret` — its code was already
+> correct and needed no change; only its now-false justifying comment was rewritten.
+>
+> **(c) ★ THE SURFACE GREW ON THE DAY WE DELETED A SITE.** Re-measured 2026-08-05 with the
+> pattern validated first (a bare `TypeExpr::Parametric` grep returns 359 — it counts every
+> mention; the note's actual subject, destructures binding `head`, is what is quoted):
+>
+> | | 2026-08-04 | 2026-08-05 |
+> |---|---|---|
+> | destructures binding `head` | 137 | **141** |
+> | files | 13 | **15** |
+> | `impl TypeExpr` | none | **still none** |
+>
+> One site was deleted and **four were added** — #74's two law checks and #76's normalization, each
+> a fresh hand-rolled `Path`/`Parametric` match, each written by someone who had just read this note.
+> That is the strongest argument the accessor has: **the convention rung does not merely fail to
+> stop new sites, it is where new sites come from.** The note's standing ⛔ *"do not ship the
+> accessor as a side effect of a bug fix"* still holds — but the thing it is waiting for is now
+> growing faster than it is being repaired.
+
 Sibling of [`NOTE-macro-minted-names-are-unvalidated-string-concatenation.md`](NOTE-macro-minted-names-are-unvalidated-string-concatenation.md)
 — that one is the **wat** layer (a name assembled by `string::concat` inside a macro, unvalidated).
 This is the **Rust** layer, and it is worse in one specific way: the two halves of a single enum
