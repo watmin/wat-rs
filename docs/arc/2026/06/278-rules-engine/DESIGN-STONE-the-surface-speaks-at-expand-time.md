@@ -15,10 +15,28 @@
 >
 > ## THE NEW DESIGN — enforce at registration, then delete three things
 >
-> **The check.** In `src/types.rs`, in the block that already mints the op aliases (`for member in
-> &surf.members`, ~`:3251`): it already holds `op_name`, `ret`, and `acronyms`. Require the response
-> type's **base name** to equal `<kebab_to_pascal_with_acronyms(op_name)>Response`. Refuse otherwise,
-> located, naming BOTH the declared name and the required one.
+> **The check.** ⛔ **CORRECTED 2026-08-05 — the site named below was WRONG.** The alias-minting
+> loop (`for member in &surf.members`, `types.rs:3251`) is **NOT peer-gated**: it sits *outside*
+> the `if surf.nature == Some(Nature::Peer)` block that closes at `:3235`, so it runs for every
+> surface of every nature. A check placed there would refuse
+> `(tag [self <- :probe::Flat] -> :wat::core::String)` on a `:Struct`-holder surface — an
+> in-thread accessor that is not a wire op at all. Read on the disk, not inferred.
+>
+> **The correct home is `synthesize_surface_protocol` (`types.rs:2690`), inside its existing
+> per-member loop**, which already has every input and every property the check needs:
+> `enforce_rtl_lock = surface.nature == Some(Nature::Peer)` (`:2758`) is exactly the serviceable
+> gate; `name` / `ret` / `ns_acronyms` / `surface.name` / `decl_span` are all in scope; it already
+> calls `kebab_to_pascal_with_acronyms(name, ns_acronyms)` at `:2916`; and it already refuses
+> located, in this same block, with the sibling `:max-request-bytes` (`:2776`) and ruling-A
+> (`:2827`) locks. The check is a third member of a family that already exists.
+>
+> **The rule.** For a serviceable op, `ret`'s **base name** (type-args stripped, leading colon
+> normalized) must equal `<surface-base>::<kebab_to_pascal_with_acronyms(op_name, ns_acronyms)>Response`.
+> Refuse otherwise, located, naming BOTH the declared name and the required one.
+>
+> **Placement inside the loop: BEFORE the request-arg bail at `:2797`** (`None => return
+> Ok(vec![])`), alongside the `:max-request-bytes` lock, so a serviceable op cannot escape the
+> name law by omitting its request parameter. That is the precedent the sibling lock already set.
 >
 > **What dies:** `build_op_response_type_constants` and its call site; the `<S>::<OP>-RESPONSE-TYPE`
 > runtime constant; and — the actual prize — the `resp-dotted` / `rtl-edn` EDN-decode branches at
@@ -47,6 +65,53 @@
 > 4. **The reflection family cannot help.** `:wat::runtime::*` reads `sym`; freeze step 4 expands
 >    and step 5 registers types, so at defservice-expand time the surface is not there.
 >
+> ## ★ GROUNDED 2026-08-05 — the census re-run, and the ONE mechanism PROVEN
+>
+> **The mechanism is no longer conditional.** The design's only *construction* (everything else
+> is deletion) is the macro splicing a LITERAL ctor keyword built from `proto-base` +
+> `variant-pascal` + `Response::RequestTooLarge`. Its one live risk was a **parametric** response,
+> because `proto-base` strips type args (`service.wat:268`) — so the spliced name carries no
+> `<K,V>` at all. **PROVEN by a run**, `wat-scripts/scratch-pad/probe-arc278-74-literal-rtl-ctor.wat`:
+>
+> | case | result |
+> |---|---|
+> | literal ctor, PARAMETRIC response, bare base — `RequestTooLarge` | ✅ type-checks |
+> | literal ctor, PARAMETRIC response, bare base — `RequestMalformed` | ✅ type-checks |
+> | MONOMORPHIC control (the pre-#72 shape) | ✅ type-checks |
+> | ⊘ negative control — bogus VARIANT on the parametric enum | ❌ `UnresolvedReferences`, located |
+> | ⊘ negative control — bogus BASE name | ❌ `UnresolvedReferences`, located |
+>
+> Both negatives were run because a clean pass proves nothing until the instrument is shown able
+> to go red on its own subject. **Step 0 of the superseded design is retired: nothing here is
+> unproven.**
+>
+> **The census, RE-RUN independently 2026-08-05** (the prior run's number was quoted from a
+> pattern whose surface-name capture was broken — `\w` does not match `-`, so `:wat-tests::Counter`
+> read as `:wat`; fixed, then re-validated with three controls before any count was quoted):
+>
+> **174 serviceable op declarations across the `.wat` corpus → 163 conform, 10 diverge, 1 out of scope.**
+>
+> - **1 out of scope:** `:u::S`'s `mk<S,R>` in `probe_arc170_edn_bridge_unspellable__lexemes.wat`.
+>   That file's own header says it is *"PARSE-ONLY input to the bridge round trip — never frozen
+>   or evaluated"*; it never reaches `register_types`, so enforcement never sees it. **A textual
+>   census OVER-counts exactly where the checker UNDER-counts** — the mirror of R65's hole.
+> - **The 10, every one a probe or fixture, ZERO production, ZERO stdlib:**
+>   5 shorthand renames (`::Resp` ×2, `::GetResp` ×2, `::R`) · 3 bare-primitive heretics
+>   (`echo -> :wat::core::i64`, no Response enum) · 2 deliberate negative controls that INVERT
+>   (`:probe::Odd::Verdict`, and `EvalResponse` — the probe that caught R64).
+> - `create-web-acl -> CreateWebACLResponse` **CONFORMS** and is not among them — the acronym-aware
+>   rule is the rule, exactly as the STOP below requires.
+>
+> **The inline-wat class was checked too, not assumed.** 13 `:nature :wat::kernel::Peer` sites live
+> in `.rs` files, invisible to any `.wat` sweep (R65's fourth hole). All read: 7 unit-test fixtures
+> in `types.rs` (`foo -> :t::BadN::FooResponse`) conform; `surface.rs:1115`'s `:t::Cache<K,V>` /
+> `GetResponse<V>` conforms on its **base name** (the `GetResponse<K,V>` STOP case, live);
+> `surface.rs:1139` conforms. **Zero inline fixtures break.**
+>
+> **And the macro-authored surface conforms by construction.** `wat/query.wat`'s `sift-rules-defsvc`
+> (`:325`) builds `<name>::SiftRulesResponse` for op `sift-rules` (`:153`) — the exact concatenation
+> the law mandates. The one macro body a `.wat` census could have mis-seen is clean.
+>
 > ## ⛔ STOPs FOR THE NEW DESIGN
 >
 > - **⛔ COMPARE THE BASE NAME, NEVER THE RENDERED TYPE.** `GetResponse<K,V>` CONFORMS. Comparing a
@@ -63,7 +128,18 @@
 >   name-guessing problem. Unchanged from the original stone.
 > - **⛔ 3 probes declare a serviceable op returning a bare primitive** (`echo → :wat::core::i64`,
 >   no Response enum). Enforcement refuses them. That is CORRECT and consistent with #17's
->   variant-per-failure-kind contract — but it IS scope, so count it.
+>   variant-per-failure-kind contract — but it IS scope, so count it. **RULED 2026-08-05 by the
+>   builder:** *"the heretics self identify by their tongue"* — arm the law, read the screams, the
+>   riders resolve the heresy (R63). They get a proper `<Op>Response` enum; the probes' subject is
+>   the sift-rules STOP-1, not the response shape, so a conforming Response is faithful to them.
+> - **⛔⛔ DO NOT TOUCH THE PARAMETRIC HOLE IN RULING A's LOCK — it is task #76, not this stone.**
+>   `types.rs:2827`'s `if let TypeExpr::Path(resp_path) = ret` means the RequestTooLarge /
+>   RequestMalformed **shape** lock never runs on a parametric response. PROVEN 2026-08-05 with a
+>   non-vacuity control (parametric-without-RTL accepted silently; the monomorphic twin refused,
+>   located). It sits in the *same twenty lines* this stone edits and will be tempting. It is a
+>   different law (SHAPE, not NAME), arming it is a behaviour change that can red the floor with a
+>   different error class, and the ruling on when to strike it is the builder's. **This stone's
+>   name check must handle `Parametric` for its OWN comparison and change nothing else.**
 >
 > ## The four questions — run against the RULED design
 >
