@@ -34,7 +34,7 @@
       (:probe::serve-thread self l (:wat::core::conj peers peer)))
     ;; THE PROOF: poll' delivered the timer's msg as a peer Message. Forward it up, then exit.
     ((:wat::spawn::ServiceEvent::Message _idx msg)
-      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))
+      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))
     ((:wat::spawn::ServiceEvent::Closed idx)
       (:probe::serve-thread self l (:wat::std::list::remove-at peers idx)))
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
@@ -55,6 +55,7 @@
      got  (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open" :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))]
     got))
 
@@ -74,7 +75,7 @@
                  ((:wat::spawn::ServiceEvent::Connection peer)
                    (:probe::serve-proc self l (:wat::core::conj peers peer)))
                  ((:wat::spawn::ServiceEvent::Message _idx msg)
-                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))
+                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))
                  ((:wat::spawn::ServiceEvent::Closed idx)
                    (:probe::serve-proc self l (:wat::std::list::remove-at peers idx)))
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
@@ -90,6 +91,7 @@
      got (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open" :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))]
     got))
 

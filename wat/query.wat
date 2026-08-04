@@ -427,6 +427,13 @@
                     (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed")))))
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause))))
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape (the sift
+                ;; cannot complete either way) with the TRUE reason: the journal peer was alive.
+                ;; This arm is macro-generated, so it reports at the `sift-rules-defsvc` CALL SITE,
+                ;; never here — which is why it was missed on the first stdlib pass and found by a
+                ;; rider hitting STOP-1 in tests/services.
+                (:wat::kernel::RecvOutcome::Stopped
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE")))
                 (:wat::kernel::RecvOutcome::Closed
                   (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))]))))
 

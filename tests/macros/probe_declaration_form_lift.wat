@@ -26,6 +26,8 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "launch-defmacro: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "launch-defmacro: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -46,6 +48,8 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "launch-newtype: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "launch-newtype: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -67,6 +71,8 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "launch-typealias: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "launch-typealias: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -108,5 +114,7 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "launch-mixed: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "launch-mixed: child closed before sending its value" :wat::core::None :wat::core::None)))))

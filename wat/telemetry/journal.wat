@@ -132,6 +132,12 @@
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                ;; (the operation cannot complete either way) with the TRUE reason: the
+                ;; store peer was alive and the substrate was asked to stop.
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -170,6 +176,12 @@
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::WriteLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                ;; (the operation cannot complete either way) with the TRUE reason: the
+                ;; store peer was alive and the substrate was asked to stop.
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::telemetry::Journal::WriteLogsResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -216,6 +228,12 @@
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                ;; (the operation cannot complete either way) with the TRUE reason: the
+                ;; store peer was alive and the substrate was asked to stop.
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -261,6 +279,12 @@
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                ;; (the operation cannot complete either way) with the TRUE reason: the
+                ;; store peer was alive and the substrate was asked to stop.
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::telemetry::Journal::QueryLogsResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -320,6 +344,12 @@
                        ((:wat::kernel::RecvOutcome::Lost cause)
                          (:wat::telemetry::Journal::SiftLogsResponse::Fatal
                            (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                       ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                       ;; (the operation cannot complete either way) with the TRUE reason: the
+                       ;; store peer was alive and the substrate was asked to stop.
+                       (:wat::kernel::RecvOutcome::Stopped
+                         (:wat::telemetry::Journal::SiftLogsResponse::Fatal
+                           (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::telemetry::Journal::SiftLogsResponse::Fatal
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))
@@ -379,6 +409,12 @@
                        ((:wat::kernel::RecvOutcome::Lost cause)
                          (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
                            (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                       ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                       ;; (the operation cannot complete either way) with the TRUE reason: the
+                       ;; store peer was alive and the substrate was asked to stop.
+                       (:wat::kernel::RecvOutcome::Stopped
+                         (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
+                           (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))

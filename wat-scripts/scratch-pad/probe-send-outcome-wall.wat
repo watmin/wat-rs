@@ -36,6 +36,10 @@
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Message"
               :wat::core::None :wat::core::None))
           ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+          (:wat::kernel::RecvOutcome::Stopped
+            (:wat::kernel::assertion-failed!
+              "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Stopped"
+              :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed!
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed"
@@ -51,6 +55,15 @@
       (:wat::kernel::SendOutcome::Closed
         (:wat::kernel::println
           "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise) after send' to a dead peer"))
+      ;; arc 278 #73 judgment call (flagged, not silently decided): the design's own
+      ;; framing generalizes past "Closed or Lost" — EVERY terminal send' outcome is a
+      ;; matchable value, never a raise, and Stopped is no exception. No stop is ever
+      ;; requested in this probe (it only forces a worker crash), so this arm is
+      ;; unreached in practice; it is accepted here on the same "a value, not a raise"
+      ;; principle the other two arms assert, not re-litigated as a new PASS criterion.
+      (:wat::kernel::SendOutcome::Stopped
+        (:wat::kernel::println
+          "PROBE-PASS: SendOutcome::Stopped (a VALUE, not a raise) after send' to a dead peer"))
       ((:wat::kernel::SendOutcome::Lost cause)
         (:wat::kernel::println
           (:wat::core::string::concat

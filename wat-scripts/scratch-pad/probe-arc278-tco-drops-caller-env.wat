@@ -57,6 +57,8 @@
       (:wat::kernel::println (:wat::core::string::concat label " => Message (served)")))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::println (:wat::core::string::concat label " => LOST")))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::println (:wat::core::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
 

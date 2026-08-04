@@ -80,10 +80,21 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless; the failing assertion above already
+               ;; panicked before this line could even run.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
      fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            ;; arc 278 #73 — a stop is neither the failure this file exists to verify
+            ;; nor a clean pass; assert it distinctly rather than fold it into either
+            ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
+            (:wat::kernel::RecvOutcome::Stopped
+              (:wat::kernel::assertion-failed!
+                "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
+                :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail  
       ((:wat::core::Some f)
@@ -133,10 +144,21 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless; the failing assertion above already
+               ;; panicked before this line could even run.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
      fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            ;; arc 278 #73 — a stop is neither the failure this file exists to verify
+            ;; nor a clean pass; assert it distinctly rather than fold it into either
+            ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
+            (:wat::kernel::RecvOutcome::Stopped
+              (:wat::kernel::assertion-failed!
+                "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
+                :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail  
       ((:wat::core::Some f)
@@ -179,12 +201,16 @@
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+          (:wat::kernel::RecvOutcome::Stopped
+            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: stopped before first line — the child was ALIVE" :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before first line" :wat::core::None :wat::core::None)))
      m2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+          (:wat::kernel::RecvOutcome::Stopped
+            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: stopped before second line — the child was ALIVE" :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before second line" :wat::core::None :wat::core::None)))]
     (:wat::core::do
@@ -232,6 +258,8 @@
              (:wat::core::match cause
                ((:wat::kernel::LociDiedError::Panic message _failure) message)
                (_ (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None))))
+           (:wat::kernel::RecvOutcome::Stopped
+             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true (:wat::core::regex::matches? "code [0-9]+" msg))))
@@ -281,6 +309,8 @@
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Stopped
+             (:wat::kernel::assertion-failed! "run-string-entry-path: stopped before the child sent its value — the child was ALIVE" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "run-string-entry-path: child closed before sending its value" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-eq msg "from-string")))
@@ -306,6 +336,8 @@
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Stopped
+             (:wat::kernel::assertion-failed! "run-ast-via-program: stopped before the child sent its value — the child was ALIVE" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "run-ast-via-program: child closed before sending its value" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-eq msg "from-ast")))

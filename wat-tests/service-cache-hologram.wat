@@ -72,6 +72,8 @@
           (:wat::kernel::assertion-failed! "hologram-svc get: unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
@@ -90,6 +92,8 @@
           (:wat::kernel::assertion-failed! "hologram-svc put: unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 

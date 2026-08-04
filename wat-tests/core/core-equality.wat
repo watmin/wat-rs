@@ -127,6 +127,10 @@
           "expected check-time type error for (= 1 1.5)"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected check-time type error for (= 1 1.5)"

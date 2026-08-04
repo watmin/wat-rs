@@ -6169,6 +6169,23 @@ fn dispatch_keyword_head_value(
                                                     ], span.clone()),
                                                 ], span.clone()),
                                             ], span.clone()),
+                                            // ::Stopped arm — arc 278 #73. Pass the stop through AS
+                                            // ITSELF. This is the fact the `Lost` arm above went to
+                                            // such lengths to rescue from the scrub: the nested
+                                            // `match _cause` exists ONLY because a stop had nowhere
+                                            // to ride except inside a death report. It now has a
+                                            // top-level home and arrives here directly.
+                                            //
+                                            // The nested dig is deliberately LEFT IN PLACE as a
+                                            // second line: a `Stopped` decoded off a wire reason
+                                            // could still surface inside `Lost`. Now that the
+                                            // primary path is direct, collapsing that dig is a
+                                            // follow-up worth its own grounding, not a change to
+                                            // make in passing.
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Stopped".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Stopped".into(), span.clone()),
+                                            ], span.clone()),
                                             // ::Closed arm — pass the reason-free terminal through.
                                             WatAST::List(vec![
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
@@ -23473,27 +23490,28 @@ fn recv_outcome_lost(reason: String, types: Option<&crate::types::TypeEnv>) -> V
     }))
 }
 
-/// `RecvOutcome::Lost [LociDiedError::Stopped]` — a stop was requested while this read
-/// was parked. Arc 170. Wat-visible variant is `Stopped`, not `Shutdown` (arc-170 intueri
-/// cast RULING A) — this fn's Rust name keeps Rust's own uniform `shutdown` vocabulary
-/// since it mirrors the Rust-side signal that triggers it; only the constructed value's
-/// `variant_name` crosses into the wat vocabulary.
+/// `RecvOutcome::Stopped []` — a stop was requested while this read was parked.
+/// Arc 170 minted the fact; **arc 278 #73 gave it an honest carrier.**
 ///
-/// The peer is ALIVE; nothing about the channel is wrong. Reported as `Lost` rather than
-/// `Closed` because `Closed` means a genuine clean EOF and this is not one — saying
-/// `Closed` here is the false "peer closed" that a months-long `sigterm` flake was made
-/// of. `LociDiedError::Stopped` has existed since the LociDiedError stone (`types.rs`,
-/// beside `Disconnected`) and had NO reachable producer until now: the wat-visible name
-/// for this fact was minted, then orphaned by a wildcard two layers down.
+/// The peer is ALIVE and the channel is OPEN. Nothing died and nothing closed.
+///
+/// This used to build `Lost[LociDiedError::Stopped]`, and the reasoning recorded here
+/// was sound as far as it went: `Closed` means a genuine clean EOF, so reporting a stop
+/// as `Closed` is the false "peer closed" a months-long `sigterm` flake was made of.
+/// `Lost` was the lesser of two lies — but it was still a lie, and its payload type is
+/// literally named `LociDiedError`, so every caller matched a death and then had to open
+/// the death report to discover that nothing had died. The fix was never a better choice
+/// between two wrong variants; it was the third variant neither of them could be.
+///
+/// This fn's Rust name keeps Rust's own uniform `shutdown` vocabulary because it mirrors
+/// the Rust-side signal that triggers it; only the constructed value's `variant_name`
+/// crosses into the wat vocabulary, where the ruling is `Stopped` (arc-170 intueri cast
+/// RULING A, and 170 closure #3).
 fn recv_outcome_shutdown() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: RECV_OUTCOME_TYPE.into(),
-        variant_name: "Lost".into(),
-        fields: vec![Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::kernel::LociDiedError".into(),
-            variant_name: "Stopped".into(),
-            fields: vec![],
-        }))],
+        variant_name: "Stopped".into(),
+        fields: vec![],
     }))
 }
 
@@ -23614,6 +23632,38 @@ fn loci_died_from_send_error<T>(e: &crate::comms::SendError<T>) -> Value {
         crate::comms::SendError::Disconnected(_) => loci_died_disconnected(),
         crate::comms::SendError::Shutdown(_) => thread_died_error_shutdown(),
         crate::comms::SendError::Failed(_, reason) => thread_died_error_runtime(reason.clone()),
+    }
+}
+
+/// `SendOutcome::Stopped []` — a stop was requested while this write was parked.
+/// Arc 278 #73, the send-side twin of [`recv_outcome_shutdown`].
+fn send_outcome_stopped() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SEND_OUTCOME_TYPE.into(),
+        variant_name: "Stopped".into(),
+        fields: vec![],
+    }))
+}
+
+/// THE ONE DOOR from a `comms::SendError<T>` to the wat-facing `SendOutcome`.
+///
+/// Arc 278 #73. Every failing `send'` call site used to read
+/// `send_outcome_lost(loci_died_from_send_error(&e))` — which folded EVERY error,
+/// including `SendError::Shutdown`, into `Lost`. The stop fact was built correctly
+/// (`LociDiedError::Stopped`) and then posted inside a carrier whose type is named
+/// `LociDiedError`, so a caller matched "my peer died" over a peer that was alive.
+///
+/// The variant choice is now made HERE, once, by a full match with no wildcard, so a
+/// new `SendError` variant cannot be silently absorbed into `Lost` the way `Shutdown`
+/// was. `loci_died_from_send_error` above still owns the CAUSE mapping for the arms
+/// that genuinely carry one.
+fn send_outcome_from_error<T>(e: &crate::comms::SendError<T>) -> Value {
+    match e {
+        // Nothing died. The peer is alive and the channel is open.
+        crate::comms::SendError::Shutdown(_) => send_outcome_stopped(),
+        crate::comms::SendError::Disconnected(_) | crate::comms::SendError::Failed(_, _) => {
+            send_outcome_lost(loci_died_from_send_error(e))
+        }
     }
 }
 
@@ -26258,7 +26308,7 @@ fn eval_peer_send_prime(
                     None => send_outcome_closed(),
                     Some(peer) => match peer.send(payload_val) {
                         Ok(()) => send_outcome_sent(),
-                        Err(e) => send_outcome_lost(loci_died_from_send_error(&e)),
+                        Err(e) => send_outcome_from_error(&e),
                     },
                 })
             })
@@ -26289,7 +26339,7 @@ fn eval_peer_send_prime(
                     Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                         Ok(match bundle.peer.send(edn_str.clone()) {
                             Ok(()) => send_outcome_sent(),
-                            Err(e) => send_outcome_lost(loci_died_from_send_error(&e)),
+                            Err(e) => send_outcome_from_error(&e),
                         })
                     }
                     // arc 292 L3 — timers are select'-only; send' is not supported. Not a
@@ -26335,14 +26385,14 @@ fn eval_peer_send_prime(
                         );
                         match peer.send_wire(wire) {
                             Ok(()) => send_outcome_sent(),
-                            Err(e) => send_outcome_lost(loci_died_from_send_error(&e)),
+                            Err(e) => send_outcome_from_error(&e),
                         }
                     }
                     Some(peer) => {
                         // Thread-tier: pass Value in-process, no serialisation.
                         match peer.send(payload_val) {
                             Ok(()) => send_outcome_sent(),
-                            Err(e) => send_outcome_lost(loci_died_from_send_error(&e)),
+                            Err(e) => send_outcome_from_error(&e),
                         }
                     }
                 })
@@ -27337,6 +27387,17 @@ fn eval_peer_select_prime(
                                 variant_name: "Closed".into(),
                                 fields: vec![Value::i64(peer_idx)],
                             })),
+                            // Arc 278 #73 — a stop woke this peer's read. It is NOT a
+                            // per-peer event (nothing happened to peers[idx]; the world
+                            // is stopping), so it carries no index: `Shutdown` is the
+                            // nullary terminate signal this surface already has. The
+                            // self-peer/admin arm below reaches the SAME variant for the
+                            // same underlying reason, so this is parity, not a widening.
+                            PeerDeath::Shutdown => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                                variant_name: "Shutdown".into(),
+                                fields: vec![],
+                            })),
                         };
                         Ok(event)
                     }
@@ -27460,6 +27521,13 @@ fn eval_peer_select_prime(
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Closed".into(),
                                     fields: vec![Value::i64(peer_idx)],
+                                })),
+                                // Arc 278 #73 — see the thread-tier arm above. A stop is
+                                // not a fact about peers[idx]; it carries no index.
+                                PeerDeath::Shutdown => Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Shutdown".into(),
+                                    fields: vec![],
                                 })),
                             },
                             // Timer peer: no err channel; EOF always means clean Closed.

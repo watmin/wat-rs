@@ -43,10 +43,14 @@
                 ((:wat::kernel::RecvOutcome::Message m) m)
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::kernel::assertion-failed! "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open" :wat::core::None :wat::core::None))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::kernel::assertion-failed! "recv: child closed unexpectedly" :wat::core::None :wat::core::None))))
             (:wat::kernel::SendOutcome::Closed
               (:wat::kernel::assertion-failed! "send: child closed unexpectedly" :wat::core::None :wat::core::None))
+            (:wat::kernel::SendOutcome::Stopped
+              (:wat::kernel::assertion-failed! "send: stopped — the substrate was asked to stop; the child was ALIVE and the channel open" :wat::core::None :wat::core::None))
             ((:wat::kernel::SendOutcome::Lost cause)
               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
         ((:wat::kernel::SignalOutcome::Failed cause)

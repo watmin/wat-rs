@@ -55,7 +55,7 @@
         (:wat::kernel::assertion-failed! "large-foo-accepts: unexpected RequestTooLarge"
           :wat::core::None :wat::core::None))
       ((:probe::Big::PutResponse::RequestMalformed mpath mexpected mgot)
-        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── (b) small FOO REJECTS a > 4 KiB request: the caller's op must FAIL WITH A REASON (not the
 ;; mute "peer closed"). EXACT DATA: :user::small-foo-rejects returns a structured :probe::Outcome —
@@ -66,6 +66,9 @@
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                          ;; matched ::Message (.rs asserts NEVER)
   :Lost    [names-frame-cap? <- :wat::core::bool]       ;; matched ::Lost — true iff the reason names the frame cap (the LAW: reason carried)
+  ;; arc 278 #73 — matched ::Stopped (.rs asserts NEVER: this probe never asks the substrate to
+  ;; stop, only over-FOO rejects). A structural twin of ::Closed, not folded into it.
+  :Stopped []
   :Closed  [])                                         ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
 ;; arc 278 recv'-wall: a peer-read yields a MATCHABLE RecvOutcome — never a raise (a raise unwinds
 ;; past the reader = the mask the wall kills). The client-method (:probe::Big/put) SCRUBS the cause
@@ -81,6 +84,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes")))
+      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 ;; ── (b') SURVIVAL probe: c1 fires an over-FOO frame (send' only, fire-and-forget — no recv, so
@@ -94,7 +98,7 @@
      addr (:probe::smallfoo::Handle/addr h)
      c1   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      c2   (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r    (:probe::Big/put c2 (:probe::Big::PutRequest :payload "small"))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Big::PutResponse::Ok ok) ok)
@@ -103,4 +107,4 @@
         (:wat::kernel::assertion-failed! "small-foo-survives: unexpected RequestTooLarge"
           :wat::core::None :wat::core::None))
       ((:probe::Big::PutResponse::RequestMalformed mpath mexpected mgot)
-        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

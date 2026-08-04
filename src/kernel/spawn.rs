@@ -199,6 +199,18 @@ pub enum PeerDeath {
     Lost(String),
     /// The crash / err channel was EOF (or absent) — clean exit / bare peer.
     Closed,
+    /// A stop was requested while this read was parked. **Nothing died.** The peer
+    /// is ALIVE and the channel is OPEN — the reader was woken so it could reach
+    /// its own decision point and choose.
+    ///
+    /// Arc 278 #73. This variant exists because the two classifiers below used to
+    /// fold `RecvError::Shutdown` into [`PeerDeath::Closed`] through a wildcard —
+    /// the IDENTICAL defect `peer.rs:145` had already fixed on the thread tier,
+    /// whose own comment names the months-long `sigterm` flake the erasure caused.
+    /// One tier walled, two sites skipped. The name of this enum is `PeerDeath`
+    /// and this variant is not a death; that mismatch is the point — it is the
+    /// last place the fact survives before the wat boundary gives it a home.
+    Shutdown,
 }
 
 /// Classify a spawned peer's death from the result of reading its crash / err
@@ -212,7 +224,11 @@ pub enum PeerDeath {
 ///   a raw wire failure (io error / invalid UTF-8 / decode failure) while being
 ///   read for a death reason. That failure carries information — folding it
 ///   into `Closed` would mislabel a genuine error as a clean exit.
-/// - `Err(_)` (`Disconnected` / `Shutdown` / `FrameTooLarge`) → [`PeerDeath::Closed`]
+/// - `Err(RecvError::Shutdown)` → [`PeerDeath::Shutdown`] — arc 278 #73: a stop
+///   was requested. NOTHING DIED; the peer is alive and the channel is open.
+///   This used to fall into the wildcard below and come out as a clean EOF —
+///   the same erasure `peer.rs:145` fixed on the thread tier.
+/// - `Err(_)` (`Disconnected` / `FrameTooLarge`) → [`PeerDeath::Closed`]
 ///   — no reason buffered → clean exit.
 ///
 /// Both `thread::Receiver<String>::recv()` and
@@ -223,6 +239,7 @@ pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) 
     match crash_recv {
         Ok(reason) => PeerDeath::Lost(reason),
         Err(crate::comms::RecvError::Failed(reason)) => PeerDeath::Lost(reason),
+        Err(crate::comms::RecvError::Shutdown) => PeerDeath::Shutdown,
         Err(_) => PeerDeath::Closed,
     }
 }
@@ -255,8 +272,19 @@ pub fn classify_peer_error(
     match output_err {
         crate::comms::RecvError::FrameTooLarge => PeerDeath::Lost(output_err.to_string()),
         crate::comms::RecvError::Failed(reason) => PeerDeath::Lost(reason.clone()),
+        // Arc 278 #73 — a stop woke this parked read. The child is ALIVE, exactly as
+        // it is under `FrameTooLarge`, so reading `err` here is both unfounded (nothing
+        // establishes the child has exited) and deadlock-risking. Return the fact
+        // WITHOUT touching `err`. This arm is why the wildcard below can no longer
+        // reach `Shutdown`: it used to, and it reported a live peer as a clean EOF.
+        crate::comms::RecvError::Shutdown => PeerDeath::Shutdown,
         _ => match err.recv() {
             Ok(reason) => PeerDeath::Lost(reason),
+            // The OUTPUT channel saw a true EOF and the crash channel is being read
+            // for a buffered reason. A stop arriving *here* is still a stop — the
+            // child has exited, but the reason we would otherwise report ("clean
+            // close") is not what happened to THIS read.
+            Err(crate::comms::RecvError::Shutdown) => PeerDeath::Shutdown,
             Err(_) => PeerDeath::Closed,
         },
     }
@@ -350,6 +378,11 @@ impl ProcessPeerBundle {
             Err(e) => match classify_peer_error(&e, &self.err) {
                 PeerDeath::Lost(reason) => Err(PeerRecvError::Crashed(reason)),
                 PeerDeath::Closed => Err(PeerRecvError::Disconnected),
+                // Arc 278 #73 — the process tier reaches parity with the thread tier
+                // (`peer.rs:145`). Before this, `classify_peer_error`'s wildcard folded
+                // the stop into `Closed` here, so a process peer reported a clean EOF
+                // for a stop while a thread peer reported the truth.
+                PeerDeath::Shutdown => Err(PeerRecvError::Shutdown),
             },
         }
     }
@@ -1027,8 +1060,10 @@ mod tests {
                    (:wat::core::match (:wat::kernel::send self m) \
                      (:wat::kernel::SendOutcome::Sent nil) \
                      (:wat::kernel::SendOutcome::Closed nil) \
+                     (:wat::kernel::SendOutcome::Stopped nil) \
                      ((:wat::kernel::SendOutcome::Lost _c) nil))) \
                  ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)) \
+                 (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! \"echo: stop requested before message — the peer was ALIVE\" :wat::core::None :wat::core::None)) \
                  (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None))))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
@@ -1148,6 +1183,7 @@ mod tests {
                  (:wat::core::match (:wat::kernel::recv self) \
                    ((:wat::kernel::RecvOutcome::Message _m) nil) \
                    (:wat::kernel::RecvOutcome::Closed nil) \
+                   (:wat::kernel::RecvOutcome::Stopped nil) \
                    ((:wat::kernel::RecvOutcome::Lost _c) nil)) \
                  nil))",
             None,

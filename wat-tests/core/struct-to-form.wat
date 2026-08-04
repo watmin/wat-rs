@@ -30,6 +30,9 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     ;; Assert the inner child succeeded — a clean completion crosses the wire
     ;; as Message; a crash reaches recv' as Lost carrying the death message.
@@ -39,6 +42,10 @@
         (:wat::kernel::assertion-failed!
           (:wat::core::string::concat "roundtrip-via-eval failed: "
             (:wat::kernel::LociDiedError/message cause))
+          :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
           :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!

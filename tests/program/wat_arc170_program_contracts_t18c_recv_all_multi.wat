@@ -26,6 +26,10 @@
      _ (:wat::core::match (:wat::kernel::send p 7)
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
+         ;; arc 278 #73 — uniform, precondition is the recv-all' right below: a stop
+         ;; that interrupted this write is still in force when the read parks, so the
+         ;; drain returns Err[Stopped] and the caller is told once, by that Result.
+         (:wat::kernel::SendOutcome::Stopped nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
     (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs) outputs)

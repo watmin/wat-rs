@@ -20,6 +20,8 @@
                  ((:wat::kernel::RecvOutcome::Message m) m)
                  ((:wat::kernel::RecvOutcome::Lost cause)
                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                 (:wat::kernel::RecvOutcome::Stopped
+                   (:wat::kernel::assertion-failed! "unlabeled child: stop requested before sending its pid — child was ALIVE, channel open" :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
                    (:wat::kernel::assertion-failed! "unlabeled child closed before sending its pid" :wat::core::None :wat::core::None)))
      _ (:wat::kernel::println child-pid)

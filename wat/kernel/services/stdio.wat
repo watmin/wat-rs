@@ -220,6 +220,9 @@
                        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
                  ((:wat::kernel::RecvOutcome::Lost cause)
                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                 ;; arc 278 #73 — a stop, not a close. The stdout service was ALIVE.
+                 (:wat::kernel::RecvOutcome::Stopped
+                   (:wat::kernel::assertion-failed! "println: stop requested — the stdout service was ALIVE and the channel open" :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
                    (:wat::kernel::assertion-failed! "println: stdout service peer closed" :wat::core::None :wat::core::None)))]
         (:wat::kernel::stdio-write-out peer rest)))))
@@ -246,6 +249,9 @@
                        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
                  ((:wat::kernel::RecvOutcome::Lost cause)
                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                 ;; arc 278 #73 — a stop, not a close. The stderr service was ALIVE.
+                 (:wat::kernel::RecvOutcome::Stopped
+                   (:wat::kernel::assertion-failed! "eprintln: stop requested — the stderr service was ALIVE and the channel open" :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
                    (:wat::kernel::assertion-failed! "eprintln: stderr service peer closed" :wat::core::None :wat::core::None)))]
         (:wat::kernel::stdio-write-err peer rest)))))
@@ -277,6 +283,9 @@
           (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    ;; arc 278 #73 — a stop, not a close. The stdin service was ALIVE.
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "readln: stop requested — the stdin service was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "readln: stdin service peer closed" :wat::core::None :wat::core::None))))
 
@@ -314,18 +323,23 @@
           (:wat::kernel::assertion-failed! "read-frame: stdin request framing rejected (RequestTooLarge) — unreachable for a kernel-built request" :wat::core::None :wat::core::None))
         ((:wat::kernel::StdIn::ReadFrameResponse::RequestMalformed mpath mexpected mgot)
           (:wat::kernel::assertion-failed! "read-frame: stdin request framing rejected (RequestMalformed) — unreachable for a kernel-built request" :wat::core::None :wat::core::None))))
+    ;; ★ arc 278 #73 — THIS SITE IS THE WHOLE STONE, VISIBLE IN ONE PLACE.
+    ;;
+    ;; Arc 170 already knew a stop is not a death: the client's `recv'` wakes on the
+    ;; shutdown broadcast before the service's own read does, so the stop arrived HERE
+    ;; first — and, having nowhere else to ride, it arrived wearing `Lost`. This code
+    ;; was therefore written to receive a DEATH and then open the death report to ask
+    ;; whether anyone had actually died. That nested `match cause` was the cost of the
+    ;; missing variant, paid at the one site that most needed the truth.
+    ;;
+    ;; It is now a top-level arm, and two things fall out with it: the inner match is
+    ;; gone, and so is its `_` wildcard — which was a doctrine violation
+    ;; (`109/NOTE-full-enum-match-mandatory-no-wildcard-arm.md`) that only existed
+    ;; because the outer arm was carrying two unrelated facts at once.
+    (:wat::kernel::RecvOutcome::Stopped :wat::kernel::ReadFrameOutcome::Stopped)
+    ;; `Lost` now means what it says: the peer died. Raise its own cause.
     ((:wat::kernel::RecvOutcome::Lost cause)
-      ;; Arc 170 — a stop is NOT a death. The client's `recv'` wakes on the shutdown
-      ;; broadcast BEFORE the service's own read does, so the stop arrives here first,
-      ;; as `Lost(LociDiedError::Stopped)`. Raising on it would re-lose, at the last
-      ;; hop, exactly what the whole chain below was rebuilt to carry.
-      ;;
-      ;; The `_` is a genuine death defaulting to a visible chosen death, and it CARRIES
-      ;; the cause's own message — nothing is erased, unlike the `_ => Closed` this arc
-      ;; removed, which replaced a distinction with silence.
-      (:wat::core::match cause
-        (:wat::kernel::LociDiedError::Stopped :wat::kernel::ReadFrameOutcome::Stopped)
-        (_ (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None))))
 

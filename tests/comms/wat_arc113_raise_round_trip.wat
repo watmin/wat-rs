@@ -53,4 +53,5 @@
           ((:wat::kernel::LociDiedError::EntryFormFailure _m) (:wat::core::Some "WRONG:EntryFormFailure"))
           ((:wat::kernel::LociDiedError::MainSignature _m) (:wat::core::Some "WRONG:MainSignature"))
           ((:wat::kernel::LociDiedError::BadReturn _m) (:wat::core::Some "WRONG:BadReturn"))))
+      (:wat::kernel::RecvOutcome::Stopped (:wat::core::Some "UNEXPECTED-STOPPED"))
       (:wat::kernel::RecvOutcome::Closed :wat::core::None))))

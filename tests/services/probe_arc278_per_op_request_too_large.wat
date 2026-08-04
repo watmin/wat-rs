@@ -65,6 +65,9 @@
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))
           ((:probe::Op1::DoOpResponse::Ok n) -1)))
       ((:wat::kernel::RecvOutcome::Lost _cause) -2)
+      ;; arc 278 #73 — a stop is neither the death (-2) nor the close (-3) this probe already
+      ;; distinguishes; -4 names it as its own terminal outcome rather than folding it into either.
+      (:wat::kernel::RecvOutcome::Stopped -4)
       (:wat::kernel::RecvOutcome::Closed -3))))
 
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge, connection
@@ -86,4 +89,6 @@
           ((:probe::Op1::DoOpResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost _cause) -2)
+      ;; arc 278 #73 — same sentinel scheme as above: -4 is the stop, distinct from -2/-3.
+      (:wat::kernel::RecvOutcome::Stopped -4)
       (:wat::kernel::RecvOutcome::Closed -3))))

@@ -79,6 +79,9 @@
       (:wat::kernel::println
         (:wat::core::string::concat label " => RecvOutcome::Lost: "
           (:wat::kernel::LociDiedError/message cause))))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::println
+        (:wat::core::string::concat label " => RecvOutcome::Stopped")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println
         (:wat::core::string::concat label " => RecvOutcome::Closed")))))

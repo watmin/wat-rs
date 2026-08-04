@@ -34,4 +34,5 @@
                  (:wat::core::Fault/message (:wat::kernel::Failure/error f))))
               (:wat::core::None :wat::core::None)))
           (_ :wat::core::None)))
+      (:wat::kernel::RecvOutcome::Stopped :wat::core::None)
       (:wat::kernel::RecvOutcome::Closed :wat::core::None))))

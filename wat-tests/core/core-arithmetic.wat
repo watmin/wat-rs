@@ -233,6 +233,10 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless (never a `_`-swallow); the divide-by-zero
+               ;; above already panicked before this line could even run.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
@@ -240,6 +244,10 @@
           "expected RuntimeError for i64 / 0"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected RuntimeError for i64 / 0"
@@ -269,6 +277,10 @@
           "expected NoMatchingClause for (+ 1 2.0)"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ 1 2.0)"
@@ -293,6 +305,10 @@
           "expected NoMatchingClause for (+ \"a\" \"b\")"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ \"a\" \"b\")"
@@ -320,6 +336,10 @@
           "expected TypeMismatch (check-time) for (< 1 2.5)"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected TypeMismatch (check-time) for (< 1 2.5)"
@@ -344,6 +364,10 @@
           "expected NoMatchingClause for 0-ary (-)"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (-)"
@@ -363,6 +387,10 @@
           "expected NoMatchingClause for 0-ary (/)"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (/)"

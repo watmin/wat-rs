@@ -37,10 +37,21 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless (never a `_`-swallow).
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
      fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            ;; arc 278 #73 — a stop is neither a clean pass nor the assertion failure
+            ;; this file exists to distinguish; assert it distinctly rather than fold
+            ;; it into either :None (Closed's meaning: thread finished quietly) or
+            ;; :Some (Lost's meaning: the thread died).
+            (:wat::kernel::RecvOutcome::Stopped
+              (:wat::kernel::assertion-failed!
+                "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
+                :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail
 
@@ -67,10 +78,21 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless (never a `_`-swallow).
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))
      fail (:wat::core::match (:wat::kernel::recv p)
             ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            ;; arc 278 #73 — a stop is neither a clean pass nor the assertion failure
+            ;; this file exists to distinguish; assert it distinctly rather than fold
+            ;; it into either :None (Closed's meaning: thread finished quietly) or
+            ;; :Some (Lost's meaning: the thread died).
+            (:wat::kernel::RecvOutcome::Stopped
+              (:wat::kernel::assertion-failed!
+                "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
+                :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail
 

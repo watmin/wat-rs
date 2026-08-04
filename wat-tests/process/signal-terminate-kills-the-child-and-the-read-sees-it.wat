@@ -69,10 +69,24 @@
                       (:wat::kernel::assertion-failed!
                         (:wat::kernel::LociDiedError/message cause)
                         :wat::core::None :wat::core::None))
+                    ;; arc 278 #73 — the case this file's header once had no variant
+                    ;; for: a STOP observed on a peer that is still ALIVE. That is
+                    ;; NOT this test's subject (a SIGTERM-driven clean process exit,
+                    ;; asserted as Closed below) — never conflate the two, so this
+                    ;; arm reports the stop distinctly rather than folding into
+                    ;; Closed's `true`.
+                    (:wat::kernel::RecvOutcome::Stopped
+                      (:wat::kernel::assertion-failed!
+                        "recv: stopped — the substrate was asked to stop; the child was ALIVE (not the SIGTERM-close this test proves)"
+                        :wat::core::None :wat::core::None))
                     (:wat::kernel::RecvOutcome::Closed true)))
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::kernel::assertion-failed!
                     (:wat::kernel::LociDiedError/message cause)
+                    :wat::core::None :wat::core::None))
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::kernel::assertion-failed!
+                    "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open"
                     :wat::core::None :wat::core::None))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::kernel::assertion-failed!
@@ -85,6 +99,10 @@
         ((:wat::kernel::RecvOutcome::Lost cause)
           (:wat::kernel::assertion-failed!
             (:wat::kernel::LociDiedError/message cause)
+            :wat::core::None :wat::core::None))
+        (:wat::kernel::RecvOutcome::Stopped
+          (:wat::kernel::assertion-failed!
+            "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open"
             :wat::core::None :wat::core::None))
         (:wat::kernel::RecvOutcome::Closed
           (:wat::kernel::assertion-failed!

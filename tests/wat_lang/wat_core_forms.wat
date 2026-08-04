@@ -37,6 +37,8 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "test4: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "test4: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -60,5 +62,7 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "test6: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "test6: child closed before sending its value" :wat::core::None :wat::core::None)))))

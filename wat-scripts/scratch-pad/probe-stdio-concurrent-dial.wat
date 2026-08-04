@@ -64,6 +64,8 @@
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "do-increments: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "do-increments: peer closed" :wat::core::None :wat::core::None)))))
 
@@ -81,8 +83,9 @@
           ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))
      ok (:probe::do-increments c 4 0)]
     (:wat::core::match (:wat::kernel::send self ok)
-      (:wat::kernel::SendOutcome::Sent   nil)
-      (:wat::kernel::SendOutcome::Closed nil)
+      (:wat::kernel::SendOutcome::Sent    nil)
+      (:wat::kernel::SendOutcome::Closed  nil)
+      (:wat::kernel::SendOutcome::Stopped nil)
       ((:wat::kernel::SendOutcome::Lost _c) nil))))
 
 ;; helper: recv' an i64 result from a joined worker thread peer.
@@ -92,6 +95,7 @@
   (:wat::core::match (:wat::kernel::recv p)
     ((:wat::kernel::RecvOutcome::Message m) m)
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "join-count: stopped — the substrate was asked to stop; worker was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "join-count: worker closed before signalling" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -127,6 +131,7 @@
                  ((:probe::Counter::GetResponse::RequestMalformed mpath mexpected mgot)
                    (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+             (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "get: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "get: peer closed" :wat::core::None :wat::core::None)))
      ;; ASSERT: every worker landed its 4 typed replies (no cross-talk / no lost reply).
      _  (:wat::core::if (:wat::core::= total-ops 12) nil

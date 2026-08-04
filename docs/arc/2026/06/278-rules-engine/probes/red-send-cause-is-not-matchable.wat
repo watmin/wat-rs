@@ -42,6 +42,11 @@
     (:wat::core::match (:wat::kernel::send peer "ping")
       (:wat::kernel::SendOutcome::Sent nil)
       (:wat::kernel::SendOutcome::Closed nil)
+      ;; arc 278 #73 — orthogonal to this probe's gap (its subject is the Lost arm's
+      ;; carrier type below, not this enum's exhaustiveness). Added only so the corpus
+      ;; sweep doesn't overload this file with a SECOND, unrelated red — the deliberate
+      ;; failure stays exactly where it was, in the nested cause match beneath ::Lost.
+      (:wat::kernel::SendOutcome::Stopped nil)
       ;; ⛔ THE GAP. `cause` is a :wat::kernel::Failure today, so matching it against
       ;;    LociDiedError's variants is a type error. AFTER #70 it is a LociDiedError and
       ;;    `Stopped` vs `Disconnected` — the two states the send path currently conflates into
@@ -65,6 +70,10 @@
     (:wat::core::match (:wat::kernel::recv peer)
       ((:wat::kernel::RecvOutcome::Message _m) nil)
       (:wat::kernel::RecvOutcome::Closed nil)
+      ;; arc 278 #73 — same orthogonal note as the send-side match above: this control
+      ;; MUST stay green (see the header), so it needs this arm to keep type-checking
+      ;; now that RecvOutcome gained Stopped; it is not part of what the control proves.
+      (:wat::kernel::RecvOutcome::Stopped nil)
       ;; The SAME variants, against the SAME enum, on the outcome that was migrated. Green today.
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause

@@ -72,6 +72,7 @@
   (:wat::core::match (:wat-tests::SignalObserver/observe c (:wat-tests::SignalObserver::ObserveRequest))
     ((:wat::kernel::RecvOutcome::Message m) m)
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "observe!: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "observe!: peer closed" :wat::core::None :wat::core::None))))
 
 ;; ── the sequence: one process, all four handlers, three user signals discriminated ──────────

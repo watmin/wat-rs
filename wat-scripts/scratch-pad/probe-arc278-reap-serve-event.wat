@@ -34,6 +34,11 @@
         (:wat::core::match (:wat::kernel::send (:wat::core::nth peers idx) msg)
           (:wat::kernel::SendOutcome::Sent nil)
           (:wat::kernel::SendOutcome::Closed nil)
+          ;; the world-stopping fact is caught above at the ServiceEvent::Shutdown arm
+          ;; (poll' index 0), not here — this is one client's reply-send, so a stop mid
+          ;; -send is discarded just like its Sent/Closed siblings; the unconditional
+          ;; recurse below still runs either way (this probe measures REAP, not stop).
+          (:wat::kernel::SendOutcome::Stopped nil)
           ((:wat::kernel::SendOutcome::Lost _c) nil))
         (:se::serve self l peers)))
     ((:wat::spawn::ServiceEvent::Closed idx)
@@ -48,6 +53,7 @@
     (:wat::core::match (:wat::kernel::send c 7)
       (:wat::kernel::SendOutcome::Sent nil)
       (:wat::kernel::SendOutcome::Closed (:wat::kernel::println (:wat::core::string::concat label " send => CLOSED")))
+      (:wat::kernel::SendOutcome::Stopped (:wat::kernel::println (:wat::core::string::concat label " send => STOPPED")))
       ((:wat::kernel::SendOutcome::Lost _c) nil))
     (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message m)
@@ -55,6 +61,8 @@
           (:wat::core::string::concat " => Message " (:wat::core::i64/to-string m)))))
       ((:wat::kernel::RecvOutcome::Lost _cause)
         (:wat::kernel::println (:wat::core::string::concat label " => LOST")))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::println (:wat::core::string::concat label " => STOPPED")))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::println (:wat::core::string::concat label " => CLOSED"))))
     nil))

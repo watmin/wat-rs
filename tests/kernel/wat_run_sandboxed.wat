@@ -36,6 +36,7 @@
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "message")
       ((:wat::kernel::RecvOutcome::Lost _cause) "lost")
+      (:wat::kernel::RecvOutcome::Stopped "stopped")
       (:wat::kernel::RecvOutcome::Closed "closed"))))
 
 ;; ── single stdout write — the value crosses the wire DECODED ────────────────
@@ -49,6 +50,7 @@
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; ── stdout + terminal stderr — partial Messages then Lost ───────────────────
@@ -70,10 +72,12 @@
      r1 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
+          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-1")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
      r2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-2")
+          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-2")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))
      r3 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-3")
@@ -81,6 +85,7 @@
             (:wat::core::match cause
               ((:wat::kernel::LociDiedError::Panic message _failure) message)
               (_ "LOST-NON-PANIC-3")))
+          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-3")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-3"))]
     [r1 r2 r3]))
 
@@ -107,6 +112,7 @@
         (:wat::core::match cause
           ((:wat::kernel::LociDiedError::Panic message _failure) message)
           (_ "LOST-NON-PANIC")))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; ── missing :user::main — Lost[RuntimeError] (UserMainMissing) ─────────────
@@ -135,6 +141,7 @@
           ((:wat::kernel::LociDiedError::MainSignature _mm) "main-signature")
           ((:wat::kernel::LociDiedError::BadReturn _bm) "bad-return")
           (_ "other-lost")))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; ── partial output then panic — partial Message then Lost[Panic] ───────────
@@ -153,6 +160,7 @@
      r1 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
+          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-1")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
      r2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-2")
@@ -160,6 +168,7 @@
             (:wat::core::match cause
               ((:wat::kernel::LociDiedError::Panic message _failure) message)
               (_ "LOST-NON-PANIC-2")))
+          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-2")
           (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))]
     [r1 r2]))
 
@@ -183,6 +192,7 @@
         (:wat::core::match cause
           ((:wat::kernel::LociDiedError::Panic message _failure) message)
           (_ "LOST-NON-PANIC")))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; ── scope outside — same empty-loader Err arm; the Ok "leaked" never runs ───
@@ -202,4 +212,5 @@
         (:wat::core::match cause
           ((:wat::kernel::LociDiedError::Panic message _failure) message)
           (_ "LOST-NON-PANIC")))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

@@ -29,4 +29,5 @@
           ((:wat::kernel::LociDiedError::Panic message failure)
            (:wat::core::Some message))
           (_ :wat::core::None)))
+      (:wat::kernel::RecvOutcome::Stopped :wat::core::None)
       (:wat::kernel::RecvOutcome::Closed :wat::core::None))))

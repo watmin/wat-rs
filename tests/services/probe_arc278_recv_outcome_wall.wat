@@ -15,6 +15,10 @@
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                       ;; matched ::Message (the .rs asserts this NEVER happens)
   :Lost    [sentinel-present? <- :wat::core::bool]  ;; matched ::Lost — admin: true (reason carried); client: false (reason-free 500)
+  ;; arc 278 #73 — matched ::Stopped (the .rs asserts this NEVER happens either: this probe
+  ;; never asks the substrate to stop, it only crashes the peer). A structural twin of
+  ;; ::Closed, not folded into it — a stop is neither the peer dying nor the peer closing.
+  :Stopped []
   :Closed  [])                                      ;; matched ::Closed (the mute we killed — the .rs asserts this NEVER happens)
 
 (:wat::core::defsurface :probe::Crash :nature :wat::kernel::Peer
@@ -66,6 +70,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
+      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
@@ -76,6 +81,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
+      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 ;; ── ADMIN helpers: raw send' the crashing op FIRE-AND-FORGET, then MATCH the Handle lineage peer. ────
@@ -89,6 +95,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
+      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 (:wat::core::defn :probe::admin-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
@@ -99,6 +106,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
+      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 ;; ── the 8 entrypoints: {boom,boomrt} × {thread,process} × {client,admin} ─────────────────────────────

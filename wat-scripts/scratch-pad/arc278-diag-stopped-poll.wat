@@ -16,6 +16,9 @@
            (:wat::core::match (:wat::kernel::recv self)
              ((:wat::kernel::RecvOutcome::Message _m) nil)
              ((:wat::kernel::RecvOutcome::Lost _c) nil)
+             ;; the substrate stopping while parked on its own recv — same discard as
+             ;; its siblings, this child's body never inspects the outcome either way.
+             (:wat::kernel::RecvOutcome::Stopped nil)
              (:wat::kernel::RecvOutcome::Closed nil))))]
     (:wat::core::do
       (:wat::kernel::println "READY")

@@ -77,6 +77,10 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless; the :None expect above already panicked
+               ;; before this line could even run.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
@@ -87,6 +91,10 @@
         (:wat::test::assert-eq
           (:wat::kernel::LociDiedError/message cause)
           "broker disconnected"))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected panic on :None expect, got clean close"

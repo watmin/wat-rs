@@ -72,6 +72,8 @@
                       (:wat::core::string::concat " got=" mgot))))))))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::println (:wat::core::string::concat label " => LOST (peer gone)")))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::println (:wat::core::string::concat label " => Stopped")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println (:wat::core::string::concat label " => Closed")))))
 

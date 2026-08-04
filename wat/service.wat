@@ -1102,15 +1102,31 @@
                                                 ;; arc 278 the send'-outcome wall — a reply to a gone
                                                 ;; client is NOT a service error (the client left); every
                                                 ;; arm's continuation is the SAME regardless of outcome.
+                                                ;;
+                                                ;; ★ arc 278 #73 — EXCEPT `Stopped`, and this is the arm the
+                                                ;; variant exists for. `Closed`/`Lost` are facts about ONE
+                                                ;; CLIENT, so the service keeps serving the others. `Stopped`
+                                                ;; is a fact about THE WORLD: the substrate is going down, and
+                                                ;; a serve loop that recurses on it would spin against a
+                                                ;; stopping runtime while `/stop` waits on it to return.
+                                                ;; Giving this arm the same body as `Closed` would be a live
+                                                ;; bug, not a tidy uniformity — it is precisely the
+                                                ;; identical-arms discard the stone forbids, at every service
+                                                ;; this macro will ever generate.
                                                 ((:wat::service::Outcome::Reply new-state resp)
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-variant-kw resp))
                                                     (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables new-state))
                                                     (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables new-state))   ;; client gone → keep serving
+                                                    (:wat::kernel::SendOutcome::Stopped nil)                                          ;; the WORLD is stopping → return, do not recurse
                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables new-state))))
                                                 ((:wat::service::Outcome::Stop final-state resp)
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-variant-kw resp))
                                                     (:wat::kernel::SendOutcome::Sent   nil)
                                                     (:wat::kernel::SendOutcome::Closed nil)   ;; client gone → still stopping
+                                                    ;; uniform here and the precondition is the whole reason:
+                                                    ;; this handler ALREADY decided to stop, so a stop arriving
+                                                    ;; mid-reply changes nothing. Same body, stated cause.
+                                                    (:wat::kernel::SendOutcome::Stopped nil)
                                                     ((:wat::kernel::SendOutcome::Lost _c) nil)))
                                                 ((:wat::service::Outcome::NoReply new-state)
                                                   (~serve-name self l selectables new-state))
@@ -1118,6 +1134,10 @@
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-variant-kw resp))
                                                     (:wat::kernel::SendOutcome::Sent   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))
                                                     (:wat::kernel::SendOutcome::Closed (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))   ;; client gone → keep serving
+                                                    ;; the world is stopping → return WITHOUT arming: arming a
+                                                    ;; new selectable on the way down would register work the
+                                                    ;; loop is about to abandon.
+                                                    (:wat::kernel::SendOutcome::Stopped nil)
                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))))
                                                 ((:wat::service::Outcome::NoReplyAndArm new-state arms)
                                                   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
@@ -1218,6 +1238,7 @@
                                                        (~reply-variant-kw (:wat::edn::read ~rm-edn-sym)))
                                                      (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
                                                      (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                     (:wat::kernel::SendOutcome::Stopped nil)                                    ;; arc 278 #73 — the WORLD is stopping → return
                                                      ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))))
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
@@ -1240,6 +1261,7 @@
                                                        (~reply-variant-kw (:wat::edn::read ~rtl-edn-sym)))
                                                      (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
                                                      (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                     (:wat::kernel::SendOutcome::Stopped nil)                                    ;; arc 278 #73 — the WORLD is stopping → return
                                                      ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))
                                                  ~shape-guarded))]
                              (:wat::core::conj acc
@@ -1279,11 +1301,13 @@
                            (:wat::core::match (:wat::kernel::send self (~status-stopped-kw (~stop-project-name state)))
                              (:wat::kernel::SendOutcome::Sent   nil)
                              (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv' already faces this
+                             (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
                              ((:wat::kernel::SendOutcome::Lost _c) nil)))
                          (~admin-hibernate-kw
                            (:wat::core::match (:wat::kernel::send self (~status-hibernated-kw (~hibernate-project-name state)))
                              (:wat::kernel::SendOutcome::Sent   nil)
                              (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv' already faces this
+                             (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
                              ((:wat::kernel::SendOutcome::Lost _c) nil)))
                          ;; arc 278: AllowPeer[pids] — fold (allow' l pid) over the vec on the
                          ;; serve loop's OWN listener l (process-tier gate), ack PeersAllowed up
@@ -1303,6 +1327,7 @@
                              (:wat::core::match (:wat::kernel::send self ~status-peers-allowed-kw)
                                (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
                                (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; owner's recv' already faces this
+                               (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
                                ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
                          ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
@@ -1322,6 +1347,7 @@
                              (:wat::core::match (:wat::kernel::send self ~status-peers-denied-kw)
                                (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
                                (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; owner's recv' already faces this
+                               (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
                                ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
                          ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
@@ -1376,6 +1402,7 @@
                        (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-failed-kw cause))
                          (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
                          (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                         (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
                          ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
@@ -1514,6 +1541,13 @@
                                              [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw req))
                                                              (:wat::kernel::SendOutcome::Sent   nil)
                                                              (:wat::kernel::SendOutcome::Closed nil)
+                                                             ;; arc 278 #73 — uniform, and the precondition is
+                                                             ;; the recv' on the very next line: a stop that
+                                                             ;; interrupted this write is still in force when
+                                                             ;; the read parks, so the read returns Stopped and
+                                                             ;; the caller is told once, by the arm below.
+                                                             ;; Deciding here would decide it twice.
+                                                             (:wat::kernel::SendOutcome::Stopped nil)
                                                              ((:wat::kernel::SendOutcome::Lost _c) nil))
                                               ~r-sym (:wat::kernel::recv c)]
                                              (:wat::core::match ~r-sym
@@ -1532,6 +1566,15 @@
                                                ;; a :wat::kernel::LociDiedError, which `cause` already is.
                                                ((:wat::kernel::RecvOutcome::Lost cause)
                                                  (:wat::kernel::RecvOutcome::Lost cause))
+                                               ;; ★ arc 278 #73 — THE CLIENT-FACING PAYOFF. This generated
+                                               ;; method is what every caller of every service actually
+                                               ;; holds, and until today a stop reached them through the
+                                               ;; `Lost` arm above carrying `LociDiedError::Stopped`: the
+                                               ;; caller matched "the service died" over a service that was
+                                               ;; alive and merely being asked to stop. Forwarded faithfully
+                                               ;; now, as itself.
+                                               (:wat::kernel::RecvOutcome::Stopped
+                                                 :wat::kernel::RecvOutcome::Stopped)
                                                (:wat::kernel::RecvOutcome::Closed
                                                  :wat::kernel::RecvOutcome::Closed)))
                           ;; DESIGN-STONE-the-client-validates-locally.md — THE STRIKE. Validation
@@ -1591,6 +1634,7 @@
                           [~stop-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-stop-kw)
                                                (:wat::kernel::SendOutcome::Sent   nil)
                                                (:wat::kernel::SendOutcome::Closed nil)
+                                               (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
                                                ((:wat::kernel::SendOutcome::Lost _c) nil))
                            ~stop-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                           (:wat::core::match ~stop-r-sym 
@@ -1606,6 +1650,10 @@
                             ;; recover — R51 eprintln IS the dying declaration), then terminate.
                             ((:wat::kernel::RecvOutcome::Lost cause)
                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                            (:wat::kernel::RecvOutcome::Stopped
+                              (:wat::kernel::assertion-failed!
+                                "defservice stop: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
+                                :wat::core::None :wat::core::None))
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice stop: service peer closed during stop"
@@ -1630,6 +1678,7 @@
                                [~hib-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-hibernate-kw)
                                                    (:wat::kernel::SendOutcome::Sent   nil)
                                                    (:wat::kernel::SendOutcome::Closed nil)
+                                                   (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
                                                    ((:wat::kernel::SendOutcome::Lost _c) nil))
                                 ~hib-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                                (:wat::core::match ~hib-r-sym 
@@ -1642,6 +1691,10 @@
                                           :wat::core::None))))
                                  ((:wat::kernel::RecvOutcome::Lost cause)
                                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                                 (:wat::kernel::RecvOutcome::Stopped
+                                   (:wat::kernel::assertion-failed!
+                                     "defservice hibernate: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
+                                     :wat::core::None :wat::core::None))
                                  (:wat::kernel::RecvOutcome::Closed
                                    (:wat::kernel::assertion-failed!
                                      "defservice hibernate: service peer closed during hibernate"
@@ -1672,6 +1725,7 @@
                           [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw pids))
                                                 (:wat::kernel::SendOutcome::Sent   nil)
                                                 (:wat::kernel::SendOutcome::Closed nil)
+                                                (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
                                                 ((:wat::kernel::SendOutcome::Lost _c) nil))
                            ~grant-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                           (:wat::core::match ~grant-r-sym 
@@ -1684,6 +1738,10 @@
                                      :wat::core::None))))
                             ((:wat::kernel::RecvOutcome::Lost cause)
                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                            (:wat::kernel::RecvOutcome::Stopped
+                              (:wat::kernel::assertion-failed!
+                                "defservice grant: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
+                                :wat::core::None :wat::core::None))
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice grant: service peer closed during grant"
@@ -1712,6 +1770,7 @@
                            [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw pids))
                                                   (:wat::kernel::SendOutcome::Sent   nil)
                                                   (:wat::kernel::SendOutcome::Closed nil)
+                                                  (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
                                                   ((:wat::kernel::SendOutcome::Lost _c) nil))
                             ~revoke-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                            (:wat::core::match ~revoke-r-sym 
@@ -1724,6 +1783,10 @@
                                       :wat::core::None))))
                              ((:wat::kernel::RecvOutcome::Lost cause)
                                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::Stopped
+                               (:wat::kernel::assertion-failed!
+                                 "defservice revoke: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
+                                 :wat::core::None :wat::core::None))
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed!
                                  "defservice revoke: service peer closed during revoke"
@@ -1842,6 +1905,12 @@
                                             ;; terminal dying declaration (loud, exits non-zero).
                                             ((:wat::kernel::RecvOutcome::Lost ~cm-shipcause-sym)
                                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message ~cm-shipcause-sym) :wat::core::None :wat::core::None))
+                                            ;; arc 278 #73 — the owner link did not close; a stop
+                                            ;; arrived before the startup ship. Distinct fact, so a
+                                            ;; distinct line: reporting "closed" here sent every
+                                            ;; reader of this log after a link that was fine.
+                                            (:wat::kernel::RecvOutcome::Stopped
+                                              (:wat::kernel::eprintln "defservice child-main: stop requested before the startup ship — owner link was ALIVE"))
                                             (:wat::kernel::RecvOutcome::Closed
                                               (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")))
                            ~cm-st-sym   (:wat::core::apply
@@ -1854,6 +1923,11 @@
                                             (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
                                           (:wat::kernel::SendOutcome::Sent   nil)
                                           (:wat::kernel::SendOutcome::Closed nil)
+                                          ;; arc 278 #73 — a stop arrived as the child announced
+                                          ;; readiness. Same body, and the precondition is that the
+                                          ;; child proceeds into `serve`, whose poll' faces the stop
+                                          ;; as its own event; the owner's recv' faces it too.
+                                          (:wat::kernel::SendOutcome::Stopped nil)
                                           ((:wat::kernel::SendOutcome::Lost _c) nil))]
                           (:wat::core::apply 
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym

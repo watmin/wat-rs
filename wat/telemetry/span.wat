@@ -169,6 +169,12 @@
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Span::CloseResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                ;; (the operation cannot complete either way) with the TRUE reason: the
+                ;; journal sink peer was alive and the substrate was asked to stop.
+                (:wat::kernel::RecvOutcome::Stopped
+                  (:wat::telemetry::Span::CloseResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: stop requested mid-call — the journal sink peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Span::CloseResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))))]

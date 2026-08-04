@@ -86,6 +86,10 @@
                      "DISCRIMINATOR: the poison request reached the wire (client did not refuse locally) — "
                      (:wat::kernel::LociDiedError/message cause))
                    :wat::core::None :wat::core::None))
+               (:wat::kernel::RecvOutcome::Stopped
+                 (:wat::kernel::assertion-failed!
+                   "DISCRIMINATOR: stopped mid-read — the substrate was asked to stop; the peer was ALIVE"
+                   :wat::core::None :wat::core::None))
                (:wat::kernel::RecvOutcome::Closed
                  (:wat::kernel::assertion-failed!
                    "DISCRIMINATOR: the poison request reached the wire and the connection was closed"
@@ -107,5 +111,7 @@
           (:wat::core::string::concat "DISCRIMINATOR: the connection did not survive — "
             (:wat::kernel::LociDiedError/message cause))
           :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "DISCRIMINATOR: stopped before the follow-up replied — the peer was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "DISCRIMINATOR: the connection did not survive (closed)" :wat::core::None :wat::core::None)))))

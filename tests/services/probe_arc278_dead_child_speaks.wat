@@ -28,7 +28,12 @@
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                                ;; matched ::Message (.rs asserts NEVER)
   :Lost    [reason-names-decode-failure? <- :wat::core::bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
-  :Closed  [])                                               ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
+  :Closed  []                                                ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
+  ;; arc 278 #73 — a stop is NOT a close, so it does not borrow ::Closed's label. The golden is
+  ;; `#probe.Outcome/Lost [true]`, so adding a variant costs the passing path nothing; what it buys
+  ;; is that if a stop ever DID fire here, the mismatch names a stop instead of pointing the next
+  ;; reader at the channel layer — which is the precise false trail this whole stone removes.
+  :Stopped [])                                               ;; .rs asserts NEVER (nothing here stops mid-read)
 
 ;; a minimal Peer' service whose op-request carries an OPEN Record-surface field (the general
 ;; capability). `:wat::query::Reason` is a zero-feature Record surface baked into the child (stdlib) —
@@ -68,4 +73,8 @@
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")))
+      ;; arc 278 #73 — reported as ITSELF. This test never stops mid-read, so the arm is
+      ;; unreachable today; naming it honestly is what keeps it unreachable-and-legible rather
+      ;; than unreachable-and-mislabelled.
+      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))

@@ -1617,6 +1617,20 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![("msg".into(), TypeExpr::Path("O".into()))],
             },
             EnumVariant::Unit("Closed".into()),
+            // Arc 278 #73 — a stop was requested while this read was parked. NOTHING
+            // DIED and NOTHING CLOSED: the peer is ALIVE and the channel is OPEN.
+            //
+            // Before this variant the fact had no honest home. It was produced (the
+            // substrate has always known), then reported as `Lost[LociDiedError::Stopped]`
+            // — a carrier whose very type name says "died" — so a caller matched a death
+            // and had to open the death report to learn nothing had died. `Closed` was
+            // the other candidate and is worse: it asserts a clean EOF that did not
+            // happen (the false "peer closed" a months-long sigterm flake was made of).
+            //
+            // UNIT, carrying no cause: four precedents (`types.rs` Stopped variants) and
+            // there is nothing to report. The substrate was asked to stop. That is the
+            // whole fact — a cause here would be inventing a reason for "you asked me to".
+            EnumVariant::Unit("Stopped".into()),
             EnumVariant::Tagged {
                 name: "Lost".into(),
                 // Arc 278 the LociDiedError stone — the Lost cause is now the
@@ -1664,6 +1678,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
         variants: vec![
             EnumVariant::Unit("Sent".into()),
             EnumVariant::Unit("Closed".into()),
+            // Arc 278 #73 — the send-side twin of `RecvOutcome::Stopped` (see above for
+            // the full argument). Landed in the SAME pass, deliberately: a half-fixed
+            // pair is precisely how this arc got here — recv' was walled at R53 and the
+            // send side went unwalled for months (R57 `IGNORANTIAM DELEMVS`).
+            //
+            // `send'` has always been able to tell a stop from a peer loss —
+            // `SendError::Shutdown` is a distinct variant (`comms/mod.rs:919`, built to
+            // mirror `RecvError::Shutdown`) — and folded it into `Lost` anyway.
+            EnumVariant::Unit("Stopped".into()),
             EnumVariant::Tagged {
                 name: "Lost".into(),
                 fields: vec![(

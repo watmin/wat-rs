@@ -54,6 +54,7 @@
           ((:t::Boom::PingResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
@@ -73,4 +74,5 @@
           ((:t::Boom::PingResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

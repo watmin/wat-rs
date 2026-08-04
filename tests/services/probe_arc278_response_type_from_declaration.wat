@@ -72,6 +72,7 @@
           ((:probe::Odd::Verdict::Ok _ok) (:wat::kernel::assertion-failed! "expected RequestTooLarge, got Ok" :wat::core::None :wat::core::None))
           ((:probe::Odd::Verdict::RequestMalformed _mpath _mexp _mgot) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::core::string::concat "DISCRIMINATOR: op-methods did not refuse locally — " (:wat::kernel::LociDiedError/message cause)) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "DISCRIMINATOR: op-methods did not refuse locally (stopped — the peer was ALIVE)" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "DISCRIMINATOR: op-methods did not refuse locally (closed)" :wat::core::None :wat::core::None)))))
 
 ;; (2) serve-op-arms' per-op SIZE guard, driven by a RAW send'+recv' that bypasses op-methods'
@@ -88,7 +89,7 @@
            ((:wat::kernel::ConnectOutcome::Rejected cz) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
            ((:wat::kernel::ConnectOutcome::Failed cz) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)))
      _s  (:wat::core::match (:wat::kernel::send c (:probe::Odd::Op::Put (:probe::Odd::PutRequest :payload big :count 1)))
-           (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+           (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r   (:wat::kernel::recv c)]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message resp)
@@ -100,6 +101,7 @@
               ((:probe::Odd::Verdict::RequestMalformed _mpath _mexp _mgot) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
           (_ (:wat::kernel::assertion-failed! "misrouted reply variant" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::core::string::concat "DISCRIMINATOR: serve-op-arms' size guard did not fire — " (:wat::kernel::LociDiedError/message cause)) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "DISCRIMINATOR: serve-op-arms' size guard did not fire (stopped — the peer was ALIVE)" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "DISCRIMINATOR: serve-op-arms' size guard did not fire (closed)" :wat::core::None :wat::core::None)))))
 
 ;; (3) serve-op-arms' shape guard (`:wat::edn::validate`), driven by a RAW send' of a right-tag,
@@ -118,7 +120,7 @@
            ((:wat::kernel::ConnectOutcome::Failed cz) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)))
      bad (:wat::edn::read "#probe.Odd/PutRequest {:payload \"ok\" :count \"not-a-number\"}")
      _s  (:wat::core::match (:wat::kernel::send c (:probe::Odd::Op::Put bad))
-           (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+           (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r   (:wat::kernel::recv c)]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message resp)
@@ -132,4 +134,5 @@
               ((:probe::Odd::Verdict::RequestTooLarge _bytes _cap) (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
           (_ (:wat::kernel::assertion-failed! "misrouted reply variant" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::core::string::concat "DISCRIMINATOR: serve-op-arms' shape guard did not fire — " (:wat::kernel::LociDiedError/message cause)) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "DISCRIMINATOR: serve-op-arms' shape guard did not fire (stopped — the peer was ALIVE)" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "DISCRIMINATOR: serve-op-arms' shape guard did not fire (closed)" :wat::core::None :wat::core::None)))))

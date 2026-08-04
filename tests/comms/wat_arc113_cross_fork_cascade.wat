@@ -46,5 +46,7 @@
               (:wat::core::None
                (:wat::core::Vector :wat::core::String "NO-FAILURE-PAYLOAD"))))
           (_ (:wat::core::Vector :wat::core::String "LOST-NON-PANIC"))))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::core::Vector :wat::core::String "UNEXPECTED-STOPPED"))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::core::Vector :wat::core::String "UNEXPECTED-CLOSED")))))

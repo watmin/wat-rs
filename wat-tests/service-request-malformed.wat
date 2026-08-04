@@ -83,6 +83,9 @@
               (:wat::core::string::concat "/" (:wat::core::string::concat expected
                 (:wat::core::string::concat "/" got))))))))
     ((:wat::kernel::RecvOutcome::Lost cause) "LOST")
+    ;; arc 278 #73 — distinct from LOST (the peer died) and Closed (a clean hangup): the
+    ;; substrate was asked to stop while this recv was parked; the peer was ALIVE.
+    (:wat::kernel::RecvOutcome::Stopped "Stopped")
     (:wat::kernel::RecvOutcome::Closed "Closed")))
 
 (:wat::core::defn :wat-tests::mal/dial

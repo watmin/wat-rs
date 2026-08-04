@@ -22,6 +22,7 @@
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "closed"))))
 
 ;; Probe 2 — child calls assertion-failed! → the peer CRASHES before any send →
@@ -41,4 +42,5 @@
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::LociDiedError/message cause))
+      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

@@ -100,6 +100,10 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless; the class-guard panic above already
+               ;; fired before this line could even run.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
@@ -110,6 +114,10 @@
         (:wat::test::assert-contains
           (:wat::kernel::LociDiedError/message cause)
           "got class"))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected class-guard panic on wrong-class receiver; got Success"
@@ -161,6 +169,10 @@
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
+               ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
+               ;; needs to proceed regardless; the to-holon runtime error above already
+               ;; fired before this line could even run.
+               (:wat::kernel::SendOutcome::Stopped nil)
                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
@@ -168,6 +180,10 @@
           "expected to-holon runtime error on BASE record; got Success"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected to-holon runtime error on BASE record; got Success"

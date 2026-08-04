@@ -47,6 +47,10 @@
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::test::assert-contains (:wat::kernel::LociDiedError/message cause) "frame exceeded cap"))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed!
+          "expected the over-budget frame to surface as ::Lost with the cap reason, got a ::Stopped — the child was ALIVE"
+          :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected the over-budget frame to surface as ::Lost with the cap reason, got a bare ::Closed"

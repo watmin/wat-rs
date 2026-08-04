@@ -20,5 +20,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::println
           (:wat::core::string::concat "STOP0-LOST-MESSAGE: " (:wat::kernel::LociDiedError/message cause))))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost"))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")))))

@@ -7,11 +7,13 @@
      acc  <- :wat::core::i64] -> :wat::core::i64
    (:wat::core::if (:wat::core::= n 0)
      acc
-     (:wat::core::let [_   (:wat::core::match (:wat::kernel::send peer n) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     (:wat::core::let [_   (:wat::core::match (:wat::kernel::send peer n) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil) (:wat::kernel::SendOutcome::Stopped nil)) ;; arc 278 #73 — fire-and-forget stream item; outcome ignored uniformly regardless of cause
                        res (:wat::core::match (:wat::kernel::recv peer)
                              ((:wat::kernel::RecvOutcome::Message m) m)
                              ((:wat::kernel::RecvOutcome::Lost cause)
                                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::Stopped
+                               (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed! "recv': peer closed mid-stream" :wat::core::None :wat::core::None)))]
        (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res)))))

@@ -47,6 +47,9 @@
         (:wat::test::assert-eq m "hello"))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "println-string: stop requested before the child sent its value — child was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "println-string: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -67,6 +70,9 @@
         (:wat::test::assert-eq m 42))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "println-i64: stop requested before the child sent its value — child was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "println-i64: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -98,6 +104,9 @@
           (:wat::kernel::assertion-failed! "eprintln-string: crash reason did not carry the emitted value"
             (:wat::core::Some (:wat::kernel::LociDiedError/message cause))
             (:wat::core::Some "err"))))
+      ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "eprintln-string: stop requested before the child sent its value — child was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "eprintln-string: child closed before crashing" :wat::core::None :wat::core::None)))))
 
@@ -144,6 +153,7 @@
      _ (:wat::core::match (:wat::kernel::send p "echo me")
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
+         (:wat::kernel::SendOutcome::Stopped nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
     (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs)
