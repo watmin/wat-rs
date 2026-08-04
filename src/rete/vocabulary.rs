@@ -78,6 +78,16 @@ pub(crate) enum OpClass {
     Form,
     /// An alias PLUS a second terminal handler substituting a mandatory `:undefined` value.
     Fallback,
+    /// Arc 278 #57 round 1b — an ordinary fn whose type cannot be stated as a rank-1
+    /// `TypeScheme` at all (polymorphic over the *container constructor*, not just the
+    /// element — `foldl : (Acc,T)->Acc × Acc × C<T> -> Acc` where `C` ranges over `Vector`,
+    /// `PersistentVector`, `List`, `Stream`). Named for HOW the type is answered (checker
+    /// re-dispatches to core's own bespoke inference), never for WHAT the op is — unlike
+    /// `Form`, whose members are genuinely special forms, a `Redispatch` row is a plain
+    /// function. No `TypeScheme` (same as `Form`); the runtime side is the SAME generic
+    /// re-dispatch `Alias`/`Form` already use (`dispatch_rete_op`'s `core_name` re-invoke) —
+    /// this class changes the CHECKER's routing only.
+    Redispatch,
 }
 
 /// A parameter/return type shape simple enough to live in a `const` table (no heap allocation —
@@ -92,6 +102,21 @@ pub(crate) enum ParamType {
     String,
     /// Arc 278 #57 round 1a — needed to spell `i64::to-f64`'s return type.
     F64,
+    /// Arc 278 #57 round 1b — a bare declared type variable (e.g. the `T` in
+    /// `PersistentVector/contains? : (PV<T>, T) -> bool`'s second param). Spelled the same
+    /// way the hand-written `env.register` call sites already do for parametric core rows
+    /// (`t_var()` = `TypeExpr::Path(":T")`) — a lexically-scoped type var is a `Path` at
+    /// this layer, matched against the scheme's own `type_params` list, never `TypeExpr::Var`
+    /// (that variant is a FRESH UNIFICATION var the checker mints internally, never authored).
+    Var(&'static str),
+    /// Arc 278 #57 round 1b — `PersistentVector<T>` for a named type variable `T`. The
+    /// PV trio's container param.
+    PersistentVectorOf(&'static str),
+    /// Arc 278 #57 round 1b — `Option<T>` for a named type variable `T`. Needed for
+    /// `PersistentVector/get`'s return: it is ALREADY total by design (`None` on
+    /// out-of-range, never a raise — `purity.rs`'s own reasoning for why this round is its
+    /// home rather than the fallback round).
+    OptionOf(&'static str),
 }
 
 impl ParamType {
@@ -102,6 +127,15 @@ impl ParamType {
             ParamType::Keyword => TypeExpr::Path(":wat::core::keyword".into()),
             ParamType::String => TypeExpr::Path(":wat::core::String".into()),
             ParamType::F64 => TypeExpr::Path(":wat::core::f64".into()),
+            ParamType::Var(name) => TypeExpr::Path(format!(":{name}")),
+            ParamType::PersistentVectorOf(name) => TypeExpr::Parametric {
+                head: "wat::core::PersistentVector".into(),
+                args: vec![TypeExpr::Path(format!(":{name}"))],
+            },
+            ParamType::OptionOf(name) => TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(format!(":{name}"))],
+            },
         }
     }
 }
@@ -116,10 +150,18 @@ pub(crate) struct ReteOp {
     pub(crate) core_name: &'static str,
     pub(crate) class: OpClass,
     /// `Alias`/`Fallback` only — the params `check.rs` registers a `TypeScheme` from. Empty for
-    /// `Form` (no `TypeScheme`; the checker consults a dedicated inference arm instead).
+    /// `Form`/`Redispatch` (no `TypeScheme`; the checker consults a dedicated inference arm
+    /// instead).
     pub(crate) params: &'static [ParamType],
-    /// `Alias`/`Fallback` only — unused for `Form`.
+    /// `Alias`/`Fallback` only — unused for `Form`/`Redispatch`.
     pub(crate) ret: ParamType,
+    /// Arc 278 #57 round 1b — the row's OWN type-parameter names, e.g. `&["T"]` for the PV
+    /// trio. `&[]` on every row that does not need one (all pre-existing rows, plus the five
+    /// `Redispatch` rows, which carry no scheme at all). Fed into `check.rs`'s registration
+    /// loop's `TypeScheme.type_params` — previously hardcoded `vec![]` there, which is
+    /// EXACTLY what blocked a parametric row from being stated (see the design stone's "the
+    /// mechanism is already there and merely unreachable").
+    pub(crate) type_params: &'static [&'static str],
     /// The whitelist row — what the fence's three axes (pure/deterministic/total) answer for
     /// this head. Reused type (`rete::purity::OpMeta`) per the brief's own sketch.
     pub(crate) meta: OpMeta,
@@ -134,6 +176,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // row): an i64-i64 comparison never raises on any input pair — it is genuinely total, not a
     // default-deny placeholder.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::>",
         core_name: ":wat::core::i64::>",
         class: OpClass::Alias,
@@ -150,6 +193,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // args; the literal keyword `:undefined` in slot 3 is a mandatory marker (see
     // `runtime.rs`'s `dispatch_rete_op`, `OpClass::Fallback` arm).
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::+",
         core_name: ":wat::core::i64::+",
         class: OpClass::Fallback,
@@ -162,6 +206,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `TypeScheme`; see `check.rs`'s generic Form-class dispatch, keyed off `class` alone, never
     // a hardcoded second `":wat::rete::core::and"` literal).
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::and",
         core_name: ":wat::core::and",
         class: OpClass::Form,
@@ -173,6 +218,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // own list (an i64-i64 comparison never raises on any input pair). Zero new logic: the rete
     // name re-dispatches to the same routine.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::<",
         core_name: ":wat::core::i64::<",
         class: OpClass::Alias,
@@ -184,6 +230,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // own list (an i64-i64 comparison never raises on any input pair). Zero new logic: the rete
     // name re-dispatches to the same routine.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::>=",
         core_name: ":wat::core::i64::>=",
         class: OpClass::Alias,
@@ -195,6 +242,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // own list (an i64-i64 comparison never raises on any input pair). Zero new logic: the rete
     // name re-dispatches to the same routine.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::<=",
         core_name: ":wat::core::i64::<=",
         class: OpClass::Alias,
@@ -205,6 +253,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Fallback-carrying — `:wat::core::i64::-` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::-",
         core_name: ":wat::core::i64::-",
         class: OpClass::Fallback,
@@ -215,6 +264,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Fallback-carrying — `:wat::core::i64::*` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::*",
         core_name: ":wat::core::i64::*",
         class: OpClass::Fallback,
@@ -225,6 +275,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Fallback-carrying — `:wat::core::i64::/` is undefined at a zero divisor, and overflows at MIN/-1. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::/",
         core_name: ":wat::core::i64::/",
         class: OpClass::Fallback,
@@ -235,6 +286,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Fallback-carrying — `:wat::core::i64::mod` is undefined at a zero divisor (floored; sign of the divisor). Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::mod",
         core_name: ":wat::core::i64::mod",
         class: OpClass::Fallback,
@@ -245,6 +297,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Fallback-carrying — `:wat::core::i64::rem` is undefined at a zero divisor (sign of the dividend). Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::rem",
         core_name: ":wat::core::i64::rem",
         class: OpClass::Fallback,
@@ -255,6 +308,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Fallback-carrying — `:wat::core::i64::quot` is undefined at a zero divisor (truncates toward zero). Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::quot",
         core_name: ":wat::core::i64::quot",
         class: OpClass::Fallback,
@@ -269,6 +323,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // fn with an ordinary `TypeScheme` (`check.rs`'s `:wat::core::not` registration) dispatched to
     // `eval_not` (`runtime.rs`). It belongs beside the comparisons, not beside `and`.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::not",
         core_name: ":wat::core::not",
         class: OpClass::Alias,
@@ -283,6 +338,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // else. (`if`/`let`, below, needed the two mechanism edits this table's doc note on the
     // `Form` class's history describes — they are NOT "a row and nothing else" the way `or` is.)
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::or",
         core_name: ":wat::core::or",
         class: OpClass::Form,
@@ -308,6 +364,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `if`: identical semantics, silently no TCO — SIGSEGV at depth instead of a stack-overflow
     // error).
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::if",
         core_name: ":wat::core::if",
         class: OpClass::Form,
@@ -316,6 +373,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::let",
         core_name: ":wat::core::let",
         class: OpClass::Form,
@@ -343,6 +401,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // match raises `NoMatchingArm` — genuinely partial, unlike `if`/`let` (always total for
     // well-typed args, per their own hand-list entries).
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::match",
         core_name: ":wat::core::match",
         class: OpClass::Form,
@@ -367,6 +426,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // non-exhaustive scrutinee), merely CONSTRUCTING a well-typed `fn` literal never raises, so
     // `total: true` — the same as `if`/`let`'s own hand-list entries, not `match`'s `false`.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::core::fn",
         core_name: ":wat::core::fn",
         class: OpClass::Form,
@@ -389,6 +449,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // but the checker constrains to exactly two args); `string::*`/`i64::to-f64` verified against
     // `string_ops.rs`'s own doc comments, which match exactly.
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::String/concat",
         core_name: ":wat::core::String/concat",
         class: OpClass::Alias,
@@ -397,6 +458,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::String/starts-with?",
         core_name: ":wat::core::String/starts-with?",
         class: OpClass::Alias,
@@ -405,6 +467,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::String/ends-with?",
         core_name: ":wat::core::String/ends-with?",
         class: OpClass::Alias,
@@ -413,6 +476,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::String/contains?",
         core_name: ":wat::core::String/contains?",
         class: OpClass::Alias,
@@ -421,6 +485,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::String/empty?",
         core_name: ":wat::core::String/empty?",
         class: OpClass::Alias,
@@ -429,6 +494,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::string::length",
         core_name: ":wat::core::string::length",
         class: OpClass::Alias,
@@ -437,6 +503,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::string::trim",
         core_name: ":wat::core::string::trim",
         class: OpClass::Alias,
@@ -445,6 +512,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::string::to-lowercase",
         core_name: ":wat::core::string::to-lowercase",
         class: OpClass::Alias,
@@ -453,12 +521,122 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
+        type_params: &[],
         rete_name: ":wat::rete::i64::to-f64",
         core_name: ":wat::core::i64::to-f64",
         class: OpClass::Alias,
         params: &[ParamType::I64],
         ret: ParamType::F64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── #57 round 1b, the parametric three (`Alias`, with the FIRST non-empty `type_params`
+    // in this table). `PersistentVector/{length,get,contains?}` name exactly one container,
+    // so — unlike the five HOFs below — their whole truth IS a rank-1 scheme:
+    // `PersistentVector/length : PV<T> -> i64`. Verified against the real implementations
+    // (`collection/eval.rs`'s `persistentvector_{length,contains_q,get}_inner`), NOT assumed
+    // from this round's own planning doc. `meta` TRANSCRIBED from `rete/purity.rs`: all
+    // three sit in its pure∧det hand-list (`:336-339`) AND its total hand-list
+    // (`:525-527`) — `/length`/`/contains?` "always defined"; `/get` "ALREADY total by
+    // design (returns `Option`, `None` on out-of-range)".
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::PersistentVector/length",
+        core_name: ":wat::core::PersistentVector/length",
+        class: OpClass::Alias,
+        params: &[ParamType::PersistentVectorOf("T")],
+        ret: ParamType::I64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::PersistentVector/contains?",
+        core_name: ":wat::core::PersistentVector/contains?",
+        class: OpClass::Alias,
+        params: &[ParamType::PersistentVectorOf("T"), ParamType::Var("T")],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::PersistentVector/get",
+        core_name: ":wat::core::PersistentVector/get",
+        class: OpClass::Alias,
+        params: &[ParamType::PersistentVectorOf("T"), ParamType::I64],
+        ret: ParamType::OptionOf("T"),
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── #57 round 1b, the five higher-order combinators (`Redispatch` — this table's first
+    // use of the class). `foldl` is polymorphic over the CONTAINER CONSTRUCTOR (Vector,
+    // PersistentVector, List, Stream), which no rank-1 `TypeScheme` can say — STOP-5: no
+    // scheme is minted here, ever, for this reason. `params`/`ret` are unused for this class
+    // exactly as they are for `Form` (mirrored, not consulted — `check.rs`'s registration
+    // loop skips `Redispatch` the same way it skips `Form`); `ret: ParamType::Bool` is a
+    // placeholder, matching the `Form` rows' own convention above. `meta` TRANSCRIBED from
+    // `rete/purity.rs`, never decided: all five sit in its pure∧det hand-list (`:371-375`,
+    // "CONDITIONALLY pure∧det: the combinator itself is referentially transparent +
+    // effect-free; its purity/determinism falls out of the arg-recursion over its
+    // fn-argument" — `classify_expr`'s unconditional per-argument recursion, already
+    // generic, needs no widening for these five). `total`: `foldl` alone is in the total
+    // hand-list (`:533`, "the verb ITSELF never raises... marking the head total and letting
+    // `classify_expr`'s general-list arm recurse into the fn-literal argument... is the same
+    // mechanism already built for pure/det"); `foldr`/`map`/`filter`/`reduce` are explicitly
+    // NOT included there (`:478-480`, "extremely likely total... but are NOT included — no
+    // `where` row in the corpus uses them... Flagged, not classified") — `total: false` for
+    // those four is the honest default-deny, not a guess.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::foldl",
+        core_name: ":wat::core::foldl",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::foldr",
+        core_name: ":wat::core::foldr",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: false },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::map",
+        core_name: ":wat::core::map",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: false },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::filter",
+        core_name: ":wat::core::filter",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: false },
+    },
+    // `reduce` is a wat-level `defclause` (`wat/seq.wat`), NOT a checker special form like
+    // its four siblings above — verified: no `infer_reduce` exists anywhere in
+    // `collection::infer` (searched; the other four's arms are real fns there). Its
+    // `infer_rete_form` arm (`check.rs`) therefore cannot call a matching bespoke inference
+    // fn the way `infer_if`'s shape does for the other four — it re-dispatches by
+    // reconstructing the call with `core_name` as head and recursing into `infer_list`,
+    // which reaches the SAME defclause-dispatch machinery (`env.get_defclause_clauses`) a
+    // core-spelled `(:wat::core::reduce ...)` call already takes. Genuinely the most literal
+    // reading of "re-dispatch to core's existing inference" available for a defclause-backed
+    // head — not a second implementation, and not a scheme (STOP-5 untouched).
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::reduce",
+        core_name: ":wat::core::reduce",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: false },
     },
 ];
 

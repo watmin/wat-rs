@@ -2354,6 +2354,30 @@ fn infer_rete_form(
         // a route here mirroring `check.rs`'s own `":wat::core::fn" => infer_fn` arm above
         // (`infer_fn` takes no `head_span` — passed only the args it wants, same as that arm).
         ":wat::core::fn" => crate::function::infer_fn(args, env, locals, fresh, subst),
+        // Arc 278 #57 round 1b — the four `Redispatch`-class HOFs that ARE checker special
+        // forms (each has a bespoke inference fn in `collection::infer`, same call shape as
+        // `infer_if` above). `reduce` — the fifth — is deliberately absent from this list:
+        // verified it has no `infer_reduce` anywhere (it is a wat-level `defclause`,
+        // `wat/seq.wat`, not a native special form), so its arm is below, re-dispatching by
+        // AST head-substitution into `infer_list` rather than a direct call here.
+        ":wat::core::foldl" => crate::collection::infer::infer_foldl(args, head_span, env, locals, fresh, subst),
+        ":wat::core::foldr" => crate::collection::infer::infer_foldr(args, head_span, env, locals, fresh, subst),
+        ":wat::core::map" => crate::collection::infer::infer_map(args, head_span, env, locals, fresh, subst),
+        ":wat::core::filter" => crate::collection::infer::infer_filter(args, head_span, env, locals, fresh, subst),
+        // `reduce` — no bespoke inference fn exists for it (it dispatches via
+        // `env.get_defclause_clauses`, reached from `infer_list`'s own defclause-dispatch
+        // arm, NOT from this match). Re-dispatch here means the same thing `runtime.rs`'s
+        // `dispatch_rete_op` means: reconstruct the call as core would see it — head swapped
+        // to `core_name`, args unchanged — and let it flow through the EXACT same dispatch a
+        // core-spelled `(:wat::core::reduce ...)` call takes (`infer_list`, recursively).
+        // Never a second implementation of the defclause-matching algorithm; STOP-5 (no
+        // scheme) is untouched — this is a call, not a type.
+        ":wat::core::reduce" => {
+            let mut items = Vec::with_capacity(args.len() + 1);
+            items.push(WatAST::Keyword(core_name.to_string(), head_span.clone()));
+            items.extend_from_slice(args);
+            infer_list(&items, head_span, env, locals, fresh, subst)
+        }
         // STOP-1: LOUD and LOCATED, never a silent fallthrough to `infer_boolean_shortcircuit`.
         // Reachable only by a future `RETE_OPS` row minting `class: Form` with a `core_name` this
         // match was never taught — a bug in the vocabulary table's authoring, not a user error,
@@ -2406,7 +2430,11 @@ fn infer_list(
         // `rete/purity.rs`'s `classify_expr` — a SEPARATE edit from this one (STOP-4), even where
         // `match` also gets an `infer_rete_form` arm for its type inference.
         if let Some(op) = crate::rete::vocabulary::rete_op_for(k.as_str()) {
-            if op.class == crate::rete::vocabulary::OpClass::Form {
+            // Arc 278 #57 round 1b — `Redispatch` joins `Form` here: neither carries a
+            // `TypeScheme` (the registration loop below skips both), so both route through
+            // the SAME `infer_rete_form` dispatch-by-`core_name`, never a hardcoded second
+            // FQDN (STOP-2).
+            if matches!(op.class, crate::rete::vocabulary::OpClass::Form | crate::rete::vocabulary::OpClass::Redispatch) {
                 return infer_rete_form(op.core_name, args, head_span, env, locals, fresh, subst);
             }
         }
@@ -15816,7 +15844,12 @@ fn register_builtins(env: &mut CheckEnv) {
             env.register(
                 op.rete_name.to_string(),
                 TypeScheme {
-                    type_params: vec![],
+                    // Arc 278 #57 round 1b — was hardcoded `vec![]`, which is EXACTLY what
+                    // blocked the PV trio's parametric row from being stated (design stone:
+                    // "the mechanism is already there and merely unreachable"). Now fed from
+                    // the row's own `type_params` (`&["T"]` for the PV trio, `&[]` for every
+                    // monomorphic row — byte-identical behavior for all 27 pre-existing rows).
+                    type_params: op.type_params.iter().map(|s| s.to_string()).collect(),
                     params: op.params.iter().map(|p| p.to_type_expr()).collect(),
                     ret: op.ret.to_type_expr(),
                     rest_param_type: None,

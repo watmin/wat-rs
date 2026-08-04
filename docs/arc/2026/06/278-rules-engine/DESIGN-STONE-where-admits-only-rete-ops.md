@@ -648,7 +648,24 @@ Both halves are grounded; neither is a preference.
 
 **The five HOFs → RE-DISPATCH. A scheme is impossible, not merely worse.** `infer_foldl`'s own
 doc states the signature: *"Projective: `fn(Acc,T)->Acc × Acc × C<T> → Acc`"*, and its error text
-names the collection as **`Vector<T>, PersistentVector<T>, List<T>, or Stream<T>`**. `foldl` is
+(`collection/infer.rs:897`, verified 2026-08-05 by running it) names the collection as
+**`Vector<T>, PersistentVector<T>, or List<T>`** — THREE containers.
+
+> **⚠ CORRECTED 2026-08-05.** An earlier draft of this section wrote *"`Vector<T>,
+> PersistentVector<T>, List<T>, or Stream<T>`"* and attributed it to `foldl`. That four-container
+> text is real but belongs to **`infer_filter`** (`infer.rs:817`); `foldl`'s own error names three.
+> An adjacent function's message read as the subject's —
+> `[[feedback_an_adjacent_implementation_is_not_the_subject]]`, and the record already carries four
+> instances of this class in a single session on 2026-08-03. Caught by the 1b rider, which reported
+> the mismatch as pre-existing rather than quietly conforming its work to the brief.
+>
+> **The correction STRENGTHENS the ruling rather than weakening it.** Three constructors is as
+> un-sayable in a rank-1 scheme as four. And the container sets **differ between the five HOFs** —
+> `filter` admits `Stream`, `foldl` does not — so a single shared scheme would be wrong for a
+> second, independent reason: there is no one set to write down. Re-dispatch gives each op its own
+> answer for free.
+
+`foldl` is
 polymorphic over the **container constructor**, not just the element — a rank-1 `TypeScheme`
 cannot say *"C ranges over four constructors."* That is precisely why core `foldl` has a bespoke
 inference arm (`check.rs:4208`) instead of a scheme. A rete scheme would therefore be **a second

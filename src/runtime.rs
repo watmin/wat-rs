@@ -8228,7 +8228,11 @@ fn dispatch_rete_op(
 ) -> Result<Value, EvalBreak> {
     use crate::rete::vocabulary::OpClass;
     match op.class {
-        OpClass::Alias | OpClass::Form => dispatch_keyword_head_value(op.core_name, args, list_span, env, sym),
+        // Arc 278 #57 round 1b — `Redispatch` joins `Alias`/`Form` here: same generic
+        // re-invoke on `core_name`, zero new runtime logic (the checker's routing is the
+        // only thing round 1b changes; `dispatch_keyword_head_value` already re-dispatches
+        // by `core_name` for any class, per this fn's own header doc).
+        OpClass::Alias | OpClass::Form | OpClass::Redispatch => dispatch_keyword_head_value(op.core_name, args, list_span, env, sym),
         OpClass::Fallback => {
             if args.len() != 4 {
                 return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
