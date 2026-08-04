@@ -12666,7 +12666,22 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 // Arc 293.W.2d — ThreadSelfPeer' is always in-locus (never wire-safe).
                 // Even if its I/O are pure scalars, the peer itself is an in-locus opaque
                 // (crossbeam channel) that cannot cross a comms boundary.
-                | "wat::kernel::ThreadSelfPeer" => false,
+                | "wat::kernel::ThreadSelfPeer"
+                // Arc 278 2026-08-03, builder-ruled: "they are resources — they are not
+                // pure." A peer of ANY locus holds a live resource (crossbeam tx/rx, or a
+                // pipe/socket fd pair) — exactly what `ThreadSelfPeer` was already listed
+                // for. Its three siblings were absent, so each fell through to
+                // "pure iff its type args are pure": a `Peer<i64,String>` was judged PURE
+                // and `validate_aggregate_containment` admitted it into a pure Record —
+                // i.e. into a defservice `:durable`, and onto the wire. Only ADDRESSES
+                // cross (293.W); a peer is dialled, never shipped. A thing that holds a
+                // resource is a STRUCT, never a record
+                // ([[reference_struct_holds_resources_record_is_pure_data]]).
+                // Found by probe with a positive control: `ThreadSelfPeer` was refused
+                // while `Peer`/`Process`/`Thread` were accepted in the same file.
+                | "wat::kernel::Peer"
+                | "wat::kernel::Thread"
+                | "wat::kernel::Process" => false,
                 // Pure container: pure iff all type args are pure.
                 // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
                 // HashSet<T>, Tuple<...> — any other parametric is conservatively

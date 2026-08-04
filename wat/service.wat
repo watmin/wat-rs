@@ -1883,8 +1883,8 @@
                                        (:wat::spawn::Launched/address ~lr-sym)))
      resume-fn      `(:wat::core::defn ~resume-name ~resume-params -> ~handle-name ~resume-body)
 
-     ;; ── C.3: Handle record ───────────────────────────────────────────────────────
-     ;; (Record::def <fqdn>::Handle
+     ;; ── C.3: Handle STRUCT ───────────────────────────────────────────────────────
+     ;; (defstruct <fqdn>::Handle
      ;;   [handle <- Peer<Admin,Status>
      ;;    addr   <- :wat::kernel::Address<fqdn::Op,fqdn::Reply>])
      ;; arc 291 3a-ii-β: handle is the owner-only lineage peer (admin channel).
@@ -1892,13 +1892,29 @@
      ;; Thread<Admin,Status> and Process<Admin,Status> both satisfy this field
      ;; (send'/recv' intrinsics accept Thread|Process|Peer uniformly).
      ;; addr carries the typed Address<Op,Reply> for client connect'.
+     ;;
+     ;; ★ A STRUCT, NOT A RECORD — arc 278 2026-08-03, builder-ruled: "they are
+     ;; resources - they are not pure." BOTH fields are live: `handle` is a peer
+     ;; (crossbeam tx/rx or an fd pair) and `addr` is an Address RustOpaque. A
+     ;; record is GUARANTEED pure data; a thing that holds a resource is a struct
+     ;; ([[reference_struct_holds_resources_record_is_pure_data]]). Its own parent
+     ;; `Launched` (wat/spawn.wat:265) holds these SAME two fields and has always
+     ;; been a defstruct, for this exact reason, in its own comment — this
+     ;; generated child was the one that wasn't.
+     ;;
+     ;; It was a `defrecord` until the §7 purity wall was corrected to cover
+     ;; `Peer`/`Thread`/`Process` (check.rs `is_pure_type`; only `ThreadSelfPeer`
+     ;; had been listed). Arming that wall lit 26 Handles and 2697 tests — the
+     ;; corrected law naming every violator (R52 QVOD LEX ACCENDIT). This one
+     ;; token is the whole fix: a Handle is an owner-side CAPABILITY, never data,
+     ;; and only ADDRESSES cross (293.W).
      handle-peer-ty (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::kernel::Peer<"
                         (:wat::core::string::concat admin-ty-str
                           (:wat::core::string::concat ","
                             (:wat::core::string::concat status-ty-str ">")))))
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
-     handle-record `(:wat::core::defrecord ~handle-name ~handle-fields)
+     handle-record `(:wat::core::defstruct ~handle-name ~handle-fields)
 
      ;; ── arc 170: auto-emit the Capability extend-type ─────────────────────────────
      ;; Every <fqdn>::Handle uniformly satisfies :wat::capability::Capability (relocated to
