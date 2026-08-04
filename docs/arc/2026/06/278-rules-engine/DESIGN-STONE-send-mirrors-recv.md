@@ -53,36 +53,52 @@ meaning for each on the other. Every variant without a twin is either a real dif
 | `Disconnected` | EPIPE — the reader's end is gone | ✅ have |
 | `Shutdown` | the broadcast fired mid-write | ❌ **HOLE — build it** (the poll arm) |
 | `Failed(String)` | an io error, carrying its reason | ❌ **HOLE — build it** (`Err(_)` discards it) |
-| `FrameTooLarge` | the outgoing frame exceeds the cap | ⊘ **REAL DIFFERENCE — do not mirror** |
+| `FrameTooLarge` | the outgoing frame exceeds the cap | ❌ **HOLE — build it** (and give `Sender` the budget) |
 | `PeerCrashed` | the peer died rather than closed | ⊘ **REAL DIFFERENCE — do not mirror** |
 
-**Two holes, two named non-mirrors.** The mirror initially read as three holes; grounding turned
-one back into a difference — which is the test working *in both directions*. It does not only find
-gaps, it forces you to justify the non-gaps.
+**Three holes, one named non-mirror.**
 
-### Why `FrameTooLarge` does NOT mirror — ruled + grounded 2026-08-03
+### `FrameTooLarge` — ruled 2026-08-03, and it corrects a wrong verdict of mine
 
-Builder: *"the client must be well behaved… only send what is allowed to be sent — bad clients are
-dismissed."*
+Builder: *"the clients should know how to be well behaved and we should do that behavior for them…
+if a user follows our patterns they don't give a shit, it just works… we still defend against bad
+behavior."* And: *"stdin itself limits to 512k per read into the program… we impose strict limits
+to prevent DoS scenarios at the start."*
 
-The receiver already implements exactly that: it detects `FrameTooLarge` and returns it distinctly
-*"so callers can tear down the peer immediately"* (`process.rs:1123`). **That dismissal IS the
-enforcement**, and it is correct today.
+**Belt AND braces.** The write side keeps a well-behaved client inside the limit automatically; the
+receiver's dismissal stays for anything that bypasses our patterns.
 
-And the structure agrees, which is what settles it rather than the policy alone:
+> ⚠ **I CLOSED THIS AS A "REAL DIFFERENCE" AND I WAS WRONG.** My reasoning was:
+> `pub struct Sender<T> { write_fd, _phantom }` — two fields, no budget — therefore a sender
+> *structurally cannot* know the cap, therefore a send-side `FrameTooLarge` is an unreachable arm.
+> **That mistook a missing field for a law of nature.** The number is right there at construction
+> and simply is not handed over:
+>
+> ```rust
+> pub fn pair_with_budget<T>(max_frame_bytes: usize) -> ... {
+>     let receiver = Receiver { ..., max_frame_bytes, ... };   // gets it
+>     Ok((Sender { write_fd, _phantom }, receiver))            // built without it
+> }
+> ```
+>
+> So this is the *same asymmetry as everything else in this stone*, one level down — in the struct
+> fields rather than the error enum. I checked whether the sender **had** the number and concluded
+> it **could not have** it.
 
-```rust
-pub struct Sender<T: EdnRepresentable> { write_fd: OwnedFd, _phantom: PhantomData<T> }
-```
+**And the DoS argument is the load-bearing one, not politeness.** Today an over-cap frame is
+**fully written** — blocking the writer through a 64 KiB pipe buffer eight times over for a 512 KiB
+frame — and only *then* rejected by the receiver. A peer can make us perform half a megabyte of
+pipe I/O to deliver something it is contractually obliged to discard. Checking before the write
+means the bad frame never enters the pipe. That is a cheap limit at the start, exactly as stdin
+already imposes one.
 
-**Two fields. No budget.** `max_frame_bytes` lives only on the `Receiver` (`pair_with_budget` sets
-it there). A sender structurally *cannot* know the cap it would be checking against — so a
-send-side `FrameTooLarge` would be an arm with no producer.
-`[[feedback_an_unreachable_arm_accumulates_lies]]` forbids building it.
+**The change:** `Sender<T>` gains `max_frame_bytes`, symmetric with `Receiver` (the value is already
+in scope at every construction site — `pair_with_budget`, `sender_receiver_from_fd_with_budget`,
+`sender_receiver_from_split_fds`). `Sender::send` tests the framed length before the write loop and
+returns `SendError::FrameTooLarge(value)`, handing the caller a typed refusal instead of a silent
+dismissal after the bytes are gone.
 
-*An earlier reading of mine, withdrawn: I called this "a guaranteed-fail send reported as success."
-It is not. The write genuinely succeeded, and the sender has no basis to claim otherwise. The
-dismissal is the receiver's job and it does it.*
+### Why `PeerCrashed` does not mirror
 
 ### Why `PeerCrashed` does not mirror
 
