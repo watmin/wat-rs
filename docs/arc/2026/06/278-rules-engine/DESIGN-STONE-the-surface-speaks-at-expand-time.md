@@ -1,5 +1,84 @@
 # DESIGN-STONE — the surface speaks at expand time (kill the guess AND keep the check)
 
+> # ⛔⛔ SUPERSEDED 2026-08-04 BY A BUILDER RULING. READ THIS BANNER FIRST.
+>
+> **The builder ruled: *"convention is law — enforce it… services are our OOP layer, we make
+> requests to them and get responses back."*** That collapses this entire stone. Everything below
+> the banner is the pre-ruling design and is kept for its grounding, not its plan.
+>
+> ## What the ruling changes
+>
+> This stone exists because a response type's name *need not* echo its op's, so the codegen had to
+> READ the declaration. If `<Op>Response` is **law**, the concatenation is correct by construction
+> and there is nothing to read. #74 stops being an expand-time-channel stone and becomes a
+> **one-check stone**.
+>
+> ## THE NEW DESIGN — enforce at registration, then delete three things
+>
+> **The check.** In `src/types.rs`, in the block that already mints the op aliases (`for member in
+> &surf.members`, ~`:3251`): it already holds `op_name`, `ret`, and `acronyms`. Require the response
+> type's **base name** to equal `<kebab_to_pascal_with_acronyms(op_name)>Response`. Refuse otherwise,
+> located, naming BOTH the declared name and the required one.
+>
+> **What dies:** `build_op_response_type_constants` and its call site; the `<S>::<OP>-RESPONSE-TYPE`
+> runtime constant; and — the actual prize — the `resp-dotted` / `rtl-edn` EDN-decode branches at
+> BOTH wat sites (`wat/service.wat`, the `serve-op-arms` and `op-methods` regions). The ctor becomes
+> a literal keyword again, built by concatenation that is now guaranteed, and **the loader checks it
+> on every build**. Do the `RequestMalformed` twin in the same strike.
+>
+> ## GROUNDED 2026-08-04 — four facts that decided this, all measured
+>
+> 1. **Corpus conformance: 173 serviceable (`:nature :wat::kernel::Peer`) op declarations, ~163
+>    conform, 10 diverge — and ZERO are production.** The 10: the `eval-src → EvalResponse` scratch
+>    probe that caught R64; the `put → Verdict` gate built for #72; and 8 probe shorthands
+>    (`Resp`/`GetResp`/`R`, and three `echo → :wat::core::i64` with no Response enum at all).
+>    Enforcement is therefore nearly free.
+> 2. **★ The `<Surface>::<op>/Response` ALIAS CANNOT CARRY VARIANT CONSTRUCTION — PROVEN RED.**
+>    Rust already mints these aliases at registration (`types.rs:3239`) and `service.wat` already
+>    names them, but only in *annotation* position. Probe:
+>    `(:probe::Al::do-op/Response::RequestTooLarge 9999 4096)` →
+>    `UnresolvedReferences … "call head — not a builtin, not a registered function"`, with a
+>    non-vacuity control (the same variant through the DECLARED name) resolving clean. **So naming
+>    the alias is NOT an escape from this stone**, and the hope that the existing mechanism already
+>    solved it is dead. Do not re-derive it.
+> 3. **No split-brain risk in the name rule.** The wat verb `:wat::core::string::kebab->pascal-in`
+>    delegates to `string_ops::kebab_to_pascal_with_acronyms` with the same `sym.acronym_registry`
+>    a Rust check would use. ONE implementation, two callers.
+> 4. **The reflection family cannot help.** `:wat::runtime::*` reads `sym`; freeze step 4 expands
+>    and step 5 registers types, so at defservice-expand time the surface is not there.
+>
+> ## ⛔ STOPs FOR THE NEW DESIGN
+>
+> - **⛔ COMPARE THE BASE NAME, NEVER THE RENDERED TYPE.** `GetResponse<K,V>` CONFORMS. Comparing a
+>   name carrying type args against one without is the exact class of task **#75**, and the
+>   orchestrator committed it *while measuring this very stone* — it reported 14 divergences when
+>   the answer was 10. Three instances of this class in two days.
+> - **⛔ The pascal rule is the ACRONYM-AWARE one.** `create-web-acl → CreateWebACLResponse`
+>   conforms. A naive pascal-caser reports it as divergent (the orchestrator's did).
+> - **⛔ The 2 deliberate negative controls INVERT, they do not migrate.** Their whole subject is
+>   "the name is READ not guessed"; under the ruling that subject is gone. They become fixtures
+>   asserting the surface is REFUSED. The probe that caught R64 becomes the probe that proves the
+>   wall.
+> - **⛔ Do NOT remove `<S>::<OP>-MAX-REQUEST-BYTES`.** It is a genuine runtime NUMBER with no
+>   name-guessing problem. Unchanged from the original stone.
+> - **⛔ 3 probes declare a serviceable op returning a bare primitive** (`echo → :wat::core::i64`,
+>   no Response enum). Enforcement refuses them. That is CORRECT and consistent with #17's
+>   variant-per-failure-kind contract — but it IS scope, so count it.
+>
+> ## The four questions — run against the RULED design
+>
+> | | |
+> |---|---|
+> | **Obvious?** | **YES** — one rule, stated once: an op's response type is `<Op>Response`. The concatenation a reader sees is guaranteed, not a guess. |
+> | **Simple?** | **YES** — one check where the data already sits. Deletes a Rust emitter, a runtime constant, and two EDN-decode branches. Adds no mechanism. |
+> | **Honest?** | **YES** — the name is not guessed, it is REQUIRED, and the requirement is enforced where it is declared. A wrong name is a located compile error again. |
+> | **Good UX?** | **YES** — the error returns to the earliest possible moment, and the wrong form has no representation (the extirpare top rung, not a check bolted beside a convention). |
+>
+> **The cost, named:** two ops can never share one response type, and every serviceable op must
+> carry a full `<Op>Response` enum. Both follow from the ruling's own premise — a service is the
+> OOP layer, and a request gets a response.
+
+
 > **Status: DRAWN 2026-08-04. ⛔ CONDITIONAL — the mechanism is UNPROVEN.** Step 0 is a
 > disconfirming probe and it gates everything below it. If the probe fails, this stone dies and the
 > runtime constant stays; that outcome is a result, not a setback.
