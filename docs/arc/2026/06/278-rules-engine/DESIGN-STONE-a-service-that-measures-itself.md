@@ -1,6 +1,7 @@
 # DESIGN-STONE — a service that measures itself (the first signal consumer)
 
-> **Status: DESIGNED 2026-08-03. ⛔ BLOCKED on one builder ruling — see § THE BLOCKER.**
+> **Status: RULED 2026-08-03 — UNBLOCKED, ready to build.** The fork below is closed: option (ii),
+> `Handle/process → Option<Process>`. And the admin-ask was **cut** — the app queries as it goes.
 > Supersedes the P4 framing in `DESIGN-STONE-process-signal-owner-to-child.md` (the three
 > `libc::raise` tests). Builder's origin: *"should we just build a real mini app? … the service's
 > purpose is to be able to do measurements as it does its ops."*
@@ -38,20 +39,38 @@ correct behaviour is identical whether it was signalled or orphaned. Verified th
 The handlers set the flags. The predicates read them. **The actor layer has never asked.** This app is
 the first consumer — `ALIVS ARGVIT`.
 
-## What the app is
+## What the app is — the builder's sequence, verbatim
+
+```clojure
+(signal proc :sighup)     ;; → SignalOutcome::Delivered
+(query  client :sighup)   ;; → true
+(signal proc :user1)
+(query  client :user1)    ;; → true
+(signal proc :user2)
+(query  client :user2)    ;; → true
+(signal proc :terminate)  ;; → child dies, no notification
+;; the admin handle wakes on the lifeline
+```
 
 One `defservice` that **measures as it serves**: a durable record with a field per observation,
-updated when a flag is found set, returned to the admin on the ask.
+updated when the serve loop finds a flag set, **queried through the ordinary client ops as the test
+progresses.**
 
 ```clojure
 ;; durable — a field per observation. A record, because records ROUND-TRIP TAGGED (proven below).
 (:wat::core::defrecord …::Obs
-  [requests <- :i64  user1 <- :i64  user2 <- :i64])
+  [requests <- :i64  sighup <- :bool  user1 <- :bool  user2 <- :bool])
 ```
 
-- **ops** report the record → the caller sees observations accumulate *during real operation*
-- **the admin ask** (`<svc>/stop h`) returns the final record → ruling 2, exactly
-- **stop** ends the loop → `ServiceEvent::Shutdown → nil`, already built
+**★ THE ADMIN ASK IS CUT.** An earlier draft had the final record delivered via `<svc>/stop h`
+(ruling 2's shape). The builder: *"why does admin stop even need to get invoked? we can just have the
+service measure if the bit is flipped as we progress."* Correct, and it proves **more**:
+
+- querying as you go demonstrates observation **during real operation**, which a final tally cannot
+- it is how a real app reads its own flags — nobody stops a service to find out whether it got a HUP
+- `stop` then needs no state path at all, which is exactly the silent-drop ruling already made
+
+**One run proves all four handlers**, plus discrimination between them, plus clean death.
 
 ## Grounded mechanisms — all of it exists
 
@@ -81,7 +100,25 @@ So, exactly per ruling 5: **user signals are a bitflip observed on the next op; 
 `poll` and must be dealt with.** No test in the substrate demonstrates both models. This one does, in
 one program.
 
-## ⛔ THE BLOCKER — a started service CANNOT be signalled
+## ✅ RESOLVED 2026-08-03 — the blocker, and the one-line fix
+
+**RULED: option (ii).** Mint `Handle/process → (Option Process)` — `Some` on a process locus, `None`
+on a thread. Then the sequence above works with no safety compromise, `signal` stays `Process`-typed,
+and the locus difference becomes *statable* instead of erased.
+
+**This is not new capability — it is un-erasing what `start` already has.** `spawn-program` returns
+`Process<I,O>`; `start` wraps it into `Launched.handle` typed as `Peer`. The concrete locus is thrown
+away at that boundary. The `Option` says the true thing the type already knows.
+
+**The pid route was considered and declined.** `start`'s locus param takes `ProcessOpts`, so
+`(:wat::spawn::process/post-spawn f)` does hand the owner a `ProcessLaunch{pid}` — the sequence could
+be driven by pid today. But `signal` deliberately does not take one: `clone.rs:215-216` documents a pid
+as reuse-unsafe for `kill()`, and the four-questions killed the bare-pid verb on **Honest**. In this
+test the pid happens to be safe (child alive, unreaped) — but that is *safe-because-the-caller-is-
+careful*, which is precisely what the `Process` typing exists to remove. The accessor costs one
+function and keeps the guarantee structural.
+
+### The original blocker, kept for the record — a started service COULD NOT be signalled
 
 `wat/spawn.wat:265` — the Handle carries a **`Peer`**, not a `Process`:
 
@@ -172,15 +209,17 @@ lockstep, not the subject. Sort it on its own.
 
 | | what | state |
 |---|---|---|
-| **A0** | **The builder rules the (i)/(ii)/(iii) fork.** Nothing is buildable before it. | ⛔ **BLOCKED** |
-| **A1** | intueri on the app's vocabulary (the service name, the `Obs` record + its fields, the ops). | after A0 |
-| **A2** | Build the app + its deftest. **The deliberate break:** remove `install_substrate_signal_handlers` at **`spawned_runtime.rs:51`** — the CHILD's install. **NOT `distribution/mod.rs:347`**, which is inside `run_with_args`, a path nextest never executes; that error cost a P3 rider a cycle. | after A1 |
+| ~~**A0**~~ | ~~the (i)/(ii)/(iii) fork~~ — **RULED: (ii), `Handle/process → (Option Process)`.** Admin-ask cut. | ✅ done |
+| **A1** | Mint `Handle/process → (Option Process)` in the defservice Handle. One accessor, un-erasing the concrete locus `start` already holds. | ▶ **startable now** |
+| **A2** | Build the app + its deftest — the builder's sequence verbatim. **The deliberate break:** remove `install_substrate_signal_handlers` at **`spawned_runtime.rs:51`** — the CHILD's install. **NOT `distribution/mod.rs:347`**, which is inside `run_with_args`, a path nextest never executes; that error cost a P3 rider a cycle. | after A1 |
 | **B1** | Census the three `libc::raise` tests against § Second phase. | ▶ startable now, independent |
 | **B2** | Annihilate or rebuild hermetically per B1; delete the `<100ms` bound either way. | after B1 |
 
 ## Open — the builder's
 
-1. **The (i)/(ii)/(iii) fork.** The only true blocker.
-2. Does the app also assert that a *thread*-locus service behaves identically for everything except
-   the signal? The exemplar runs both loci one token apart; it would be cheap, and it would make the
-   locus difference visible in the test rather than only in the type.
+**The fork is ruled; nothing blocks.** One optional question remains:
+
+- Does the app also run on a **thread** locus, asserting identical behaviour for everything except the
+  signal? The exemplar (`service-admin-facet.wat`) runs both loci one token apart, so it is cheap —
+  and it would make `Handle/process → None` visible in a test rather than only in the type. Worth it,
+  but not required for the app to prove what it exists to prove.
