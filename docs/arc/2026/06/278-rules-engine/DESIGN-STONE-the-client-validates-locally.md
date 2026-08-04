@@ -107,6 +107,45 @@ match with identical arms   discard that SATISFIES the gate           ← this
 The first four are greppable. This one **looks like diligence**, and it was written by someone who
 knew about the gate and was explicitly trying to honour it (*"faced, not `_`-swallowed"*).
 
+## ★★ WHERE IT APPLIES — the budget is a property of the WIRE
+
+> Builder, ruling: *"the budget is a property of the wire — process tier only (eventually our N-loci
+> for networked peers)… the distinction is 'shared memory or not'… so threads are never going to hit
+> the limit, only processes and remote peers."*
+
+**This is not a process-tier special case. It is an axis**, and it is the one the record already
+names: *the real split is SHARED-MEMORY vs A WIRE, not thread-vs-process — build wire concerns
+transport-general so networking is a later swap* (`[[project_aws_on_a_single_computer_then_networking]]`).
+
+Grounded, and the substrate already carries the discriminant **under the right name**:
+
+```rust
+PeerTx::Thread(tx) => tx.send(value)      // shared memory — a crossbeam Value handoff. NO encoding.
+PeerTx::Socket(tx) => tx.send(wire)       // THE WIRE — String, "to_wire() is a raw passthrough"
+```
+
+It is `Socket`, not `Process`. So the rule is **"the budget applies wherever `send_wire` is the
+path"** — which covers process peers today and networked peers the day they land, with no second
+edit. Do NOT branch on `locus == process`; branch on whether there is a wire.
+
+### Why this is correctness, not thrift
+
+The thread tier **never encodes at all** — the value crosses in-memory as a Rust value. There is no
+frame, no pipe, no 64 KiB buffer, and no bytes. Imposing a byte budget there would:
+
+1. **Measure a thing that does not exist.** `:max-request-bytes` is a wire concept; a shared-memory
+   handoff has no wire representation to be too large for.
+2. **Force a full serialization onto the one path whose entire point is not serializing** — not a
+   2× cost, but zero-to-full on every call.
+
+And on the wire tier the cost is **nil**: the encode already happens, so the client measures the
+same string it is about to hand to `send_wire`. One encode, as it always was.
+
+*(An earlier draft of this stone worried about "two encodes." That was wrong in both directions —
+the wire tier encodes once either way, and the thread tier encodes never. The builder's "we just
+write edn to the wire like normal?" was the correct instinct; the real question was never cost, it
+was whether a frame exists at all.)*
+
 ## The strike — and it needs no new type
 
 `defservice` **MANDATES** `RequestTooLarge{bytes <- i64, cap <- i64}` on every response enum
