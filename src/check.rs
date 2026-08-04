@@ -3938,6 +3938,20 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // DESIGN-STONE-a-service-that-measures-itself.md / BRIEF-a-service-that-measures-
+            // itself.md — A1: un-erase the concrete locus a `Peer<I,O>`-typed value (e.g. a
+            // defservice Handle's lineage `handle` field, deliberately widened by
+            // `wat/spawn.wat:265` Launched so `stop` stays locus-agnostic) already holds at
+            // runtime. ∀-parametric over I,O (project_peer_io), same partition as close'/recv'.
+            // See infer_peer_process.
+            ":wat::kernel::peer-process" => {
+                let (val, mut errs) = infer_peer_process(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 278 RST stone — `serve-dispatch-op'`: `clients` is checked
             // for internal consistency only (do-style, unconstrained — same
             // discipline as `poll'`'s `listener` arg); `body`'s type IS the
@@ -10530,6 +10544,71 @@ fn infer_signal(
         CheckResult::ok(outcome())
     } else {
         CheckResult::partial_with(outcome(), local_errors)
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_peer_process` is INTRINSIC (∀-parametric),
+// same shape as `infer_close_prime`/`infer_recv_prime` — I,O flow from the peer's
+// Parametric type params into the return type. A defclause cannot enumerate every
+// (I,O) instantiation, same infinite-open-set argument as the other peer verbs.
+/// Type-check `(:wat::kernel::peer-process peer)` — DESIGN-STONE-a-service-that-
+/// measures-itself.md A1.
+///
+/// One positional arg: `args[0]` peer (`Thread<I,O> | Process<I,O> | Peer<I,O> |
+/// ThreadSelfPeer<I,O>` — anything `project_peer_io` accepts, so this works
+/// uniformly whether the caller already holds a concrete peer or the erased
+/// `Peer<I,O>` a defservice `Handle`'s `handle` field carries). Result:
+/// `:wat::core::Option<wat::kernel::Process<I,O>>` — `Some` when the underlying
+/// runtime value is process-tier, `None` on a thread (a thread has no process to
+/// signal). PURE PROJECTION, mirrors `peer-pid` (arc 170 capability circuit stone
+/// 2): a runtime tag read, no effect. Not must-use — `Option` carries no failure
+/// to swallow, unlike the peer-lifecycle outcome walls.
+fn infer_peer_process(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::peer-process";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+        Ok((i_ty, o_ty)) => {
+            let process_ty = TypeExpr::Parametric {
+                head: "wat::kernel::Process".into(),
+                args: vec![apply_subst(&i_ty, subst), apply_subst(&o_ty, subst)],
+            };
+            let ret = TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![process_ty],
+            };
+            if local_errors.is_empty() {
+                CheckResult::ok(ret)
+            } else {
+                CheckResult::partial_with(ret, local_errors)
+            }
+        }
+        Err(()) => {
+            let t = fresh.fresh();
+            CheckResult::partial_with(t, local_errors)
+        }
     }
 }
 

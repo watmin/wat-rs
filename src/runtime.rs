@@ -5738,6 +5738,13 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::signal" => {
             eval_signal(args, list_span, env, sym)
         }
+        // DESIGN-STONE-a-service-that-measures-itself.md A1 — un-erase the concrete
+        // locus a Peer<I,O>-typed value already holds. Same runtime-tag read as
+        // peer-pid, different projection (the peer value itself, not its pid). See
+        // eval_peer_process.
+        ":wat::kernel::peer-process" => {
+            eval_peer_process(args, list_span, env, sym)
+        }
         // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
         // select' : Vector<peer<I,O>> -> Tuple<i64, O>
         ":wat::kernel::select" => {
@@ -26896,6 +26903,54 @@ fn eval_signal(
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "proc (Process<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            })
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::peer-process peer)` — DESIGN-STONE-a-service-that-measures-
+/// itself.md A1.
+///
+/// PURE PROJECTION, un-erasing the concrete locus a `Peer<I,O>`-typed value
+/// already holds at runtime even though the static type widened it to the
+/// abstract `Peer` — exactly the situation a defservice `Handle`'s lineage
+/// `handle` field is in (`wat/spawn.wat:265` `Launched.handle <- Peer<Sh,Lu>`,
+/// deliberate so `stop` stays locus-agnostic). `spawn-program` returns the
+/// concrete `Process<I,O>`/`Thread<I,O>`; the RustOpaque type-path tag never
+/// lies about which one it is, regardless of what the checker widened the
+/// static type to. So:
+/// - a **process** peer → `Some` the SAME peer value, now nameable
+///   `Process<I,O>` — good enough to hand straight to `:wat::kernel::signal`.
+/// - a **thread** peer → `None` — a thread has no process to signal.
+///
+/// Same shape as `eval_peer_pid` (arc 170 capability circuit stone 2): a
+/// runtime tag read, no effect, no signal. Unlike `peer-pid` this does not
+/// need to reach inside the bundle for a field — the peer value itself IS
+/// the answer, just re-tagged at the type level (via the Option wrapper).
+fn eval_peer_process(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::peer-process";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() })
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH => {
+            Ok(Value::Option(std::sync::Arc::new(Some(peer_val.clone()))))
+        }
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH => {
+            Ok(Value::Option(std::sync::Arc::new(None)))
+        }
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread<I,O> | Process<I,O>)",
                 got: Box::new(ValueSnapshot::of(other)),
             })
         .into()),
