@@ -78,7 +78,7 @@ impl<T> Sender<T> {
     pub fn send(&self, value: T) -> Result<(), SendError<T>> {
         self.inner
             .send(value)
-            .map_err(|crossbeam_channel::SendError(v)| SendError(v))
+            .map_err(|crossbeam_channel::SendError(v)| SendError::Disconnected(v))
     }
 
     /// Genuinely non-blocking send — crossbeam's native `try_send`. Returns

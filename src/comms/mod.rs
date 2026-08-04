@@ -906,19 +906,57 @@ pub trait CommReceiver<T>: std::any::Any {
 
 // ─── Error types ─────────────────────────────────────────────────────────────
 
-/// Send failed: receiver was dropped or substrate shut down.
+/// Send failed — the send-side twin of [`RecvError`] (arc 278
+/// send-mirrors-recv, `DESIGN-STONE-send-mirrors-recv.md`). Every arm carries
+/// the unsent `T` so the existing recover-or-resend contract survives.
 ///
-/// Holds the unsent value so the caller can inspect or recover it.
-/// Shape matches `crossbeam_channel::SendError<T>` for ergonomic familiarity.
+/// Built by enumerating `RecvError`'s variants and demanding a send-side
+/// meaning for each: two were holes (send was constructed recv-first, and
+/// nobody read a send failure to notice) and one is a deliberate non-mirror:
+///
+/// - [`SendError::Disconnected`] mirrors `RecvError::Disconnected` — EPIPE,
+///   the reader's end is gone.
+/// - [`SendError::Shutdown`] mirrors `RecvError::Shutdown` — the substrate
+///   shutdown broadcast fired mid-write (the write was polled, not blindly
+///   blocked — see `comms::process::Sender::send`).
+/// - [`SendError::Failed`] mirrors `RecvError::Failed` — a raw io error,
+///   carrying its reason, per the arc 278 no-hidden-failures law.
+/// - `RecvError::PeerCrashed` does NOT mirror: on recv it comes off the
+///   crash channel, but a sender has no crash-channel access at this layer
+///   and sees a dead peer as EPIPE, which honestly collapses into
+///   `Disconnected`. Recorded here rather than silently omitted — silence is
+///   exactly what produced the other holes.
+/// - `RecvError::FrameTooLarge` does NOT mirror: the transport cannot know
+///   which *op* is being sent, so it can never hold the right per-op budget
+///   (arc 278 "cut the cap, prove the poll arm" — `BRIEF-prove-the-poll-arm.md`).
+///   The check moves to the generated client method in a later strike; the
+///   receiver's own `FrameTooLarge` dismissal stays as the sole backstop.
 #[derive(Debug)]
-pub struct SendError<T>(pub T);
+pub enum SendError<T> {
+    /// A genuine clean close: the peer's read end is gone (EPIPE on the
+    /// process tier; every `Receiver` dropped on the thread tier).
+    Disconnected(T),
+    /// The substrate shutdown cascade fired while this send was blocked
+    /// waiting for room (the broadcast / `SHUTDOWN_BROADCAST_READ_FD` arm).
+    /// The peer is not known to be gone — only that the write was told to
+    /// stop waiting.
+    Shutdown(T),
+    /// A raw transport failure with a carried reason: an io error other than
+    /// EPIPE (e.g. `EIO`). The `String` is the underlying error's
+    /// `to_string()`, per the arc 278 no-hidden-failures law — the
+    /// send-tier twin of `RecvError::Failed`.
+    Failed(T, String),
+}
 
 /// Genuinely non-blocking send failed — Arc 278 Phase 3a. Distinguishes WHY
-/// a `try_send` did not land, unlike `SendError` (which is used only by the
-/// blocking `send`, where the distinction is moot — a blocking send never
-/// returns "full", it just waits). Shape mirrors
-/// `crossbeam_channel::TrySendError<T>` exactly for the thread tier; the
-/// process (pipe) tier derives the same two arms from the write's errno.
+/// a `try_send` did not land — unlike the blocking [`SendError`], which now
+/// distinguishes disconnect / shutdown / an over-cap frame / a raw io error
+/// but still has no "full" case (a blocking send never returns "full", it
+/// just waits — that one axis of the old "the distinction is moot" rationale
+/// was correct; the other three were not, which is why `SendError` is now an
+/// enum). Shape mirrors `crossbeam_channel::TrySendError<T>` exactly for the
+/// thread tier; the process (pipe) tier derives the same two arms from the
+/// write's errno.
 #[derive(Debug)]
 pub enum TrySendError<T> {
     /// The channel's bounded slot is occupied (thread tier) / the pipe
@@ -1026,7 +1064,11 @@ impl std::error::Error for RecvError {}
 
 impl<T> std::fmt::Display for SendError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("send failed: channel disconnected")
+        match self {
+            SendError::Disconnected(_) => f.write_str("send failed: channel disconnected"),
+            SendError::Shutdown(_) => f.write_str("send failed: substrate shutdown"),
+            SendError::Failed(_, reason) => write!(f, "send failed: transport failed: {reason}"),
+        }
     }
 }
 

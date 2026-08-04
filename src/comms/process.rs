@@ -321,10 +321,12 @@ impl<T: EdnRepresentable> Sender<T> {
     /// `T::to_holon_ast` → `edn_shim::write_holon_ast_tagged` →
     /// newline-framed bytes → `libc::write` retry loop.
     ///
-    /// Returns `Err(SendError(value))` when the peer's read-end is
-    /// closed (EPIPE) or when the write fails for any other reason.
-    /// The error carries the original `T` so the caller can recover
-    /// or re-send.
+    /// Returns `Err(SendError::Disconnected(value))` when the peer's
+    /// read-end is closed (EPIPE), `Err(SendError::Shutdown(value))`
+    /// when the substrate shutdown broadcast fires while this call is
+    /// blocked waiting for pipe room, or `Err(SendError::Failed(value,
+    /// reason))` for any other write failure. Every arm carries the
+    /// original `T` so the caller can recover or re-send.
     // rune:perspicere(mumble-alias) — return type `Result<(), SendError<T>>` is
     // 2 levels nested but `SendError<T>` already carries the noun; a hypothetical
     // `SendResult<T>` alias would not be more pronounceable than reading
@@ -347,6 +349,60 @@ impl<T: EdnRepresentable> Sender<T> {
         let fd = self.write_fd.as_raw_fd();
         let mut written = 0usize;
         while written < framed.len() {
+            // Arc 278 send-mirrors-recv — poll `[fd → POLLOUT,
+            // SHUTDOWN_BROADCAST_READ_FD → POLLIN|POLLHUP]` before every
+            // write attempt, exactly as `io::PipeWriter::write` already does
+            // (`src/io.rs`, arc 170 closure #5). THE BLOCKING IS NOT THE
+            // BUG (STOP-1) — this still blocks on `libc::write` below when
+            // the pipe has room; the poll only makes the wait WAKEABLE on a
+            // stop instead of uncancellable. When the broadcast fd hasn't
+            // been initialized (-1: test bypass / pre-bootstrap), skip
+            // straight to the blocking write — today's un-multiplexed path,
+            // unchanged.
+            let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
+                .load(std::sync::atomic::Ordering::SeqCst);
+            if broadcast_fd >= 0 {
+                loop {
+                    let mut fds = [
+                        libc::pollfd { fd, events: libc::POLLOUT, revents: 0 },
+                        libc::pollfd {
+                            fd: broadcast_fd,
+                            // POLLIN: the shutdown-worker's wake byte. POLLHUP: the
+                            // broadcast write-end closing after — either wakes us.
+                            events: libc::POLLIN | libc::POLLHUP,
+                            revents: 0,
+                        },
+                    ];
+                    let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+                    if n < 0 {
+                        // EINTR re-polls; never a blind retry.
+                        let err = std::io::Error::last_os_error();
+                        if err.kind() == std::io::ErrorKind::Interrupted {
+                            continue;
+                        }
+                        break; // non-EINTR poll error — proceed to write, let write(2) surface it
+                    }
+                    if n == 0 {
+                        // timeout=-1 should never produce n=0; defensively retry.
+                        continue;
+                    }
+                    // Writable wins ties — mirrors `PipeWriter::write`'s
+                    // documented tie-break (`src/io.rs`): if the fd is
+                    // writable NOW, WRITE (the write cannot block, so there
+                    // is no reason to abandon it); surface the stop only
+                    // when the write WOULD have blocked. A dying process
+                    // must still be able to utter its last words.
+                    if fds[0].revents != 0 {
+                        break; // writable — proceed, stop or no stop
+                    }
+                    if fds[1].revents != 0 {
+                        // Not writable AND a stop is pending → this write
+                        // would block indefinitely. Surface it typed.
+                        return Err(SendError::Shutdown(value));
+                    }
+                }
+            }
+
             // SAFETY: `fd` is valid for the lifetime of `self.write_fd`
             // (OwnedFd-managed; not closed until Drop). The pointer
             // derived from `framed[written..]` is valid for
@@ -365,9 +421,13 @@ impl<T: EdnRepresentable> Sender<T> {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // EPIPE (peer closed) or other write failure — caller
-                // gets the original value back.
-                return Err(SendError(value));
+                if err.kind() == std::io::ErrorKind::BrokenPipe {
+                    // EPIPE — the peer's read-end is gone.
+                    return Err(SendError::Disconnected(value));
+                }
+                // Any other write failure carries its real reason (arc 278
+                // no-hidden-failures — the send-tier twin of RecvError::Failed).
+                return Err(SendError::Failed(value, err.to_string()));
             }
             written += n as usize;
         }
@@ -501,7 +561,10 @@ impl<T: EdnRepresentable> Sender<T> {
     /// let the eval layer encode with `sym.types()` before calling
     /// `Peer::send_wire(String)`.
     pub fn reinterpret<U: EdnRepresentable>(self) -> Sender<U> {
-        Sender { write_fd: self.write_fd, _phantom: std::marker::PhantomData }
+        Sender {
+            write_fd: self.write_fd,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
     /// Signal end-of-stream from this sender. Consumes self so the

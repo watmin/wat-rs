@@ -48,8 +48,13 @@ fn probe_slice1_holon_representable_compiles() {
 #[test]
 fn probe_slice1_send_error_carries_unsent_value() {
     // SendError holds the unsent value for caller recovery (crossbeam pattern).
-    let s = wat::comms::SendError(42i64);
-    assert_eq!(s.0, 42);
+    // Arc 278 send-mirrors-recv: SendError is now a four-variant enum (mirroring
+    // RecvError) — every arm still carries the unsent value.
+    let s = wat::comms::SendError::Disconnected(42i64);
+    match s {
+        wat::comms::SendError::Disconnected(v) => assert_eq!(v, 42),
+        _ => panic!("expected Disconnected"),
+    }
 }
 
 #[test]

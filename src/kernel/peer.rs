@@ -92,9 +92,11 @@ pub struct Thread<I: Send + 'static, O: Send + 'static> {
 impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
     /// Send a value to the spawned thread.
     ///
-    /// Returns `Err(SendError(value))` if the thread has exited and its
-    /// receiver end has been dropped (channel disconnected). A drained
-    /// (`input == None`) peer is unreachable here — see the `None` arm.
+    /// Returns `Err(SendError::Disconnected(value))` if the thread has
+    /// exited and its receiver end has been dropped (channel disconnected —
+    /// the only `SendError` variant the thread tier can honestly produce).
+    /// A drained (`input == None`) peer is unreachable here — see the
+    /// `None` arm.
     pub fn send(&self, value: I) -> Result<(), SendError<I>> {
         match self.input.as_ref() {
             Some(tx) => tx.send(value),
@@ -308,8 +310,9 @@ impl Peer {
     ///
     /// Panics if called on a socket-tier peer — use `send_wire` instead.
     ///
-    /// Returns `Err(SendError(value))` if the peer's receiver endpoint has been
-    /// dropped (channel disconnected or thread exited).
+    /// Returns `Err(SendError::Disconnected(value))` if the peer's receiver
+    /// endpoint has been dropped (channel disconnected or thread exited —
+    /// the only `SendError` variant the thread tier can honestly produce).
     pub fn send(&self, value: crate::value::Value) -> Result<(), SendError<crate::value::Value>> {
         match &self.tx {
             PeerTx::Thread(tx) => tx.send(value),
@@ -323,8 +326,10 @@ impl Peer {
     /// `String`; the transport (`Sender<String>`) writes the bytes as-is
     /// (`String::to_wire()` is a raw passthrough).
     ///
-    /// Returns `Err(SendError(wire))` if the peer's receiver endpoint has been
-    /// dropped (channel disconnected or process exited).
+    /// Returns `Err(SendError::Disconnected(wire))` if the peer's receiver
+    /// endpoint has been dropped (EPIPE), or `Shutdown`/`FrameTooLarge`/
+    /// `Failed(_, reason)` for the other process-transport failures this
+    /// tier can honestly produce — see `comms::process::Sender::send`.
     pub fn send_wire(&self, wire: String) -> Result<(), SendError<String>> {
         match &self.tx {
             PeerTx::Socket(tx) => tx.send(wire),
@@ -557,8 +562,11 @@ impl<I: EdnRepresentable, O: EdnRepresentable> Process<I, O> {
 
     /// Send a value to the child process via the comms::process pipe.
     ///
-    /// Returns `Err(SendError(value))` if the child has exited and the
-    /// pipe's read end is closed (EPIPE).
+    /// Returns `Err(SendError::Disconnected(value))` if the child has exited
+    /// and the pipe's read end is closed (EPIPE), or `Shutdown`/
+    /// `FrameTooLarge`/`Failed(_, reason)` for the other process-transport
+    /// failures this tier can honestly produce — see
+    /// `comms::process::Sender::send`.
     pub fn send(&self, value: I) -> Result<(), SendError<I>> {
         self.input.send(value)
     }

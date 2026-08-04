@@ -26,8 +26,26 @@ fn over_budget_frame_is_rejected_with_reason_then_the_channel_recovers() {
     // A 64-byte per-message cap.
     let (sender, receiver) = pair_with_budget::<String>(64).expect("budgeted comms pair");
 
-    // A bad client's over-budget frame (100 chars → framed > 64 bytes), then a good in-budget frame.
-    sender.send("X".repeat(100)).expect("send over-budget frame");
+    // Arc 278 "cut the cap, prove the poll arm" — `Sender::send` has no
+    // pre-write budget check (the transport cannot know which *op* is being
+    // sent, so it can never hold the right per-op budget; that check moves
+    // to the generated client method in a later strike). This test's
+    // subject is the receiver's own drain-and-realign defense — the sole
+    // backstop against an over-budget frame (STOP-3: "do NOT delete the
+    // receiver's FrameTooLarge dismissal"). A raw write straight to the pipe
+    // fd stands in for "any sender, checked or not, putting an over-budget
+    // frame on the wire" (`String`'s wire is a raw passthrough, so this is
+    // byte-identical to an ordinary `Sender::send` of the same bytes).
+    let raw_fd = sender.raw_fds()[0];
+    let over_budget_line = format!("{}\n", "X".repeat(100)); // framed > 64 bytes
+    let n = unsafe {
+        libc::write(
+            raw_fd,
+            over_budget_line.as_ptr() as *const _,
+            over_budget_line.len(),
+        )
+    };
+    assert_eq!(n, over_budget_line.len() as isize, "raw write of the over-budget frame");
     sender.send("ok".to_string()).expect("send in-budget frame");
     // Not a clean-EOF scenario — the peer stays alive; the frames are the whole story.
     let _keep_alive = &sender;
