@@ -615,6 +615,25 @@ Deliberate and load-bearing — it keeps the ops testable and composable as plai
 walled garden reachable only through the engine, and "grow the expressivity" means adding ordinary
 functions, not extending a special form.
 
+## ✅ BASELINE RE-VERIFIED 2026-08-05, cold, by the orchestrator's own run
+
+Three days of IPC/naming work (#70–#77) landed between the census and the next strike. Everything
+below was re-checked against the disk rather than inherited, because a claim's support does not
+travel with the claim:
+
+| what | claimed | measured 2026-08-05 |
+|---|---|---|
+| the Clara acceptance gate | 9 pairs / 98 rows agreeing | **9 pairs / 98 rows, `wat == Clara` on every shape** |
+| `RETE_OPS` rows on disk | 18 | **18**, and the names match one-for-one (whole `i64` module + `and/or/not/if/let/match/fn`) |
+| the `where` corpus | untouched by the detour | **untouched** — nothing under `wat-scripts/perf/grid/`, `wat/rete.wat` or `src/rete/` changed; the only two `tests/rete/` files touched (by #73's `Stopped` sweep) contain **zero** `where` forms |
+
+`./wat-scripts/perf/grid/check-where-shapes.sh` — per-family: boolean 15, collection 10, control 9,
+multivar 12, nesting 11, numeric 10, record 13, shapes 6, string 12.
+
+**So the migration starts from a proven-green baseline, and any post-migration drift is the
+migration's**, not inherited. Re-run this gate before briefing and again at the weigh — a spelling
+migration must not move a single derived fact, and this is the instrument that says so.
+
 ## ★ STRIKE ORDER — THIS TABLE IS THE LIST. The board mirrors it; it does not replace it.
 
 > **Two numbering schemes exist and they do NOT line up.** The `S`-labels are this stone's; the `#`s are
