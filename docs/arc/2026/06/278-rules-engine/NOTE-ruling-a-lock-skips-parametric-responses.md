@@ -1,8 +1,24 @@
 # NOTE — ruling A's SHAPE lock never runs on a parametric response
 
-> **Status: OPEN, deferred, and the disposition is the builder's.** Found 2026-08-05 while
-> scouting #74. Proven by a run with a non-vacuity control. Deliberately NOT folded into #74.
-> Tracked as task #76; **this file is the durable record — the board is not.**
+> # ✅ CLOSED 2026-08-05, hours after it was filed. Kept for the class, not the defect.
+>
+> **The lock now reaches parametric responses.** `if let TypeExpr::Path(resp_path) = ret`
+> became a two-arm match normalizing either variant to the registered base name. Proven by
+> re-running the exact fixtures below: the parametric-without-RequestTooLarge case is now
+> REFUSED and located, the monomorphic control still refuses, and all four real parametric
+> responses in the corpus still pass. Floor `4347/4347/0/262`, clippy clean.
+>
+> **★ AND THE DEFERRAL WAS THE MISTAKE, which is the part worth keeping.** This note
+> originally argued the fix should wait for #75's accessor, on the grounds that arming an
+> unarmed lock is a behaviour change that could turn the floor red. That was a *guess wearing
+> a risk assessment's clothes* — the census that settles it takes one command and had not
+> been run. Run: **4 parametric responses exist in the whole corpus and all 4 already carried
+> both mandated variants**, so arming caught nothing and could never have reddened anything.
+> The builder cut it in one line — *"it feels like this is a trivial thing to just do now?"* —
+> and he was right. **Measure before you pose a deferral; a cost you have not measured is not
+> a reason, it is a feeling.** ([[feedback_measure_before_you_pose_the_decision]])
+>
+> Everything below is the record as filed, unedited. Task #76 is closed against it.
 
 ## The defect
 

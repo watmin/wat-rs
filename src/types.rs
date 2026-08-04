@@ -2941,7 +2941,30 @@ fn synthesize_surface_protocol(
         // enums, unlike the retired record Responses, resolve here.) A Response declared
         // AFTER the surface is not our concern — it is an unknown path with its own
         // unresolved-reference diagnostic downstream, so we only lock what we can resolve.
-        if enforce_rtl_lock { if let TypeExpr::Path(resp_path) = ret {
+        // Arc 278 #76 — the lock reaches a PARAMETRIC response too. It used to read
+        // `if let TypeExpr::Path(resp_path) = ret`, so a `GetResponse<K,V>` (a
+        // `TypeExpr::Parametric`) fell to the `_ => {}` arm below and the whole ruling-A
+        // SHAPE lock — RequestTooLarge well-shaped, RequestMalformed well-shaped — NEVER
+        // RAN ON IT. Proven with a non-vacuity control: a parametric response missing
+        // `RequestTooLarge` was ACCEPTED silently while its monomorphic twin was refused,
+        // located. Every parametric Response in the corpus (4, one of them stdlib —
+        // `wat/cache.wat`) carried both variants by AUTHOR DILIGENCE, not by this lock.
+        //
+        // A parametric decl REGISTERS under its bare base — `parse_declared_name`
+        // (~:4155) splits at the first `<` and stores the params separately — so
+        // `env.get` needs the base with its colon re-prepended. `Parametric`'s `head` is
+        // stored WITHOUT the leading `:` and that is DELIBERATE (both parse paths,
+        // `Head<args>` and `(Ctor arg…)`, must yield a byte-identical head for
+        // unification), so the normalization belongs HERE, at the read site, never
+        // upstream in the parser. This is the same one-line-per-site hand-match that
+        // task #75's `TypeExpr` accessor exists to delete across ~137 sites; when that
+        // lands, this becomes one of its call sites.
+        let resp_lookup: Option<String> = match ret {
+            TypeExpr::Path(p) => Some(p.clone()),
+            TypeExpr::Parametric { head, .. } => Some(format!(":{head}")),
+            _ => None,
+        };
+        if enforce_rtl_lock { if let Some(resp_path) = resp_lookup.as_ref() {
             match env.get(resp_path) {
                 Some(TypeDef::Aggregate(_)) => {
                     return Err(TypeError::new(
