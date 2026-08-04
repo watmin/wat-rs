@@ -53,7 +53,7 @@ meaning for each on the other. Every variant without a twin is either a real dif
 | `Disconnected` | EPIPE — the reader's end is gone | ✅ have |
 | `Shutdown` | the broadcast fired mid-write | ❌ **HOLE — build it** (the poll arm) |
 | `Failed(String)` | an io error, carrying its reason | ❌ **HOLE — build it** (`Err(_)` discards it) |
-| `FrameTooLarge` | the outgoing frame exceeds the cap | ❌ **HOLE — build it** (and give `Sender` the budget) |
+| `FrameTooLarge` | the outgoing frame exceeds the cap | ⊘ **WRONG LAYER — moved out** (see below) |
 | `PeerCrashed` | the peer died rather than closed | ⊘ **REAL DIFFERENCE — do not mirror** |
 
 **Three holes, one named non-mirror.**
@@ -92,11 +92,25 @@ pipe I/O to deliver something it is contractually obliged to discard. Checking b
 means the bad frame never enters the pipe. That is a cheap limit at the start, exactly as stdin
 already imposes one.
 
-**The change:** `Sender<T>` gains `max_frame_bytes`, symmetric with `Receiver` (the value is already
-in scope at every construction site — `pair_with_budget`, `sender_receiver_from_fd_with_budget`,
-`sender_receiver_from_split_fds`). `Sender::send` tests the framed length before the write loop and
-returns `SendError::FrameTooLarge(value)`, handing the caller a typed refusal instead of a silent
-dismissal after the bytes are gone.
+> ### ⛔⛔ AND THEN THE CHECK MOVED OUT OF THIS STONE ENTIRELY — 2026-08-03, the same day
+>
+> The paragraph above is **right about the goal and wrong about the layer**, and it cost a rider a
+> strike: adding the check to `comms::process::Sender::send` produced the floor's one regression, a
+> **deadlock**. Full write-up: **`DESIGN-STONE-the-client-validates-locally.md`**.
+>
+> **`Sender` gets NO budget field and NO `FrameTooLarge` arm.** The transport knows the frame but
+> not the OP, so it can never hold the right number — it checked `DEFAULT_MAX_FRAME_BYTES` (512 KiB)
+> and refused a legitimate 600 KB request to a service whose surface declares 1 MiB.
+>
+> There are two limits and this stone conflated them:
+> - **`:max-request-bytes`** — on the **surface**, per op. Both sides compile against it. **This is
+>   the contract, and the only number a client may check.** Already emitted as a surface-scoped
+>   constant `<Surface>::<OP>-MAX-REQUEST-BYTES` (`types.rs:3041`/`:3132`).
+> - **`:max-frame-bytes`** (FOO) — on the **defservice**. Server-only, may be *stricter* than the
+>   contract (`smallfoo` = 4 KiB). Unknowable to a dialer; stays a server-side dismissal.
+>
+> So the cap belongs in the **generated client method**, where the op is known — not on the wire
+> primitive. This stone keeps `Shutdown` and `Failed`. That is all it ever should have claimed.
 
 ### Why `PeerCrashed` does not mirror
 
