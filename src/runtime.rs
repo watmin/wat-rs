@@ -6052,11 +6052,7 @@ fn dispatch_keyword_head_value(
                                         // malformed declaration reaching here some other way.
                                         _ => protocol_fqdn,
                                     };
-                                    let resp_base = if resp_base_raw.starts_with(':') {
-                                        resp_base_raw.to_string()
-                                    } else {
-                                        format!(":{resp_base_raw}")
-                                    };
+                                    let resp_base = crate::types::parametric_head_fqdn(resp_base_raw);
                                     let cap_const_kw = format!(
                                         "{}::{}-MAX-REQUEST-BYTES",
                                         protocol_fqdn,
@@ -7007,7 +7003,7 @@ pub(crate) fn parse_extend_type_form(
     // Parse failure (should not happen for a well-formed keyword) falls back to the raw
     // keyword verbatim — preserves the prior behavior rather than fabricating a split.
     let (protocol_name, protocol_type_args) = match crate::types::parse_type_expr(&protocol_name_raw) {
-        Ok(crate::types::TypeExpr::Parametric { head, args }) => (format!(":{}", head), args),
+        Ok(crate::types::TypeExpr::Parametric { head, args }) => (crate::types::parametric_head_fqdn(&head), args),
         Ok(crate::types::TypeExpr::Path(p)) => (p, Vec::new()),
         _ => (protocol_name_raw.clone(), Vec::new()),
     };

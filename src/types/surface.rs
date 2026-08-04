@@ -934,7 +934,7 @@ fn collect_user_type_paths(t: &TypeExpr, out: &mut Vec<String>) {
         TypeExpr::Path(p) => out.push(p.clone()),
         TypeExpr::Parametric { head, args } => {
             // Parametric heads are stored without the leading colon; re-add it for a uniform check.
-            out.push(format!(":{}", head));
+            out.push(super::parametric_head_fqdn(head));
             for a in args {
                 collect_user_type_paths(a, out);
             }

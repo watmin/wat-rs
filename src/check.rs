@@ -4807,7 +4807,7 @@ fn infer_list(
                                         if let TypeExpr::Parametric { head, args: recv_args } =
                                             apply_subst(recv_ty, subst)
                                         {
-                                            if format!(":{head}") == protocol_fqdn
+                                            if crate::types::parametric_head_fqdn(&head) == protocol_fqdn
                                                 && recv_args.len() == s.type_params.len()
                                             {
                                                 let mapping: HashMap<String, TypeExpr> = s
@@ -11174,13 +11174,7 @@ fn process_let_binding(
                     let struct_name = match &rhs_ty {
                         TypeExpr::Path(n) => n.clone(),
                         // Parametric structs: head is the struct's name.
-                        TypeExpr::Parametric { head, .. } => {
-                            if head.starts_with(':') {
-                                head.clone()
-                            } else {
-                                format!(":{}", head)
-                            }
-                        }
+                        TypeExpr::Parametric { head, .. } => crate::types::parametric_head_fqdn(head),
                         other => {
                             binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: form.into(),
@@ -14389,12 +14383,12 @@ pub(crate) fn assignable(
     }
     // Arc 267 — a parametric type satisfies a plain protocol bound iff its CONSTRUCTOR
     // extend-types the protocol. Edge keys carry the leading colon (types.rs:1402);
-    // Parametric.head does not — reconcile with `format!(":{head}")`.
+    // Parametric.head does not — reconcile with `crate::types::parametric_head_fqdn`.
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
         // Full-args edge (a full-parametric extend-type, e.g. Peer'<Op,Reply> <: :S — PROTOCOL-SPECIFIC)
         // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. Vector<T> <: :Proto).
         if crate::types::is_subtype(&format_type(&a), ep, types)
-            || crate::types::is_subtype(&format!(":{head}"), ep, types) {
+            || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types) {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
         }
@@ -14409,7 +14403,7 @@ pub(crate) fn assignable(
     // permissive: `is_subtype` is an EXACT-string match on the parent, so `echo'::Handle` matches ONLY
     // `Dialable<Echo::Op,Echo::Reply>`, never `Dialable<Kv::Op,Kv::Reply>` — the swap-gate holds.
     if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, .. }) = (&a, &e) {
-        let surface_key = format!(":{head}");
+        let surface_key = crate::types::parametric_head_fqdn(head);
         if let Some(crate::types::TypeDef::Surface(_)) = types.get(&surface_key) {
             if crate::types::is_subtype(ap, &format_type(&e), types) {
                 // Nature floor uses the BARE surface key (the full-args string is not a
@@ -14431,7 +14425,11 @@ pub(crate) fn assignable(
     {
         if ah != eh
             && aargs.len() == eargs.len()
-            && crate::types::is_subtype(&format!(":{ah}"), &format!(":{eh}"), types)
+            && crate::types::is_subtype(
+                &crate::types::parametric_head_fqdn(ah),
+                &crate::types::parametric_head_fqdn(eh),
+                types,
+            )
             && aargs
                 .iter()
                 .zip(eargs.iter())

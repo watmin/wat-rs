@@ -104,6 +104,39 @@ pub enum TypeExpr {
     Tuple(Vec<TypeExpr>),
 }
 
+/// The one place the bare-parametric-head invariant is written down.
+/// `"wat::core::Vector"` → `":wat::core::Vector"`. Idempotent: input that already
+/// carries the colon is returned unchanged.
+///
+/// `TypeExpr::Parametric.head` is stored WITHOUT a leading colon — deliberately,
+/// so its two parse paths (`Head<args>` and `(Ctor arg…)`) produce a byte-identical
+/// string for unification (see the parsing notes near `parse_type_inner` and
+/// `parse_fn_body`). `TypeExpr::Path` carries its colon. Do NOT "fix" this asymmetry
+/// at storage — that breaks unification. Normalize at the read site, through this
+/// function, instead.
+pub(crate) fn parametric_head_fqdn(head: &str) -> String {
+    if head.starts_with(':') {
+        head.to_string()
+    } else {
+        format!(":{head}")
+    }
+}
+
+impl TypeExpr {
+    /// FQDN of this type's head — colon-prefixed, type args stripped.
+    /// `None` for variants with no nameable head (Tuple, Fn, …).
+    ///
+    /// One implementation, two doors: the `Parametric` arm calls
+    /// [`parametric_head_fqdn`] rather than re-hand-rolling the colon-prepend.
+    pub(crate) fn base_fqdn(&self) -> Option<String> {
+        match self {
+            TypeExpr::Path(p) => Some(p.clone()),
+            TypeExpr::Parametric { head, .. } => Some(parametric_head_fqdn(head)),
+            TypeExpr::Fn { .. } | TypeExpr::Var(_) | TypeExpr::Tuple(_) => None,
+        }
+    }
+}
+
 /// Arc 203 — per-struct access-control restrictions, populated by
 /// `(:wat::core::struct-restricted ...)` declarations.
 ///
@@ -2807,10 +2840,9 @@ fn synthesize_surface_protocol(
         // at the now-deleted `build_op_response_type_constants`) — normalize here, at this one
         // read site, exactly as that function did.
         if enforce_rtl_lock {
-            let declared_base: String = match ret {
-                TypeExpr::Path(p) => p.clone(),
-                TypeExpr::Parametric { head, .. } => format!(":{head}"),
-                other => {
+            let declared_base: String = match ret.base_fqdn() {
+                Some(b) => b,
+                None => {
                     return Err(TypeError::new(
                         decl_span.clone(),
                         TypeErrorKind::MalformedDecl {
@@ -2820,7 +2852,7 @@ fn synthesize_surface_protocol(
                                  be a nameable type (`<Op>Response`) — declared `{:?}`, which \
                                  has no name to compare against the law (arc 278 #74: an op's \
                                  response type IS `<Op>Response`)",
-                                name, surface.name, other
+                                name, surface.name, ret
                             ),
                         },
                     ));
@@ -2870,10 +2902,9 @@ fn synthesize_surface_protocol(
         // and its committed test asserts the Response message verbatim, so Response must fire
         // first.
         if enforce_rtl_lock {
-            let declared_base: String = match &request_ty {
-                TypeExpr::Path(p) => p.clone(),
-                TypeExpr::Parametric { head, .. } => format!(":{head}"),
-                other => {
+            let declared_base: String = match request_ty.base_fqdn() {
+                Some(b) => b,
+                None => {
                     return Err(TypeError::new(
                         decl_span.clone(),
                         TypeErrorKind::MalformedDecl {
@@ -2883,7 +2914,7 @@ fn synthesize_surface_protocol(
                                  be a nameable type (`<Op>Request`) — declared `{:?}`, which \
                                  has no name to compare against the law (arc 278 #74b: an op's \
                                  request type IS `<Op>Request`)",
-                                name, surface.name, other
+                                name, surface.name, request_ty
                             ),
                         },
                     ));
@@ -2959,11 +2990,7 @@ fn synthesize_surface_protocol(
         // upstream in the parser. This is the same one-line-per-site hand-match that
         // task #75's `TypeExpr` accessor exists to delete across ~137 sites; when that
         // lands, this becomes one of its call sites.
-        let resp_lookup: Option<String> = match ret {
-            TypeExpr::Path(p) => Some(p.clone()),
-            TypeExpr::Parametric { head, .. } => Some(format!(":{head}")),
-            _ => None,
-        };
+        let resp_lookup: Option<String> = ret.base_fqdn();
         if enforce_rtl_lock { if let Some(resp_path) = resp_lookup.as_ref() {
             match env.get(resp_path) {
                 Some(TypeDef::Aggregate(_)) => {
@@ -4860,7 +4887,7 @@ pub fn expand_alias(expr: &TypeExpr, env: &TypeEnv) -> TypeExpr {
                 _ => return current,
             },
             TypeExpr::Parametric { head, args } => {
-                let qualified = format!(":{}", head);
+                let qualified = parametric_head_fqdn(head);
                 match env.get(&qualified) {
                     Some(TypeDef::Alias(alias))
                         if alias.type_params.len() == args.len() =>
@@ -4964,7 +4991,7 @@ fn check_alias_reaches(
             }
         }
         TypeExpr::Parametric { head, args } => {
-            let qualified = format!(":{}", head);
+            let qualified = parametric_head_fqdn(head);
             if qualified == target_name {
                 return Err(TypeError::new(
                     span.clone(),
@@ -5205,6 +5232,46 @@ fn collect_member_recursive(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Arc 109 one-door stone — `parametric_head_fqdn` is IDEMPOTENT, and that is
+    /// load-bearing rather than a nicety.
+    ///
+    /// This strike DELETED two hand-rolled defensive branches — one in `check.rs`, one
+    /// in `runtime.rs` — each written as `if head.starts_with(':') { head.clone() } else
+    /// { format!(":{}", head) }` by an author who did not trust the bare-head invariant.
+    /// Both now call this function. So if it ever regresses to a blind prepend, those two
+    /// sites silently produce `"::wat::…"` — a malformed FQDN that resolves to nothing,
+    /// and no other test in the corpus feeds it an already-prefixed head.
+    ///
+    /// A contract stated only in a doc comment is a convention. This whole stone exists
+    /// because the convention rung is where new violations come from — so the contract
+    /// gets a check.
+    #[test]
+    fn parametric_head_fqdn_is_idempotent_and_prepends_exactly_once() {
+        // the ordinary case: a bare parametric head gains its colon
+        assert_eq!(parametric_head_fqdn("wat::core::Vector"), ":wat::core::Vector");
+        // ★ the case the deleted defensive branches existed for: already prefixed,
+        //   returned UNCHANGED — never `"::wat::core::Vector"`
+        assert_eq!(parametric_head_fqdn(":wat::core::Vector"), ":wat::core::Vector");
+        // applying it twice is applying it once
+        let once = parametric_head_fqdn("wat::kernel::Peer");
+        assert_eq!(parametric_head_fqdn(&once), once);
+
+        // and the two doors agree — `base_fqdn`'s Parametric arm must route through the
+        // same implementation, not re-hand-roll the prepend.
+        let parametric = TypeExpr::Parametric {
+            head: "wat::core::Vector".to_string(),
+            args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+        };
+        assert_eq!(parametric.base_fqdn().as_deref(), Some(":wat::core::Vector"));
+        // a Path already carries its colon and must not gain a second one
+        assert_eq!(
+            TypeExpr::Path(":wat::core::i64".to_string()).base_fqdn().as_deref(),
+            Some(":wat::core::i64"),
+        );
+        // variants with no nameable head say so rather than fabricating one
+        assert_eq!(TypeExpr::Tuple(vec![]).base_fqdn(), None);
+    }
 
     // Arc 115 slice 2 — verify parse_type_expr rejects illegal
     // inner-colon forms.

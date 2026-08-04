@@ -1218,7 +1218,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr) -> Result<Wa
                 format!("wat.type/{tail}")
             } else if head.contains("::") {
                 // Case 3: user/library type -> namespace-preserving.
-                wat_keyword_to_clojure_symbol(&format!(":{head}")).ok_or_else(|| {
+                wat_keyword_to_clojure_symbol(&crate::types::parametric_head_fqdn(head)).ok_or_else(|| {
                     format!("cannot render parametric head `:{head}` (malformed namespaced path)")
                 })?
             } else {
@@ -2272,7 +2272,7 @@ fn edn_to_typed_value_inner(
             _ => {
                 // Parametric user type — strip `<...>` to look up the
                 // base declaration; coerce against the base shape.
-                let path = format!(":{}", head);
+                let path = crate::types::parametric_head_fqdn(head);
                 let env = types.ok_or_else(|| mismatch(target, edn))?;
                 match env.get(&path) {
                     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.

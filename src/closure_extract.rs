@@ -1374,7 +1374,7 @@ fn record_type_refs_in_typeexpr(state: &mut ExtractState<'_>, ty: &TypeExpr) {
         TypeExpr::Parametric { head, args } => {
             // `head` carries no leading colon (e.g. "wat::core::Vector");
             // re-attach for substrate-prefix check + lookup.
-            let head_kw = format!(":{}", head);
+            let head_kw = crate::types::parametric_head_fqdn(head);
             if !crate::resolve::is_reserved_prefix(&head_kw)
                 && state.parent_types.get(&head_kw).is_some()
             {
@@ -1563,7 +1563,7 @@ fn collect_typeexpr_type_names_one(
             }
         }
         TypeExpr::Parametric { head, args } => {
-            let head_kw = format!(":{}", head);
+            let head_kw = crate::types::parametric_head_fqdn(head);
             if !crate::resolve::is_reserved_prefix(&head_kw)
                 && env.get(&head_kw).is_some()
             {
