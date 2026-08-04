@@ -24,8 +24,12 @@
 ;; below the restricted wat verb, on the EXACT peer `:wat::kernel::signal` (the code under test)
 ;; just delivered Kill through.
 ;;
-;; SUPERSEDED-BY: P4 (DESIGN-STONE-process-signal-owner-to-child.md strike order) rebuilds the
-;; three `libc::raise(SIGTERM)` harness tests as wat deftests over the real cascade. If a future
+;; P4 LANDED. The three self-signalling harness tests are gone: two re-exec and signal a real
+;; child (`probe_arc170_writer_joins_lockstep.rs`, `probe_arc278_send_poll_arm.rs`), and the two
+;; shutdown-cascade tests were DELETED outright in favour of
+;; `wat-tests/process/signal-terminate-kills-the-child-and-the-read-sees-it.wat` — a parent that
+;; spawns a child, reads it, signals it, and reads it gone. `grep -rn 'libc::raise' tests/` now
+;; returns only this sentence. If a future
 ;; strike gives wat source a sanctioned path to `close'` (a stdlib-privileged test helper, or a
 ;; non-restricted "peek" verb), THIS fixture should be replaced with a pure-wat one that matches
 ;; `CloseOutcome::Signaled` directly instead of reading `Process::wait()` from Rust.
