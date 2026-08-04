@@ -55,4 +55,4 @@
         (:wat::kernel::println
           (:wat::core::string::concat
             "PROBE-PASS: SendOutcome::Lost (a VALUE, not a raise): "
-            (:wat::kernel::Failure/message cause)))))))
+            (:wat::kernel::LociDiedError/message cause)))))))

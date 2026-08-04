@@ -45,7 +45,7 @@
             (:wat::kernel::SendOutcome::Closed
               (:wat::kernel::assertion-failed! "send: child closed unexpectedly" :wat::core::None :wat::core::None))
             ((:wat::kernel::SendOutcome::Lost cause)
-              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
+              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
         ((:wat::kernel::SignalOutcome::Failed cause)
           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
     (:wat::core::Vector :wat::core::bool true false)))

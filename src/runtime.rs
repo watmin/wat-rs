@@ -23463,16 +23463,34 @@ fn send_outcome_closed() -> Value {
     }))
 }
 
-/// `SendOutcome::Lost [cause <- Failure]` — disconnected mid-send (was the "channel
-/// disconnected" raise). Built via `message_only_failure` — send' structurally
-/// cannot know WHY the peer died (the crash reason is on the owner peer's crash
-/// channel, faced via the recv' wall); send' says THAT the peer is gone, honest not
-/// fabricated.
-fn send_outcome_lost(reason: String) -> Value {
+/// `:wat::kernel::LociDiedError::Disconnected []` — the peer's receiving end is
+/// gone. Arc 278 BRIEF-send-carries-its-cause (#70): the ONLY cause `send'`'s
+/// underlying transport can honestly report today. `comms::thread::Sender::send`
+/// and `comms::process::Sender::send` both collapse every write failure into a
+/// bare `SendError(value)` — the unsent value, with NO reason attached (unlike
+/// `RecvError`, which is cascade-aware and already distinguishes `Shutdown` from
+/// `Disconnected`). Neither send transport currently polls the substrate's
+/// shutdown signal mid-write, so a `LociDiedError::Stopped` is not yet
+/// producible from any live send' call site — mapping to `Stopped` here would
+/// be fabrication (STOP-2/the ruling's "carry the real reason", never a guessed
+/// one). `Disconnected` is the honest, and currently only, cause.
+fn loci_died_disconnected() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::LociDiedError".into(),
+        variant_name: "Disconnected".into(),
+        fields: vec![],
+    }))
+}
+
+/// `SendOutcome::Lost [cause <- LociDiedError]` — disconnected mid-send (was the
+/// "channel disconnected" raise). Arc 278 BRIEF-send-carries-its-cause (#70):
+/// widened from a flat `Failure` to the SAME loci-agnostic `LociDiedError` recv'
+/// already carries — the caller now MATCHES the cause instead of reading prose.
+fn send_outcome_lost(cause: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SEND_OUTCOME_TYPE.into(),
         variant_name: "Lost".into(),
-        fields: vec![message_only_failure(reason)],
+        fields: vec![cause],
     }))
 }
 
@@ -23513,15 +23531,15 @@ fn try_send_outcome_closed() -> Value {
     }))
 }
 
-/// `TrySendOutcome::Lost [cause <- Failure]` — receiver dropped mid-send
+/// `TrySendOutcome::Lost [cause <- LociDiedError]` — receiver dropped mid-send
 /// (crossbeam `TrySendError::Disconnected` / a genuine process-tier write
-/// failure). Built via `message_only_failure` — same honesty boundary as
-/// `send_outcome_lost`: `try-send'` says THAT the peer is gone, not WHY.
-fn try_send_outcome_lost(reason: String) -> Value {
+/// failure). Arc 278 BRIEF-send-carries-its-cause (#70): widened symmetric with
+/// `send_outcome_lost` above.
+fn try_send_outcome_lost(cause: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
         variant_name: "Lost".into(),
-        fields: vec![message_only_failure(reason)],
+        fields: vec![cause],
     }))
 }
 
@@ -26105,7 +26123,7 @@ fn eval_peer_send_prime(
                     None => send_outcome_closed(),
                     Some(peer) => match peer.send(payload_val) {
                         Ok(()) => send_outcome_sent(),
-                        Err(_) => send_outcome_lost("send: peer disconnected".into()),
+                        Err(_) => send_outcome_lost(loci_died_disconnected()),
                     },
                 })
             })
@@ -26136,7 +26154,7 @@ fn eval_peer_send_prime(
                     Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                         Ok(match bundle.peer.send(edn_str.clone()) {
                             Ok(()) => send_outcome_sent(),
-                            Err(_) => send_outcome_lost("send: peer disconnected".into()),
+                            Err(_) => send_outcome_lost(loci_died_disconnected()),
                         })
                     }
                     // arc 292 L3 — timers are select'-only; send' is not supported. Not a
@@ -26182,14 +26200,14 @@ fn eval_peer_send_prime(
                         );
                         match peer.send_wire(wire) {
                             Ok(()) => send_outcome_sent(),
-                            Err(_) => send_outcome_lost("send: peer disconnected".into()),
+                            Err(_) => send_outcome_lost(loci_died_disconnected()),
                         }
                     }
                     Some(peer) => {
                         // Thread-tier: pass Value in-process, no serialisation.
                         match peer.send(payload_val) {
                             Ok(()) => send_outcome_sent(),
-                            Err(_) => send_outcome_lost("send: peer disconnected".into()),
+                            Err(_) => send_outcome_lost(loci_died_disconnected()),
                         }
                     }
                 })
@@ -26260,7 +26278,7 @@ fn eval_peer_try_send_prime(
                                 crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                                 crate::kernel::peer::TrySendResult::Full => try_send_outcome_would_block(),
                                 crate::kernel::peer::TrySendResult::Disconnected => {
-                                    try_send_outcome_lost("try-send: peer disconnected".into())
+                                    try_send_outcome_lost(loci_died_disconnected())
                                 }
                             }
                         }
@@ -26268,7 +26286,7 @@ fn eval_peer_try_send_prime(
                             crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                             crate::kernel::peer::TrySendResult::Full => try_send_outcome_would_block(),
                             crate::kernel::peer::TrySendResult::Disconnected => {
-                                try_send_outcome_lost("try-send: peer disconnected".into())
+                                try_send_outcome_lost(loci_died_disconnected())
                             }
                         },
                     }

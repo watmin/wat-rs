@@ -86,7 +86,7 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc::increment
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>
@@ -106,7 +106,7 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc::reset
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
@@ -125,7 +125,7 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc::shutdown
      [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
@@ -144,7 +144,7 @@
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
 
 (:wat::test::deftest :counter-actor::process-proof

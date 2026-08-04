@@ -1641,19 +1641,22 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   :Sent   []                — delivered (the happy path).
     //   :Closed []                — peer already cleanly closed (use-after-close;
     //                                was the "peer already closed" raise).
-    //   :Lost   [cause <- Failure] — disconnected mid-send; UNCONSTRUCTIBLE without
-    //                                a structured cause (built via message_only_failure
-    //                                — send' structurally cannot know WHY the peer
-    //                                died, only THAT it's gone; the owner's recv'
-    //                                faces the WHY). Was the "channel disconnected" raise.
+    //   :Lost   [cause <- LociDiedError] — disconnected mid-send; UNCONSTRUCTIBLE without
+    //                                a structured cause. Arc 278 BRIEF-send-carries-its-cause
+    //                                (#70): widened from the flat `Failure` to the SAME
+    //                                loci-agnostic `LociDiedError` recv' already carries —
+    //                                send' CAN distinguish a stop-woke-a-blocked-write
+    //                                (`Stopped`) from a genuine peer loss (`Disconnected`);
+    //                                it was simply discarding the distinction. Was the
+    //                                "channel disconnected" raise.
     // PURE — unlike RecvOutcome. RecvOutcome<O> is Impure ONLY because of its payload
     // `O` (the received message may be a live resource — a socket/file handle). SendOutcome
     // is NON-parametric and holds only pure data: two nullary variants + `Lost[cause <-
-    // Failure]`, and Failure is Nature::Record (pure EDN, arc 293.W.2b). A SendOutcome is
-    // fully EDN-reconstructable / wire-crossable; marking it Impure would LIE (claim its
-    // values are locus-bound when they are not). Registered as a builtin for the same
-    // load-order reason as RecvOutcome — send' is used inside the stdlib before any
-    // wat defenum would load.
+    // LociDiedError]`, and LociDiedError is Purity::Pure (a death report — crosses back to
+    // the owner as EDN data). A SendOutcome is fully EDN-reconstructable / wire-crossable;
+    // marking it Impure would LIE (claim its values are locus-bound when they are not).
+    // Registered as a builtin for the same load-order reason as RecvOutcome — send' is used
+    // inside the stdlib before any wat defenum would load.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::SendOutcome".into(),
         type_params: vec![],
@@ -1665,7 +1668,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 name: "Lost".into(),
                 fields: vec![(
                     "cause".into(),
-                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
                 )],
             },
         ],
@@ -1685,11 +1688,13 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                    (crossbeam TrySendError::Full /
     //                                    process-tier EWOULDBLOCK) — try-send' ONLY.
     //   :Closed     []                — peer already cleanly closed (cell None).
-    //   :Lost       [cause <- Failure] — receiver dropped mid-send (crossbeam
+    //   :Lost       [cause <- LociDiedError] — receiver dropped mid-send (crossbeam
     //                                    TrySendError::Disconnected / a genuine
-    //                                    process-tier write failure).
+    //                                    process-tier write failure). Arc 278
+    //                                    BRIEF-send-carries-its-cause (#70): widened
+    //                                    symmetric with SendOutcome::Lost above.
     // PURE for the same reason SendOutcome is (see above) — non-parametric, only
-    // pure data (three nullary variants + a pure `Failure` record).
+    // pure data (three nullary variants + a pure `LociDiedError` record).
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::TrySendOutcome".into(),
         type_params: vec![],
@@ -1702,7 +1707,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 name: "Lost".into(),
                 fields: vec![(
                     "cause".into(),
-                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
                 )],
             },
         ],
