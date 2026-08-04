@@ -86,3 +86,12 @@ builder's.
 **Also observed, unrelated to the class:** `req-ty` is byte-identical to `req-name` in that macro — one
 value bound twice. It carries a comment naming its *purpose* (the type-position splice) but not the fact
 that it duplicates. Left alone; noted so it is not rediscovered.
+
+## Sibling — the same family, one layer down
+
+[`NOTE-a-parametric-head-is-bare-a-path-is-not.md`](NOTE-a-parametric-head-is-bare-a-path-is-not.md)
+(filed 2026-08-04) is this note at the **Rust** layer: `TypeExpr::Path` carries its leading colon and
+`TypeExpr::Parametric.head` does not, so a caller that handles both arms *symmetrically* — which is
+how the match reads — produces a malformed name for the parametric case. 137 sites destructure that
+head by hand and no `impl TypeExpr` exists to normalize through. Where this note is about a name
+nobody validates, that one is about two halves of one enum disagreeing on the name's FORM.
