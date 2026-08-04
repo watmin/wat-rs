@@ -20,6 +20,11 @@
 ;;   GREEN → forms are legal durable state; the seam's shape stands.
 ;;   RED   → read the located diagnostic; it names the wall, and `:durable` takes String.
 
+;; arc 278 BRIEF-client-validates-locally — this file's `EvalResponse` (for op `eval-src`)
+;; is now the ACCEPTANCE CASE for "the RequestTooLarge ctor is read from the op's DECLARED
+;; return type, never guessed by `<OpPascal>Response` concatenation": it deliberately does
+;; NOT follow that naming convention (arbitrary-but-legal — nothing requires a response
+;; type's NAME to echo its op's), so a still-guessing call site fails here first.
 (:wat::core::defsurface :probe::Repl :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Repl::EvalRequest [src <- :wat::core::String])

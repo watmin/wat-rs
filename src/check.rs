@@ -3952,6 +3952,21 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // DESIGN-STONE-the-client-validates-locally.md — STOP-3: "the budget is a
+            // property of the WIRE... branch on whether there is a wire", never on
+            // `locus == process`. `peer-wire?` un-erases that one fact (mirrors
+            // `peer-process`'s runtime-tag-read shape, same ∀-parametric partition via
+            // project_peer_io) so `wat/service.wat`'s generated client method can skip
+            // the measure+guard entirely on a thread-tier (shared-memory, never-encodes)
+            // peer instead of paying a serialization cost that has no wire to justify it.
+            ":wat::kernel::peer-wire?" => {
+                let (val, mut errs) = infer_peer_wire(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 278 RST stone — `serve-dispatch-op'`: `clients` is checked
             // for internal consistency only (do-style, unconstrained — same
             // discipline as `poll'`'s `listener` arg); `body`'s type IS the
@@ -10599,6 +10614,61 @@ fn infer_peer_process(
                 head: "wat::core::Option".into(),
                 args: vec![process_ty],
             };
+            if local_errors.is_empty() {
+                CheckResult::ok(ret)
+            } else {
+                CheckResult::partial_with(ret, local_errors)
+            }
+        }
+        Err(()) => {
+            let t = fresh.fresh();
+            CheckResult::partial_with(t, local_errors)
+        }
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_peer_wire` is INTRINSIC (∀-parametric),
+// same shape as `infer_peer_process` — I,O flow from the peer's parametric type
+// params, but the RESULT never depends on them (always `bool`); a defclause
+// still cannot enumerate every (I,O) instantiation, same argument as the sibling.
+/// Type-check `(:wat::kernel::peer-wire? peer)` — DESIGN-STONE-the-client-
+/// validates-locally.md STOP-3.
+///
+/// One positional arg: `args[0]` peer (`Thread<I,O> | Process<I,O> | Peer<I,O> |
+/// ThreadSelfPeer<I,O>` — anything `project_peer_io` accepts). Result is always
+/// `:wat::core::bool`: runtime TRUE iff the underlying connection is socket-tier
+/// (a WIRE, `send` on it encodes via `send_wire`), FALSE for thread-tier (shared
+/// memory, never encodes). PURE PROJECTION, mirrors `peer-process`: a runtime tag
+/// read, no effect — the axis is "is there a wire", never `locus == process`.
+fn infer_peer_wire(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::peer-wire?";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+        Ok(_) => {
+            let ret = TypeExpr::Path(":wat::core::bool".into());
             if local_errors.is_empty() {
                 CheckResult::ok(ret)
             } else {

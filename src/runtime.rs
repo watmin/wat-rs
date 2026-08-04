@@ -5745,6 +5745,14 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::peer-process" => {
             eval_peer_process(args, list_span, env, sym)
         }
+        // DESIGN-STONE-the-client-validates-locally.md STOP-3 — "branch on whether
+        // there is a wire", never `locus == process`. Un-erases the one fact
+        // `is_socket_tier()` already knows about a PEER_TYPE_PATH connection: TRUE
+        // for a socket-tier peer (send' encodes via send_wire — a wire), FALSE for
+        // thread-tier (shared memory, never encodes). See eval_peer_wire.
+        ":wat::kernel::peer-wire?" => {
+            eval_peer_wire(args, list_span, env, sym)
+        }
         // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
         // select' : Vector<peer<I,O>> -> Tuple<i64, O>
         ":wat::kernel::select" => {
@@ -5980,7 +5988,7 @@ fn dispatch_keyword_head_value(
                             // `Nature::Peer` — every other nature (aggregate dispatch) falls
                             // through to the unchanged `:<T>/<method>` lookup below.
                             if s.nature == Some(crate::types::Nature::Peer) {
-                                if let crate::types::SurfaceMember::Method { .. } = member {
+                                if let crate::types::SurfaceMember::Method { ret, .. } = member {
                                     use crate::scope::Identifier;
                                     if args.len() < 2 {
                                         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
@@ -5992,6 +6000,60 @@ fn dispatch_keyword_head_value(
                                     let variant = crate::string_ops::kebab_to_pascal_with_acronyms(method_name, &[]);
                                     let op_ctor = format!("{}::Op::{}", protocol_fqdn, variant);
                                     let reply_ctor = format!("{}::Reply::{}", protocol_fqdn, variant);
+                                    // DESIGN-STONE-the-client-validates-locally.md — Path B is a
+                                    // SECOND, independently-drifting copy of the send-then-recv
+                                    // forwarding `wat/service.wat`'s `op-methods` also builds (this
+                                    // is the mechanism `:S/method` calls ACTUALLY run through — every
+                                    // corpus fixture calls the SURFACE name, never the service's own
+                                    // `<fqdn>/<op>`). It needs the identical local-budget strike:
+                                    // `cap_const_kw` mirrors `build_op_budget_constants`'s emitted
+                                    // name exactly (`src/types.rs:3041`).
+                                    //
+                                    // `rtl_ctor_kw` — NOT a guess. `ret` is the op's declared
+                                    // return type, READ (not looked up) straight from the
+                                    // `SurfaceMember::Method` this `member` binding already holds —
+                                    // the same field `synthesize_surface_protocol`'s RTL lock reads
+                                    // (`src/types.rs` ~2804, `if let TypeExpr::Path(resp_path) = ret`).
+                                    // `<OpPascal>Response` was a NAME GUESSED from the op, and a
+                                    // response type is free to be named anything (only a
+                                    // `RequestTooLarge{bytes,cap}` variant on it is mandatory — see
+                                    // `probe-repl-durable-forms.wat`'s `EvalResponse` for `eval-src`,
+                                    // an acceptance case the guess got wrong). `Path`/`Parametric`
+                                    // both carry the base name with no `<...>` suffix baked in
+                                    // (unlike the wat-level string split elsewhere in this codebase,
+                                    // Rust's `TypeExpr` keeps head and args structurally separate) —
+                                    // but they do NOT carry the leading `:` the same way, and the
+                                    // difference is DELIBERATE, not an accident: a parametric
+                                    // head is stored BARE so its two parse paths (`Head<args>`
+                                    // and `(Ctor arg…)`) produce a byte-identical string for
+                                    // unification (src/types.rs ~4450; stated outright at ~4287,
+                                    // "We must produce the SAME string for unification"). `Path`
+                                    // re-prepends the colon instead (`format!(":{}", s)`, ~4494)
+                                    // — a different, equally intentional convention for a
+                                    // different variant. Normalize HERE, at this one read site,
+                                    // never upstream in the parser/storage: a parametric response
+                                    // (e.g. `PCache::GetResponse<K,V>`) fed a colon-less `head`
+                                    // into this keyword string, missing its first real character.
+                                    let resp_base_raw: &str = match ret {
+                                        crate::types::TypeExpr::Path(p) => p.as_str(),
+                                        crate::types::TypeExpr::Parametric { head, .. } => head.as_str(),
+                                        // A serviceable op's Response is locked to Path/Parametric by
+                                        // `synthesize_surface_protocol`'s RTL enforcement; this arm is
+                                        // unreached in practice and only guards against a genuinely
+                                        // malformed declaration reaching here some other way.
+                                        _ => protocol_fqdn,
+                                    };
+                                    let resp_base = if resp_base_raw.starts_with(':') {
+                                        resp_base_raw.to_string()
+                                    } else {
+                                        format!(":{resp_base_raw}")
+                                    };
+                                    let cap_const_kw = format!(
+                                        "{}::{}-MAX-REQUEST-BYTES",
+                                        protocol_fqdn,
+                                        method_name.to_uppercase()
+                                    );
+                                    let rtl_ctor_kw = format!("{resp_base}::RequestTooLarge");
                                     let span = list_span.clone();
 
                                     // Eval the peer + request ONCE (avoids double-evaluating the
@@ -6005,7 +6067,7 @@ fn dispatch_keyword_head_value(
                                         .bind_unknown_span("__req", TrackedValue::from(req_val))
                                         .build();
 
-                                    let forwarding_ast = WatAST::List(vec![
+                                    let send_recv_ast = WatAST::List(vec![
                                         WatAST::Keyword(":wat::core::let".into(), span.clone()),
                                         WatAST::Vector(vec![
                                             WatAST::Symbol(Identifier::bare("__op"), span.clone()),
@@ -6115,7 +6177,56 @@ fn dispatch_keyword_head_value(
                                         ], span.clone()),
                                     ], span.clone());
 
-                                    return eval_inner(&forwarding_ast, &call_env, sym)
+                                    // DESIGN-STONE-the-client-validates-locally.md — THE STRIKE,
+                                    // Path B's copy. STOP-3: `peer-wire?` gates the whole
+                                    // measure+guard behind "is there a wire" (a thread-tier `__peer`
+                                    // never reaches `:wat::edn::write` at all — zero encodes, exactly
+                                    // as today). Under budget (or no wire to measure against) falls
+                                    // through to the UNCHANGED `send_recv_ast`, reached from ONLY one
+                                    // of the two branches below (STOP-2: no uniform fall-through).
+                                    let n_sym = Identifier::bare("__n");
+                                    let wrapped_ast = WatAST::List(vec![
+                                        WatAST::Keyword(":wat::core::if".into(), span.clone()),
+                                        WatAST::List(vec![
+                                            WatAST::Keyword(":wat::kernel::peer-wire?".into(), span.clone()),
+                                            WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
+                                        ], span.clone()),
+                                        WatAST::List(vec![
+                                            WatAST::Keyword(":wat::core::let".into(), span.clone()),
+                                            WatAST::Vector(vec![
+                                                WatAST::Symbol(n_sym.clone(), span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::core::string::length".into(), span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::edn::write".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("__req"), span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                            ], span.clone()),
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(":wat::core::if".into(), span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::core::i64::>".into(), span.clone()),
+                                                    WatAST::Symbol(n_sym.clone(), span.clone()),
+                                                    WatAST::Keyword(cap_const_kw.clone(), span.clone()),
+                                                ], span.clone()),
+                                                // OVER budget — the SAME RequestTooLarge{bytes,cap} a
+                                                // server would send, with NO send and therefore NO recv.
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(rtl_ctor_kw, span.clone()),
+                                                        WatAST::Symbol(n_sym, span.clone()),
+                                                        WatAST::Keyword(cap_const_kw.clone(), span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                                send_recv_ast.clone(),
+                                            ], span.clone()),
+                                        ], span.clone()),
+                                        send_recv_ast,
+                                    ], span.clone());
+
+                                    return eval_inner(&wrapped_ast, &call_env, sym)
                                         .map(|tv| tv.value_owned());
                                 }
                             }
@@ -26993,6 +27104,63 @@ fn eval_peer_process(
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "peer (Thread<I,O> | Process<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            })
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::peer-wire? peer)` — DESIGN-STONE-the-client-validates-
+/// locally.md STOP-3.
+///
+/// PURE PROJECTION, un-erasing the one fact `send'`/`try-send'` already branch
+/// on internally (`peer.is_socket_tier()`, `eval_peer_send_prime` above) but
+/// never surfaced to wat: a client-generated method needs this BEFORE it
+/// decides whether to measure a request's encoded size at all — measuring on a
+/// thread-tier peer would be "a full serialization onto the one path whose
+/// entire point is not serializing" (the stone's own words), not a 2x cost but
+/// zero-to-full on every call. `c`'s runtime tag is always `PEER_TYPE_PATH`
+/// (the unified connection object send'/recv' already operate on — NOT the
+/// `PROCESS_PEER_TYPE_PATH`/`THREAD_PEER_TYPE_PATH` lineage-handle tags
+/// `peer-process` reads, a different peer kind entirely).
+/// - socket-tier (a wire; `send'` would call `send_wire`) → `true`.
+/// - thread-tier (shared memory; `send'` never encodes) → `false`.
+/// - already closed (`None`) → `false`: nothing to measure against a peer with
+///   no live transport either way, and the caller's own `send'` will face the
+///   real `Closed`/`Lost` outcome regardless of this answer.
+fn eval_peer_wire(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::peer-wire?";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() })
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
+            let cell: &crate::kernel::spawn::PeerCell =
+                crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+            let is_wire = cell
+                .with_ref(OP, |opt_peer| match opt_peer {
+                    None => false,
+                    Some(peer) => peer.is_socket_tier(),
+                })
+                .map_err(Into::<EvalBreak>::into)?;
+            Ok(Value::bool(is_wire))
+        }
+        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (unified Peer<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             })
         .into()),

@@ -1081,9 +1081,21 @@
                               cap-const-kw  (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base
                                                 (:wat::core::string::interpolate "::{op-upper}-MAX-REQUEST-BYTES" :op-upper op-upper)))
-                              rtl-ctor-kw   (:wat::core::keyword/from-string
-                                              (:wat::core::string::concat proto-base
-                                                (:wat::core::string::interpolate "::{variant-pascal}Response::RequestTooLarge" :variant-pascal variant-pascal)))
+                              ;; DESIGN-STONE-the-client-validates-locally.md — read the op's
+                              ;; DECLARED response type from `build_op_response_type_constants`
+                              ;; (src/types.rs) instead of guessing `<variant-pascal>Response` by
+                              ;; concatenation (a response type's name need not echo its op's —
+                              ;; see `probe-repl-durable-forms.wat`'s `EvalResponse`). The base
+                              ;; name is a runtime String, so it cannot be a ctor call HEAD
+                              ;; (`NotCallable` — confirmed empirically); `guarded-arm` below
+                              ;; builds the value by EDN decode instead, mirroring `op-methods`'s
+                              ;; identical strike.
+                              resp-type-const-kw (:wat::core::keyword/from-string
+                                                    (:wat::core::string::concat proto-base
+                                                      (:wat::core::string::interpolate "::{op-upper}-RESPONSE-TYPE" :op-upper op-upper)))
+                              resp-dotted-sym (:wat::core::symbol-node "resp-dotted")
+                              rtl-edn-sym     (:wat::core::symbol-node "rtl-edn")
+                              rm-edn-sym      (:wat::core::symbol-node "rm-edn")
                               n-sym         (:wat::core::symbol-node "n")
                               outcome-match `(:wat::core::match
                                                   (:wat::core::let ~let-bindings ~body) 
@@ -1169,9 +1181,6 @@
                               req-ty-kw     (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base
                                                 (:wat::core::string::interpolate "::{op-str}/Request" :op-str op-str)))
-                              rm-ctor-kw    (:wat::core::keyword/from-string
-                                              (:wat::core::string::concat proto-base
-                                                (:wat::core::string::interpolate "::{variant-pascal}Response::RequestMalformed" :variant-pascal variant-pascal)))
                               ;; symbol-node binders (mirrors n-sym above) — generated pattern binders,
                               ;; never caller-visible names.
                               mpath-sym     (:wat::core::symbol-node "mpath")
@@ -1183,21 +1192,55 @@
                                                ;; INTO SERVE with state UNCHANGED (the handler never ran).
                                                ;; A gone client is not fatal either; every arm keeps serving.
                                                ((:wat::edn::Validation::Invalid ~mpath-sym ~mexp-sym ~mgot-sym)
-                                                 (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx)
-                                                     (~reply-variant-kw (~rm-ctor-kw ~mpath-sym ~mexp-sym ~mgot-sym)))
-                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
-                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
+                                                 ;; DESIGN-STONE-the-client-validates-locally.md — the TWIN
+                                                 ;; of the RTL strike above: `RequestMalformed` is the SAME
+                                                 ;; contract (`types.rs:1081`, `RTL_VARIANT`/`RM_VARIANT`
+                                                 ;; named together), so it reads `resp-type-const-kw` and
+                                                 ;; builds the value by EDN decode too — never a
+                                                 ;; concatenation-guessed ctor call naming `variant-pascal`
+                                                 ;; and the mandated variant (the identical `NotCallable`
+                                                 ;; wall applies to that guess as well).
+                                                 (:wat::core::let
+                                                   [~resp-dotted-sym (:wat::core::string::join "."
+                                                                       (:wat::core::string::split
+                                                                         (:wat::core::string::subs ~resp-type-const-kw 1
+                                                                           (:wat::core::string::length ~resp-type-const-kw))
+                                                                         "::"))
+                                                    ~rm-edn-sym      (:wat::core::string::concat "#"
+                                                                       (:wat::core::string::concat ~resp-dotted-sym
+                                                                         (:wat::core::string::concat "/RequestMalformed ["
+                                                                           (:wat::core::string::concat (:wat::edn::write ~mpath-sym)
+                                                                             (:wat::core::string::concat " "
+                                                                               (:wat::core::string::concat (:wat::edn::write ~mexp-sym)
+                                                                                 (:wat::core::string::concat " "
+                                                                                   (:wat::core::string::concat (:wat::edn::write ~mgot-sym) "]"))))))))]
+                                                   (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx)
+                                                       (~reply-variant-kw (:wat::edn::read ~rm-edn-sym)))
+                                                     (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                                                     (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))))
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
                                                  ;; arc 278 the send'-outcome wall — a gone client here is
                                                  ;; not fatal either; every arm keeps serving the rest.
-                                                 (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx)
-                                                     (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
-                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
-                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))
+                                                 (:wat::core::let
+                                                   [~resp-dotted-sym (:wat::core::string::join "."
+                                                                       (:wat::core::string::split
+                                                                         (:wat::core::string::subs ~resp-type-const-kw 1
+                                                                           (:wat::core::string::length ~resp-type-const-kw))
+                                                                         "::"))
+                                                    ~rtl-edn-sym     (:wat::core::string::concat "#"
+                                                                       (:wat::core::string::concat ~resp-dotted-sym
+                                                                         (:wat::core::string::concat "/RequestTooLarge ["
+                                                                           (:wat::core::string::concat (:wat::edn::write ~n-sym)
+                                                                             (:wat::core::string::concat " "
+                                                                               (:wat::core::string::concat (:wat::edn::write ~cap-const-kw) "]"))))))]
+                                                   (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx)
+                                                       (~reply-variant-kw (:wat::edn::read ~rtl-edn-sym)))
+                                                     (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                                                     (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))
                                                  ~shape-guarded))]
                              (:wat::core::conj acc
                                `((~op-variant-kw ~req-binder) ~guarded-arm))))))
@@ -1411,6 +1454,44 @@
                           method-params   `[c <- ~client-peer-ty req <- ~req-ty]
                           discard-sym     (:wat::core::symbol-node "_")
                           r-sym           (:wat::core::symbol-node "r")
+                          ;; DESIGN-STONE-the-client-validates-locally.md — the client checks the
+                          ;; same surface-scoped budget constant `serve-op-arms` checks
+                          ;; (`build_op_budget_constants`, src/types.rs:3041), built the IDENTICAL
+                          ;; way (`<proto-base>::<OP-UPPER>-MAX-REQUEST-BYTES`) so the two never
+                          ;; drift apart.
+                          ;;
+                          ;; `resp-type-const-kw` names the sibling per-op constant
+                          ;; (`build_op_response_type_constants`, src/types.rs) carrying the op's
+                          ;; DECLARED response type's base name (`member.ret`, unwrapped once, in
+                          ;; Rust — never re-derived here). Response type names are NOT required
+                          ;; to follow `<OpPascal>Response` (see `probe-repl-durable-forms.wat`'s
+                          ;; `EvalResponse` for op `eval-src`), so building the `RequestTooLarge`
+                          ;; ctor can only read that name, never guess it from `op-pascal`.
+                          ;;
+                          ;; It cannot be CALLED as a ctor: the base name is a runtime String
+                          ;; value (the constant resolves at runtime, same as `cap-const-kw`), and
+                          ;; a keyword VALUE built from a runtime string is NOT a callable head —
+                          ;; `(:wat::core::keyword/from-string s)` used as a call head raises
+                          ;; `NotCallable` (confirmed empirically; call heads must be literal
+                          ;; syntax, never a computed value). So the over-budget branch below
+                          ;; builds the value by EDN DECODE instead of by calling a ctor: convert
+                          ;; the base name to its EDN tag spelling (strip the leading `:`, `::` →
+                          ;; `.` — exactly `edn_shim.rs`'s `struct_tag_for`/`tag_from_type_path`),
+                          ;; assemble `#<dotted>/RequestTooLarge [bytes cap]`, and `:wat::edn::read`
+                          ;; it — `read`'s return type unifies with the surrounding
+                          ;; `RecvOutcome::Message` slot (`resp-ty`, even through the surface-minted
+                          ;; alias — confirmed empirically) exactly as decoding off the real wire
+                          ;; already does.
+                          n-sym           (:wat::core::symbol-node "n")
+                          op-upper        (:wat::core::string::to-uppercase op-str)
+                          cap-const-kw    (:wat::core::keyword/from-string
+                                            (:wat::core::string::concat proto-base
+                                              (:wat::core::string::interpolate "::{op-upper}-MAX-REQUEST-BYTES" :op-upper op-upper)))
+                          resp-type-const-kw (:wat::core::keyword/from-string
+                                                (:wat::core::string::concat proto-base
+                                                  (:wat::core::string::interpolate "::{op-upper}-RESPONSE-TYPE" :op-upper op-upper)))
+                          resp-dotted-sym (:wat::core::symbol-node "resp-dotted")
+                          rtl-edn-sym     (:wat::core::symbol-node "rtl-edn")
                           ;; arc 278 the recv'-outcome wall — recv' returns a matchable
                           ;; RecvOutcome<Reply>, never a raise. This client method RE-WRAPS it into a
                           ;; `RecvOutcome<<Op>Response>` the caller faces as a VALUE (we are ADT; no
@@ -1424,11 +1505,12 @@
                           ;; The reserved protocol-tier `Reply::Failed` (a decode failure) arrives as
                           ;; ::Lost too (recv' maps it), so it never reaches the inner reply match.
                           ;; On ::Closed, pass the reason-free terminal through.
-                          method-body     `(:wat::core::let
-                                             ;; arc 278 the send'-outcome wall — a send-then-recv': the
-                                             ;; recv' right below faces Lost/Closed as a real outcome, so
-                                             ;; this send' just needs to proceed regardless (faced, not
-                                             ;; `_`-swallowed).
+                          ;;
+                          ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
+                          ;; below faces Lost/Closed as a real outcome, so this send' just needs to
+                          ;; proceed regardless (faced, not `_`-swallowed). UNDER budget (or no wire
+                          ;; to measure against — STOP-3) reaches this form, and ONLY this form.
+                          send-recv-form  `(:wat::core::let
                                              [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw req))
                                                              (:wat::kernel::SendOutcome::Sent   nil)
                                                              (:wat::kernel::SendOutcome::Closed nil)
@@ -1451,7 +1533,38 @@
                                                ((:wat::kernel::RecvOutcome::Lost cause)
                                                  (:wat::kernel::RecvOutcome::Lost cause))
                                                (:wat::kernel::RecvOutcome::Closed
-                                                 :wat::kernel::RecvOutcome::Closed)))]
+                                                 :wat::kernel::RecvOutcome::Closed)))
+                          ;; DESIGN-STONE-the-client-validates-locally.md — THE STRIKE. Validation
+                          ;; and dispatch are ONE operation (botocore validates before the HTTP call
+                          ;; is ever made): over budget → the SAME RequestTooLarge{bytes,cap} a
+                          ;; server would have sent, with NO send and therefore NO recv (STOP-2: the
+                          ;; two arms reach DIFFERENT places, never a uniform fall-through). STOP-3:
+                          ;; `peer-wire?` gates the measure+guard entirely behind "is there a wire" —
+                          ;; a thread-tier `c` never reaches `:wat::edn::write` at all, so it pays
+                          ;; nothing (not a redundant encode, ZERO encodes, exactly as today).
+                          ;; STOP-4: the cap checked here is `:max-request-bytes` (the CONTRACT, both
+                          ;; sides know it) — never `:max-frame-bytes` (FOO, the deployment's, unknown
+                          ;; to a dialer and possibly stricter); a FOO violation is unreachable from
+                          ;; here (it can only fire once a frame has actually left for the wire) and
+                          ;; stays the server's own dismissal.
+                          method-body     `(:wat::core::if (:wat::kernel::peer-wire? c)
+                                             (:wat::core::let [~n-sym (:wat::core::string::length (:wat::edn::write req))]
+                                               (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
+                                                 (:wat::core::let
+                                                   [~resp-dotted-sym (:wat::core::string::join "."
+                                                                       (:wat::core::string::split
+                                                                         (:wat::core::string::subs ~resp-type-const-kw 1
+                                                                           (:wat::core::string::length ~resp-type-const-kw))
+                                                                         "::"))
+                                                    ~rtl-edn-sym     (:wat::core::string::concat "#"
+                                                                       (:wat::core::string::concat ~resp-dotted-sym
+                                                                         (:wat::core::string::concat "/RequestTooLarge ["
+                                                                           (:wat::core::string::concat (:wat::edn::write ~n-sym)
+                                                                             (:wat::core::string::concat " "
+                                                                               (:wat::core::string::concat (:wat::edn::write ~cap-const-kw) "]"))))))]
+                                                   (:wat::kernel::RecvOutcome::Message (:wat::edn::read ~rtl-edn-sym)))
+                                                 ~send-recv-form))
+                                             ~send-recv-form)]
                          (:wat::core::if is-internal
 
                            acc
