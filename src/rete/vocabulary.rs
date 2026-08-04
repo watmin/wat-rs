@@ -88,6 +88,10 @@ pub(crate) enum ParamType {
     I64,
     Bool,
     Keyword,
+    /// Arc 278 #57 round 1a — needed to spell the `String/*` / `string::*` monomorphic rows.
+    String,
+    /// Arc 278 #57 round 1a — needed to spell `i64::to-f64`'s return type.
+    F64,
 }
 
 impl ParamType {
@@ -96,6 +100,8 @@ impl ParamType {
             ParamType::I64 => TypeExpr::Path(":wat::core::i64".into()),
             ParamType::Bool => TypeExpr::Path(":wat::core::bool".into()),
             ParamType::Keyword => TypeExpr::Path(":wat::core::keyword".into()),
+            ParamType::String => TypeExpr::Path(":wat::core::String".into()),
+            ParamType::F64 => TypeExpr::Path(":wat::core::f64".into()),
         }
     }
 }
@@ -366,6 +372,92 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Form,
         params: &[],
         ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── #57 round 1a, the nine monomorphic aliases (DESIGN-STONE-where-admits-only-rete-ops.md,
+    // "THE MINT ROUNDS" → round 1's alias class). All `Alias`, all zero new logic: the rete name
+    // re-dispatches to the same routine as `core_name` (`runtime.rs`'s generic `dispatch_rete_op`).
+    // `meta` is TRANSCRIBED from `rete/purity.rs`'s `intrinsic_meta`, not decided here — every one
+    // of these nine core heads is already `pure ∧ deterministic ∧ total = true` on disk: the
+    // `String/*` five and `i64::to-f64` are named explicitly in both of `intrinsic_meta`'s
+    // pure∧det and total hand-lists (`purity.rs:~410` / `~523-532`); `string::{length,trim,
+    // to-lowercase}` are the three the namespace-prefix arm carves out of `total: false` by name
+    // (`purity.rs:176-190`, "each verified total by reading its own implementation"). Signatures
+    // verified against the CHECKER's own registration (`check.rs`'s `env.register` calls for each
+    // core head — the `String/*` family's public type, not `string_ops.rs`'s doc comment, which
+    // documents the underlying variadic `eval_string_concat` `String/concat` itself delegates to
+    // but the checker constrains to exactly two args); `string::*`/`i64::to-f64` verified against
+    // `string_ops.rs`'s own doc comments, which match exactly.
+    ReteOp {
+        rete_name: ":wat::rete::String/concat",
+        core_name: ":wat::core::String/concat",
+        class: OpClass::Alias,
+        params: &[ParamType::String, ParamType::String],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::String/starts-with?",
+        core_name: ":wat::core::String/starts-with?",
+        class: OpClass::Alias,
+        params: &[ParamType::String, ParamType::String],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::String/ends-with?",
+        core_name: ":wat::core::String/ends-with?",
+        class: OpClass::Alias,
+        params: &[ParamType::String, ParamType::String],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::String/contains?",
+        core_name: ":wat::core::String/contains?",
+        class: OpClass::Alias,
+        params: &[ParamType::String, ParamType::String],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::String/empty?",
+        core_name: ":wat::core::String/empty?",
+        class: OpClass::Alias,
+        params: &[ParamType::String],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::string::length",
+        core_name: ":wat::core::string::length",
+        class: OpClass::Alias,
+        params: &[ParamType::String],
+        ret: ParamType::I64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::string::trim",
+        core_name: ":wat::core::string::trim",
+        class: OpClass::Alias,
+        params: &[ParamType::String],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::string::to-lowercase",
+        core_name: ":wat::core::string::to-lowercase",
+        class: OpClass::Alias,
+        params: &[ParamType::String],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        rete_name: ":wat::rete::i64::to-f64",
+        core_name: ":wat::core::i64::to-f64",
+        class: OpClass::Alias,
+        params: &[ParamType::I64],
+        ret: ParamType::F64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
 ];
