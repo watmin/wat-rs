@@ -28,14 +28,30 @@
 > prefix.** That boundary is the new fact, and it is what makes the gap sizeable: it is not a
 > general checker limitation, it is a whole namespace class exempted.
 >
-> **One narrow slice is cheaply closable independent of the rest, and worth noting for whoever
-> takes the backlog item:** `:wat::rete::` heads are **enumerable** — `RETE_OPS` is the one table
-> and `rete_op_for(head)` is already the exact lookup, used by both the checker (`check.rs:2409`)
-> and the runtime (`runtime.rs:8231`). So an unknown rete head *could* be refused statically today
-> without solving the general problem. **Whether `:wat::core::`/`:wat::kernel::` builtins are
-> similarly enumerable by the checker is UNMEASURED** — they are registered in a large runtime
-> match rather than a table, so the general fix may be materially harder than the rete slice.
-> Do not assume from the rete case.
+> **★ THIS IS ARC 255's, AND 255 ALREADY NAMES THIS EXACT LINE OF CODE.** Builder's pointer, and
+> the disk confirms it — `255-builtin-registry/DESIGN.md` states the cause verbatim:
+>
+> > *"with no registry to ask 'is this defined?', `resolve` falls back to
+> > `if is_reserved_prefix(head) { return true }` — blanket-accepting any leaf, deferring wrong
+> > names to a runtime 'unknown function'"*
+>
+> and the cure: *"The reserved-prefix blanket-accept hack is **deleted**; builtins resolve through
+> the same path as user forms (registry/`sym` membership). One resolution path for everything."*
+> 255's framing is the better one: this is not primarily a checker gap, it is the **asymmetry**
+> that Rust builtins are the one callable kind that is unregistered, unqueryable and unreflectable
+> — *"the undefined-func class dies as a SIDE EFFECT of fixing the real defect."*
+>
+> **Status: DESIGNED, PARKED.** 255's `CURRENT-STATE.md` breadcrumb is 2026-07-01 at HEAD
+> `44c13e26`, floor `4285` — more than a month stale against today's `4348`. So the arc owns this,
+> has the mechanism drawn, and is not in flight.
+>
+> **What today adds is only the EVIDENCE, and that is the reason to keep this block at all:** a
+> measured boundary table, taken 2026-08-05, confirming the blanket-accept is still live and naming
+> exactly which namespaces it covers. 255's design predates it. *(An earlier draft of this block
+> called the general fix "unmeasured, possibly materially harder than the rete slice" and floated
+> closing `:wat::rete::` alone off `RETE_OPS`. Both retracted: 255 has the general mechanism
+> designed, and a rete-only patch would be a second resolution path in an arc whose whole thesis
+> is ONE. The instinct to carve a cheap slice was reaching past a design already on the disk.)*
 >
 > Practical consequence today, worth carrying: **`--check` is not the arbiter for a
 > reserved-namespace negative control.** A probe asserting "this bogus builtin head is refused"
