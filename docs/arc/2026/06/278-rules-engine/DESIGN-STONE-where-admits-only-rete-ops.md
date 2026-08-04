@@ -615,6 +615,58 @@ Deliberate and load-bearing — it keeps the ops testable and composable as plai
 walled garden reachable only through the engine, and "grow the expressivity" means adding ordinary
 functions, not extending a special form.
 
+## ⛔⛔ SCOUT 2026-08-05 — ROUND 1 IS BLOCKED ON `ParamType`, AND IT IS NOT "ZERO NEW LOGIC"
+
+**Do not brief round 1 as this document scopes it.** Grounded before drawing the brief, and it
+kills the "alias = zero new logic" framing outright:
+
+```rust
+pub(crate) enum ParamType { I64, Bool, Keyword }        // src/rete/vocabulary.rs:87 — that is ALL
+```
+
+`ParamType` is the **only** channel a rete op's type can travel through:
+`check.rs:15820-15821` builds the `TypeScheme` as
+`params: op.params.iter().map(|p| p.to_type_expr()).collect(), ret: op.ret.to_type_expr()`.
+There is no second path. So a row can currently spell **i64, bool, keyword and nothing else** —
+which is why the 18 rows on disk are exactly the `i64` module plus the forms. That was not a
+scoping choice; it is the ceiling.
+
+**Against the settled census's own alias bucket, that ceiling refuses almost all of it:**
+
+| mint target (in-`where` occurrences) | needs | expressible today |
+|---|---|---|
+| `String/{starts-with?,contains?,ends-with?,empty?,concat}` (13) | `String` | ❌ |
+| `string::{length,trim,to-lowercase}` (5) | `String` | ❌ |
+| `i64::to-f64` (1) · `i64::to-string` | `F64` / `String` | ❌ |
+| `PersistentVector/{length,get,contains?}` (11) | a **parametric** `PV<T>` | ❌❌ |
+| `foldl` (4) + `foldr`/`map`/`filter`/`reduce` | a **function** param + generics | ❌❌❌ |
+| `=` · `not=` (45) | per-type rows — but of **which** types? | **unmeasured** |
+
+### The three pieces this splits into, and they are not one strike
+
+- **1a — MECHANICAL, unblocked by anything.** Add `String` and `F64` to `ParamType` (+ their
+  `to_type_expr` arms), then mint the monomorphic rows: the `String/*` family, `string::*`,
+  `i64::to-f64`, `i64::to-string`. Bounded, provable, genuinely "zero new logic" once the enum
+  can spell the types. **This is the real round 1.**
+- **1b — NEEDS A RULING FIRST.** `PersistentVector/{length,get,contains?}` and the five HOF
+  combinators are **parametric and higher-order**. A closed enum of concrete types cannot express
+  `foldl : (PV<T>, (Acc,T) -> Acc, Acc) -> Acc`. Either `ParamType` grows a parametric/functional
+  variant, or rete ops get a second type channel beside it. That is a design question, not a mint,
+  and it is the builder's.
+- **1c — AN AUDIT, NOT A MINT.** `=`/`not=` is 45 occurrences and the surface is per-type by
+  ruling, so it is N rows, one per operand type actually used. **Which types those are is
+  unmeasured.** A `grep` cannot answer it — matching `(:wat::core::= …` inside the grid files
+  returns the harness's own row markers, not `where` content. The form-tree walk is the instrument
+  (`BRIEF-where-vocabulary-census.md`), pointed at operand types this time.
+
+### Why this was not caught by the census
+
+The census measured **which heads appear**, correctly and exhaustively. It did not measure
+**whether a row can be written for them** — a different question, answered in `vocabulary.rs`
+rather than in the corpus. The document's own line *"the other ~46 vocabulary names slot in as rows
+once this table exists"* is true only for names `ParamType` can already spell.
+`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`.
+
 ## ✅ BASELINE RE-VERIFIED 2026-08-05, cold, by the orchestrator's own run
 
 Three days of IPC/naming work (#70–#77) landed between the census and the next strike. Everything
