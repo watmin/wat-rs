@@ -1,5 +1,47 @@
 # NOTE (arc 109) — a type name is validated in CALL position, never in ANNOTATION position
 
+> ## ⊕ SIBLING FLAW, measured 2026-08-05 — the `:wat::` prefix exemption on FUNCTION heads
+>
+> **Builder: *"this is the fucking `:wat::` prefix check — in our backlog to attack, not a now
+> thing."* Recorded here, not acted on.** It is adjacent to this note and deliberately NOT folded
+> into it: this note is about **type** names and states outright *"it is NOT a `:wat::`-blanket
+> effect."* The one below is about **function heads** and IS exactly that blanket effect. Same
+> family, different axis; do not let the two get merged by a later reader.
+>
+> Measured with `target/release/wat --check`, one unknown head per file:
+>
+> | head | `--check` |
+> |---|---|
+> | `:user::nopeXX` | **REFUSED** |
+> | `:user::NoSuchType::Variant` | **REFUSED** |
+> | `:wat::kernel::printlnXX` | silent → runtime `UnknownFunction` |
+> | `:wat::core::i64::plusXX` | silent → runtime `UnknownFunction` |
+> | `:wat::rete::i64::plusXX` | silent → runtime `UnknownFunction` |
+>
+> **`--check` validates user-declared call heads and exempts every `:wat::*` one.** A typo in any
+> builtin verb — kernel, core, rete — survives the checker and dies at runtime.
+>
+> This sharpens two existing records rather than contradicting them.
+> `[[reference_check_is_not_a_complete_red_arbiter]]` and 278's own
+> `NOTE-a-parametric-head-is-bare-a-path-is-not` both note that *"an unknown callee defers to a
+> runtime `UnknownFunction`"* — **neither records that the deferral is scoped to the reserved
+> prefix.** That boundary is the new fact, and it is what makes the gap sizeable: it is not a
+> general checker limitation, it is a whole namespace class exempted.
+>
+> **One narrow slice is cheaply closable independent of the rest, and worth noting for whoever
+> takes the backlog item:** `:wat::rete::` heads are **enumerable** — `RETE_OPS` is the one table
+> and `rete_op_for(head)` is already the exact lookup, used by both the checker (`check.rs:2409`)
+> and the runtime (`runtime.rs:8231`). So an unknown rete head *could* be refused statically today
+> without solving the general problem. **Whether `:wat::core::`/`:wat::kernel::` builtins are
+> similarly enumerable by the checker is UNMEASURED** — they are registered in a large runtime
+> match rather than a table, so the general fix may be materially harder than the rete slice.
+> Do not assume from the rete case.
+>
+> Practical consequence today, worth carrying: **`--check` is not the arbiter for a
+> reserved-namespace negative control.** A probe asserting "this bogus builtin head is refused"
+> must be RUN. `#57` round 1b's scorecard row 3 says so for that reason.
+
+
 **Filed 2026-07-26. A POINTER, not a decision.** Surfaced incidentally during arc 278's non-prime
 IPC annihilation (the `Thread`/`Process` TYPE deletion) and parked here because it is **not** an IPC
 concern and does **not** block that crusade. The ruling this needs already exists in 278 — see
