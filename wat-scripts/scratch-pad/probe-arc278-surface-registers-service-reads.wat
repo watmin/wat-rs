@@ -1,8 +1,20 @@
 ;; probe-arc278-surface-registers-service-reads.wat
 ;;
-;; STEP 0 of DESIGN-STONE-the-surface-speaks-at-expand-time.md (#74). DISCONFIRMING.
-;; DO NOT "fix" this file if it fails — a failure KILLS that stone and the runtime
-;; RESPONSE-TYPE constant stays. That outcome is the probe working.
+;; ⛔ SUPERSEDED 2026-08-05 — THE STONE THIS GATED NO LONGER EXISTS. Kept for its
+;; substrate question, NOT for its verdict; nothing downstream is waiting on it.
+;;
+;; It was STEP 0 of DESIGN-STONE-the-surface-speaks-at-expand-time.md (#74), back when
+;; #74 proposed an expand-time registry channel so `defservice` could READ the response
+;; type a `defsurface` had declared. The builder then ruled the name into LAW
+;; (`<Op>Response`, enforced at registration in `synthesize_surface_protocol`), which
+;; collapsed the stone: there is nothing left to read, because the concatenation is
+;; correct by construction. The runtime RESPONSE-TYPE constant this file's header used
+;; to defend is DELETED, and so is the EDN-decode machinery it fed.
+;;
+;; What survives is the QUESTION below — can a defsurface's expand-time write be seen by
+;; a later defservice's expansion? — which is a real property of `MacroRegistry` that no
+;; other file asks, and which a future stone may want. It is unanswered, and answering it
+;; is not owed to anything.
 ;;
 ;; ── THE ONE CLAIM UNDER TEST ─────────────────────────────────────────────────
 ;; #74 wants a defsurface to write an op->response-type map onto `MacroRegistry`

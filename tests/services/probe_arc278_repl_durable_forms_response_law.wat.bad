@@ -1,0 +1,36 @@
+;; Arc 278 #74 — `<Op>Response` is LAW (builder ruling, 2026-08-05).
+;;
+;; ★ INVERTED — and relocated. This file was `wat-scripts/scratch-pad/probe-repl-durable-
+;; forms.wat`, R64's own probe: the surface's `EvalResponse` (for op `eval-src`, arbitrarily NOT
+;; `EvalSrcResponse`) was the ACCEPTANCE CASE for "the RequestTooLarge ctor is read from the op's
+;; DECLARED return type, never guessed by `<OpPascal>Response` concatenation" — the exact wrong
+;; guess R64 caught. It ALSO carried an older, separate disconfirming probe (arc 170, the REPL
+;; stone): may a `defservice` declare `:durable` as `Vector<WatAST>` (a vector of forms), or does
+;; the portability wall (293.W) reject it? That question was answered (accepted, this file was
+;; the standing GREEN witness) before #74 existed.
+;;
+;; Under the ruling R64 exposed a defect in, not a feature: an op's response type IS
+;; `<Op>Response`, checker-enforced at `defsurface` registration. So `:probe::Repl::eval-src ->
+;; EvalResponse` — UNCHANGED, on purpose — is now illegal, and the file cannot freeze at all. The
+;; `defservice`/`:durable [Vector<WatAST>]` content that used to follow is UNREACHABLE (freeze
+;; fails at the surface, before the service is ever seen) and is deleted rather than kept as dead
+;; weight — the `:durable`-as-`Vector<WatAST>` question is no longer covered BY THIS FILE; if it
+;; needs re-proving, that is a fresh fixture with a conforming response name, not this one (git
+;; history has the original shape).
+;;
+;; Relocated out of `wat-scripts/scratch-pad/` (and `.wat` → `.wat.bad`): the corpus-wide
+;; `every_wat_scripts_file_loads_on_the_current_runtime` gate (`tests/lint/wat_scripts_fixes_
+;; load.rs`) demands every `wat-scripts/` file LOAD — a permanent, deliberate refusal cannot live
+;; there without lying to that gate. `tests/services/` + `.wat.bad` is the corpus's established
+;; home for a fixture that must NOT load (see `probe_arc170_c2_d_bodiless_edge.wat.bad`), paired
+;; with the `.rs` test asserting the exact refusal below.
+(:wat::core::defsurface :probe::Repl :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :probe::Repl::EvalRequest [src <- :wat::core::String])
+   (:wat::core::defenum :probe::Repl::EvalResponse :wat::enum::Pure
+     :Ok               [out <- :wat::core::String]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(eval-src [self <- :probe::Repl  req <- :probe::Repl::EvalRequest]
+     -> :probe::Repl::EvalResponse :max-request-bytes 524288)])

@@ -2792,12 +2792,129 @@ fn synthesize_surface_protocol(
             ));
         }
 
+        // Arc 278 #74 — `<Op>Response` is LAW (builder ruling, 2026-08-05: "convention is
+        // law — enforce it… services are our OOP layer, we make requests to them and get
+        // responses back."). Same gate, same site, same shape as the two locks immediately
+        // above: a serviceable op's response type name is no longer read (the machinery that
+        // read it — `build_op_response_type_constants` and the wat-side EDN-decode branches —
+        // is deleted by this same strike); it is REQUIRED to be
+        // `<surface-base>::<OpPascal>Response`, checker-forced here so the wat macros can go
+        // back to splicing a literal ctor keyword, guaranteed correct by construction.
+        //
+        // Compare the BASE name only (⛔ never the rendered type — `GetResponse<K,V>`
+        // CONFORMS): type args are stripped from both sides, and `TypeExpr::Path` carries a
+        // leading `:` while `TypeExpr::Parametric`'s `head` does NOT (deliberate — see the note
+        // at the now-deleted `build_op_response_type_constants`) — normalize here, at this one
+        // read site, exactly as that function did.
+        if enforce_rtl_lock {
+            let declared_base: String = match ret {
+                TypeExpr::Path(p) => p.clone(),
+                TypeExpr::Parametric { head, .. } => format!(":{head}"),
+                other => {
+                    return Err(TypeError::new(
+                        decl_span.clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: ":wat::core::defsurface".to_string(),
+                            reason: format!(
+                                "op `{}` in surface {}: a serviceable op's response type must \
+                                 be a nameable type (`<Op>Response`) — declared `{:?}`, which \
+                                 has no name to compare against the law (arc 278 #74: an op's \
+                                 response type IS `<Op>Response`)",
+                                name, surface.name, other
+                            ),
+                        },
+                    ));
+                }
+            };
+            // `surface.name` is stored WITHOUT its `<...>` suffix by `parse_declared_name`
+            // (type params are split off into `surface.type_params` at parse time), but strip
+            // defensively anyway — the base name is what the law is stated in terms of.
+            let surface_base = match surface.name.find('<') {
+                Some(idx) => &surface.name[..idx],
+                None => surface.name.as_str(),
+            };
+            let required = format!(
+                "{surface_base}::{}Response",
+                crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms),
+            );
+            if declared_base != required {
+                return Err(TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: ":wat::core::defsurface".to_string(),
+                        reason: format!(
+                            "op `{}` in surface {}: response type name is LAW — declared `{}`, \
+                             required `{}` (arc 278 #74, builder ruling 2026-08-05: an op's \
+                             response type IS `<Op>Response`; rename the declaration to match)",
+                            name, surface.name, declared_base, required
+                        ),
+                    },
+                ));
+            }
+        }
+
         // Request payload = the arg AFTER `self` (`args[1]`). A method with no request arg
         // carries no wire payload → this surface is not a clean protocol; synthesize nothing.
         let request_ty = match args.fixed_params.get(1) {
             Some((_, ty)) => ty.clone(),
             None => return Ok(vec![]),
         };
+
+        // Arc 278 #74b — `<Op>Request` is LAW, the twin of the `<Op>Response` rule above (same
+        // builder ruling, 2026-08-05: "convention is law — enforce it… services are our OOP
+        // layer, we make requests to them and get responses back."). Same gate
+        // (`enforce_rtl_lock`), same base-name comparison, same both-names diagnostic. Placed
+        // AFTER the request-arg bail immediately above (an op with no request arg has no
+        // request to name) and unconditionally AFTER the Response check above it — do not
+        // reorder: `probe_arc278_repl_durable_forms_response_law.wat.bad` violates BOTH laws
+        // and its committed test asserts the Response message verbatim, so Response must fire
+        // first.
+        if enforce_rtl_lock {
+            let declared_base: String = match &request_ty {
+                TypeExpr::Path(p) => p.clone(),
+                TypeExpr::Parametric { head, .. } => format!(":{head}"),
+                other => {
+                    return Err(TypeError::new(
+                        decl_span.clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: ":wat::core::defsurface".to_string(),
+                            reason: format!(
+                                "op `{}` in surface {}: a serviceable op's request type must \
+                                 be a nameable type (`<Op>Request`) — declared `{:?}`, which \
+                                 has no name to compare against the law (arc 278 #74b: an op's \
+                                 request type IS `<Op>Request`)",
+                                name, surface.name, other
+                            ),
+                        },
+                    ));
+                }
+            };
+            // `surface.name` is stored WITHOUT its `<...>` suffix by `parse_declared_name`
+            // (type params are split off into `surface.type_params` at parse time), but strip
+            // defensively anyway — the base name is what the law is stated in terms of.
+            let surface_base = match surface.name.find('<') {
+                Some(idx) => &surface.name[..idx],
+                None => surface.name.as_str(),
+            };
+            let required = format!(
+                "{surface_base}::{}Request",
+                crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms),
+            );
+            if declared_base != required {
+                return Err(TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: ":wat::core::defsurface".to_string(),
+                        reason: format!(
+                            "op `{}` in surface {}: request type name is LAW — declared `{}`, \
+                             required `{}` (arc 278 #74b, builder ruling 2026-08-05: an op's \
+                             request type IS `<Op>Request`; rename the declaration to match)",
+                            name, surface.name, declared_base, required
+                        ),
+                    },
+                ));
+            }
+        }
 
         // The purity gate: BOTH request and response must cross (EDN-serializable). Any impure
         // sig → in-thread-only surface → synthesize nothing (293.W would reject an impure enum).
@@ -3085,76 +3202,6 @@ fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
         .collect()
 }
 
-/// DESIGN-STONE-the-client-validates-locally.md — build one
-/// `(:wat::core::def :<S>::<OP>-RESPONSE-TYPE "<base>")` `WatAST` per serviceable op on
-/// `surface`, carrying each `SurfaceMember::Method`'s DECLARED response type's base name — the
-/// `ret` field, unwrapped exactly as the Path-B runtime intrinsic does
-/// (`dispatch_keyword_head_value` in `src/runtime.rs`: `TypeExpr::Path(p) => p`,
-/// `TypeExpr::Parametric { head, .. } => head`; same field, same match, never re-derived a
-/// second way) — as a runtime constant `wat/service.wat`'s `serve-op-arms` and `op-methods` can
-/// reference by keyword to build `<base>::RequestTooLarge`, instead of GUESSING the response
-/// type's name by `<OpPascal>Response` concatenation. A response type is free to be named
-/// anything (only a `RequestTooLarge{bytes,cap}` variant on it is mandatory — see
-/// `wat-scripts/scratch-pad/probe-repl-durable-forms.wat`'s `EvalResponse` for op `eval-src`,
-/// the acceptance case the concatenation guess got wrong).
-///
-/// SIBLING of `build_op_budget_constants` immediately above — same iteration, same op-name
-/// upper-casing, same skip of Field members; a second per-op fact riding the identical channel
-/// (a runtime `def`, spliced into `rest` alongside the surface carrier and the budget consts).
-/// `CONST_NAME = "<Surface>::<OP>-RESPONSE-TYPE"` (op name upper-cased), e.g. surface
-/// `:probe::Cap1`, op `do-op` → `:probe::Cap1::DO-OP-RESPONSE-TYPE`.
-fn build_op_response_type_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
-    surface
-        .members
-        .iter()
-        .filter_map(|member| match member {
-            SurfaceMember::Method { name, ret, .. } => {
-                // A serviceable op's Response is locked to Path/Parametric by
-                // `synthesize_surface_protocol`'s RTL enforcement (`ret` must resolve to an
-                // enum carrying `RequestTooLarge`) — the fallback mirrors Path B's, unreached
-                // in practice, only guarding a genuinely malformed declaration.
-                //
-                // `TypeExpr::Path` and `::Parametric` do NOT carry the leading `:` the same
-                // way, and the difference is DELIBERATE, not an accident to "fix" — a
-                // parametric head is stored BARE (no colon) on purpose, because BOTH parametric
-                // parse paths (`Head<args>` and `(Ctor arg…)`) must produce a byte-identical
-                // head for unification to see them as the same type (`parse_type_inner`'s `<>`
-                // arm, src/types.rs ~4450; the list-form arm's own comment states this outright
-                // at ~4287: "We must produce the SAME string for unification"). `Path`, by
-                // contrast, re-prepends the colon (`format!(":{}", s)`, ~4494) — a DIFFERENT,
-                // equally intentional convention for a DIFFERENT variant. Normalize HERE, at
-                // this one read site, never in storage: a parametric response (e.g.
-                // `PCache::GetResponse<K,V>`) fed a colon-less `head` into the wat-side reader
-                // (`op-methods`/`serve-op-arms`), which unconditionally strips ONE leading
-                // character assuming a `:` is there — corrupting the base name's first real
-                // character. The fix belongs at the boundary where a bare-vs-prefixed `TypeExpr`
-                // becomes a wat keyword string, not upstream in the parser.
-                let resp_base_raw: &str = match ret {
-                    TypeExpr::Path(p) => p.as_str(),
-                    TypeExpr::Parametric { head, .. } => head.as_str(),
-                    _ => surface.name.as_str(),
-                };
-                let resp_base = if resp_base_raw.starts_with(':') {
-                    resp_base_raw.to_string()
-                } else {
-                    format!(":{resp_base_raw}")
-                };
-                let const_name =
-                    format!("{}::{}-RESPONSE-TYPE", surface.name, name.to_uppercase());
-                Some(WatAST::List(
-                    vec![
-                        WatAST::Keyword(":wat::core::def".into(), span.clone()),
-                        WatAST::Keyword(const_name, span.clone()),
-                        WatAST::StringLit(resp_base, span.clone()),
-                    ],
-                    span.clone(),
-                ))
-            }
-            SurfaceMember::Field { .. } => None,
-        })
-        .collect()
-}
-
 /// Shared loop body for [`register_types`] and [`register_stdlib_types`].
 /// Differs only in which `env` registration method is called — passed as
 /// `register`. Non-type-decl forms are spliced via `splice` (handles
@@ -3200,10 +3247,6 @@ fn register_types_impl(
                 // Arc 278 #16.2 — the per-op `:max-request-bytes` budget constants (one per
                 // serviceable method), emitted alongside the surface carrier below.
                 let mut op_budget_consts: Vec<WatAST> = Vec::new();
-                // DESIGN-STONE-the-client-validates-locally.md — the per-op declared
-                // response-type-name constants (sibling of `op_budget_consts` immediately
-                // above), emitted the same way, at the same site.
-                let mut op_response_type_consts: Vec<WatAST> = Vec::new();
                 let derived = if let TypeDef::Surface(ref surf) = def {
                     // Arc 293 K3-revise — the backing record PAIR ($core-record / $holon-record).
                     let mut d = derive_surface_backing_records(surf);
@@ -3226,12 +3269,15 @@ fn register_types_impl(
                         }
                         // Arc 278 #16.2 — one `<S>::<OP>-MAX-REQUEST-BYTES` runtime const per
                         // serviceable op, so `serve-op-arms` can reference the budget by keyword.
+                        //
+                        // Arc 278 #74 — the sibling `<S>::<OP>-RESPONSE-TYPE` runtime const
+                        // (DESIGN-STONE-the-client-validates-locally.md) that used to ride this
+                        // same channel is RETIRED: the builder ruled the response type's name
+                        // into LAW (`<Op>Response`, enforced above by
+                        // `synthesize_surface_protocol`'s own check), so `serve-op-arms` and
+                        // `op-methods` no longer need to READ it at runtime — they build the
+                        // ctor by concatenation again, now guaranteed correct by construction.
                         op_budget_consts = build_op_budget_constants(surf, &decl_span);
-                        // DESIGN-STONE-the-client-validates-locally.md — one
-                        // `<S>::<OP>-RESPONSE-TYPE` runtime const per serviceable op, so
-                        // `serve-op-arms` and `op-methods` can build `RequestTooLarge`'s ctor
-                        // by reading the DECLARED response type instead of guessing it.
-                        op_response_type_consts = build_op_response_type_constants(surf, &decl_span);
                     }
                     // Arc 293 S1 — the wire-protocol enums (`::Op` / `::Reply`) when the method
                     // sigs are pure. Same `register` closure → same privilege as the surface.
@@ -3288,9 +3334,6 @@ fn register_types_impl(
                 }
                 // Arc 278 #16.2 — the op budget consts are runtime `def`s too; same channel.
                 rest.extend(op_budget_consts);
-                // DESIGN-STONE-the-client-validates-locally.md — the op response-type consts
-                // ride the identical channel.
-                rest.extend(op_response_type_consts);
             }
             None => {
                 let spliced = splice(form, env)?;
@@ -5809,9 +5852,11 @@ mod tests {
         // resolved to Aggregate at synthesize time (only then does the record branch fire).
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Bad::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
                                 [ok <- :wat::core::String])]
-                  :features [(foo [self <- :t::Bad  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Bad  req <- :t::Bad::FooRequest]
                                -> :t::Bad::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a record-typed op-Response must be a located ruling-A error");
@@ -5830,9 +5875,11 @@ mod tests {
         // error. Also confirms STOP-1: env.get(ret) resolved to Enum at synthesize time.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad2 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
+                  :messages [(:wat::core::recordtype :t::Bad2::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String])]
-                  :features [(foo [self <- :t::Bad2  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Bad2  req <- :t::Bad2::FooRequest]
                                -> :t::Bad2::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("an enum Response lacking RequestTooLarge must be a located ruling-A error");
@@ -5851,10 +5898,12 @@ mod tests {
         // NOT well-shaped → located ruling-A error. Locks the field-shape, not just the name.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad3 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::defenum :t::Bad3::FooResponse :wat::enum::Pure
+                  :messages [(:wat::core::recordtype :t::Bad3::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Bad3::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::String  cap <- :wat::core::String])]
-                  :features [(foo [self <- :t::Bad3  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Bad3  req <- :t::Bad3::FooRequest]
                                -> :t::Bad3::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a mis-shaped RequestTooLarge (non-i64 fields) must be a located error");
@@ -5877,10 +5926,12 @@ mod tests {
         // the generated code referencing a variant that does not exist.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad4 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::defenum :t::Bad4::FooResponse :wat::enum::Pure
+                  :messages [(:wat::core::recordtype :t::Bad4::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Bad4::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-                  :features [(foo [self <- :t::Bad4  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Bad4  req <- :t::Bad4::FooRequest]
                                -> :t::Bad4::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("an enum Response lacking RequestMalformed must be a located error");
@@ -5901,13 +5952,15 @@ mod tests {
         // DATA rather than a rendering, so it is refused.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
+                  :messages [(:wat::core::recordtype :t::Bad5::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                                 :RequestMalformed [path     <- :wat::core::String
                                                    expected <- :wat::core::String
                                                    got      <- :wat::core::String])]
-                  :features [(foo [self <- :t::Bad5  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Bad5  req <- :t::Bad5::FooRequest]
                                -> :t::Bad5::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a mis-shaped RequestMalformed (String path) must be a located error");
@@ -5928,13 +5981,15 @@ mod tests {
         // rather than hand-assembling the `TypeExpr`.
         expand_then_register(
             r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
+                  :messages [(:wat::core::recordtype :t::Ok2::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                                 :RequestMalformed [path     <- (:wat::core::Vector :wat::core::String)
                                                    expected <- :wat::core::String
                                                    got      <- :wat::core::String])]
-                  :features [(foo [self <- :t::Ok2  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Ok2  req <- :t::Ok2::FooRequest]
                                -> :t::Ok2::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect("the list spelling of Vector<String> is the same type and must clear the lock");
@@ -5948,13 +6003,15 @@ mod tests {
         // false-positive on the migrated (conforming) fleet.
         let env = expand_then_register(
             r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
+                  :messages [(:wat::core::recordtype :t::Ok1::FooRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                                 :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
                                                    expected <- :wat::core::String
                                                    got      <- :wat::core::String])]
-                  :features [(foo [self <- :t::Ok1  req <- :wat::core::String]
+                  :features [(foo [self <- :t::Ok1  req <- :t::Ok1::FooRequest]
                                -> :t::Ok1::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect("a conforming outcome-enum Response must clear the ruling-A lock");

@@ -12,9 +12,10 @@
 ;; called it "struct-field reflection"; the declaration simply did not match the name.
 (:wat::core::defstruct :probe::Bag [kv <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>  n <- :wat::core::i64])
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
-  :messages [(:wat::core::defenum :probe::Kv::R :wat::enum::Pure :Ok [x <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+  :messages [(:wat::core::defrecord :probe::Kv::GetRequest [k <- :wat::core::String])
+             (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [x <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                                                                                                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
-  :features [(get [self <- :probe::Kv req <- :probe::Kv::R] -> :probe::Kv::R :max-request-bytes 524288)])
+  :features [(get [self <- :probe::Kv req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [_ (:wat::kernel::println (:wat::runtime::field-names-of :probe::Bag))

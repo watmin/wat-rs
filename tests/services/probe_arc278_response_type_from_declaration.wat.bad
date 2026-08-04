@@ -1,0 +1,28 @@
+;; Arc 278 #74 — `<Op>Response` is LAW (builder ruling, 2026-08-05).
+;;
+;; ★ INVERTED. This file used to be the acceptance case for "the RequestTooLarge`/
+;; `RequestMalformed` ctors are built from the op's DECLARED response type, never guessed by
+;; `<OpPascal>Response` concatenation" — `:probe::Odd::Verdict` (for op `put`) was deliberately
+;; NOT named `PutResponse`, driving three call paths (`op-methods`' own generated client method,
+;; `serve-op-arms`' size guard, `serve-op-arms`' shape guard) that each proved its ctor was READ,
+;; not guessed.
+;;
+;; Under the ruling that proposition is FALSE: an op's response type IS `<Op>Response`, checker-
+;; enforced right here, at registration. So this declaration — UNCHANGED on purpose — is now
+;; illegal, and the file cannot freeze at all; the three call paths it used to drive are
+;; unreachable (there is no generated code for a surface that never registers), so they are
+;; deleted rather than kept as dead weight that would mislead a reader into thinking they still
+;; run. The surface alone is the whole subject now: `probe_arc278_response_type_from_declaration.rs`
+;; asserts this exact declaration is REFUSED, located, naming both `:probe::Odd::Verdict` (declared)
+;; and `:probe::Odd::PutResponse` (required). Renamed `.wat` → `.wat.bad`: it is a deliberately
+;; illegal declaration now, never a loadable fixture, and `.wat.bad` is the corpus's established
+;; marker for that (`tests/services/probe_arc170_c2_d_bodiless_edge.wat.bad`).
+(:wat::core::defsurface :probe::Odd :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :probe::Odd::PutRequest [payload <- :wat::core::String  count <- :wat::core::i64])
+   (:wat::core::defenum :probe::Odd::Verdict :wat::enum::Pure
+     :Ok              [ok <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(put [self <- :probe::Odd  req <- :probe::Odd::PutRequest] -> :probe::Odd::Verdict :max-request-bytes 100)])

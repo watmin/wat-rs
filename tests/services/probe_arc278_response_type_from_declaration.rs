@@ -1,65 +1,61 @@
-//! Arc 278 BRIEF-client-validates-locally — the `RequestTooLarge`/`RequestMalformed` ctors are
-//! built from the op's DECLARED response type (`build_op_response_type_constants`,
-//! `src/types.rs`), never guessed by `<OpPascal>Response` string concatenation.
+//! Arc 278 #74 — `<Op>Response` is LAW (builder ruling, 2026-08-05: "convention is law —
+//! enforce it… services are our OOP layer, we make requests to them and get responses back.").
 //!
-//! `:probe::Odd::Verdict` (the response type for op `put`) is deliberately NOT named
-//! `PutResponse` — the acceptance shape, mirroring `wat-scripts/scratch-pad/probe-repl-durable-
-//! forms.wat`'s `EvalResponse`: a still-guessing call site fails on it first.
+//! ★ INVERTED. This file used to be the acceptance case for "the response type's name is READ,
+//! not guessed": `:probe::Odd::Verdict` (deliberately NOT `PutResponse`) exercised three call
+//! paths — `op-methods`' own generated client method, `serve-op-arms`' size guard, and its shape
+//! guard — each proving its `RequestTooLarge`/`RequestMalformed` ctor was built by reading the
+//! DECLARED response type, never by guessing `<OpPascal>Response`.
 //!
-//! PROMOTED from a throwaway used during the deliberate-break verification: nothing else in the
-//! corpus exercises `op-methods`' generated function by its own SERVICE-namespaced name (every
-//! fixture calls the surface name, which resolves through the Path-B runtime intrinsic in
-//! `src/runtime.rs` instead), and the one existing per-op-guard fixture
-//! (`probe_arc278_per_op_enforcement_codegen.wat`) uses a conventionally-named response type, so
-//! it cannot tell a correct read from a guess that happens to land on the same string.
+//! Under the ruling that proposition is FALSE: an op's response type IS `<Op>Response`, checker-
+//! enforced at `defsurface` registration (`synthesize_surface_protocol`, `src/types.rs`). So
+//! `:probe::Odd::put -> Verdict` is no longer a legal declaration at all — the file cannot even
+//! FREEZE, let alone reach any of the three call sites the old tests drove. There is nothing left
+//! to read a name from, because there is no longer a way to declare a wrong one and have it run.
+//!
+//! This file's subject is now the wall itself: `:probe::Odd` stays non-conforming (`Verdict`, not
+//! `PutResponse` — the .wat is UNCHANGED, on purpose) and the ONE test below asserts the surface
+//! is REFUSED, located, naming BOTH the declared name and the required one. The three original
+//! probes collapse into this one because the refusal fires at registration, before op-methods,
+//! serve-op-arms, or any generated code exists to reach — there is no code left to distinguish.
+//!
+//! The fixture is `.wat.bad` (not `.wat`), the established convention for "this file must NOT
+//! load" (see `tests/services/probe_arc170_c2_d_bodiless_edge.wat.bad`) — it can no longer be a
+//! plain `.wat` sibling loaded via `startup_beside`, which asserts success by construction.
 
-use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::freeze::{startup_from_file, StartupError};
+use wat::types::TypeErrorKind;
 
-/// `op-methods`' OWN generated client method (`:probe::oddsvc/put`, the SERVICE name — not the
-/// surface name, which would route through Path B and prove nothing about this generator)
-/// refuses an over-budget request locally, returning `RequestTooLarge` built off the DECLARED
-/// `Verdict` response type.
+/// `:probe::Odd::put -> Verdict` must be REFUSED at `defsurface` registration — located, naming
+/// both the declared name (`:probe::Odd::Verdict`) and the required one
+/// (`:probe::Odd::PutResponse`) — never silently accepted and never reached by any downstream
+/// codegen (op-methods, serve-op-arms' size guard, serve-op-arms' shape guard all die upstream
+/// of this check, which is exactly the point: the wrong name has no representation anymore).
 #[test]
-fn op_methods_over_budget_refused_locally() {
-    let got = call_beside_value(file!(), ":user::op-methods-over-budget-refused-locally")
-        .unwrap_or_else(|e| panic!("op-methods' own generated method must refuse locally; got raise: {e:?}"));
-    assert!(
-        matches!(got, Value::i64(n) if n > 100),
-        "expected RequestTooLarge.bytes > 100 (the declared cap); got {got:?}"
-    );
-}
-
-/// `serve-op-arms`' per-op SIZE guard (server-side codegen) fires for a request sized between
-/// `:max-request-bytes` (100) and `:max-frame-bytes`/FOO (65536) — proving the codegen guard,
-/// not the transport-level FOO check, is what catches it — and builds `RequestTooLarge` off the
-/// DECLARED `Verdict` response type.
-#[test]
-fn serve_op_arms_size_guard_fires() {
-    let got = call_beside_value(file!(), ":user::serve-op-arms-size-guard-fires")
-        .unwrap_or_else(|e| panic!("serve-op-arms' per-op size guard must fire; got raise: {e:?}"));
-    assert!(
-        matches!(got, Value::i64(n) if n > 100),
-        "expected RequestTooLarge.bytes > 100 (the declared cap); got {got:?}"
-    );
-}
-
-/// `serve-op-arms`' shape guard (`:wat::edn::validate`) fires for a right-tag, wrong-shape
-/// request (an `i64` field carrying a String) and builds `RequestMalformed` off the DECLARED
-/// `Verdict` response type — EXACT DATA, not a loose contains: the path names the offending
-/// field, the declared/actual EDN shapes are named precisely.
-#[test]
-fn serve_op_arms_shape_guard_fires() {
-    let got = call_beside_value(file!(), ":user::serve-op-arms-shape-guard-fires")
-        .unwrap_or_else(|e| panic!("serve-op-arms' shape guard must fire; got raise: {e:?}"));
-    match got {
-        Value::String(s) => {
-            assert_eq!(
-                s.as_str(),
-                "[\"count\"]/:wat::core::i64/String",
-                "RequestMalformed.path/expected/got did not name the offending `count` field"
-            );
-        }
-        other => panic!("expected a String, got {other:?}"),
+fn odd_verdict_response_name_is_refused_at_registration() {
+    match startup_from_file("tests/services/probe_arc278_response_type_from_declaration.wat.bad") {
+        Ok(_) => panic!(
+            "expected `:probe::Odd::put -> Verdict` to be REFUSED at registration (arc 278 #74 \
+             — `<Op>Response` is law); it froze clean instead, which means the law is not being \
+             enforced"
+        ),
+        Err(StartupError::Type(e)) => match e.into_kind() {
+            TypeErrorKind::MalformedDecl { head, reason } => {
+                assert_eq!(head, ":wat::core::defsurface");
+                assert_eq!(
+                    reason,
+                    "op `put` in surface :probe::Odd: response type name is LAW — declared \
+                     `:probe::Odd::Verdict`, required `:probe::Odd::PutResponse` (arc 278 #74, \
+                     builder ruling 2026-08-05: an op's response type IS `<Op>Response`; rename \
+                     the declaration to match)"
+                );
+            }
+            other => panic!(
+                "expected MalformedDecl (the #74 response-name-law refusal); got {other:?}"
+            ),
+        },
+        Err(other) => panic!(
+            "expected StartupError::Type (the #74 response-name-law refusal); got {other:?}"
+        ),
     }
 }

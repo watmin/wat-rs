@@ -1,8 +1,8 @@
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Kv::GetReq [k <- :wat::core::String])
-             (:wat::core::defenum :probe::Kv::GetResp :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+  :messages [(:wat::core::defrecord :probe::Kv::GetRequest [k <- :wat::core::String])
+             (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
                                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
-  :features [(get [self <- :probe::Kv req <- :probe::Kv::GetReq] -> :probe::Kv::GetResp :max-request-bytes 524288)])
+  :features [(get [self <- :probe::Kv req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:wat::core::write-forms
     (:wat::core::macroexpand (:wat::core::quote
@@ -10,8 +10,8 @@
         [item <- :wat::core::String
          & [kv <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>]]
         -> :wat::core::String
-        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetReq item)) ((:probe::Kv::GetResp::Ok v) v)
-  ((:probe::Kv::GetResp::RequestTooLarge bytes cap)
+        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetRequest item)) ((:probe::Kv::GetResponse::Ok v) v)
+  ((:probe::Kv::GetResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))
-  ((:probe::Kv::GetResp::RequestMalformed mpath mexpected mgot)
+  ((:probe::Kv::GetResponse::RequestMalformed mpath mexpected mgot)
     (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))))))))

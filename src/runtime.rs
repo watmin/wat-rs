@@ -6014,11 +6014,20 @@ fn dispatch_keyword_head_value(
                                     // `SurfaceMember::Method` this `member` binding already holds —
                                     // the same field `synthesize_surface_protocol`'s RTL lock reads
                                     // (`src/types.rs` ~2804, `if let TypeExpr::Path(resp_path) = ret`).
-                                    // `<OpPascal>Response` was a NAME GUESSED from the op, and a
-                                    // response type is free to be named anything (only a
-                                    // `RequestTooLarge{bytes,cap}` variant on it is mandatory — see
-                                    // `probe-repl-durable-forms.wat`'s `EvalResponse` for `eval-src`,
-                                    // an acceptance case the guess got wrong). `Path`/`Parametric`
+                                    // Arc 278 #74 — this comment's ORIGINAL justification is now
+                                    // RETIRED and is recorded here rather than silently dropped: it
+                                    // read *"a response type is free to be named anything"*, citing
+                                    // `probe-repl-durable-forms.wat`'s `EvalResponse`. Both halves
+                                    // are false today. The builder ruled the name into LAW
+                                    // (`<Op>Response`, checker-enforced in
+                                    // `synthesize_surface_protocol`), and that probe is now the
+                                    // fixture PROVING the refusal
+                                    // (`tests/services/probe_arc278_repl_durable_forms_response_law.wat.bad`).
+                                    // Path B's CODE is unaffected and needs no change — it already
+                                    // READ `ret` rather than guessing, which is why the law found
+                                    // nothing to fix here. Reading the declaration stays correct;
+                                    // it is simply no longer the only thing standing between us and
+                                    // a wrong name. `Path`/`Parametric`
                                     // both carry the base name with no `<...>` suffix baked in
                                     // (unlike the wat-level string split elsewhere in this codebase,
                                     // Rust's `TypeExpr` keeps head and args structurally separate) —
