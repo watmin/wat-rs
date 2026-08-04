@@ -642,6 +642,43 @@ scoping choice; it is the ceiling.
 | `foldl` (4) + `foldr`/`map`/`filter`/`reduce` | a **function** param + generics | ❌❌❌ |
 | `=` · `not=` (45) | per-type rows — but of **which** types? | **unmeasured** |
 
+### ✅ 1b RESOLVED 2026-08-05 — it is TWO shapes, and the fork dissolved once measured
+
+Both halves are grounded; neither is a preference.
+
+**The five HOFs → RE-DISPATCH. A scheme is impossible, not merely worse.** `infer_foldl`'s own
+doc states the signature: *"Projective: `fn(Acc,T)->Acc × Acc × C<T> → Acc`"*, and its error text
+names the collection as **`Vector<T>, PersistentVector<T>, List<T>, or Stream<T>`**. `foldl` is
+polymorphic over the **container constructor**, not just the element — a rank-1 `TypeScheme`
+cannot say *"C ranges over four constructors."* That is precisely why core `foldl` has a bespoke
+inference arm (`check.rs:4208`) instead of a scheme. A rete scheme would therefore be **a second
+declaration of a type, strictly less capable than the real one — a lie the day it was written**,
+not a drift risk later. The four questions score 4×YES for re-dispatch, and the stone's own
+implementation law lands on the same square: *never a second implementation; a rete op is a second
+handler on the shared kernel.* `OpClass::Form` (`check.rs:2409`) is the existing precedent.
+
+**The PV trio → A ROW CARRYING AN EXPLICIT SCHEME.** Unlike the HOFs, these name **one** container,
+so their whole truth is sayable: `PersistentVector/length : PV<T> -> i64`. That is exactly what
+*"the rete surface is per-type, period"* asks for. Three facts settle it:
+
+1. **Already classified** — all three sit in `purity.rs`'s pure∧det list (`:336-339`) *and* its
+   total list (`:525-527`), with the reason written out: *"`/length` `/contains?` — always defined.
+   `/get` — ALREADY total by design (returns `Option`, `None` on out-of-range)."* The meta column
+   is transcribable, exactly as in 1a.
+2. **The accessor door does NOT admit them** — checked, and this closes the cheapest possible
+   outcome. `accessor_meta` (`purity.rs:760`) requires `types.get(type_path)` to be a
+   `TypeDef::Aggregate` *and* the segment after `/` to be a declared **field**.
+   `:wat::core::PersistentVector` is a builtin container and `length` is a method, so it matches
+   neither test. **They need rows.**
+3. **Typed through `seq_container.rs`**, the per-Type container registry (R14's narrow waist),
+   reached from `check.rs` via `StreamContainer::of_type`.
+
+**The mechanism is already there and merely unreachable.** The rete registration site
+(`check.rs:15818`) builds a `TypeScheme { type_params: vec![], … }` — **hardcoded empty** — while
+`TypeScheme` has carried `type_params` and `rest_param_type` all along. So the change is not new
+machinery: `ParamType` stays the cheap path for monomorphic rows, and a row that needs more
+supplies its own scheme. Nothing about the 27 existing rows moves.
+
 ### The three pieces this splits into, and they are not one strike
 
 - **1a — MECHANICAL, unblocked by anything.** Add `String` and `F64` to `ParamType` (+ their
