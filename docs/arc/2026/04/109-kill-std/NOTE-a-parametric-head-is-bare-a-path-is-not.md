@@ -2,6 +2,19 @@
 
 **Filed 2026-08-04, arc 278 (the client-validates-locally strike). Grounded, not fixed.**
 
+> **⚠ AMENDED within the hour, twice, and both corrections matter more than the original filing.**
+>
+> **(1) The line citations in the first version were WRONG.** It cited `types.rs:4223`/`:4231`;
+> those are function-type bracket errors and have nothing to do with this. The real site is
+> **`:4292`** and the `<>` arm it mirrors. My fourth adjacent-site citation error of the day and the
+> only one that reached disk.
+>
+> **(2) THE ASYMMETRY IS DELIBERATE, NOT AN ACCIDENT.** The first version implied a mistake ("two
+> halves of one enum disagreeing"); the rider that found the bug independently inferred "an accident
+> of two separate code paths, not a documented decision." **Both wrong** — there is a comment at the
+> site giving the reason, quoted below. This changes the cure: making the storage consistent would
+> BREAK unification. Corrections kept in place rather than rewritten away.
+
 Sibling of [`NOTE-macro-minted-names-are-unvalidated-string-concatenation.md`](NOTE-macro-minted-names-are-unvalidated-string-concatenation.md)
 — that one is the **wat** layer (a name assembled by `string::concat` inside a macro, unvalidated).
 This is the **Rust** layer, and it is worse in one specific way: the two halves of a single enum
@@ -15,8 +28,19 @@ TypeExpr::Path(p)                     // ":probe::Repl::EvalResponse"   — colo
 TypeExpr::Parametric { head, .. }     //  "probe::Repl::BoxResponse"    — colon ABSENT
 ```
 
-Grounded: `src/types.rs:4223` and `:4231` — `kw.strip_prefix(':').unwrap_or(&kw).to_string()`. The
-head is stripped before the parametric is built; the `Path` form keeps (or re-acquires) its colon.
+Grounded at **`src/types.rs:4287-4300`**, and the comment states the reason outright:
+
+```rust
+// Extract the constructor head as a bare path string (no leading colon).
+// Mirrors the <> arm in parse_type_inner which stores `raw_head = s[..lt_index]`
+// (the FQDN before `<`, no colon). We must produce the SAME string for unification.
+let raw_head: String = match &items[0] { … kw.strip_prefix(':').unwrap_or(&kw).to_string() … };
+```
+
+**So the bare head is a load-bearing storage convention, not a slip.** Two parametric-parsing paths
+exist — the `Head<args>` keyword form and the `(Ctor arg…)` list form — and both must yield a
+byte-identical head string or unification fails. The `Path` form separately re-prepends its colon.
+Neither side is wrong; they are answering different questions.
 
 So the natural, symmetrical-looking match is a bug:
 
@@ -37,11 +61,17 @@ format!("{}::RequestTooLarge", base)                       // one of these is ma
 declared one**. The replacement was correct about *which* name; it was wrong about the name's *form*.
 Being fixed in that strike, two sites only.
 
-**⚠ OPEN, and it is the interesting one:** the pre-existing `serve-op-arms` guess concatenated onto
-`proto-base`. Was *that* colon-correct for parametric surfaces, or has the parametric path been
-quietly malformed there too, for as long as it has existed? Unanswered at filing. Three parametric
-fixtures exist to test it against: `wat-tests/service-parametric.wat`,
-`service-parametric-messages.wat`, `service-parametric-two-params.wat`.
+**✅ CLOSED — the pre-existing guess was NOT exposed.** Asked at filing, answered within the hour and
+grounded: `serve-op-arms`' old concatenation built from `proto-base` — the surface's own declared
+keyword *as literally written*, sliced before the `<` — and **never touched `TypeExpr` at all**. It
+is colon-correct by construction, and every sibling keyword built the same way (`cap-const-kw`,
+`op-variant-kw`, `reply-variant-kw`) has always worked on parametric surfaces, confirmed on a stashed
+pre-existing tree.
+
+**This is therefore a REGRESSION introduced by the new mechanism, not a latent bug it uncovered** —
+the new code is the first to read `ret: TypeExpr` directly for this purpose. Proven by a stash
+differential, not argued: the two `service-parametric-messages.wat` deftests pass on the stashed tree
+and fail on the working tree.
 
 ## The exposure surface — 137, and that is NOT a defect count
 
@@ -69,13 +99,19 @@ against a *bare* name and are correct. Which ones concatenate or compare it agai
 
 ## The cure, on the ladder
 
-- **convention** — "remember to re-add the colon for parametric." This is the current state, and it
-  is the rung that already failed.
-- **check** — an `impl TypeExpr` with one accessor returning the FQDN in a single consistent form.
-  Makes the right thing available and the sweep mechanical. **This is the realistic rung.**
-- **no form** — the head cannot be a bare `String` that a caller may read raw; it is a type that
-  carries its own normalization, so the un-normalized read has no expression. Costly, and the right
-  answer if this recurs after the accessor lands.
+⛔ **DO NOT "make the two variants consistent."** That is the obvious cure and it is wrong — the bare
+head exists so two parser paths unify, and re-adding the colon at storage would break that. The
+storage is correct. **The defect is that reading it correctly requires knowing an invariant that is
+documented at the PARSER and invisible at all 137 use sites.**
+
+- **convention** — "remember the parametric head is bare." The current state, and the rung that just
+  failed, in code written by someone who had read the surrounding file.
+- **check** — an `impl TypeExpr` with one accessor returning the FQDN form on demand, leaving storage
+  untouched. Makes the right thing available and the sweep mechanical. **This is the realistic rung
+  and the only one that does not disturb unification.**
+- **no form** — the head is not a bare `String` a caller may read raw but a type that renders itself
+  in either form on request, so the un-normalized read has no expression. Costly; the answer if this
+  recurs after the accessor lands.
 
 ⛔ **Do not ship the accessor as a side effect of a bug fix.** With two callers it is
 `[[feedback_no_consumers_does_not_mean_dead]]` in reverse — a door minted mid-strike that nobody is
