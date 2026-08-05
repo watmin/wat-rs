@@ -117,6 +117,14 @@ pub(crate) enum ParamType {
     /// out-of-range, never a raise — `purity.rs`'s own reasoning for why this round is its
     /// home rather than the fallback round).
     OptionOf(&'static str),
+    /// Arc 278 the VSA seam opens — a holon AST value. Spells the exact `TypeExpr` `check.rs`'s
+    /// own `holon_ty` closure (`check.rs:14974`, `TypeExpr::Path(":wat::holon::HolonAST")`)
+    /// already builds for the hand-written holon intrinsic signatures — needed here to declare
+    /// `cosine`/`dot`/`presence?`'s `Holon, Holon -> …` rete rows. Naming it narrows core's
+    /// `HolonAST | Vector` polymorphism (arc 052/061) to `HolonAST`-only at the rete surface —
+    /// deliberate, per the design stone's "the rete surface is per-type, period" ruling, not an
+    /// omission.
+    Holon,
 }
 
 impl ParamType {
@@ -136,6 +144,7 @@ impl ParamType {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
             },
+            ParamType::Holon => TypeExpr::Path(":wat::holon::HolonAST".into()),
         }
     }
 }
@@ -849,6 +858,57 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
         ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the VSA seam opens: the four
+    // `:wat::holon::` verbs the builder ruled pure∧det∧total on 2026-08-01
+    // (`purity.rs`'s VSA-seam block) get their `RETE_OPS` rows, arming the seam R4's
+    // design named and #55/#57 left unarmed. `cosine`/`dot` are `Fallback`: core returns
+    // an outcome ENUM (`CosineOutcome`/`DotOutcome`), a THIRD failure mode `dispatch_rete_op`'s
+    // `Fallback` arm now faces beside i64's raise and f64's non-finite scalar — it inspects the
+    // returned Value's ENUM VARIANT and unwraps the happy payload to the f64 this row's `ret`
+    // promises, taking the caller's `:undefined` value on every other variant (`Degenerate`,
+    // and both enums' `DimensionMismatch`). `presence?` is `Alias` (already returns a plain
+    // `bool`, needs no fallback — STOP-1, the builder's 2026-08-02 predicate ruling).
+    // `coincident?` is `Redispatch`: it keeps core's `HolonAST | Vector` polymorphism (arc
+    // 052/061), so it cannot be spelled as a rank-1 `params`/`ret` scheme — `params`/`ret`
+    // below are unused placeholders, same convention the `foldl`/`map`/`reduce` Redispatch
+    // rows above use; `check.rs`'s `infer_rete_form` re-dispatches it to the exact
+    // `:wat::holon::coincident?` inference arm core's own spelling already uses.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::holon::cosine",
+        core_name: ":wat::holon::cosine",
+        class: OpClass::Fallback,
+        params: &[ParamType::Holon, ParamType::Holon, ParamType::Keyword, ParamType::F64],
+        ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::holon::dot",
+        core_name: ":wat::holon::dot",
+        class: OpClass::Fallback,
+        params: &[ParamType::Holon, ParamType::Holon, ParamType::Keyword, ParamType::F64],
+        ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::holon::coincident?",
+        core_name: ":wat::holon::coincident?",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::holon::presence?",
+        core_name: ":wat::holon::presence?",
+        class: OpClass::Alias,
+        params: &[ParamType::Holon, ParamType::Holon],
+        ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
 ];

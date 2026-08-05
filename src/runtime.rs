@@ -8283,6 +8283,54 @@ fn dispatch_rete_op(
                 Ok(Value::f64(x)) if matches!(op.ret, ParamType::F64) && !x.is_finite() => {
                     eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
                 }
+                // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the THIRD failure mode,
+                // shaped like neither the i64 raise nor the f64 non-finite-scalar above: the
+                // holon family (`:wat::holon::cosine`/`:wat::holon::dot`) fails by RETURNING a
+                // named outcome ENUM (`CosineOutcome`/`DotOutcome`, `types.rs`), never by
+                // raising and never as a bare f64. This is not a wider match on the two arms
+                // above — it PROJECTS a field out of the wrapper: the happy variant's payload
+                // becomes the f64 this row's `ret: ParamType::F64` promises the rete surface,
+                // while every OTHER variant (a zero-magnitude operand's `Degenerate`, or either
+                // enum's `DimensionMismatch`) is this family's undefined point and takes the
+                // caller's `:undefined` value, exactly like the two arms above. Keyed off the
+                // returned VALUE's own `type_path` (never `op.ret`, which is `F64` for both this
+                // family and the f64-arithmetic family above and so cannot distinguish them) —
+                // the two enums do NOT share variant/field names (`Similarity`/`similarity` vs
+                // `Computed`/`product`; only `CosineOutcome` has `Degenerate`), so each gets its
+                // own arm rather than one merged match. No `_` wildcard: every variant either
+                // enum can construct is named explicitly, and an enum shape neither this arm nor
+                // `types.rs`'s registration recognises is a bug in this arm's own authoring, not
+                // a value to route around silently.
+                Ok(Value::Enum(ev)) if ev.type_path == COSINE_OUTCOME_TYPE => {
+                    match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                        ("Similarity", [Value::f64(similarity)]) => Ok(Value::f64(*similarity)),
+                        ("Degenerate", [_]) | ("DimensionMismatch", [_, _]) => {
+                            eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                        }
+                        (variant, fields) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                            head: head.into(),
+                            reason: format!(
+                                "rete Fallback arm's holon mode has no route for CosineOutcome::{variant} ({} field(s)) — add one before shipping this shape",
+                                fields.len()
+                            ),
+                        }).into()),
+                    }
+                }
+                Ok(Value::Enum(ev)) if ev.type_path == DOT_OUTCOME_TYPE => {
+                    match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                        ("Computed", [Value::f64(product)]) => Ok(Value::f64(*product)),
+                        ("DimensionMismatch", [_, _]) => {
+                            eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                        }
+                        (variant, fields) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                            head: head.into(),
+                            reason: format!(
+                                "rete Fallback arm's holon mode has no route for DotOutcome::{variant} ({} field(s)) — add one before shipping this shape",
+                                fields.len()
+                            ),
+                        }).into()),
+                    }
+                }
                 Ok(v) => Ok(v),
                 // With the args already checked as (i64, i64), the i64 arithmetic family raises
                 // exactly two domain failures and no third: overflow (+ - * and the MIN/-1

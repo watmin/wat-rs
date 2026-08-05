@@ -2378,6 +2378,19 @@ fn infer_rete_form(
             items.extend_from_slice(args);
             infer_list(&items, head_span, env, locals, fresh, subst)
         }
+        // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — `:wat::rete::holon::coincident?` is
+        // `Redispatch` for the SAME reason `reduce` is above: it keeps core's `HolonAST | Vector`
+        // polymorphism (arc 052/061), so no rank-1 `params`/`ret` scheme can state its type.
+        // `:wat::holon::coincident?` already has a bespoke arm in `infer_list`'s own
+        // `k.as_str()` match (`infer_polymorphic_holon_pair_to_bool`) — re-dispatch by
+        // head-substitution into `infer_list`, exactly `reduce`'s recipe, so that arm is the
+        // ONE place the inference lives, never duplicated here.
+        ":wat::holon::coincident?" => {
+            let mut items = Vec::with_capacity(args.len() + 1);
+            items.push(WatAST::Keyword(core_name.to_string(), head_span.clone()));
+            items.extend_from_slice(args);
+            infer_list(&items, head_span, env, locals, fresh, subst)
+        }
         // STOP-1: LOUD and LOCATED, never a silent fallthrough to `infer_boolean_shortcircuit`.
         // Reachable only by a future `RETE_OPS` row minting `class: Form` with a `core_name` this
         // match was never taught — a bug in the vocabulary table's authoring, not a user error,
