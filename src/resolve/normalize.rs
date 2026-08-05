@@ -38,7 +38,7 @@ use crate::ast::WatAST;
 use crate::edn_shim::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
-use super::boundary::{is_unquote_escape, quote_boundary, Boundary};
+use super::boundary::{is_unquote_escape, is_where_form, quote_boundary, Boundary};
 use super::error::{ResolveError, UnresolvedReference};
 use super::walk::is_resolvable_call_head;
 
@@ -115,6 +115,12 @@ fn normalize_form(
                 Boundary::MatchesSubject => normalize_matches(items, sym, macros, errors),
                 // match: scrutinee + arm bodies are code; arm patterns are data (arc 258.5, no `-> :T`).
                 Boundary::Match => normalize_match(items, sym, macros, errors),
+                // make-rule (arc 278 task #78): rule name is code; the quoted
+                // :when vector is data except each where-form's body (code);
+                // the quoted :then vector is untouched data. Mirrors `walk`'s
+                // `check_make_rule_when` exactly — see its doc for why the
+                // already-expanded where-body call heads still need this pass.
+                Boundary::MakeRule => normalize_make_rule(items, sym, macros, errors),
             };
             WatAST::List(new_items, span)
         }
@@ -229,6 +235,96 @@ fn normalize_match(
         }
     }
     out
+}
+
+/// Normalize a `:wat::rete::make-rule` call. items[0]=head (as-is),
+/// items[1]=rule name (code), items[2]=quoted `:when` vector (data except
+/// each where-form's body — see [`normalize_make_rule_when`]), items[3..]=
+/// quoted `:then` vector and any trailing args (untouched data — task #61
+/// already ruled derived fact fields are copies only; STOP — do not touch).
+fn normalize_make_rule(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    out.extend(iter.next()); // make-rule head, as-is
+    if let Some(name) = iter.next() {
+        out.push(normalize_form(name, sym, macros, errors)); // rule name: code
+    }
+    if let Some(when_arg) = iter.next() {
+        out.push(normalize_make_rule_when(when_arg, sym, macros, errors));
+    }
+    out.extend(iter); // :then vector + any trailing args: data, as-is
+    out
+}
+
+/// Normalize a `make-rule` call's `:when` argument. Expected shape
+/// `(:wat::core::quote [<condition>...])` — mirrors `walk`'s
+/// `check_make_rule_when` (see its doc for the shape assumption and the
+/// STOP-2 hazard this avoids: a condition pattern's aggregate-shaped head
+/// must never be rewritten as if it were a call). Anything not shaped like a
+/// literal quoted vector is left untouched — conservative by construction.
+fn normalize_make_rule_when(
+    when_arg: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    let WatAST::List(qitems, qspan) = when_arg else { return when_arg };
+    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    if !is_quote {
+        return WatAST::List(qitems, qspan);
+    }
+    let mut qiter = qitems.into_iter();
+    let mut new_q = Vec::with_capacity(2);
+    new_q.extend(qiter.next()); // quote head, as-is
+    if let Some(vec_node) = qiter.next() {
+        new_q.push(normalize_make_rule_conditions(vec_node, sym, macros, errors));
+    }
+    new_q.extend(qiter); // shouldn't appear in a well-formed quote; conservative
+    WatAST::List(new_q, qspan)
+}
+
+/// Normalize the condition vector inside a `make-rule`'s quoted `:when` arg —
+/// per-element dispatch to [`normalize_make_rule_condition`].
+fn normalize_make_rule_conditions(
+    vec_node: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    let WatAST::Vector(conds, vspan) = vec_node else { return vec_node };
+    let new_conds = conds
+        .into_iter()
+        .map(|cond| normalize_make_rule_condition(cond, sym, macros, errors))
+        .collect();
+    WatAST::Vector(new_conds, vspan)
+}
+
+/// Normalize one `:when` condition. A `(:wat::rete::where <body>...)` form's
+/// body is code — normalized like any other. Every other condition (a fact
+/// pattern) is byte-identical, untouched.
+fn normalize_make_rule_condition(
+    cond: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    let WatAST::List(citems, cspan) = cond else { return cond };
+    let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if is_where_form(h));
+    if !is_where {
+        return WatAST::List(citems, cspan);
+    }
+    let mut citer = citems.into_iter();
+    let mut new_c = Vec::with_capacity(citer.len().max(1));
+    new_c.extend(citer.next()); // where head, as-is
+    for body in citer {
+        new_c.push(normalize_form(body, sym, macros, errors)); // body: code
+    }
+    WatAST::List(new_c, cspan)
 }
 
 /// Walk a quasiquote template, normalizing only inside unquote/unquote-splicing

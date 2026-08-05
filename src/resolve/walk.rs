@@ -10,7 +10,7 @@ use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
 use super::error::{ResolveError, UnresolvedReference};
-use super::boundary::{quote_boundary, Boundary};
+use super::boundary::{is_where_form, quote_boundary, Boundary};
 use super::reserved::is_reserved_prefix;
 use super::rust_use::collect_use_declarations;
 use super::quote::check_quasiquote_template;
@@ -167,6 +167,27 @@ pub(super) fn check_form(
                     return;
                 }
 
+                // make-rule (arc 278 task #78) — items[1]=rule name (code);
+                // items[2]=quoted :when vector, data except each
+                // `(:wat::rete::where …)` form's body (code); items[3]=quoted
+                // :then vector, untouched data. By the time walk sees this form
+                // the `defrule`/sift-generator macro that produced it has
+                // already run (freeze step 4 precedes step 7), so any macro
+                // used inside a where body (e.g. rete-spelled `cond`) has
+                // already expanded to a real call head here — that call head
+                // is exactly what this walk must resolve. The surrounding
+                // condition patterns stay untouched: their heads are
+                // aggregate-shaped and NOT call heads (STOP-2).
+                Boundary::MakeRule => {
+                    if let Some(name) = items.get(1) {
+                        check_form(name, sym, macros, use_decls, unresolved);
+                    }
+                    if let Some(when_arg) = items.get(2) {
+                        check_make_rule_when(when_arg, sym, macros, use_decls, unresolved);
+                    }
+                    return;
+                }
+
                 // Not a boundary — fall through to the generic children() walk.
                 Boundary::Ordinary => {}
             }
@@ -179,6 +200,44 @@ pub(super) fn check_form(
     // children() returns &[] for leaf nodes (no-op).
     for child in form.children().iter() {
         check_form(child, sym, macros, use_decls, unresolved);
+    }
+}
+
+/// Walk a `make-rule` call's `:when` argument (items[2] of the call form).
+/// Expected shape `(:wat::core::quote [<condition>...])` — every measured
+/// producer (`defrule`, `sift-rules-defsvc`, hand-built rule literals, direct
+/// `make-rule` calls) quotes the `:when` vector this way. Only a
+/// `(:wat::rete::where <body>...)` condition's body is code; every other
+/// condition (a fact pattern with an aggregate-shaped head) is left
+/// completely untouched — STOP-2, the hazard `Boundary::MatchesSubject`
+/// already exists to avoid: walking a pattern as code fires `kwargs-lower` on
+/// raw DSL clauses.
+///
+/// If `when_arg` is not a literal `(quote <vector>)` (e.g. a computed
+/// `:wat::WatAST` expression with no syntactic vector to search), there is no
+/// `where` form to find syntactically — left untouched, conservative by
+/// construction.
+fn check_make_rule_when(
+    when_arg: &WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    let WatAST::List(qitems, _) = when_arg else { return };
+    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    if !is_quote {
+        return;
+    }
+    let Some(WatAST::Vector(conds, _)) = qitems.get(1) else { return };
+    for cond in conds {
+        let WatAST::List(citems, _) = cond else { continue };
+        let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if is_where_form(h));
+        if is_where {
+            for body in citems.iter().skip(1) {
+                check_form(body, sym, macros, use_decls, unresolved);
+            }
+        }
     }
 }
 

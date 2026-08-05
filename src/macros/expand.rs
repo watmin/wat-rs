@@ -467,6 +467,27 @@ pub(super) fn expand_form(
                 }
             }
 
+            // `:wat::rete::make-rule` (arc 278 task #78 —
+            // DESIGN-STONE-where-bodies-expand-at-compile-time.md). A `where` body was
+            // previously NEVER macro-expanded: `defrule` quotes its `:when` vector verbatim,
+            // and the quote-family check above returns a quoted form untouched — so a macro
+            // (e.g. rete-spelled `cond`) used inside a `(:wat::rete::where …)` clause reached
+            // `eval_test_core`'s raw `eval_inner` call unexpanded and died with
+            // `UnknownFunction`. `make-rule` is the ONE door every rule producer funnels
+            // through (`defrule`'s template, `sift-rules-defsvc`'s generator, hand-built rule
+            // literals, direct calls) — hooking `defrule` alone would silently miss the other
+            // three. Reuses `resolve::boundary`'s classification (`Boundary::MakeRule`,
+            // shared with the resolve-time `walk`/`normalize` passes) so this doesn't drift
+            // into a second, hand-rolled copy — mirrors the `MatchesSubject` handling
+            // immediately above for the identical hazard: expand a condition PATTERN as code
+            // (STOP-2) and its aggregate-shaped head — a registered kwargs companion macro
+            // post arc-294 item 9a — fires `kwargs-lower` on raw DSL clauses.
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
+                if matches!(crate::resolve::boundary::quote_boundary(head), crate::resolve::boundary::Boundary::MakeRule) {
+                    return expand_make_rule(items, list_span, registry, expansion_depth, env, sym, privilege);
+                }
+            }
+
             // ── Full-Lisp macro dispatch (arc 294 item 9a): a macro receives its args RAW.
             // Standard homoiconic semantics: if the head names a registered macro, expand
             // THIS call with the caller's *unexpanded* arg forms, then re-expand the macro
@@ -583,6 +604,115 @@ pub(super) fn expand_form(
         }
         other => Ok(other),
     }
+}
+
+/// Expand a `:wat::rete::make-rule` call (arc 278 task #78). `items[1]` (rule
+/// name) is ordinary code, expanded normally. `items[2]` (the quoted `:when`
+/// vector) is data EXCEPT the body of each `(:wat::rete::where …)` form inside
+/// it — see [`expand_make_rule_when`]. `items[3..]` (the quoted `:then` vector
+/// and any trailing args) pass through byte-identical: the RHS is a separate
+/// question (task #61 already ruled derived fact fields are copies only).
+fn expand_make_rule(
+    items: Vec<WatAST>,
+    list_span: crate::span::Span,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let mut iter = items.into_iter();
+    let mut out = Vec::with_capacity(4);
+    out.extend(iter.next()); // make-rule head, as-is
+    // items[1]: rule name — ordinary code.
+    if let Some(name) = iter.next() {
+        out.push(expand_form(name, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    // items[2]: quoted :when vector — expand only each where-form's body.
+    if let Some(when_arg) = iter.next() {
+        out.push(expand_make_rule_when(when_arg, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    // items[3..]: quoted :then vector + any trailing args — untouched data.
+    out.extend(iter);
+    Ok(WatAST::List(out, list_span))
+}
+
+/// Expand a `make-rule` call's `:when` argument. Expected shape
+/// `(:wat::core::quote [<condition>...])` — every measured producer quotes
+/// the `:when` vector this way (see `expand_make_rule`'s doc and
+/// `resolve::boundary::Boundary::MakeRule`'s doc for the census). A
+/// `when_arg` NOT shaped like a literal quote — a computed `:wat::WatAST`
+/// expression with no syntactic vector to search for `where` forms in — is
+/// returned untouched: conservative by construction, same discipline
+/// `expand_form`'s `MatchesSubject` arm above uses for a shape it doesn't
+/// recognize.
+fn expand_make_rule_when(
+    when_arg: WatAST,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let WatAST::List(qitems, qspan) = when_arg else { return Ok(when_arg) };
+    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    if !is_quote {
+        return Ok(WatAST::List(qitems, qspan));
+    }
+    let mut qiter = qitems.into_iter();
+    let mut new_q = Vec::with_capacity(2);
+    new_q.extend(qiter.next()); // quote head, as-is
+    if let Some(vec_node) = qiter.next() {
+        new_q.push(expand_make_rule_conditions(vec_node, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    new_q.extend(qiter); // shouldn't appear in a well-formed quote; conservative
+    Ok(WatAST::List(new_q, qspan))
+}
+
+/// Expand the condition vector inside a `make-rule`'s quoted `:when` arg —
+/// per-element dispatch to [`expand_make_rule_condition`].
+fn expand_make_rule_conditions(
+    vec_node: WatAST,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let WatAST::Vector(conds, vspan) = vec_node else { return Ok(vec_node) };
+    let mut new_conds = Vec::with_capacity(conds.len());
+    for cond in conds {
+        new_conds.push(expand_make_rule_condition(cond, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    Ok(WatAST::Vector(new_conds, vspan))
+}
+
+/// Expand one `:when` condition. A `(:wat::rete::where <body>...)` form's
+/// body is code — expanded to fixpoint like any other code region (this is
+/// the whole point: a macro like `cond` used inside a `where` is now visible
+/// to the expander). Every other condition (a fact pattern — STOP-2:
+/// aggregate-shaped head, a registered kwargs companion macro post arc-294
+/// item 9a) is byte-identical, untouched.
+fn expand_make_rule_condition(
+    cond: WatAST,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let WatAST::List(citems, cspan) = cond else { return Ok(cond) };
+    let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if crate::resolve::boundary::is_where_form(h));
+    if !is_where {
+        return Ok(WatAST::List(citems, cspan));
+    }
+    let mut citer = citems.into_iter();
+    let mut new_c = Vec::with_capacity(citer.len().max(1));
+    new_c.extend(citer.next()); // where head, as-is
+    for body in citer {
+        new_c.push(expand_form(body, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    Ok(WatAST::List(new_c, cspan))
 }
 
 /// Expand a single macro call. Allocates a fresh [`ScopeId`], walks the

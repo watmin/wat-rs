@@ -4,6 +4,16 @@
 ;; (probe-cond-rete-scorecard.wat's row 2): `defrule` quotes `:when`/`:then` verbatim
 ;; (wat/rete.wat:2231) and `eval_test_core` (src/rete/matcher.rs) evaluates that raw,
 ;; NEVER-macro-expanded AST via `runtime::eval_inner` directly.
+;;
+;; POSITIVE CONTROL as of arc 278 task #78 (BRIEF-where-bodies-expand-at-compile-time.md). This
+;; was a GAP-WITNESS: before task #78, it raised `#wat.runtime/UnknownFunction {:message "unknown
+;; function: :wat::rete::core::cond"}` at fire time, because a `where` body was never
+;; macro-expanded — `expand_form` returned a `make-rule` call's quoted `:when` vector untouched
+;; (the quote-family "carry DATA, not code" check), so the rete-spelled `cond` inside this
+;; `where` never got its chance to expand into `:wat::rete::core::if`. Task #78 taught
+;; `expand_form` (via `resolve::boundary::Boundary::MakeRule`) to expand ONLY the body of a
+;; `(:wat::rete::where …)` form, leaving the surrounding `:probe::Item` fact pattern untouched.
+;; Now prints `hits=1` — cond composes correctly in a real `defrule`'s `where`.
 (:wat::core::defrecord :probe::Item [tier <- :wat::core::keyword])
 (:wat::core::defrecord :probe::Hit [tier <- :wat::core::keyword])
 

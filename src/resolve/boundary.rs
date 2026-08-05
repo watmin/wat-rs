@@ -56,6 +56,19 @@ pub(crate) enum Boundary {
     /// code; the `-> :T` return annotation (`items[2..=3]`) and each arm's
     /// pattern are data.
     Match,
+    /// `:wat::rete::make-rule` (arc 278 task #78 —
+    /// DESIGN-STONE-where-bodies-expand-at-compile-time.md). `items[1]` (the
+    /// rule name) is ordinary code. `items[2]` (the quoted `:when` vector) is
+    /// DATA, EXCEPT the body of each `(:wat::rete::where …)` form inside it,
+    /// which is CODE. `items[3]` (the quoted `:then` vector) is data — the RHS
+    /// is a separate question (task #61: derived fact fields are copies only).
+    ///
+    /// `make-rule`, not `defrule`: a census of rule producers
+    /// (`defrule`'s template, `sift-rules-defsvc`'s generator, hand-built rule
+    /// literals, and direct `make-rule` calls) found `make-rule` is the one
+    /// door all four funnel through; hooking `defrule` alone would silently
+    /// miss the other three.
+    MakeRule,
     /// Not a special-form boundary — every child is ordinary live code.
     Ordinary,
 }
@@ -71,6 +84,7 @@ pub(crate) fn quote_boundary(head: &str) -> Boundary {
         ":wat::core::quasiquote" => Boundary::Quasiquote,
         ":wat::form::matches?" => Boundary::MatchesSubject,
         ":wat::core::match" => Boundary::Match,
+        ":wat::rete::make-rule" => Boundary::MakeRule,
         _ => Boundary::Ordinary,
     }
 }
@@ -84,4 +98,22 @@ pub(crate) fn quote_boundary(head: &str) -> Boundary {
 /// + rewrite) cannot drift on which heads open an escape.
 pub(super) fn is_unquote_escape(head: &str) -> bool {
     head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing"
+}
+
+/// True if `head` is the rete `where` head — the one place inside a
+/// [`Boundary::MakeRule`] call's quoted `:when` vector where a condition's DATA
+/// gives way to a live-code BODY (arc 278 task #78).
+///
+/// Encoded here exactly once so the three `make-rule` descents (`super::walk`'s
+/// `check_make_rule_when`, `super::normalize`'s `normalize_make_rule_when`, and
+/// `crate::macros::expand::expand_make_rule_when`) cannot drift on which head
+/// opens the code region — the same discipline [`is_unquote_escape`] gives the
+/// quasiquote escape set.
+///
+/// `pub(crate)`, not `pub(super)`: unlike the quasiquote escape (used only
+/// inside `resolve`), the macro expander (`crate::macros::expand`) is a
+/// different module and must consult this too — the whole point is a `where`
+/// body is finally macro-expanded, not just resolved/normalized.
+pub(crate) fn is_where_form(head: &str) -> bool {
+    head == ":wat::rete::where"
 }
