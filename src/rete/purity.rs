@@ -1041,6 +1041,52 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         | WatAST::Keyword(_, _)
         | WatAST::Symbol(_, _) => Ok(()),
 
+        // ★★ LAW A FOR THE STRUCTURAL-GUARD FORMS — `cond` / `match` / `fn`.
+        //
+        // ⛔ THE HOLE THIS CLOSES (found 2026-08-05 by the builder, proven by run in one probe):
+        //
+        //     (:wat::rete::primitive? '(:wat::core::cond  (true 1) (:else 2)))  -> TRUE
+        //     (:wat::rete::primitive? '(:wat::core::match x (:wat::core::None 1))) -> TRUE
+        //     (:wat::rete::primitive? '(:wat::core::fn [a <- …] -> … a))       -> TRUE
+        //     (:wat::rete::primitive? '(:wat::core::> 1 0))                    -> false   (control)
+        //
+        // Law A ADMITTED the core spelling of all three, so a `where` could legally contain
+        // `:wat::core::cond` and their rete twins were decorative. The builder's ruling is flat:
+        // *"it may not — only rete forms and primitives are allowed in rete expressions."*
+        //
+        // MECHANISM: these three have STRUCTURAL arms below, which match before `head_ok` and
+        // therefore NEVER REACH IT — and `head_ok`'s fallthrough is the only place law A's deny
+        // lives. Their guards resolve through `resolve_core_name`, which normalises BOTH spellings
+        // to the core name. That is CORRECT for the WALK (the form must be understood either way,
+        // and `pure?`/`deterministic?`/`total?` are general predicates over ordinary core code) and
+        // WRONG for ADMISSION. S5 widened the guard to accept the rete name and never closed the
+        // core one; widening added, it did not replace.
+        //
+        // THE SPLIT THIS INTRODUCES, and it is the point: RECOGNITION stays spelling-agnostic;
+        // ADMISSION is asked separately, here, and only on the `RetePrimitive` axis. So nothing
+        // changes for `pure?`/`deterministic?`/`total?` over core code — verified by run, not
+        // reasoned — while a core-spelled form inside a `where` is now refused by name.
+        //
+        // Third instance today of ONE class: a match on a literal STRING, which no exhaustiveness
+        // check can see (`axis-violation`'s native decode; `matcher.rs`'s inline LHS `=`; these
+        // guards). `holon/CLAUDE.md`: suspect a string comparison before the type system.
+        WatAST::List(items, _)
+            if axis == Axis::RetePrimitive
+                && matches!(items.first(), Some(WatAST::Keyword(k, _))
+                    if crate::rete::vocabulary::rete_op_for(k).is_none()
+                        && matches!(
+                            crate::rete::vocabulary::resolve_core_name(k),
+                            ":wat::core::cond" | ":wat::core::match" | ":wat::core::fn"
+                        )) =>
+        {
+            let (head, span) = match items.first() {
+                Some(WatAST::Keyword(k, s)) => (k.clone(), Some(s.clone())),
+                // unreachable: the guard already proved items[0] is a Keyword.
+                _ => (String::from("<structural form>"), None),
+            };
+            Err(AxisViolation { head, axis, span })
+        }
+
         // quote / quasiquote / holon-literal sub-forms are DATA — do not recurse into them as calls.
         // Arc 294.b: `:wat::holon::literal` is pure (it captures data, no side-effects).
         WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quote" || k == ":wat::core::quasiquote" || k == ":wat::holon::literal") => {
