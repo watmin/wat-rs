@@ -516,7 +516,12 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
         head,
         ":wat::core::="
             | ":wat::core::not="
-            | ":wat::core::<"
+            // BRIEF-the-f64-surface-is-a-stub.md Part B (2026-08-05) — generic `:wat::core::<`
+            // REMOVED. It is a false-true: `eval_compare` (`runtime.rs:5191`) returns
+            // `RuntimeErrorKind::TypeMismatch` when `values_compare` yields `None` (the
+            // incomparable-operands domain hole `DESIGN-STONE-where-admits-only-rete-ops.md`
+            // names as the whole reason per-type comparison exists), and its three siblings
+            // `>`/`>=`/`<=` were never marked true — this was the odd one out.
             | ":wat::core::and"
             | ":wat::core::or"
             | ":wat::core::not"
@@ -533,6 +538,16 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64::="
             | ":wat::core::i64::not="
             | ":wat::core::f64::>"
+            // BRIEF-the-f64-surface-is-a-stub.md Part A (2026-08-05) — `f64::<`/`f64::<=`/
+            // `f64::>=` ADDED beside `f64::>`. Same warrant: each is a comparison whose OUTPUT
+            // is a bool, never itself the undefined value, and `eval_f64_compare` is
+            // NaN-correct (`NaN > 1.0` is `false`, not a raise) — there is no input on which
+            // any of the four fails to produce an ordinary bool. #52's own STOP-3 ("do not
+            // widen the audit past entries already `true`") swept false-trues and never
+            // revisited entries already `false`; these three were the mirror image it missed.
+            | ":wat::core::f64::<"
+            | ":wat::core::f64::<="
+            | ":wat::core::f64::>="
             // per-type-equality-restored (2026-08-05) — `f64::=`/`f64::not=`: a
             // comparison, not arithmetic — `eval_f64_compare` returns a `bool` for any
             // two f64 inputs including NaN/±Inf (never raises), the same reasoning

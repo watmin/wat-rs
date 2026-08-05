@@ -250,6 +250,50 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── BRIEF-the-f64-surface-is-a-stub.md Part C (2026-08-05) — the four f64 comparator
+    // rows, mirroring the i64 comparator quartet immediately above exactly. `total: true`
+    // matches `purity.rs:515`'s `total` list (Part A of this brief adds the three siblings of
+    // `f64::>`, already present there): each is a comparison whose OUTPUT is a bool, never
+    // itself the undefined value, and `eval_f64_compare` is NaN-correct — no raise on any
+    // input pair. Core targets `:wat::core::f64::{>,<,>=,<=}` are already registered
+    // (`check.rs:15875-15889`) and dispatched (`runtime.rs:5223-5226`) — zero new core logic,
+    // a rete-surface alias only.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::>",
+        core_name: ":wat::core::f64::>",
+        class: OpClass::Alias,
+        params: &[ParamType::F64, ParamType::F64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::<",
+        core_name: ":wat::core::f64::<",
+        class: OpClass::Alias,
+        params: &[ParamType::F64, ParamType::F64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::>=",
+        core_name: ":wat::core::f64::>=",
+        class: OpClass::Alias,
+        params: &[ParamType::F64, ParamType::F64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::<=",
+        core_name: ":wat::core::f64::<=",
+        class: OpClass::Alias,
+        params: &[ParamType::F64, ParamType::F64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
     // Fallback-carrying — `:wat::core::i64::-` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
@@ -642,7 +686,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `ParamType` leaves). `class: Alias` throughout — same shape as round 1a, one round larger.
     // `total: true` per row: TOTALITY IS DELIVERED BY THE SIGNATURE, not by the routine
     // underneath — a row declaring `[T, T] -> Bool` makes an incomparable pair (e.g.
-    // `(:wat::rete::String::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
+    // `(:wat::rete::string::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
     // domain hole a per-type surface exists to delete (DESIGN-STONE-where-admits-only-rete-ops.md,
     // "★★ RULED — THE RETE SURFACE IS PER-TYPE, PERIOD"). `meta` TRANSCRIBED, not decided, from
     // generic `=`/`not=` (`rete/purity.rs:307-308` pure∧det, `:511-512` total) for every one of
@@ -653,23 +697,16 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // brief — core has no per-type `String::=` and does not need one; minting one would be the
     // tail wagging the dog (STOP-3).
     //
-    // `i64`/`f64` ALSO point at the generic core `=`/`not=`, not at `:wat::core::i64::=` /
-    // `:wat::core::f64::=` as the brief's table literally names — those two spellings do not
-    // exist. They were HARD CUT (Stone 237.8d, `check.rs:3733-3746` and `runtime.rs:5205-5211`):
-    // `:wat::core::i64::=`/`i64::not=`/`f64::=`/`f64::not=` explicitly raise `UnknownCallee` at
-    // check time and have no runtime dispatch arm at all — only `i64::{>,<,>=,<=}` and the f64
-    // ordering family survived that cut; equality was deliberately left uniform-only. Aliasing to
-    // the named-but-absent per-type spelling would type-check fine (this row's own `TypeScheme` is
-    // self-contained) but fail EVERY invocation at runtime with an unknown-function error —
-    // contradicting the brief's own EXPECTATIONS row 5 (`f64::=` must actually run and return
-    // `true`). Routing to the generic op instead is the exact same "shared kernel, two surfaces"
-    // reasoning the brief already applies to `String`/`bool`/`keyword`, just extended to the two
-    // rows where the brief's assumed per-type target turned out not to exist. Flagged for the
-    // orchestrator per this round's brief ("report; anything you had to assume").
+    // `i64`/`f64` are RE-POINTED at the per-type doors — BRIEF-the-f64-surface-is-a-stub.md
+    // Part E (2026-08-05). `c59b2dca` (DESIGN-STONE-per-type-equality-restored.md) restored
+    // `:wat::core::{i64,f64}::{=,not=}`: they are registered (`check.rs:15809-15828`,
+    // `:15875-15889`) and dispatched (`runtime.rs:5220-5221`, `:5230-5231`) again, reversing
+    // 237.8d. The paragraph this replaces said those spellings "do not exist" — that was true
+    // when written and is false now; a stale comment is a lie the next reader inherits.
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::i64::=",
-        core_name: ":wat::core::=",
+        core_name: ":wat::core::i64::=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
@@ -678,7 +715,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::i64::not=",
-        core_name: ":wat::core::not=",
+        core_name: ":wat::core::i64::not=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
@@ -687,7 +724,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::f64::=",
-        core_name: ":wat::core::=",
+        core_name: ":wat::core::f64::=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
@@ -696,15 +733,23 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::f64::not=",
-        core_name: ":wat::core::not=",
+        core_name: ":wat::core::f64::not=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // BRIEF-the-f64-surface-is-a-stub.md Part D (2026-08-05) — casing bug fixed. Round 1c
+    // (`6d5af2c8`) minted these with a capital-S `String::`, derived from the TYPE instead of
+    // the MODULE; every other string row in both surfaces is lowercase
+    // (`:wat::core::string::{length,concat,trim,…}`, `:wat::rete::string::{length,to-lowercase,
+    // trim}`). Renamed `:wat::rete::String::{=,not=}` → `:wat::rete::string::{=,not=}`. Zero
+    // call sites existed at rename time (`grep -rn 'rete::String::' --include=*.wat
+    // --include=*.rs .` found only this file's own three occurrences: the comment above and
+    // these two rows) — a rename, not a migration.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String::=",
+        rete_name: ":wat::rete::string::=",
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -713,7 +758,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String::not=",
+        rete_name: ":wat::rete::string::not=",
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],

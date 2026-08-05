@@ -367,8 +367,24 @@ fn extract_string_literals(src: &str) -> Vec<(String, usize)> {
 
 /// Is this literal's content EDN-esque per the builder's heuristic: after trimming leading
 /// whitespace, does it open with `#`, `{`, `[`, or `(`?
+///
+/// Tightening #5 (a match-condition fix, not a rune): a `#` immediately followed by an ASCII
+/// digit is NOT EDN-esque. A tagged element is `#` followed by a SYMBOL (`#uuid …`,
+/// `#wat.core/Span {…}`, `#_` discard, `#{` set) — and EDN's own grammar says a symbol may not
+/// begin with a digit (a leading digit reads as the start of a NUMBER, not a symbol). So `#0`,
+/// `#1`, `#2`, … can never open a valid tagged element; it is structurally a Rust-side
+/// `"#{index}"` render (e.g. a `CheckErrorKind::TypeMismatch.param` string, `"#2"`), never EDN.
+/// Structurally can never be a violation, so exclude it at the detector, not the site — same
+/// discipline Tightening #1 already applies to the bare lone-delimiter case just below. The bare
+/// `"#"` case is UNCHANGED by this: it has no second char (`chars().nth(1)` is `None`), so it
+/// still opens EDN-esque here and still reaches `is_lone_delimiter`'s own exclusion downstream.
 fn is_edn_esque(content: &str) -> bool {
-    matches!(content.trim_start().chars().next(), Some('#') | Some('{') | Some('[') | Some('('))
+    let trimmed = content.trim_start();
+    match trimmed.chars().next() {
+        Some('#') => !matches!(trimmed.chars().nth(1), Some(c) if c.is_ascii_digit()),
+        Some('{') | Some('[') | Some('(') => true,
+        _ => false,
+    }
 }
 
 /// Tightening #1 (a match-condition fix, not a rune): the WHOLE trimmed content is a single bare
@@ -518,6 +534,24 @@ mod detector_tests {
     #[test]
     fn hash_opener_is_edn_esque() {
         assert!(is_edn_esque("#uuid \"00000000-0000-0000-0000-000000000000\""));
+    }
+
+    #[test]
+    fn hash_digit_opener_is_not_edn_esque() {
+        // Tightening #5: `#` + ASCII digit can never open a tagged element (EDN symbols may not
+        // begin with a digit) — it is a Rust-side `"#{index}"` render (a `TypeMismatch.param`
+        // string like `"#2"`), never EDN. Both directions, so this proves the tightening stopped
+        // flagging the digit case WITHOUT weakening the genuine-EDN cases right below it.
+        assert!(!is_edn_esque("#2"));
+        assert!(!is_edn_esque("#1"));
+        assert!(!is_edn_esque("#0 rest"));
+        // Genuine EDN openers must still flag — the tightening is scoped to `#`+digit only.
+        assert!(is_edn_esque("#uuid \"00000000-0000-0000-0000-000000000000\""));
+        assert!(is_edn_esque("#{1 2 3}"));
+        assert!(is_edn_esque("#wat.core/Span {:line 1}"));
+        // The bare lone `#` is unaffected by this tightening — still opens EDN-esque here, still
+        // excluded downstream via `is_lone_delimiter` (see `lone_delimiter_chars_are_excluded`).
+        assert!(is_edn_esque("#"));
     }
 
     #[test]
