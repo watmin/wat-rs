@@ -514,9 +514,17 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // never consulting `head_ok`/`RETE_OPS.meta` for the match head itself) — `head_ok`'s
     // admission branch (which DOES read `meta`) is reachable for this head only if the structural
     // guard were somehow bypassed, which the widening below prevents. Kept accurate anyway, for
-    // STOP-2 completeness and any future direct consumer: `total: false` because a non-exhaustive
-    // match raises `NoMatchingArm` — genuinely partial, unlike `if`/`let` (always total for
-    // well-typed args, per their own hand-list entries).
+    // STOP-2 completeness and any future direct consumer.
+    //
+    // ⛔ CORRECTED 2026-08-05 (task #80): was `total: false`, justified as "a non-exhaustive match
+    // raises `NoMatchingArm` — genuinely partial". REFUTED TWICE, by run:
+    //  1. A non-exhaustive match does not raise, it does not COMPILE — "missing arm(s) for
+    //     variant(s): C". The exhaustiveness checker gets there first.
+    //  2. `NoMatchingArm` DOES NOT EXIST in this codebase (`grep -rn` returns only this comment
+    //     and its sibling). The justification cited an error that was never implemented.
+    // Nor can a non-enum match be non-exhaustive: a pattern must be a KEYWORD, SYMBOL or LIST
+    // (an int literal is rejected outright) — keywords/lists are enum variants, a bare symbol is
+    // an irrefutable binding. No match that compiles can fail to match.
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::match",
@@ -524,7 +532,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Form,
         params: &[],
         ret: ParamType::Bool,
-        meta: OpMeta { pure: true, deterministic: true, total: false },
+        meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #56's leftover, closed — `fn`, the second and last of the structural-guard pair.
     // `fn`'s STOP-3 (#56 phase 1) is RETRACTED: it was a claim about `(def :name (fn …))`, the
@@ -915,7 +923,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
-        meta: OpMeta { pure: true, deterministic: true, total: false },
+        meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
         type_params: &[],
@@ -924,7 +932,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
-        meta: OpMeta { pure: true, deterministic: true, total: false },
+        meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
         type_params: &[],
@@ -933,7 +941,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
-        meta: OpMeta { pure: true, deterministic: true, total: false },
+        meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // `reduce` is a wat-level `defclause` (`wat/seq.wat`), NOT a checker special form like
     // its four siblings above — verified: no `infer_reduce` exists anywhere in
@@ -952,7 +960,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
-        meta: OpMeta { pure: true, deterministic: true, total: false },
+        meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #57 round 1c, the ten per-type equality/inequality aliases (`=`/`not=` across the five
     // `ParamType` leaves). `class: Alias` throughout — same shape as round 1a, one round larger.
@@ -1484,6 +1492,48 @@ mod naming_rule_tests {
     /// would make `rete_op_for`'s exact-match lookup (`.find()`, first-match-wins) return only
     /// ONE of the three rows' `ParamType`/`OpMeta` for all three container spellings. A finite,
     /// named allowlist, not a silent special case.
+    /// ★★ THE WALL — EVERY rete row is TOTAL, and a non-total one is unmintable.
+    ///
+    /// Ruled by the builder 2026-08-05: *"every rete form MUST be total — that's the entire point
+    /// of this endeavor; we're getting all the ground work done such that we can compile a jump
+    /// table for rete eval."* A jump table over a partial op is not a thing — there is no opcode
+    /// for "raises". Every non-total row is a hole in `compiled_where`'s specification, and the
+    /// vocabulary IS that specification.
+    ///
+    /// ⛔ WHY A GATE AND NOT A CONVENTION. Five rows carried `total: false` for three days and
+    /// nothing objected. Read, their reasons were not judgements:
+    ///   · `match` — "a non-exhaustive match raises `NoMatchingArm`". REFUTED TWICE: such a match
+    ///     does not raise, it fails to COMPILE; and `NoMatchingArm` does not exist in this
+    ///     codebase. The justification cited an error that was never implemented.
+    ///   · `foldr`/`map`/`filter`/`reduce` — "extremely likely total... but no `where` row in the
+    ///     corpus uses them... Flagged, not classified." The corpus fallacy: absence of a caller is
+    ///     not evidence of partiality
+    ///     (`[[feedback_optimize_for_the_expressivity_surface_not_the_corpus]]`). It split ONE
+    ///     family down the middle while `pure`/`deterministic` took the opposite reading in the
+    ///     SAME row.
+    ///
+    /// Minting a non-total row is now a RED BUILD rather than something someone might notice.
+    /// It deliberately does NOT freeze a count — a count cannot tell "+1 new, −1 fixed" from
+    /// "nothing happened", and its failure text cannot name the offender
+    /// (`[[feedback_a_gate_freezes_names_never_a_count]]`). This names every offending row.
+    ///
+    /// If a genuinely partial op ever needs a rete surface, the answer is NOT to weaken this — it
+    /// is `OpClass::Fallback`: a mandatory `:undefined <value>` is precisely how a partial core op
+    /// BUYS totality (`i64::/` is partial in core and `total: true` here for exactly that reason).
+    #[test]
+    fn every_rete_row_is_total() {
+        let partial: Vec<&str> =
+            RETE_OPS.iter().filter(|op| !op.meta.total).map(|op| op.rete_name).collect();
+        assert!(
+            partial.is_empty(),
+            "these rete rows are NOT total, and a jump table cannot dispatch a partial op — give \
+             each a mandatory `:undefined` fallback (OpClass::Fallback) or do not mint it: {partial:#?}",
+        );
+        // NON-VACUITY: without this the assert would pass just as happily against an emptied table
+        // or a renamed field — a filter that can see nothing always finds nothing wrong.
+        assert!(RETE_OPS.len() > 60, "RETE_OPS looks empty — this gate would pass vacuously");
+    }
+
     const NAMING_RULE_EXCEPTIONS: &[&str] = &[
         // #57 — enum equality joins the shared-core_name trio, making it a QUARTET (and this
         // list ELEVEN). Same reason as its three siblings: `:wat::core::=` now serves four rete

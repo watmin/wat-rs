@@ -662,6 +662,25 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::String/contains?"
             | ":wat::core::String/empty?"
             | ":wat::core::foldl"
+            // ★ THE FOUR HOF SIBLINGS, added 2026-08-05 (task #80) — `foldl` stood here ALONE for
+            // three days and its four siblings did not, which was an inconsistency inside ONE
+            // family, not a judgement. The old reason is on the record and it was the corpus
+            // fallacy: *"extremely likely total... but are NOT included — no `where` row in the
+            // corpus uses them... Flagged, not classified."* Absence of a caller is not evidence of
+            // partiality — `[[feedback_optimize_for_the_expressivity_surface_not_the_corpus]]`.
+            //
+            // GROUNDED, not assumed. A combinator's totality is CONDITIONAL on its fn-argument, and
+            // the walk resolves that conditionality itself — proven by run on `foldl`, which
+            // already carried `total: true`:
+            //
+            //   (total? '(foldl (fn [a b] (rete i64::+ a b :undefined 0)) 0 xs))  -> TRUE
+            //   (total? '(foldl (fn [a b] (core i64::/ a b))              0 xs))  -> FALSE
+            //
+            // `classify_expr` enters the typed fn body and finds the partial op. So `total: true`
+            // on the HEAD means exactly what `pure: true`/`deterministic: true` already mean for
+            // these five — "the combinator itself adds no partiality" — and those two columns took
+            // the conditional-TRUE reading from the start. One row, one convention.
+            | ":wat::core::foldr" | ":wat::core::map" | ":wat::core::filter" | ":wat::core::reduce"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
             // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
