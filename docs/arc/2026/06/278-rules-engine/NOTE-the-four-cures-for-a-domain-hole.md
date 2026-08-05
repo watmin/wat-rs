@@ -116,6 +116,26 @@ is a definite `false`.
    is minted, returns `Option<T>`, and is already total — so indexed access with a default is
    expressible today via `get` + `match`, just verbosely. `nth` would have been the sugar.
 
+   **★ SUPERSEDED SAME DAY — `get`-with-fallback IS `nth`, and the record above obscured it.**
+   `BRIEF-get-is-total-by-fallback.md` shipped the `Option` arm hours later, and it closes this by
+   construction. Core's `nth` is *literally* `Option/expect (get v i)` — `get`, then discard the
+   Option by panicking. `(:wat::rete::core::Vector/get v i :undefined d)` is `get`, then **face**
+   the Option with the caller's value. **Same operation, same happy path**; the only difference is
+   the hole — `nth` panics, this returns what the caller chose. Proven by run:
+   `get (PV 7 8) 1 :undefined -1` → `8`; index `9` with `-1` / `42` → `-1` / `42`.
+
+   So `nth` is not a missing capability at the rete surface. **It is the panicking spelling of a
+   verb that is already there under the better name** — and `get` is arguably the right name, since
+   it is what core already calls this operation. What is absent is only the *word*: a rule author
+   reaching for "positional access with a default" finds `get`. That is a naming question, not a gap.
+
+   Core's `nth` is untouched and stays, as the Ruby `fetch(i)`-that-raises idiom for ordinary wat.
+
+   ⚠ **Kept visible because the framing failure is the lesson**: the `expect` ruling and the `Option`
+   arm were ONE solution arriving from two directions, reported on separate turns as two findings —
+   which made a closed question read as an open one until the builder asked *"didn't we just solve
+   this?"* Two correct steps narrated separately can lose the thing they jointly proved.
+
    ### ⛔ RULED 2026-08-05 — and it dissolves the "blocker" above
 
    Builder: *"i feel like… we just disallow expect in rete … we'll purge from wat-core later."*

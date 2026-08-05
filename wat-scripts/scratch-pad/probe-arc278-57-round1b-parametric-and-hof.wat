@@ -11,6 +11,28 @@
 ;; existing caller (of 276 corpus files) still on the old 2-arg shape. Updated in place.
 (def :probe-pv-get (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector 1 2 3) 1 :undefined -1))
 
+;; ── T=String — the instantiation that makes this file test PARAMETRICITY, not resolution ────
+;;
+;; Added 2026-08-05. Every PV line above is i64-only, so a MONOMORPHIC `i64` scheme would pass
+;; all three identically — the header above claimed to prove "a real parametric TypeScheme is
+;; now attached" and did not. These go RED if the trio's `type_params: ["T"]` ever regresses.
+;;
+;; `get` is the strongest of the three: `T` unifies across the container's element type, the
+;; `:undefined` fallback argument, AND the return, so a monomorphic scheme fails it in three
+;; places at once. Verified by run — in-range -> "b", out-of-range -> "missing".
+;;
+;; The matching NEGATIVE control lives in `tests/`, not here: a `wat-scripts/` file must LOAD
+;; (`every_wat_scripts_file_loads`), so a deliberately type-broken form cannot live in this
+;; directory. Measured for the record — `(… /get (PersistentVector "a" "b") 1 :undefined -1)`
+;; is refused at `--check`: "parameter #4 expects :wat::core::String; got :wat::core::i64",
+;; exit 1. `T` is inferred String from the container and the i64 fallback is rejected.
+(def :probe-pv-length-str
+  (:wat::rete::core::PersistentVector/length (:wat::core::PersistentVector "a" "b")))
+(def :probe-pv-contains-str
+  (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector "a" "b") "a"))
+(def :probe-pv-get-str
+  (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector "a" "b") 1 :undefined "missing"))
+
 (def :probe-foldl
   (:wat::rete::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
