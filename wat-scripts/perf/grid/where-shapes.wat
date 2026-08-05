@@ -80,8 +80,8 @@
 ;; row 5's user-defined pure fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. big?(k) := k mod 7 > 3 (k mod 7 in {4,5,6}), so it discriminates a proper subset.
 (:wat::core::defn :wsh::big? [k <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::i64::>
-    (:wat::core::i64::- k (:wat::core::i64::* (:wat::core::i64::/ k 7) 7))
+  (:wat::rete::core::i64::>
+    (:wat::rete::core::i64::- k (:wat::rete::core::i64::* (:wat::rete::core::i64::/ k 7 :undefined 0) 7 :undefined 0) :undefined 0)
     3))
 
 ;; ROW 1 — arithmetic. Hit(k) :- Req(…) AND (3 == k - (k/10)*10).  k mod 10 == 3 ⇒ 20 of 200.
@@ -89,9 +89,10 @@
 (:wat::rete::defrule :wsh::arith
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where
-                                (:wat::core::= 3
-                                  (:wat::core::i64::- ?k
-                                    (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10))))]
+                                (:wat::rete::core::i64::= 3
+                                  (:wat::rete::core::i64::- ?k
+                                    (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k 10 :undefined 0) 10 :undefined 0)
+                                    :undefined 0)))]
   :then
   [(:wsh::Hit ?k)])
 

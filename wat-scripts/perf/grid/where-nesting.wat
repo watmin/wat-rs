@@ -74,43 +74,43 @@
 ;; ── depth chain c1..c10 — each level's ONLY new work is "+3", so the chain measures purity-check
 ;; nesting depth and nothing else. c1 is the leaf (no call); cN calls c(N-1).
 (:wat::core::defn :wnst::c1  [k <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::- k (:wat::core::i64::* (:wat::core::i64::/ k 13) 13)))
-(:wat::core::defn :wnst::c2  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c1 k) 3))
-(:wat::core::defn :wnst::c3  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c2 k) 3))
-(:wat::core::defn :wnst::c4  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c3 k) 3))
-(:wat::core::defn :wnst::c5  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c4 k) 3))
-(:wat::core::defn :wnst::c6  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c5 k) 3))
-(:wat::core::defn :wnst::c7  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c6 k) 3))
-(:wat::core::defn :wnst::c8  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c7 k) 3))
-(:wat::core::defn :wnst::c9  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c8 k) 3))
-(:wat::core::defn :wnst::c10 [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::c9 k) 3))
+  (:wat::rete::core::i64::- k (:wat::rete::core::i64::* (:wat::rete::core::i64::/ k 13 :undefined 0) 13 :undefined 0) :undefined 0))
+(:wat::core::defn :wnst::c2  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c1 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c3  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c2 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c4  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c3 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c5  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c4 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c6  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c5 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c7  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c6 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c8  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c7 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c9  [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c8 k) 3 :undefined 0))
+(:wat::core::defn :wnst::c10 [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::c9 k) 3 :undefined 0))
 
 ;; row 7's two-bound-var predicate.
 (:wat::core::defn :wnst::twoarg [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::i64::> (:wat::core::i64::+ a b) 113))
+  (:wat::rete::core::i64::> (:wat::rete::core::i64::+ a b :undefined 0) 113))
 
 ;; row 8's outer fn — its ARGUMENT (not its body) is where the nested call lives, at the call site.
 (:wat::core::defn :wnst::wrap [v <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::= 0 (:wat::core::i64::- v (:wat::core::i64::* (:wat::core::i64::/ v 4) 4))))
+  (:wat::rete::core::i64::= 0 (:wat::rete::core::i64::- v (:wat::rete::core::i64::* (:wat::rete::core::i64::/ v 4 :undefined 0) 4 :undefined 0) :undefined 0)))
 
 ;; row 9's diamond — f calls g and h; g and h BOTH call hub. Not a straight chain: TWO fns share one
 ;; callee, exercising `classify_fn`'s `seen`-set on a shared dependency rather than a linear back-edge.
 (:wat::core::defn :wnst::hub [k <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::- k (:wat::core::i64::* (:wat::core::i64::/ k 17) 17)))
-(:wat::core::defn :wnst::g [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ (:wnst::hub k) 2))
-(:wat::core::defn :wnst::h [k <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* (:wnst::hub k) 2))
+  (:wat::rete::core::i64::- k (:wat::rete::core::i64::* (:wat::rete::core::i64::/ k 17 :undefined 0) 17 :undefined 0) :undefined 0))
+(:wat::core::defn :wnst::g [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ (:wnst::hub k) 2 :undefined 0))
+(:wat::core::defn :wnst::h [k <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::* (:wnst::hub k) 2 :undefined 1000000))
 (:wat::core::defn :wnst::f [k <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::and
-    (:wat::core::i64::> (:wnst::g k) 5)
-    (:wat::core::i64::< (:wnst::h k) 25)))
+  (:wat::rete::core::and
+    (:wat::rete::core::i64::> (:wnst::g k) 5)
+    (:wat::rete::core::i64::< (:wnst::h k) 25)))
 
 ;; rows 10/11's shared int-returning helper, and the bool wrapper that calls it.
 (:wat::core::defn :wnst::score [k <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::let [v (:wat::core::i64::* k 3)]
-    (:wat::core::i64::- v (:wat::core::i64::* (:wat::core::i64::/ v 11) 11))))
+  (:wat::rete::core::let [v (:wat::rete::core::i64::* k 3 :undefined 0)]
+    (:wat::rete::core::i64::- v (:wat::rete::core::i64::* (:wat::rete::core::i64::/ v 11 :undefined 0) 11 :undefined 0) :undefined 0)))
 (:wat::core::defn :wnst::is-good [k <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::let [sc (:wnst::score k)]
-    (:wat::core::= 0 (:wat::core::i64::- sc (:wat::core::i64::* (:wat::core::i64::/ sc 2) 2)))))
+  (:wat::rete::core::let [sc (:wnst::score k)]
+    (:wat::rete::core::i64::= 0 (:wat::rete::core::i64::- sc (:wat::rete::core::i64::* (:wat::rete::core::i64::/ sc 2 :undefined 0) 2 :undefined 0) :undefined 1))))
 
 ;; ROW 1 — depth-2 chain. c2(k) = c1(k)+3, c1(k) = k mod 13. c2 > 10 <=> c1 in {8..12} -> 75 of 200.
 (:wat::rete::defrule :wnst::depth2
@@ -156,15 +156,15 @@
   :when
   [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where
                                 (:wat::rete::core::i64::>
-                                  (:wat::core::i64::*
-                                    (:wat::core::i64::+
-                                      (:wat::core::i64::/
-                                        (:wat::core::i64::-
-                                          (:wat::core::i64::* (:wat::core::i64::+ ?k 10) 2)
-                                          15)
-                                        3)
-                                      7)
-                                    2)
+                                  (:wat::rete::core::i64::*
+                                    (:wat::rete::core::i64::+
+                                      (:wat::rete::core::i64::/
+                                        (:wat::rete::core::i64::-
+                                          (:wat::rete::core::i64::* (:wat::rete::core::i64::+ ?k 10 :undefined 0) 2 :undefined 0)
+                                          15 :undefined 0)
+                                        3 :undefined 0)
+                                      7 :undefined 0)
+                                    2 :undefined 0)
                                   157))]
   :then
   [(:wnst::Hit ?k)])

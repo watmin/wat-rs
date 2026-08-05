@@ -2475,10 +2475,33 @@ fn infer_rete_form(
             items.extend_from_slice(args);
             infer_list(&items, head_span, env, locals, fresh, subst)
         }
+        // Task #81 (2026-08-05) — THE CONTAINER CONSTRUCTORS, `Redispatch` for the same reason
+        // `reduce` and `coincident?` are: a constructor is VARIADIC and PARAMETRIC ("N args, all
+        // of T, yielding C<T>"), which no rank-1 `params`/`ret` scheme can state. Each already has
+        // a bespoke inference arm reached from `infer_list` (`:wat::core::PersistentVector` at
+        // `check.rs:3109`), so head-substitution keeps that arm the ONE place the inference lives —
+        // never a second implementation of container-literal typing.
+        //
+        // WHY THEY EXIST AT ALL: rete `get` is Ruby's `fetch` — it returns `T`, not `Option<T>`, so
+        // its mandatory `:undefined <value>` must be a value of the ELEMENT type. When that element
+        // is itself a collection there was previously no writable fallback at all, and a rider had
+        // to pass a bound variable because `[]` had no form. See `vocabulary.rs`'s own comment on
+        // these rows for the full account, and note the census could not have found it: a corpus
+        // records what COMPILED, so it is structurally blind to what cannot be written.
+        ":wat::core::PersistentVector"
+        | ":wat::core::Vector"
+        | ":wat::core::List"
+        | ":wat::core::PersistentMap"
+        | ":wat::core::Tuple" => {
+            let mut items = Vec::with_capacity(args.len() + 1);
+            items.push(WatAST::Keyword(core_name.to_string(), head_span.clone()));
+            items.extend_from_slice(args);
+            infer_list(&items, head_span, env, locals, fresh, subst)
+        }
         // STOP-1: LOUD and LOCATED, never a silent fallthrough to `infer_boolean_shortcircuit`.
-        // Reachable only by a future `RETE_OPS` row minting `class: Form` with a `core_name` this
-        // match was never taught — a bug in the vocabulary table's authoring, not a user error,
-        // so it names the unrouted core name rather than pretending to succeed.
+        // Reachable only by a future `RETE_OPS` row minting `class: Form`/`Redispatch` with a
+        // `core_name` this match was never taught — a bug in the vocabulary table's authoring, not
+        // a user error, so it names the unrouted core name rather than pretending to succeed.
         other => CheckResult::errs(vec![CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::MalformedForm {

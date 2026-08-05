@@ -39,17 +39,17 @@
 ;; head-keyword-str? — name string is ::-namespaced.
 (:wat::core::defn :fix::head-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::string::contains? name "::"))
+  (:wat::rete::core::String/contains? name "::"))
 
 ;; type-shaped-keyword-str? — name has matching "<" + ">" OR "(" + ")".
 (:wat::core::defn :fix::type-shaped-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:wat::core::if (:wat::core::string::contains? name "<")
-                    (:wat::core::string::contains? name ">")
+  (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::core::String/contains? name "<")
+                    (:wat::rete::core::String/contains? name ">")
                     false)
     true
-    (:wat::core::if (:wat::core::string::contains? name "(")
-      (:wat::core::string::contains? name ")")
+    (:wat::rete::core::if (:wat::rete::core::String/contains? name "(")
+      (:wat::rete::core::String/contains? name ")")
       false)))
 
 ;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
@@ -82,8 +82,8 @@
      (?name   <- :name)
      (:wat::core::= ?kind "symbol"))
    (:wat::rete::where (:wat::rete::core::or
-                        (:wat::core::= ?name "<-")
-                        (:wat::core::= ?name "->")))]
+                        (:wat::rete::core::string::= ?name "<-")
+                        (:wat::rete::core::string::= ?name "->")))]
   :then
   [(:fix::ArrowConv :offset ?offset :len ?len)])
 

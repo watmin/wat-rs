@@ -143,23 +143,23 @@
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
 (:wat::core::defn :wr::rep-pos? [c <- :wr::Client] -> :wat::core::bool
-  (:wat::core::i64::> (:wr::Client/rep c) 0))
+  (:wat::rete::core::i64::> (:wr::Client/rep c) 0))
 
 ;; row 9's contrast: the SAME constraint, but the caller reaches in and hands over a bare scalar.
 (:wat::core::defn :wr::pos? [x <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::i64::> x 0))
+  (:wat::rete::core::i64::> x 0))
 
 ;; row 10's predicate over the enum field — `match` over a user-defined enum, called from `where`.
 (:wat::core::defn :wr::is-risky? [st <- :wr::Status] -> :wat::core::bool
-  (:wat::core::match st
-    ((:wr::Status::Active lvl)    (:wat::core::i64::> lvl 3))
+  (:wat::rete::core::match st
+    ((:wr::Status::Active lvl)    (:wat::rete::core::i64::> lvl 3))
     (:wr::Status::Inactive        false)
-    ((:wr::Status::Pending reason) (:wat::core::i64::> reason 1))))
+    ((:wr::Status::Pending reason) (:wat::rete::core::i64::> reason 1))))
 
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
 (:wat::core::defn :wr::note-positive? [nt <- :wat::core::Option<wat::core::i64>] -> :wat::core::bool
-  (:wat::core::match nt
-    ((:wat::core::Some v) (:wat::core::i64::> v 2))
+  (:wat::rete::core::match nt
+    ((:wat::core::Some v) (:wat::rete::core::i64::> v 2))
     (:wat::core::None     false)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.

@@ -721,6 +721,84 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::I64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ─── THE CONTAINER CONSTRUCTORS (task #81, 2026-08-05) ────────────────────────────────────
+    //
+    // ⛔ THE GAP THESE CLOSE, and it was invisible to every instrument we had. Until now the rete
+    // vocabulary was ALL ACCESSORS AND NO CONSTRUCTORS: `PersistentVector/{get,first,length,
+    // contains?}`, `Vector/{get,first}`, `List/{get,first}`, `PersistentMap/contains-key?` — not
+    // one row could BUILD a collection.
+    //
+    // That only became visible once `get` became Ruby's `fetch` (`BRIEF-get-is-total-by-fallback`):
+    // its rete surface returns `T`, not `Option<T>`, so the mandatory `:undefined <value>` must BE
+    // a value of the element type. When that element type is itself a collection, there was NO
+    // WRITABLE FALLBACK. A rider hit exactly this at `where-collection.wat:157` and had to reach
+    // for a BOUND VARIABLE (`:undefined ?t`) because `[]` had no form — a mandatory parameter whose
+    // only expressible argument is a coincidence, which makes a fallback surface merely LOOK total.
+    //
+    // ★ AND THE CENSUS COULD NEVER HAVE FOUND IT. The corpus walker measures which heads APPEAR;
+    // a missing constructor is invisible to it precisely BECAUSE the corpus routed around it —
+    // the rider wrote `?t` instead of `[]`. Only a real consumer surfaces this class
+    // (300 ALIVS ARGVIT), and the same blindness is R62's `NOMINATO INSTRVMENTO` in miniature.
+    //
+    // WHY `Redispatch` AND NOT A SCHEME: a constructor is VARIADIC and PARAMETRIC — "N arguments,
+    // all of T, yielding C<T>" — which a rank-1 `TypeScheme` cannot state, the identical reason the
+    // five HOFs re-dispatch. Each already has a bespoke inference arm (`check.rs:3109` for
+    // `PersistentVector`), so re-dispatch by head-substitution keeps that arm the ONE place the
+    // inference lives. Never a second implementation; STOP-5 (no scheme) untouched.
+    //
+    // TOTAL BY CONSTRUCTION: building a literal collection has no domain hole — there is no input
+    // on which it is undefined — so these need no `:undefined` of their own. `params`/`ret` are
+    // inert for `Redispatch` (the checker routes before reading them), matching the HOF rows.
+    //
+    // ⛔ DELIBERATELY ABSENT — `Stream` is in `seq_container.rs`'s registry and is NOT minted: a
+    // lazy sequence inside a `where` is a termination hazard, and the fence exists in part to keep
+    // it out. `HashSet`/`WatAstList` likewise await a ruling that they are legal rule-condition
+    // values at all. Growth is by DEMAND; absence here is a decision, not an oversight.
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::PersistentVector",
+        core_name: ":wat::core::PersistentVector",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::Vector",
+        core_name: ":wat::core::Vector",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::List",
+        core_name: ":wat::core::List",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["K", "V"],
+        rete_name: ":wat::rete::core::PersistentMap",
+        core_name: ":wat::core::PersistentMap",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::Tuple",
+        core_name: ":wat::core::Tuple",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::core::PersistentVector/contains?",

@@ -68,21 +68,22 @@
 ;; executor must hand back to the interpreter, now taking FOUR bound vars instead of row 5's one.
 (:wat::core::defn :wmv::combo? [a <- :wat::core::i64  b <- :wat::core::i64
                                  c <- :wat::core::i64  d <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::i64::> (:wat::core::i64::* a c) (:wat::core::i64::* b d)))
+  (:wat::rete::core::i64::> (:wat::rete::core::i64::* a c :undefined 0) (:wat::rete::core::i64::* b d :undefined 1000000)))
 
 ;; pent?(a,b,c,d,e) := (a+b+c) mod (d+e+1) == 0.  FIVE bound vars into one pure fn call.
 (:wat::core::defn :wmv::pent? [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64
                                 d <- :wat::core::i64  e <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::=
-    (:wat::core::i64::mod (:wat::core::i64::+ a (:wat::core::i64::+ b c))
-                          (:wat::core::i64::+ d (:wat::core::i64::+ e 1)))
+  (:wat::rete::core::i64::=
+    (:wat::rete::core::i64::mod (:wat::rete::core::i64::+ a (:wat::rete::core::i64::+ b c :undefined 0) :undefined 0)
+                          (:wat::rete::core::i64::+ d (:wat::rete::core::i64::+ e 1 :undefined 1) :undefined 1)
+                          :undefined 1)
     0))
 
 ;; ROW 1 — THREE bound vars in one predicate. a+b > c+10.  a=i%11, b=i%13, c=i%7 ⇒ 64 of 200.
 (:wat::rete::defrule :wmv::three-var
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
-                 (:wat::rete::core::i64::> (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 10)))]
+                 (:wat::rete::core::i64::> (:wat::rete::core::i64::+ ?a ?b :undefined 0) (:wat::rete::core::i64::+ ?c 10 :undefined 1000000)))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -91,8 +92,8 @@
 (:wat::rete::defrule :wmv::four-var
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
-                 (:wat::core::=
-                   (:wat::core::i64::mod (:wat::core::i64::+ ?a ?b) (:wat::core::i64::+ ?c 1))
+                 (:wat::rete::core::i64::=
+                   (:wat::rete::core::i64::mod (:wat::rete::core::i64::+ ?a ?b :undefined 0) (:wat::rete::core::i64::+ ?c 1 :undefined 1) :undefined -1)
                    ?d))]
   :then
   [(:wmv::Hit ?k)])
@@ -103,7 +104,7 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::rete::core::and
-                   (:wat::core::= 0 (:wat::core::i64::mod ?a 2))
+                   (:wat::rete::core::i64::= 0 (:wat::rete::core::i64::mod ?a 2 :undefined 1))
                    (:wat::rete::core::i64::> ?b ?c)
                    (:wat::rete::core::i64::> ?d ?e)))]
   :then
@@ -122,7 +123,7 @@
 ;; ROW 5 — arithmetic ACROSS vars: (?a + ?b) > ?c.  a=i%11, b=i%13, c=i%7 ⇒ 183 of 200.
 (:wat::rete::defrule :wmv::sum-vars
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::core::i64::+ ?a ?b) ?c))]
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::i64::+ ?a ?b :undefined 0) ?c))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -132,8 +133,8 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::rete::core::i64::>
-                   (:wat::core::i64::* ?a ?b)
-                   (:wat::core::i64::+ ?c ?d)))]
+                   (:wat::rete::core::i64::* ?a ?b :undefined 0)
+                   (:wat::rete::core::i64::+ ?c ?d :undefined 1000000)))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -144,7 +145,7 @@
   :when
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::rete::core::i64::>
-                   (:wat::core::i64::- (:wat::core::i64::* ?a ?a) ?a)
+                   (:wat::rete::core::i64::- (:wat::rete::core::i64::* ?a ?a :undefined 0) ?a :undefined 0)
                    20))]
   :then
   [(:wmv::Hit ?k)])
@@ -176,7 +177,7 @@
 ;; a correctness one. a=i%11 ⇒ 73 of 200.
 (:wat::rete::defrule :wmv::unused-binds
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::core::= 0 (:wat::core::i64::mod ?a 3)))]
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::core::i64::= 0 (:wat::rete::core::i64::mod ?a 3 :undefined 1)))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -198,7 +199,7 @@
   [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
                  (:wat::rete::core::and
                    (:wat::rete::core::i64::< ?b ?c)
-                   (:wat::rete::core::i64::> (:wat::core::i64::+ ?c ?d) (:wat::core::i64::* ?e 3))))]
+                   (:wat::rete::core::i64::> (:wat::rete::core::i64::+ ?c ?d :undefined 0) (:wat::rete::core::i64::* ?e 3 :undefined 1000000))))]
   :then
   [(:wmv::Hit ?k)])
 

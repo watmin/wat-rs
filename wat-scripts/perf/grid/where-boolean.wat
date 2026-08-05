@@ -68,9 +68,9 @@
 ;; inline `and`/`not` at the call site. edge?(k) := k < 30 or k >= 180 (the two 30-wide tails of
 ;; the 210-range) => 60 of 210 satisfy edge? on its own.
 (:wat::core::defn :wsb::edge? [k <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::or
-    (:wat::core::i64::< k 30)
-    (:wat::core::i64::>= k 180)))
+  (:wat::rete::core::or
+    (:wat::rete::core::i64::< k 30)
+    (:wat::rete::core::i64::>= k 180)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wsb::conds [] -> :wat::WatAST
@@ -208,8 +208,8 @@
   :when
   [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
                                  (:wat::rete::core::and
-                                   (:wat::core::not= ?l 0)
-                                   (:wat::rete::core::i64::> (:wat::core::i64::/ 100 ?l) 20)))]
+                                   (:wat::rete::core::i64::not= ?l 0)
+                                   (:wat::rete::core::i64::> (:wat::rete::core::i64::/ 100 ?l :undefined 0) 20)))]
   :then
   [(:wsb::Hit ?k)])
 

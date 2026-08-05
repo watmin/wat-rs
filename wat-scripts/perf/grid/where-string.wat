@@ -96,9 +96,9 @@
 ;; contains(s,"cat") AND length(s) > 3. True for r=2 ("zzcatzz", len 7) and r=3 ("ねこcat", len 5);
 ;; false for r=1 ("cat", len 3 — contains but NOT longer than 3) and r=0/r=4 (no "cat" at all).
 (:wat::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::and
-    (:wat::core::String/contains? s "cat")
-    (:wat::core::i64::> (:wat::core::string::length s) 3)))
+  (:wat::rete::core::and
+    (:wat::rete::core::String/contains? s "cat")
+    (:wat::rete::core::i64::> (:wat::rete::core::string::length s) 3)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wst::conds [] -> :wat::WatAST
@@ -226,7 +226,7 @@
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::core::i64::>= (:wat::rete::core::string::length ?n) 3)
-                                   (:wat::rete::core::String/starts-with? (:wat::core::string::subs ?n 0 3) "cat")))]
+                                   (:wat::rete::core::String/starts-with? (:wat::rete::core::string::subs ?n 0 3 :undefined "") "cat")))]
   :then
   [(:wst::Hit ?k)])
 
@@ -235,7 +235,7 @@
 ;; Half of the stream ⇒ 200/400.
 (:wat::rete::defrule :wst::trim-eq
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::= (:wat::rete::core::string::trim ?padded) "cat"))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::string::= (:wat::rete::core::string::trim ?padded) "cat"))]
   :then
   [(:wst::Hit ?k)])
 
