@@ -1110,6 +1110,26 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // arc 278 #57 round 2 — `string::subs`, `Fallback` class. `:wat::core::string::subs` is
+    // PARTIAL — proven by run: `(subs "hello" 2 99)` raises `MalformedForm` with `head:
+    // ":wat::core::string::subs"` and reason "index out of range: start=2, end=99,
+    // char-length=5; require 0 <= start <= end <= char-length" (`check.rs`'s registered scheme
+    // is `(String, i64, i64) -> String`). This is the FIRST 3-real-arg `Fallback` row (i64/f64/
+    // holon take two real args before the marker, `first` takes one); `dispatch_rete_op`'s
+    // `Fallback` arm derives `marker_idx`/`fallback_idx` from `op.params.len()` and slices the
+    // real args as `&args[0..marker_idx]` — genuinely arity-generic, not hardcoded to `first`'s
+    // one-real-arg shape, so no runtime change was needed here. The existing `MalformedForm {
+    // head, .. } if head == op.core_name` catch (added for `first`) matches this row's raise
+    // exactly, since `head` here is likewise the literal `:wat::core::string::subs` `op` string.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::string::subs",
+        core_name: ":wat::core::string::subs",
+        class: OpClass::Fallback,
+        params: &[ParamType::String, ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::String],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
 ];
 
 /// THE ADMISSION TEST's boundary — declared rete-vocabulary SUB-namespaces. NOT the bare
