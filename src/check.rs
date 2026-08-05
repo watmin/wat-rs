@@ -3730,20 +3730,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Stone 237.8d — HARD CUT: per-Type equality aliases removed. Equality is a
-            // RELATIONAL intrinsic (see `docs/DISPATCH.md`); the canonical uniform
-            // `:wat::core::=` / `:wat::core::not=` are the only paths. These explicit
-            // arms surface the cut at check time so call sites fail with UnknownCallee
-            // rather than silently passing through the unregistered-scheme fallback.
-            ":wat::core::i64::="
-            | ":wat::core::i64::not="
-            | ":wat::core::f64::="
-            | ":wat::core::f64::not=" => {
-                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::UnknownCallee {
-                    callee: k.clone()
-                }});
-                return CheckResult::errs(local_errors);
-            }
             // Stone 237.8b — `+`/`-`/`*`/`/` HARD CUT from this arm: those now
             // route through wat defclauses (registered in env.defclause_registrations).
             // Arc 097 slice 2 — polymorphic Instant ± Duration. Result
@@ -15812,14 +15798,23 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stone 237.3 — per-type i64 comparison primitives.
     // Stone 237.8b — `!=` renamed to `not=` (HARD CUT); `<=` minted;
     // f64 ordering family minted.
-    // Stone 237.8d — `:i64::=` / `:i64::not=` HARD CUT: equality is a RELATIONAL
-    // intrinsic; uniform `:wat::core::=` / `:wat::core::not=` are the canonical path.
+    // Stone 237.8d — `:i64::=` / `:i64::not=` HARD CUT: equality was classified as a
+    // RELATIONAL intrinsic and per-Type aliases removed.
+    // DESIGN-STONE-per-type-equality-restored.md (2026-08-05) — REVERSED (builder's
+    // ruling): `:i64::=` / `:i64::not=` are restored beside their ordering twins. The
+    // relational-intrinsic argument for uniform `=`/`not=` still stands (untouched);
+    // the type-locked alias buys the same thing `:i64::>` already buys over generic
+    // `>` — operands locked to i64, same asymmetry the 237.8d cut applied to one
+    // family (equality) and not its twin (ordering).
     for op_name in &[
         ":wat::core::i64::>",
         ":wat::core::i64::<",
         ":wat::core::i64::>=",
         // Stone 237.8b — minted (was missing from i64 ordering set).
         ":wat::core::i64::<=",
+        // per-type-equality-restored — 237.8d's cut reversed.
+        ":wat::core::i64::=",
+        ":wat::core::i64::not=",
     ] {
         env.register(
             op_name.to_string(),
@@ -15871,13 +15866,20 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Stone 237.8b — f64 ordering family (NaN-correct; 4 primitives).
-    // Stone 237.8d — `:f64::=` / `:f64::not=` HARD CUT: equality is a RELATIONAL
-    // intrinsic; uniform `:wat::core::=` / `:wat::core::not=` are the canonical path.
+    // Stone 237.8d — `:f64::=` / `:f64::not=` HARD CUT: equality was classified as a
+    // RELATIONAL intrinsic and per-Type aliases removed.
+    // DESIGN-STONE-per-type-equality-restored.md (2026-08-05) — REVERSED (builder's
+    // ruling): `:f64::=` / `:f64::not=` restored beside their ordering twins. Goes
+    // through `eval_f64_compare` at runtime, already NaN-correct — `NaN != NaN` falls
+    // out for free, no special-casing.
     for op_name in &[
         ":wat::core::f64::<",
         ":wat::core::f64::>",
         ":wat::core::f64::<=",
         ":wat::core::f64::>=",
+        // per-type-equality-restored — 237.8d's cut reversed.
+        ":wat::core::f64::=",
+        ":wat::core::f64::not=",
     ] {
         env.register(
             op_name.to_string(),

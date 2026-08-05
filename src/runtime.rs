@@ -5203,17 +5203,32 @@ fn dispatch_keyword_head_value(
         // Stone 237.8b — `!=` renamed to `not=` (HARD CUT); `<=` minted;
         // f64 ordering family minted.
         // Stone 237.8d — `:i64::=` / `:i64::not=` / `:f64::=` / `:f64::not=` HARD CUT:
-        // equality is a RELATIONAL intrinsic (uniform `=`/`not=` are the canonical path).
+        // equality was classified as a RELATIONAL intrinsic and the per-Type aliases
+        // removed.
+        // DESIGN-STONE-per-type-equality-restored.md (2026-08-05) — REVERSED (builder's
+        // ruling: "i think both `:wat::core::=` and `:wat::core::i64::=` should be a
+        // thing"). Restored beside the ordering arms below — same `eval_compare` /
+        // `eval_f64_compare` engines the ordering family already uses, just gated on
+        // `Ordering::Equal` / `a == b`. `eval_f64_compare` is already NaN-correct, so
+        // IEEE `NaN != NaN` falls out for free; no special-casing.
         ":wat::core::i64::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
         ":wat::core::i64::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
         ":wat::core::i64::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
         // Stone 237.8b — minted (was missing from the i64 ordering set).
         ":wat::core::i64::<=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Greater),
+        // per-type-equality-restored — 237.8d's cut reversed.
+        ":wat::core::i64::=" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Equal),
+        ":wat::core::i64::not=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Equal),
         // Stone 237.8b — f64 ordering family (NaN-correct via eval_f64_compare).
         ":wat::core::f64::<" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a < b),
         ":wat::core::f64::>" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a > b),
         ":wat::core::f64::<=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a <= b),
         ":wat::core::f64::>=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a >= b),
+        // per-type-equality-restored — 237.8d's cut reversed. `a == b` on f64 is IEEE
+        // 754 equality: NaN != NaN falls out for free (already the load-bearing
+        // property of `eval_f64_compare`'s other arms above); do not special-case it.
+        ":wat::core::f64::=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a == b),
+        ":wat::core::f64::not=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a != b),
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym),

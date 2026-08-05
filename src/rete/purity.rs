@@ -398,6 +398,12 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // an inconsistency inside one family, and the single most common thing a rule says.
             | ":wat::core::i64::<"  | ":wat::core::i64::<=" | ":wat::core::i64::>" | ":wat::core::i64::>="
             | ":wat::core::f64::<"  | ":wat::core::f64::<=" | ":wat::core::f64::>" | ":wat::core::f64::>="
+            // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`/`f64::=`/
+            // `f64::not=`, restored beside their ordering twins above (237.8d's cut
+            // reversed). Same shape: a value operation over already-evaluated
+            // arguments, no IO, no entropy, no mutation, same inputs -> same output.
+            | ":wat::core::i64::=" | ":wat::core::i64::not="
+            | ":wat::core::f64::=" | ":wat::core::f64::not="
             // Per-Type integer division family (`i64::/` was already here; its siblings were not).
             | ":wat::core::i64::mod" | ":wat::core::i64::quot" | ":wat::core::i64::rem"
             // f64 numeric readers/roundings — total functions of their argument.
@@ -521,7 +527,18 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64::>="
             | ":wat::core::i64::<="
             | ":wat::core::i64::to-f64"
+            // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`: an
+            // equality compare over i64 never raises, same class as the ordering
+            // family immediately above.
+            | ":wat::core::i64::="
+            | ":wat::core::i64::not="
             | ":wat::core::f64::>"
+            // per-type-equality-restored (2026-08-05) — `f64::=`/`f64::not=`: a
+            // comparison, not arithmetic — `eval_f64_compare` returns a `bool` for any
+            // two f64 inputs including NaN/±Inf (never raises), the same reasoning
+            // `f64::>` (kept total) already uses immediately above.
+            | ":wat::core::f64::="
+            | ":wat::core::f64::not="
             | ":wat::core::PersistentVector/length"
             | ":wat::core::PersistentVector/contains?"
             | ":wat::core::PersistentVector/get"

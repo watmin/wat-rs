@@ -1,22 +1,35 @@
 //! FM-2-bis probe for Stone 237.8d — equality is a RELATIONAL intrinsic; the
-//! grid residue (per-Type `::=` aliases) is HARD CUT.
+//! grid residue (per-Type `::=` aliases) was HARD CUT, then RESTORED.
 //!
-//! The reversal (see `docs/DISPATCH.md`): the clause matcher checks each arg
+//! The 237.8d reversal (see `docs/DISPATCH.md`): the clause matcher checks each arg
 //! against a fixed named type independently and never unifies arg0 with arg1;
 //! equality IS that cross-arg unification (`infer_equality` `unify(a,b)`, ∀T) —
 //! so it is an intrinsic, not a clause. The mid-arc grid minted fake per-Type
 //! leaves (`:i64::=`/`:f64::=`/…) that all alias to the one structural engine;
-//! they contradict the doctrine and are cut here. `=`/`not=` impl is UNCHANGED.
+//! 237.8d judged them a contradiction of the doctrine and cut them. `=`/`not=`
+//! impl is UNCHANGED throughout — untouched by either the cut or the restore.
+//!
+//! `DESIGN-STONE-per-type-equality-restored.md` (2026-08-05, builder's ruling)
+//! REVERSED the cut in part: 237.8d applied "fake per-Type leaf, not a defclause
+//! leaf" to equality but not to its twin, ordering (`:i64::>` etc are the same
+//! shape and were kept). The asymmetry, not the relational-intrinsic argument,
+//! was the defect — equality-as-intrinsic still stands, untouched.
 //!
 //! ROW STATUS:
 //!   - REGRESSION (GREEN at HEAD + after): uniform `=`/`not=` over scalars,
-//!     composites, and RECORDS (the ∀T relational case the cut must not regress);
-//!     cross-numeric / cross-type stay check errors.
+//!     composites, and RECORDS (the ∀T relational case the restore must not
+//!     regress); cross-numeric / cross-type stay check errors.
 //!     [arc 300 C5 update: cross-numeric `=` now type-checks — see
 //!     `regression_cross_numeric_now_type_checks` below; cross-type stays a check
 //!     error, unchanged, out of C5's scope.]
-//!   - CUT-CONFIRMERS (RED at HEAD — the aliases still resolve; `#[ignore]`'d):
-//!     un-ignored by sonnet after the four aliases are removed, then GREEN.
+//!   - RESTORED (GREEN — the four heads resolve, type-check, AND evaluate
+//!     correctly; formerly CUT-CONFIRMERS asserting `r.is_err()` against
+//!     `*_cut_*.wat.bad` fixtures. Those fixtures are gone: in this project
+//!     `.wat.bad` means "the checker must reject this file" — a file the checker
+//!     now ACCEPTS cannot honestly carry that extension. The coverage is not
+//!     lost: the value-level tests below run the ops through the co-located
+//!     `.wat` (a real `.wat`, via `call_beside_value`) and assert the returned
+//!     booleans, which strictly subsumes "it type-checks.")
 //!
 //! Run: cargo test --release --test probe_arc237_8d_equality_intrinsic
 
@@ -84,39 +97,34 @@ fn regression_cross_type_is_check_error() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CUT-CONFIRMERS — the four per-Type equality aliases must NOT resolve after
-// 237.8d. RED at HEAD (they still resolve) → `#[ignore]`. Un-ignore after the
-// cut; then the unknown keyword fails check and these go GREEN.
+// RESTORED — value-level proof (not just "checks"). Same co-located fixture +
+// call_beside_value pattern the REGRESSION block above uses. Includes the f64
+// NaN case: `eval_f64_compare` is already NaN-correct, so `NaN != NaN` falls
+// out for free — this is the load-bearing property, not a guard to add.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn cut_i64_eq_gone() {
-    let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_i64_eq.wat.bad",
-    );
-    assert!(r.is_err(), ":i64::= must be cut (unknown keyword)");
+fn restored_i64_eq() {
+    assert_eq!(eval_bool(":user::restored-i64-eq-true"), Value::bool(true));
+    assert_eq!(eval_bool(":user::restored-i64-eq-false"), Value::bool(false));
 }
 
 #[test]
-fn cut_i64_not_eq_gone() {
-    let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_i64_not_eq.wat.bad",
-    );
-    assert!(r.is_err(), ":i64::not= must be cut");
+fn restored_i64_not_eq() {
+    assert_eq!(eval_bool(":user::restored-i64-not-eq-true"), Value::bool(true));
+    assert_eq!(eval_bool(":user::restored-i64-not-eq-false"), Value::bool(false));
 }
 
 #[test]
-fn cut_f64_eq_gone() {
-    let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_f64_eq.wat.bad",
-    );
-    assert!(r.is_err(), ":f64::= must be cut");
+fn restored_f64_eq() {
+    assert_eq!(eval_bool(":user::restored-f64-eq-true"), Value::bool(true));
+    assert_eq!(eval_bool(":user::restored-f64-eq-false"), Value::bool(false));
 }
 
 #[test]
-fn cut_f64_not_eq_gone() {
-    let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_f64_not_eq.wat.bad",
-    );
-    assert!(r.is_err(), ":f64::not= must be cut");
+fn restored_f64_not_eq_including_nan() {
+    assert_eq!(eval_bool(":user::restored-f64-not-eq-true"), Value::bool(true));
+    // IEEE 754: NaN != NaN is `true` — a defined answer, not a domain hole.
+    // `eval_f64_compare` already gets this right; do not special-case it.
+    assert_eq!(eval_bool(":user::restored-f64-nan-not-eq-itself"), Value::bool(true));
 }
