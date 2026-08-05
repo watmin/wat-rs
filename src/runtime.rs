@@ -8241,7 +8241,7 @@ fn dispatch_rete_op(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    use crate::rete::vocabulary::OpClass;
+    use crate::rete::vocabulary::{OpClass, ParamType};
     match op.class {
         // Arc 278 #57 round 1b — `Redispatch` joins `Alias`/`Form` here: same generic
         // re-invoke on `core_name`, zero new runtime logic (the checker's routing is the
@@ -8269,15 +8269,27 @@ fn dispatch_rete_op(
                 }).into()),
             }
             match dispatch_keyword_head_value(op.core_name, &args[0..2], list_span, env, sym) {
+                // A fallback-carrying op is TOTAL, so it must face EVERY way its core op can
+                // reach its undefined point — and this family reaches it two DIFFERENT ways.
+                // The i64 family fails by RAISING (caught below, unchanged). The f64 family
+                // fails by RETURNING: `eval_f64_arith` is raw IEEE 754 with no overflow guard,
+                // so a domain failure surfaces as an `Ok` holding NaN or ±Inf, never an `Err`.
+                // Decided from the ROW's declared `ret`, not by sniffing the runtime value's
+                // type — a value-sniff would silently change behaviour for any future row that
+                // happens to return a float for a non-arithmetic reason. `f64::is_finite()` is
+                // exactly the predicate: `!is_finite()` is true for NaN, `+Inf`, `-Inf` and
+                // nothing else — ordinary finite floats, `-0.0`, and subnormals all pass through
+                // untouched. Both paths are now faced; this arm is exhaustive over the family.
+                Ok(Value::f64(x)) if matches!(op.ret, ParamType::F64) && !x.is_finite() => {
+                    eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                }
                 Ok(v) => Ok(v),
-                // A fallback-carrying op is TOTAL, so it must face EVERY way its core op can fail
-                // on well-typed args — not just the one the first row happened to need. With the
-                // args already checked as (i64, i64), the i64 arithmetic family raises exactly
-                // two domain failures and no third: overflow (+ - * and the MIN/-1 division
-                // edge) and division by zero (/ mod rem quot). Both are the undefined point the
-                // caller's `:undefined` value exists to cover. This is an EXHAUSTIVE list for
-                // this family, not a catch-all: a type error or an arity error is a bug in the
-                // caller and still propagates.
+                // With the args already checked as (i64, i64), the i64 arithmetic family raises
+                // exactly two domain failures and no third: overflow (+ - * and the MIN/-1
+                // division edge) and division by zero (/ mod rem quot). Both are the undefined
+                // point the caller's `:undefined` value exists to cover. This is an EXHAUSTIVE
+                // list for this family, not a catch-all: a type error or an arity error is a bug
+                // in the caller and still propagates.
                 Err(EvalBreak::Diagnostic(e))
                     if matches!(
                         e.kind(),

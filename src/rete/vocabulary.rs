@@ -801,6 +801,56 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── BRIEF-f64-fallback-rows.md (2026-08-05) — the f64 arithmetic quartet. Builder's
+    // ruling: "±Inf and NaN are undefined - mint the fallback rows." Mirrors the i64
+    // fallback quartet's shape exactly, but the mechanism it leans on is DIFFERENT: the i64
+    // family fails by RAISING (`IntegerOverflow`/`DivisionByZero`), while
+    // `:wat::core::f64::{+,-,*,/}` is raw IEEE 754 with no overflow guard (`purity.rs`'s own
+    // `total: false` reasoning for these core rows) and never raises on these inputs — a
+    // domain failure surfaces as an `Ok` holding NaN or ±Inf instead. `dispatch_rete_op`'s
+    // `OpClass::Fallback` arm now faces both paths, keyed off this row's `ret: ParamType::F64`
+    // (never a runtime-value sniff). `total: true` is earned by that: for any two well-typed
+    // f64 inputs this always returns some f64 (the result, or the fallback) and never raises.
+    // Core itself is untouched — `:wat::core::f64::{+,-,*,/}` keep returning raw IEEE values
+    // and keep their `total: false` classification; totality is bought here, at the rete row,
+    // by carrying a fallback. Call shape unchanged from i64:
+    // `(:wat::rete::f64::/ hits total :undefined 0.0)`.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::+",
+        core_name: ":wat::core::f64::+",
+        class: OpClass::Fallback,
+        params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
+        ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::-",
+        core_name: ":wat::core::f64::-",
+        class: OpClass::Fallback,
+        params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
+        ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::*",
+        core_name: ":wat::core::f64::*",
+        class: OpClass::Fallback,
+        params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
+        ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::/",
+        core_name: ":wat::core::f64::/",
+        class: OpClass::Fallback,
+        params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
+        ret: ParamType::F64,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
 ];
 
 /// THE ADMISSION TEST's boundary — declared rete-vocabulary SUB-namespaces. NOT the bare
