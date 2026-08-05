@@ -116,6 +116,39 @@ is a definite `false`.
    is minted, returns `Option<T>`, and is already total — so indexed access with a default is
    expressible today via `get` + `match`, just verbosely. `nth` would have been the sugar.
 
+   ### ⛔ RULED 2026-08-05 — and it dissolves the "blocker" above
+
+   Builder: *"i feel like… we just disallow expect in rete … we'll purge from wat-core later."*
+   And, reasoning to it: *"expect needs to return an enum…. but….. option already does?… do we just
+   flat out kill expect?"*
+
+   **That is the whole answer, and it inverts the framing above.** `expect` is not a partial op
+   awaiting cure 3. **`Option<T>` IS cure 2, already applied** — the domain hole is already a named,
+   matchable variant. **`expect` is the DISCARD of an already-faced outcome**: it takes something
+   total and hands back something partial. There is nothing to add to it; there is something to stop
+   doing.
+
+   So a fallback row wrapping `nth` was **the wrong idea, not a blocked one** — it would have
+   legitimised a panic inside a rule condition by dressing it in a total signature. The STOP was more
+   correct than it looked.
+
+   **⛔ NEVER MINT a rete row for `Option/expect`, `Result/expect`, or any verb defined in terms of
+   them** (`nth` is the known instance; the transitive rule below finds the rest).
+
+   **And nothing needs building — the machinery already refuses them, grounded 2026-08-05:**
+   - `:wat::core::Option/expect` is **absent from `purity.rs`'s `total` list**, so the third conjunct
+     refuses it the moment S7 arms.
+   - `classify_fn` walks a wat `defn`'s body (`FunctionBody::Wat(body_ast) => classify_expr(…)`), so
+     **`nth` inherits non-totality transitively and automatically** — no special case, no allowlist.
+   - Both conjuncts are UNARMED today, which is the only reason an `expect` inside a `where` passes
+     right now (it is pure ∧ deterministic — a panic is neither impure nor nondeterministic).
+
+   **The measured scope of the later core purge, so it is not discovered cold:** 168 `Option/expect`
+   + 27 `Result/expect` registrations, and call sites across `wat/` 185 · `wat-scripts/` 207 ·
+   `tests/` 153 · `wat-tests/` 23 · `src/` 49. A real crusade, correctly cut out of the rete work.
+   `Option/try` already exists as the non-discarding sibling — the purge's target form, not a thing to
+   invent.
+
 ## Related, on the disk
 
 - `DESIGN-STONE-total-the-third-axis.md` · `BRIEF-total-column-honest.md` — the axis and its audit.
