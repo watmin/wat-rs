@@ -1,5 +1,5 @@
 diff --git a/wat/rete.wat b/wat/rete.wat
-index 3520e2ed..1b743f46 100644
+index 3520e2ed..d39ac8cb 100644
 --- a/wat/rete.wat
 +++ b/wat/rete.wat
 @@ -680,11 +680,21 @@
@@ -13,7 +13,7 @@ index 3520e2ed..1b743f46 100644
 +                        is-rete   (:wat::rete::primitive? expr)
                          _fence    (:wat::core::Option/expect
 -                                      (:wat::core::if (:wat::core::and is-pure is-det)
-+                                      (:wat::core::if (:wat::core::and (:wat::core::and is-pure is-det) is-rete)
++                                      (:wat::core::if (:wat::core::and is-pure is-det is-rete)
                                          (:wat::core::Some nil)
                                          :wat::core::None)
 -                                      (:wat::rete::axis-violation-message "where" expr (:wat::rete::first-failing-axis is-pure is-det)))
