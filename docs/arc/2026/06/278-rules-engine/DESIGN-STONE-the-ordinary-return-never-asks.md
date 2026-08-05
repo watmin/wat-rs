@@ -117,15 +117,39 @@ cascade)"* — which is precisely the shape an unasked, unawaited sever produces
 
 ---
 
-## ⛔ ADDENDUM 2026-08-05 — this stone is NOT the #79 root cause. The sibling is.
+## ⛔ ADDENDUM 2026-08-05 — this stone is NOT the #79 root cause. **AND NEITHER IS THE SIBLING.**
 
-`DESIGN-STONE-a-wake-is-not-a-preemption.md` is **CONFIRMED RED** by
-`tests/comms/probe_arc278_a_wake_is_not_a_preemption.rs`: at the process tier, a frame already in
-the pipe is **discarded** when the substrate cascade has fired, because
-`wait_for_data_or_cascade` ends `if got_broadcast { Shutdown } else if got_data { DataReady }`.
-That surfaces as `RecvOutcome::Stopped` — exactly the arm `wat-tests/test.wat:290` names *"stopped
-before the child sent its value — the child was ALIVE."*
+> **⚠ THE FIRST VERSION OF THIS ADDENDUM WAS WRONG AND IS STRUCK.** It read: *"`DESIGN-STONE-a-wake-is-
+> not-a-preemption.md` is CONFIRMED RED … a frame already in the pipe is discarded … **not** what
+> produced the intermittent timeout. Do not conflate them; do not strike this one first."* It handed
+> the next reader a root cause that does not exist, and it did so confidently.
 
-**The asymmetry this stone describes is still real** (an ordinary return never asks; a stop failure
-on that path is silently discarded). But it is a SEPARATE, smaller finding, and it is **not** what
-produced the intermittent timeout. Do not conflate them; do not strike this one first.
+**The sibling stone is WITHDRAWN.** `wait_for_data_or_cascade`'s `if got_broadcast { Shutdown }` is
+not a defect — it is shutdown priority, which is the builder's own ruling: *"if we're going down, no
+one else matters."* The gate that "confirmed" it fired the cascade on purpose and then asserted
+surprise at receiving a shutdown; it has been inverted into a green characterization gate
+(`probe_arc278_shutdown_priority_is_the_ruling.rs`) that now *guards* that ruling instead of
+contradicting it. Three mechanisms were proposed in one day — wrong branch order, lossy carrier,
+greedy drain — and all three collapsed. The full account is in the sibling's WITHDRAWN banner.
+
+**What this stone describes is still real and still unstruck:** an ordinary return never asks, and a
+stop failure on that path is silently swallowed because `Drop` cannot return `Result`. That is an
+HONESTY defect, it is separate from anything above, and it stands on its own — **but it has never
+been connected to the intermittent failure either, and must not be.**
+
+### The honest state of #79, so no one inherits a phantom
+
+- The **arm was never captured**. The first look truncated the log; the re-run went green. Five
+  outcomes were possible (`Message`-mismatch / `Lost` / `Stopped` / `Closed` / the 5000ms watchdog),
+  each predicting a *different* mechanism. **We do not know which fired.** Every mechanism proposed
+  since was a guess at that unknown.
+- The **one grounded fact** worth carrying: the failing `recv` runs inside a spawned runtime whose
+  shutdown worker polls `LIFELINE_FD` (`spawned_runtime.rs:50`), so `RecvOutcome::Stopped` **is**
+  reachable in an ordinary floor run with no signal at all. Why that lifeline would go down mid-test
+  is uncharacterized.
+- The capture gap is closed structurally — `scripts/floor.sh` (`d3db7056`) keeps every run's arm, and
+  the known-flake licences (CLAUDE.md prose + `retries = 1` in CI) are annihilated. **The next
+  occurrence keeps its evidence.**
+
+`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]` ·
+`[[feedback_not_reproducible_is_not_a_disposition]]`

@@ -1,6 +1,67 @@
-# DESIGN STONE — a shutdown broadcast is a WAKE, never a preemption (CONFIRMED RED)
+# DESIGN STONE — a shutdown broadcast is a WAKE, never a preemption ⛔ WITHDRAWN
 
-> ## ✅✅ CONFIRMED 2026-08-05 BY THE RED GATE — AND THE INTERVENING "CORRECTION" WAS ITSELF WRONG
+> ## ⛔⛔ WITHDRAWN 2026-08-05 — NO DEFECT ESTABLISHED. THE CODE IMPLEMENTS THE BUILDER'S OWN RULING.
+>
+> **Everything below this banner is kept, unedited, because it is the evidence — not of a defect in
+> the substrate, but of three mechanisms I proposed in one day, each of which collapsed under a single
+> question from the builder.** *Ignem oleo, non aqua:* pour the truth on top, never overwrite.
+>
+> ### What the code actually does, and why it is right
+>
+> ```rust
+> if got_broadcast { Ok(PollOutcome::Shutdown) }
+> else if got_data { Ok(PollOutcome::DataReady) }
+> ```
+>
+> The builder, on being shown exactly this: *"if we're going down - no one else matters."* **That is
+> shutdown-priority, and that is what is implemented.** The branch is not a bug; it is the ruling.
+>
+> ### The three mechanisms I proposed, in order, each dead
+>
+> | # | claim | killed by |
+> |---|---|---|
+> | 1 | the **branch order** is wrong — data should win | it would then destroy the *stop* fact instead. Symmetric, no better |
+> | 2 | `PollOutcome` is a **lossy carrier** — it cannot say "both" | true, but only matters if you must answer "both", which you need not |
+> | 3 | the **drain is greedy** — we asked for 1 and harvested N | wrong. io_uring is a *completion queue*; `submit_and_wait(1)` waits for ≥1 and the kernel may complete both. Draining the CQ is mandatory hygiene, and both CQEs were genuinely handed to us |
+>
+> Three in a row, each collapsing to one question, is not converging on a bug. It is generating stories.
+>
+> ### ⛔ THE GATE DOES NOT PROVE A DEFECT
+>
+> `tests/comms/probe_arc278_a_wake_is_not_a_preemption.rs` **fires the cascade on purpose and then
+> asserts surprise that a shutdown was reported.** It proves the code does what it was built to do.
+> A red there is a characterization, not a finding. (Now retitled + inverted to a green gate that
+> *guards* the ruling — see `probe_arc278_shutdown_priority_is_the_ruling.rs`.)
+>
+> ### ★ AND THE LANGUAGE WAS WRONG FOR SIX HOURS — "discard" was never defined
+>
+> A `PollAdd` completion reports **readiness only**. It reads nothing. So *"a delivered frame is thrown
+> away"* / *"delivered work is destroyed"* — repeated across this file, the seam, and the gate — was
+> **false mechanism**. No bytes are read; no bytes are dropped. They sit in the kernel pipe buffer,
+> untouched, and die later when the fd closes. The honest description is: *the poll observed that a
+> value was readable, the caller declined to read it, and reported a stop.* Which is, again, the ruling.
+>
+> ### What survives, and it is the only live thread
+>
+> **The cascade fired during a healthy test.** The failing `recv` runs inside a spawned runtime (H)
+> whose shutdown worker polls `LIFELINE_FD` (`spawned_runtime.rs:50`) — so `Stopped` is reachable in a
+> floor run with no signal at all. **Why H's lifeline went down while the harness was still running is
+> uncharacterized and is upstream of everything in this file.**
+>
+> And the arm of the original failure **was never captured** — the first look truncated the log, the
+> re-run went green. Five outcomes were possible (`Message`-mismatch / `Lost` / `Stopped` / `Closed` /
+> the 5000ms watchdog); each predicts a different mechanism; we do not know which fired. Every story
+> below was a guess at that unknown. The capture gap is now closed structurally
+> (`scripts/floor.sh`, `d3db7056`), so the next occurrence keeps its arm.
+>
+> `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]` ·
+> `[[feedback_not_reproducible_is_not_a_disposition]]`
+>
+> ---
+>
+> ## ⬇ EVERYTHING BELOW IS THE WITHDRAWN CLAIM, KEPT VERBATIM AS THE SHED SKIN ⬇
+>
+> ## ~~✅✅ CONFIRMED 2026-08-05 BY THE RED GATE — AND THE INTERVENING "CORRECTION" WAS ITSELF WRONG~~
 >
 > **The diagnosis below is RIGHT.** `tests/comms/probe_arc278_a_wake_is_not_a_preemption.rs` is RED,
 > deterministically, both tests, in **0.006s**:
