@@ -5,7 +5,11 @@
 ;; that a real parametric TypeScheme is now attached (round 1a's rows were all monomorphic).
 (def :probe-pv-length (:wat::rete::core::PersistentVector/length (:wat::core::PersistentVector 1 2 3)))
 (def :probe-pv-contains (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector 1 2 3) 2))
-(def :probe-pv-get (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector 1 2 3) 1))
+;; BRIEF-get-is-total-by-fallback.md (2026-08-05) — `PersistentVector/get` converted from
+;; `Alias` (2-arg: container, index) to `Fallback` (4-arg: container, index, `:undefined`,
+;; fallback) — STOP-5's own predicted collateral, found here: this call site was the one
+;; existing caller (of 276 corpus files) still on the old 2-arg shape. Updated in place.
+(def :probe-pv-get (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector 1 2 3) 1 :undefined -1))
 
 (def :probe-foldl
   (:wat::rete::core::foldl

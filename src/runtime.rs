@@ -8343,6 +8343,22 @@ fn dispatch_rete_op(
                         }).into()),
                     }
                 }
+                // BRIEF-get-is-total-by-fallback.md (2026-08-05) — the FOURTH failure mode,
+                // shaped like none of the three above: a core op that signals its domain hole by
+                // RETURNING `Value::Option(None)` (`PersistentVector/get`/`Vector/get`/`List/get`
+                // today; any future `Option<T>`-returning verb tomorrow, per STOP-1 — this arm is
+                // written generically over `Value::Option`, never special-cased to `get`).
+                // ⚠ `Option` is `Value::Option(_)`, NOT `Value::Enum` (`runtime.rs`'s own
+                // `val_type_path`: `Value::Option(_) => ":wat::core::Option"`) — the two holon
+                // arms above match `Value::Enum` and do not and cannot fire on this shape; it
+                // needs its own arm. `Some(v)` unwraps the payload (a clone off the `Arc<Option<
+                // Value>>` — `Value` is Clone throughout this file, same as every other arm's
+                // `.value_owned()`); `None` is this family's undefined point and takes the
+                // caller's `:undefined` value, exactly like the three arms above.
+                Ok(Value::Option(opt)) => match opt.as_ref() {
+                    Some(v) => Ok(v.clone()),
+                    None => eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned()),
+                },
                 Ok(v) => Ok(v),
                 // With the args already checked as (i64, i64), the i64 arithmetic family raises
                 // exactly two domain failures and no third: overflow (+ - * and the MIN/-1

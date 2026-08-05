@@ -161,11 +161,14 @@ pub(crate) enum ParamType {
     /// BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `List<T>` for a named
     /// type variable `T`. `first`'s third container leaf.
     ListOf(&'static str),
-    /// Arc 278 #57 round 1b — `Option<T>` for a named type variable `T`. Needed for
-    /// `PersistentVector/get`'s return: it is ALREADY total by design (`None` on
-    /// out-of-range, never a raise — `purity.rs`'s own reasoning for why this round is its
-    /// home rather than the fallback round).
-    OptionOf(&'static str),
+    // BRIEF-get-is-total-by-fallback.md (2026-08-05) — the `OptionOf(&'static str)` leaf that
+    // lived here (minted #57 round 1b for `PersistentVector/get`'s then-`Alias` return type) was
+    // REMOVED: `get` converted to `Fallback` (ret: `Var("T")`, the hole unwrapped by
+    // `dispatch_rete_op`'s new `Value::Option` arm, never surfaced to the rete caller), and
+    // nothing else in this table ever constructed it — `cargo clippy` flagged it dead the moment
+    // that conversion landed. Re-mint it here if a future row needs to spell `Option<T>` again
+    // (STOP-4: core itself is untouched and keeps returning `Option<T>` for ordinary wat code —
+    // only the rete surface's spelling of `get` changed shape).
     /// Arc 278 the VSA seam opens — a holon AST value. Spells the exact `TypeExpr` `check.rs`'s
     /// own `holon_ty` closure (`check.rs:14974`, `TypeExpr::Path(":wat::holon::HolonAST")`)
     /// already builds for the hand-written holon intrinsic signatures — needed here to declare
@@ -195,10 +198,6 @@ impl ParamType {
             },
             ParamType::ListOf(name) => TypeExpr::Parametric {
                 head: "wat::core::List".into(),
-                args: vec![TypeExpr::Path(format!(":{name}"))],
-            },
-            ParamType::OptionOf(name) => TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
             },
             ParamType::Holon => TypeExpr::Path(":wat::holon::HolonAST".into()),
@@ -639,15 +638,15 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::F64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // ── #57 round 1b, the parametric three (`Alias`, with the FIRST non-empty `type_params`
-    // in this table). `PersistentVector/{length,get,contains?}` name exactly one container,
-    // so — unlike the five HOFs below — their whole truth IS a rank-1 scheme:
+    // ── #57 round 1b, the parametric pair (`Alias`, with the FIRST non-empty `type_params`
+    // in this table). `PersistentVector/{length,contains?}` name exactly one container, so —
+    // unlike the five HOFs below — their whole truth IS a rank-1 scheme:
     // `PersistentVector/length : PV<T> -> i64`. Verified against the real implementations
-    // (`collection/eval.rs`'s `persistentvector_{length,contains_q,get}_inner`), NOT assumed
-    // from this round's own planning doc. `meta` TRANSCRIBED from `rete/purity.rs`: all
-    // three sit in its pure∧det hand-list (`:336-339`) AND its total hand-list
-    // (`:525-527`) — `/length`/`/contains?` "always defined"; `/get` "ALREADY total by
-    // design (returns `Option`, `None` on out-of-range)".
+    // (`collection/eval.rs`'s `persistentvector_{length,contains_q}_inner`), NOT assumed
+    // from this round's own planning doc. `meta` TRANSCRIBED from `rete/purity.rs`: both
+    // sit in its pure∧det hand-list (`:336-339`) AND its total hand-list (`:525-527`) —
+    // "always defined". `/get` originally joined this pair as an `Alias`; BRIEF-get-is-total-
+    // by-fallback.md (2026-08-05) converted it to `Fallback` below — see that row's own comment.
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::core::PersistentVector/length",
@@ -666,13 +665,49 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // BRIEF-get-is-total-by-fallback.md (2026-08-05) — `PersistentVector/get` CONVERTED from
+    // `Alias` to `Fallback` (builder's ruling: "fallback — that's the UX… if it isn't [in the
+    // vec] the result is undefined by nature… there's no meaningful value there so it mandates
+    // a user supplied value in such cases"). This is the FOURTH failure-mode shape
+    // `dispatch_rete_op`'s `Fallback` arm faces (see that arm's own doc): the core op signals
+    // its hole by returning `None`, never by raising, a non-finite scalar, or an outcome enum —
+    // so it needs its own generic `Value::Option` arm, not a fit into any of the other three.
+    // `Vector/get` and `List/get` join as new siblings (verified against their own
+    // `vector_get_inner`/`list_get_inner` — each wraps its result in `Value::Option`, same
+    // shape as `persistentvector_get_inner`). Same naming-rule note as the PV trio above: each
+    // row's `core_name` is per-container (`PersistentVector/get` / `Vector/get` / `List/get`),
+    // never shared, so the rete_name = core_name-with-`rete::`-inserted rule applies with NO
+    // exception needed (unlike `first`, whose trio shares one polymorphic core_name).
+    //
+    // ⚠ The cost, recorded per the brief: a rule author loses the ability to distinguish
+    // "absent" from "present and equal to the caller's own default" inside a `where` — the
+    // deliberate trade the ruling makes. The `Option`-returning form remains available in core
+    // for ordinary wat code (STOP-4); only the rete spelling changes shape.
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::core::PersistentVector/get",
         core_name: ":wat::core::PersistentVector/get",
-        class: OpClass::Alias,
-        params: &[ParamType::PersistentVectorOf("T"), ParamType::I64],
-        ret: ParamType::OptionOf("T"),
+        class: OpClass::Fallback,
+        params: &[ParamType::PersistentVectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
+        ret: ParamType::Var("T"),
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::Vector/get",
+        core_name: ":wat::core::Vector/get",
+        class: OpClass::Fallback,
+        params: &[ParamType::VectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
+        ret: ParamType::Var("T"),
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::List/get",
+        core_name: ":wat::core::List/get",
+        class: OpClass::Fallback,
+        params: &[ParamType::ListOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
+        ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #57 round 1b, the five higher-order combinators (`Redispatch` — this table's first
