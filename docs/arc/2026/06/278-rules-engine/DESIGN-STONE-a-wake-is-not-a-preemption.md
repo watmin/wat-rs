@@ -1,4 +1,64 @@
-# DESIGN STONE — a shutdown broadcast is a WAKE, never a preemption
+# DESIGN STONE — a shutdown broadcast is a WAKE, never a preemption (CONFIRMED RED)
+
+> ## ✅✅ CONFIRMED 2026-08-05 BY THE RED GATE — AND THE INTERVENING "CORRECTION" WAS ITSELF WRONG
+>
+> **The diagnosis below is RIGHT.** `tests/comms/probe_arc278_a_wake_is_not_a_preemption.rs` is RED,
+> deterministically, both tests, in **0.006s**:
+>
+> ```
+> [gate] cascade fired for real: broadcast fd 8 is READY (worker wrote it)
+> [gate] -> recv with BOTH arms ready
+> [gate] <- recv returned Err(Shutdown)          ← the frame was in the pipe
+> ```
+>
+> A frame already delivered, the substrate cascade genuinely fired, and `broadcast wins ties`
+> discards the frame and reports a stop. The drain test dies on the FIRST of three frames — none are
+> handed back. In wat this surfaces as `RecvOutcome::Stopped`, which is precisely what
+> `wat-tests/test.wat:290`'s arm calls *"stopped before the child sent its value — the child was
+> ALIVE."* **The child did send.**
+>
+> **It is DETERMINISTIC, not a race.** `broadcast wins ties` is an unconditional branch: given both
+> arms ready it discards the data every time. What is rare is REACHING the tie — a stop must land
+> while a frame is unconsumed. That is why it reads as a flake and why ~15 floor re-runs never found
+> it, but the rule itself never varies. It also needs NO load: two sends and a wake byte, 6ms.
+>
+> ### ⛔ WHY THIS FILE BRIEFLY CLAIMED THE OPPOSITE — the failure to not repeat
+>
+> An earlier banner here said the gate had REFUTED this diagnosis. That banner was wrong, and the
+> reason is the whole lesson: **the first gate fired the wrong trigger.** It called
+> `runtime::trigger_shutdown()`, which drops the crossbeam Sender (the THREAD-tier sever) and
+> **never writes the broadcast byte** — the broadcast is written solely by the shutdown worker
+> (`runtime.rs:477`). So `got_broadcast` was false, there was no tie at all, and the gate "passed"
+> while testing nothing. I read that pass as a verdict and wrote it into this document as a
+> refutation.
+>
+> **A non-vacuity guard did not save it.** The first gate asserted the broadcast fd was armed
+> (`>= 0`) — and that assertion PASSED, because the fd existed. It guarded the APPARATUS, not the
+> CONDITION. The fd being open says nothing about whether the cascade fired. The working gate waits
+> on the wire — `poll()` the broadcast fd until it is genuinely readable — before recv'ing.
+>
+> The correct trigger is production's: **write the wake pipe → the worker wakes → the worker writes
+> the broadcast.** A gate that drives a mechanism differently from the way production drives it
+> measures the gate.
+>
+> ### Kept for the record: three claims that were asserted, then withdrawn, then re-proven
+>
+> The analysis below stands. These lines are the intervening errors, kept visible rather than
+> deleted, because a document that quietly flips twice teaches nothing:
+>
+> | claim I made mid-session | status now |
+> |---|---|
+> | "a delivered frame loses the tie" | **TRUE — proven RED.** The earlier "it PASSES, data wins" was the broken gate: no tie existed. |
+> | "the stop discards in-flight work" | **TRUE — proven RED.** The earlier "all three drained" was the same broken gate. |
+> | "the broadcast is STICKY so deferring costs nothing" | **STILL UNVERIFIED.** Do not lean on it; the fix does not need it. |
+>
+> **The lost-wakeup theory that stood here is WITHDRAWN.** It was built entirely on the broken
+> gate's 30s hang, and that hang was the gate firing the thread-tier sever while a process-tier
+> receiver waited on a broadcast nobody had written. There is no evidence of a lost wakeup.
+
+---
+
+# THE CONFIRMED DIAGNOSIS — a shutdown broadcast is a WAKE, never a preemption
 
 > **Status: DRAWN 2026-08-05.** Task #79, root-caused. The builder: *"wat is strongly lock step —
 > find the misstep."* Found. It is a tie-break, it is four lines at the primary site, and it is

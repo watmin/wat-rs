@@ -114,3 +114,18 @@ cascade)"* — which is precisely the shape an unasked, unawaited sever produces
   structural reason the mask exists, and it is why (a) means moving the ask OUT of `Drop`, not
   decorating it.
 - **⛔** No `_` wildcard arm on an enum scrutinee.
+
+---
+
+## ⛔ ADDENDUM 2026-08-05 — this stone is NOT the #79 root cause. The sibling is.
+
+`DESIGN-STONE-a-wake-is-not-a-preemption.md` is **CONFIRMED RED** by
+`tests/comms/probe_arc278_a_wake_is_not_a_preemption.rs`: at the process tier, a frame already in
+the pipe is **discarded** when the substrate cascade has fired, because
+`wait_for_data_or_cascade` ends `if got_broadcast { Shutdown } else if got_data { DataReady }`.
+That surfaces as `RecvOutcome::Stopped` — exactly the arm `wat-tests/test.wat:290` names *"stopped
+before the child sent its value — the child was ALIVE."*
+
+**The asymmetry this stone describes is still real** (an ordinary return never asks; a stop failure
+on that path is silently discarded). But it is a SEPARATE, smaller finding, and it is **not** what
+produced the intermittent timeout. Do not conflate them; do not strike this one first.
