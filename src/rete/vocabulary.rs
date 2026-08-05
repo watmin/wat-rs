@@ -638,6 +638,124 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: false },
     },
+    // ── #57 round 1c, the ten per-type equality/inequality aliases (`=`/`not=` across the five
+    // `ParamType` leaves). `class: Alias` throughout — same shape as round 1a, one round larger.
+    // `total: true` per row: TOTALITY IS DELIVERED BY THE SIGNATURE, not by the routine
+    // underneath — a row declaring `[T, T] -> Bool` makes an incomparable pair (e.g.
+    // `(:wat::rete::String::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
+    // domain hole a per-type surface exists to delete (DESIGN-STONE-where-admits-only-rete-ops.md,
+    // "★★ RULED — THE RETE SURFACE IS PER-TYPE, PERIOD"). `meta` TRANSCRIBED, not decided, from
+    // generic `=`/`not=` (`rete/purity.rs:307-308` pure∧det, `:511-512` total) for every one of
+    // the ten rows — including the four below whose `core_name` is the generic op (see next
+    // paragraph), so this is the correct source regardless of routing.
+    //
+    // `String`/`bool`/`keyword` point at the GENERIC `:wat::core::=` / `:wat::core::not=` per the
+    // brief — core has no per-type `String::=` and does not need one; minting one would be the
+    // tail wagging the dog (STOP-3).
+    //
+    // `i64`/`f64` ALSO point at the generic core `=`/`not=`, not at `:wat::core::i64::=` /
+    // `:wat::core::f64::=` as the brief's table literally names — those two spellings do not
+    // exist. They were HARD CUT (Stone 237.8d, `check.rs:3733-3746` and `runtime.rs:5205-5211`):
+    // `:wat::core::i64::=`/`i64::not=`/`f64::=`/`f64::not=` explicitly raise `UnknownCallee` at
+    // check time and have no runtime dispatch arm at all — only `i64::{>,<,>=,<=}` and the f64
+    // ordering family survived that cut; equality was deliberately left uniform-only. Aliasing to
+    // the named-but-absent per-type spelling would type-check fine (this row's own `TypeScheme` is
+    // self-contained) but fail EVERY invocation at runtime with an unknown-function error —
+    // contradicting the brief's own EXPECTATIONS row 5 (`f64::=` must actually run and return
+    // `true`). Routing to the generic op instead is the exact same "shared kernel, two surfaces"
+    // reasoning the brief already applies to `String`/`bool`/`keyword`, just extended to the two
+    // rows where the brief's assumed per-type target turned out not to exist. Flagged for the
+    // orchestrator per this round's brief ("report; anything you had to assume").
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::i64::=",
+        core_name: ":wat::core::=",
+        class: OpClass::Alias,
+        params: &[ParamType::I64, ParamType::I64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::i64::not=",
+        core_name: ":wat::core::not=",
+        class: OpClass::Alias,
+        params: &[ParamType::I64, ParamType::I64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::=",
+        core_name: ":wat::core::=",
+        class: OpClass::Alias,
+        params: &[ParamType::F64, ParamType::F64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::f64::not=",
+        core_name: ":wat::core::not=",
+        class: OpClass::Alias,
+        params: &[ParamType::F64, ParamType::F64],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::String::=",
+        core_name: ":wat::core::=",
+        class: OpClass::Alias,
+        params: &[ParamType::String, ParamType::String],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::String::not=",
+        core_name: ":wat::core::not=",
+        class: OpClass::Alias,
+        params: &[ParamType::String, ParamType::String],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::bool::=",
+        core_name: ":wat::core::=",
+        class: OpClass::Alias,
+        params: &[ParamType::Bool, ParamType::Bool],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::bool::not=",
+        core_name: ":wat::core::not=",
+        class: OpClass::Alias,
+        params: &[ParamType::Bool, ParamType::Bool],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::keyword::=",
+        core_name: ":wat::core::=",
+        class: OpClass::Alias,
+        params: &[ParamType::Keyword, ParamType::Keyword],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::keyword::not=",
+        core_name: ":wat::core::not=",
+        class: OpClass::Alias,
+        params: &[ParamType::Keyword, ParamType::Keyword],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
 ];
 
 /// THE ADMISSION TEST's boundary — declared rete-vocabulary SUB-namespaces. NOT the bare
