@@ -13,7 +13,14 @@ fail-fast = false
 
 [profile.ci]
 slow-timeout = { period = "20s", terminate-after = 3 }   # a touch more headroom in CI
-retries = 1                                              # absorb a rare leak-flake; surfaces as flaky, not failed
+# ⛔ retries = 0, AND IT MUST STAY 0. This was `retries = 1`, commented "absorb a
+# rare leak-flake; surfaces as flaky, not failed" — i.e. the runner re-ran on a red
+# and relabelled it. That is "known flake, it's fine to not report it", automated:
+# the second run passing DESTROYS the only evidence the first run produced, and the
+# report says "flaky" where the truth is "failed, once, with an arm nobody kept".
+# Struck 2026-08-05 at the builder's direction — "it is not fine, it cannot be
+# tolerated, it must be annihilated." A red is a red; the arm is the finding.
+retries = 0
 fail-fast = false
 
 # The wat-scripts load gate freezes EVERY .wat under wat-scripts/ in ONE test

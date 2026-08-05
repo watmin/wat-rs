@@ -26,11 +26,45 @@ substrate rules (delete it if it's truly dead; otherwise it conforms). Non-`.wat
 
 ## The test floor is weighed in RELEASE
 
-The zero-failure floor is **`cargo nextest run --release`** (~4189/0). Plain `cargo nextest run`
-(debug) surfaces `debug_assert!`s and timing flakes (double-fork service tests, `sigterm`,
-`pdeathsig`, `lifeline_orphan`) that are NOT release failures. Read the Summary line — never a
-piped exit code (`cargo nextest ... | tail` returns `tail`'s exit, not nextest's). A green→red
-flip between two runs, or a `debug_assert!` panic, is a mode/timing signal first, not a regression.
+The zero-failure floor is **`cargo nextest run --release`** (~4189/0), run through
+**`scripts/floor.sh`** so the whole run is captured before anyone reads it. Read the Summary line —
+never a piped exit code (`cargo nextest ... | tail` returns `tail`'s exit, not nextest's).
+
+### ⛔ THERE IS NO SUCH THING AS A KNOWN FLAKE. A RED IS A RED.
+
+**No test is pre-blessed — not by name, not by category.** This section used to name four
+(`double-fork`, `sigterm`, `pdeathsig`, `lifeline_orphan`) as "NOT release failures" and to call a
+green→red flip "a mode/timing signal first, not a regression." **Both licences are struck, 2026-08-05,
+at the builder's direction:** *"it is not fine — it cannot be tolerated — it must be annihilated."*
+
+The cost is on the record. Arc 278 spent a day on an intermittent floor failure whose **arm was never
+captured** — the first look truncated the log, the re-run went green, and every mechanism proposed
+afterwards was a guess at which of five outcomes had fired. A dismissal does not merely tolerate a
+bug; it destroys the only evidence that could name one. R59 `NISI FRANGAS, NIHIL PROBAS` is the
+governing precedent: a green number that nothing depends on is a claim, not a proof.
+
+**These are NOT dispositions** — each describes your *search*, never the failure
+(`[[feedback_not_reproducible_is_not_a_disposition]]`):
+
+> "known flake" · "timing" · "environmental" · "pre-existing" · "unrelated to my change" ·
+> "passes in isolation" · "not reproducible" · "it's the usual one" · "only in debug"
+
+**A rider that reports a floor green while a test went red has reported a FALSE result**, whatever
+that test's history.
+
+### On any red — in this order, before anything else
+
+1. **⛔ DO NOT RE-RUN.** A re-run that goes green destroys the only evidence. This is the single most
+   expensive mistake in this class and it has been made here.
+2. **Capture whole.** `scripts/floor.sh` has already kept the untruncated, ANSI-stripped log. Copy the
+   failing test's entire stdout **and** stderr block into your report **verbatim** — never a summary,
+   never a `| head`/`| tail` window (`[[feedback_a_truncating_pager_makes_absence_unfalsifiable]]`).
+3. **Name the exact arm.** Which assertion, which match arm, which watchdog. Each arm predicts a
+   *different* mechanism; without it, every later theory is a guess.
+4. **Surface it as a finding** to the orchestrator. Only then may anything be re-run.
+
+A `debug_assert!` panic is a **real failure**: debug surfaces conditions release compiles out. "It's
+only in debug" is the same dismissal wearing a compiler flag.
 
 ## `.wat` corpus migrations → the self-hosted codemod, NEVER hand-edits or python/sed
 
