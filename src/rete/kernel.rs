@@ -4397,9 +4397,10 @@ mod tests {
                     b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))\n\
                     where-c (:wat::core::quasiquote\n\
                               (:wat::rete::where\n\
-                                (:wat::core::= (:wat::core::unquote i)\n\
-                                  (:wat::core::i64::- ?k\n\
-                                    (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))\n\
+                                (:wat::rete::core::i64::= (:wat::core::unquote i)\n\
+                                  (:wat::rete::core::i64::- ?k\n\
+                                    (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k (:wat::core::unquote n) :undefined 0) (:wat::core::unquote n) :undefined 0)\n\
+                                    :undefined 0))))\n\
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]\n\
     (:wat::rete::Rule :name (:wat::core::i64::to-string i)\n\
       :lhs (:wat::core::PersistentVector a-c b-c where-c)\n\

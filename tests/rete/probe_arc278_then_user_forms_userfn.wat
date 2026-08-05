@@ -26,7 +26,7 @@
 (:wat::core::defn :tf::first-rate
   [rs <- :wat::core::PersistentVector<tf::Rate>]
   -> :tf::Rate
-  (:wat::core::first rs))
+  (:wat::rete::core::PersistentVector/first rs :undefined (:tf::Rate :count 0)))
 
 (:wat::rete::defrule :tf::gather
   :when [(:tf::Anchor (?x <- :x))
