@@ -615,7 +615,34 @@ Deliberate and load-bearing — it keeps the ops testable and composable as plai
 walled garden reachable only through the engine, and "grow the expressivity" means adding ordinary
 functions, not extending a special form.
 
-## ⛔⛔ SCOUT 2026-08-05 — ROUND 1 IS BLOCKED ON `ParamType`, AND IT IS NOT "ZERO NEW LOGIC"
+## ✅✅ SUPERSEDED — ROUNDS 1a · 1b · 1c AND ROUND 2 ARE ALL SHIPPED (2026-08-05, evening→night)
+
+> **⛔ THE SCOUT BELOW IS HISTORY. DO NOT PLAN FROM IT.** It says "round 1 is BLOCKED on
+> `ParamType`" and lists 1b as awaiting a builder ruling. Both were true when written and neither is
+> true now — and this staleness caused a real misdirection today: the whole section was quoted back
+> to the builder as the current plan, hours after the work had landed. `RETE_OPS` is **68 rows on
+> disk**, verified by count, not by document.
+>
+> | round | state | commit |
+> |---|---|---|
+> | **1a** monomorphic aliases (`String`/`F64` in `ParamType`, the `String/*` + `string::*` families) | ✅ shipped | — |
+> | **1b** parametric + higher-order (PV trio via explicit scheme, five HOFs via re-dispatch) | ✅ shipped | — |
+> | **1c** per-type equality, ten rows | ✅ shipped | `6d5af2c8` |
+> | **round 2** f64 arithmetic · `get` total-by-fallback · `string::subs` | ✅ **CLOSED** | `a8f70871` `fcc1958c` `5f4c8e21` |
+> | the VSA seam | ✅ **OPEN** — `(f64::> (holon::cosine ?a ?b :undefined 0.0) 0.9)` runs | `055389af` |
+> | one naming rule, 46 rows renamed, `RETE_MODULES` 5 → **2** | ✅ + four unit tests make the drift unrepresentable | `4c142126` |
+> | `cond`, the first macro-backed row | ✅ | `5851a316` |
+> | `PersistentMap/contains-key?` — the LAST UNSURE straggler | ✅ audited + minted, **UNSURE bucket EMPTY** | `c9a04d1a` |
+>
+> `ParamType` now spells `I64 · Bool · Keyword · String · F64 · Var · PersistentVectorOf ·
+> VectorOf · ListOf · Holon · PersistentMapOf`. The ceiling the scout describes is gone.
+>
+> **What remains of #57 is S6 → S7 and nothing else.** See `### ✅✅ THE MIGRATION WORKLIST` below,
+> which replaces every size estimate in this document.
+>
+> Kept unedited beneath, per *ignem oleo, non aqua* — it is the reasoning that produced the rounds.
+
+### ~~⛔⛔ SCOUT 2026-08-05 — ROUND 1 IS BLOCKED ON `ParamType`, AND IT IS NOT "ZERO NEW LOGIC"~~
 
 **Do not brief round 1 as this document scopes it.** Grounded before drawing the brief, and it
 kills the "alias = zero new logic" framing outright:
@@ -702,11 +729,17 @@ supplies its own scheme. Nothing about the 27 existing rows moves.
   `to_type_expr` arms), then mint the monomorphic rows: the `String/*` family, `string::*`,
   `i64::to-f64`, `i64::to-string`. Bounded, provable, genuinely "zero new logic" once the enum
   can spell the types. **This is the real round 1.**
-- **1b — NEEDS A RULING FIRST.** `PersistentVector/{length,get,contains?}` and the five HOF
+- **1b — ~~NEEDS A RULING FIRST~~ ⛔ THIS BULLET IS STALE AND CONTRADICTS THE SECTION ~55 LINES
+  ABOVE IT.** `### ✅ 1b RESOLVED 2026-08-05` already dissolved the fork with grounding (HOFs →
+  re-dispatch, because a rank-1 scheme cannot say *"C ranges over three constructors"*; PV trio →
+  an explicit scheme, because they name ONE container). Nobody struck this bullet when that landed,
+  so a reader going top-to-bottom stops here to request a ruling the builder already made — and one
+  did, today. **1b is SHIPPED.** Original text kept below for the record only.
+  ~~`PersistentVector/{length,get,contains?}` and the five HOF
   combinators are **parametric and higher-order**. A closed enum of concrete types cannot express
   `foldl : (PV<T>, (Acc,T) -> Acc, Acc) -> Acc`. Either `ParamType` grows a parametric/functional
   variant, or rete ops get a second type channel beside it. That is a design question, not a mint,
-  and it is the builder's.
+  and it is the builder's.~~
 - **1c — AN AUDIT, NOT A MINT.** `=`/`not=` is 45 occurrences and the surface is per-type by
   ruling, so it is N rows, one per operand type actually used. **Which types those are is
   unmeasured.** A `grep` cannot answer it — matching `(:wat::core::= …` inside the grid files
@@ -720,6 +753,86 @@ The census measured **which heads appear**, correctly and exhaustively. It did n
 rather than in the corpus. The document's own line *"the other ~46 vocabulary names slot in as rows
 once this table exists"* is true only for names `ParamType` can already spell.
 `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`.
+
+## ✅✅ THE MIGRATION WORKLIST — MEASURED 2026-08-05. **This section supersedes every size estimate in this document.**
+
+The evening seam flagged it: *"the migration's size is stated THREE ways in the stone — 15 / 21 / 39.
+The walker that settles it is on disk. **One run, not an argument.**"* It was run.
+
+`probe-where-census-walker.wat` (structural `read-string` recursion, never a grep):
+
+```
+0 PARSE-FAIL   ·   167 where forms   ·   429 head-occurrences   ·   99 distinct heads
+45 distinct :wat::core:: heads inside a where   (336 occurrences)
+63 core names already carry a rete twin among the 68 RETE_OPS rows
+```
+
+**Why the three numbers disagreed: they measure three different things.** `39` was *39 of 98 corpus
+ROWS refused*, taken under the old 8-verb totality view. `21` was the per-type comparator SITES. `15`
+corresponds to nothing the walker finds. Only one of them was ever the migration.
+
+### The 7 heads with no rete twin — every one classified, none inferred
+
+| n | head | disposition | how it was settled |
+|---|---|---|---|
+| 13 | `:wat::core::>` | **MIGRATE** — per-type | the standing ruling |
+| 6 | `:wat::core::<` | **MIGRATE** | ” |
+| 1 | `:wat::core::>=` | **MIGRATE** | ” |
+| 1 | `:wat::core::+` | **MIGRATE** | ” |
+| 13 | `:wat::core::unquote` | **NOT A TARGET** | **proven by run** — see below |
+| 2 | `:wat::core::record?` | **NEGATIVE CONTROL — leave** | refusal pinned by `assert_eq!` |
+| 1 | `:wat::core::Uuid/v4` | **NEGATIVE CONTROL — leave** | ” |
+
+**⇒ THE MIGRATION IS 21 SITES.** 13 + 6 + 1 + 1, re-measured today, identical to the stone's own
+"21 sites" figure. Four of the seven heads must NOT be touched, and three of those are the fence's
+own negative controls — *a rider that "fixes" them has broken the thing they measure.*
+
+### `unquote` is 13 occurrences and ZERO targets — measured, not reasoned
+
+All 13 are `(:wat::core::unquote x)` inside `(:wat::core::quasiquote …)` in a rule BUILDER
+(`min-finding.wat:69`, `node-share.wat:69`, three scratch probes). That is template-escape syntax,
+not a call. Proven by `wat-scripts/scratch-pad/probe-unquote-is-gone-before-the-fence.wat`:
+
+```
+:built-form  (:wat.rete/where (:wat.core/>= ?n 42))
+:other-form  (:wat.rete/where (:wat.core/>= ?n 7))
+```
+
+`42` sits where `(unquote threshold)` was — **the fence never sees an `unquote` node.** The second
+line is the non-vacuity control: a different argument yields a different form, so the splice really
+happened rather than the template being echoed.
+
+**The census counts SOURCE TEXT; the fence inspects the EVALUATED FORM.** Two different artifacts —
+which is why the count was misleading rather than wrong, and why the same trap will recur for anything
+else built by quasiquote. `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+
+### The negative controls are verified REFUSED, and by the right arbiter
+
+`--check` returns 0 on both fixture files and **that proves nothing** — the fence fires at
+*rule-compile*, not type-check (`[[reference_check_is_not_a_complete_red_arbiter]]`; picking `--check`
+here was a live mis-step today). The correct arbiter is `tests/rete/probe_fence_names_the_head.rs`,
+which pins the whole message with `assert_eq!`, not a substring:
+
+```
+compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure
+compile-condition: where expr is not deterministic — ':wat::core::Uuid/v4' is not deterministic
+```
+
+Both name the offending head **and the correct axis** — `Uuid/v4` is pure and only non-deterministic,
+and the message says `:deterministic`. 9/9 fence tests green.
+
+### ⚠ TWO CAVEATS ON THIS MEASUREMENT, stated rather than buried
+
+1. **The walker's input list is HARDCODED — 32 paths.** It reported 429/99 where the 2026-08-03
+   settled census reported 415/97, so the corpus grew by 14 occurrences / 2 heads **and the list did
+   not follow**. A discovering walk would have caught that itself
+   (`[[feedback_a_gate_that_discovers_beats_one_that_lists]]`). This does not endanger the migration —
+   **arming is what audits completeness** (R52: the checker enumerates every offender), and the walker
+   was only ever the sizing instrument — but it must not be trusted as a closed world.
+2. **Per-site work needs OPERAND TYPES, which the walker does not produce.** The stone says it
+   plainly: *a textual rename cannot know an operand's type, and per-type spelling requires it.* So
+   "21 sites" is a size, **not** a claim that the migration is clerical. `min-finding.wat` is the easy
+   shape (the spliced constant makes the type visible in the built form); the rest are unmeasured.
 
 ## ✅ BASELINE RE-VERIFIED 2026-08-05, cold, by the orchestrator's own run
 
@@ -756,7 +869,7 @@ migration must not move a single derived fact, and this is the instrument that s
 | **S3a** | **#54** | **Ground STOP-A** — which arithmetic path does a `where` traverse? Decides where the surface hangs. | ▶ startable now |
 | **S3b + S4** | **#55** | Mint the fallback-carrying ops (**native**) + the already-total class-1 aliases + the module-set admission test in `head_ok`. | blocked by #52, #54 |
 | **S5** | **#56** | The form mirrors — head-table (`if`/`let`/`do`/`when`) and structural-guard widening (`cond`/`match`/`fn`). Two classes, do not conflate. | blocked by #55 |
-| **S6 → S7** | **#57** | Migrate the 39 refused corpus rows (wat-fix codemod), **then** ARM the third conjunct. Never arm before the migration. | blocked by #56 |
+| **S6 → S7** | **#57** | Migrate the **21** generic-comparator sites (**measured 2026-08-05** — see § THE MIGRATION WORKLIST; the "39" was 39/98 ROWS under the old totality view, a different quantity), **then** ARM the third conjunct. Never arm before the migration. **Arm BY HAND, never a rider** — the checker screaming is what audits completeness (R52). | ▶ **startable — #55/#56 done, rounds 1a/1b/1c + round 2 shipped, UNSURE bucket empty** |
 | *(the IR)* | **#49** | `compiled_where` — the Op enum. **Last, because the vocabulary IS its specification.** | blocked by all |
 
 *(S3b and S4 were drawn separately but are one strike on the board; S6 and S7 likewise. The `S`-labels
