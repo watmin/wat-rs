@@ -121,7 +121,7 @@
 ;; tags-len in {0..5}, bound in {0..7}; simulated => 48/200.
 (:wat::rete::defrule :wc::length-bound
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::core::i64::> (:wat::core::PersistentVector/length ?t) ?b))]
+  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length ?t) ?b))]
   :then
   [(:wc::Hit ?k)])
 
@@ -133,8 +133,8 @@
 (:wat::rete::defrule :wc::get-const
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::match (:wat::core::PersistentVector/get ?t 2)
-                                   ((Some x) (:wat::core::i64::> x 5))
+                                 (:wat::rete::core::match (:wat::core::PersistentVector/get ?t 2)
+                                   ((Some x) (:wat::rete::core::i64::> x 5))
                                    (None false)))]
   :then
   [(:wc::Hit ?k)])
@@ -142,7 +142,7 @@
 ;; ROW 3 — MEMBERSHIP. tags contains 6. Simulated => 38/200.
 (:wat::rete::defrule :wc::contains
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::core::PersistentVector/contains? ?t 6))]
+  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::core::PersistentVector/contains? ?t 6))]
   :then
   [(:wc::Hit ?k)])
 
@@ -152,8 +152,8 @@
 (:wat::rete::defrule :wc::nested
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::match (:wat::core::PersistentVector/get ?g 0)
-                                   ((Some inner) (:wat::core::i64::> (:wat::core::PersistentVector/length inner) 1))
+                                 (:wat::rete::core::match (:wat::core::PersistentVector/get ?g 0)
+                                   ((Some inner) (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length inner) 1))
                                    (None false)))]
   :then
   [(:wc::Hit ?k)])
@@ -164,9 +164,9 @@
 (:wat::rete::defrule :wc::fold-sum-bound
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::i64::>
-                                   (:wat::core::foldl
-                                     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                                 (:wat::rete::core::i64::>
+                                   (:wat::rete::core::foldl
+                                     (:wat::rete::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                                        (:wat::core::i64::+ acc x))
                                      0 ?t)
                                    ?b))]
@@ -179,8 +179,8 @@
 (:wat::rete::defrule :wc::get-dynamic
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::match (:wat::core::PersistentVector/get ?t ?b)
-                                   ((Some x) (:wat::core::i64::> x 3))
+                                 (:wat::rete::core::match (:wat::core::PersistentVector/get ?t ?b)
+                                   ((Some x) (:wat::rete::core::i64::> x 3))
                                    (None false)))]
   :then
   [(:wc::Hit ?k)])
@@ -201,9 +201,9 @@
 (:wat::rete::defrule :wc::fold-every-even
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::foldl
-                                   (:wat::core::fn [acc <- :wat::core::bool x <- :wat::core::i64] -> :wat::core::bool
-                                     (:wat::core::and acc (:wat::core::= 0 (:wat::core::i64::mod x 2))))
+                                 (:wat::rete::core::foldl
+                                   (:wat::rete::core::fn [acc <- :wat::core::bool x <- :wat::core::i64] -> :wat::core::bool
+                                     (:wat::rete::core::and acc (:wat::core::= 0 (:wat::core::i64::mod x 2))))
                                    true ?t))]
   :then
   [(:wc::Hit ?k)])
@@ -214,9 +214,9 @@
 (:wat::rete::defrule :wc::fold-some-zero
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::foldl
-                                   (:wat::core::fn [acc <- :wat::core::bool x <- :wat::core::i64] -> :wat::core::bool
-                                     (:wat::core::or acc (:wat::core::= x 0)))
+                                 (:wat::rete::core::foldl
+                                   (:wat::rete::core::fn [acc <- :wat::core::bool x <- :wat::core::i64] -> :wat::core::bool
+                                     (:wat::rete::core::or acc (:wat::core::= x 0)))
                                    false ?t))]
   :then
   [(:wc::Hit ?k)])
@@ -227,11 +227,11 @@
 (:wat::rete::defrule :wc::nested-fold-bound
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::core::match (:wat::core::PersistentVector/get ?g 0)
+                                 (:wat::rete::core::match (:wat::core::PersistentVector/get ?g 0)
                                    ((Some inner)
-                                     (:wat::core::i64::>
-                                       (:wat::core::foldl
-                                         (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                                     (:wat::rete::core::i64::>
+                                       (:wat::rete::core::foldl
+                                         (:wat::rete::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                                            (:wat::core::i64::+ acc x))
                                          0 inner)
                                        ?b))

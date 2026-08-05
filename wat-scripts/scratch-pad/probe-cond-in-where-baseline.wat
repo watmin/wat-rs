@@ -21,7 +21,7 @@
 (:wat::rete::defrule :probe::r1
   :when
   [(:probe::Req (?a <- :a))
-   (:wat::rete::where (:wat::core::cond (?a true) (:else false)))]
+   (:wat::rete::where (:wat::rete::core::cond (?a true) (:else false)))]
   :then
   [(:probe::Hit :a ?a)])
 

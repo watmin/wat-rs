@@ -113,7 +113,7 @@
 ;; r=0 is empty (nothing starts a non-empty prefix). One category of five ⇒ 80/400.
 (:wat::rete::defrule :wst::starts-with
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/starts-with? ?n "cat"))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::String/starts-with? ?n "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -122,7 +122,7 @@
 ;; categories ⇒ 160/400.
 (:wat::rete::defrule :wst::ends-with
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/ends-with? ?n "cat"))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::String/ends-with? ?n "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -132,7 +132,7 @@
 ;; "zzcat" suffix-match.
 (:wat::rete::defrule :wst::contains
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/contains? ?n "cat"))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::String/contains? ?n "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -141,7 +141,7 @@
 ;; "no match" cases, but this row asserts the boundary is reachable and exact, not merely never hit.
 (:wat::rete::defrule :wst::empty
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::String/empty? ?n))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::String/empty? ?n))]
   :then
   [(:wst::Hit ?k)])
 
@@ -153,7 +153,7 @@
 ;; ⇒ 180/400 over the 10 cycles in [0,400).
 (:wat::rete::defrule :wst::length-bound
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::i64::> (:wat::core::string::length ?n) ?minlen))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::string::length ?n) ?minlen))]
   :then
   [(:wst::Hit ?k)])
 
@@ -166,7 +166,7 @@
 (:wat::rete::defrule :wst::dynamic-arg
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
-                                 (:wat::core::String/contains? ?n (:wat::core::String/concat ?tag "t")))]
+                                 (:wat::rete::core::String/contains? ?n (:wat::rete::core::String/concat ?tag "t")))]
   :then
   [(:wst::Hit ?k)])
 
@@ -175,9 +175,9 @@
 (:wat::rete::defrule :wst::compose-bool
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
-                                 (:wat::core::and
-                                   (:wat::core::String/contains? ?n "cat")
-                                   (:wat::core::not (:wat::core::String/starts-with? ?n "cat"))))]
+                                 (:wat::rete::core::and
+                                   (:wat::rete::core::String/contains? ?n "cat")
+                                   (:wat::rete::core::not (:wat::rete::core::String/starts-with? ?n "cat"))))]
   :then
   [(:wst::Hit ?k)])
 
@@ -187,9 +187,9 @@
 (:wat::rete::defrule :wst::compose-i64
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
-                                 (:wat::core::and
-                                   (:wat::core::String/contains? ?n "cat")
-                                   (:wat::core::i64::> ?minlen 3)))]
+                                 (:wat::rete::core::and
+                                   (:wat::rete::core::String/contains? ?n "cat")
+                                   (:wat::rete::core::i64::> ?minlen 3)))]
   :then
   [(:wst::Hit ?k)])
 
@@ -209,7 +209,7 @@
 (:wat::rete::defrule :wst::lowercase-chain
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
-                                 (:wat::core::String/starts-with? (:wat::core::string::to-lowercase ?n) "dog"))]
+                                 (:wat::rete::core::String/starts-with? (:wat::rete::core::string::to-lowercase ?n) "dog"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -224,9 +224,9 @@
 (:wat::rete::defrule :wst::shortcircuit-subs
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
-                                 (:wat::core::and
-                                   (:wat::core::i64::>= (:wat::core::string::length ?n) 3)
-                                   (:wat::core::String/starts-with? (:wat::core::string::subs ?n 0 3) "cat")))]
+                                 (:wat::rete::core::and
+                                   (:wat::rete::core::i64::>= (:wat::rete::core::string::length ?n) 3)
+                                   (:wat::rete::core::String/starts-with? (:wat::core::string::subs ?n 0 3) "cat")))]
   :then
   [(:wst::Hit ?k)])
 
@@ -235,7 +235,7 @@
 ;; Half of the stream ⇒ 200/400.
 (:wat::rete::defrule :wst::trim-eq
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::= (:wat::core::string::trim ?padded) "cat"))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::core::= (:wat::rete::core::string::trim ?padded) "cat"))]
   :then
   [(:wst::Hit ?k)])
 

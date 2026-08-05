@@ -173,7 +173,7 @@
 ;; ROW 1 — 2-level accessor chain. u2(i) > 8 <=> i mod 13 in {9,10,11,12} -> 60 of 200.
 (:wat::rete::defrule :wr::chain2
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::core::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
+  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::core::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
   :then
   [(:wr::Hit ?k)])
 
@@ -181,7 +181,7 @@
 (:wat::rete::defrule :wr::chain3
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
+                 (:wat::rete::core::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
   :then
   [(:wr::Hit ?k)])
 
@@ -189,7 +189,7 @@
 (:wat::rete::defrule :wr::chain4
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::i64::>
+                 (:wat::rete::core::i64::>
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                    5))]
   :then
@@ -200,7 +200,7 @@
 (:wat::rete::defrule :wr::collection
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::i64::> (:wat::core::PersistentVector/length (:wr::Client/tags ?c)) 2))]
+                 (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length (:wr::Client/tags ?c)) 2))]
   :then
   [(:wr::Hit ?k)])
 
@@ -209,8 +209,8 @@
 (:wat::rete::defrule :wr::record-collection
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::i64::>
-                   (:wat::core::PersistentVector/length (:wr::Bag/items (:wr::Client/bag ?c)))
+                 (:wat::rete::core::i64::>
+                   (:wat::rete::core::PersistentVector/length (:wr::Bag/items (:wr::Client/bag ?c)))
                    1))]
   :then
   [(:wr::Hit ?k)])
@@ -220,7 +220,7 @@
 (:wat::rete::defrule :wr::same-var-two-chains
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::i64::>
+                 (:wat::rete::core::i64::>
                    (:wr::Client/rep ?c)
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))))]
   :then
@@ -230,7 +230,7 @@
 ;; compared to each other: rep(c) > rep(c2). rep(i) > rep(j(i)) -> 80 of 200.
 (:wat::rete::defrule :wr::cross-var-scalar
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::core::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
+  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::core::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
   :then
   [(:wr::Hit ?k)])
 
@@ -273,9 +273,9 @@
 (:wat::rete::defrule :wr::combined-and
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::and
-                   (:wat::core::i64::> (:wr::Client/rep ?c) 0)
-                   (:wat::core::i64::>
+                 (:wat::rete::core::and
+                   (:wat::rete::core::i64::> (:wr::Client/rep ?c) 0)
+                   (:wat::rete::core::i64::>
                      (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                      3)))]
   :then
@@ -286,7 +286,7 @@
 (:wat::rete::defrule :wr::cross-var-chain
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::core::i64::>
+                 (:wat::rete::core::i64::>
                    (:wr::L2/u (:wr::Client/l2 ?c))
                    (:wr::L2/u (:wr::Client/l2 ?c2))))]
   :then

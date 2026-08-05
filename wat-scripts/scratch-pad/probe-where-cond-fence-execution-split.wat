@@ -46,7 +46,7 @@
   (:wat::core::let [conds   (:wat::core::quasiquote (:pcf::Req (?k <- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
-                                (:wat::core::if (:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2)))
+                                (:wat::rete::core::if (:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2)))
                                   true
                                   false)))
                     ins     (:wat::core::quasiquote (:pcf::Hit ?k))]
@@ -60,7 +60,7 @@
   (:wat::core::let [conds   (:wat::core::quasiquote (:pcf::Req (?k <- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
-                                (:wat::core::cond
+                                (:wat::rete::core::cond
                                   ((:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2))) true)
                                   (:else false))))
                     ins     (:wat::core::quasiquote (:pcf::Hit ?k))]

@@ -70,7 +70,7 @@ use std::sync::Arc;
 /// (`head_ok`) differs by axis. `pub(crate)` (not private) because `AxisViolation::axis` and
 /// `find_axis_violation` — both `pub(crate)`, for the wat-visible `axis-violation` surface — carry
 /// it past this module's boundary.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Axis {
     /// Effect-free: no IO/mutation/spawn.
     Pure,
@@ -103,6 +103,62 @@ pub(crate) enum Axis {
     /// an admitted rete-vocabulary member. What is left is a core-spelled op inside a `where` —
     /// the one thing law A exists to refuse.
     RetePrimitive,
+}
+
+impl Axis {
+    /// The wat-side `:wat::rete::Axis` variant name for this axis.
+    ///
+    /// ★ THE ONE DOOR for the Rust↔wat name mapping, in BOTH directions —
+    /// `from_variant_name` is defined in terms of this, so the two can no longer disagree.
+    ///
+    /// ⛔ WHY THIS EXISTS, and it cost 39 tests to learn. The mapping used to live at two
+    /// independent sites in `eval_axis_violation`: an ENCODE (`match` on `Axis`) and a DECODE
+    /// (`match` on `ev.variant_name`, a `&str`). Adding `RetePrimitive` to the enum made the
+    /// compiler enumerate seven consumers and rewrite the encode — and it said **nothing** about
+    /// the decode, because *no exhaustiveness check can see a match on a string*. So the fourth
+    /// axis was encodable and undecodable: `axis-violation-message`'s new arm called
+    /// `(:wat::rete::axis-violation expr :RetePrimitive)` and the native side answered
+    /// `TypeMismatch: expected :wat::rete::Axis (Pure, Deterministic, or Total)`.
+    ///
+    /// This is the class `holon/CLAUDE.md` names as recurring — *suspect a string comparison
+    /// before you suspect the type system* — and the mirror rule
+    /// `[[feedback_the_mirror_is_an_instrument_not_a_fix]]`: enumerate ONE side of a pair and
+    /// demand a twin for each state. The encode had four states; the decode had three.
+    pub(crate) fn variant_name(self) -> &'static str {
+        match self {
+            Axis::Pure => "Pure",
+            Axis::Deterministic => "Deterministic",
+            Axis::Total => "Total",
+            Axis::RetePrimitive => "RetePrimitive",
+        }
+    }
+
+    /// Every `Axis`. Kept honest by `axis_variant_names_round_trip`, whose `match` is over `Axis`
+    /// itself — so a new variant makes that test non-exhaustive and the compiler names it there,
+    /// three lines from this list.
+    pub(crate) const ALL: [Axis; 4] =
+        [Axis::Pure, Axis::Deterministic, Axis::Total, Axis::RetePrimitive];
+
+    /// Decode a wat-side variant name. Derived from `variant_name`, never a second spelling.
+    pub(crate) fn from_variant_name(name: &str) -> Option<Axis> {
+        Axis::ALL.into_iter().find(|a| a.variant_name() == name)
+    }
+
+    /// The `expected:` text a `TypeMismatch` shows when a decode fails — DERIVED, so it can never
+    /// again advertise a smaller set than the decode actually accepts. The old text was the literal
+    /// `":wat::rete::Axis (Pure, Deterministic, or Total)"`, which stayed accurate right up until
+    /// it wasn't, and then lied in the one message a reader would trust.
+    ///
+    /// Built once into a `OnceLock` rather than `String::leak`-ed per call: the set is fixed at
+    /// compile time, so leaking a fresh allocation on every rejected decode would be a real leak on
+    /// a path a program can hit in a loop.
+    pub(crate) fn expected_list() -> &'static str {
+        static EXPECTED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        EXPECTED.get_or_init(|| {
+            let names: Vec<&str> = Axis::ALL.iter().map(|a| a.variant_name()).collect();
+            format!(":wat::rete::Axis (one of: {})", names.join(", "))
+        })
+    }
 }
 
 /// The offending leaf recorded when `classify_expr`/`head_ok`/`classify_fn` falsifies `axis`.
@@ -1196,6 +1252,68 @@ pub(crate) fn classify_native_fn(path: &str, axis: Axis) -> Result<(), AxisViola
 /// into this arm. Exercised directly at the Rust level instead, proving the extracted helper
 /// itself agrees with `classify_fn`'s `FunctionBody::Native` arm it mirrors.
 #[cfg(test)]
+mod axis_name_round_trip_tests {
+    use super::*;
+
+    /// THE WALL for the class that cost 39 tests: an `Axis` variant that the wat surface can
+    /// ENCODE but cannot DECODE.
+    ///
+    /// ⛔ Why this `match` is the gate and not the `assert`s: the match is over **`Axis` itself**,
+    /// so adding a variant makes it non-exhaustive and *the compiler names the new variant right
+    /// here* — three lines from `Axis::ALL`, which is the list the decode is built from. That is
+    /// the only mechanism available: the thing that broke was a `match` on a **`&str`**, and no
+    /// exhaustiveness check can see a string.
+    ///
+    /// It is deliberately NOT a count assert. A count cannot tell "+1 added, −1 removed" from
+    /// "nothing happened", and its failure text cannot name the offender
+    /// (`[[feedback_a_gate_freezes_names_never_a_count]]`).
+    #[test]
+    fn axis_variant_names_round_trip_through_one_door() {
+        for axis in Axis::ALL {
+            // A new variant lands here as a compile error, naming itself.
+            let expected_name = match axis {
+                Axis::Pure => "Pure",
+                Axis::Deterministic => "Deterministic",
+                Axis::Total => "Total",
+                Axis::RetePrimitive => "RetePrimitive",
+            };
+            assert_eq!(axis.variant_name(), expected_name);
+            assert_eq!(
+                Axis::from_variant_name(expected_name),
+                Some(axis),
+                "{expected_name} encodes but does not decode — the exact shape that made \
+                 axis-violation answer 'expected Pure, Deterministic, or Total' to a \
+                 :RetePrimitive it had itself produced",
+            );
+        }
+    }
+
+    /// NON-VACUITY, both directions — without this the test above would still pass if
+    /// `from_variant_name` returned `Some(Axis::Pure)` for literally anything.
+    #[test]
+    fn an_unknown_axis_name_decodes_to_none() {
+        assert_eq!(Axis::from_variant_name("Vocabulary"), None);
+        assert_eq!(Axis::from_variant_name(""), None);
+        assert_eq!(Axis::from_variant_name("pure"), None, "the decode is case-sensitive");
+    }
+
+    /// The refusal message is DERIVED from the same list, so it can never again advertise a
+    /// smaller set than the decode accepts — which is what made the old failure actively
+    /// misleading rather than merely unhelpful.
+    #[test]
+    fn the_expected_list_names_every_decodable_axis() {
+        let msg = Axis::expected_list();
+        for axis in Axis::ALL {
+            assert!(
+                msg.contains(axis.variant_name()),
+                "the TypeMismatch text {msg:?} omits {}, which the decode accepts",
+                axis.variant_name(),
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod classify_native_fn_tests {
     use super::*;
 
@@ -1374,18 +1492,21 @@ pub(crate) fn eval_axis_violation(
         }
     };
     let axis_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    // ONE DOOR (`Axis::from_variant_name`) — never a second, hand-spelled variant list here.
+    // See `Axis::variant_name`'s doc for the 39-test failure the old duplicate decode caused.
     let axis = match &axis_val {
-        Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Pure" => Axis::Pure,
-        Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Deterministic" => Axis::Deterministic,
-        Value::Enum(ev) if ev.type_path == AXIS_TYPE && ev.variant_name == "Total" => Axis::Total,
-        other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::rete::Axis (Pure, Deterministic, or Total)",
-                got: Box::new(ValueSnapshot::of(other)),
-            })
-            .into());
-        }
+        Value::Enum(ev) if ev.type_path == AXIS_TYPE => Axis::from_variant_name(&ev.variant_name),
+        _ => None,
+    };
+    let Some(axis) = axis else {
+        return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            // Leaked deliberately: the accepted set is DERIVED from `Axis::ALL`, so this message
+            // cannot again name fewer variants than the decode accepts.
+            expected: Axis::expected_list(),
+            got: Box::new(ValueSnapshot::of(&axis_val)),
+        })
+        .into());
     };
     let out = match find_axis_violation(&ast, axis, sym) {
         None => Value::Option(Arc::new(None)),
@@ -1394,12 +1515,8 @@ pub(crate) fn eval_axis_violation(
                 Some(sp) => Value::Option(Arc::new(Some(crate::runtime::value_from_span(sp)))),
                 None => Value::Option(Arc::new(None)),
             };
-            let axis_variant = match v.axis {
-                Axis::Pure => "Pure",
-                Axis::Deterministic => "Deterministic",
-                Axis::Total => "Total",
-                Axis::RetePrimitive => "RetePrimitive",
-            };
+            // ONE DOOR, the encode half — same `variant_name` the decode is derived from.
+            let axis_variant = v.axis.variant_name();
             let record = Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::rete::AxisViolation".to_string(),
                 Arc::new(vec![

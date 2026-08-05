@@ -123,9 +123,9 @@
 (:wat::rete::defrule :wsc::if-whole
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::if ?n
-                                   (:wat::core::i64::> ?a 1)
-                                   (:wat::core::i64::< ?a 2)))]
+                                 (:wat::rete::core::if ?n
+                                   (:wat::rete::core::i64::> ?a 1)
+                                   (:wat::rete::core::i64::< ?a 2)))]
   :then
   [(:wsc::Hit ?k)])
 
@@ -138,8 +138,8 @@
 (:wat::rete::defrule :wsc::if-nested-cmp
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::i64::>
-                                   (:wat::core::if ?n ?a ?b)
+                                 (:wat::rete::core::i64::>
+                                   (:wat::rete::core::if ?n ?a ?b)
                                    4))]
   :then
   [(:wsc::Hit ?k)])
@@ -154,11 +154,11 @@
 (:wat::rete::defrule :wsc::if-chain-whole
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::if (:wat::core::= ?a 0)
+                                 (:wat::rete::core::if (:wat::core::= ?a 0)
                                    true
-                                   (:wat::core::if (:wat::core::= ?a 1)
+                                   (:wat::rete::core::if (:wat::core::= ?a 1)
                                      false
-                                     (:wat::core::if (:wat::core::= ?a 2)
+                                     (:wat::rete::core::if (:wat::core::= ?a 2)
                                        true
                                        false))))]
   :then
@@ -173,10 +173,10 @@
 (:wat::rete::defrule :wsc::let-twice
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
-                                   (:wat::core::and
-                                     (:wat::core::i64::> s 4)
-                                     (:wat::core::i64::< s 12))))]
+                                 (:wat::rete::core::let [s (:wat::core::i64::+ ?a ?b)]
+                                   (:wat::rete::core::and
+                                     (:wat::rete::core::i64::> s 4)
+                                     (:wat::rete::core::i64::< s 12))))]
   :then
   [(:wsc::Hit ?k)])
 
@@ -187,10 +187,10 @@
 (:wat::rete::defrule :wsc::let-call-cse
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::let [c (:wsc::bump ?a)]
-                                   (:wat::core::and
-                                     (:wat::core::i64::> c 1)
-                                     (:wat::core::i64::< c 5))))]
+                                 (:wat::rete::core::let [c (:wsc::bump ?a)]
+                                   (:wat::rete::core::and
+                                     (:wat::rete::core::i64::> c 1)
+                                     (:wat::rete::core::i64::< c 5))))]
   :then
   [(:wsc::Hit ?k)])
 
@@ -201,7 +201,7 @@
 (:wat::rete::defrule :wsc::match-i64
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::match ?a
+                                 (:wat::rete::core::match ?a
                                    (0 false)
                                    (1 true)
                                    (2 false)
@@ -216,8 +216,8 @@
 (:wat::rete::defrule :wsc::option-match
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::match ?o
-                                   ((:wat::core::Some v) (:wat::core::i64::> v 90))
+                                 (:wat::rete::core::match ?o
+                                   ((:wat::core::Some v) (:wat::rete::core::i64::> v 90))
                                    (:wat::core::None false)))]
   :then
   [(:wsc::Hit ?k)])
@@ -230,12 +230,12 @@
 (:wat::rete::defrule :wsc::deep-nest
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
-                                   (:wat::core::and
+                                 (:wat::rete::core::let [s (:wat::core::i64::+ ?a ?b)]
+                                   (:wat::rete::core::and
                                      ?n
-                                     (:wat::core::if (:wat::core::i64::> s 6)
+                                     (:wat::rete::core::if (:wat::rete::core::i64::> s 6)
                                        true
-                                       (:wat::core::i64::< s 3)))))]
+                                       (:wat::rete::core::i64::< s 3)))))]
   :then
   [(:wsc::Hit ?k)])
 
@@ -249,10 +249,10 @@
 (:wat::rete::defrule :wsc::if-let-arm
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
-                                 (:wat::core::if ?n
-                                   (:wat::core::let [s (:wat::core::i64::+ ?a ?b)]
-                                     (:wat::core::i64::> s 8))
-                                   (:wat::core::i64::< ?b 3)))]
+                                 (:wat::rete::core::if ?n
+                                   (:wat::rete::core::let [s (:wat::core::i64::+ ?a ?b)]
+                                     (:wat::rete::core::i64::> s 8))
+                                   (:wat::rete::core::i64::< ?b 3)))]
   :then
   [(:wsc::Hit ?k)])
 

@@ -92,7 +92,7 @@
 (:wat::rete::defrule :fix::g6-arrow
   :when [(:fix::Symbol (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:wat::core::or (:wat::core::= ?name "<-") (:wat::core::= ?name "->")))]
+         (:wat::rete::where (:wat::rete::core::or (:wat::core::= ?name "<-") (:wat::core::= ?name "->")))]
   :then [(:fix::Arrow ?off)])
 
 ;; G7 post-arrow?  — the node one child-index after an arrow, same parent (SELF-JOIN)
