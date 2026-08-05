@@ -257,13 +257,14 @@ fn write_float(f: f64, out: &mut String) {
         }
         return;
     }
-    // Rust's default formatter elides ".0" for whole floats which would
-    // round-trip back as integers. Force a fractional component.
-    if f == f.trunc() && f.abs() < 1e16 {
-        write!(out, "{:.1}", f).unwrap();
-    } else {
-        write!(out, "{}", f).unwrap();
-    }
+    // `Debug` (unlike `Display`) is documented to emit the shortest
+    // representation that round-trips exactly, always keeps a `.0` on whole
+    // floats, and switches to exponent form at large magnitudes (proven by
+    // run, this stone: 1e16 -> "1e16", 1e200 -> "1e200") — so it always
+    // contains a `.` or an `e` and is never lexable as an EDN integer, at
+    // every finite magnitude. That collapses the old `1e16`-bounded special
+    // case entirely; there is no longer a boundary to special-case.
+    write!(out, "{:?}", f).unwrap();
 }
 
 /// Write a quoted EDN string with escapes. Fast path uses

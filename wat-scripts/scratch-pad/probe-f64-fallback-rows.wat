@@ -6,17 +6,6 @@
 ;; itself (see `tests/rete` for the durable gate) — a loadable, type-checked
 ;; reference proving the scorecard's numbered claims by RUN.
 ;;
-;; NOTE — overflow-to-Inf is built by repeated squaring (`o0`..`o5`), never a bare
-;; huge-magnitude float LITERAL. `crates/wat-edn/src/writer.rs`'s `write_float`
-;; formats any finite `f64` with `|f| >= 1e16` via plain `{}` Display, which never
-;; switches to exponential notation — a `1e200`-shaped SOURCE literal round-trips
-;; through `program_to_edn` as a bare ~200-digit run with no `.`/`e`, which the EDN
-;; reader then reads as an out-of-range integer and rejects
-;; (`probe_arc170_edn_bridge_unspellable::c03_the_whole_corpus_crosses_the_wire`
-;; caught exactly this on this file). A pre-existing EDN-writer gap, orthogonal to
-;; this brief's scope — not fixed here; worked around by keeping every literal
-;; below the 1e16 boundary and reaching the overflow at RUNTIME instead, where
-;; only the source AST (never an intermediate value) is ever re-serialized.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [;; row 2 — ordinary arithmetic untouched.
@@ -25,14 +14,9 @@
      r3 (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)
      ;; row 4 — +Inf result takes the fallback.
      r4 (:wat::rete::f64::/ 1.0 0.0 :undefined -1.0)
-     ;; Repeated squaring from a sub-1e16 literal: o0 < 1e16 (safe to spell), each
-     ;; step doubles the exponent, o4 is still finite (~8.5e255), and o4*o4
-     ;; overflows to +Inf — reached at runtime, never spelled as a literal.
-     o0 9.9e15
-     o1 (:wat::core::f64::* o0 o0)
-     o2 (:wat::core::f64::* o1 o1)
-     o3 (:wat::core::f64::* o2 o2)
-     o4 (:wat::core::f64::* o3 o3)
+     ;; o4 is a plain finite literal; o4*o4 (~1e400) overflows f64::MAX (~1.8e308)
+     ;; to +Inf.
+     o4 1e200
      ;; row 5 — overflow-to-Inf takes the fallback.
      r5 (:wat::rete::f64::* o4 o4 :undefined -1.0)
      ;; row 6 — SAME expression as row 5, DIFFERENT fallback value.

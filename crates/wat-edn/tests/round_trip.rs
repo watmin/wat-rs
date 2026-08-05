@@ -104,3 +104,47 @@ fn parser_rejects_supplementary_plane_char_literal() {
         "diagnostic must surface the BMP constraint"
     );
 }
+
+/// BRIEF-edn-float-writer-round-trips.md (arc 278): every finite f64 must
+/// round-trip through `write` -> `parse` bit-for-bit, and the written form
+/// must never be lexable as an EDN integer (always a `.` or an `e`).
+/// Covers the boundary the old `1e16` special case got wrong, plus the
+/// extremes; `to_bits()` equality (not `==`) so `-0.0` can't pass as `0.0`.
+#[test]
+fn float_round_trips_bit_exact_across_the_domain() {
+    let values: &[f64] = &[
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+        0.1,
+        0.5,
+        1e15,
+        1e16,
+        1e16 + 2.0,
+        1e200,
+        -1e200,
+        f64::MAX,
+        f64::MIN,
+        f64::MIN_POSITIVE,
+        f64::EPSILON,
+    ];
+    for &v in values {
+        let out = write(&Value::Float(v));
+        assert!(
+            out.contains('.') || out.contains('e') || out.contains('E'),
+            "written float {v:?} -> {out:?} is lexable as an integer (no '.' or 'e')"
+        );
+        let parsed = parse(&out).unwrap_or_else(|e| panic!("re-parse of {out:?} failed: {e}"));
+        let Value::Float(back) = parsed.into_owned() else {
+            panic!("re-parse of {out:?} did not come back as a Float");
+        };
+        assert_eq!(
+            back.to_bits(),
+            v.to_bits(),
+            "float {v:?} (bits {:x}) -> {out:?} -> {back:?} (bits {:x}) is not bit-exact",
+            v.to_bits(),
+            back.to_bits(),
+        );
+    }
+}
