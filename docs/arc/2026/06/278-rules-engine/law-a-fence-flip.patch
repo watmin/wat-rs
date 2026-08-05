@@ -1,0 +1,28 @@
+diff --git a/wat/rete.wat b/wat/rete.wat
+index 3520e2ed..1b743f46 100644
+--- a/wat/rete.wat
++++ b/wat/rete.wat
+@@ -680,11 +680,21 @@
+                         ;; the diagnostic walk never runs on an accepted expr.
+                         is-pure   (:wat::rete::pure? expr)
+                         is-det    (:wat::rete::deterministic? expr)
++                        ;; #57 LAW A, ARMED. "The entire rete query language may only be composed
++                        ;; from rete primitives." A core-spelled op is refused even when it is pure,
++                        ;; deterministic AND total — which is exactly why RetePrimitive is its own
++                        ;; axis and not a fourth reading of :Pure.
++                        is-rete   (:wat::rete::primitive? expr)
+                         _fence    (:wat::core::Option/expect
+-                                      (:wat::core::if (:wat::core::and is-pure is-det)
++                                      (:wat::core::if (:wat::core::and (:wat::core::and is-pure is-det) is-rete)
+                                         (:wat::core::Some nil)
+                                         :wat::core::None)
+-                                      (:wat::rete::axis-violation-message "where" expr (:wat::rete::first-failing-axis is-pure is-det)))
++                                      (:wat::rete::axis-violation-message "where" expr
++                                        ;; the axis is EXACT, never a default: if pure ∧ det both
++                                        ;; held, the only conjunct left to have failed is law A.
++                                        (:wat::core::if (:wat::core::and is-pure is-det)
++                                          :wat::rete::Axis::RetePrimitive
++                                          (:wat::rete::first-failing-axis is-pure is-det))))
+                         ;; mint the TestNode
+                         network0  (:wat::rete::CompileState/network state0)
+                         next-id0  (:wat::rete::CompileState/next-id state0)
