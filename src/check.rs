@@ -2378,6 +2378,90 @@ fn infer_rete_form(
             items.extend_from_slice(args);
             infer_list(&items, head_span, env, locals, fresh, subst)
         }
+        // #57 — `:wat::rete::core::enum::{=,not=}`. THE GATE IS THE POINT OF THIS ARM.
+        //
+        // `TypeScheme` has `type_params: Vec<String>` and NO bounds field, so a row cannot say
+        // "E ranges over enums". A row that tried (`params: [Var("E"), Var("E")]`) would accept
+        // ANY two same-typed operands — generic `=` wearing a per-type name, passing every gate
+        // while re-opening the door "the rete surface is per-type, period" closed. The gate can
+        // only live HERE, in Rust, which is why these two rows are `Form` and not `Alias`.
+        //
+        // Both operands must resolve to a `TypeDef::Enum`; only then defer to `infer_equality` —
+        // the SAME routine core `=` uses (never a second implementation; a second terminal
+        // handler on the one routine).
+        ":wat::core::=" | ":wat::core::not=" => {
+            let mut local_errors: Vec<CheckError> = Vec::new();
+            let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+            if args.len() != 2 {
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::ArityMismatch { callee: core_name.into(), expected: 2, got: args.len() },
+                });
+                return CheckResult::partial_with(bool_ty, local_errors);
+            }
+            // Infer both operands first: their types are what the gate judges, and inferring
+            // them also surfaces their own errors rather than swallowing them behind the gate.
+            let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+            // A type is enum-y iff its CONSTRUCTOR resolves through the type env to
+            // `TypeDef::Enum`. Anything else — i64, String, a record, an unresolved var — is
+            // refused HERE, which is precisely what a `TypeScheme` could not have done.
+            //
+            // ⚠ BOTH `Path` AND `Parametric` — this cost a RED on the positive test and the
+            // arm named it outright: `got :wat::core::Option<?0> and :wat::core::Option<?1>`.
+            // A first cut matched `Path` only, which refuses every PARAMETRIC enum — `Option<T>`
+            // and any user `defenum` carrying type params. Enum-ness is a property of the type
+            // CONSTRUCTOR, not of whether it happens to be applied to arguments, and a guard
+            // drawn one notch too tight makes the honest path non-compliant
+            // (`[[feedback_a_guard_drawn_too_tight_makes_the_honest_path_noncompliant]]`).
+            // The head is normalised for the leading `::` that `Parametric` heads elide
+            // (`check.rs:1013` — `("PersistentMap", "wat::core::PersistentMap")`).
+            let is_enum = |t: &Option<TypeExpr>| -> bool {
+                let resolved = match t.as_ref() {
+                    Some(x) => apply_subst(x, subst),
+                    None => return false,
+                };
+                let head = match &resolved {
+                    TypeExpr::Path(p) => p.clone(),
+                    TypeExpr::Parametric { head, .. } => head.clone(),
+                    _ => return false,
+                };
+                let lookup = |k: &str| matches!(env.types().get(k), Some(crate::types::TypeDef::Enum(_)));
+                lookup(&head) || lookup(&format!(":{}", head.trim_start_matches(':')))
+            };
+            if !is_enum(&a_ty) || !is_enum(&b_ty) {
+                let render = |t: &Option<TypeExpr>| {
+                    t.as_ref().map(|x| format_type(&apply_subst(x, subst))).unwrap_or_else(|| "<unknown>".into())
+                };
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: core_name.into(),
+                        remedies: Vec::new(),
+                        reason: format!(
+                            "the rete enum-equality surface admits ENUM operands only — got {} and {}. \
+                             The rete surface is per-type: use the row matching the operand type \
+                             (:wat::rete::core::{{i64,f64,bool,keyword,string}}::{}), or, for a \
+                             genuinely mixed comparison, cast explicitly first.",
+                            render(&a_ty),
+                            render(&b_ty),
+                            if core_name.ends_with("not=") { "not=" } else { "=" },
+                        ),
+                    },
+                });
+                return CheckResult::partial_with(bool_ty, local_errors);
+            }
+            // Gate passed — defer to the ONE equality routine.
+            let (val, mut errs) =
+                infer_equality(core_name, head_span, args, env, locals, fresh, subst).into_parts();
+            local_errors.append(&mut errs);
+            match val {
+                Some(ty) if local_errors.is_empty() => CheckResult::ok(ty),
+                Some(ty) => CheckResult::partial_with(ty, local_errors),
+                None => CheckResult::errs(local_errors),
+            }
+        }
         // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — `:wat::rete::holon::coincident?` is
         // `Redispatch` for the SAME reason `reduce` is above: it keeps core's `HolonAST | Vector`
         // polymorphism (arc 052/061), so no rank-1 `params`/`ret` scheme can state its type.
@@ -20541,6 +20625,74 @@ mod tests {
                 assert_eq!(head, ":wat::core::cond", "the error must name the unrouted core_name");
             }
             other => panic!("expected MalformedForm naming the unrouted core name; got {other:?}"),
+        }
+    }
+
+    // ── #57 — the enum-equality GATE. THESE TWO TESTS ARE THE ROW'S REASON TO EXIST. ──────────
+    //
+    // `:wat::rete::core::enum::{=,not=}` is `Form`, not `Alias`, ONLY because `TypeScheme` has no
+    // bounds field: a row `type_params: ["E"], params: [Var("E"), Var("E")]` would accept any two
+    // same-typed operands — generic `=` wearing a per-type name, passing module admission, the
+    // naming rule, and the floor while re-opening the door "the rete surface is per-type, period"
+    // closed. The gate lives in Rust because only Rust can express it.
+    //
+    // ⛔ WITHOUT the negative test below, the row is INDISTINGUISHABLE FROM THAT HOLE. The
+    // positive test alone would pass just as happily against an ungated row.
+
+    // NOTE — the POSITIVE case is proven in wat, not here, and deliberately.
+    // `:wat::core::Option` is a BUILTIN: it is not registered in `env.types()` as a
+    // `TypeDef::Enum` (the working idiom, `types.rs:5451`, uses a USER enum `:my::Option`), so a
+    // unit test reaching for it measures the harness, not the gate. The real subject is a user
+    // `defenum` — exactly what the corpus compares — so the accept-path lives in
+    // `wat-scripts/scratch-pad/probe-arc278-57-enum-equality.wat` and in the two migrated corpus
+    // sites themselves. The REFUSAL below stays here because it needs no enum at all.
+
+    /// ★★ THE LOAD-BEARING ONE: the gate REFUSES non-enum operands.
+    ///
+    /// If this ever goes green-by-accepting, `enum::=` has silently become generic `=` under a
+    /// per-type name, and every per-type ruling in `DESIGN-STONE-where-admits-only-rete-ops.md`
+    /// is bypassable through it. Two i64 literals are the sharpest probe: they are exactly what
+    /// an ungated `Var("E")`/`Var("E")` row would happily unify.
+    #[test]
+    fn rete_enum_equality_refuses_non_enum_operands() {
+        let (_stdlib_sym, _stdlib_macros, stdlib_types) = stdlib_loaded();
+        let env = CheckEnv::with_builtins_and_types(stdlib_types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst: Subst = HashMap::new();
+        let head_span = crate::rust_caller_span!();
+
+        let args = vec![
+            WatAST::IntLit(1, head_span.clone()),
+            WatAST::IntLit(1, head_span.clone()),
+        ];
+
+        let (_val, errs) =
+            infer_rete_form(":wat::core::=", &args, &head_span, &env, &locals, &mut fresh, &mut subst)
+                .into_parts();
+
+        assert!(
+            !errs.is_empty(),
+            "TWO i64 OPERANDS MUST BE REFUSED. If this passes, :wat::rete::core::enum::= has \
+             become generic `=` wearing a per-type name — the exact hole the Form class + this \
+             gate exist to prevent, and it would pass every other check in the tree."
+        );
+        match &errs[0].kind {
+            CheckErrorKind::MalformedForm { head, reason, .. } => {
+                assert_eq!(head, ":wat::core::=");
+                // EXACT, not `contains` — `no_loose_string_assert` is right to forbid the loose
+                // form, and it caught this very line: a substring check passes on a reordered,
+                // truncated, or garbage-appended message, so it would not notice the refusal
+                // losing the pointer to the per-type rows that makes it actionable.
+                assert_eq!(
+                    reason,
+                    "the rete enum-equality surface admits ENUM operands only — got \
+:wat::core::i64 and :wat::core::i64. The rete surface is per-type: use the row matching the \
+operand type (:wat::rete::core::{i64,f64,bool,keyword,string}::=), or, for a genuinely mixed \
+comparison, cast explicitly first."
+                );
+            }
+            other => panic!("expected a located MalformedForm naming the enum-only rule; got {other:?}"),
         }
     }
 }

@@ -953,6 +953,51 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // call sites existed at rename time (`grep -rn 'rete::String::' --include=*.wat
     // --include=*.rs .` found only this file's own three occurrences: the comment above and
     // these two rows) — a rename, not a migration.
+    // ── #57 — enum equality. `Form`, NOT `Alias`, and the reason is the whole point of the row.
+    //
+    // MEASURED: the where-corpus compares a user enum in 2 places
+    // (`(= (:arena::Route/method ?route) :arena::Method::POST)` — sift-rules-arena.wat:114,
+    // probe-arena-rich-graph.wat:54). The ten minted equality rows cover bool/f64/i64/keyword/
+    // string; `:arena::Method` is none of them, and a USER enum can never have a pre-minted row —
+    // the row table is closed and user enums are not.
+    //
+    // ⛔ WHY THIS IS NOT AN `Alias` WITH A TYPE VAR — the trap this row exists to avoid.
+    // `TypeScheme` (`check.rs:79`) is `{ type_params: Vec<String>, params, ret, rest_param_type }`
+    // — a type param is a BARE NAME with NO BOUNDS FIELD. So a row
+    // `type_params: ["E"], params: [Var("E"), Var("E")]` would accept ANY two same-typed operands
+    // — i64, String, a record, anything. That is GENERIC `=` WEARING A PER-TYPE NAME: it passes
+    // module admission, passes the naming rule, passes the floor, and silently re-opens the exact
+    // door "the rete surface is per-type, period" closed. A name drawn too LOOSE makes the
+    // dishonest path look compliant.
+    //
+    // ⇒ `Form`, so the arm lives in `infer_rete_form` (`check.rs`) as RUST, where the enum-ness
+    // gate CAN be expressed and `TypeScheme` cannot express it. The arm asserts both operands
+    // resolve to `TypeDef::Enum` and only then defers to `infer_equality` — the SAME routine core
+    // `=` uses. Never a second implementation; a second terminal handler on the one routine, which
+    // is this stone's implementation law. `params: &[]` / `ret: Bool` mirrors the `match` row:
+    // a Form row's shape is not a scheme, it is a marker that inference is re-dispatched.
+    //
+    // Runtime is free: `dispatch_rete_op` sends `Alias | Form | Redispatch` through
+    // `dispatch_keyword_head_value(op.core_name, …)` (`runtime.rs:8250`), i.e. head-substitution
+    // into core `=`, whose `values_equal` already compares enum values.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::enum::=",
+        core_name: ":wat::core::=",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::enum::not=",
+        core_name: ":wat::core::not=",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::string::=",
@@ -1349,7 +1394,7 @@ mod naming_rule_tests {
     use super::*;
     use std::collections::HashSet;
 
-    /// The naming rule's own documented exception (module doc, "The naming rule"): these NINE
+    /// The naming rule's own documented exception (module doc, "The naming rule"): these ELEVEN
     /// rows' `core_name` is shared by MULTIPLE rows — the `=`/`not=` trio shares
     /// `:wat::core::=`/`:wat::core::not=` across three types; `first`'s trio shares the ONE
     /// polymorphic `:wat::core::first` across three containers (found the same way, by running
@@ -1362,6 +1407,11 @@ mod naming_rule_tests {
     /// ONE of the three rows' `ParamType`/`OpMeta` for all three container spellings. A finite,
     /// named allowlist, not a silent special case.
     const NAMING_RULE_EXCEPTIONS: &[&str] = &[
+        // #57 — enum equality joins the shared-core_name trio, making it a QUARTET (and this
+        // list ELEVEN). Same reason as its three siblings: `:wat::core::=` now serves four rete
+        // rows, so the literal insert rule would collapse them onto one name.
+        ":wat::rete::core::enum::=",
+        ":wat::rete::core::enum::not=",
         ":wat::rete::core::string::=",
         ":wat::rete::core::string::not=",
         ":wat::rete::core::bool::=",
@@ -1418,12 +1468,20 @@ mod naming_rule_tests {
         }
     }
 
-    /// The exception list itself is exactly the nine rows the module doc names — no more, no
+    /// The exception list itself is exactly the eleven rows the module doc names — no more, no
     /// fewer. Catches the exception set silently growing (a real collision nobody explained) or
     /// shrinking without the corresponding row being deleted.
+    ///
+    /// ⚠ 9 → 11 (2026-08-05, #57's `enum::{=,not=}`). This ratchet is pinned to a COUNT, and a
+    /// count cannot tell "+1 new, −1 fixed" from "nothing happened", nor name the offender in its
+    /// own failure text (`[[feedback_a_gate_freezes_names_never_a_count]]`). It fired correctly
+    /// here — `left: 11, right: 9` — but only because the list grew; the NAMES are what should be
+    /// frozen. The loop below already walks them, so the stronger form is close at hand; it is not
+    /// bundled into this strike because widening a ratchet inside the change it is auditing is how
+    /// a ratchet stops auditing.
     #[test]
-    fn naming_rule_exceptions_are_exactly_the_documented_nine() {
-        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 9);
+    fn naming_rule_exceptions_are_exactly_the_documented_eleven() {
+        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 11);
         for &name in NAMING_RULE_EXCEPTIONS {
             assert!(
                 RETE_OPS.iter().any(|op| op.rete_name == name),

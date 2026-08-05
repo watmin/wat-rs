@@ -1014,6 +1014,67 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `ReadFrameOutcome` refuses below. The discrimination lives in the navigable causes tree, where
     // `#wat.parse/Lex` keeps its own tag. `ParseError` already impls `WatError` (`src/parser.rs`),
     // so `error_edn()` composes the message/location/causes floor for free.
+    // ★★ 2026-08-05 — `Option` and `Result` ARE ENUMS, and the type env did not know it.
+    //
+    // FOUND by the builder while `:wat::rete::core::enum::=`'s gate refused `:wat::core::Option<?0>`:
+    // *"Option /is an enum/ right?... its mismanaged this whole time?... Result probably too?"* Yes,
+    // and yes. TWELVE builtin sum types are registered here as `TypeDef::Enum` — several minted this
+    // very arc (`RecvOutcome`, `SendOutcome`, `TrySendOutcome`, `CloseOutcome`) — while the two most
+    // fundamental sum types in the language had NO `TypeDef` of any kind.
+    //
+    // WHY, traced rather than guessed: arc 109 slices 1e/1f minted them as TYPEALIASES (bridges from
+    // source FQDN to the then-bare `Parametric { head: "Option" }` storage). Arc 163 slice 3e RETIRED
+    // those aliases — correctly, they had become identity aliases causing an `expand_alias`
+    // self-reference loop (see the note above). Nobody ever registered the ENUM that should have
+    // replaced them. They fell through the gap between "alias retired" and "enum registered": a
+    // traceable omission, not a design decision.
+    //
+    // NOT BROKEN — BYPASSED, which is worse in a specific way. `match` works, because the checker
+    // carries a PARALLEL hardcoded mechanism (`MatchShape::Option`/`::Result`, plus bare `"Some"`
+    // string matches). So nothing visibly failed. But anything asking the type env the GENERIC
+    // question *"is this an enum?"* answered NO for the two enums every wat program touches.
+    // Already on disk: `variant_typo_remedies` (`check.rs:1836`) matches `Some(TypeDef::Enum(e))`
+    // and returns `vec![]` otherwise — so Option/Result typos got NO remediation, silently, in a
+    // substrate whose stated doctrine (R29 `RVINA ERVDIT`) is that the checker educates the caller.
+    //
+    // PURITY — a decision, not a transcription. `EnumDef.purity` gates two real things: whether the
+    // type may cross the wire / live in `:durable` (`is_pure_type`, `check.rs:12914`), and whether
+    // variant fields must themselves be pure (`validate_aggregate_containment`, `:12977`).
+    // `Pure` matches the `SendOutcome`/`CloseOutcome`/`Signal` siblings and is what the corpus
+    // already assumes — `Option<String>` in `:durable` is everywhere, and `Impure` would put a wall
+    // through the middle of it. `RecvOutcome`'s `Impure` is about `O` being a live PEER OUTPUT, not
+    // about parametricity: `WalkStep<A>` is the parametric-and-registered precedent.
+    //
+    // Field names are INTERNAL, not API: the wire form is positional — measured,
+    // `(:wat::core::Some 42)` prints `#wat.core.Option/Some [42]` — so no observable shape moves.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::core::Option".into(),
+        type_params: vec!["T".into()],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Some".into(),
+                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
+            },
+            EnumVariant::Unit("None".into()),
+        ],
+    }));
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::core::Result".into(),
+        type_params: vec!["T".into(), "E".into()],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Ok".into(),
+                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Err".into(),
+                fields: vec![("error".into(), TypeExpr::Path("E".into()))],
+            },
+        ],
+    }));
+
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::core::ReadOutcome".into(),
         type_params: vec![],
