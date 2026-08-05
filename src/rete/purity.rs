@@ -79,6 +79,30 @@ pub(crate) enum Axis {
     /// Defined on all its inputs (domain-total) — UNARMED this stone (see module doc's "A third
     /// axis, `Total`" section). `compile-condition` does not consult it yet.
     Total,
+    /// #57 LAW A — the head is a rete primitive. The builder's law, stated: *"the entire rete
+    /// query language may only be composed from rete primitives."*
+    ///
+    /// It needs its own variant because reusing `Pure`/`Deterministic`/`Total` would make the
+    /// refusal LIE: `:wat::core::>` IS pure, IS deterministic, and IS total — it is refused for
+    /// one reason only, that it is not from rete. Rejecting it with "is not pure" sends every
+    /// reader hunting a purity defect that does not exist.
+    /// `[[feedback_a_gates_name_is_where_the_lie_lives]]`
+    ///
+    /// ★ THE NAME IS A WORD IN A SENTENCE, not a label. `axis-violation-message`
+    /// (`wat/rete.wat:603-632`) builds the user-facing refusal by literal `string::concat` per
+    /// arm — "is not pure" / "is not deterministic" / "is not total" — so this variant's fourth
+    /// arm reads **"'<head>' is not a rete primitive"**, which is the law itself, and tells the
+    /// author what to do without a lookup. (An earlier spelling, `Vocabulary`, was cast to
+    /// intueri and failed exactly here: "is not vocabulary" does not parse as English and names
+    /// the table we check rather than the law we hold. It also invented a category mismatch —
+    /// "a property of the fence, not the op" — that this name dissolves: *being a rete primitive
+    /// IS a property of the head*, the same kind as its three siblings.)
+    ///
+    /// A head reaches this only after the three declaration-derived doors have all declined it:
+    /// not a constructor, not an accessor, not a user fn (the composition door recurses), and not
+    /// an admitted rete-vocabulary member. What is left is a core-spelled op inside a `where` —
+    /// the one thing law A exists to refuse.
+    RetePrimitive,
 }
 
 /// The offending leaf recorded when `classify_expr`/`head_ok`/`classify_fn` falsifies `axis`.
@@ -846,6 +870,12 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
             Axis::Total => m.total,
+            // LAW A — a DECLARATION-DERIVED head is admissible whatever its namespace. A record's
+            // constructor and its field accessors exist by construction of the type; `Client/rep`
+            // will never be rete-namespaced and must never need to be. The design stone says so
+            // outright ("Error 1 — it would kill composition"): declaration-derived is a STRONGER
+            // warrant than a namespace, so law A does not reach these two doors.
+            Axis::RetePrimitive => true,
         };
         return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
@@ -857,6 +887,12 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
             Axis::Total => m.total,
+            // LAW A — a DECLARATION-DERIVED head is admissible whatever its namespace. A record's
+            // constructor and its field accessors exist by construction of the type; `Client/rep`
+            // will never be rete-namespaced and must never need to be. The design stone says so
+            // outright ("Error 1 — it would kill composition"): declaration-derived is a STRONGER
+            // warrant than a namespace, so law A does not reach these two doors.
+            Axis::RetePrimitive => true,
         };
         return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
@@ -880,6 +916,10 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
             Axis::Pure => op.meta.pure,
             Axis::Deterministic => op.meta.deterministic,
             Axis::Total => op.meta.total,
+            // A head with a RETE_OPS row IS a rete primitive by construction — that is what the
+            // row means. An admitted module whose specific verb has no row still default-denies
+            // via `is_some_and`, exactly as on the other three axes.
+            Axis::RetePrimitive => true,
         });
         return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
@@ -913,6 +953,16 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
                 Err(AxisViolation::new(head, axis))
             }
         }
+        // ★★ LAW A, ARMED. Reaching this line means every prior door declined: not a constructor,
+        // not an accessor, not a user fn (that door RECURSES, so a composed fn is judged by its
+        // CONTENTS, never its name), and not an admitted rete-vocabulary member. What is left is a
+        // core-spelled operation inside a `where` — the one thing law A exists to refuse.
+        //
+        // The builder's law: *"the entire rete query language may only be composed from rete
+        // primitives."* No `intrinsic_meta` consultation here, deliberately: being pure,
+        // deterministic and total does not make an op rete. `:wat::core::>` is all three and is
+        // still refused — which is exactly why this axis exists instead of borrowing one of theirs.
+        Axis::RetePrimitive => Err(AxisViolation::new(head, axis)),
     }
 }
 
@@ -1105,6 +1155,11 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
                 Axis::Pure => m.pure,
                 Axis::Deterministic => m.deterministic,
                 Axis::Total => m.total,
+                // A NATIVE fn has no body to walk and its name is core-spelled — it is not a
+                // rete primitive. This is the arm the core HOFs (`foldl`/`map`/…) take: native AND
+                // in `sym.functions`, so they reach here before the admission door. Their rete
+                // twins are separate rows and reach the vocabulary door instead.
+                Axis::RetePrimitive => false,
             });
             if ok { Ok(()) } else { Err(AxisViolation::new(fqdn, axis)) }
         }
@@ -1128,6 +1183,9 @@ pub(crate) fn classify_native_fn(path: &str, axis: Axis) -> Result<(), AxisViola
         Axis::Pure => m.pure,
         Axis::Deterministic => m.deterministic,
         Axis::Total => m.total,
+        // A NATIVE fn is opaque and core-spelled — not a rete primitive. Same rule as
+        // `classify_fn`'s `FunctionBody::Native` arm, which this fn exists to mirror.
+        Axis::RetePrimitive => false,
     });
     if ok { Ok(()) } else { Err(AxisViolation::new(path, axis)) }
 }
@@ -1180,6 +1238,14 @@ pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// a zero divisor, and separately at the one input pair that overflows i64).
 pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, Axis::Total, sym, &mut HashSet::new()).is_ok()
+}
+
+/// LAW A — is every head in `ast`'s transitive walk a rete primitive? The builder's law: *"the
+/// entire rete query language may only be composed from rete primitives."* Same walk as the three
+/// predicates above; only the axis differs, so composition is judged identically — a user fn is
+/// admitted iff its BODY is, at any depth.
+pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
+    classify_expr(ast, Axis::RetePrimitive, sym, &mut HashSet::new()).is_ok()
 }
 
 /// Run the SAME walk `is_pure_expr`/`is_deterministic_expr` use, but keep the violation instead of
@@ -1253,6 +1319,18 @@ pub(crate) fn eval_total_predicate(
     eval_axis_predicate(":wat::rete::total?", is_total_expr, args, list_span, env, sym)
 }
 
+/// `(:wat::rete::primitive? <quoted-expr>) -> :bool` — is the expression composed ONLY of rete
+/// primitives (law A)? The verb is `primitive?` rather than `rete-primitive?` because the
+/// namespace already says rete, exactly as `pure?` is not `rete-pure?`.
+pub(crate) fn eval_rete_primitive_predicate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_axis_predicate(":wat::rete::primitive?", is_rete_primitive_expr, args, list_span, env, sym)
+}
+
 /// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
 /// :wat::core::Option<wat::rete::AxisViolation>`
 ///
@@ -1320,6 +1398,7 @@ pub(crate) fn eval_axis_violation(
                 Axis::Pure => "Pure",
                 Axis::Deterministic => "Deterministic",
                 Axis::Total => "Total",
+                Axis::RetePrimitive => "RetePrimitive",
             };
             let record = Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::rete::AxisViolation".to_string(),
@@ -1585,6 +1664,7 @@ mod completeness_gate {
     ":wat::rete::fire-rules-explain'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::insert'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::insert-all'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::primitive?",
     ":wat::rete::pure?",
     ":wat::rete::step-payload'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::total?",

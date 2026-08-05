@@ -19826,6 +19826,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // #57 LAW A — the FOURTH axis predicate, same shape as its three siblings.
+    // (:wat::rete::primitive? <expr: :wat::WatAST>) -> :wat::core::bool — composed only of rete
+    // primitives? The builder's law: "the entire rete query language may only be composed from
+    // rete primitives."
+    env.register(
+        ":wat::rete::primitive?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::bool".into()),
+            rest_param_type: None,
+        },
+    );
     // BRIEF-the-fence-names-the-head — a third sibling beside pure?/deterministic?, additive only
     // (STOP-1: those two are UNCHANGED). Same walk, surfacing the violation instead of discarding
     // it. `:wat::rete::AxisViolation` and `:wat::rete::Axis` are declared via `defrecord`/`defenum`

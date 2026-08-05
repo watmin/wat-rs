@@ -557,7 +557,15 @@
 (:wat::core::defenum :wat::rete::Axis :wat::enum::Pure
   :Pure
   :Deterministic
-  :Total)
+  :Total
+  ;; #57 LAW A — the head is a rete primitive. The builder's law: "the entire rete query language
+  ;; may only be composed from rete primitives." Its own variant because reusing :Pure would make
+  ;; the refusal LIE — `:wat::core::>` IS pure, deterministic and total, and is refused for one
+  ;; reason only: it is not from rete. The name is a WORD IN THE SENTENCE `axis-violation-message`
+  ;; builds ("is not a rete primitive"), not a label — an earlier spelling, `:Vocabulary`, was cast
+  ;; to intueri and failed exactly there: "is not vocabulary" does not parse, and it named the
+  ;; table we check rather than the law we hold.
+  :RetePrimitive)
 
 ;; AxisViolation — BRIEF-the-fence-names-the-head. The result of `:wat::rete::axis-violation`:
 ;; the offending head when a `where`/accumulator expr falsifies :pure or :deterministic.
@@ -629,7 +637,22 @@
                                      (:wat::rete::AxisViolation/head v) "' is not total"))
        (:wat::core::None
         (:wat::core::string::concat "compile-condition: " context
-                                     " expr is not total (offending head could not be attributed)"))))))
+                                     " expr is not total (offending head could not be attributed)"))))
+    ;; #57 LAW A — the sentence the name was CHOSEN for. The three arms above read "is not pure" /
+    ;; "is not deterministic" / "is not total"; this one reads "is not a rete primitive", which IS
+    ;; the law ("the entire rete query language may only be composed from rete primitives") and
+    ;; tells the author what to do without a lookup. The remedy is named explicitly because a
+    ;; refusal that withholds the cure makes the reader hunt (R29 RVINA ERVDIT — the checker
+    ;; educates); the rete twin of a core op is its name with `rete::` inserted after `wat::`.
+    (:wat::rete::Axis::RetePrimitive
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::RetePrimitive)
+       ((:wat::core::Some v)
+        (:wat::core::string::concat "compile-condition: " context " expr is not a rete primitive — '"
+                                     (:wat::rete::AxisViolation/head v)
+                                     "' is not a rete primitive; a where admits only :wat::rete:: ops"))
+       (:wat::core::None
+        (:wat::core::string::concat "compile-condition: " context
+                                     " expr is not a rete primitive (offending head could not be attributed)"))))))
 
 (:wat::core::defn :wat::rete::compile-condition
   [acc  <- :wat::rete::CondFoldAcc

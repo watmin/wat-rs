@@ -4900,6 +4900,8 @@ fn dispatch_keyword_head_value(
         // UNARMED: callable, but `compile-condition` does not consult it this stone.
         // (:wat::rete::total? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::total?" => crate::rete::purity::eval_total_predicate(args, list_span, env, sym),
+        // (:wat::rete::primitive? <quoted-expr: :wat::WatAST>) -> :wat::core::bool — LAW A.
+        ":wat::rete::primitive?" => crate::rete::purity::eval_rete_primitive_predicate(args, list_span, env, sym),
         // Arc 278 #55 slice one — THE ADMISSION TEST's wat surface: classifies a HEAD NAME
         // against the rete-vocabulary module-set boundary alone (decoupled from pure/
         // deterministic/total, which classify an EXPRESSION). UNARMED, same discipline.
