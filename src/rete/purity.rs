@@ -943,7 +943,14 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
 
         // `cond` — clause-aware: (cond (test body…) …). A clause is NOT a call; every element
         // (test AND body forms) is an expression that must satisfy the axis. (cond ≡ chained `if`.)
-        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::cond") => {
+        //
+        // BRIEF-cond-the-first-macro-backed-rete-row.md (2026-08-05) — widened through
+        // `resolve_core_name` (THE ONE discriminator, `rete/vocabulary.rs`) exactly as `match`'s
+        // and `fn`'s guards were widened (STOP-5: the structural-guard widening is this one
+        // indirection, never a duplicated arm), so `:wat::rete::core::cond` is recognised here
+        // too. A non-rete head (the entire core corpus) round-trips through `resolve_core_name`
+        // unchanged — zero behavior change for anything not in `RETE_OPS`.
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::cond") => {
             for clause in &items[1..] {
                 match clause {
                     WatAST::List(parts, _) => {

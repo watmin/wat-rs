@@ -2181,6 +2181,70 @@
                                      (:wat::core::string::concat (:wat::core::keyword/to-string ty) "'")))]
     `(:wat::rete::query-by-type-string ~session (:wat::runtime::return-type-of ~ty-prime-kw))))
 
+;; ─── cond — rete's OWN macro, expanding into rete's `if` ──────────────────
+;;
+;; BRIEF-rete-cond-is-its-own-macro.md (2026-08-05) — builder's ruling: "i think we need
+;; rete's cond to just be a macro itself that expands into rete's if?". This REPLACES the
+;; earlier attempt (a `freeze::env::build_env` loop that cloned core's registered `MacroDef`
+;; and re-registered it under the rete name): a clone carries core's TEMPLATE, so it emitted
+;; `:wat::core::if`/`:wat::core::cond` regardless of which name invoked it — a second door
+;; that launders straight back through core's spelling (arc 179's `()`-vs-`nil` shape).
+;;
+;; This is instead its own `defmacro`, an exact copy of core's `cond` (wat/core.wat:1237)
+;; with ONLY the emitted head keywords moved to the rete namespace: every backtick-quoted
+;; `(:wat::core::if …)` becomes `(:wat::rete::core::if …)`, and every recursive
+;; `(:wat::core::cond ~@…)` becomes `(:wat::rete::core::cond ~@…)` — including the
+;; annotated-form branch's recursive call, which recurses WITHOUT emitting an `if` and is
+;; therefore the spelling most easily missed by eye. The macro-error text on a
+;; non-exhaustive clause list is kept byte-identical (still a located expansion error, same
+;; first-class primitive). The `:else` structural comparison, the `List?` head test, and the
+;; annotated-form strip are unchanged LOGIC — they call genuine core primitives
+;; (empty?/List?/first/second/rest/let/=), not the emitted if/cond spelling, so they stay
+;; `:wat::core::`.
+;;
+;; Rete `if` (`:wat::rete::core::if`, RETE_OPS `Form` row) re-dispatches at runtime to core
+;; `if`'s genuine eval arm, so it fires inside a real `defrule` — proven by
+;; `wat-scripts/scratch-pad/probe-rete-if-in-where.wat` (`hits=1`). Expanding into rete `if`
+;; is therefore a correct target, not a hope.
+;;
+;; GROUNDED GAP, NOT fixed here: a `(:wat::rete::where …)` clause is never macro-expanded at
+;; all (`defrule` quotes `:when`/`:then` verbatim; `matcher.rs`'s `eval_test_core` evaluates
+;; that raw AST directly, never touching the macro registry) — see
+;; `NOTE-a-where-body-is-never-macro-expanded.md` for the full grounding. This macro is the
+;; correct, necessary prerequisite for whatever later change closes that gap; it does not
+;; close it itself.
+(:wat::core::defmacro :wat::rete::core::cond
+  [& clauses <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::if (:wat::core::empty? clauses)
+    ;; empty clause list — non-exhaustive / no terminal :else. Same located diagnostic as
+    ;; core's cond, byte-identical text.
+    (:wat::core::macro-error "cond: non-exhaustive — needs a terminal :else arm")
+    (:wat::core::if (:wat::core::List? (:wat::core::first clauses))
+      ;; First clause is a List — bare form: (cond (test body) … (:else body))
+      (:wat::core::let [arm  (:wat::core::first clauses)
+                        head (:wat::core::first arm)]
+        (:wat::core::if (:wat::core::List? head)
+          ;; test arm — head is a sub-list like (= 1 2): (if head body (cond rest…)) —
+          ;; rete-spelled all the way down.
+          `(:wat::rete::core::if
+              ~head
+              ~(:wat::core::second arm)
+              (:wat::rete::core::cond ~@(:wat::core::rest clauses)))
+          ;; non-List head — detect :else by structural comparison with the :else keyword form.
+          (:wat::core::if (:wat::core::= head (:wat::core::first `(:else)))
+            ;; :else terminal arm — emit body unconditionally
+            (:wat::core::second arm)
+            ;; other non-List head — treat as test arm (v1 fallback for malformed input)
+            `(:wat::rete::core::if
+                ~head
+                ~(:wat::core::second arm)
+                (:wat::rete::core::cond ~@(:wat::core::rest clauses))))))
+      ;; First clause is NOT a List (it is the -> symbol) — annotated form. Strip -> and :T
+      ;; (first two elements) and re-expand as bare cond — the recursive spelling most easily
+      ;; missed by eye, because it recurses WITHOUT emitting an if.
+      `(:wat::rete::core::cond ~@(:wat::core::rest (:wat::core::rest clauses))))))
+
 ;; ─── make-rule + defrule ────────────────────────────────────────────────────
 
 ;; make-rule — runtime helper: split quoted vector nodes into PVs and build a Rule.

@@ -543,6 +543,63 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── BRIEF-rete-cond-is-its-own-macro.md (2026-08-05) — `cond`, the FIRST MACRO-BACKED rete
+    // row, and unlike `match`/`fn` (both genuine runtime special forms with their own
+    // `dispatch_keyword_head_value` eval arm), `cond` has ZERO runtime arm. Builder's ruling:
+    // "i think we need rete's cond to just be a macro itself that expands into rete's if?".
+    //
+    // `:wat::rete::core::cond` is now its OWN `defmacro` (`wat/rete.wat`, right after the
+    // `query` macro) — a copy of core's `cond` template (`wat/core.wat:1237`) with the emitted
+    // head keywords moved to the rete namespace: every backtick-quoted `if` it emits is
+    // `:wat::rete::core::if`, and every recursive call is `:wat::rete::core::cond`. This
+    // REPLACES an earlier attempt (a `freeze::env::build_env` loop that cloned core's
+    // registered `MacroDef` and re-registered it under the rete name): a clone carries core's
+    // TEMPLATE regardless of which name invoked it, so it expanded to `:wat::core::if` /
+    // `:wat::core::cond` — a second door laundering straight back through core's spelling
+    // (measured by `macroexpand`, not reasoned about — that is exactly what the earlier
+    // attempt skipped). This row now exists purely as the `RETE_OPS` admission entry the fence
+    // and the naming-rule tests need; it does no expansion work itself — the wat-source
+    // `defmacro` does.
+    //
+    // ⚠ GROUNDED GAP, not fixed by this row or the macro above: a `(:wat::rete::where ...)`
+    // clause is never macro-expanded at all — `defrule`'s macro quotes `:when`/`:then`
+    // VERBATIM (`wat/rete.wat:2295`'s `defrule`, `(:wat::core::quote ~when-vec)` at `:2315`), and
+    // `eval_test_core` (`src/rete/matcher.rs:1237`) evaluates that raw AST by calling
+    // `runtime::eval_inner` directly — the expander (`src/macros/expand.rs:441`) never
+    // descends into `:wat::core::quote`. A `cond` written literally inside a `where` —
+    // core-spelled OR rete-spelled — therefore still raises `UnknownFunction` at fire time,
+    // not compile time. Proven both ways on the current tree
+    // (`wat-scripts/scratch-pad/probe-cond-in-where-baseline.wat`,
+    // `probe-cond-rete-where.wat`); full grounding in
+    // `NOTE-a-where-body-is-never-macro-expanded.md`. The purity-guard widening below
+    // (classify_expr) lets such a `where` PASS the pure∧det fence and compile a `TestNode` —
+    // it does not, and cannot, make that `TestNode` evaluate. Outside a `where` (ordinary
+    // macro-expanded code — the tier-ladder shape the brief's scorecard row 2 exercises),
+    // `cond` works identically to its core twin, fully rete-spelled all the way down.
+    //
+    // `total: true` mirrors `if`'s own hand-list entry: `cond` expands to nested
+    // `:wat::rete::core::if` (already `total` in `purity.rs`'s list) and introduces nothing
+    // else; a `cond` with no terminal `:else` is a macro-EXPANSION-time `macro-error`
+    // (`StartupError::Macro`), not a runtime domain hole, so it cannot reach the fence at all.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::cond",
+        core_name: ":wat::core::cond",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── `do` — CUT, not minted (BRIEF-cond-the-first-macro-backed-rete-row.md Part B, builder
+    // 2026-08-05: "i think do can go... i almost only ever use do for a stdout write or something
+    // similar"). `do` evaluates every non-final form and DISCARDS its value (`eval_do_tail`,
+    // `let _ = eval_inner(arg, ...)`), returning only the last. In a `where` — which the fence
+    // guarantees pure ∧ deterministic ∧ total — a discarded PURE value cannot affect anything
+    // reachable from the result, so `(do a b)` ≡ `b`, ALWAYS: it is not merely *unused*, it is
+    // **incapable of meaning** under the fence. Its other real role (def-position splicing,
+    // `register_runtime_defs_form`) needs a definition context, and a `where`/rete expression
+    // position is not one. Cut on this derivation, deliberately — NOT because the corpus lacks a
+    // `do` example (R60: a cut is earned by the fence's semantics, never by absence of demand).
     // ── #57 round 1a, the nine monomorphic aliases (DESIGN-STONE-where-admits-only-rete-ops.md,
     // "THE MINT ROUNDS" → round 1's alias class). All `Alias`, all zero new logic: the rete name
     // re-dispatches to the same routine as `core_name` (`runtime.rs`'s generic `dispatch_rete_op`).
