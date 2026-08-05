@@ -17,8 +17,8 @@
 ;;   CLAIM 1 (read → confirmed here by a RUN).  A kwargs surface is a DEFMACRO that lowers to a
 ;;     POSITIONAL prime; the keyword never reaches the intrinsic. `wat/kernel/readln.wat:59` is
 ;;     the worked instance — it inspects `args`, recognises `:max-buffer-bytes`, and emits
-;;     `(readln' N)`. CONSEQUENCE: `(:wat::rete::i64::+ a b :undefined -1)` does NOT require the
-;;     registry to model keyword arguments, so arc 255's DESIGN open-question #3 ("is
+;;     `(readln' N)`. CONSEQUENCE: `(:wat::rete::core::i64::+ a b :undefined -1)` does NOT require
+;;     the registry to model keyword arguments, so arc 255's DESIGN open-question #3 ("is
 ;;     Exact|AtLeast|Range|Variadic enough, or do some builtins need keyword-arg shapes?")
 ;;     answers **Exact is enough** — kwargs are a macro layer ABOVE the registry.
 ;;     ⚠ This CORRECTS an earlier orchestrator claim that the rete op proves 255 needs richer

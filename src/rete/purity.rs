@@ -449,7 +449,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // can use directly; `cosine`/`dot` are measurements, so at the RETE surface they carry
             // a mandatory `:undefined` fallback (DESIGN-STONE-the-vsa-seam-opens.md, 2026-08-05,
             // ruled by the builder) rather than handing back their outcome enum unwrapped —
-            // `(:wat::rete::f64::> (:wat::rete::holon::cosine ?a ?b :undefined 0.0) 0.9)` now
+            // `(:wat::rete::core::f64::> (:wat::rete::holon::cosine ?a ?b :undefined 0.0) 0.9)` now
             // composes, where before BOTH halves were unclassified. (This comment previously named
             // a stale motivating expression that could not type-check, since `cosine` returns
             // `CosineOutcome`, not a bare f64 — the exact guarded-`0.0`-as-confident-no-match
@@ -473,6 +473,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //   `i64::>` `i64::<` `i64::>=` `i64::<=` — comparisons never overflow (only +/-/*// do).
     //   `i64::to-f64` — a total, lossy-but-never-raising conversion (i64::MAX ≈ 9.2e18 is nowhere
     //     near f64's overflow boundary ≈1.8e308, so the result is always finite, never ±Inf).
+    //   `i64::to-string` `f64::to-string` `bool::to-string` — scalar→String conversions with no
+    //     domain restriction (verified against each `eval_*_to_string` implementation).
     //   `f64::>` — a comparison, not an arithmetic op: `eval_f64_compare` returns a `bool` for any
     //     two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never a raise), so the
     //     OUTPUT itself can never be the undefined thing this axis polices — same shape as the
@@ -537,6 +539,18 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64::>="
             | ":wat::core::i64::<="
             | ":wat::core::i64::to-f64"
+            // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `i64::to-string` /
+            // `f64::to-string` / `bool::to-string`: verified by reading `eval_i64_to_string`
+            // (`n.to_string()`) / `eval_f64_to_string` (`format!("{}", f)`, defined for NaN/±Inf/
+            // -0.0 too) / `eval_bool_to_string` (`if b {"true"} else {"false"}`) — each converts a
+            // well-typed scalar to a String with no domain restriction whatsoever, same reasoning
+            // as `i64::to-f64` immediately above. `bool::to-string` was previously listed only in
+            // the pure∧det block above, NOT here — the brief that asked for these rete rows named
+            // it "already in the total list", which this file's own text did not support; grounded
+            // and promoted here rather than trusted.
+            | ":wat::core::i64::to-string"
+            | ":wat::core::f64::to-string"
+            | ":wat::core::bool::to-string"
             // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`: an
             // equality compare over i64 never raises, same class as the ordering
             // family immediately above.

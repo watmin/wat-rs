@@ -11,7 +11,7 @@
 (:wat::core::defn :tf::compute-scalar
   [n <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::rete::i64::+ n 1 :undefined 0))
+  (:wat::rete::core::i64::+ n 1 :undefined 0))
 
 (:wat::rete::defrule :tf::compute-bad
   :when [(:tf::In (?n <- :n))]

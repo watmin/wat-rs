@@ -58,6 +58,48 @@
 //! test into `compile-condition` (`wat/rete.wat:661` stays `(and is-pure is-det)`). It is built
 //! and unit-tested in isolation (`tests/rete/`), plus consulted as a fourth consideration inside
 //! `head_ok` (`rete/purity.rs`) — additive, never a replacement for the three existing ones.
+//!
+//! ## The naming rule (BRIEF-one-naming-rule-then-first-nth-to-string.md, 2026-08-05)
+//!
+//! **`rete_name` = `core_name` with `rete::` inserted immediately after `wat::`.** One rule, no
+//! hand-maintained module list to drift: `RETE_MODULES` collapses to `core::`/`holon::` because
+//! every `core_name` is already rooted at `:wat::core::` or `:wat::holon::`, so the rule PUTS every
+//! new row inside an admitted module BY CONSTRUCTION. Before this rename the table carried three
+//! *different* rules at once (bare insert keeping `core::`; `core::` → `rete::` replacement;
+//! straight prefixing) — a module list standing in for a rule already silently missed 17 of 57
+//! rows (`String/*`, `PersistentVector/*`, the five bare HOFs, `bool::`/`keyword::`).
+//!
+//! **Measured exception, six rows:** `string::{=,not=}` / `bool::{=,not=}` / `keyword::{=,not=}`
+//! point at the GENERIC `:wat::core::=` / `:wat::core::not=` — core has no per-type equality for
+//! these three types and does not need one (minting one would be the tail wagging the dog). The
+//! rule as stated is **impossible to apply literally** to these six: `core_name.replacen(":wat::",
+//! ":wat::rete::", 1)` produces the IDENTICAL string `:wat::rete::core::=` (resp. `not=`) for all
+//! three types at once, which is not a naming quirk but a proven regression — `check.rs`'s
+//! registration loop below feeds `op.rete_name` into `CheckEnv::register`, which is a raw
+//! `HashMap::insert` (`check/env.rs:284`, doc'd "ungated ON PURPOSE... there is no predecessor a
+//! registration could disagree with" — an assumption of distinct names this collision would
+//! violate): three rows sharing one name means only the LAST-registered `TypeScheme` survives, so
+//! two of the three types silently lose their monomorphic gate. Confirmed against a live call site
+//! (`wat-scripts/scratch-pad/probe-brief-f64-surface-is-a-stub.wat`'s PRE-RENAME
+//! `(:wat::rete::string::= "abc" "abc")`, now `:wat::rete::core::string::=`): applying the rule
+//! verbatim makes that call fail `--check` under whichever scheme won the collision — a real
+//! floor regression, not a theoretical one. So these six keep their per-type qualifier, nested
+//! under `core::` exactly like their
+//! `i64::=`/`f64::=` siblings (already distinct, since core HAS `i64::=`/`f64::=`): the family
+//! reads `core::{i64,f64,string,bool,keyword}::{=,not=}`, uniform, still inside the closed module
+//! set, still one row per row. The naming unit tests below encode this exception explicitly
+//! (a finite, named allowlist) rather than silently special-casing it away.
+//!
+//! **A second instance of the SAME pattern, found by this file's own tests:** Phase 2's `first`
+//! trio (`PersistentVector/first` / `Vector/first` / `List/first`) all point at the ONE
+//! polymorphic `:wat::core::first` — minting them with the literal rule initially collapsed all
+//! three onto `:wat::rete::core::first`, caught immediately by
+//! `rete_name_is_core_name_with_rete_inserted_after_wat` going red (three rows, one name — the
+//! exact class the equality trio already needed an exception for). Same fix, same reasoning:
+//! these three also keep their per-container qualifier. Nine rows total in
+//! `NAMING_RULE_EXCEPTIONS`, not six — "one core verb serving several rete rows" is not a
+//! one-off, it recurs whenever a core op is polymorphic across something the rete surface wants
+//! to monomorphise per-leaf (per-type for equality, per-container for `first`).
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -112,6 +154,13 @@ pub(crate) enum ParamType {
     /// Arc 278 #57 round 1b — `PersistentVector<T>` for a named type variable `T`. The
     /// PV trio's container param.
     PersistentVectorOf(&'static str),
+    /// BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `Vector<T>` for a named
+    /// type variable `T`. Added the same way round 1a added `String`/`F64`: `first`'s per-
+    /// container rows need one leaf per container, and `Vector` had none yet.
+    VectorOf(&'static str),
+    /// BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `List<T>` for a named
+    /// type variable `T`. `first`'s third container leaf.
+    ListOf(&'static str),
     /// Arc 278 #57 round 1b — `Option<T>` for a named type variable `T`. Needed for
     /// `PersistentVector/get`'s return: it is ALREADY total by design (`None` on
     /// out-of-range, never a raise — `purity.rs`'s own reasoning for why this round is its
@@ -140,6 +189,14 @@ impl ParamType {
                 head: "wat::core::PersistentVector".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
             },
+            ParamType::VectorOf(name) => TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(format!(":{name}"))],
+            },
+            ParamType::ListOf(name) => TypeExpr::Parametric {
+                head: "wat::core::List".into(),
+                args: vec![TypeExpr::Path(format!(":{name}"))],
+            },
             ParamType::OptionOf(name) => TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
@@ -151,7 +208,7 @@ impl ParamType {
 
 /// One rete-surface op. THE single place any rete op is named (STOP-2).
 pub(crate) struct ReteOp {
-    /// The rete-surface FQDN, e.g. `":wat::rete::i64::>"`.
+    /// The rete-surface FQDN, e.g. `":wat::rete::core::i64::>"`.
     pub(crate) rete_name: &'static str,
     /// The core routine this surfaces, e.g. `":wat::core::i64::>"`. For a `Form` this is the
     /// core form whose checker/eval arm is mirrored generically (re-dispatch, never a duplicate
@@ -186,7 +243,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // default-deny placeholder.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::>",
+        rete_name: ":wat::rete::core::i64::>",
         core_name: ":wat::core::i64::>",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
@@ -198,12 +255,12 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `check.rs:19286`'s own comment: "arming the fence needs the `:undefined`-carrying total
     // variants (T2/T3) to exist first, or a refused `first`/`i64::/` has nowhere to go") — for
     // any two well-typed i64 inputs this ALWAYS returns some i64 (the sum, or the fallback), and
-    // it never raises. Call shape: `(:wat::rete::i64::+ a b :undefined fallback)` — 4 positional
+    // it never raises. Call shape: `(:wat::rete::core::i64::+ a b :undefined fallback)` — 4 positional
     // args; the literal keyword `:undefined` in slot 3 is a mandatory marker (see
     // `runtime.rs`'s `dispatch_rete_op`, `OpClass::Fallback` arm).
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::+",
+        rete_name: ":wat::rete::core::i64::+",
         core_name: ":wat::core::i64::+",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -228,7 +285,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // name re-dispatches to the same routine.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::<",
+        rete_name: ":wat::rete::core::i64::<",
         core_name: ":wat::core::i64::<",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
@@ -240,7 +297,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // name re-dispatches to the same routine.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::>=",
+        rete_name: ":wat::rete::core::i64::>=",
         core_name: ":wat::core::i64::>=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
@@ -252,7 +309,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // name re-dispatches to the same routine.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::<=",
+        rete_name: ":wat::rete::core::i64::<=",
         core_name: ":wat::core::i64::<=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
@@ -269,7 +326,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // a rete-surface alias only.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::>",
+        rete_name: ":wat::rete::core::f64::>",
         core_name: ":wat::core::f64::>",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
@@ -278,7 +335,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::<",
+        rete_name: ":wat::rete::core::f64::<",
         core_name: ":wat::core::f64::<",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
@@ -287,7 +344,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::>=",
+        rete_name: ":wat::rete::core::f64::>=",
         core_name: ":wat::core::f64::>=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
@@ -296,7 +353,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::<=",
+        rete_name: ":wat::rete::core::f64::<=",
         core_name: ":wat::core::f64::<=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
@@ -307,7 +364,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::-",
+        rete_name: ":wat::rete::core::i64::-",
         core_name: ":wat::core::i64::-",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -318,7 +375,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::*",
+        rete_name: ":wat::rete::core::i64::*",
         core_name: ":wat::core::i64::*",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -329,7 +386,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::/",
+        rete_name: ":wat::rete::core::i64::/",
         core_name: ":wat::core::i64::/",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -340,7 +397,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::mod",
+        rete_name: ":wat::rete::core::i64::mod",
         core_name: ":wat::core::i64::mod",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -351,7 +408,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::rem",
+        rete_name: ":wat::rete::core::i64::rem",
         core_name: ":wat::core::i64::rem",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -362,7 +419,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::quot",
+        rete_name: ":wat::rete::core::i64::quot",
         core_name: ":wat::core::i64::quot",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
@@ -503,7 +560,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `string_ops.rs`'s own doc comments, which match exactly.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String/concat",
+        rete_name: ":wat::rete::core::String/concat",
         core_name: ":wat::core::String/concat",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -512,7 +569,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String/starts-with?",
+        rete_name: ":wat::rete::core::String/starts-with?",
         core_name: ":wat::core::String/starts-with?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -521,7 +578,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String/ends-with?",
+        rete_name: ":wat::rete::core::String/ends-with?",
         core_name: ":wat::core::String/ends-with?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -530,7 +587,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String/contains?",
+        rete_name: ":wat::rete::core::String/contains?",
         core_name: ":wat::core::String/contains?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -539,7 +596,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::String/empty?",
+        rete_name: ":wat::rete::core::String/empty?",
         core_name: ":wat::core::String/empty?",
         class: OpClass::Alias,
         params: &[ParamType::String],
@@ -548,7 +605,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::string::length",
+        rete_name: ":wat::rete::core::string::length",
         core_name: ":wat::core::string::length",
         class: OpClass::Alias,
         params: &[ParamType::String],
@@ -557,7 +614,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::string::trim",
+        rete_name: ":wat::rete::core::string::trim",
         core_name: ":wat::core::string::trim",
         class: OpClass::Alias,
         params: &[ParamType::String],
@@ -566,7 +623,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::string::to-lowercase",
+        rete_name: ":wat::rete::core::string::to-lowercase",
         core_name: ":wat::core::string::to-lowercase",
         class: OpClass::Alias,
         params: &[ParamType::String],
@@ -575,7 +632,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::to-f64",
+        rete_name: ":wat::rete::core::i64::to-f64",
         core_name: ":wat::core::i64::to-f64",
         class: OpClass::Alias,
         params: &[ParamType::I64],
@@ -593,7 +650,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // design (returns `Option`, `None` on out-of-range)".
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::PersistentVector/length",
+        rete_name: ":wat::rete::core::PersistentVector/length",
         core_name: ":wat::core::PersistentVector/length",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T")],
@@ -602,7 +659,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::PersistentVector/contains?",
+        rete_name: ":wat::rete::core::PersistentVector/contains?",
         core_name: ":wat::core::PersistentVector/contains?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::Var("T")],
@@ -611,7 +668,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::PersistentVector/get",
+        rete_name: ":wat::rete::core::PersistentVector/get",
         core_name: ":wat::core::PersistentVector/get",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::I64],
@@ -638,7 +695,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // those four is the honest default-deny, not a guess.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::foldl",
+        rete_name: ":wat::rete::core::foldl",
         core_name: ":wat::core::foldl",
         class: OpClass::Redispatch,
         params: &[],
@@ -647,7 +704,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::foldr",
+        rete_name: ":wat::rete::core::foldr",
         core_name: ":wat::core::foldr",
         class: OpClass::Redispatch,
         params: &[],
@@ -656,7 +713,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::map",
+        rete_name: ":wat::rete::core::map",
         core_name: ":wat::core::map",
         class: OpClass::Redispatch,
         params: &[],
@@ -665,7 +722,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::filter",
+        rete_name: ":wat::rete::core::filter",
         core_name: ":wat::core::filter",
         class: OpClass::Redispatch,
         params: &[],
@@ -684,7 +741,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // head — not a second implementation, and not a scheme (STOP-5 untouched).
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::reduce",
+        rete_name: ":wat::rete::core::reduce",
         core_name: ":wat::core::reduce",
         class: OpClass::Redispatch,
         params: &[],
@@ -695,7 +752,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `ParamType` leaves). `class: Alias` throughout — same shape as round 1a, one round larger.
     // `total: true` per row: TOTALITY IS DELIVERED BY THE SIGNATURE, not by the routine
     // underneath — a row declaring `[T, T] -> Bool` makes an incomparable pair (e.g.
-    // `(:wat::rete::string::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
+    // `(:wat::rete::core::string::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
     // domain hole a per-type surface exists to delete (DESIGN-STONE-where-admits-only-rete-ops.md,
     // "★★ RULED — THE RETE SURFACE IS PER-TYPE, PERIOD"). `meta` TRANSCRIBED, not decided, from
     // generic `=`/`not=` (`rete/purity.rs:307-308` pure∧det, `:511-512` total) for every one of
@@ -706,6 +763,18 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // brief — core has no per-type `String::=` and does not need one; minting one would be the
     // tail wagging the dog (STOP-3).
     //
+    // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — naming-rule EXCEPTION,
+    // documented at the module doc's "The naming rule": because these six rows' `core_name` is
+    // the SAME generic op across all three types, the literal insert rule
+    // (`core_name.replacen(":wat::", ":wat::rete::", 1)`) would collapse `string::=`/`bool::=`/
+    // `keyword::=` onto the IDENTICAL name `:wat::rete::core::=` (and `not=`'s siblings likewise)
+    // — not a cosmetic collision: `check.rs`'s registration loop below keys a `HashMap` by
+    // `rete_name`, so three same-named rows would silently leave only the LAST-registered
+    // `TypeScheme` reachable, deleting two of the three types' monomorphic gate. So these six
+    // rows keep the per-type qualifier the rest of the family already carries, nested under
+    // `core::` like `i64::=`/`f64::=` below (which need no exception — core genuinely has
+    // `i64::=`/`f64::=`) rather than being derived from the shared generic `core_name`.
+    //
     // `i64`/`f64` are RE-POINTED at the per-type doors — BRIEF-the-f64-surface-is-a-stub.md
     // Part E (2026-08-05). `c59b2dca` (DESIGN-STONE-per-type-equality-restored.md) restored
     // `:wat::core::{i64,f64}::{=,not=}`: they are registered (`check.rs:15809-15828`,
@@ -714,7 +783,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // when written and is false now; a stale comment is a lie the next reader inherits.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::=",
+        rete_name: ":wat::rete::core::i64::=",
         core_name: ":wat::core::i64::=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
@@ -723,7 +792,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::i64::not=",
+        rete_name: ":wat::rete::core::i64::not=",
         core_name: ":wat::core::i64::not=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
@@ -732,7 +801,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::=",
+        rete_name: ":wat::rete::core::f64::=",
         core_name: ":wat::core::f64::=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
@@ -741,7 +810,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::not=",
+        rete_name: ":wat::rete::core::f64::not=",
         core_name: ":wat::core::f64::not=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
@@ -758,7 +827,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // these two rows) — a rename, not a migration.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::string::=",
+        rete_name: ":wat::rete::core::string::=",
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -767,7 +836,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::string::not=",
+        rete_name: ":wat::rete::core::string::not=",
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -776,7 +845,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::bool::=",
+        rete_name: ":wat::rete::core::bool::=",
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::Bool, ParamType::Bool],
@@ -785,7 +854,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::bool::not=",
+        rete_name: ":wat::rete::core::bool::not=",
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::Bool, ParamType::Bool],
@@ -794,7 +863,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::keyword::=",
+        rete_name: ":wat::rete::core::keyword::=",
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::Keyword, ParamType::Keyword],
@@ -803,7 +872,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::keyword::not=",
+        rete_name: ":wat::rete::core::keyword::not=",
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::Keyword, ParamType::Keyword],
@@ -823,10 +892,10 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // Core itself is untouched — `:wat::core::f64::{+,-,*,/}` keep returning raw IEEE values
     // and keep their `total: false` classification; totality is bought here, at the rete row,
     // by carrying a fallback. Call shape unchanged from i64:
-    // `(:wat::rete::f64::/ hits total :undefined 0.0)`.
+    // `(:wat::rete::core::f64::/ hits total :undefined 0.0)`.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::+",
+        rete_name: ":wat::rete::core::f64::+",
         core_name: ":wat::core::f64::+",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
@@ -835,7 +904,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::-",
+        rete_name: ":wat::rete::core::f64::-",
         core_name: ":wat::core::f64::-",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
@@ -844,7 +913,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::*",
+        rete_name: ":wat::rete::core::f64::*",
         core_name: ":wat::core::f64::*",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
@@ -853,7 +922,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::f64::/",
+        rete_name: ":wat::rete::core::f64::/",
         core_name: ":wat::core::f64::/",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
@@ -911,6 +980,101 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — the `to-string` trio.
+    // `Alias`, same shape as round 1a: zero new logic, rete name re-dispatches to `core_name`.
+    // `total: true` — GROUNDED here (not simply trusted): each is a scalar→String conversion
+    // with no domain restriction (`eval_i64_to_string`/`eval_f64_to_string`/`eval_bool_to_string`,
+    // `runtime.rs`), the same reasoning `i64::to-f64` already uses. Promoted into
+    // `rete/purity.rs`'s `total` hand-list alongside these rows — that list did NOT already
+    // contain any of the three before this strike (the brief's own claim that `bool::to-string`
+    // was "already in the total list" did not hold; it was in the pure∧det list only). There is
+    // no generic `num-to-string` — grounded, zero hits — so per-type is the only spelling, same
+    // as the rest of this table's scalar family.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::i64::to-string",
+        core_name: ":wat::core::i64::to-string",
+        class: OpClass::Alias,
+        params: &[ParamType::I64],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::f64::to-string",
+        core_name: ":wat::core::f64::to-string",
+        class: OpClass::Alias,
+        params: &[ParamType::F64],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::bool::to-string",
+        core_name: ":wat::core::bool::to-string",
+        class: OpClass::Alias,
+        params: &[ParamType::Bool],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `first`, per container,
+    // `Fallback` class. `:wat::core::first` is PARTIAL — proven by run: an empty sequence raises
+    // `MalformedForm` ("sequence has 0 element(s); no element at index 0", `eval_positional_accessor`
+    // in `runtime.rs`, called with `index: 0`). Per-type here is NOT the comparators' reason (that
+    // per-type form DELETES a domain hole): an empty `PersistentVector` still has no first element
+    // regardless of container — per-type is what makes the row SCHEMABLE (a rank-1 `TypeScheme`
+    // naming ONE concrete container), which is what makes `Fallback` available at all. `total: true`
+    // is EARNED by the fallback: for a well-typed container + `:undefined` fallback, this always
+    // returns the first element or the fallback, never raises.
+    //
+    // ⚠ Call shape needed generalizing `dispatch_rete_op`'s `Fallback` arm (`runtime.rs`), which
+    // was hardcoded to a 4-arg / 2-real-arg shape (the i64/f64/holon families all take TWO real
+    // args before the `:undefined` marker). `first` takes exactly ONE real arg (the container), so
+    // the arm's arity/slice logic is now DERIVED from `op.params.len()` (real-arg count =
+    // `params.len() - 2`, marker at `params.len() - 2`, fallback at `params.len() - 1`) —
+    // behavior-preserving for every existing row (all of which have `params.len() == 4`, same
+    // slice as before), and now correct for a 3-param row too. See that arm's own doc for the new
+    // `RuntimeErrorKind::MalformedForm { head, .. } if head == op.core_name` catch this family
+    // needed — matched on `head` (which `eval_positional_accessor` sets to the exact `op` string
+    // passed in — `:wat::core::first` for every one of these three rows, since core's `first` is
+    // one polymorphic accessor), never a substring/message match, and distinguishable from this
+    // arm's OWN `:undefined`-marker-shape validation error (whose `head` is the RETE name, not
+    // `core_name` — a caller shape bug, which must still propagate, not be absorbed).
+    //
+    // ⛔ AFFIRMATIVELY CUT, with reasons (do not silently omit — record them here):
+    //   `Tuple` — heterogeneous; element-0's type depends on the tuple's own shape, so it cannot
+    //     be spelled `C<T> -> T` at all.
+    //   `WatAstList` — a `Value::wat__WatAST` wrapping an AST node (R17: this exact member breaks
+    //     a container abstraction); not a homogeneous sequence.
+    //   `Stream` — laziness in a rule condition is a ruling nobody has made. Not a row until it is.
+    //   `HashSet` — `indexable()` is already `false`; no first element by nature.
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::PersistentVector/first",
+        core_name: ":wat::core::first",
+        class: OpClass::Fallback,
+        params: &[ParamType::PersistentVectorOf("T"), ParamType::Keyword, ParamType::Var("T")],
+        ret: ParamType::Var("T"),
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::Vector/first",
+        core_name: ":wat::core::first",
+        class: OpClass::Fallback,
+        params: &[ParamType::VectorOf("T"), ParamType::Keyword, ParamType::Var("T")],
+        ret: ParamType::Var("T"),
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &["T"],
+        rete_name: ":wat::rete::core::List/first",
+        core_name: ":wat::core::first",
+        class: OpClass::Fallback,
+        params: &[ParamType::ListOf("T"), ParamType::Keyword, ParamType::Var("T")],
+        ret: ParamType::Var("T"),
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
 ];
 
 /// THE ADMISSION TEST's boundary — declared rete-vocabulary SUB-namespaces. NOT the bare
@@ -930,11 +1094,17 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
 /// would admit the engine's own API (`fire-rules`/`insert`/`compile`/`Session`/…).
 pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 
+/// CLOSED by the naming rule (module doc, "The naming rule"): `rete_name = core_name` with
+/// `rete::` inserted after `wat::` means every row is rooted at `:wat::rete::core::` or
+/// `:wat::rete::holon::` BY CONSTRUCTION — there is no third root a core verb can have, so no new
+/// container, scalar type, or module ever needs an edit here again. Two entries, not five: the
+/// pre-rename table needed `i64::`/`f64::`/`string::` as SEPARATE entries only because its three
+/// naming rules put those rows directly under `:wat::rete::{i64,f64,string}::` instead of
+/// `:wat::rete::core::{i64,f64,string}::` — the rename moved them under `core::`, so those three
+/// entries are now redundant with it (measured 2026-08-05: 17 of 57 rows were falling through this
+/// list's gaps before the rename made it closed).
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
-    ":wat::rete::i64::",
-    ":wat::rete::f64::",
-    ":wat::rete::string::",
     ":wat::rete::holon::",
 ];
 
@@ -970,7 +1140,7 @@ pub(crate) fn rete_vocabulary_admitted(head: &str) -> bool {
 /// UNARMED — not consulted by `compile-condition`.
 ///
 /// Takes a QUOTED keyword (`(:wat::rete::vocabulary-admitted? (:wat::core::quote
-/// :wat::rete::i64::>))`), mirroring `pure?`/`deterministic?`'s own `:wat::WatAST` argument
+/// :wat::rete::core::i64::>))`), mirroring `pure?`/`deterministic?`'s own `:wat::WatAST` argument
 /// shape (`eval_axis_predicate`, above) — NOT a bare `:wat::core::keyword` value: a bare keyword
 /// literal that names a REGISTERED function resolves at check time to that function's `Fn` type
 /// (first-class function reference), not a `:wat::core::keyword` value, so an unquoted head name
@@ -1018,4 +1188,111 @@ pub(crate) fn eval_vocabulary_admitted_predicate(
         }
     };
     Ok(Value::bool(rete_vocabulary_admitted(&head)))
+}
+
+// ─── Phase 1 (BRIEF-one-naming-rule-then-first-nth-to-string.md) — the naming rule's own ward ──
+//
+// These two tests are THE POINT of the Phase-1 rename, not a formality: the rename fixes today's
+// 46 mis-derived rows; these make the three-rules drift that produced them UNREPRESENTABLE going
+// forward. Both iterate `RETE_OPS` directly — never a grep over the table's own source text,
+// which could pass on a comment instead of the row's actual field.
+#[cfg(test)]
+mod naming_rule_tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    /// The naming rule's own documented exception (module doc, "The naming rule"): these NINE
+    /// rows' `core_name` is shared by MULTIPLE rows — the `=`/`not=` trio shares
+    /// `:wat::core::=`/`:wat::core::not=` across three types; `first`'s trio shares the ONE
+    /// polymorphic `:wat::core::first` across three containers (found the same way, by running
+    /// this very test against the Phase-2 mint: the literal insert rule collapsed
+    /// `PersistentVector/first`/`Vector/first`/`List/first` onto the identical
+    /// `:wat::rete::core::first`). So the literal insert rule would collapse each trio onto one
+    /// shared name — proven to break `CheckEnv`'s registration for the equality trio
+    /// (`check/env.rs:284`, a raw `HashMap::insert` assuming distinct names) and, for `first`,
+    /// would make `rete_op_for`'s exact-match lookup (`.find()`, first-match-wins) return only
+    /// ONE of the three rows' `ParamType`/`OpMeta` for all three container spellings. A finite,
+    /// named allowlist, not a silent special case.
+    const NAMING_RULE_EXCEPTIONS: &[&str] = &[
+        ":wat::rete::core::string::=",
+        ":wat::rete::core::string::not=",
+        ":wat::rete::core::bool::=",
+        ":wat::rete::core::bool::not=",
+        ":wat::rete::core::keyword::=",
+        ":wat::rete::core::keyword::not=",
+        ":wat::rete::core::PersistentVector/first",
+        ":wat::rete::core::Vector/first",
+        ":wat::rete::core::List/first",
+    ];
+
+    /// ★★ Every row satisfies [`rete_vocabulary_admitted`] over its OWN `rete_name` — the
+    /// admission test's permanent ward. Measured 2026-08-05 (pre-rename): 17 of 57 rows failed
+    /// this, working only by accident (`head_ok` falls through into `intrinsic_meta`, which
+    /// finds them anyway via `rete_op_for`). Arming this as a real assertion over the live table
+    /// makes that accident impossible to reintroduce — a future row minted outside an admitted
+    /// module goes red HERE, not silently through the fallthrough.
+    #[test]
+    fn every_row_is_admitted() {
+        for op in RETE_OPS {
+            assert!(
+                rete_vocabulary_admitted(op.rete_name),
+                "row {:?} (core_name {:?}) is not admitted by RETE_MODULES {:?} — the naming rule is supposed to make this impossible",
+                op.rete_name, op.core_name, RETE_MODULES,
+            );
+        }
+    }
+
+    /// ★ The rule is ENFORCED, not just applied once by hand: for every row outside the
+    /// documented exception, `rete_name == core_name` with `rete::` inserted immediately after
+    /// `wat::`. This is the actual extirpare rung — with it, the three-rules drift that produced
+    /// today's 46 mis-derived names cannot recur, because a row violating the rule fails HERE.
+    #[test]
+    fn rete_name_is_core_name_with_rete_inserted_after_wat() {
+        for op in RETE_OPS {
+            let expected = op.core_name.replacen(":wat::", ":wat::rete::", 1);
+            if NAMING_RULE_EXCEPTIONS.contains(&op.rete_name) {
+                // The documented exception: verify it stays a genuine exception (the naive rule
+                // really would collide) rather than a name that quietly stopped needing one.
+                assert_ne!(
+                    op.rete_name, expected.as_str(),
+                    "row {:?} is listed as a naming-rule exception but its rete_name now EQUALS \
+                     the literal rule's output — it no longer needs the exception; remove it from \
+                     NAMING_RULE_EXCEPTIONS",
+                    op.rete_name,
+                );
+            } else {
+                assert_eq!(
+                    op.rete_name, expected.as_str(),
+                    "row {:?} (core_name {:?}) violates the naming rule: expected {:?}",
+                    op.rete_name, op.core_name, expected,
+                );
+            }
+        }
+    }
+
+    /// The exception list itself is exactly the nine rows the module doc names — no more, no
+    /// fewer. Catches the exception set silently growing (a real collision nobody explained) or
+    /// shrinking without the corresponding row being deleted.
+    #[test]
+    fn naming_rule_exceptions_are_exactly_the_documented_nine() {
+        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 9);
+        for &name in NAMING_RULE_EXCEPTIONS {
+            assert!(
+                RETE_OPS.iter().any(|op| op.rete_name == name),
+                "exception {name:?} names no row in RETE_OPS — stale entry"
+            );
+        }
+    }
+
+    /// Deeper invariant the naming rule exists to protect: no two rows ever share a `rete_name`.
+    /// A collision silently drops a row's `TypeScheme` in `CheckEnv`'s registration (a raw
+    /// `HashMap::insert`, `check/env.rs:284`) with no error anywhere — this is the one check that
+    /// would have caught the exception rows' collision even without knowing the naming rule.
+    #[test]
+    fn every_rete_name_is_unique() {
+        let mut seen = HashSet::new();
+        for op in RETE_OPS {
+            assert!(seen.insert(op.rete_name), "duplicate rete_name: {:?}", op.rete_name);
+        }
+    }
 }

@@ -1,7 +1,7 @@
-;; Negative fixture: `:wat::rete::f64::>` requires F64 in both slots — an i64 literal in slot 2
+;; Negative fixture: `:wat::rete::core::f64::>` requires F64 in both slots — an i64 literal in slot 2
 ;; must be a check-time TypeMismatch, proving the per-type rete f64 comparator surface deletes
 ;; the domain hole DESIGN-STONE-where-admits-only-rete-ops.md cites as the whole reason it
 ;; exists ("Generic `>` is PARTIAL. Its domain hole is 'these two operands are not comparable.'
 ;; Monomorphising … deletes the domain hole."). See
 ;; docs/arc/2026/06/278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md, EXPECTATIONS row 3.
-(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::rete::f64::> 1.0 1))
+(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::rete::core::f64::> 1.0 1))

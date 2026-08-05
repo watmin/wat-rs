@@ -8249,26 +8249,38 @@ fn dispatch_rete_op(
         // by `core_name` for any class, per this fn's own header doc).
         OpClass::Alias | OpClass::Form | OpClass::Redispatch => dispatch_keyword_head_value(op.core_name, args, list_span, env, sym),
         OpClass::Fallback => {
-            if args.len() != 4 {
+            // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — arity DERIVED
+            // from `op.params.len()`, not hardcoded to 4. Every Fallback row before `first` took
+            // exactly TWO real args before the `:undefined` marker (i64/f64 arithmetic, holon
+            // cosine/dot: `[X, X, Keyword, X]`), so `4`/`&args[0..2]`/`args[2]`/`args[3]` were
+            // literally correct — but `first` takes exactly ONE real arg (the container:
+            // `[Container<T>, Keyword, Var(T)]`, `params.len() == 3`). Deriving the split from
+            // the row's own declared shape is behavior-preserving for every pre-existing row
+            // (all have `params.len() == 4`, same split as before: marker at 2, fallback at 3,
+            // real args `[0..2]`) and now correct for a 3-param row too.
+            let total_arity = op.params.len();
+            let marker_idx = total_arity - 2;
+            let fallback_idx = total_arity - 1;
+            if args.len() != total_arity {
                 return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
                     op: head.into(),
-                    expected: 4,
+                    expected: total_arity,
                     got: args.len(),
                 }).into());
             }
-            // The literal keyword `:undefined` is a mandatory marker in slot 3 — a kwargs
-            // SURFACE would lower this away before an intrinsic ever saw it (proven by
+            // The literal keyword `:undefined` is a mandatory marker in the second-to-last slot —
+            // a kwargs SURFACE would lower this away before an intrinsic ever saw it (proven by
             // `wat-scripts/scratch-pad/probe-slice-one-registry-seam.wat` row A); this op is a
             // plain positional Rust intrinsic instead (no `wat/` defmacro — out of this slice's
             // scope), so the marker is inspected here, directly, on the raw AST.
-            match &args[2] {
+            match &args[marker_idx] {
                 WatAST::Keyword(k, _) if k == ":undefined" => {}
                 other => return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::MalformedForm {
                     head: head.into(),
-                    reason: "the fallback-carrying rete op requires the literal keyword `:undefined` as its third argument, e.g. `(:wat::rete::i64::+ a b :undefined fallback)`".into(),
+                    reason: "the fallback-carrying rete op requires the literal keyword `:undefined` as its second-to-last argument, e.g. `(:wat::rete::core::i64::+ a b :undefined fallback)`".into(),
                 }).into()),
             }
-            match dispatch_keyword_head_value(op.core_name, &args[0..2], list_span, env, sym) {
+            match dispatch_keyword_head_value(op.core_name, &args[0..marker_idx], list_span, env, sym) {
                 // A fallback-carrying op is TOTAL, so it must face EVERY way its core op can
                 // reach its undefined point — and this family reaches it two DIFFERENT ways.
                 // The i64 family fails by RAISING (caught below, unchanged). The f64 family
@@ -8281,7 +8293,7 @@ fn dispatch_rete_op(
                 // nothing else — ordinary finite floats, `-0.0`, and subnormals all pass through
                 // untouched. Both paths are now faced; this arm is exhaustive over the family.
                 Ok(Value::f64(x)) if matches!(op.ret, ParamType::F64) && !x.is_finite() => {
-                    eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                    eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
                 }
                 // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the THIRD failure mode,
                 // shaped like neither the i64 raise nor the f64 non-finite-scalar above: the
@@ -8305,7 +8317,7 @@ fn dispatch_rete_op(
                     match (ev.variant_name.as_str(), ev.fields.as_slice()) {
                         ("Similarity", [Value::f64(similarity)]) => Ok(Value::f64(*similarity)),
                         ("Degenerate", [_]) | ("DimensionMismatch", [_, _]) => {
-                            eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                            eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
                         }
                         (variant, fields) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                             head: head.into(),
@@ -8320,7 +8332,7 @@ fn dispatch_rete_op(
                     match (ev.variant_name.as_str(), ev.fields.as_slice()) {
                         ("Computed", [Value::f64(product)]) => Ok(Value::f64(*product)),
                         ("DimensionMismatch", [_, _]) => {
-                            eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                            eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
                         }
                         (variant, fields) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                             head: head.into(),
@@ -8344,7 +8356,28 @@ fn dispatch_rete_op(
                         RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
                     ) =>
                 {
-                    eval_inner(&args[3], env, sym).map(|tv| tv.value_owned())
+                    eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
+                }
+                // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — the FOURTH
+                // failure mode, shaped like none of the three above: the sequence-accessor family
+                // (`:wat::core::first`, `eval_positional_accessor`) fails by RAISING
+                // `RuntimeErrorKind::MalformedForm` on an empty container, not `IntegerOverflow`/
+                // `DivisionByZero`. Matched on `head == op.core_name` — `eval_positional_accessor`
+                // sets `MalformedForm.head` to the exact `op` string it was called with (literally
+                // `:wat::core::first` for every one of this family's rows, since core's `first` is
+                // ONE polymorphic accessor across containers), never a message substring. This
+                // deliberately does NOT widen to catch every `MalformedForm` this arm's own
+                // `:undefined`-marker check (above) can also raise — that raise's `head` is the
+                // RETE name, not `core_name`, so the two are structurally distinguishable: a
+                // caller's malformed CALL SHAPE is a bug and must still propagate; only the core
+                // op's OWN domain-exhaustion raise is this family's undefined point.
+                Err(EvalBreak::Diagnostic(e))
+                    if matches!(
+                        e.kind(),
+                        RuntimeErrorKind::MalformedForm { head, .. } if head == op.core_name
+                    ) =>
+                {
+                    eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
                 }
                 Err(e) => Err(e),
             }

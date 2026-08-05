@@ -54,7 +54,7 @@
 ;; ⇒ A `where` TRAVERSES runtime.rs:4829 (the inline `eval_i64_arith` arm), NOT :9753.
 ;;
 ;; THE CONSEQUENCE FOR #55 (S3b+S4): the clean `arith_i64_i64_inner` / `I64ArithErr` factoring
-;; the design stone points at lives on the OTHER path. `:wat::rete::i64::+` therefore cannot
+;; the design stone points at lives on the OTHER path. `:wat::rete::core::i64::+` therefore cannot
 ;; simply substitute a second terminal handler at `:9753` and expect a `where` to reach it —
 ;; `:4829` must be refactored onto that shared kernel FIRST, or the rete surface works only
 ;; through `apply`. The "shared kernel, two surfaces" law is intact; the kernel just is not

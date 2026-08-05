@@ -93,6 +93,29 @@ is a definite `false`.
    two intrinsics one hop down — so nothing on the disk yet establishes that a wat-level verb blocks
    compilation. **If it does, the class is at least those three, not one.**
 
+4. **★ A CURE-3 BLOCKER, measured 2026-08-05 when `nth` was attempted and STOPped.** The fallback
+   arm substitutes on `Err(EvalBreak::Diagnostic(e))`. **`Option/expect` does not return an `Err` —
+   it `panic_any`s** (`runtime.rs`'s `expect_panic`, whose own doc says *"then `panic_any`s. Never
+   returns."*). A panic unwinds straight past the arm; the only `catch_unwind` sites are at
+   spawn/sandbox boundaries, nowhere near this dispatch.
+
+   So **cure 3 cannot be applied to any verb whose partiality is expressed as a panic** — it reaches
+   only verbs that fail by returning `Err`. `nth` is the first case found and it is certainly not the
+   last: `Option/expect` is a general-purpose escape hatch, so every wat-level verb defined as
+   `Option/expect (…)` inherits the same block.
+
+   This is directly the builder's compilation driver: **you cannot compile a jump table whose opcodes
+   may unwind.** It is also R53's territory one layer down — *"a failure must show its true face as a
+   matchable VALUE, never a raise"* — the recv'/send' walls annihilated that class at the IPC layer
+   and `Option/expect` is a survivor of it in core. Kept honest: `expect` is *documented* to panic, so
+   it is **not** a hidden failure and not a mask; the no-hidden-failures LAW is not violated. It is a
+   **compilability** problem, not an honesty one, and #64 will have to decide whether cure 3 requires
+   `Option/expect`'s panic to become a returned value first.
+
+   **Meanwhile the capability is not missing, only the ergonomics:** `:wat::rete::core::PersistentVector/get`
+   is minted, returns `Option<T>`, and is already total — so indexed access with a default is
+   expressible today via `get` + `match`, just verbosely. `nth` would have been the sugar.
+
 ## Related, on the disk
 
 - `DESIGN-STONE-total-the-third-axis.md` · `BRIEF-total-column-honest.md` — the axis and its audit.
