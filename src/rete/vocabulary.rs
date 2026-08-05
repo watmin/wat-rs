@@ -154,6 +154,10 @@ pub(crate) enum ParamType {
     /// Arc 278 #57 round 1b — `PersistentVector<T>` for a named type variable `T`. The
     /// PV trio's container param.
     PersistentVectorOf(&'static str),
+    /// Arc 278 #57 — `PersistentMap<K, V>` for named type variables `K` and `V`. Two
+    /// parameters, unlike every sibling above: a map is keyed, so its container type
+    /// cannot be spelled by the single-var `PersistentVectorOf` shape.
+    PersistentMapOf(&'static str, &'static str),
     /// BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `Vector<T>` for a named
     /// type variable `T`. Added the same way round 1a added `String`/`F64`: `first`'s per-
     /// container rows need one leaf per container, and `Vector` had none yet.
@@ -191,6 +195,10 @@ impl ParamType {
             ParamType::PersistentVectorOf(name) => TypeExpr::Parametric {
                 head: "wat::core::PersistentVector".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
+            },
+            ParamType::PersistentMapOf(k, v) => TypeExpr::Parametric {
+                head: "wat::core::PersistentMap".into(),
+                args: vec![TypeExpr::Path(format!(":{k}")), TypeExpr::Path(format!(":{v}"))],
             },
             ParamType::VectorOf(name) => TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -719,6 +727,34 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentVector/contains?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::Var("T")],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // Arc 278 #57 — the LAST UNSURE-bucket straggler, resolved by AUDIT (the seam's own
+    // instruction: "audit, do not guess"), not by analogy. `persistentmap_contains_key_q_inner`
+    // (`collection/eval.rs:959`) has exactly two exits and they differ in KIND:
+    //
+    //   1. an UNHASHABLE key  -> `Ok(Value::bool(false))`. No raise. This is the PREDICATE
+    //      ruling of DESIGN-STONE-where-admits-only-rete-ops, not a sentinel: the question
+    //      asked is "is this key in the map?", and a value that cannot be a key is not in it.
+    //      `false` is the honest answer, the way `coincident?` answers `false` on a degenerate
+    //      operand. Nothing is absorbed that the caller needed.
+    //   2. a WRONG RECEIVER -> `TypeMismatch` raise. Must-never-happen: this row DECLARES the
+    //      receiver as `PersistentMap<K,V>`, so the checker refuses a non-map before runtime.
+    //
+    // The differential that settles it is the sibling directly above. `PersistentVector/contains?`
+    // was already ruled `total: true` and its impl (`persistentvector_contains_q_inner`) carries
+    // the SAME receiver raise with NO key-hashability guard at all — so this verb is strictly
+    // MORE total than one already ruled total. Refusing it would have been the tighter guard
+    // making the honest path non-compliant.
+    //
+    // Already pure ∧ deterministic (`rete/purity.rs:345`); the audit adds only `total`.
+    ReteOp {
+        type_params: &["K", "V"],
+        rete_name: ":wat::rete::core::PersistentMap/contains-key?",
+        core_name: ":wat::core::PersistentMap/contains-key?",
+        class: OpClass::Alias,
+        params: &[ParamType::PersistentMapOf("K", "V"), ParamType::Var("K")],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
