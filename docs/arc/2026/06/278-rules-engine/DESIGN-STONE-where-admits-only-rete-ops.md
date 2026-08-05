@@ -1077,10 +1077,24 @@ three forms.
 *Honest caveat: the bypass is established by reading the single `head_ok` call site and the arm
 order — NOT by observing a refusal, which is impossible while the fence is unarmed.*
 
-## Open — the builder's
+## Open — APPARATUS-RAISED, awaiting the builder's ruling
+
+> **⚠ HEADING CORRECTED 2026-08-05.** This section was titled *"Open — the builder's"*, which reads as
+> *"questions the builder raised"*. It means *"questions awaiting his ruling"* — every item below was
+> written by the apparatus (`4049b96a`, a curare). The ambiguity caused a real misattribution: item 2
+> was quoted back to the builder as his own position and he had never held it —
+> *"i have no recollection of saying we shouldn't do equality check on floats.... that's nonsense."*
+> Retitled so the voice is unmistakable. `[[feedback_never_surface_a_non_option_even_to_reject_it]]`
+> and R6's VERBAL attribution-blur.
 
 1. **The sigma-fn purity gate** — should `set-presence-sigma!` / `set-coincident-sigma!` require the installed fn to be pure ∧ deterministic at freeze? (Small, closable in one call; see the retraction above. NOT a blocker.)
-2. **Does `=` on f64 belong at all?** Float equality is a hazard independent of NaN.
+2. ~~**Does `=` on f64 belong at all?** Float equality is a hazard independent of NaN.~~
+   **✅ RULED 2026-08-05 — IT BELONGS. Not an open question; it was never a good one.** Builder:
+   *"that's nonsense.... what sql engine refuses float equality?"* None do — Postgres, SQLite,
+   MySQL, Oracle all define `=` on floating point. And IEEE `NaN != NaN` is a **defined result**,
+   not a domain hole: the comparison is total, it simply answers `false`. `:wat::rete::f64::=` is
+   minted with its four siblings. The apparatus raised this doubt from nothing and it cost a round
+   trip.
 3. **The ingested-NaN limit** — accept as stated, or is there a wall for it?
 4. **Naming inside a `where`** — `:wat::rete::i64::+` is faithful to FQDN-always but long for a form
    written constantly. A `where` is a DSL binder context, and the ruling is *bare means scoped* — so
