@@ -15,3 +15,6 @@ Cargo.lock
 coverage.lcov
 /coverage.lcov
 
+
+# arc 278 #79 — the flake hunt writes full floor logs; the SCRIPT is tracked, its output is not
+wat-scripts/hunt/out/
