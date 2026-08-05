@@ -1,11 +1,76 @@
 diff --git a/wat/rete.wat b/wat/rete.wat
-index 3520e2ed..d39ac8cb 100644
+index 3520e2ed..6eeeab28 100644
 --- a/wat/rete.wat
 +++ b/wat/rete.wat
-@@ -680,11 +680,21 @@
+@@ -580,18 +580,40 @@
+    axis <- :wat::rete::Axis
+    span <- :wat::core::Option<wat::kernel::Location>])
+ 
+-;; first-failing-axis — given is-pure/is-det (the SAME booleans a fence's `(and is-pure is-det)`
+-;; already computed), names WHICH axis to explain, mirroring `and`'s left-to-right short-circuit:
+-;; if is-pure held, only is-det could have failed → :Deterministic; else :Pure is reported (checked
+-;; first, exactly as `and` would have short-circuited on it). Never called when both hold — both
+-;; fence call sites reach this only inside the branch where the accept check already failed.
++;; first-failing-axis — given the SAME booleans a fence's `and` already computed, names WHICH axis
++;; to explain, mirroring `and`'s left-to-right short-circuit: report the FIRST conjunct that failed,
++;; because that is the one the caller must fix first. Never called when all hold — every fence call
++;; site reaches this only inside the branch where the accept check already failed.
++;;
++;; ★ THE CHAIN OF RESTRICTIONS, and the ORDER IS THE MESSAGE (builder-ruled 2026-08-05):
++;;
++;;     is-pure  →  is-deterministic  →  is-total  →  is-rete
++;;
++;; Each is measured STRICTLY and separately — *"verbosity is our shield"* (R63/R65: the same
++;; exhaustiveness we pay for in keystrokes is what lets us change meaning later). They are NOT
++;; collapsed even where one arguably implies another: `is-total` is not folded into `is-rete` on
++;; the theory that every rete primitive is total by minting discipline, because
++;;   (a) that discipline is a CONVENTION until a gate enforces it — 5 RETE_OPS rows carry
++;;       `total: false` today (task #80), so the conjunct can genuinely fire; and
++;;   (b) `total?` is a GENERAL language capability, not a rete detail. It shipped callable and
++;;       UNARMED with T1, and an unarmed mechanism is R59's dead protocol — a green floor
++;;       certifying something that has never once run. The `where` fence is its FIRST REAL
++;;       CONSUMER, and proving it here is what earns the right to lean on it elsewhere
++;;       ([[300 ALIVS ARGVIT]] — the consumer is the crucible).
++;; Builder: *"the is-total will have utility beyond rete — prove it works here so we have our
++;; reliable toolkit for further language usage — this is not a one off."*
+ (:wat::core::defn :wat::rete::first-failing-axis
+-  [is-pure <- :wat::core::bool
+-   is-det  <- :wat::core::bool]
++  [is-pure  <- :wat::core::bool
++   is-det   <- :wat::core::bool
++   is-total <- :wat::core::bool]
+   -> :wat::rete::Axis
+-  (:wat::core::if is-pure
+-    :wat::rete::Axis::Deterministic
+-    :wat::rete::Axis::Pure))
++  ;; `cond`, not a nested-`if` ladder — the chain reads top-to-bottom in the SAME order the
++  ;; conjunction short-circuits, so the code and the law have one shape. (A nested `if` here would
++  ;; also trip our own `lint_finds_the_nested_if_ladder`.) Builder: *"use cond over if chaining."*
++  (:wat::core::cond
++    ((:wat::core::not is-pure) :wat::rete::Axis::Pure)
++    ((:wat::core::not is-det)  :wat::rete::Axis::Deterministic)
++    (:else                     :wat::rete::Axis::Total)))
+ 
+ ;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
+ ;; rejection. `context` names the fenced site ("where" / "accumulator"); `failing-axis` is the axis
+@@ -674,17 +696,34 @@
+     (:wat::core::if is-where
+       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
+       (:wat::core::let [expr      (:wat::core::second cond-ch)
+-                        ;; fence: pure ∧ deterministic — raise at compile if false. The message
++                        ;; ★ THE FULL CHAIN OF RESTRICTIONS — pure ∧ deterministic ∧ total ∧ rete.
++                        ;; Each measured STRICTLY and separately; see `first-failing-axis` for why
++                        ;; none is folded into another. Raise at compile if any fails. The message
+                         ;; names the offending head + axis (BRIEF-the-fence-names-the-head); it is
+                         ;; computed lazily by `Option/expect` (only on the None/reject branch), so
                          ;; the diagnostic walk never runs on an accepted expr.
                          is-pure   (:wat::rete::pure? expr)
                          is-det    (:wat::rete::deterministic? expr)
++                        ;; TOTAL, ARMED — the first real consumer of `total?`, which shipped with
++                        ;; T1 callable and unarmed. A partial op inside a `where` is the hazard the
++                        ;; whole endeavour exists to remove: there is no jump-table opcode for
++                        ;; "raises", so #49a's compiled executor cannot dispatch one.
++                        is-total  (:wat::rete::total? expr)
 +                        ;; #57 LAW A, ARMED. "The entire rete query language may only be composed
 +                        ;; from rete primitives." A core-spelled op is refused even when it is pure,
 +                        ;; deterministic AND total — which is exactly why RetePrimitive is its own
@@ -13,16 +78,55 @@ index 3520e2ed..d39ac8cb 100644
 +                        is-rete   (:wat::rete::primitive? expr)
                          _fence    (:wat::core::Option/expect
 -                                      (:wat::core::if (:wat::core::and is-pure is-det)
-+                                      (:wat::core::if (:wat::core::and is-pure is-det is-rete)
++                                      (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
                                          (:wat::core::Some nil)
                                          :wat::core::None)
 -                                      (:wat::rete::axis-violation-message "where" expr (:wat::rete::first-failing-axis is-pure is-det)))
 +                                      (:wat::rete::axis-violation-message "where" expr
-+                                        ;; the axis is EXACT, never a default: if pure ∧ det both
-+                                        ;; held, the only conjunct left to have failed is law A.
-+                                        (:wat::core::if (:wat::core::and is-pure is-det)
++                                        ;; the axis is EXACT, never a default: if the first three
++                                        ;; conjuncts held, the only one left to have failed is law A.
++                                        (:wat::core::if (:wat::core::and is-pure is-det is-total)
 +                                          :wat::rete::Axis::RetePrimitive
-+                                          (:wat::rete::first-failing-axis is-pure is-det))))
++                                          (:wat::rete::first-failing-axis is-pure is-det is-total))))
                          ;; mint the TestNode
                          network0  (:wat::rete::CompileState/network state0)
                          next-id0  (:wat::rete::CompileState/next-id state0)
+@@ -813,13 +852,19 @@
+                             ;; computed lazily by `Option/expect` (only on the None/reject branch).
+                             is-pure      (:wat::rete::pure? fence-call)
+                             is-det       (:wat::rete::deterministic? fence-call)
++                            ;; TOTAL, ARMED — the accumulator fence is the `where` fence's sibling
++                            ;; (the stone scopes the vocabulary to "a `where` (and the accumulator
++                            ;; fence)"), so it measures the same chain. `is-rete` is NOT added here:
++                            ;; law A governs the rete EXPRESSION language, and widening it to this
++                            ;; surface is its own strike, not a side effect of this one.
++                            is-total     (:wat::rete::total? fence-call)
+                             _acc-fence   (:wat::core::Option/expect
+                                              (:wat::core::if is-builtin
+                                                (:wat::core::Some nil)
+-                                               (:wat::core::if (:wat::core::and is-pure is-det)
++                                               (:wat::core::if (:wat::core::and is-pure is-det is-total)
+                                                  (:wat::core::Some nil)
+                                                  :wat::core::None))
+-                                             (:wat::rete::axis-violation-message "accumulator" fence-call (:wat::rete::first-failing-axis is-pure is-det)))
++                                             (:wat::rete::axis-violation-message "accumulator" fence-call (:wat::rete::first-failing-axis is-pure is-det is-total)))
+                             ;; assert items[3] is :from (structural validation)
+                             from-kw      (:wat::core::Option/expect  
+                                              (:wat::core::get cond-ch 3)
+@@ -935,11 +980,14 @@
+   -> :wat::core::i64
+   (:wat::core::let [is-pure   (:wat::rete::pure? item)
+                     is-det    (:wat::rete::deterministic? item)
++                    ;; TOTAL, ARMED. A `:then` item that can raise aborts the fire mid-derivation,
++                    ;; which is the same hazard by a different door.
++                    is-total  (:wat::rete::total? item)
+                     _fence    (:wat::core::Option/expect
+-                                  (:wat::core::if (:wat::core::and is-pure is-det)
++                                  (:wat::core::if (:wat::core::and is-pure is-det is-total)
+                                     (:wat::core::Some nil)
+                                     :wat::core::None)
+-                                  (:wat::rete::axis-violation-message "then" item (:wat::rete::first-failing-axis is-pure is-det)))
++                                  (:wat::rete::axis-violation-message "then" item (:wat::rete::first-failing-axis is-pure is-det is-total)))
+                     item-ch   (:wat::core::ast->children item)
+                     head      (:wat::core::first item-ch)
+                     head-val0 (:wat::core::Result/expect
