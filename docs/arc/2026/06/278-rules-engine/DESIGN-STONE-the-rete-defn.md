@@ -81,9 +81,29 @@ declaration, instead of at whatever rule happens to call it.** No new analysis i
 
 ## The mechanism — one marker, one door
 
-**`Function` (`src/value/environment.rs`) has no metadata field today** — `type_params`,
-`param_types`, `ret_type`, `rest_param`, `rest_param_type`, `body`, `closed_env` and nothing else. So
-the declaration needs somewhere to live. That is the entire mechanism cost beyond the form:
+> ⚠ **CORRECTED 2026-08-06 by grounding, before the strike.** The paragraph below originally read
+> *"`Function` has no metadata field today … So the declaration needs somewhere to live"* — which is
+> true of `Function` and **false of the substrate**. There IS already a per-binding metadata store:
+> `SymbolTable.binding_metadata` (`src/value/symbol_table.rs:142`, type at `:16` —
+> `HashMap<String, HashMap<String, WatAST>>`, FQDN → key → AST), populated at registration
+> (`runtime.rs:818/929/1293`) and reachable from `head_ok` with **zero** new plumbing, since `head_ok`
+> already takes `sym: &SymbolTable` (`purity.rs:961`). It would cost no cascade at all.
+>
+> **It is still the wrong home, and the reason is the ruling's real justification:
+> `binding_metadata` is USER-WRITABLE.** `check.rs:4690` instructs users outright —
+> *"use `:wat::core::defn` with metadata-map: `(defn :name {:restricted-to […]} [<args>] -> :<Ret> body)`"* —
+> and `wat/spawn.wat:303` is a live corpus example. So a marker stored there could be **forged**:
+> `(:wat::core::defn :usr::f {:rete-declared true} …)` would set the key with the rete body check
+> never running. That is a lie with a form — R28 `SOLVIMVS NE MENTIRETVR` violated exactly, and the
+> same shape as the `None`-means-skip defect R66 just killed.
+>
+> **A typed field cannot be forged and cannot be misspelled.** The ruling stands; it now stands on a
+> disconfirmed alternative rather than on an absence nobody checked.
+
+**`Function` (`src/value/environment.rs:35`) has exactly nine fields** — `name`, `params`,
+`type_params`, `param_types`, `ret_type`, `rest_param`, `rest_param_type`, `body`, `closed_env` —
+none of them metadata. So the declaration needs a typed home. That is the entire mechanism cost
+beyond the form:
 
 - a new field on `Function` recording that this fn was rete-declared *(and later, its bound)*
 - `head_ok`'s `sym.functions` branch (`src/rete/purity.rs`) changes from **walk the body** to
