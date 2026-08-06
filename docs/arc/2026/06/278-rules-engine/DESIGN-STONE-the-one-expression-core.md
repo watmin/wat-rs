@@ -199,12 +199,18 @@ One is a frontier you can measure; the other is a fact you cannot observe.
   `Lambda` does. A `fn` handed to `foldl` may reference the enclosing frame, so the capture model
   (flat frame + copied captures vs a parent pointer) is an open decision, not a detail. The corpus
   exercises it: `foldl` ×4, `fn` ×4.
-- **STOP-3 — `CallUser` is the biggest open question, and it is not a corner.** The fence proves
-  the callee pure ∧ det ∧ total ∧ rete-composed, but its BODY is arbitrary wat. Two honest routes:
-  (a) compile it too — the real win, but the composition door **admits recursion by design** (the
-  purity walk returns `Ok` on a back-edge), so a compiled call must handle a back-edge; or (b) call
-  the interpreter for the body — cheap, honest, and leaves most of the corpus's user-fn sites
-  interpreted. **Pick (b) first and MEASURE what it leaves on the table.** Do not assume (a).
+- **✅ STOP-3 RESOLVED, and the first answer was wrong (2026-08-06).** I wrote *"call the
+  interpreter for the callee body — cheap, honest"* and defended it as a call boundary. The builder
+  cut it: *"this `CallUser` screams 'we did not achieve totality, a user can surprise us'."*
+  **He is right, and grounding split it into two separate facts.**
+
+  **(i) For COMPILATION there is no gap — the callee LOWERS.** `classify_fn` (`purity.rs`) admits a
+  user fn on law A **iff its body transitively contains only rete primitives**; a native is refused
+  outright (`Axis::RetePrimitive => false`). So an admitted callee is *in the closed language*, and
+  calling the interpreter for it was the `Interp` mistake one level down — treating an in-language
+  construct as foreign. `CallUser` calls a **compiled `Program`**.
+
+  **(ii) For TERMINATION the gap is REAL, and it is exactly one door.** See below.
 - **STOP-4 — evaluation RETURNS A RESULT, always.** `CallFallback` faces the 20 partial rows, but
   `CallUser` can still raise and a `Slot` can be unbound (`RhsOp::Bind` documents that exact
   reachable arm and pins its message byte-for-byte). Do **not** design a non-failing evaluator; the
@@ -230,3 +236,68 @@ already says so.
 `FINDING-the-grid-axes-are-dead-on-run.md`. Step 0's numbers are unaffected (they come from a
 Rust-side test that builds the network natively), but no end-to-end grid claim can be made until
 those four axes are migrated.
+
+## ⛔⛔ THE FIFTH AXIS — the predicate language is NOT total, and it is exactly ONE door
+
+> **Builder, 2026-08-06, on the first draft's `CallUser`:** *"we have been grinding on the totality
+> of this for days maybe a week…… this `CallUser` screams 'we did not achieve totality.. a user can
+> surprise us….'"*
+
+He is right, and the grounding is sharper than the instinct: a user can surprise us in **exactly one
+way**, and it is not the one I drew.
+
+### PROVEN, end to end — `wat-scripts/scratch-pad/probe-rete-predicate-termination-routes.wat`
+
+```
+:route-a-admitted true      <- `:wat::rete::compile` RETURNED for a rule whose `where` calls an
+                               unboundedly-recursive user fn. pure ✓ det ✓ total ✓ rete ✓
+:derived-at-n0 1            <- and it fires correctly at the base case
+:bounded-fold true
+```
+
+A fact carrying `n > 0` hangs the fire **forever, with no diagnostic.** The fence cannot see it,
+because `total` is documented to mean *defined on all inputs, never raises* — **not terminates**.
+
+### There are only two candidate routes, and one is disconfirmed
+
+The closed vocabulary has **no unbounded looping construct**: no `loop`, no `recur`, no `while`, no
+`apply`, no `eval`. Its five HOFs (`foldl`/`foldr`/`map`/`filter`/`reduce`) are **bounded iteration
+over a finite collection**, and nothing in the vocabulary can extend a collection mid-fold.
+
+| route | verdict |
+|---|---|
+| **A** — a NAMED recursive user fn through `classify_fn`'s back-edge (`if seen.contains(fqdn) { return Ok(()) }`) | **OPEN** — proven above |
+| **B** — a `let`-bound lambda referencing itself | **DISCONFIRMED** — `--check` accepts it, the runtime says `unbound symbol: self`. `let` is a SEQUENTIAL scope. Fails loudly; masks nothing. *(That `--check` accepts it at all is a real, benign checker gap — recorded, not chased.)* |
+
+**⇒ Closing the back-edge closes the language.** The rete predicate sub-language becomes
+**strongly normalizing**: every predicate provably terminates.
+
+### It must be a FIFTH AXIS, not a fifth reading of law A
+
+A recursive fn composed only of rete ops genuinely **satisfies** `RetePrimitive` — refusing it there
+would make the diagnostic lie (*"not a rete primitive"* about something that is). This is #57's own
+reasoning, quoted from the `enum::=` row: *"RetePrimitive is its own axis and not a fourth reading
+of :Pure."* The same argument mints a fifth:
+
+```
+is-pure ∧ is-deterministic ∧ is-total ∧ is-rete ∧ IS-TERMINATING
+```
+
+`classify_fn` already detects the back-edge and already threads `seen`. The change is to **report**
+it on the new axis instead of silently returning `Ok`. And the wall for adding an axis **already
+exists**: `Axis::ALL` plus `axis_variant_names_round_trip_through_one_door` go non-exhaustive and
+name the new variant at the compiler.
+
+### ★ The totality cut and the COMPILER cut are the same cut
+
+Without recursion, a `CallUser` callee can be **INLINED** — inlining always terminates — which
+removes the call boundary entirely and makes the compiled predicate one flat closed tree. So closing
+the back-edge is not a tax paid for safety; it is what makes the IR's best form reachable.
+
+**What it costs, measured:** 26 user fns are called from `where` predicates today. **Zero** are
+recursive; **zero** reach a cycle transitively. (94 recursive user fns exist elsewhere in the
+corpus, so the idiom is common — it simply has not entered a predicate yet.) **The cut is free
+today and gets more expensive every day it is not made.**
+
+Filed as its own task. The RULING is the builder's — this stone records that the door is open,
+proven, and that it is the only one.
