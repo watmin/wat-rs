@@ -570,3 +570,67 @@ The corpus census quoted earlier (`max depth 7, max nodes 9`) came from a **thro
 the durable instrument: the gate walks the corpus, reports the distribution, and goes red when a
 predicate drifts toward the limit — so the headroom claim stays checkable instead of being a number
 someone once ran.
+
+## ITERATION AS THE ONLY REPETITION — the concerns, measured
+
+> **Builder:** *"killing recursion… that's a very strong case for imposing just iterations - do we…
+> have concerns with iterations here?"*
+
+Three, and the vocabulary already closes two of them.
+
+### 1. The iteration count is DATA-DEPENDENT — and it CANNOT BE MANUFACTURED
+
+`foldl f init coll` runs `len(coll)` times. If `coll` is a `?var` bound to a fact field, that length
+is not known at compile time. **That is normal and it is exactly SQL's deal** — a `WHERE` over a
+table scans N rows; nobody calls that a defect.
+
+**But the sharper property is what is ABSENT.** Grounded against `RETE_OPS`, the growth /
+sequence-generating rows are:
+
+```
+['core::String/concat']        ← strings only, and nothing folds over a string
+```
+
+**No `range`. No `repeat`. No `iterate`.** In Clojure you write `(foldl f 0 (range n))` and turn a
+*number* into n iterations. **We cannot.** A fact carrying `n = 1_000_000_000` cannot become a
+billion iterations, because there is no row that turns a scalar into a sequence.
+
+⇒ **The only way to get a long iteration is to have RECEIVED a long collection.** Work is bounded by
+the data that actually arrived, never by a number a fact happens to carry.
+
+### 2. Can a collection GROW mid-fold? — No.
+
+No `conj`, no `assoc`, no `push`, no `append`, no collection `concat`. A fold's accumulator cannot
+grow unboundedly, and a fold's output cannot feed a longer fold. Collections are **constructed at a
+fixed literal arity** (`(PersistentVector a b c)`) or **received**; they are never extended.
+
+### 3. ★ NESTED iteration is the REAL concern — and it is countable
+
+`(foldl f 0 (map g xs))`, or a fold whose body folds, is `O(n·m)`. With k nested folds, `O(n^k)`. The
+node bound limits how many fold *sites* exist; it does not limit the *product*.
+
+**This is a THIRD number, and it computes in the same walk:**
+
+| number | bounds |
+|---|---|
+| `depth` | the **stack** |
+| `nodes` | the **program** (fully inlined) |
+| **`fold_nesting`** | **the exponent on the data** |
+
+**Measured across the whole corpus: max nesting = 1.** Four HOF call sites in 174 predicates, none
+nested. So a limit here is not binding on anything real — but unlike the other two, this is the one
+where a single sloppy predicate could genuinely hurt, and it is worth having the number.
+
+### Why iteration is categorically better than recursion, stated once
+
+**Recursion's defect was never that it repeats.** It is that the repetition count is **not a function
+of anything visible** — it is determined by the callee's own internal logic, and you cannot read it
+off the call site, the types, or the data.
+
+**An iteration's count is the length of a thing you are holding.** It is a value. It is in the fact.
+It is inspectable, measurable, and — because there is no `range` — unconjurable from a scalar.
+
+Iteration does not merely *bound* the repetition; it turns the bound from an **unknowable** into an
+**inspectable value**. That is why every bounded-execution system lands here: eBPF (`bpf_loop` with a
+count), SQL (scan N rows), Datalog (fixpoint over finite relations), total FP (structural recursion
+on a decreasing argument). We are in good company, and we got there by subtraction.
