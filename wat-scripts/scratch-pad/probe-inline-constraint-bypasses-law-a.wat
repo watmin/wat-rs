@@ -40,7 +40,7 @@
 ;; generic `>`. It compiles. Law A does not govern the whole LHS.
 (:wat::rete::defrule :probe::via-inline-constraint
   :when
-  [(:probe::Reading (?loc <- :location) (?v <- :value) (:wat::core::> :value 10))]
+  [(:probe::Reading (?loc <- :location) (?v <- :value) (:wat::rete::core::i64::> :value 10))]
   :then
   [(:probe::Flagged :location ?loc)])
 

@@ -42,7 +42,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
 use crate::rete::kernel::class_field_names;
 use crate::runtime::{SymbolTable, Value};
 
@@ -240,7 +240,16 @@ fn collect_equalities(
 ) {
     for clause in clauses {
         match classify_rete_clause(clause) {
-            ReteClauseShape::Constraint { op: ":wat::core::=", lhs, rhs } => {
+            // The ONE DOOR (`matcher::classify_constraint_head`) — an EQUALITY at any spelling, so
+            // the per-type rete rows feed the discrimination tree exactly as the generic core `=`
+            // used to. Matching a literal string here is what made this arm a silent
+            // migration hazard: `_ => {}` below would have quietly stopped collecting
+            // discriminators, degrading the tree to a linear alpha scan with the floor still green.
+            // (Mutation-proven 2026-08-06: `alpha_tree_discriminates_candidates_to_about_one_at_50_100`
+            // does catch it — 1.000 -> 50.000 candidates/fact — but only because that gate exists.)
+            ReteClauseShape::Constraint { op, lhs, rhs }
+                if matches!(classify_constraint_head(op), Some((CmpKind::Eq, _))) =>
+            {
                 let pair = field_literal_pair(lhs, rhs, var_to_field)
                     .or_else(|| field_literal_pair(rhs, lhs, var_to_field));
                 if let Some((field, value)) = pair {

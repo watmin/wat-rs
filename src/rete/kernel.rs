@@ -3823,11 +3823,11 @@ mod tests {
   [(:weather::Temperature\n\
      (?loc <- :location)\n\
      (?c   <- :celsius)\n\
-     (:wat::core::< ?c 20))\n\
+     (:wat::rete::core::i64::< ?c 20))\n\
    (:weather::WindSpeed\n\
      (?loc <- :location)\n\
      (?k   <- :kph)\n\
-     (:wat::core::> ?k 30))]\n\
+     (:wat::rete::core::i64::> ?k 30))]\n\
   :then\n\
   [(:weather::ColdAndWindy ?loc)])\n\
 \n\
@@ -4031,7 +4031,7 @@ mod tests {
 
     /// P11/3a — `root_join_seeds_one_token_per_element`:
     ///
-    /// 1-condition rule `(:user::Temp (?t <- :value) (:wat::core::> ?t 20))`.
+    /// 1-condition rule `(:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20))`.
     /// After alpha+root-join passes with one matching fact inserted (Temp 25):
     ///   (1) exactly one beta node (the RootJoinNode) is populated,
     ///   (2) it holds exactly one Token,
@@ -4070,7 +4070,7 @@ mod tests {
         // a raw Rule with a single condition + empty RHS, compiled and one fact inserted.
         let session = parse_and_eval(
             "(:wat::core::let \
-               [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))\
+               [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))\
                 rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
                 sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))]\
@@ -6057,8 +6057,8 @@ mod tests {
 \n\
 (:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule\n\
   (:wat::core::let [prev (:wat::core::i64::- k 1)\n\
-                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::core::= ?l (:wat::core::unquote prev))))\n\
-                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::core::= ?m (:wat::core::unquote prev))))\n\
+                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::core::i64::= ?l (:wat::core::unquote prev))))\n\
+                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::core::i64::= ?m (:wat::core::unquote prev))))\n\
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))\n\
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]\n\
     (:wat::rete::Rule :name (:wat::core::i64::to-string k)\n\

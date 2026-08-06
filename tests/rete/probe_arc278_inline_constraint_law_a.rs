@@ -109,7 +109,6 @@ fn assert_refusal_names_head(msg: &str, head: &str) {
 /// RED. Generic `>` inside a fact pattern must be refused — it is a non-rete head on the LHS,
 /// and it is PARTIAL (`compare_values`'s `?`).
 #[test]
-#[ignore = "RED GATE — the inline alpha constraint bypasses law A. Un-ignore as the strike lands; see DESIGN-STONE-inline-constraint-admits-non-rete.md. All four rows are RED on purpose and each on a DIFFERENT gap; none passes vacuously."]
 fn untyped_ordering_constraint_is_refused() {
     let r = run_fixture(UNTYPED_ORDERING);
     let msg = r.expect_err(
@@ -123,7 +122,6 @@ fn untyped_ordering_constraint_is_refused() {
 /// discrimination tree keys on (`alpha_tree.rs:243`) — migrating it is the half with the silent
 /// failure mode, so it gets its own row rather than riding on the ordering one.
 #[test]
-#[ignore = "RED GATE — the inline alpha constraint bypasses law A. Un-ignore as the strike lands; see DESIGN-STONE-inline-constraint-admits-non-rete.md. All four rows are RED on purpose and each on a DIFFERENT gap; none passes vacuously."]
 fn untyped_equality_constraint_is_refused() {
     let r = run_fixture(UNTYPED_EQUALITY);
     let msg = r.expect_err(
@@ -139,7 +137,6 @@ fn untyped_equality_constraint_is_refused() {
 /// two facts are staged (`value 42`, `value 3`) and exactly ONE satisfies `> 10`. A constraint that
 /// parsed but did not filter yields 2; one that filtered everything yields 0.
 #[test]
-#[ignore = "RED GATE — the inline alpha constraint bypasses law A. Un-ignore as the strike lands; see DESIGN-STONE-inline-constraint-admits-non-rete.md. All four rows are RED on purpose and each on a DIFFERENT gap; none passes vacuously."]
 fn per_type_constraint_is_admitted_and_discriminates() {
     let n = run_fixture(PER_TYPE).expect(
         "the per-type rete spelling must be ADMITTED — it is the form the fix forces users onto",
@@ -158,7 +155,6 @@ fn per_type_constraint_is_admitted_and_discriminates() {
 /// After the fix the question stops existing, because the clause cannot be written: the lhs is a
 /// field keyword of a declared `defrecord`, so its type is in hand at compile time.
 #[test]
-#[ignore = "RED GATE — the inline alpha constraint bypasses law A. Un-ignore as the strike lands; see DESIGN-STONE-inline-constraint-admits-non-rete.md. All four rows are RED on purpose and each on a DIFFERENT gap; none passes vacuously."]
 fn cross_type_constraint_is_refused_at_compile() {
     let r = run_fixture(CROSS_TYPE);
     let msg = r.expect_err(

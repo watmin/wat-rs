@@ -12,10 +12,10 @@
   (:wat::rete::compile
     (:wat::core::PersistentVector
       (:wat::rete::make-rule "usr::hot-rule"
-        (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))])
+        (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Hot :c ?c)]))
       (:wat::rete::make-rule "usr::warn-rule"
-        (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))])
+        (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Warn :c ?c)])))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -44,7 +44,7 @@ use std::fmt;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, ConstraintSpelling, ReteClauseShape};
 use crate::span::Span;
 use crate::types::{EnumVariant, TypeDef, TypeEnv};
 
@@ -146,6 +146,53 @@ pub enum ReteCheckErrorKind {
         fact_type: String,
         got: usize,
     },
+    /// LAW A at the inline alpha constraint (`DESIGN-STONE-inline-constraint-admits-non-rete.md`).
+    /// A constraint clause inside a fact pattern is spelled with the GENERIC core comparator
+    /// (`:wat::core::>`), which is not a rete primitive — and, for the four orderings, is PARTIAL:
+    /// it routes through `compare_values`, which errors on incomparable operands.
+    ///
+    /// This is its own variant rather than `MalformedClause` deliberately: the clause is
+    /// well-formed, it is NON-RETE, and saying "malformed" would teach the wrong fix (R29
+    /// `RVINA ERVDIT` — the ruin IS the lesson, so it must name the right one). `twin` carries the
+    /// per-type spelling to use, which is the whole remedy.
+    NonReteConstraint {
+        rule: String,
+        fact_type: String,
+        head: String,
+        twin: String,
+    },
+    /// A per-type rete constraint applied to a field of a DIFFERENT declared type —
+    /// `(:wat::rete::core::i64::> :location 10)` where `:location` is `String`.
+    ///
+    /// This is the payoff of forcing the per-type spelling: monomorphising does not merely make
+    /// the comparison faster, it moves the incomparable-operands case from a runtime question to
+    /// a compile error. Under the generic spelling this clause was admitted and its runtime
+    /// semantics were never proven; now it cannot be written.
+    ConstraintTypeMismatch {
+        rule: String,
+        fact_type: String,
+        head: String,
+        field: String,
+        /// The type the rete row is monomorphic at (`i64`, `string`, …).
+        op_type: String,
+        /// The field's declared type, rendered as wat source.
+        field_type: String,
+    },
+    /// An inline constraint on an operand whose declared type has NO rete comparator at all — a
+    /// record-valued field, a collection, an opaque. The rete equality surface is six modules
+    /// (`i64 f64 string bool keyword enum`); there is no `record::=`.
+    ///
+    /// Two records ARE comparable at runtime (`values_equal` would do it) — this is not a runtime
+    /// limitation but the CLOSED SET saying the form is not expressible. Its own variant rather
+    /// than `ConstraintTypeMismatch`, because "use the comparator for X" is not the fix: there
+    /// isn't one, and suggesting otherwise would teach a form that cannot be written.
+    ConstraintTypeNotComparable {
+        rule: String,
+        fact_type: String,
+        head: String,
+        operand: String,
+        field_type: String,
+    },
 }
 
 impl fmt::Display for ReteCheckErrorKind {
@@ -184,6 +231,28 @@ impl fmt::Display for ReteCheckErrorKind {
                 "defrule `{rule}`: `:then` insert nests a raw positional construction of `:{fact_type}` \
                  with {got} argument(s) — positional construction at a bare aggregate name is retired; \
                  use kwargs (`:field val …`) or a single positional value"
+            ),
+            ReteCheckErrorKind::NonReteConstraint { rule, fact_type, head, twin } => write!(
+                f,
+                "defrule `{rule}` (`:{fact_type}`): `{head}` is not a rete primitive — a rule condition \
+                 admits only :wat::rete:: ops. Use the per-type spelling, e.g. `{twin}`: the rete \
+                 surface is per-type so the comparison is TOTAL (the generic form has no answer for \
+                 operands that are not comparable)"
+            ),
+            ReteCheckErrorKind::ConstraintTypeNotComparable {
+                rule, fact_type, head, operand, field_type,
+            } => write!(
+                f,
+                "defrule `{rule}` (`:{fact_type}`): `{head}` compares operand `{operand}`, declared \
+                 `{field_type}`, for which rete has NO comparator — the rete equality surface is \
+                 i64/f64/string/bool/keyword/enum. Compare a scalar FIELD of it instead"
+            ),
+            ReteCheckErrorKind::ConstraintTypeMismatch {
+                rule, fact_type, head, field, op_type, field_type,
+            } => write!(
+                f,
+                "defrule `{rule}` (`:{fact_type}`): `{head}` compares at `{op_type}`, but field \
+                 `:{field}` is declared `{field_type}` — use the rete comparator for `{field_type}`"
             ),
         }
     }
@@ -404,8 +473,13 @@ fn validate_and_reorder_rule(mr: &mut [WatAST], types: &TypeEnv, errors: &mut Ve
 
     // :when (mr[2] = (quote [<cond>…])) — validate only, no rewrite.
     if let Some(when_conds) = quote_vector(mr.get(2)) {
+        // ★ Binds collected across EVERY condition of the rule, before any is validated. A join
+        // variable is bound in one pattern and compared in another, so a per-pattern map would
+        // leave it unresolvable — and "unresolvable" was quietly meaning "skip the check". It is
+        // knowable; it just is not knowable from one pattern.
+        let binds = collect_rule_bind_types(when_conds, types);
         for cond in when_conds {
-            validate_when_entry(cond, &rule_name, types, errors);
+            validate_when_entry(cond, &rule_name, types, &binds, errors);
         }
     }
 
@@ -436,7 +510,13 @@ fn quote_vector(form: Option<&WatAST>) -> Option<&[WatAST]> {
 /// Dispatch one top-level `:when`-entry — mirrors `compile-condition`'s own dispatch
 /// (`wat/rete.wat`: is-where / is-not / is-exists / is-accumulate / else-plain), via the
 /// SHARED classifier so this never drifts into a second hand-rolled grammar.
-fn validate_when_entry(cond: &WatAST, rule_name: &str, types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
+fn validate_when_entry(
+    cond: &WatAST,
+    rule_name: &str,
+    types: &TypeEnv,
+    binds: &std::collections::HashMap<String, String>,
+    errors: &mut Vec<ReteCheckError>,
+) {
     match classify_rete_clause(cond) {
         // Design call 3 — a `where` fence's outer shape is already confirmed by the
         // classifier (2-item, `:wat::rete::where` head); its interior expr is out of scope.
@@ -445,7 +525,7 @@ fn validate_when_entry(cond: &WatAST, rule_name: &str, types: &TypeEnv, errors: 
         // SAME full validation (registered type + every clause + every field-ref) as any
         // top-level condition.
         ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
-            validate_plain_condition(inner, rule_name, types, errors);
+            validate_plain_condition(inner, rule_name, types, binds, errors);
         }
         // Design call 3 — accumulate's `:from` inner gets fact-type-HEAD validation only;
         // its own clauses and the acc-form's reducer body are out of scope.
@@ -455,13 +535,19 @@ fn validate_when_entry(cond: &WatAST, rule_name: &str, types: &TypeEnv, errors: 
         // Every other shape (including Bind/Constraint/And/Or/Unrecognized, none of which are
         // legitimate TOP-level :when entries) falls to the plain-condition path: a top-level
         // entry that is not a wrapper must be `(:Type clause…)`.
-        _ => validate_plain_condition(cond, rule_name, types, errors),
+        _ => validate_plain_condition(cond, rule_name, types, binds, errors),
     }
 }
 
 /// Validate a plain `(:Type clause…)` condition: `Type` must be a registered aggregate, and
 /// every clause must be a recognized shape whose field-refs name real fields.
-fn validate_plain_condition(cond: &WatAST, rule_name: &str, types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
+fn validate_plain_condition(
+    cond: &WatAST,
+    rule_name: &str,
+    types: &TypeEnv,
+    binds: &std::collections::HashMap<String, String>,
+    errors: &mut Vec<ReteCheckError>,
+) {
     let items = match cond {
         WatAST::List(items, _) if !items.is_empty() => items,
         _ => {
@@ -477,6 +563,9 @@ fn validate_plain_condition(cond: &WatAST, rule_name: &str, types: &TypeEnv, err
         }
     };
     let fact_type = head_kw.trim_start_matches(':').to_string();
+    // Declared types in the SAME declaration order as `field_names`, so a per-type rete
+    // constraint can be checked against the field it actually reads.
+    let field_types = lookup_field_types(types, &fact_type).unwrap_or_default();
     let field_names = match lookup_fields(types, &fact_type) {
         Some(f) => f,
         None => {
@@ -488,34 +577,60 @@ fn validate_plain_condition(cond: &WatAST, rule_name: &str, types: &TypeEnv, err
         }
     };
     for clause in &items[1..] {
-        validate_clause(clause, rule_name, &fact_type, &field_names, errors);
+        validate_clause(
+            clause,
+            &ClauseCtx {
+                rule_name,
+                fact_type: &fact_type,
+                field_names: &field_names,
+                field_types: &field_types,
+                binds,
+                types,
+            },
+            errors,
+        );
     }
 }
 
 /// Validate a single within-condition clause (recursing `and`/`or`/`not`), checking every
 /// bind/constraint field-ref against `field_names`. The free `?var` side is never checked.
+/// Everything a clause check needs about the CONDITION it sits in — invariant across the clause
+/// walk, so it travels as one value rather than seven positional arguments. A struct over an alias
+/// for the reason `AlphaTreeFixture` is one (`kernel.rs`): the call sites read by NAME, and the
+/// alternative here was an `#[allow(clippy::too_many_arguments)]`, which silences the signal
+/// instead of answering it.
+pub(crate) struct ClauseCtx<'a> {
+    rule_name: &'a str,
+    fact_type: &'a str,
+    field_names: &'a [String],
+    field_types: &'a [String],
+    /// `?var` -> declared field type, collected across the WHOLE rule (join vars included).
+    binds: &'a std::collections::HashMap<String, String>,
+    types: &'a TypeEnv,
+}
+
 fn validate_clause(
     clause: &WatAST,
-    rule_name: &str,
-    fact_type: &str,
-    field_names: &[String],
+    ctx: &ClauseCtx<'_>,
     errors: &mut Vec<ReteCheckError>,
 ) {
+    let ClauseCtx { rule_name, fact_type, field_names, field_types, binds, types } = *ctx;
     match classify_rete_clause(clause) {
         ReteClauseShape::Bind { field, .. } => {
             check_field(field, clause, rule_name, fact_type, field_names, errors);
         }
-        ReteClauseShape::Constraint { lhs, rhs, .. } => {
+        ReteClauseShape::Constraint { op, lhs, rhs } => {
             check_operand_field_ref(lhs, clause, rule_name, fact_type, field_names, errors);
             check_operand_field_ref(rhs, clause, rule_name, fact_type, field_names, errors);
+            check_constraint_head(op, lhs, rhs, clause, ctx, errors);
         }
         ReteClauseShape::And(subs) | ReteClauseShape::Or(subs) => {
             for sub in subs {
-                validate_clause(sub, rule_name, fact_type, field_names, errors);
+                validate_clause(sub, ctx, errors);
             }
         }
         ReteClauseShape::Not(sub) => {
-            validate_clause(sub, rule_name, fact_type, field_names, errors);
+            validate_clause(sub, ctx, errors);
         }
         // Clause-level `where` is the stone-6 STOP arm (always `None` at fire time); its
         // interior is out of scope (design call 3) — nothing further to check.
@@ -609,6 +724,266 @@ fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<Vec<String>> {
     match types.get(&type_key) {
         Some(TypeDef::Aggregate(a)) => Some(a.field_names().map(|s| s.to_string()).collect()),
         _ => None,
+    }
+}
+
+/// Sibling of `lookup_fields`, same key and same registry — the DECLARED TYPE of each field, in
+/// declaration order, so a per-type rete constraint can be checked against the field it reads.
+/// Kept beside its twin rather than folded into it: every existing caller wants only the names,
+/// and widening the shared return would make them all pay for a walk they do not use.
+fn lookup_field_types(types: &TypeEnv, fact_type: &str) -> Option<Vec<String>> {
+    let type_key = format!(":{fact_type}");
+    match types.get(&type_key) {
+        Some(TypeDef::Aggregate(a)) => {
+            // `check::format_type` is the substrate's ONE renderer for a TypeExpr — not a second
+            // hand-rolled Display, so the message reads exactly as the checker's do.
+            Some(a.field_types().map(crate::check::format_type).collect())
+        }
+        _ => None,
+    }
+}
+
+/// The rete `ty` segment a declared field type is comparable at — `:wat::core::i64` -> `i64`.
+///
+/// The rete equality surface is SIX modules (verified against `RETE_OPS`): the five primitives
+/// below plus `enum`, which needs the registry to recognise — an enum field's declared type is a
+/// user path like `:my::Level`, not a fixed name. `:wat::rete::core::enum::=` exists and its own
+/// note records why it works: head-substitution reaches core `=`, whose `values_equal` already
+/// compares enum values.
+///
+/// ⚠ `None` is NOT "fine, skip it" — see `check_constraint_head`'s use. It means the substrate has
+/// **no rete comparator for that type at all** (a record-valued field, a collection, an opaque),
+/// so an inline constraint on it is not expressible. Two records ARE comparable at runtime
+/// (`values_equal` would do it) but there is no `record::=` row, and minting one is its own ruling
+/// — not something to smuggle in by making this function lenient.
+///
+/// A first draft of this file handled only the five primitives and let `None` mean "skip the
+/// check", which silently admitted an enum-typed constraint — the exact vacuous-arm shape this arc
+/// keeps pulling out. Caught by the builder: *"records may hold other records… and enums… and
+/// whatever else we can express in rete's closed syntax."*
+fn rete_type_segment_of(field_type: &str, types: &TypeEnv) -> Option<&'static str> {
+    match field_type.trim_start_matches(':') {
+        "wat::core::i64" => Some("i64"),
+        "wat::core::f64" => Some("f64"),
+        "wat::core::String" => Some("string"),
+        "wat::core::bool" => Some("bool"),
+        "wat::core::Keyword" => Some("keyword"),
+        // An enum is named by a user path; the registry is the only way to know.
+        other => match types.get(&format!(":{other}")) {
+            Some(TypeDef::Enum(_)) => Some("enum"),
+            _ => None,
+        },
+    }
+}
+
+/// LAW A + the per-type type check for an inline alpha constraint
+/// (`DESIGN-STONE-inline-constraint-admits-non-rete.md`).
+///
+/// The grammar deliberately still ACCEPTS the generic core spelling so this function can name it
+/// and point at its per-type twin — R29 `RVINA ERVDIT`: refusing it as `MalformedClause` would
+/// teach the wrong fix, because the clause is well-formed, it is NON-RETE.
+///
+/// ★ NOTHING HERE IS GUESSED. An operand's type is always DERIVABLE, and a first draft of this
+/// function defaulted to `i64` whenever it saw a `?var` — which was not a limitation of the
+/// information available, it was the function not looking it up. The builder's cut: *"why is any
+/// of this a guess? we know the type's value from the record def."* Correct — three exhaustive
+/// sources, in order, and no fallback after them:
+///   1. a `:field` operand   -> the field's DECLARED type
+///   2. a `?var` operand     -> the field its `(?v <- :field)` bind names, then that field's type
+///   3. a LITERAL operand    -> the literal's own type
+///
+/// If none resolves (a `?var` bound nowhere in the rule), the type is genuinely not knowable — and
+/// then this reports the law-A violation WITHOUT a per-type suggestion rather than inventing one.
+/// A wrong suggestion teaches a wrong fix.
+fn check_constraint_head(
+    op: &str,
+    lhs: &WatAST,
+    rhs: &WatAST,
+    clause: &WatAST,
+    ctx: &ClauseCtx<'_>,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let ClauseCtx { rule_name, fact_type, field_names, field_types, binds, types } = *ctx;
+    let Some((_, spelling)) = classify_constraint_head(op) else { return };
+
+    let resolved: Vec<(&WatAST, OperandType)> = [lhs, rhs]
+        .into_iter()
+        .map(|o| (o, resolve_operand_type(o, field_names, field_types, binds, types)))
+        .collect();
+
+    // A type rete cannot compare is an ERROR on BOTH spellings — the form is not expressible.
+    let mut not_comparable = false;
+    for (operand, ty) in &resolved {
+        if let OperandType::NotComparable(declared) = ty {
+            not_comparable = true;
+            errors.push(ReteCheckError {
+                span: clause.span().clone(),
+                kind: ReteCheckErrorKind::ConstraintTypeNotComparable {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.to_string(),
+                    head: op.to_string(),
+                    operand: describe_operand(operand),
+                    field_type: declared.clone(),
+                },
+            });
+        }
+    }
+    if not_comparable {
+        return;
+    }
+
+    match spelling {
+        ConstraintSpelling::CoreGeneric => {
+            let suffix = op.rsplit("::").next().unwrap_or(op);
+            let twin = match resolved.iter().find_map(|(_, t)| match t {
+                OperandType::Resolved(ty) => Some(*ty),
+                _ => None,
+            }) {
+                Some(ty) => format!(":wat::rete::core::{ty}::{suffix}"),
+                // Every operand is an unbound `?var`. Do NOT name a type the operands do not
+                // justify — a wrong suggestion teaches a wrong fix.
+                None => format!(":wat::rete::core::<type-of-the-operands>::{suffix}"),
+            };
+            errors.push(ReteCheckError {
+                span: clause.span().clone(),
+                kind: ReteCheckErrorKind::NonReteConstraint {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.to_string(),
+                    head: op.to_string(),
+                    twin,
+                },
+            });
+        }
+        ConstraintSpelling::Rete { ty: op_type } => {
+            for (operand, ty) in &resolved {
+                match ty {
+                    OperandType::Resolved(actual) if *actual != op_type => {
+                        errors.push(ReteCheckError {
+                            span: clause.span().clone(),
+                            kind: ReteCheckErrorKind::ConstraintTypeMismatch {
+                                rule: rule_name.to_string(),
+                                fact_type: fact_type.to_string(),
+                                head: op.to_string(),
+                                field: describe_operand(operand),
+                                op_type: op_type.to_string(),
+                                field_type: (*actual).to_string(),
+                            },
+                        });
+                    }
+                    // Agrees — nothing to report.
+                    OperandType::Resolved(_) => {}
+                    // Reported above and returned before reaching here.
+                    OperandType::NotComparable(_) => {}
+                    // Explicitly out of scope (see the variant's doc), NOT a silent pass.
+                    OperandType::UnboundInThisRule => {}
+                }
+            }
+        }
+    }
+}
+
+/// Collect every `(?v <- :field)` bind in the WHOLE rule, resolved to the field's declared type.
+///
+/// Rule-wide, not per-pattern, because a join variable is bound in one condition and compared in
+/// another. `not`/`exists` wrappers are unwrapped so their inner pattern's binds count too.
+fn collect_rule_bind_types(
+    when_conds: &[WatAST],
+    types: &TypeEnv,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    for cond in when_conds {
+        // Unwrap the wrappers that carry a plain pattern inside.
+        let pattern = match classify_rete_clause(cond) {
+            ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => inner,
+            _ => cond,
+        };
+        let WatAST::List(items, _) = pattern else { continue };
+        let Some(WatAST::Keyword(head, _)) = items.first() else { continue };
+        let fact_type = head.trim_start_matches(':');
+        let (Some(names), Some(tys)) =
+            (lookup_fields(types, fact_type), lookup_field_types(types, fact_type))
+        else {
+            continue;
+        };
+        for clause in items.iter().skip(1) {
+            if let ReteClauseShape::Bind { var, field } = classify_rete_clause(clause) {
+                if let Some(idx) = names.iter().position(|f| f == field) {
+                    if let Some(t) = tys.get(idx) {
+                        out.insert(var.to_string(), t.clone());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// What an operand's type resolution actually yielded. THREE outcomes, all explicit — there is no
+/// `Option` here on purpose.
+///
+/// The first draft returned `Option<&str>` and `None` meant "skip the check". The builder's cut:
+/// *"'none means skip' feels like a catastrophic bug?"* — it is, and it is this arc's most-repeated
+/// class: an arm that discards while looking like diligence. `None` was silently covering two
+/// completely different situations (a type rete genuinely cannot compare, and a variable we simply
+/// had not bothered to resolve), and passing both.
+enum OperandType {
+    /// Resolved to a rete module segment — checkable.
+    Resolved(&'static str),
+    /// A real declared type for which rete has NO comparator (a record, a collection, an opaque).
+    /// An ERROR, never a pass.
+    NotComparable(String),
+    /// A `?var` bound NOWHERE in this rule. Not a type question — an unbound-variable question,
+    /// which needs the binder analysis `RhsUnresolvableOperand`'s doc already scopes out (an `Or`
+    /// arm binds conditionally, `exists` binds nothing outward). Named so it is visibly out of
+    /// scope rather than indistinguishable from a pass.
+    UnboundInThisRule,
+}
+
+/// An operand's type — field ref, then bound `?var` (rule-wide), then literal.
+fn resolve_operand_type(
+    operand: &WatAST,
+    field_names: &[String],
+    field_types: &[String],
+    binds: &std::collections::HashMap<String, String>,
+    types: &TypeEnv,
+) -> OperandType {
+    let declared: String = match operand {
+        // 1. `:field` — the declared type.
+        WatAST::Keyword(k, _) => {
+            let field = k.trim_start_matches(':');
+            match field_names.iter().position(|f| f == field).and_then(|i| field_types.get(i)) {
+                Some(t) => t.clone(),
+                // An unknown field is already reported by `check_operand_field_ref`; do not
+                // double-report it here as a type problem.
+                None => return OperandType::UnboundInThisRule,
+            }
+        }
+        // 2. `?var` — the field its bind names, anywhere in the rule.
+        WatAST::Symbol(sym, _) if sym.as_str().starts_with('?') => {
+            match binds.get(sym.as_str()) {
+                Some(t) => t.clone(),
+                None => return OperandType::UnboundInThisRule,
+            }
+        }
+        // 3. a literal — its own type, known outright.
+        WatAST::IntLit(..) => return OperandType::Resolved("i64"),
+        WatAST::FloatLit(..) => return OperandType::Resolved("f64"),
+        WatAST::StringLit(..) => return OperandType::Resolved("string"),
+        WatAST::BoolLit(..) => return OperandType::Resolved("bool"),
+        _ => return OperandType::UnboundInThisRule,
+    };
+    match rete_type_segment_of(&declared, types) {
+        Some(seg) => OperandType::Resolved(seg),
+        None => OperandType::NotComparable(declared),
+    }
+}
+
+/// How to name an operand in a diagnostic: a field by its name, anything else by its source form.
+fn describe_operand(operand: &WatAST) -> String {
+    match operand {
+        WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+        WatAST::Symbol(s, _) => s.as_str().to_string(),
+        other => format!("{other:?}"),
     }
 }
 

@@ -60,22 +60,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_rete_clause, compare_values, ReteClauseShape};
+use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, compare_values, CmpKind, ReteClauseShape};
 use crate::runtime::Value;
 
 // ─── The compiled program ──────────────────────────────────────────────────────
 
-/// One resolved comparison operator — the `Constraint` op string, decided once at compile time
-/// instead of re-matched on every call.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum CmpOp {
-    Eq,
-    NotEq,
-    Lt,
-    Gt,
-    Le,
-    Ge,
-}
+// The comparison operator is `matcher::CmpKind` — the SAME enum the grammar and the interpreter
+// read, decided once here at compile time instead of re-matched on every call. This file used to
+// declare its own identical `CmpKind`; two enums meant two places a new comparison had to be added,
+// which is the duplication the ONE DOOR exists to delete.
 
 /// A resolved operand: exactly the three shapes `resolve_operand` distinguishes at runtime
 /// (`?var` from bindings, `:field` from the fact, or a bare literal) — but resolved to an index
@@ -105,7 +98,7 @@ pub(crate) enum Op {
     /// when `existing` is `Some`).
     BindCheck { field_idx: usize, slot: usize },
     /// `(:wat::core::<op> a b)` — both operands resolved, per `resolve_operand`'s rules.
-    Cmp { op: CmpOp, lhs: Operand, rhs: Operand },
+    Cmp { op: CmpKind, lhs: Operand, rhs: Operand },
     /// `(:wat::rete::or c1 c2 …)` — each branch is its OWN op sequence, tried against a scratch
     /// clone of the current slots (never the live slots): mirrors `eval_clause`'s `Or`, which
     /// always returns the pre-`or` bindings unchanged even on a successful branch.
@@ -234,16 +227,11 @@ fn compile_one(
             }
         },
         ReteClauseShape::Constraint { op, lhs, rhs } => {
-            let cmp = match op {
-                ":wat::core::=" => CmpOp::Eq,
-                ":wat::core::not=" => CmpOp::NotEq,
-                ":wat::core::<" => CmpOp::Lt,
-                ":wat::core::>" => CmpOp::Gt,
-                ":wat::core::<=" => CmpOp::Le,
-                ":wat::core::>=" => CmpOp::Ge,
-                // classify_rete_clause only ever produces Constraint for the 6 ops above.
-                _ => unreachable!("classify_rete_clause: Constraint op outside the recognized set"),
-            };
+            // The ONE DOOR (`matcher::classify_constraint_head`) — the constraint vocabulary is
+            // written down once, in `matcher.rs`, and read here rather than re-listed. A `None`
+            // means this file and the grammar disagree, which is our bug, not the caller's.
+            let (cmp, _spelling) = classify_constraint_head(op)
+                .unwrap_or_else(|| unreachable!("classify_rete_clause admitted a Constraint head the ONE DOOR rejects: {op}"));
             // An operand that cannot be resolved AT ALL (an unbound `?var` — statically proven
             // unbound by this point in the scope, since nothing earlier in this exact walk
             // recorded it; or a `:field` this class does not declare) makes `resolve_operand`
@@ -433,13 +421,13 @@ fn read_operand(operand: &Operand, slots: &[Option<Value>], fact_fields: &[Value
 /// returning `None` (incompatible types) makes the WHOLE clause fail rather than yielding some
 /// boolean — `compare_values` is REUSED from `matcher.rs`, not reimplemented, so an ordering
 /// definition can never drift between the interpreter and the compiled executor.
-fn eval_cmp(op: CmpOp, a: &Value, b: &Value) -> bool {
+fn eval_cmp(op: CmpKind, a: &Value, b: &Value) -> bool {
     match op {
-        CmpOp::Eq => a == b,
-        CmpOp::NotEq => a != b,
-        CmpOp::Lt => matches!(compare_values(a, b), Some(std::cmp::Ordering::Less)),
-        CmpOp::Gt => matches!(compare_values(a, b), Some(std::cmp::Ordering::Greater)),
-        CmpOp::Le => matches!(compare_values(a, b), Some(o) if o != std::cmp::Ordering::Greater),
-        CmpOp::Ge => matches!(compare_values(a, b), Some(o) if o != std::cmp::Ordering::Less),
+        CmpKind::Eq => a == b,
+        CmpKind::NotEq => a != b,
+        CmpKind::Lt => matches!(compare_values(a, b), Some(std::cmp::Ordering::Less)),
+        CmpKind::Gt => matches!(compare_values(a, b), Some(std::cmp::Ordering::Greater)),
+        CmpKind::Le => matches!(compare_values(a, b), Some(o) if o != std::cmp::Ordering::Greater),
+        CmpKind::Ge => matches!(compare_values(a, b), Some(o) if o != std::cmp::Ordering::Less),
     }
 }

@@ -57,19 +57,19 @@
 ;; ══ LAYER 1 · TOKEN TYPING ══════════════════════════════════════════════════
 ;; G1 keyword?
 (:wat::rete::defrule :fix::g1-keyword
-  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::core::= ?kind "keyword"))]
+  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::core::string::= ?kind "keyword"))]
   :then [(:fix::Keyword ?off)])
 
 ;; G2 symbol?
 (:wat::rete::defrule :fix::g2-symbol
-  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::core::= ?kind "symbol"))]
+  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::core::string::= ?kind "symbol"))]
   :then [(:fix::Symbol ?off)])
 
 ;; G3 genuine?  — span source-len == name-len (a desugared sigil never passes; THE SKIP)
 (:wat::rete::defrule :fix::g3-genuine
   :when [(:fix::Keyword (?off <- :offset))
          (:fix::Node (?off <- :offset) (?len <- :len) (?slen <- :span-len))
-         (:wat::rete::where (:wat::core::= ?slen ?len))]
+         (:wat::rete::where (:wat::rete::core::string::= ?slen ?len))]
   :then [(:fix::Genuine ?off)])
 
 ;; ══ LAYER 2 · LEXICAL SHAPE (only genuine keywords) ═════════════════════════
@@ -92,7 +92,7 @@
 (:wat::rete::defrule :fix::g6-arrow
   :when [(:fix::Symbol (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:wat::rete::core::or (:wat::core::= ?name "<-") (:wat::core::= ?name "->")))]
+         (:wat::rete::where (:wat::rete::core::or (:wat::rete::core::string::= ?name "<-") (:wat::rete::core::string::= ?name "->")))]
   :then [(:fix::Arrow ?off)])
 
 ;; G7 post-arrow?  — the node one child-index after an arrow, same parent (SELF-JOIN)
@@ -100,7 +100,7 @@
   :when [(:fix::Arrow (?aoff <- :offset))
          (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
          (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
-         (:wat::rete::where (:wat::core::= ?bi (:wat::core::+ ?ai 1)))]
+         (:wat::rete::where (:wat::rete::core::string::= ?bi (:wat::core::+ ?ai 1)))]
   :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)

@@ -293,8 +293,10 @@ fn eval_clauses(
 pub(crate) enum ReteClauseShape<'a> {
     /// `(?v <- :field)` — a fresh/cross-condition-join bind.
     Bind { var: &'a str, field: &'a str },
-    /// `(:wat::core::<op> a b)` — a binary FQDN comparison; operands unresolved (the
-    /// caller resolves each via `resolve_operand`).
+    /// `(:wat::rete::core::<ty>::<op> a b)` — a binary FQDN comparison; operands unresolved (the
+    /// caller resolves each via `resolve_operand`). The generic `:wat::core::<op>` spelling also
+    /// classifies here, deliberately — see [`classify_constraint_head`]; it is recognized so the
+    /// diagnostic can name it, and refused by the validator.
     Constraint {
         op: &'a str,
         lhs: &'a WatAST,
@@ -324,6 +326,90 @@ pub(crate) enum ReteClauseShape<'a> {
     /// (Clara no-error); the freeze-time validator maps this to a located
     /// `#wat.rete/MalformedClause` error.
     Unrecognized,
+}
+
+/// The comparison an inline alpha constraint performs — independent of the type it is spelled at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CmpKind {
+    Eq,
+    NotEq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+}
+
+/// How a constraint head was SPELLED. Orthogonal to *which* comparison it is, and it is the law-A
+/// axis: the spelling decides admissibility, the [`CmpKind`] decides behaviour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConstraintSpelling {
+    /// `:wat::rete::core::<ty>::<op>` — a rete primitive, monomorphic at `ty`. ADMISSIBLE.
+    Rete { ty: &'static str },
+    /// `:wat::core::<op>` — the generic core comparator. Recognized here **on purpose**, so the
+    /// validator can name the head and point at its per-type twin (R29 `RVINA ERVDIT` — falling
+    /// through to `Unrecognized`/`MalformedClause` would be a lie: the clause is well-formed, it
+    /// is NON-RETE). REFUSED by `validate_clause`; never legitimately reaches evaluation.
+    CoreGeneric,
+}
+
+/// ★ ONE DOOR for an inline alpha-constraint head — the single place the constraint vocabulary is
+/// written down.
+///
+/// Before this existed, the six generic core spellings were matched by literal string in FOUR
+/// independent places (this grammar, `eval_clause`, `compiled_cond::compile_clause`,
+/// `alpha_tree::collect_equalities`), each re-asserting a closed set nothing enforced. That is the
+/// arc's recurring defect class — a match on a literal STRING no exhaustiveness check can see —
+/// and it is why law A never reached this surface. All four now read this function.
+///
+/// **Why the per-type rows and not a generic rete comparator:** generic `>` is PARTIAL — it routes
+/// through `compare_values`, which errors on incomparable operands. `i64::>` has no such case.
+/// Monomorphising *deletes* the domain hole rather than handling it, which is the standing ruling
+/// ("the rete surface is per-type, period") and the reason zero generic rete comparators exist.
+///
+/// The table is held honest by `every_constraint_head_is_a_real_rete_row` (below), which checks each
+/// `Rete` name against `RETE_OPS` — a name that drifts is a red build, not a silent no-match.
+pub(crate) fn classify_constraint_head(head: &str) -> Option<(CmpKind, ConstraintSpelling)> {
+    use CmpKind::{Eq, Ge, Gt, Le, Lt, NotEq};
+    use ConstraintSpelling::{CoreGeneric, Rete};
+
+    // The generic core spellings — recognized to be REFUSED with a teaching diagnostic.
+    let core = match head {
+        ":wat::core::=" => Some(Eq),
+        ":wat::core::not=" => Some(NotEq),
+        ":wat::core::<" => Some(Lt),
+        ":wat::core::>" => Some(Gt),
+        ":wat::core::<=" => Some(Le),
+        ":wat::core::>=" => Some(Ge),
+        _ => None,
+    };
+    if let Some(k) = core {
+        return Some((k, CoreGeneric));
+    }
+
+    // The admissible per-type rete rows. Orderings exist only where the type totally orders;
+    // equality exists for every comparable type.
+    let (ty, op) = head.strip_prefix(":wat::rete::core::")?.rsplit_once("::")?;
+    let kind = match (ty, op) {
+        ("i64" | "f64", "<") => Lt,
+        ("i64" | "f64", ">") => Gt,
+        ("i64" | "f64", "<=") => Le,
+        ("i64" | "f64", ">=") => Ge,
+        ("i64" | "f64" | "string" | "bool" | "keyword" | "enum", "=") => Eq,
+        ("i64" | "f64" | "string" | "bool" | "keyword" | "enum", "not=") => NotEq,
+        _ => return None,
+    };
+    // Re-borrow `ty` as 'static by matching it back to the literal set above — the strip/rsplit
+    // borrowed from `head`, whose lifetime the caller does not control.
+    let ty: &'static str = match ty {
+        "i64" => "i64",
+        "f64" => "f64",
+        "string" => "string",
+        "bool" => "bool",
+        "keyword" => "keyword",
+        "enum" => "enum",
+        _ => return None,
+    };
+    Some((kind, Rete { ty }))
 }
 
 /// Classify a single rete-DSL form (a `:when` clause OR a top-level `:when`-entry wrapper)
@@ -371,9 +457,9 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
 
         // ── keyword-headed clause ─────────────────────────────────────────────
         WatAST::Keyword(head_kw, _) => match head_kw.as_str() {
-            // ── constraint: (:wat::core::<op> a b) ───────────────────────────
-            ":wat::core::=" | ":wat::core::not=" | ":wat::core::<" | ":wat::core::>"
-            | ":wat::core::<=" | ":wat::core::>=" => {
+            // ── constraint: (:wat::rete::core::<ty>::<op> a b), or the core generic it replaces ──
+            // Vocabulary via the ONE DOOR (`classify_constraint_head`), never a literal list here.
+            k if classify_constraint_head(k).is_some() => {
                 if items.len() == 3 {
                     ReteClauseShape::Constraint { op: head_kw.as_str(), lhs: &items[1], rhs: &items[2] }
                 } else {
@@ -450,15 +536,18 @@ fn eval_clause(
         ReteClauseShape::Constraint { op, lhs, rhs } => {
             let a = resolve_operand(lhs, fact_fields, field_names, &bindings)?;
             let b = resolve_operand(rhs, fact_fields, field_names, &bindings)?;
-            let holds = match op {
-                ":wat::core::=" => a == b,
-                ":wat::core::not=" => a != b,
-                ":wat::core::<" => compare_values(&a, &b)? == std::cmp::Ordering::Less,
-                ":wat::core::>" => compare_values(&a, &b)? == std::cmp::Ordering::Greater,
-                ":wat::core::<=" => compare_values(&a, &b)? != std::cmp::Ordering::Greater,
-                ":wat::core::>=" => compare_values(&a, &b)? != std::cmp::Ordering::Less,
-                // classify_rete_clause only ever produces Constraint for the 6 ops above.
-                _ => unreachable!("classify_rete_clause: Constraint op outside the recognized set"),
+            // The ONE DOOR again — `classify_rete_clause` produced this `Constraint`, so the head
+            // is in the table by construction. A `None` here means the two disagree, which is a
+            // bug in this file, not a user error.
+            let (kind, _spelling) = classify_constraint_head(op)
+                .unwrap_or_else(|| unreachable!("classify_rete_clause admitted a Constraint head the ONE DOOR rejects: {op}"));
+            let holds = match kind {
+                CmpKind::Eq => a == b,
+                CmpKind::NotEq => a != b,
+                CmpKind::Lt => compare_values(&a, &b)? == std::cmp::Ordering::Less,
+                CmpKind::Gt => compare_values(&a, &b)? == std::cmp::Ordering::Greater,
+                CmpKind::Le => compare_values(&a, &b)? != std::cmp::Ordering::Greater,
+                CmpKind::Ge => compare_values(&a, &b)? != std::cmp::Ordering::Less,
             };
             if holds { Some(bindings) } else { None }
         }
@@ -1107,12 +1196,18 @@ pub(crate) fn eval_step_payload(
             // Rebuilds (:op a' b') as a WatAST with the resolved literal nodes.
             WatAST::Keyword(head_kw, _) => {
                 let op_str = head_kw.as_str();
-                // Only the comparison operators (not combinators/where).
-                match op_str {
-                    ":wat::core::=" | ":wat::core::not=" |
-                    ":wat::core::<" | ":wat::core::>" |
-                    ":wat::core::<=" | ":wat::core::>=" => {}
-                    _ => continue, // combinators/where: skip for now
+                // Only the comparison operators (not combinators/where) — via the ONE DOOR,
+                // `classify_constraint_head`, never a second literal list.
+                //
+                // ⚠ THIS WAS THE FIFTH SITE, and it is the one the four-site census MISSED. It
+                // re-listed the six core spellings by hand while its own comment claimed to
+                // "REUSE the matcher's OWN classifier" — so once the corpus migrated to the
+                // per-type rete names, every constraint fell to the `continue` below and each
+                // DerivationStep carried ZERO constraints. EXPLAIN went quietly empty; the P12c
+                // payload tests caught it. A `continue` is the same discard as `_ => {}`, and a
+                // comment claiming reuse is not reuse.
+                if classify_constraint_head(op_str).is_none() {
+                    continue; // combinators/where: not a constraint clause
                 }
                 if items.len() != 3 { continue; }
                 // resolve_operand REUSED directly — the same call the match used.
@@ -1301,4 +1396,88 @@ pub(crate) fn eval_test(
 
     // Delegate to the core evaluator (a fresh env: where sees only ?vars + sym's user fns).
     Ok(Value::bool(eval_test_core(&expr_ast, &map, env, sym)?))
+}
+
+#[cfg(test)]
+mod constraint_head_tests {
+    use super::*;
+    use crate::rete::vocabulary::RETE_OPS;
+
+    /// ★ THE ANTI-DRIFT GATE. Every `Rete` spelling `classify_constraint_head` admits must be a
+    /// real `RETE_OPS` row.
+    ///
+    /// The failure this exists to prevent is the arc's recurring one: a match on a literal STRING
+    /// that no exhaustiveness check can see. If a vocabulary row is renamed, this table silently
+    /// stops matching — the constraint is refused as `Unrecognized`, which reads to a user as
+    /// "malformed clause" for a form that is perfectly well spelled. Freeze the NAMES, not a count
+    /// (`[[feedback_a_gate_freezes_names_never_a_count]]`): the failure message names the offender.
+    #[test]
+    fn every_constraint_head_is_a_real_rete_row() {
+        let known: std::collections::HashSet<&str> =
+            RETE_OPS.iter().map(|op| op.rete_name).collect();
+
+        let mut admitted = Vec::new();
+        for ty in ["i64", "f64", "string", "bool", "keyword", "enum"] {
+            for op in ["=", "not=", "<", ">", "<=", ">="] {
+                let head = format!(":wat::rete::core::{ty}::{op}");
+                if classify_constraint_head(&head).is_some() {
+                    admitted.push(head);
+                }
+            }
+        }
+
+        // Non-vacuity FIRST: a table that admitted nothing would satisfy the check below trivially.
+        assert!(
+            admitted.len() >= 12,
+            "classify_constraint_head admitted only {} per-type heads — the table looks empty, so \
+             the membership check below would pass vacuously. Admitted: {admitted:#?}",
+            admitted.len()
+        );
+
+        let phantom: Vec<&String> = admitted.iter().filter(|h| !known.contains(h.as_str())).collect();
+        assert!(
+            phantom.is_empty(),
+            "classify_constraint_head admits {} head(s) with NO matching RETE_OPS row — a renamed \
+             row would silently stop matching and the clause would be refused as `Unrecognized` \
+             (which teaches the wrong fix). Offenders: {phantom:#?}",
+            phantom.len()
+        );
+    }
+
+    /// The generic core spellings must stay RECOGNIZED (not `None`), because the validator needs to
+    /// name them and point at the per-type twin. Dropping them from the table would silently
+    /// downgrade law A's teaching diagnostic to `MalformedClause` — R29's exact failure.
+    #[test]
+    fn the_generic_core_spellings_are_recognized_so_the_refusal_can_teach() {
+        for op in [
+            ":wat::core::=",
+            ":wat::core::not=",
+            ":wat::core::<",
+            ":wat::core::>",
+            ":wat::core::<=",
+            ":wat::core::>=",
+        ] {
+            assert_eq!(
+                classify_constraint_head(op).map(|(_, s)| s),
+                Some(ConstraintSpelling::CoreGeneric),
+                "{op} must classify as CoreGeneric — recognized here, refused by the validator"
+            );
+        }
+    }
+
+    /// A head that is neither is not a constraint at all — the door must not over-admit.
+    #[test]
+    fn unrelated_heads_are_not_constraints() {
+        for op in [
+            ":wat::rete::fire-rules",
+            ":wat::rete::core::i64::+",
+            ":wat::rete::core::vector::=",
+            ":wat::core::foldl",
+        ] {
+            assert!(
+                classify_constraint_head(op).is_none(),
+                "{op} must NOT classify as a constraint head"
+            );
+        }
+    }
 }
