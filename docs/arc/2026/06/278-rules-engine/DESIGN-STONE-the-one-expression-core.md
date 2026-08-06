@@ -693,3 +693,95 @@ by the accumulator fence because its body uses core spellings that predate #83.
 ⇒ **There are ZERO working user aggregators under the current fence.** The capability is real,
 law-A'd since #83, and presently unexercised — `ALIVS ARGVIT`. Reviving it is part of #85, and until
 it runs, any claim about how user aggregators behave under the fence is unproven by a consumer.
+
+## ▶ THE STRIKE — what to build to measure the bound and refuse at rule-compile
+
+> **Builder:** *"what do we need to build to measure these values and impose some kind of compilation
+> exception before execution?"*
+
+Everything here has a precedent on disk; nothing is a new mechanism. The four axes are Rust walks in
+`purity.rs` exposed as wat surfaces and called from **three** fence sites (`rete.wat:716` `where`,
+`:871` accumulator, `:1020` `:then` item). The bound is the same shape, one row down.
+
+### S0 — THE RED PROBE, before anything (examinare: disconfirming probe before the brief)
+
+The live risk is **#82's class**: a walk that silently misses a form. `classify_expr` had exactly that
+(`cond`/`match`/`fn` bypassed law A entirely) and a bound walk that misses a form returns a **number
+that is too small** — a limit that passes because it never saw the code.
+
+Probe: one predicate exercising **all seven control forms + a user fn + a HOF**, with `depth`/`nodes`
+**hand-derived** and asserted. RED today (`bound_expr` does not exist). This is the gate that makes
+the whole thing honest; write it first, keep it forever.
+
+### S1 — `bound_expr`, a SIBLING of `classify_expr` in `purity.rs`
+
+```rust
+pub(crate) struct Bound { depth: u32, nodes: u32, fold_nesting: u32 }
+
+pub(crate) enum BoundViolation {
+    RecursiveCallee  { head: String, span: Span },   // the back-edge — classify_fn's ONE changed arm
+    NonLexicalCallee { span: Span },                 // HOF fn-position not a literal fn / named fn
+    DepthExceeded    { measured: u32, limit: u32, span: Span },
+    SizeExceeded     { measured: u32, limit: u32, span: Span },
+    NestingExceeded  { measured: u32, limit: u32, span: Span },
+}
+```
+
+Same traversal, same `seen` set, callee bodies **inlined** (that is what makes `nodes` the real
+number — see the correction above: source-form 9 vs inlined 33). Limits are named consts in **one
+place**.
+
+**⛔ Do NOT refactor `classify_expr` to be generic in this stone.** It is 2106 proven lines; a shared
+traversal is the *right* end state and the *wrong* first move. Adjacent, then flip.
+
+### S2 — THE ANTI-DRIFT GATE, and it is the load-bearing one
+
+Two walks that must agree will drift — `[[feedback_an_adjacent_implementation_is_not_the_subject]]`.
+So the gate is **co-visitation**: for a law-A-clean expression with no user fns, `bound_expr`'s
+`nodes` must equal a trivial independent AST node count. If the walk skips a form, the counts diverge
+and the gate names it. **That is the check #82 did not have.**
+
+### S3 — the wat surface
+
+Mirrors `eval_axis_predicate`'s registration exactly. Returns the violation (not a bool) so the
+message can name the **measured value** alongside the limit — the existing bool surfaces cannot, and
+`find_axis_violation` is already the precedent for the richer return. **Name owed to an intueri cast**
+(`:wat::rete::axis-violation` is itself marked PROVISIONAL, cast owed — do not mint a sibling by
+hand).
+
+### S4 — arm the THREE fence sites
+
+`rete.wat:716` · `:871` · `:1020`, in the shape the fence already uses:
+
+```clojure
+_bound-fence (:wat::core::Option/expect
+                (:wat::core::if within-bounds (:wat::core::Some nil) :wat::core::None)
+                (bound-violation-message …))   ;; names the form, the measured value, the limit
+```
+
+**It is NOT a fifth axis** — the four axes are yes/no properties; this is a **measurement against a
+limit**. Keep it a separate conjunct with its own message so the diagnostic never says "not a rete
+primitive" about something that is.
+
+### S5 — the census gate, which closes the instrument gap
+
+Walks every corpus predicate, reports the depth/nodes/nesting distribution, and reddens on drift
+toward a limit — **naming the offending predicate, never a bare count**
+(`[[feedback_a_gate_freezes_names_never_a_count]]`). This is what replaces the throwaway scripts that
+produced the two wrong numbers today; the instrument outlives the number.
+
+### Order, and one sequencing warning
+
+**S0 → S1 → S2 → S3 → S4 → S5.**
+
+⚠ **S4 makes the corpus scream, and four grid axes are ALREADY screaming from law A (#85).** Arming
+this on top of that piles a second failure on the same files and makes both harder to read. **#85
+first.**
+
+### What is explicitly NOT in this strike
+
+- the limits' **values** — the builder's, and worth setting from `bound_expr`'s real distribution, not
+  from a corpus estimate (R60)
+- **rete `defn`** — a language decision, unruled, and it would give the bound a natural home
+- the **lowerer's** agreement with these numbers — that is #49, and the differential between
+  "what we verified" and "what we built" belongs there
