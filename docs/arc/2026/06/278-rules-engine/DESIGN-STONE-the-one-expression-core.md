@@ -349,3 +349,77 @@ TERMINATION"* — was the honest position I should have left standing rather tha
    the author never chose — and R25's chaos engine is line-rate, adversarial input by design. A
    hostile fact that drives a predicate deep is a silent core-dump in the thing built to *stop*
    denial-of-service. That is an argument for fixing **#58**, at the substrate, not for a fifth axis.
+
+## ★★ THE VERIFIER MODEL — the builder's frame, and it is OUR OWN PRIOR ART
+
+> **Builder:** *"how do we attack this problem like an ebpf verifier?… we just impose some generous
+> strict limit?"*
+
+**Yes — and the frame supplies the justification my retracted argument never had.** It is also not an
+analogy: `holon-lab-ddos/veth-lab/filter-ebpf/src/main.rs:840` is our own XDP rete, shipped February
+at 1.3M pps, and its header states the discipline outright:
+
+> *"The BPF verifier sees this as a ~100-instruction straight-line program with 2-3 map lookups and
+> **no loops**. The kernel enforces a max of **33 tail calls**, giving us up to 32 DFS steps —
+> **plenty for** trees with 15 static + 7 custom dimensions."*
+
+Recursion was not banned and then mourned; it was **re-expressed as an explicit stack in per-CPU
+scratch, driven by tail calls, under a hard bound chosen generous against the real workload.**
+`[[R61 PAR NON ARGVIT, NOSTRA ARGVVNT]]` — consult our own work, not only the peer.
+
+### ⛔ The load-bearing distinction: a STATIC REFUSAL, never a RUNTIME BUDGET
+
+This is the whole answer to *"just impose a generous strict limit?"* — the limit's **phase** matters
+more than its value:
+
+| | what happens when it binds | verdict |
+|---|---|---|
+| **runtime budget** (fuel, step cap, timeout) | the predicate dies mid-evaluation → you must invent an outcome for *"ran out"* → every caller must face it | **A MASK.** The outcome-wall defect again, and the arc's law forbids it |
+| **static limit at lower time** | the RULE IS REFUSED, located, naming the form → and once loaded, **every fire is guaranteed to complete** | **R29 `RVINA ERVDIT`.** The ruin teaches, at compile |
+
+eBPF verifies at LOAD and never polices at runtime, and that is exactly why. Our fence already lives
+at rule-compile — the correct phase — so this is a strengthening of a wall that exists, not a new one.
+
+### The four limits, mapped
+
+| eBPF | the rete predicate compiler |
+|---|---|
+| no back-edges in the CFG | no recursive callee in the lowered tree → **refuse at lower** |
+| bounded loops (`bpf_loop`) with a provable bound | `foldl`/`foldr`/`map`/`filter`/`reduce` over a finite collection — **already the only repetition the vocabulary offers** |
+| 512-byte stack · call depth 8 | **max `Expr` nesting depth**, computed exactly at lower |
+| ~1M instruction complexity limit | **total node count** of the lowered tree |
+
+### ★ Why this is STRICTLY BETTER than the fifth axis I proposed and retracted
+
+It does not merely prove *terminates*. It yields a **statically known worst case per predicate** —
+≤ N nodes, ≤ D depth — and that is the number a line-rate engine actually needs. R2 claims our edge
+over Clara is a **jitter-free tail** (no GC to flinch). A predicate with an unbounded worst case makes
+the tail unbounded, which quietly forfeits the claim. The verifier model restores it *by construction*.
+
+And the depth bound **contains #58 for predicates specifically** — bounded nesting ⇒ bounded stack per
+evaluation ⇒ the silent SIGSEGV is unreachable *here* — without pretending to fix #58 globally, which
+remains a substrate defect with its own task.
+
+### ⚠ WHERE THE NUMBERS COME FROM — and the trap to avoid
+
+eBPF's limits are **not** derived from a corpus of existing programs. They come from what the
+verifier can afford, set deliberately generous so no honest program meets them.
+
+**Do NOT set ours from the corpus.** `[[feedback_the_corpus_is_a_record_of_what_happened_to_compile]]`
+and R60's cut — *"you have no fucking clue what our users are going to do"* — apply exactly. The
+corpus can tell us a limit **is not binding today**; it cannot tell us **where to put it**. The
+honest basis is *what keeps the fire loop's worst case predictable*, and the number is the builder's
+to set, the way the kernel set 33.
+
+**One asymmetry, stated:** our XDP walker's bound was handed down by the kernel and the design was
+shaped to fit inside it. Here there is no external authority — **we are the kernel.** So the bound is
+a decision, not a constraint, and it should be recorded as one.
+
+### What this changes in the plan
+
+- `lower()`'s `Result` gains three refusal kinds: `RecursiveCallee`, `DepthExceeded`, `SizeExceeded`.
+- Lowering computes `max_depth` and `node_count` for free while it walks; `Program` carries them, so
+  the worst case per predicate is **inspectable, censusable, and gate-able**.
+- The gate from the hatch's removal sharpens: not merely *"lowering succeeds on all 173 corpus
+  predicates"* but *"and here is the measured depth/size distribution, and the limit sits far above
+  its maximum"* — a number that can go red if a future predicate creeps toward the bound.
