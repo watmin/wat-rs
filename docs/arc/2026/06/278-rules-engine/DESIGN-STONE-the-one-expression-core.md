@@ -301,3 +301,51 @@ today and gets more expensive every day it is not made.**
 
 Filed as its own task. The RULING is the builder's — this stone records that the door is open,
 proven, and that it is the only one.
+
+### ✅ CORRECTED SAME DAY — the builder challenged the premise and TWO of my arguments died
+
+> **Builder:** *"why is termination a concern here?… i get why in principal, but do we need to
+> police the user here?… the op code eval will be correct, just unending?"*
+
+**He is right about termination, and my headline argument was a FALSE ANALOGY. Retracted.**
+
+I wrote: *"there is no jump-table opcode for 'does not terminate', by the identical argument that
+armed `total?`."* **The argument does not transfer.** A *raise* is a control-flow ESCAPE the
+dispatcher must be able to handle — that is a real dispatch problem, and it is why `total?` was
+armed. Non-termination is the **absence** of an escape: the executor simply keeps executing,
+correctly. There is no opcode needed and nothing to dispatch. I borrowed the *shape* of the totality
+argument without checking that it applied. `[[feedback_a_claims_support_does_not_travel_with_the_claim]]`.
+
+**And measuring it split the case in two, only one of which is ours:**
+
+| predicate shape | outcome | a mask? |
+|---|---|---|
+| **tail**-recursive, unbounded | hangs forever; TCO holds, no stack growth (10M frames, clean) | **NO** — exactly the builder's read: *correct, just unending* |
+| **non-tail**-recursive, deep | **SIGSEGV, core dumped, ZERO diagnostic**, exit 139 | **YES** — a hidden failure |
+
+`(:wat::rete::core::i64::+ 1 (recurse …))` — the recursive call as an ARGUMENT — is the most natural
+way to write a recursive accumulator, and it dies silently.
+
+**But that mask is NOT a rete defect.** Any deep non-tail recursion anywhere in wat does this. It is
+**task #58** (*"Stack exhaustion is a silent SIGSEGV — and our own stopgap is why"*), already ruled
+NOT NOW, and refusing recursion inside predicates would be treating one symptom of a substrate-wide
+disease at one site. **Wrong rung.**
+
+### ⇒ REVISED DISPOSITION — the fifth axis is an OPTION, not a recommendation
+
+**RETRACTED:** the fifth axis as a default. Policing termination in the predicate language is not
+justified by anything measured here, and the seam's original line — *"totality does NOT include
+TERMINATION"* — was the honest position I should have left standing rather than escalating.
+
+**WHAT SURVIVES, and it is independent of all of the above:**
+
+1. **`CallUser` calls a compiled `Program`.** The callee is in the closed language. That correction
+   stands on its own — it was never a termination argument.
+2. **The lowerer must handle a BACK-EDGE.** Recursion is admitted, so lowering must compile a
+   recursive callee rather than inline it. Every compiler does this; it is a design note for #49,
+   not a language restriction. Inlining becomes a per-callee optimisation gated on *not* recursive.
+3. **The rete surface RAISES #58's PRIORITY without changing its ownership.** What is genuinely
+   different here is not the defect but the **exposure**: the engine invokes a predicate on facts
+   the author never chose — and R25's chaos engine is line-rate, adversarial input by design. A
+   hostile fact that drives a predicate deep is a silent core-dump in the thing built to *stop*
+   denial-of-service. That is an argument for fixing **#58**, at the substrate, not for a fifth axis.
