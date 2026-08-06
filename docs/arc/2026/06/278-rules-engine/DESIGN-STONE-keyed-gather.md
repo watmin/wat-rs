@@ -131,8 +131,11 @@ derivation — surfaces there. That net is why this rewrite can be done aggressi
 - **Changing `token_element_compatible`'s semantics.** The predicate is correct; only how often it is
   called is wrong.
 - **Strike 2b (the seq-traversal verbs).** Four real quadratics in the substrate, but `wat/rete.wat`
-  and the grid axes call **zero** of them — it cannot move the Clara number. Separate work, tracked
-  in `SEAM-2026-07-31.md`, deliberately not bundled here.
+  and the grid axes call **zero** of them — it cannot move the Clara number. Separate work,
+  deliberately not bundled here. *(It was tracked in `SEAM-2026-07-31.md`, a dated seam since pruned
+  — the breadcrumb is now the single `SEAM.md`, and the text is preserved in git history. The claim
+  above stands on its own: the "zero callers" count is checkable against `wat/rete.wat` and
+  `wat-scripts/perf/grid/` today, and does not depend on the deleted note.)*
 - **Re-measuring the whole grid.** Its own step, after this lands, and it needs a phase-split or
   CPU-time column first or the verdict will mean as little as the last one did.
 
