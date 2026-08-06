@@ -634,3 +634,62 @@ Iteration does not merely *bound* the repetition; it turns the bound from an **u
 **inspectable value**. That is why every bounded-execution system lands here: eBPF (`bpf_loop` with a
 count), SQL (scan N rows), Datalog (fixpoint over finite relations), total FP (structural recursion
 on a decreasing argument). We are in good company, and we got there by subtraction.
+
+## USER AGGREGATORS — where the engine-sized collection enters USER CODE
+
+> **Builder:** *"we also allow user defined aggregation funcs too, right?…"*
+
+Yes. Grounded — `wat-scripts/perf/grid/user-reduce.wat`'s own header:
+
+> *"the accumulate slot accepts ANY pure∧det user wat fn **`(PersistentVector<T>) -> R`** as the
+> acc-form head — the dispatcher **gathers the bound `?var` values into a PV<T> and folds the user fn
+> over it**."*
+
+And the accumulator fence's `is-builtin` short-circuit exempts `:wat::rete::acc::*` **wholesale (all
+four conjuncts)**, so — in `rete.wat`'s own words — *"the population law A newly reaches here is
+exactly the USER fold fn."*
+
+### Three implications, and the first is the one that matters
+
+1. **The engine-sized collection lands INSIDE user code, as an argument.** This is not "a downstream
+   `where` folds an accumulator result" — the user fn *receives* the `PV<T>` the engine gathered from
+   working memory. Every bound question about a user fn is therefore multiplied by `|gathered|` here,
+   not by some fact's field length.
+2. **`R` is unconstrained** — a user aggregator may *return* a collection too. Combined with (1) it is
+   the most powerful construct on the rete surface: engine-sized data in, arbitrary shape out.
+3. **This is the strongest case for a rete `defn`, and it is NOT the where-helper case.** A user fold
+   fn must be law-A clean (enforced only since #83), must be bounded (**nothing** enforces), must not
+   recurse (**nothing** enforces) — and its declaration site is an ordinary `defn` that says none of it.
+
+### The cost is a clean product — one runtime factor, one compile-time factor
+
+```
+accumulator cost  =  |gathered|            ×   (fold body's node bound)
+                     └ engine-determined       └ KNOWN AT RULE-COMPILE
+```
+
+**That is the answer to "how do we handle this": do not bound the product — make both factors
+visible.** The compiler knows the per-element cost exactly; the engine knows the element count at
+fire. Neither alone is meaningful; together they are a diagnosable cost, and each is reported by
+whoever actually knows it.
+
+Bounding the product would mean refusing a rule because the *data* got big — the runtime-budget mask
+wearing a compile-time hat, and it would break the thing accumulators exist to do.
+
+**And the fold body's own nesting over its argument is the exponent.** A user aggregator that nests
+two folds over its `PV<T>` is `O(|gathered|²)` on engine-sized data. That is the single sharpest
+shape in the whole surface, and it is countable at rule-compile by the same walk.
+
+### ⚠ THE CENSUS I RAN EARLIER HAD A HOLE — named, because a filter is a claim
+
+The fold-nesting census walked `(:wat::rete::where …)` forms. **User aggregator fns are separate
+`defn`s; their bodies were never in it.** `[[feedback_a_worklist_filter_is_a_claim_about_what_you_expect]]`
+— I measured where I expected the risk, and the highest-amplification site was outside the filter.
+
+Re-measured: **exactly one user aggregator exists corpus-wide** — `:ur::sum-of-squares`
+(`user-reduce.wat:49`), fold-nesting 0, ~5 nodes — **and it is DEAD**, one of #85's four axes, killed
+by the accumulator fence because its body uses core spellings that predate #83.
+
+⇒ **There are ZERO working user aggregators under the current fence.** The capability is real,
+law-A'd since #83, and presently unexercised — `ALIVS ARGVIT`. Reviving it is part of #85, and until
+it runs, any claim about how user aggregators behave under the fence is unproven by a consumer.
