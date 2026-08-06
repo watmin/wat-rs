@@ -493,3 +493,80 @@ proven by run this session:
 That is precisely eBPF's model: **the verifier runs at LOAD**, which is a runtime event for the
 loader process. The guarantee it buys is the same one — *once the rule is in the network, every fire
 completes* — and verification is paid **once per rule**, never per token.
+
+## HOW THE BOUND IS MEASURED AT RULE-COMPILE — the walk already exists
+
+> **Builder:** *"how do we measure this at rule compile time?…"*
+
+### ⚠ First, the phase trap — "rule compile" has TWO candidate homes and only one is right
+
+| home | when it runs | |
+|---|---|---|
+| `wat/rete.wat`'s `compile-condition` | when the program calls `:wat::rete::compile` / `make-rule` | **← the fence already lives here. THIS is rule-compile.** |
+| `kernel.rs`'s `fire_fixpoint_delta` setup (`:2150` `compiled_conds`, `:2235` `compiled_rhs_cache`) | **per FIRE** | where the native compilers are built — the **wrong** phase to refuse from |
+
+Following the `compiled_cond` precedent would put the check at fire time, on a rule **already in the
+network** — a fire-time refusal, i.e. the runtime-budget mask. **So verification and lowering are
+deliberately in different phases:** bound at rule-compile, lower at fire-setup.
+
+### The walk is `classify_expr`'s, with ONE arm changed
+
+The fence's four conjuncts are wat surfaces over **Rust** walks in `purity.rs`
+(`is_pure_expr` / `is_deterministic_expr` / `is_total_expr` / `is_rete_primitive_expr`). The bound is
+the **same shape**: one Rust function, one wat surface, called from the fence. No second
+implementation — the stone's own law.
+
+`classify_expr` already recurses every argument of every call form, threads `seen: &mut HashSet<String>`
+for cycles, and descends into user fn bodies via `sym.functions`. It is *already proven complete over
+the admissible language* — it is what enforces law A. The bound is that traversal returning a **number
+instead of a verdict**:
+
+```rust
+pub(crate) struct Bound { pub depth: u32, pub nodes: u32 }
+
+pub(crate) enum BoundViolation {
+    RecursiveCallee  { head: String, span: Span },  // the back-edge — classify_fn's ONE changed arm
+    NonLexicalCallee { span: Span },                // a HOF fn-position that is neither a literal
+                                                    // `fn` nor a named fn (the ?i-indexed lambda)
+    DepthExceeded    { measured: u32, limit: u32, span: Span },
+    SizeExceeded     { measured: u32, limit: u32, span: Span },
+}
+
+fn bound_expr(ast: &WatAST, sym: &SymbolTable, seen: &mut HashSet<String>)
+    -> Result<Bound, BoundViolation>
+```
+
+| form | bound |
+|---|---|
+| literal, `?var` | `{ depth: 1, nodes: 1 }` |
+| `(head arg…)` | `nodes = 1 + Σ args.nodes + callee.nodes`<br>`depth = 1 + max( max(args.depth), callee.depth )` |
+| callee is a **rete row** (native) | `{ depth: 0, nodes: 0 }` — no wat body to walk |
+| callee is a **user fn** | recurse into `sym.functions[head].body`, threading `seen` |
+| literal `fn` | the bound of its body |
+| **back-edge** (`seen.contains(fqdn)`) | `Err(RecursiveCallee)` — `classify_fn` returns `Ok(())` here; **this one arm is the whole difference** |
+
+### The one syntactic restriction that makes it tractable
+
+The `?i`-indexed-lambda probe defeats enumeration in general. Rather than build a constant-folder,
+**require the fn argument of a rete HOF (`foldl`/`foldr`/`map`/`filter`/`reduce`) to be a literal
+`fn` form or a named fn.** One check, a clear diagnostic, and it is what eBPF did for years (indirect
+calls simply forbidden). With it, every callee is lexically known, the call graph is a DAG given the
+back-edge rule, and the bound is a plain fold.
+
+**Cost: zero on the corpus** — every `fn` argument in all 174 predicates is already a literal lambda.
+
+### ★ `nodes` is the size of the FULLY-INLINED program, and that is the honest work bound
+
+A user fn called at three sites contributes its body **three times** — because the compiled tree
+inlines it three times. Depth `max`es; size **sums**. So a large `nodes` is a real signal about the
+program we are about to build, not an accounting artifact — and it is precisely why eBPF has a
+complexity limit alongside its stack limit. They measure different hazards: `depth` bounds the
+**stack**, `nodes` bounds the **work**.
+
+### And it closes the instrument gap
+
+The corpus census quoted earlier (`max depth 7, max nodes 9`) came from a **throwaway script**, which
+`[[feedback_an_instrument_must_outlive_the_number_it_produced]]` names as the failure. `bound_expr` IS
+the durable instrument: the gate walks the corpus, reports the distribution, and goes red when a
+predicate drifts toward the limit — so the headroom claim stays checkable instead of being a number
+someone once ran.
