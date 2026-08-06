@@ -1481,3 +1481,36 @@ mod constraint_head_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod one_core_vocabulary_tests {
+    use super::*;
+
+    /// Third row of `tests/rete/probe_arc278_49_one_core_covers_the_surfaces.rs`, living here
+    /// because `CmpKind` is crate-private.
+    ///
+    /// `CmpKind` is ALREADY shared by the grammar, the interpreter, `compiled_cond` and the
+    /// validator (#84's ONE DOOR). That is the one-core claim already true in miniature, on disk:
+    /// a change to this vocabulary is a change to every surface at once, which is precisely the
+    /// property `DESIGN-STONE-compiled-where.md`'s "ONE CORE, THREE ADJACENT FLIPS" is claiming.
+    /// Pinned so a regression that re-forks the comparison vocabulary is caught.
+    #[test]
+    fn the_comparison_vocabulary_is_already_one_door() {
+        let all = [CmpKind::Eq, CmpKind::NotEq, CmpKind::Lt, CmpKind::Gt, CmpKind::Le, CmpKind::Ge];
+        assert_eq!(
+            all.len(),
+            6,
+            "CmpKind is the shared comparison vocabulary across four consumers; a change in its \
+             arity changes every surface at once"
+        );
+        for (i, a) in all.iter().enumerate() {
+            for (j, b) in all.iter().enumerate() {
+                assert_eq!(
+                    i == j,
+                    a == b,
+                    "CmpKind variants must be pairwise distinct: {a:?} vs {b:?}"
+                );
+            }
+        }
+    }
+}

@@ -11,6 +11,86 @@
 > the arc whose law forbids hidden failures. (a) is semantically inert. Land the inert one with its
 > differential first; make the semantic change on a proven base. This stone is (a).
 
+## ★★ RULED 2026-08-06 — ONE CORE, THREE ADJACENT FLIPS. This is the shape of the build.
+
+> **Builder:** *"it strongly appears like we need to have a single compilation solution for the rete
+> forms … or is it best to build where now, and then use the existing ones as an oracle for a
+> unified replacement? know it works and then make it better, adjacent and then flip to the
+> adjacent one — we've done this pattern /many/ times."*
+
+Both halves of that are right, and they are **not in tension**: the first is the MODEL, the second
+is the EXECUTION.
+
+### THE THREE STEPS — do not collapse them
+
+1. **DESIGN THE CORE AS ONE.** One expression model over the closed rete vocabulary. Ruled by the
+   four questions (2026-08-06): a per-surface Op model fails Obvious (three models, one alphabet),
+   Simple (a new rete op = three edits) and Honest (the stone's own implementation law —
+   *"a rete op is NEVER a second implementation"*). One core scores 4×YES, and a new op becomes ONE
+   opcode in ONE table.
+2. **WIRE ONLY `where` TO IT.** Differential against `eval_test_core`, exactly as its two siblings
+   were built.
+3. **THEN FLIP `cond`, THEN `rhs` — ONE AT A TIME.** Never together. If a flip diverges, it
+   diverges alone.
+
+### WHY THIS IS CHEAP, and the fact that makes it so
+
+**The oracle is the INTERPRETER, not the existing compilers** — and each flip's differential is
+therefore **already written and already green on disk**:
+
+| compiler | its standing gate | holds it to |
+|---|---|---|
+| `compiled_cond` | `compiled_cond_bindings_identical_to_interpreter_at_50_100` (`kernel.rs:6866`) | `alpha_match_inner` |
+| `compiled_rhs` | its own differential | `build_insert_fact` |
+| `compiled_where` | **to write** — this stone | `eval_test_core` |
+
+So a flip onto the unified core is not a leap of faith; it is a change guarded by a gate that
+already exists and already passes. `PARI GRADV` (R1/R9) applied **inside** the compiler: one design,
+three adjacent flips, never a big-bang.
+
+### THE DEPENDENCY IS ALREADY DECLARED IN CODE — this is not a speculative unification
+
+```rust
+pub(crate) enum RhsOp {
+    Bind(Value, String),
+    Lit(Value),
+    Expr(WatAST),   // ← NOT compiled. Still calls eval_test_core, per fact.
+}
+```
+
+`compiled_rhs.rs:85` names the owner outright: *"expression-tree compiler (that is `#49a`'s
+`DESIGN-STONE-compiled-where`'s to build)"*. We do **not** have two compilers and a third to write.
+We have **two consumers with an expression-shaped hole, and one core owed**:
+
+| surface | consumes → produces | expression support today |
+|---|---|---|
+| `compiled_cond` | fact fields → bindings | `Cmp` only — cannot express `(i64::+ ?a 1)` |
+| `compiled_rhs` | bindings → a fact | `Expr(WatAST)` — explicitly uncompiled |
+| `where` | token bindings → bool | **does not exist** |
+| accumulator fold | gathered values → a value | does not exist |
+
+Four surfaces, one fenced vocabulary (law A armed at all four as of #83/#84), one evaluator owed.
+
+### ⚠ THE TREE-vs-FLAT-STACK FORK IS NARROWER THAN IT LOOKS — grounded, not assumed
+
+`compiled_cond` is **already both**: `exec_ops` is `for op in ops` over a flat `Vec<Op>` — *except*
+at control flow, where it NESTS (`Or(Vec<Vec<Op>>)`, `Not(Vec<Op>)`). So the real fork is **nested
+sub-programs vs jump offsets**, and it matters more for `where` than it did for `cond` because the
+control forms are richer (`if`/`cond`/`match`/`let`/`fn` vs `or`/`not`).
+
+Nesting matches the precedent and is the smaller step; offsets are what the indexing phase wants.
+**Which is FASTER is UNMEASURED and may not be claimed** — that is Step 0's number, under this
+stone's own STOP, and `[[feedback_measure_the_decomposition_never_read_it]]`.
+
+### ⛔ WHAT IS NOT YET PROVEN — the probe that gates step 1
+
+That one Op model actually covers all four surfaces is a DESIGN CLAIM with no evidence behind it
+yet. The disconfirming probe, before a line of the real thing: draft `where`'s Op set, then check
+whether `compiled_cond::Op`'s six variants fall out of it as **driver-level** concerns
+(fact-fields-in vs bindings-in) or genuinely do not fit. **If `Bind`/`BindCheck` do not fall out
+cleanly, the one-core claim is WRONG** and the three-step plan above collapses to "build `where`
+alone". Better to learn that from a probe than from a migration.
+
 ## What is MEASURED, and what is not
 
 Measured this session (`34c3c5db`, `node_share_filter_eval_census`, `[10|25|50] × 200`):

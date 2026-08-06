@@ -614,7 +614,11 @@ fn validate_clause(
     ctx: &ClauseCtx<'_>,
     errors: &mut Vec<ReteCheckError>,
 ) {
-    let ClauseCtx { rule_name, fact_type, field_names, field_types, binds, types } = *ctx;
+    // Only what THIS function reads. The other three travel onward inside `ctx` to
+    // `check_constraint_head` — destructuring them here just to not use them is what produced
+    // three `unused_variable` warnings, and the fix is to take less, not to `_`-prefix them
+    // (that door is task #67: `_` silences the very gate that would have caught the mistake).
+    let ClauseCtx { rule_name, fact_type, field_names, .. } = *ctx;
     match classify_rete_clause(clause) {
         ReteClauseShape::Bind { field, .. } => {
             check_field(field, clause, rule_name, fact_type, field_names, errors);
