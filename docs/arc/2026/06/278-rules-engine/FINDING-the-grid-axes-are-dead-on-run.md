@@ -74,3 +74,43 @@ by hand.
 **And the extirpare rung, which is the real fix:** the loader gate proves a scratch file *parses*.
 Nothing proves a grid axis *runs*. A gate that executes each axis at its smallest size would have
 gone red the hour law A armed. That is the class, and it is bigger than these four files.
+
+## ▶ ANSWERED 2026-08-06 — can these be fixed NOW, independently? **YES.**
+
+> **Builder:** *"the broken test cases we have that aren't in the grid's typical call path… can we
+> fix those now or do we need this sequence of work to unlock them?"*
+
+**Nothing downstream gates them. They gate everything downstream.** Every op the fix needs exists in
+the vocabulary today. `bound_expr` (#87) does not exist and is not needed. `rete defn` does not exist
+and is not needed — `:ur::sum-of-squares` stays an ordinary `defn` whose body is law-A clean.
+
+### But it is NOT a codemod-only job, and the codemod says so itself
+
+`rete-where-per-type-spelling.wat`'s header:
+
+> *"⛔ FALLBACK-CLASS OPS ARE DELIBERATELY ABSENT, AND MUST STAY ABSENT… their rete surface takes FOUR
+> arguments — the two real operands plus a MANDATORY `:undefined <value>` kwarg… they are NOT a
+> rename at all; they are a CALL-SHAPE change, and the fallback value is a **per-call-site
+> decision**. An earlier run of this codemod DID rename them — **77 sites, every one an
+> ArityMismatch.**"*
+
+### The actual worklist — ~12 sites, ~7 decisions
+
+| axis | rename (Alias) | **call-shape (Fallback — a decision each)** |
+|---|---|---|
+| `min-finding` | `>=` → `i64::>=` *(`acc::count` returns i64, so the type is pinned)* | — |
+| `node-share` | `=` → `i64::=` | `i64::-` · `i64::*` · `i64::/` |
+| `strat-neg` | `=` → `i64::=` | `i64::*` · `i64::/` |
+| `user-reduce` | `core::foldl` → `rete::core::foldl`, `core::fn` → `rete::core::fn` | `i64::+` · `i64::*` |
+
+### ★ Those 7 decisions ARE the totality work, not chore work
+
+Each `:undefined <value>` is a **faced outcome** — precisely what #80/#83 armed the fence to demand.
+These four files are the **first real consumer** made to name them. `ALIVS ARGVIT`: the capability was
+armed and nothing had yet been dragged through it.
+
+And `user-reduce` carries the corpus's **only** user aggregator, so reviving it is what makes the
+aggregator surface exercised at all.
+
+**Forward-compat:** if `rete defn` lands later, `:ur::sum-of-squares` gets re-declared — one fn, one
+line. Not a reason to wait.
