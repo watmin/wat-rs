@@ -983,11 +983,34 @@
                     ;; TOTAL, ARMED. A `:then` item that can raise aborts the fire mid-derivation,
                     ;; which is the same hazard by a different door.
                     is-total  (:wat::rete::total? item)
+                    ;; ★ LAW A, ARMED ON THE RHS TOO (2026-08-05, the builder's call after the
+                    ;; measurement below). The `where` fence got `is-rete` first and this one was
+                    ;; deliberately left at three conjuncts — which MEASURED as a real gap:
+                    ;;
+                    ;;     :then item using (:wat::core::i64::+ …)                      -> refused (not total)
+                    ;;     :then item using (:wat::core::if (:wat::core::i64::> n 5) …) -> COMPILED
+                    ;;
+                    ;; A core-spelled TOTAL op sailed straight through. The ruling is general —
+                    ;; *"rete forms must only be composed of rete forms and primitives"* — and the
+                    ;; RHS is not exempt: `compiled_rhs.rs` ALREADY EXISTS, so the RHS is already a
+                    ;; compiled surface and wants the same closed head-space `where` does. There is
+                    ;; no opcode for a head the vocabulary does not list.
+                    ;;
+                    ;; This does NOT narrow what a `:then` may CONSTRUCT: a user record/fact
+                    ;; constructor is admitted by the declaration-derived constructor door, which
+                    ;; law A never consults a namespace for (`head_ok`'s first door). What it
+                    ;; refuses is core-spelled COMPUTATION inside the item.
+                    is-rete   (:wat::rete::primitive? item)
                     _fence    (:wat::core::Option/expect
-                                  (:wat::core::if (:wat::core::and is-pure is-det is-total)
+                                  (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
                                     (:wat::core::Some nil)
                                     :wat::core::None)
-                                  (:wat::rete::axis-violation-message "then" item (:wat::rete::first-failing-axis is-pure is-det is-total)))
+                                  (:wat::rete::axis-violation-message "then" item
+                                    ;; exact, never a default: if the first three held, law A is
+                                    ;; the only conjunct left to have failed.
+                                    (:wat::core::if (:wat::core::and is-pure is-det is-total)
+                                      :wat::rete::Axis::RetePrimitive
+                                      (:wat::rete::first-failing-axis is-pure is-det is-total))))
                     item-ch   (:wat::core::ast->children item)
                     head      (:wat::core::first item-ch)
                     head-val0 (:wat::core::Result/expect
