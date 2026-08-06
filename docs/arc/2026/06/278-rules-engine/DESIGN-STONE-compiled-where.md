@@ -79,8 +79,14 @@ sub-programs vs jump offsets**, and it matters more for `where` than it did for 
 control forms are richer (`if`/`cond`/`match`/`let`/`fn` vs `or`/`not`).
 
 Nesting matches the precedent and is the smaller step; offsets are what the indexing phase wants.
-**Which is FASTER is UNMEASURED and may not be claimed** — that is Step 0's number, under this
-stone's own STOP, and `[[feedback_measure_the_decomposition_never_read_it]]`.
+**Which is FASTER is UNMEASURED and may not be claimed** — no benchmark distinguishes the two
+layouts; measure it or leave it open (`[[feedback_measure_the_decomposition_never_read_it]]`).
+
+> **✅ CORRECTED 2026-08-06 (far side).** This sentence originally ended *"— that is **Step 0's
+> number**, under this stone's own STOP."* **It is not.** Step 0 is the A/B/C/D/E cost decomposition
+> and it **RAN 2026-08-01** — see `⚠ STEP 0 HAS RUN` below, ninety lines down in this same file.
+> Attaching a measured section's name to an unmeasured question makes the measured one look open;
+> the layout fork is its own, un-run, and unnamed. Kept visible, not rewritten away.
 
 ### ⛔ WHAT IS NOT YET PROVEN — the probe that gates step 1
 

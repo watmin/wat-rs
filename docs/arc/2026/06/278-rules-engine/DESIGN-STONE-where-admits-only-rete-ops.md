@@ -395,10 +395,25 @@ had already measured it, and `matcher.rs:4747` says so. The derived estimate was
 justification: indexing removes the linear-in-rule-count term (10,000 → 200); compiling the predicate is
 ~4.4× on what remains (Step 0: env-build 122.5 ns/eval = 22.7%, `eval_inner` walk 77.3%).
 
-**⚠ Still unsplit:** nobody has decomposed `filter`'s 89.5% into **predicate vs the per-TestNode
-`new_tokens = ts.clone()`** (`kernel.rs:2701`, task #50) — on a shared-prefix axis the same 200-token
-vector is cloned once per TestNode, which is inside that 89.5% and is **not** the predicate. So the
-multiplier is known; **what it multiplies is not.**
+**✅ SPLIT, and this paragraph was wrong. CORRECTED 2026-08-06.** It read: *"⚠ Still unsplit: nobody
+has decomposed `filter`'s 89.5% into predicate vs the per-TestNode `new_tokens = ts.clone()`
+(`kernel.rs:2701`, task #50)… the multiplier is known; **what it multiplies is not**."*
+
+**Step 0 had already split it — including in this very paragraph's own preceding sentence**, which
+cites Step 0's env/walk numbers and then treats arm **C** as if it did not exist. Step 0 ran
+2026-08-01 (`8eacb38f`), `kernel.rs:4768` (`node_share_where_cost_decomposition`), node-share
+`[50 200]`, 15 interleaved reps, medians:
+
+| arm | | |
+|---|---|---|
+| **B** env build + walk | 5.401 ms | the predicate |
+| **C** `ts.clone()` ×50 | 0.773 ms | the per-TestNode clone — **#50, measured** |
+| | **B + C = 6.175 ms** | vs a measured `filter` of **6.83 ms** — **90% accounted** |
+
+**STOP-0b did NOT fire** → the clone is third-order (11% of the phase), NOT a peer cost, and #50
+stays its own cheaper stone rather than resolving as a side effect of #49. This false line is the
+ORIGIN of the same claim that propagated into `SEAM.md` and task #49 (both corrected the same day);
+kept visible rather than rewritten away — [[feedback_a_claims_support_does_not_travel_with_the_claim]].
 
 ## Why — three legs, and only two are measured
 

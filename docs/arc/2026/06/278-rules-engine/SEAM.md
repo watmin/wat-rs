@@ -63,10 +63,30 @@ at control flow where it nests (`Or(Vec<Vec<Op>>)`, `Not(Vec<Op>)`). It matters 
 (`if`/`cond`/`match`/`let`/`fn`) than it did for `cond` (`or`/`not`). Nesting matches the
 precedent; offsets are what the indexing phase wants.
 
-**⛔ WHICH IS FASTER IS UNMEASURED AND MAY NOT BE CLAIMED.** That is Step 0's number, under the
-stone's own STOP. `compiled_where.rs` does not exist. Nobody has decomposed `filter`'s 89.5% into
-PREDICATE vs the per-TestNode `new_tokens = ts.clone()` (#50) — if compiled predicates land and
-`filter` barely moves, the clone is the remainder.
+**⛔ WHICH IS FASTER IS UNMEASURED AND MAY NOT BE CLAIMED.** `compiled_where.rs` does not exist and
+no benchmark distinguishes the two layouts. Measure it or leave it open; do not reason it.
+
+> **✅ CORRECTED 2026-08-06 (far side).** The first version of this block read *"That is Step 0's
+> number… **nobody has decomposed** `filter`'s 89.5% into PREDICATE vs the per-TestNode
+> `new_tokens = ts.clone()` (#50)."* **Both halves are FALSE, and the stone said so 90 lines below
+> the section that claimed it.** Step 0 is NOT the layout question — it is the A/B/C/D/E cost
+> decomposition, it **RAN 2026-08-01** (`8eacb38f`), **STOP-0 FIRED**, and the test is live at
+> `kernel.rs:4768` (`node_share_where_cost_decomposition`):
+>
+> ```
+>   A  env build alone     1.225 ms   22.7% of B        D  var-free control   4.339 ms
+>   B  env build + walk    5.401 ms   (walk = 77.3%)    E  hand-written Rust  0.210 ms  <- the floor
+>   C  token clone (#50)   0.773 ms   11% of the phase
+>   RECONSTRUCTION  B+C = 6.175 ms vs a measured `filter` of 6.83 ms — 90% accounted
+> ```
+>
+> Arm **C** IS the predicate-vs-clone split. **STOP-0b did NOT fire** → #50 is third-order and stays
+> its own cheaper stone. And STOP-0 firing is *why* #49 is the **full expression IR** rather than the
+> env fix: the env fix was aimed at 22.7%; the walk is 77.3%, and interning + pre-resolving caps out
+> at ~42%. **Do NOT re-run Step 0. Read the stone's `⚠ STEP 0 HAS RUN` section.**
+>
+> The wrong version is kept visible: I inscribed a fresh RULED section on a stone whose own measured
+> section I did not re-read — [[feedback_i_argued_from_a_world_i_had_just_changed]].
 
 ## ⛔ TWO BOUNDARIES — write them into #49's spec, do NOT quietly "fix" them
 
