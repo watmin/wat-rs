@@ -38,7 +38,7 @@ The four questions judge an END STATE; judging a way-station as one is a categor
 |---|---|
 | **Obvious?** | **YES** — a reader sees `(:wat::rete::where (:usr::big? ?n))` and knows `:usr::big?` must be declared, checked, bounded. One rule. And at the definition, the two forms are visibly different. |
 | **Simple?** | **YES** — one admission rule at the door: *is it declared?* The transitive walk still exists but runs ONCE at a declaration instead of being chased per use. Today the door does two jobs (admit + infer); this splits them. |
-| **Honest?** | **YES** — law A claims *"the entire rete query language may only be composed from rete primitives"* while enforcing it by chasing into undeclared code, which is exactly why **#82** and **#60** exist (walkers that miss). A declaration makes the claim structural: the language IS what is declared. And it states its own cost rather than hiding it. |
+| **Honest?** | **YES** — **law A** (#57: *a rete expression may contain ONLY `:wat::rete::` ops*) claims *"the entire rete query language may only be composed from rete primitives"* while enforcing it by chasing into undeclared code, which is exactly why **#82** and **#60** exist (walkers that miss). A declaration makes the claim structural: the language IS what is declared. And it states its own cost rather than hiding it. |
 | **Good UX?** | **YES** — one extra decision at declaration time, and it is the decision that was already implicit and unenforced. The payoff is the error landing where you wrote it. Postgres `IMMUTABLE`/`STABLE` is the same ask, and nobody finds it onerous. |
 
 **4 × YES.**
@@ -120,7 +120,9 @@ be meaningless. Do not pattern-match it into the #56 mirror family.
 
 ## ▶ THE NAMING TARGET — materialized for an intueri cast
 
-*(R17 self-prompt-injection: the ward judges a concrete artifact, never a description of one.)*
+*(R17 **self-prompt-injection** — the arc's own discipline for a design with no disk to ground
+ against: WRITE THE CONCRETE ARTIFACT INTO THE SESSION, then judge THAT. The ward judges real forms,
+ never a description of them.)*
 
 **The slot:** a top-level form that declares a function whose body is restricted to the rete
 vocabulary, checked at the definition site. It binds a symbol exactly as `defn` does.
@@ -134,7 +136,11 @@ vocabulary, checked at the definition site. It binds a symbol exactly as `defn` 
 (:wat::rete::core::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::i64::> n 100))
 
-;; ── CANDIDATE B — no `core::`, since this is not a core mirror but a rete-only construct
+;; ── CANDIDATE B — no `core::`, grouping it with the top-level rule forms (where/defrule/make-rule)
+;;    ⚠ MY ORIGINAL COMMENT HERE READ "since this is not a core mirror but a rete-only construct" —
+;;    which CONTRADICTED this stone's own opening ruling ("Same registration, same symbol binding as
+;;    `defn`") three paragraphs above. The cast caught it. B's justification denied the very mirror
+;;    relationship the stone asserts; kept visible rather than silently rewritten.
 (:wat::rete::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::i64::> n 100))
 
@@ -151,8 +157,41 @@ vocabulary, checked at the definition site. It binds a symbol exactly as `defn` 
 mirrors) · `:wat::rete::acc::*` (the builtin accumulators) · `:wat::rete::where` ·
 `:wat::rete::defrule` · `:wat::rete::make-rule`.
 
-**Note the tension the cast must weigh:** the `core::` segment in the #56 mirrors means *"this
-mirrors `:wat::core::X`"*. A rete `defn` DOES mirror `:wat::core::defn`, which argues for A. But
-`:wat::rete::where` and `:wat::rete::defrule` — the other top-level rule forms — carry no `core::`,
-which argues for B. **A and B are the live pair; C and D are recorded so the cast can reject them
-with a reason rather than never having seen them.**
+### ★★ RULED — `:wat::rete::core::defn` (CANDIDATE A). intueri cast 2026-08-06, weighed against the disk.
+
+**And the tension as I first framed it was WRONG — I confounded two variables.** I wrote that the
+`core::` segment marks a core mirror, but that *top-level* forms (`where`/`defrule`/`make-rule`) carry
+no `core::` — presenting those as competing predictors. **They are not competing; they are
+confounded**, and `cond` is the one example that separates them. Verified on the disk by my own read:
+
+| form | top-level? | `core::`? | has a `:wat::core::X` twin? |
+|---|---|---|---|
+| `:wat::rete::core::cond` (`rete.wat:2327`, a `defmacro`) | **YES** | **YES** | **YES** |
+| `:wat::rete::make-rule` (`:2364`, a `defn`) | YES | no | no |
+| `:wat::rete::defrule` (`:2406`, a `defmacro`) | YES | no | no |
+| `:wat::rete::query` (`:2248`) · `:wat::rete::where` | YES | no | no |
+
+**`cond` is top-level AND carries `core::` — so "top-level" predicts nothing.** The single predictor
+is *does it mirror a `:wat::core::X`*. The other four lack `core::` because they are rete inventions
+with no core twin, not because they are top-level. `defn` mirrors `:wat::core::defn`, so it takes
+`core::`, exactly as `cond` does.
+
+**Two more reasons the cast grounded, both checked:**
+
+- **`vocabulary.rs` documents ONE mechanical naming rule** (`rete_name` = `core_name` with `rete::`
+  inserted after `wat::`), and its own module doc is a cautionary tale about that rule acquiring ad-hoc
+  variants (*"three different rules at once… silently missed 17 of 57 rows"*). B would be the first
+  deliberate hand-authored exception for a form with a clean, collision-free derivation.
+- **No `NAMING_RULE_EXCEPTIONS` entry is needed.** That list exists only for **collisions** — several
+  rows deriving one name (the `{enum,string,bool,keyword}::{=,not=}` and `first` groups, 11 entries,
+  count-pinned). `:wat::core::defn` is shared by no other row, so the derivation is unique.
+  ⚠ **And since this is NOT a `RETE_OPS` row** (see above), the naming-rule tests iterate `RETE_OPS`
+  only and will neither check nor need extension for it — **the FQDN is a convention honored BY HAND**,
+  exactly as `cond`'s is in its own `defmacro`. Say so in the brief; a convention no test enforces is
+  the kind that rots.
+
+**C and D rejected with reasons kept:** `defpredicate` is a **Level 1 lie** — a user aggregator is
+`(PV<T>) -> R`, not `-> bool`, so it is false for half the form's uses. `defpure` mumbles — purity is
+one of four axes, and not even the novel one; **law A is the axis this form actually adds**.
+A fifth the cast considered and rejected: `:wat::rete::admit` — names the contract but drops
+"this binds a symbol like `defn`", which is worse than B on Obvious.
