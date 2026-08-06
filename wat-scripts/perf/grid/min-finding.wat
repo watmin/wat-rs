@@ -66,7 +66,13 @@
                     acc-c     (:wat::core::quasiquote
                                 (?n <- (:wat::rete::acc::count) :from (:mf::Reading (?loc <- :loc))))
                     where-c   (:wat::core::quasiquote
-                                (:wat::rete::where (:wat::core::>= ?n (:wat::core::unquote threshold))))
+                                ;; law A (#57): a `where` admits only :wat::rete:: ops. `?n` is bound by
+                                ;; `(:wat::rete::acc::count)`, whose declared return is a bare i64, and
+                                ;; `threshold` is an i64 — so the per-type twin is unambiguous. `>=` is
+                                ;; OpClass::Alias (params [I64, I64]): a pure RENAME, no `:undefined`.
+                                ;; A BUCKET C judgement site by the codemod's own table (no bare `>=`
+                                ;; row exists — only i64::>= / f64::>=), which is why it is hand-decided.
+                                (:wat::rete::where (:wat::rete::core::i64::>= ?n (:wat::core::unquote threshold))))
                     ins       (:wat::core::quasiquote (:mf::Busy ?loc ?n))]
     (:wat::rete::Rule :name "min-finding"
       :lhs (:wat::core::PersistentVector station-c acc-c where-c)
