@@ -47,6 +47,64 @@ declare -A LADDER=(
 # Deterministic order — the table reads the same every run.
 ORDER=(min-finding negation asym-join strat-neg user-reduce node-share accum deep-cascade fanout)
 
+# ── DISCOVERY, because a LIST cannot notice what was never added to it ────────────────────────
+#
+# 2026-08-06: four axes (min-finding, node-share, strat-neg, user-reduce) sat DEAD for days — they
+# died at rule-compile the hour law A armed (#57/#83) and every gate stayed green, because the
+# loader gate only PARSES and nothing ran this script. All four were already in ORDER, so the list
+# was not the bug. But the list is the bug WAITING: a NEW axis added to the directory without a
+# LADDER entry is swept by nobody and says nothing, which is the identical silence one file over.
+#
+# So the ladder stays HAND-AUTHORED (the sizes are the artifact — see the header), and the axis SET
+# is DISCOVERED from disk and reconciled against it. An axis on disk with no rung is an ERROR that
+# names itself, never a silent skip. `check-where-shapes.sh` already works this way for the
+# where-* corpus (it globs, and fails loudly on a .wat with no .clj twin); this brings the perf
+# half to the same standard. [[feedback_a_gate_that_discovers_beats_one_that_lists]]
+#
+# A perf axis is exactly `<axis>.wat` WITH a `gen-<axis>.sh` twin — that pairing is what run-axis.sh
+# requires, and it is what distinguishes a perf axis from the where-* expressivity corpus (which has
+# static .clj twins and its own runner, deliberately: different question, different instrument).
+DISCOVERED=()
+for wat in "$GRID_DIR"/*.wat; do
+  [ -e "$wat" ] || continue
+  stem="$(basename "$wat" .wat)"
+  [ -f "$GRID_DIR/gen-$stem.sh" ] || continue   # not a perf axis (where-* has no gen-, by design)
+  DISCOVERED+=("$stem")
+done
+
+MISSING=()
+for stem in "${DISCOVERED[@]}"; do
+  [ -n "${LADDER[$stem]:-}" ] || MISSING+=("$stem")
+done
+if [ ${#MISSING[@]} -gt 0 ]; then
+  echo "run-all: ${#MISSING[@]} axis/axes on disk have NO LADDER entry and would be SWEPT BY NOBODY:" >&2
+  for m in "${MISSING[@]}"; do echo "    $m   (has $m.wat + gen-$m.sh, but no rung)" >&2; done
+  echo "  Add a deliberate size ladder above — the sizes ARE the artifact, so choose them, do not" >&2
+  echo "  copy a neighbour's. A grid run at different sizes is not comparable to the one before it." >&2
+  exit 2
+fi
+
+# The reverse direction: a rung for an axis whose files are gone is a ladder pointing at nothing.
+STALE=()
+for stem in "${!LADDER[@]}"; do
+  [ -f "$GRID_DIR/$stem.wat" ] && [ -f "$GRID_DIR/gen-$stem.sh" ] || STALE+=("$stem")
+done
+if [ ${#STALE[@]} -gt 0 ]; then
+  echo "run-all: ${#STALE[@]} LADDER entry/entries name an axis with no .wat + gen-.sh pair:" >&2
+  for s in "${STALE[@]}"; do echo "    $s" >&2; done
+  exit 2
+fi
+
+# ORDER is the deliberate reading order and must cover everything discovered — otherwise a new
+# axis has a rung, passes the check above, and is STILL never swept by a bare `run-all.sh`.
+for stem in "${DISCOVERED[@]}"; do
+  case " ${ORDER[*]} " in
+    *" $stem "*) ;;
+    *) echo "run-all: axis '$stem' has a LADDER rung but is absent from ORDER — a bare run would skip it" >&2
+       exit 2 ;;
+  esac
+done
+
 AXES=("$@")
 if [ ${#AXES[@]} -eq 0 ]; then AXES=("${ORDER[@]}"); fi
 
