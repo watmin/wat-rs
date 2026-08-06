@@ -24,8 +24,9 @@ is the EXECUTION.
 > **▶ STEP 1 IS DRAWN (2026-08-06):** the builder ruled the layout — **nesting, "matches the
 > precedent"** — and the Op set is drawn in **`DESIGN-STONE-the-one-expression-core.md`**,
 > derived from the 75-row `RETE_OPS` table, `dispatch_rete_op`, `eval_test_core`, and a census
-> of all 173 corpus `where` predicates. It carries FOUR STOPs (`match` patterns, the closure
-> frame, `CallUser`, and result-vs-value) — read them before briefing.
+> of all 173 corpus `where` predicates. **There is NO interpreter escape hatch** — `lower()` is
+> total or it refuses (the builder cut the `Interp(WatAST)` arm on sight; the stone records why).
+> Three STOPs remain — the closure frame, `CallUser`, and result-vs-value — read them before briefing.
 
 ### THE THREE STEPS — do not collapse them
 

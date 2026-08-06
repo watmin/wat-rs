@@ -92,19 +92,19 @@ pub(crate) enum Expr {
     /// Slots, not an `Environment`. This is what deletes `build_test_env` by
     /// construction rather than optimising it.
     Let    { binds: Box<[(u16, Expr)]>, body: Box<Expr> },
-    Match  { scrutinee: Box<Expr>, arms: Box<[(Pat, Expr)]> },   // STOP-1
+    /// 12 pattern arms, closed + recursive (`try_match_pattern`). All lower — see STOP-1.
+    Match  { scrutinee: Box<Expr>, arms: Box<[(Pat, Expr)]> },
     /// A compiled lambda — required by the higher-order rows
     /// (`foldl`/`foldr`/`map`/`filter`/`reduce`). STOP-2.
     Lambda { params: Box<[u16]>, body: Rc<Expr> },
 
-    // ── the honest escape hatch ──────────────────────────────────────────────
-    /// A shape not yet lowered, executed by the SAME routine the interpreted path
-    /// uses, so the two surfaces cannot independently drift — exactly the role
-    /// `RhsOp::Expr(WatAST)` plays today (`compiled_rhs.rs:85`).
-    /// ★ ACCEPTANCE: this arm must be UNREACHABLE for every row of the
-    /// where-expressivity corpus. It is the exception, never a comfortable majority.
-    Interp(WatAST),
+    // ── THERE IS NO ESCAPE HATCH. See "the hatch is refused" below. ──────────
 }
+
+/// Lowering is TOTAL OR IT REFUSES. There is no arm that quietly means
+/// "run this the slow way" — a form this compiler cannot lower is a located
+/// compile-time refusal naming the form, never a runtime behaviour.
+fn lower(expr: &WatAST, …) -> Result<Expr, LowerError>;
 
 /// The four surfaces differ ONLY in PROLOGUE and EPILOGUE. The core is identical.
 pub(crate) struct Program {
@@ -140,12 +140,61 @@ the walk at 77.3% and dispatch 74.6% *of the walk*. What the IR removes is **not
 loop, which is why "nesting matches the precedent" is both the smaller step and the cheap one — and
 why its speed remains honestly unmeasured rather than argued.
 
-## ⛔ FOUR STOPS — the parts I did NOT resolve, named so they are not hand-waved
+## ★ THE HATCH IS REFUSED — and the refusal is the design
 
-- **STOP-1 — `Match`'s `Pat` is unenumerated.** I did not read core `match`'s pattern grammar this
-  session. Before `Match` is lowered, enumerate the pattern forms the checker admits; until then
-  `match` lowers to `Interp`. The corpus uses it **twice**, so this is cheap to defer and dishonest
-  to guess.
+The first draft of this stone carried an `Interp(WatAST)` arm, *"the honest escape hatch"*, with an
+acceptance note that it should be unreachable. **The builder pushed on it and it does not survive.**
+
+It is the same shape as `RhsOp::Expr(WatAST)` — which this arc names as **the defect #49 exists to
+close** (`compiled_rhs.rs:85`: *"NOT a full expression-tree compiler — that is `#49a`'s to build"*).
+I drew the escape hatch into the stone whose job is to delete it.
+
+Three reasons it is worse than untidy:
+
+1. **It makes the perf claim unfalsifiable per predicate.** With a hatch, "`filter` barely moved" has
+   two explanations — the compiler is not the bottleneck, or that predicate silently was not
+   compiled — and nothing distinguishes them. R59 `NISI FRANGAS`: a number nothing depends on is a
+   claim, not a proof.
+2. **It is the mask class.** A compiler that quietly runs the slow path lies about what it did, and
+   nobody trips over it. That is precisely what the no-hidden-failures law forbids, and
+   `[[feedback_a_lossy_carrier_makes_the_mask_mandatory]]` is the shape.
+3. **It throws away the trustworthy half of the instrument.** R62 `NOMINATO INSTRVMENTO`: the
+   *rejection* column is an absolute fact about our substrate that no peer can bound. A
+   total-or-refuse compiler HAS one — `LowerError` is that column. A falling-back compiler has none.
+
+**And the hatch was never load-bearing.** Law A closes the language: a `where` predicate can contain
+literals, `?var` reads, the 75 rete rows, and user fns admitted through the composition door (whose
+bodies are themselves fenced). **There is no fourth thing.** So lowering can be total by
+construction, and the hatch existed only to cover one file I had not read.
+
+⇒ `lower()` returns `Result`. A form this compiler cannot lower is a **located compile-time
+refusal**, never a runtime behaviour. The three grammar arms the interpreter already rejects
+(`Vector`, `Set`, keys-destructure `Map`) become refusals *one phase earlier* — R29 `RVINA ERVDIT`,
+strictly improved.
+
+**`CallUser` is NOT a hatch, and the distinction is load-bearing.** A call into an interpreted
+callee body is a **call boundary** — named, typed, countable, and inlinable later — the same thing
+every compiler has at a foreign call. A hatch is an *expression* that silently means "not compiled".
+One is a frontier you can measure; the other is a fact you cannot observe.
+
+## ⛔ THREE STOPS — the parts I did NOT resolve, named so they are not hand-waved
+
+- **✅ STOP-1 CLOSED by grounding (2026-08-06).** `match`'s grammar is **12 arms, closed and
+  recursive** (`try_match_pattern`, `runtime.rs:14211`) — and the doc comment above `eval_match` is
+  **STALE**: it says *"MVP-scoped to `:Option<T>`; user enums graduate in a later slice"*, which has
+  not been true since arc 048/055.
+  Real grammar: `:None`/`:wat::core::None` · int/float/rational/bigint/bool/string literals ·
+  `Keyword` = user-enum UNIT variant · `_` · bare symbol (binds) · `(Some|Ok|Err p)` recursive ·
+  `(:enum::Variant p…)` recursive with arity check · a bare list = **tuple destructure** ·
+  `NilLit` = `Unit` · `Map` hash-destructure `{var :field …}` · and **`Vector`/`Set`/keys-destructure
+  are already hard errors**.
+  Every one lowers: literals → constants, keywords → a compile-time composed-path compare, symbols →
+  a slot write, lists → structural match at known arity. The corpus's two sites are trivial
+  (integer literals; `(Some v)` + `:None`). **`Match` needs no hatch.** The one arm carrying a real
+  question is `Map` hash-destructure, which needs the field index resolved at compile time from the
+  scrutinee's declared type — grounded as possible, not yet drawn.
+  *(This is the file I had not read, and it is the whole reason the hatch got drawn.
+  `[[feedback_ground_the_substrate_not_just_the_chronicle]]` — applied to a doc comment.)*
 - **STOP-2 — the frame model across a closure is genuinely NEW.** `compiled_cond` has no closures;
   `Lambda` does. A `fn` handed to `foldl` may reference the enclosing frame, so the capture model
   (flat frame + copied captures vs a parent pointer) is an open decision, not a detail. The corpus
@@ -166,6 +215,13 @@ why its speed remains honestly unmeasured rather than argued.
 `eval_test_core` (`matcher.rs`) is the oracle, per #49's ruled shape — not `compiled_cond`, not
 `compiled_rhs`. The differential asserts the compiled program and the interpreter agree on the same
 token bindings, **including which inputs raise and with what message**.
+
+**And the second gate, which the hatch's removal creates:** `lower()` must succeed on **every**
+`where` predicate in the corpus — all 173 — and on every row of the where-expressivity corpus. A
+`LowerError` on any of them is a **RED**, not a fallback. That is the acceptance criterion for the
+flip, and it is checkable before a single predicate is wired: run the lowerer over the corpus and
+count refusals. If it cannot reach zero, `where` does not flip — the adjacent-flip discipline
+already says so.
 
 ## ⚠ Un-blocking note — the perf half of #49 cannot be measured end-to-end today
 
