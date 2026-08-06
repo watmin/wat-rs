@@ -423,3 +423,73 @@ a decision, not a constraint, and it should be recorded as one.
 - The gate from the hatch's removal sharpens: not merely *"lowering succeeds on all 173 corpus
   predicates"* but *"and here is the measured depth/size distribution, and the limit sits far above
   its maximum"* — a number that can go red if a future predicate creeps toward the bound.
+
+## ⛔ "DERIVED" IS THE WRONG WORD — it is BOUNDED, and it has TWO preconditions
+
+> **Builder:** *"we are asserting we can witness at compile time the depth can be derived before
+> evaluation happens?… its a runtime exception or a compile one?"*
+
+The question caught a real gap. **Naive static derivation is DEFEATED today** — measured, not reasoned.
+
+### The measurement — a lambda can be chosen by a FACT
+
+```
+(:wat::rete::core::foldl
+  (:wat::rete::core::PersistentVector/get
+     (:wat::rete::core::PersistentVector <fn-A>          ;; shallow
+                                         <fn-B>)         ;; deliberately DEEPER
+     ?i :undefined <fallback-fn>)                        ;; ← the INDEX is a ?var
+  0 (:wat::rete::core::PersistentVector ?n))
+```
+
+Compiles, fires, **`2` facts derived** — and *which lambda ran was decided by the fact's `:i` field at
+fire time.* A lambda is a first-class value that can travel through a collection and re-enter a call
+site non-lexically. So the lowerer cannot know *which body* runs at a `foldl`'s fn position.
+
+### ⇒ The contract is an UPPER BOUND over all paths, never an exact depth
+
+This is what a verifier actually does. eBPF does not predict a program's cost; it explores paths,
+takes the worst case, and **refuses what it cannot bound**. Ours must do the same:
+
+- at a call position whose callee is **lexically determinable** (a literal lambda, a named user fn) →
+  its bound is that body's bound;
+- at a call position over a **lexically-present set** (a `get` into a literal vector of lambdas) →
+  the bound is the **max over the candidates** — conservative and sound;
+- at a call position whose callee **cannot be bounded at all** → **`LowerError`. Refuse.**
+
+Say **bounded**, never *derived*. The weaker word is the true one.
+
+### TWO preconditions, and I only had one of them before this probe
+
+1. **No recursion.** Otherwise call-graph depth is unbounded — this is why the back-edge rule and the
+   depth bound are *the same mechanism*, not alternatives. The limit **depends on** the refusal.
+2. **Every callee reachable at a call site must be enumerable at lower time.** The probe above shows
+   this is NOT free today. It is still achievable — bound by the max over a lexical candidate set —
+   but a callee arriving from somewhere the lowerer cannot enumerate must be refused, not guessed.
+
+**⚠ ONE UNKNOWN, NOT CHASED:** whether a lambda can arrive from a **fact field** (rather than a
+literal collection). Records are `EdnRepresentable` (arc 300) and a fn is not EDN, so it *probably*
+cannot — **but that is reasoning, not a measurement, and today has punished exactly that three
+times.** Ground it before relying on it.
+
+## The answer on PHASE: a RULE-COMPILE error
+
+Not `--check`. Not fire. **Rule-compile** — the same phase the existing fence already occupies,
+proven by run this session:
+
+```
+#wat.kernel/AssertionFailure
+  :message "compile-condition: where expr is not total — ':wat::core::i64::-' is not total"
+  :location wat/rete.wat:718
+  :frames [ :wat::rete::compile-condition … :wat::rete::compile … :user::main ]
+```
+
+| phase | catches this? | why |
+|---|---|---|
+| `wat --check` | **no** (in general) | rules are built at runtime from quasiquoted templates — `node-share.wat` does exactly this. `--check` could catch the literal-`defrule` subset as a bonus; it can never be the guarantee |
+| **rule-compile** (`compile` / `make-rule`) | **YES** — this is the wall | a runtime event in the *program's* life, but **compile time for the RULE** |
+| fire (per token) | **must never** | a limit that binds mid-fire is the runtime-budget mask |
+
+That is precisely eBPF's model: **the verifier runs at LOAD**, which is a runtime event for the
+loader process. The guarantee it buys is the same one — *once the rule is in the network, every fire
+completes* — and verification is paid **once per rule**, never per token.
