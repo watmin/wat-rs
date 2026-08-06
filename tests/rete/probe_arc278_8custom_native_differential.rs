@@ -24,8 +24,8 @@ fn world(gate: &str) -> String {
          \n\
          ;; a PURE∧DET custom fold: sum of squares of the gathered values\n\
          (:wat::core::defn :w::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
-           (:wat::core::foldl\n\
-             (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64\n\
+           (:wat::rete::core::foldl\n\
+             (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64\n\
                (:wat::rete::core::i64::+ acc (:wat::rete::core::i64::* x x :undefined 0) :undefined 0))\n\
              0 xs))\n\
          \n\

@@ -854,17 +854,34 @@
                             is-det       (:wat::rete::deterministic? fence-call)
                             ;; TOTAL, ARMED — the accumulator fence is the `where` fence's sibling
                             ;; (the stone scopes the vocabulary to "a `where` (and the accumulator
-                            ;; fence)"), so it measures the same chain. `is-rete` is NOT added here:
-                            ;; law A governs the rete EXPRESSION language, and widening it to this
-                            ;; surface is its own strike, not a side effect of this one.
+                            ;; fence)"), so it measures the same chain.
                             is-total     (:wat::rete::total? fence-call)
+                            ;; #83 LAW A, ARMED HERE TOO — the fourth conjunct, closing the gap that
+                            ;; left this fence at three where `where` and `:then` had four. The prior
+                            ;; revision of this comment said "`is-rete` is NOT added here … widening it
+                            ;; to this surface is its own strike"; that was a deferral written AGAINST
+                            ;; the stone, which scopes the vocabulary to "a `where` (AND THE ACCUMULATOR
+                            ;; FENCE)". This IS that strike.
+                            ;;
+                            ;; Note the `is-builtin` short-circuit below exempts a `:wat::rete::acc::*`
+                            ;; head WHOLESALE (all four conjuncts), so the population law A newly reaches
+                            ;; here is exactly the USER fold fn — which stays admissible transitively
+                            ;; whenever its body bottoms out in rete primitives (the composition door,
+                            ;; purity.rs:classify_fn). What it now refuses is a core-spelled fold.
+                            is-rete      (:wat::rete::primitive? fence-call)
                             _acc-fence   (:wat::core::Option/expect
                                              (:wat::core::if is-builtin
                                                (:wat::core::Some nil)
-                                               (:wat::core::if (:wat::core::and is-pure is-det is-total)
+                                               (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
                                                  (:wat::core::Some nil)
                                                  :wat::core::None))
-                                             (:wat::rete::axis-violation-message "accumulator" fence-call (:wat::rete::first-failing-axis is-pure is-det is-total)))
+                                             (:wat::rete::axis-violation-message "accumulator" fence-call
+                                               ;; the axis is EXACT, never a default — the same rule the
+                                               ;; `where` fence uses: if the first three conjuncts held,
+                                               ;; the only one left to have failed is law A.
+                                               (:wat::core::if (:wat::core::and is-pure is-det is-total)
+                                                 :wat::rete::Axis::RetePrimitive
+                                                 (:wat::rete::first-failing-axis is-pure is-det is-total))))
                             ;; assert items[3] is :from (structural validation)
                             from-kw      (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 3)
