@@ -44,7 +44,7 @@ four, so it goes to the fact-pattern branch — and the pattern's own children a
 Nothing on that path consults `pure?` / `deterministic?` / `total?` / `primitive?`.
 
 **This is instance 5 of the arc's recurring defect class — a match on a literal STRING that no
-exhaustiveness check can see.** It is also *not new information*: the `SEAM-2026-08-05-lawA.md`
+exhaustiveness check can see.** It is also *not new information*: the law-A seam (`SEAM-2026-08-05-lawA.md`, superseded 2026-08-06 by the single `SEAM.md`; text preserved in git history)
 names this exact site as instance 2 of four, and describes it correctly —
 
 > *"the inline LHS pattern equality is matched by the literal `:wat::core::=` in

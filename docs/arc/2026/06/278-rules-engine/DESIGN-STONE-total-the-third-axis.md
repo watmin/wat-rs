@@ -15,7 +15,7 @@ on some inputs and undefined on others — so the fence admits them:
 
 `first`-on-empty is the dangerous shape: it compiles, fires correctly for as long as no rule meets an
 empty vector, and then **one empty vector kills the entire fire** — a raising predicate aborts the whole
-fire on both engines (measured, `SEAM-2026-08-01`). No amount of green testing surfaces it.
+fire on both engines (measured; recorded in `SEAM-2026-08-01`, a dated seam since pruned — the breadcrumb is now the single `SEAM.md`, and this measurement's home is this stone). No amount of green testing surfaces it.
 
 ## Not a fourth purity flavour — a third axis
 

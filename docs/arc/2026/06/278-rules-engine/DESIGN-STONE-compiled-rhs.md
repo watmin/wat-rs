@@ -5,7 +5,7 @@
 > have not read those hot paths, so this stone does not claim it.** Tracked as
 > `DESIGN-STONE-compiled-rhs`, to be drawn only after the same grounding this one got."*
 >
-> ⚠ **That hedge was then lost twice, with no new evidence at either step.** `SEAM-2026-08-01`
+> ⚠ **That hedge was then lost twice, with no new evidence at either step.** `SEAM-2026-08-01` (a dated seam since pruned; the breadcrumb is now the single `SEAM.md`)
 > restated it as *"shape fully known"*; this apparatus restated that as *"designed, never built."*
 > A hedge, restated, loses its hedge — the third instance of that class in one session (R60's
 > rationale-for-inaction became a verdict; the seam's *not deletable* became *not optimizable*).

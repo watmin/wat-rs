@@ -155,6 +155,28 @@ fn the_surfaces_differ_only_by_driver_not_by_expression_language() {
         vec!["compiled_cond"],
         "the fixed-comparison surface should be exactly compiled_cond; got {non_expr:?}"
     );
+
+    // ★ THE OTHER HALF OF "differ only by DRIVER": if the surfaces shared a `produces`, they would
+    // not be distinct drivers at all — they would be the same consumer written twice, and "one core,
+    // N drivers" would be describing a duplication rather than a design. All four must differ.
+    //
+    // (This assertion also earns the `produces` field its place. It was documentation-only in the
+    // first draft — a dead field, which clippy called and CI's `-D warnings` would have failed. The
+    // fix is to USE the thing that carries the argument, not to delete it or `#[allow]` it.)
+    for (i, a) in SURFACES.iter().enumerate() {
+        for (j, b) in SURFACES.iter().enumerate() {
+            assert_eq!(
+                i == j,
+                a.produces == b.produces,
+                "{} and {} must differ in what their answer MEANS ({:?} vs {:?}) — surfaces that \
+                 produce the same thing are one driver, not two",
+                a.name,
+                b.name,
+                a.produces,
+                b.produces
+            );
+        }
+    }
 }
 
 // The third row of this probe — "the comparison vocabulary is ALREADY one door" — lives in
