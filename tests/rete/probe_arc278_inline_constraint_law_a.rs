@@ -36,10 +36,17 @@
 //! runs failed to distinguish the two outcomes because the harness could not tell them apart
 //! (`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`).
 //!
-//! ⛔ **This probe does NOT cover site 4 of the four** — `alpha_tree.rs:243`'s equality fan-out,
-//! whose `_ => {}` makes a missed migration **silent** (correct, green, and slower: the
-//! discrimination tree degrades to a linear alpha scan). That gate lives in `alpha_tree.rs`'s own
-//! `#[cfg(test)]` module because `candidates()` is `pub(crate)`. See the stone's STOP-1.
+//! **This probe does not cover site 4 of the four** — `alpha_tree.rs:243`'s equality fan-out —
+//! because it does not need to. `alpha_tree_discriminates_candidates_to_about_one_at_50_100`
+//! (`kernel.rs:6775`) already gates it and is MUTATION-PROVEN: breaking that literal takes mean
+//! candidates/fact from 1.000 to 50.000 and the row fails naming the exact mode ("the tree is
+//! correct but discriminates nothing").
+//!
+//! An earlier draft of this comment called site 4 SILENT. It is not — that was asserted from
+//! reading, and the mutation refuted it. Kept visible rather than quietly deleted. Note what the
+//! same run also showed: the SUPERSET row passed under that mutation, so correctness cannot detect
+//! a discrimination regression — which is why the two rows are separate, and why STOP-1 says to
+//! read the discrimination row BY NAME at the weigh.
 //!
 //! Run: cargo nextest run --release -E 'test(probe_arc278_inline_constraint_law_a)'
 
