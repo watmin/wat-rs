@@ -21,6 +21,12 @@
 Both halves of that are right, and they are **not in tension**: the first is the MODEL, the second
 is the EXECUTION.
 
+> **▶ STEP 1 IS DRAWN (2026-08-06):** the builder ruled the layout — **nesting, "matches the
+> precedent"** — and the Op set is drawn in **`DESIGN-STONE-the-one-expression-core.md`**,
+> derived from the 75-row `RETE_OPS` table, `dispatch_rete_op`, `eval_test_core`, and a census
+> of all 173 corpus `where` predicates. It carries FOUR STOPs (`match` patterns, the closure
+> frame, `CallUser`, and result-vs-value) — read them before briefing.
+
 ### THE THREE STEPS — do not collapse them
 
 1. **DESIGN THE CORE AS ONE.** One expression model over the closed rete vocabulary. Ruled by the
