@@ -47,9 +47,12 @@
 ;; the USER custom fold: Σ x² over the whole gathered vector — pure∧det (passes the 8-custom fence).
 ;; Identical to the repo differential exemplar (probe_arc278_8custom_native_differential.rs:26-30).
 (:wat::core::defn :ur::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+ acc (:wat::core::i64::* x x)))
+  (:wat::rete::core::foldl
+    (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
+      ;; sum-of-squares over readings is always >= 0 (a square is never negative, and a sum of
+      ;; non-negative squares is never negative) — -1 is impossible as a legitimate result at
+      ;; either op, so it cannot be confused with a real value if the undefined point is ever hit.
+      (:wat::rete::core::i64::+ acc (:wat::rete::core::i64::* x x :undefined -1) :undefined -1))
     0 xs))
 
 ;; mod7 n — n mod 7 via (n - (n/7)*7); wat has no i64::mod, and strat-neg.wat uses this same

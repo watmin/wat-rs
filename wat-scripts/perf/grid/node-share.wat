@@ -62,14 +62,22 @@
 ;; threshold the same way; deep-cascade embeds `(= ?l (unquote prev))`). There is no native i64 mod
 ;; (only + - * /), so `k mod n` is written inline as the truncating-division idiom `k - (k/n)*n`
 ;; (k >= 0, n > 0 at every grid size → exact), the same shape strat-neg.wat's even test uses.
+;; Arc 278 law A: a `where` predicate admits ONLY `:wat::rete::` ops. `=` is a pure rename
+;; (`:wat::rete::core::i64::=`, OpClass::Alias). `- * /` are OpClass::Fallback — 4-ary
+;; (operand operand :undefined fallback). Fallback -1 at all three arithmetic sites: k>=0, n>0 by
+;; construction here, so every honest quotient/product/remainder along this chain is >= 0 — -1 can
+;; never be produced by a real (non-overflow, non-zero-divisor) evaluation, so if the undefined
+;; point were ever reached the token simply fails every rule's `where` (i, the compared literal, is
+;; always in [0, n) — never -1) rather than silently landing on a plausible wrong match.
 (:wat::core::defn :nsh::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k <- :k)))
                     b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
-                                (:wat::core::= (:wat::core::unquote i)
-                                  (:wat::core::i64::- ?k
-                                    (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
+                                (:wat::rete::core::i64::= (:wat::core::unquote i)
+                                  (:wat::rete::core::i64::- ?k
+                                    (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k (:wat::core::unquote n) :undefined -1) (:wat::core::unquote n) :undefined -1)
+                                    :undefined -1))))
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]
     (:wat::rete::Rule :name (:wat::core::i64::to-string i)
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
