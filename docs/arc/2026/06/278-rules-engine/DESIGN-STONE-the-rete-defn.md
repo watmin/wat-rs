@@ -114,6 +114,101 @@ inside a predicate*; `fn`/`let`/`match`/`cond` are EXPRESSIONS and belong there.
 **top-level declaration** that never appears inside a `where`. Its `params`/`ret`/`meta` columns would
 be meaningless. Do not pattern-match it into the #56 mirror family.
 
+## ★★ WHAT THE FIRST STRIKE LEARNED — 2026-08-06/07, all four proven by a run
+
+The first attempt built the form, the marker and the membrane, and **the membrane never fired at
+runtime.** Four corrections, kept here because every one of them is a place the next hand would
+land in the same hole. The design is unchanged; the MECHANISM is where it was wrong.
+
+### 1. The membrane lives in `classify_fn`, and it is SCOPED TO LAW A
+
+Not at `head_ok`'s `sym.functions` branch (`purity.rs:997`) — that branch RETURNS `classify_fn`,
+whose `FunctionBody::Native` arm is what admits the native HOF combinators (`foldl`/`map`/…) via
+`intrinsic_meta`. Patching there denies all of them.
+
+And inside `classify_fn`'s `Wat` arm, the refusal must fire **only on `Axis::RetePrimitive`**:
+
+```rust
+if func.rete.is_some()            { Ok(()) }                       // declared: all four proven
+else if matches!(axis, Axis::RetePrimitive) { Err(...) }           // undeclared: law A refuses
+else { classify_expr(body_ast.as_ref(), axis, sym, seen) }         // the other three: unchanged
+```
+
+`Some(_)` may be admitted on any axis — all four WERE proven at the declaration. `None` means only
+*undeclared*, which says nothing about purity. Denying all four made `:wat::rete::pure?` — a
+GENERAL predicate over any expression — answer **false for an ordinary, genuinely pure fn**, and
+broke nine tests in unrelated files. `Axis::RetePrimitive`'s own doc names the rule: it exists as a
+separate variant because reusing Pure/Deterministic/Total "would make the refusal LIE."
+
+### 2. Seed `seen` with the WHOLE declared set, not just the name being checked
+
+`find_axis_violation` starts from an empty `HashSet`, so a self-call reaches `classify_fn` while the
+fn is still `rete: None` and is denied **for calling itself** (`:head` = its own fqdn). Worse, the
+check iterates `declared: &HashSet<String>` in **arbitrary order**, so a MUTUAL reference
+(`where-nesting`'s `c1`/`c2`) passed or failed by hash order — a check that answers differently per
+run is not a check.
+
+Seeding the whole group is PARITY, not leniency: `classify_fn`'s own guard is already
+`if seen.contains(fqdn) { Ok(()) } // back-edge`. Every member is proven independently against its
+own body; only the ORDER of proving stops mattering. Bounding recursion is #87's ruling — #88 must
+not forbid by accident what the stone deferred on purpose.
+
+### 3. ★ THE ONE THAT MATTERS — THE CHECK BELONGS TO REGISTRATION, NOT TO FREEZE
+
+The first cut ran the check in `build_env` (step 6.975) and stamped `Function.rete` there. But
+`FrozenWorld::freeze` calls **`register_runtime_defs` at `freeze.rs:564`, AFTER `build_env`
+returns**, and that pass re-registers every `defn` — **dropping the stamp.** So the file LOADS (the
+check ran, and correctly refuses a bad body) while the runtime fence still refuses every helper,
+because the `Function` it reads is a fresh, unstamped one. Every re-headed site behaved identically
+for this reason; the whole corpus waterfall was chasing this one symptom.
+
+**`register_runtime_defs` is the ONE DOOR.** Both paths call it — `freeze.rs:564` (boot) and
+`runtime.rs:24475` (a live session). Putting the check there covers both, and the `build_env` call
+is **deleted**, not kept alongside: two checks would be two implementations of one law.
+
+### 4. The corpus codemod must key on (FILE, NAME), never NAME alone
+
+`:test::big?` is declared in TWO unrelated fixtures with DIFFERENT bodies — one rete-clean, one
+core-spelled. A name-keyed rewrite re-headed both and broke the second. Only files the CHECKER
+named may move. And law A is transitive, so re-heading a helper makes its undeclared callees scream
+in the next round — `where-nesting`'s `c1..c10` chain moves as a unit. Expect a waterfall; let the
+checker name each round.
+
+## ★ THE DEPLOYMENT MODEL — the builder's ruling, 2026-08-07, and it settles the failure shape
+
+> *"i fully intend to build a defservice who accepts user-forms, compiles them into a rete jump
+> table and, if that passes, then allow the users to provide facts and then fire upon those facts…
+> the forms to be compiled are not from the machine that does the compilation… they will come over
+> a wire… we must never assume they validated their input… just like mysql or whatever else."*
+
+Rule compilation is **runtime-only, from a foreign host**. Process-local today; the wire is the
+deployment model, and the shape must not need a redesign to get there.
+
+**Therefore a refused declaration is a RESPONSE, never a raise.** MySQL answers *"your query isn't
+shaped correctly"* and keeps serving. A raise crossing that boundary kills the service for every
+other client — which this arc already paid for: `28701476`→`b9d61bd6`, a wrong-typed body under a
+correct tag took a service down for all clients, cured by a named `RequestMalformed` reply.
+
+**The shape is settled substrate convention — ONE GOOD RESULT, N BAD** (the builder: *"we are full
+ADT so an enum to match on is the only viable path"*). The nearest precedent is the op that already
+takes user rules:
+
+```
+SiftRulesResponse   Deductions        ← the one good result
+                    Fatal             ← 500-class: we broke
+                    RequestTooLarge   ← 400-class: carries bytes + cap
+                    RequestMalformed  ← 400-class: carries path + expected + got
+QueryLogsResponse   Success | RequestTooLarge | RequestMalformed
+```
+
+Each failure variant carries **located structured fields**, never prose standing in for structure.
+A rules-compilation refusal is the 400-class sibling of `RequestMalformed` — a missing VARIANT in
+that family, not a new error channel. Task **#17** ("a variant per failure kind, 400 vs 500,
+exhaustive") owns the contract; this is a row in it.
+
+`ReteDefnAxisViolation { name, axis, head }` + its span already carries exactly that payload, proven
+by the gate. It moves from raise-at-freeze to value-at-registration.
+
 ## ⛔ STOPs
 
 - **STOP-1 — the body check must REUSE `purity.rs`'s walks, never re-implement them.** Four axes, one

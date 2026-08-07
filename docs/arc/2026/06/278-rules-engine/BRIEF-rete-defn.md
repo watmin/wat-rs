@@ -1,153 +1,95 @@
-# BRIEF — #88, mint `(:wat::rete::core::defn …)`: the rete language's DECLARED UNIT
+# BRIEF — #88 v2: move the rete-defn check to REGISTRATION, and make its refusal a VALUE
 
-**Design (ratified, do NOT re-derive):** `DESIGN-STONE-the-rete-defn.md` — four questions 4×YES,
-the name intueri-cast, the mechanism corrected 2026-08-06 by grounding. Read it first; this brief
-is the strike path only.
+**Supersedes v1's strike path.** v1 built the form, the marker and the membrane — that work is IN
+THE TREE, uncommitted, and three of its defects are already corrected. It did not work, for one
+located reason, and this brief is that reason and its fix.
+
+**Read first, do NOT re-derive:** `DESIGN-STONE-the-rete-defn.md` — especially the two new sections,
+*WHAT THE FIRST STRIKE LEARNED* (four corrections, each proven by a run) and *THE DEPLOYMENT MODEL*
+(the builder's ruling, which settles the failure shape).
+
+## The state you inherit — read the tree before you touch it
+
+Uncommitted in the working tree, all building clean (`cargo build --release` exit 0):
+
+| what | where | status |
+|---|---|---|
+| `ReteContract` + `Function.rete` field | `src/value/environment.rs` | built; 20 construction sites carry `rete: None` |
+| the form, parsed pre-expansion and re-headed to plain `defn` | `src/freeze/env.rs` | built — the form flows through the ORDINARY registration path |
+| `apply_rete_defn_contracts` (the four-axis check) | `src/rete/purity.rs` | built; reuses the existing walks (STOP-1 held) |
+| the membrane, scoped to law A | `src/rete/purity.rs`, `classify_fn`'s `Wat` arm | **corrected** — see stone §1 |
+| `seen` seeded with the whole declared group | `src/rete/purity.rs` | **corrected** — see stone §2 |
+| `ReteDefnAxisViolation { name, axis, head }` | `src/value/signal.rs` | built, located, span-carrying |
+| the acceptance gate | `tests/rete/probe_arc278_rete_defn_gap.{rs,wat.bad}` + `_control.wat` | green, mutation-proven both ways |
+| the recorded codemod + its `fix.wat` verb | `wat-scripts/fixes/rehead-rete-callees.wat`, `wat/fix.wat` | built, dry-run + diffed + idempotency-proven |
+| 14 re-headed corpus files | `tests/rete/`, `wat-scripts/perf/grid/` | applied; **unproven** until the marker survives |
+
+Floor is **red by construction** and will stay red until this brief lands. That is expected; do not
+treat it as a regression to chase.
 
 ## The work, in one paragraph
 
-An ordinary `defn` called from a `where` is rete-admissible **by accident of its current body**:
-nobody declared it, so nothing can be broken, so nothing warns. Edit one op inside such a helper and
-the failure names the *rule*, with not one frame naming the helper. Mint a sibling declaration form
-`(:wat::rete::core::defn …)` that does everything `:wat::core::defn` does — same parse, same
-registration in `sym.functions`, same symbol binding — **plus** it checks the body at the definition
-site against the four axes the fence already measures. Record that fact as a typed marker on the
-function, and change `head_ok`'s admission of a user fn from *walk the body* to *consult the marker*.
+The check stamps `Function.rete` inside `build_env`. Then `FrozenWorld::freeze` calls
+`register_runtime_defs` (`freeze.rs:564`) which **re-registers every `defn` and drops the stamp**.
+So the file loads and the runtime fence still refuses — the `Function` it reads is unstamped. Move
+the check to **registration**, which is the one door both the boot path (`freeze.rs:564`) and the
+live-session path (`runtime.rs:24475`) already call; delete the `build_env` call rather than keeping
+both. Then make the refusal a **matchable value** rather than a raise, because rule compilation
+happens at runtime on forms from a host we do not trust.
 
 ## Rooms — read in this order
 
-| room | why you are here |
+| room | why |
 |---|---|
-| `src/value/environment.rs:35` | `Function`, exactly nine fields, none metadata. The marker's home. |
-| `src/value/symbol_table.rs:33` | `functions: HashMap<String, Arc<Function>>` — how `head_ok` reaches the marker by name. |
-| `src/rete/purity.rs:961` | `head_ok(head, axis, sym, seen)` — `sym` is already in hand. |
-| `src/rete/purity.rs:997` | **THE MEMBRANE.** `if sym.functions.contains_key(head) { return classify_fn(...) }` — this one branch changes. |
-| `src/rete/purity.rs:1010` | the admission branch below it, for STOP-2 (see below). |
-| `src/rete/vocabulary.rs:1385` | `RETE_MODULES` — contains `":wat::rete::core::"`. Your new name lands INSIDE it. |
-| `src/rete/vocabulary.rs:1392` | `rete_op_for` — EXACT match, never a prefix scan. |
-| `src/runtime.rs:2110` / `:2193` | `register_runtime_defs` / `..._form` — where a declaration form becomes a registration. |
-| `wat/fix.wat:23-53` | the BOOTSTRAP / STASH-DANCE, which this strike needs (a checker change + a corpus codemod ship together). |
-
-## The one contract decision, pinned
-
-**The marker is a typed field on `Function`.** Not `SymbolTable.binding_metadata` (user-writable —
-`check.rs:4690` tells users to write metadata maps and `wat/spawn.wat:303` does, so a marker there is
-forgeable), and not a side `HashSet` on `SymbolTable` (a second source of truth that can drift from
-`sym.functions`; the contract is a property of the function, not of the registry). Both alternatives
-are recorded here **so they are not re-derived as cleanup**.
-
-Shape it so #87 does not pay a second cascade:
-
-```rust
-// src/value/environment.rs — beside Function
-/// The rete contract a `(:wat::rete::core::defn …)` declaration attests, checked AT THE
-/// DEFINITION SITE. `#87` hangs the bound (`depth` / `nodes` / `fold_nesting`) here — adding a
-/// field to THIS struct costs nothing, where a second field on `Function` would re-cascade.
-pub struct ReteContract { /* #87 fills this */ }
-
-pub struct Function {
-    // … the nine existing fields …
-    /// `Some` iff declared by `:wat::rete::core::defn`. `head_ok` consults this INSTEAD of
-    /// walking the body — that substitution is the membrane.
-    pub rete: Option<ReteContract>,
-}
-```
-
-Adding the field turns **35 `Function { … }` construction sites** into compiler errors. That cascade
-is the method, not a crisis — each site is a `None`.
+| `src/freeze/env.rs:277` | step 6.975 — the `apply_rete_defn_contracts` call to **DELETE** |
+| `src/freeze.rs:564` | `register_runtime_defs(&program, &env, &mut symbols)` — the boot caller |
+| `src/runtime.rs:24475` | `register_runtime_defs(&world.program, env, &mut session_sym)` — the LIVE-SESSION caller. This is the one the wire model needs |
+| `src/runtime.rs:2118` | `register_runtime_defs` itself — returns `Result<(), EvalBreak>`, so a value carrier already exists |
+| `src/rete/purity.rs` | `apply_rete_defn_contracts` — moves; its body does not change |
+| `src/freeze/env.rs` | `extract_rete_defn_names` — the declared-name set must reach the new call site |
+| `wat/query.wat:154-157` | `SiftRulesResponse` — **the response convention**: one good result, N named bad ones |
 
 ## The strike path
 
-1. **The form.** `(:wat::rete::core::defn :name [params] -> :Ret body)`, parsed and registered
-   exactly as `:wat::core::defn` is, reusing that path rather than a parallel one.
-2. **The definition-site check.** Run the body through the four existing walks in `src/rete/purity.rs`
-   — `is_pure_expr` / `is_deterministic_expr` / `is_total_expr` / the law-A rete-primitive check.
-   Reuse them; a second copy is the stone's own law violated (STOP-1).
-3. **The marker.** On success, register the `Function` with `rete: Some(ReteContract{})`.
-4. **The membrane.** `purity.rs:997` — a fn with `rete: Some(_)` is admitted on the strength of its
-   declaration; a fn with `rete: None` is refused with a located error naming **the helper**, not the
-   rule. That inversion is the whole point of the stone.
-5. **The migration.** The corpus now screams; those screams are the worklist (R52/R65). Re-head each
-   screaming `(:wat::core::defn …)` → `(:wat::rete::core::defn …)` via a **recorded wat-fix codemod**
-   at `wat-scripts/fixes/reheading-rete-callees.wat`, driven by an explicit LIST of fn names (a blind
-   prefix rename would re-head the whole corpus — only the rete callees move). Dry-run on a `/tmp`
-   copy and `diff` before applying. Follow `wat/fix.wat:23-53`'s stash-dance: this ships with a `src/`
-   change that makes the old form illegal.
+1. **Move the check to registration.** `register_runtime_defs` walks the program's forms; the
+   rete-defn names are derivable there the same way `extract_rete_defn_names` derives them now.
+   Delete `freeze/env.rs`'s step 6.975 — one door, not two.
+2. **Prove the marker survives.** The gate for this is the corpus itself: the 14 already-re-headed
+   files must go green. That is the whole point of the move.
+3. **Make the refusal a value.** `ReteDefnAxisViolation { name, axis, head }` + span already carries
+   the payload. It must become something a caller can `match`, in the shape `SiftRulesResponse`
+   already uses — one success, N named failures, each with located structured fields.
+   **Scope: the VALUE shape only.** No service, no wire, no transport — those are the chaos engine
+   (#7) and #17's contract. You are refusing to author a new raise at an IO boundary, not building
+   the boundary.
+4. **Re-run the floor and let the checker name the rest.** Law A is transitive; expect a waterfall.
+   Add only names the checker names.
 
-   **ENUMERATE EXTENSIONS — a `-name '*.wat'` glob is not the corpus.** R65/24t cost hours on exactly
-   this: `.wat.bad` · `.wat.disabled` · `.wat.expr` · `.wat.intueri` all hold real forms, and a
-   single-extension glob silently excluded 243 files / 23 name-holders last time. This strike ships
-   its own `.wat.bad` (the gate above), so the trap is live from move one. And note the two surfaces
-   a form-tree codemod structurally **cannot** reach: a keyword built or parsed inside a **string
-   literal**, and inline wat inside **Rust test strings** — both have to be hand-checked, and the
-   floor is what surfaces the second (2026-07-24's class-4 lesson).
+## STOP triggers — a rejection, not a permission slot
 
-## The RED gate — already on the disk, already green, and it is your acceptance test
+1. **STOP-1 — reuse the existing walks.** `apply_rete_defn_contracts` calls the four axis walks
+   already in `purity.rs`. Do not write a second implementation of any axis.
+2. **STOP-2 — the membrane stays scoped to `Axis::RetePrimitive`.** If you find yourself denying an
+   undeclared fn on Pure/Deterministic/Total, STOP — that breaks `pure?` for ordinary functions and
+   is the exact defect stone §1 records.
+3. **STOP-3 — one door.** If the check ends up called from BOTH `build_env` and registration, STOP.
+   Two call sites is two implementations of one law.
+4. **STOP-4 — the codemod keys on (file, name).** Only files the checker named may move. If a name
+   is declared in more than one file, do not assume both move — `:test::big?` is the proven
+   counterexample.
+5. **STOP-5 — if the session path (`runtime.rs:24475`) cannot carry the check**, STOP and report the
+   signature that blocks it. That path is not optional garnish: it is the one the wire model needs,
+   and a check that only runs at boot is the defect this brief exists to fix, relocated.
 
-**`tests/rete/probe_arc278_rete_defn_gap.{rs,wat.bad}` + `..._control.wat`** — committed and run
-before this brief was finished (`cargo test --release --test rete -- rete_defn_gap` → 3 passed).
-Do not rebuild it; inherit it.
+## What "done" means
 
-What it already pins:
+The floor is green at ≥ 4376 with 0 failed, by the orchestrator's own `--release` re-run; the
+acceptance gate still goes red-and-green by mutation; `:wat::rete::pure?` still answers true for an
+ordinary pure fn; and a `(:wat::rete::core::defn …)` declared in a live session — not only at boot —
+is checked and stamped.
 
-- **the gap** — the fixture's body is *already law-A clean* (`:wat::rete::core::i64::>` is a minted
-  `RETE_OPS` row), so the only reason it fails is the unminted head. Today that surfaces as
-  2 × `MalformedForm` — *":wat::core::i64 is a TYPE keyword, not a value"* — because an
-  unrecognised head is treated as a **call** and its signature evaluated as **arguments**.
-- **the non-vacuity control** — the sibling `.wat` is byte-identical minus that one form and MUST
-  load. Without it the RED would prove "something in the file is bad", not "exactly this form is
-  missing" (R59).
-- **the acceptance criterion, written before the code** — `the_gap_diagnostic_does_not_name_the_helper`
-  asserts that nothing in today's diagnostic mentions `:probe::declared`. **It is designed to FAIL
-  when you land the strike**, and its panic message tells you exactly what to rewrite it into. That
-  is the flip from *allowing* the diagnostic to improve to *forcing* it.
+## Known and out of scope
 
-**Your job on this gate:** repoint the fixture's body at a NON-rete op so it exercises the membrane
-rather than the missing form, and rewrite the third test to assert the helper **is** named. Then
-prove it can still go RED by mutation (legal rete body → green; back → red). A gate that cannot be
-shown red is a claim, not a proof — this arc shipped eleven such gates before (`91bbb8cd`).
-
-One more ground fact, so you do not mis-read the failure: an arbitrary unknown head
-(`:no::such::form`) gives `UnresolvedReference`, **not** the MalformedForm above. So
-`:wat::rete::core::` is already handled specially — expect the form to need real registration, not
-merely a name.
-
-## Blast radius
-
-`src/value/environment.rs` (+`ReteContract`), `src/rete/purity.rs` (one branch), the `defn`
-registration path in `src/runtime.rs`, the 35 mechanical `Function { … }` sites, one new
-`wat-scripts/fixes/*.wat`, one new `tests/rete/` gate, and the re-headed corpus files. No new types
-beyond `ReteContract`. `RETE_OPS` is **not** touched.
-
-## STOP triggers — each is a rejection, and you report rather than route around
-
-1. **STOP-1 — the body check must call `purity.rs`'s existing walks.** If they are not callable from
-   the definition-site path as they stand, STOP and report the signature that blocks it. Do not write
-   a second implementation of any axis.
-2. **STOP-2 — the name lands inside an admitted module.** `RETE_MODULES` contains
-   `":wat::rete::core::"`, so `rete_vocabulary_admitted(":wat::rete::core::defn")` is already `true`,
-   and `head_ok`'s admission branch will default-deny it (no `RETE_OPS` row, and `rete_op_for` is an
-   exact match). That is believed benign — `defn` is top-level and never appears in expression
-   position. **Confirm it by a run.** If a `defn` head can reach `head_ok`'s admission branch, STOP.
-3. **STOP-3 — `defn` is NOT a `RETE_OPS` row.** That table is what may appear *inside* a predicate;
-   its `params`/`ret`/`meta` columns are meaningless for a declaration. If the design seems to need a
-   row, STOP.
-4. **STOP-4 — the migration is a RE-HEADING.** Every screaming site should need only its head
-   changed, because it was already law-A clean (that is *why* it was admitted). **If any site needs a
-   BODY change, STOP and surface it** — the stone's "already admitted ⇒ already clean" reasoning has a
-   hole, and that hole is a finding worth more than the migration.
-5. **STOP-5 — a rete-defn stays callable from ordinary wat.** It is a fn carrying extra guarantees,
-   like Postgres `IMMUTABLE`. If it starts becoming a separate callable namespace, STOP.
-
-## The count
-
-The stone says 27 sites. **I did not enumerate them and you should not grep for them.** The checker
-enumerates once the membrane is armed (R52 `QVOD LEX ACCENDIT`, R65 `SCVTVM IDEM INDEX`) — a grep
-over this corpus has produced a wrong count in this arc repeatedly. Report the number the checker
-gives; if it is not 27, the checker is right.
-
-## Shape to copy
-
-`BRIEF-inline-constraint-admits-non-rete.md` + its codemod
-`wat-scripts/fixes/inline-constraint-per-type-spelling.wat` — the nearest prior strike: same arc,
-same fence, a `src/` check plus a recorded corpus migration.
+`:w::sum-of-squares` lives in an inline wat string inside
+`tests/rete/probe_arc278_8custom_native_differential.rs` — a form-tree codemod cannot reach it.
+Hand-edit that one; it is the class-4 surface (2026-07-24's lesson) and the floor is what surfaces it.
