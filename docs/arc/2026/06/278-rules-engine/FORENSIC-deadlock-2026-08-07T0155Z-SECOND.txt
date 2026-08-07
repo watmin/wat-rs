@@ -1,0 +1,114 @@
+DEADLOCK #2 — REPRODUCED, different fixtures, same shape. Captured live, read-only.
+captured: 2026-08-07T01:57:34-07:00
+
+═══ #1 (01:30) fixtures: probe_arc170_c2_mixed_macro, probe_arc170_c2_strike1_mixed  (16 loci)
+═══ #2 (01:54) fixtures: probe_arc170_gapj_each_kwargs, probe_arc170_m1_teeth_admitted
+    -> DIFFERENT fixtures, SAME test binary, SAME parked shape = NOT fixture-specific
+
+═══ binary vs edit mtimes (did the rider rebuild between #1 and #2?) ═══
+  01:46:48  target/release/deps/services-04a5f33be2a1e12a
+  01:46:47  target/release/wat
+  01:45:27  src/runtime.rs
+  01:26:12  src/rete/purity.rs
+  01:26:12  src/freeze.rs
+
+═══ TREE ═══
+ 915463    7343 SNs        02:34 00:00:00  0.0      \_ /bin/bash -c source /home/watmin/.claude/shell-snapshots/snapshot-bash-1785977759954-py9eai.sh 2>/dev/null || true && shopt -u extglob 2>/dev/null || true && { \builtin unalias -- 'unsetenv'; \builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'cd /home/watmin/work/holon/wat-rs cargo test --release --test services 2>&1 | tail -10' < /dev/null && pwd -P >| /tmp/claude-d151-cwd
+ 915465  915463 SNl        02:34 00:00:00  0.0      |   \_ /home/watmin/.rustup/toolchains/1.97.0-x86_64-unknown-linux-gnu/bin/cargo test --release --test services
+ 915483  915465 SNl        02:34 00:00:49 32.3      |   |   \_ /home/watmin/work/holon/wat-rs/target/release/deps/services-04a5f33be2a1e12a
+ 915504  915483 SNl        02:33 00:00:00  0.2      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/counter :file "tests/services/probe_arc170_gapj_each_kwargs.wat" :line 67}
+ 915518  915483 SNl        02:33 00:00:00  0.1      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/echo :file "tests/services/probe_arc170_m1_teeth_admitted.wat" :line 30}
+
+═══ STATES + WCHAN + FDS ═══
+--- 915504 state=S wchan=io_cqring_wait
+    /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/counter :file "tests/services/probe
+    thr 915504: S io_cqring_wait
+    thr 915507: S poll_schedule_timeout.constprop.0
+    thr 915527: S futex_do_wait
+    thr 915528: S futex_do_wait
+    thr 915529: S futex_do_wait
+      fd  -> 
+      fd 0 -> ->
+      fd 1 -> ->
+      fd 10 -> ->
+      fd 11 -> ->
+      fd 12 -> ->
+      fd 14 -> ->
+      fd 15 -> ->
+      fd 16 -> ->
+      fd 2 -> ->
+      fd 3 -> ->
+      fd 4 -> ->
+--- 915518 state=S wchan=io_cqring_wait
+    /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/echo :file "tests/services/probe_ar
+    thr 915518: S io_cqring_wait
+    thr 915519: S poll_schedule_timeout.constprop.0
+    thr 915543: S futex_do_wait
+    thr 915544: S futex_do_wait
+    thr 915545: S futex_do_wait
+      fd  -> 
+      fd 0 -> ->
+      fd 1 -> ->
+      fd 10 -> ->
+      fd 11 -> ->
+      fd 12 -> ->
+      fd 14 -> ->
+      fd 15 -> ->
+      fd 16 -> ->
+      fd 2 -> ->
+      fd 3 -> ->
+      fd 4 -> ->
+--- 917158 state=S wchan=anon_pipe_read
+    /bin/bash -c source /home/watmin/.claude/shell-snapshots/snapshot-bash-1785977759954-py9eai.sh 2>/dev/null || true && sh
+OUT=docs/arc/2026/06/278-rules-engine/FORENSIC-deadlock-2026-08-07T0155Z-SECOND.txt
+{
+echo "DEADLOCK #2 — REPRODUCED, different fixtures, same shape. Captured live, read-only."
+echo "captured: $(date -Is)"
+echo
+echo "═══ #1 (01:30) fixtures: probe_arc170_c2_mixed_macro, probe_arc170_c2_strike1_mixed  (16 loci)"
+echo "═══ #2 (01:54) fixtures: probe_arc170_gapj_each_kwargs, probe_arc170_m1_teeth_admitted"
+echo "    -> DIFFERENT fixtures, SAME test binary, SAME parked shape = NOT fixture-specific"
+echo
+echo "═══ binary vs edit mtimes (did the rider rebuild between #1 and #2?) ═══"
+ls -l --time-style=+%H:%M:%S target/release/deps/services-04a5f33be2a1e12a target/release/wat 2>/dev/null | awk '"'"'{pr
+ls -lt --time-style=+%H:%M:%S src/runtime.rs src/freeze.rs src/rete/purity.rs 2>/dev/null | awk '"'"'{print "  "$6"  "$7
+echo
+echo "═══ TREE ═══"
+ps -eo pid,ppid,stat,etime,time,pcpu,args --forest | grep -E '"'"'cargo test|services-|release/wat #wat'"'"' | grep -v g
+echo
+echo "═══ STATES + WCHAN + FDS ═══"
+for pid in $(pgrep -f '"'"'release/wat #wat.process'"'"') 915483; do
+  [ -d /proc/$pid ] || continue
+  echo "--- $pid state=$(awk '"'"'/^State:/{print $2}'"'"' /proc/$pid/status) wchan=$(cat /proc/$pid/wchan 2>/dev/null)"
+  echo "    $(tr '"'"'\0'"'"' '"'"' '"'"' < /proc/$pid/cmdline | cut -c1-120)"
+  for t in /proc/$pid/task/*; do echo "    thr $(basename $t): $(awk '"'"'/^State:/{print $2}'"'"' $t/status 2>/dev/null
+  ls -l /proc/$pid/fd 2>/dev/null | awk '"'"'{print "      fd "$9" -> "$10}'"'"' | head -12
+done
+} > "$OUT" 2>&1
+echo "captured -> $OUT ($(wc -l < "$OUT") lines)"
+grep -E '"'"'^  [0-9]{2}:'"'"' "$OUT" | head -6' && pwd -P >| /tmp/claude-f037-cwd 
+    thr 917158: S anon_pipe_read
+      fd  -> 
+      fd 0 -> ->
+      fd 1 -> ->
+      fd 10 -> ->
+      fd 11 -> ->
+      fd 2 -> ->
+--- 915483 state=S wchan=futex_do_wait
+    /home/watmin/work/holon/wat-rs/target/release/deps/services-04a5f33be2a1e12a 
+    thr 915483: S futex_do_wait
+    thr 915490: S anon_pipe_read
+    thr 915491: S anon_pipe_read
+    thr 915586: S poll_schedule_timeout.constprop.0
+      fd  -> 
+      fd 0 -> ->
+      fd 1 -> ->
+      fd 100 -> ->
+      fd 108 -> ->
+      fd 109 -> ->
+      fd 110 -> ->
+      fd 111 -> ->
+      fd 15 -> ->
+      fd 19 -> ->
+      fd 2 -> ->
+      fd 21 -> ->
