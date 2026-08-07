@@ -1,0 +1,470 @@
+DEADLOCK FORENSICS — captured LIVE, read-only, nothing killed
+captured: 2026-08-07T01:40:03-07:00   root: cargo test --release --no-fail-fast (rider-launched)
+binaries built 01:27:25/01:27:33; src edits 01:26:12 -> the strike's code IS in this binary
+
+═══ FULL TREE ═══
+   7046    7004 S+    1-07:47:43 00:00:00  0.0  |       \_ /home/watmin/.cargo/bin/wat --mcp
+   7391    7343 SN    1-07:47:28 00:00:00  0.0      \_ /home/watmin/.cargo/bin/wat --mcp
+ 893506    7343 SNs        12:11 00:00:00  0.0      \_ /bin/bash -c source /home/watmin/.claude/shell-snapshots/snapshot-bash-1785977759954-py9eai.sh 2>/dev/null || true && shopt -u extglob 2>/dev/null || true && { \builtin unalias -- 'unsetenv'; \builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'cd /home/watmin/work/holon/wat-rs cargo test --release --no-fail-fast 2>&1 | tee /tmp/full_test_run2.log | tail -10' < /dev/null && pwd -P >| /tmp/claude-b4f6-cwd
+ 893508  893506 SNl        12:11 00:00:00  0.0      |   \_ /home/watmin/.rustup/toolchains/1.97.0-x86_64-unknown-linux-gnu/bin/cargo test --release --no-fail-fast
+ 899772  893508 SNl        09:37 00:01:00 10.4      |   |   \_ /home/watmin/work/holon/wat-rs/target/release/deps/services-04a5f33be2a1e12a
+ 899801  899772 SNl        09:37 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s1 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 169}
+ 899808  899772 SNl        09:37 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s1 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 172}
+ 899824  899772 SNl        09:37 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s2 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 170}
+ 899865  899772 SNl        09:36 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s2 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 173}
+ 899878  899772 SNl        09:36 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s3 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 171}
+ 899902  899772 SNl        09:36 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s3 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 174}
+ 899925  899772 SNl        09:36 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s4 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 172}
+ 899953  899772 SNl        09:35 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s4 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 175}
+ 899969  899772 SNl        09:35 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s5 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 173}
+ 899996  899772 SNl        09:35 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s5 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 176}
+ 900025  899772 SNl        09:35 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s6 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 174}
+ 900049  899772 SNl        09:34 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s6 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 177}
+ 900063  899772 SNl        09:34 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s7 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 175}
+ 900086  899772 SNl        09:33 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s7 :file "tests/services/probe_arc170_c2_strike1_mixed.wat" :line 178}
+ 900107  899772 SNl        09:33 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Bracket {:id 0 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 176}
+ 900129  899772 SNl        09:33 00:00:00  0.0      |   |       \_ /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Bracket {:id 1 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 176}
+
+═══ PER-PROCESS STATE + WCHAN + FD->PIPE MAP (the cycle lives here) ═══
+--- pid 899801  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s1 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 899801: state=S wchan=io_cqring_wait
+    thread 899802: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899821: state=S wchan=futex_do_wait
+    thread 899822: state=S wchan=futex_do_wait
+    thread 899823: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3341043]
+      1 -> -> pipe:[3334785]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3344669]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336115]
+      14 -> -> pipe:[3341043]
+      15 -> -> pipe:[3334785]
+      16 -> -> pipe:[3334787]
+      17 -> -> socket:[3336115]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347690]
+      2 -> -> pipe:[3334787]
+--- pid 899808  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s1 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 899808: state=S wchan=io_cqring_wait
+    thread 899812: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899857: state=S wchan=futex_do_wait
+    thread 899858: state=S wchan=futex_do_wait
+    thread 899859: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3349774]
+      1 -> -> pipe:[3349776]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3352815]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3349774]
+      15 -> -> pipe:[3349776]
+      16 -> -> pipe:[3349778]
+      2 -> -> pipe:[3349778]
+      3 -> -> pipe:[3349780]
+      4 -> -> pipe:[3349784]
+      5 -> -> pipe:[3349784]
+      6 -> -> pipe:[3349785]
+--- pid 899824  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s2 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 899824: state=S wchan=io_cqring_wait
+    thread 899825: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899873: state=S wchan=futex_do_wait
+    thread 899875: state=S wchan=futex_do_wait
+    thread 899876: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3344671]
+      1 -> -> pipe:[3344673]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3352825]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336118]
+      14 -> -> pipe:[3344671]
+      15 -> -> pipe:[3344673]
+      16 -> -> pipe:[3344675]
+      17 -> -> socket:[3336118]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347687]
+      2 -> -> pipe:[3344675]
+--- pid 899865  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s2 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 899865: state=S wchan=io_cqring_wait
+    thread 899868: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899894: state=S wchan=futex_do_wait
+    thread 899895: state=S wchan=futex_do_wait
+    thread 899896: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3352817]
+      1 -> -> pipe:[3352819]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3347627]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3352817]
+      15 -> -> pipe:[3352819]
+      16 -> -> pipe:[3352821]
+      2 -> -> pipe:[3352821]
+      3 -> -> pipe:[3352823]
+      4 -> -> pipe:[3344320]
+      5 -> -> pipe:[3344320]
+      6 -> -> pipe:[3344321]
+--- pid 899878  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s3 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 899878: state=S wchan=io_cqring_wait
+    thread 899879: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899917: state=S wchan=futex_do_wait
+    thread 899919: state=S wchan=futex_do_wait
+    thread 899920: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3349813]
+      1 -> -> pipe:[3349815]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3352835]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336142]
+      14 -> -> pipe:[3349813]
+      15 -> -> pipe:[3349815]
+      16 -> -> pipe:[3349817]
+      17 -> -> socket:[3336142]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347693]
+      2 -> -> pipe:[3349817]
+--- pid 899902  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s3 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 899902: state=S wchan=io_cqring_wait
+    thread 899903: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899949: state=S wchan=futex_do_wait
+    thread 899950: state=S wchan=futex_do_wait
+    thread 899951: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3347628]
+      1 -> -> pipe:[3347630]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3347645]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3347628]
+      15 -> -> pipe:[3347630]
+      16 -> -> pipe:[3347632]
+      2 -> -> pipe:[3347632]
+      3 -> -> pipe:[3347634]
+      4 -> -> pipe:[3344328]
+      5 -> -> pipe:[3344328]
+      6 -> -> pipe:[3344329]
+--- pid 899925  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s4 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 899925: state=S wchan=io_cqring_wait
+    thread 899929: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899965: state=S wchan=futex_do_wait
+    thread 899966: state=S wchan=futex_do_wait
+    thread 899967: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3347636]
+      1 -> -> pipe:[3334806]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3353622]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336145]
+      14 -> -> pipe:[3347636]
+      15 -> -> pipe:[3334806]
+      16 -> -> pipe:[3334808]
+      17 -> -> socket:[3336145]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347713]
+      2 -> -> pipe:[3334808]
+--- pid 899953  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s4 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 899953: state=S wchan=io_cqring_wait
+    thread 899955: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 899990: state=S wchan=futex_do_wait
+    thread 899991: state=S wchan=futex_do_wait
+    thread 899992: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3337753]
+      1 -> -> pipe:[3337755]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3351778]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3337753]
+      15 -> -> pipe:[3337755]
+      16 -> -> pipe:[3337757]
+      2 -> -> pipe:[3337757]
+      3 -> -> pipe:[3337759]
+      4 -> -> pipe:[3351759]
+      5 -> -> pipe:[3351759]
+      6 -> -> pipe:[3351760]
+--- pid 899969  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s5 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 899969: state=S wchan=io_cqring_wait
+    thread 899970: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900021: state=S wchan=futex_do_wait
+    thread 900022: state=S wchan=futex_do_wait
+    thread 900023: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3353624]
+      1 -> -> pipe:[3353626]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3337760]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336132]
+      14 -> -> pipe:[3353624]
+      15 -> -> pipe:[3353626]
+      16 -> -> pipe:[3353628]
+      17 -> -> socket:[3336132]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347704]
+      2 -> -> pipe:[3353628]
+--- pid 899996  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s5 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 899996: state=S wchan=io_cqring_wait
+    thread 900000: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900045: state=S wchan=futex_do_wait
+    thread 900046: state=S wchan=futex_do_wait
+    thread 900047: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3351780]
+      1 -> -> pipe:[3351782]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3347652]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3351780]
+      15 -> -> pipe:[3351782]
+      16 -> -> pipe:[3351784]
+      2 -> -> pipe:[3351784]
+      3 -> -> pipe:[3351786]
+      4 -> -> pipe:[3347650]
+      5 -> -> pipe:[3347650]
+      6 -> -> pipe:[3347651]
+--- pid 900025  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s6 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 900025: state=S wchan=io_cqring_wait
+    thread 900026: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900058: state=S wchan=futex_do_wait
+    thread 900060: state=S wchan=futex_do_wait
+    thread 900061: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3337762]
+      1 -> -> pipe:[3337764]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3337778]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336136]
+      14 -> -> pipe:[3337762]
+      15 -> -> pipe:[3337764]
+      16 -> -> pipe:[3337766]
+      17 -> -> socket:[3336136]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347710]
+      2 -> -> pipe:[3337766]
+--- pid 900049  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s6 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 900049: state=S wchan=io_cqring_wait
+    thread 900050: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900082: state=S wchan=futex_do_wait
+    thread 900083: state=S wchan=futex_do_wait
+    thread 900084: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3347654]
+      1 -> -> pipe:[3347656]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3343265]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3347654]
+      15 -> -> pipe:[3347656]
+      16 -> -> pipe:[3347658]
+      2 -> -> pipe:[3347658]
+      3 -> -> pipe:[3347660]
+      4 -> -> pipe:[3337775]
+      5 -> -> pipe:[3337775]
+      6 -> -> pipe:[3337776]
+--- pid 900063  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s7 :file "tests/services/probe_arc170_c2_mixed_macro.wa
+    thread 900063: state=S wchan=io_cqring_wait
+    thread 900064: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900093: state=S wchan=futex_do_wait
+    thread 900094: state=S wchan=futex_do_wait
+    thread 900095: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3337780]
+      1 -> -> pipe:[3337782]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3349879]
+      12 -> -> anon_inode:[io_uring]
+      13 -> -> socket:[3336139]
+      14 -> -> pipe:[3337780]
+      15 -> -> pipe:[3337782]
+      16 -> -> pipe:[3337784]
+      17 -> -> socket:[3336139]
+      18 -> -> anon_inode:[io_uring]
+      19 -> -> socket:[3347707]
+      2 -> -> pipe:[3337784]
+--- pid 900086  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Service {:name :probe/s7 :file "tests/services/probe_arc170_c2_strike1_mixed.
+    thread 900086: state=S wchan=io_cqring_wait
+    thread 900088: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900132: state=S wchan=futex_do_wait
+    thread 900133: state=S wchan=futex_do_wait
+    thread 900134: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3334991]
+      1 -> -> pipe:[3334993]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3341058]
+      12 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3334991]
+      15 -> -> pipe:[3334993]
+      16 -> -> pipe:[3334995]
+      2 -> -> pipe:[3334995]
+      3 -> -> pipe:[3334997]
+      4 -> -> pipe:[3335001]
+      5 -> -> pipe:[3335001]
+      6 -> -> pipe:[3335002]
+--- pid 900107  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Bracket {:id 0 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 1
+    thread 900107: state=S wchan=io_cqring_wait
+    thread 900114: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900142: state=S wchan=futex_do_wait
+    thread 900143: state=S wchan=futex_do_wait
+    thread 900144: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3337801]
+      1 -> -> pipe:[3337803]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3336112]
+      12 -> -> socket:[3336112]
+      13 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3337801]
+      15 -> -> pipe:[3337803]
+      16 -> -> pipe:[3337805]
+      17 -> -> socket:[3336114]
+      18 -> -> socket:[3336114]
+      19 -> -> anon_inode:[io_uring]
+      2 -> -> pipe:[3337805]
+--- pid 900129  state=S  wchan=io_cqring_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/wat #wat.process/Bracket {:id 1 :file "tests/services/probe_arc170_c2_mixed_macro.wat" :line 1
+    thread 900129: state=S wchan=io_cqring_wait
+    thread 900131: state=S wchan=poll_schedule_timeout.constprop.0
+    thread 900165: state=S wchan=futex_do_wait
+    thread 900166: state=S wchan=futex_do_wait
+    thread 900167: state=S wchan=futex_do_wait
+    fds:
+       ->  
+      0 -> -> pipe:[3335005]
+      1 -> -> pipe:[3335007]
+      10 -> -> anon_inode:[io_uring]
+      11 -> -> socket:[3347681]
+      12 -> -> socket:[3347681]
+      13 -> -> anon_inode:[io_uring]
+      14 -> -> pipe:[3335005]
+      15 -> -> pipe:[3335007]
+      16 -> -> pipe:[3335009]
+      17 -> -> socket:[3347683]
+      18 -> -> socket:[3347683]
+      19 -> -> anon_inode:[io_uring]
+      2 -> -> pipe:[3335009]
+--- pid 904635  state=S  wchan=anon_pipe_read
+    cmd: /bin/bash -c source /home/watmin/.claude/shell-snapshots/snapshot-bash-1785977759954-py9eai.sh 2>/dev/null || true && shopt -u extglob 2>/de
+OUT=docs/arc/2026/06/278-rules-engine/FORENSIC-deadlock-2026-08-07T0130Z.txt
+{
+echo "DEADLOCK FORENSICS — captured LIVE, read-only, nothing killed"
+echo "captured: $(date -Is)   root: cargo test --release --no-fail-fast (rider-launched)"
+echo "binaries built 01:27:25/01:27:33; src edits 01:26:12 -> the strike'"'"'s code IS in this binary"
+echo
+echo "═══ FULL TREE ═══"
+ps -eo pid,ppid,stat,etime,time,pcpu,args --forest | grep -E '"'"'cargo|services-|release/wat'"'"' | grep -v grep
+echo
+echo "═══ PER-PROCESS STATE + WCHAN + FD->PIPE MAP (the cycle lives here) ═══"
+for pid in $(pgrep -f '"'"'release/wat #wat.process'"'"' ) 899772; do
+  [ -d /proc/$pid ] || continue
+  echo "--- pid $pid  state=$(awk '"'"'/^State:/{print $2}'"'"' /proc/$pid/status)  wchan=$(cat /proc/$pid/wchan 2>/dev/null)"
+  echo "    cmd: $(tr '"'"'\0'"'"' '"'"' '"'"' < /proc/$pid/cmdline | cut -c1-140)"
+  for t in /proc/$pid/task/*; do
+    echo "    thread $(basename $t): state=$(awk '"'"'/^State:/{print $2}'"'"' $t/status 2>/dev/null) wchan=$(cat $t/wchan 2>/dev/null)"
+  done
+  echo "    fds:"; ls -l /proc/$pid/fd 2>/dev/null | awk '"'"'{print "      "$9" -> "$10" "$11}'"'"' | head -14
+done
+echo
+echo "═══ TEST LOG TAIL (what it was doing when it stopped) ═══"
+tail -30 /tmp/full_test_run2.log 2>/dev/null || echo "(no log)"
+} > "$OUT" 2>&1
+echo "captured -> $OUT  ($(wc -l < "$OUT") lines)"
+echo
+echo "════ THE CYCLE — pipe endpoints shared between parent and a child ════"
+grep -oE '"'"'pipe:\[[0-9]+\]'"'"' "$OUT" | sort | uniq -c | sort -rn | head -8' && pwd -P >| /tmp/claude-e73c-cwd 
+    thread 904635: state=S wchan=anon_pipe_read
+    fds:
+       ->  
+      0 -> -> socket:[3370398]
+      1 -> -> /home/watmin/work/holon/wat-rs/docs/arc/2026/06/278-rules-engine/FORENSIC-deadlock-2026-08-07T0130Z.txt
+      10 -> -> /tmp/claude-1000/-home-watmin-work-holon/576eb969-21bb-4c88-97a5-508399f0156b/tasks/b37ntf0an.output
+      11 -> -> /tmp/claude-1000/-home-watmin-work-holon/576eb969-21bb-4c88-97a5-508399f0156b/tasks/b37ntf0an.output
+      2 -> -> /home/watmin/work/holon/wat-rs/docs/arc/2026/06/278-rules-engine/FORENSIC-deadlock-2026-08-07T0130Z.txt
+--- pid 899772  state=S  wchan=futex_do_wait
+    cmd: /home/watmin/work/holon/wat-rs/target/release/deps/services-04a5f33be2a1e12a 
+    thread 899772: state=S wchan=futex_do_wait
+    thread 899776: state=S wchan=anon_pipe_read
+    thread 899778: state=S wchan=anon_pipe_read
+    thread 899974: state=S wchan=poll_schedule_timeout.constprop.0
+    fds:
+       ->  
+      0 -> -> /dev/null
+      1 -> -> pipe:[3335510]
+      10 -> -> pipe:[3341043]
+      100 -> -> anon_inode:[pidfd]
+      101 -> -> pipe:[3337757]
+      102 -> -> anon_inode:[io_uring]
+      103 -> -> anon_inode:[io_uring]
+      104 -> -> anon_inode:[io_uring]
+      105 -> -> pipe:[3337759]
+      106 -> -> pipe:[3349891]
+      107 -> -> anon_inode:[pidfd]
+      108 -> -> pipe:[3337749]
+      109 -> -> pipe:[3353628]
+
+═══ TEST LOG TAIL (what it was doing when it stopped) ═══
+test probe_arc278_recv_outcome_wall::recv_outcome_wall_rterr_process_client_reason_free ... ok
+test probe_arc278_sift_logs::sift_logs_impure_predicate_is_rejected ... ok
+test probe_arc278_rst_peer_notify_baseline::client_sees_peer_crashed_not_bare_disconnect ... ok
+test probe_arc278_service_max_frame_bytes::small_foo_service_survives_an_over_budget_frame ... ok
+test probe_arc278_sift_logs::sift_logs_pure_predicate_returns_only_survivors ... ok
+test probe_arc278_service_max_frame_bytes::small_foo_over_budget_fails_with_the_reason ... ok
+test probe_arc278_sift_rules::sift_rules_defsvc_counts_exact_deductions_on_thread ... ok
+test probe_arc278_s2s_peer_on_process::s2s_peer_holding_service_round_trips_on_a_process_locus ... ok
+test probe_arc278_sift_rules::sift_rules_defsvc_fails_closed_on_unknown_message_type_thread ... ok
+test probe_arc278_service_max_frame_bytes::large_foo_accepts_a_600kib_request ... ok
+test probe_arc278_sift_logs::sift_logs_impure_predicate_is_rejected_on_process ... ok
+test probe_arc278_sift_rules_arena::sift_rules_arena_fails_closed_on_unknown_message_type_thread ... ok
+test probe_arc278_sift_logs::sift_logs_pure_predicate_returns_only_survivors_on_process ... ok
+test probe_arc278_span_macros::with_span_and_timed_emit_the_aggregated_metrics_on_close ... ok
+test probe_arc278_span_service::span_accumulates_a_counter_and_emits_it_as_a_metric_on_close ... ok
+test probe_arc278_span_nested::nested_with_span_emits_into_each_namespace_independently ... ok
+test probe_arc278_struct_new_nature_wall::struct_new_on_record_natured_failure_is_compile_error ... ok
+test probe_arc278_span_surface::span_surface_freezes_and_all_four_ops_reply ... ok
+test probe_arc278_tagged_keys_store::constant_width_inst_sk_sorts_chronologically ... ok
+test probe_arc278_sift_rules::sift_rules_defsvc_counts_exact_deductions_on_process ... ok
+test probe_arc278_tagged_keys_store::uuid_gsi_scan_index_round_trips ... ok
+test probe_arc294_expand_order::bump_handler_constructs_its_own_minted_state ... ok
+test probe_arc278_sift_arena::sift_arena_foreign_reader_counts_exact_survivors_across_a_process_fork ... ok
+test probe_arc278_sift_rules::sift_rules_defsvc_fails_closed_on_unknown_message_type_process ... ok
+test probe_arc294_expand_order::control_ping_handler_without_minted_construction ... ok
+test probe_arc278_sift_rules_arena::sift_rules_arena_fails_closed_on_unknown_message_type_process ... ok
+test probe_arc278_sift_rules_arena::sift_rules_arena_counts_exact_deductions_paged_on_thread ... ok
+test probe_arc278_sift_rules_arena::sift_rules_arena_counts_exact_deductions_paged_on_process ... ok
+test probe_arc170_c2_mixed_macro::mixed_via_macro_runs has been running for over 60 seconds
+test probe_arc170_c2_strike1_mixed::c2_strike1_mixed_7_services_5_data_runs_end_to_end has been running for over 60 seconds
