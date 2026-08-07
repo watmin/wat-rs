@@ -74,25 +74,43 @@ is the method, not a crisis — each site is a `None`.
    copy and `diff` before applying. Follow `wat/fix.wat:23-53`'s stash-dance: this ships with a `src/`
    change that makes the old form illegal.
 
-## The RED gate
+   **ENUMERATE EXTENSIONS — a `-name '*.wat'` glob is not the corpus.** R65/24t cost hours on exactly
+   this: `.wat.bad` · `.wat.disabled` · `.wat.expr` · `.wat.intueri` all hold real forms, and a
+   single-extension glob silently excluded 243 files / 23 name-holders last time. This strike ships
+   its own `.wat.bad` (the gate above), so the trap is live from move one. And note the two surfaces
+   a form-tree codemod structurally **cannot** reach: a keyword built or parsed inside a **string
+   literal**, and inline wat inside **Rust test strings** — both have to be hand-checked, and the
+   floor is what surfaces the second (2026-07-24's class-4 lesson).
 
-`tests/rete/` — a fixture whose helper is declared with `:wat::rete::core::defn` and whose body uses
-a non-rete op. It must fail **at the definition**, and the error must name the helper. Prove the gate
-can go RED by mutation (flip the body to a legal rete op → green; back → red). A gate that cannot be
-shown red is a claim, not a proof (R59).
+## The RED gate — already on the disk, already green, and it is your acceptance test
 
-Verified live this session, so you know what the ground looks like before you start:
+**`tests/rete/probe_arc278_rete_defn_gap.{rs,wat.bad}` + `..._control.wat`** — committed and run
+before this brief was finished (`cargo test --release --test rete -- rete_defn_gap` → 3 passed).
+Do not rebuild it; inherit it.
 
-```
-(:wat::rete::core::defn :probe::declared [n <- :wat::core::i64] -> :wat::core::bool …)
-  → TODAY: 2 × MalformedForm, ":wat::core::i64 is a TYPE keyword, not a value", at the
-    signature's cols — because the unknown head is treated as a CALL and its signature
-    evaluated as arguments.
-  → CONTROL: delete only that form, `--check` exits 0. The gap is isolated to it.
-  → An arbitrary unknown head (`:no::such::form`) gives UnresolvedReference instead — so this
-    namespace is already handled specially. Expect the form to need real registration, not
-    just a name.
-```
+What it already pins:
+
+- **the gap** — the fixture's body is *already law-A clean* (`:wat::rete::core::i64::>` is a minted
+  `RETE_OPS` row), so the only reason it fails is the unminted head. Today that surfaces as
+  2 × `MalformedForm` — *":wat::core::i64 is a TYPE keyword, not a value"* — because an
+  unrecognised head is treated as a **call** and its signature evaluated as **arguments**.
+- **the non-vacuity control** — the sibling `.wat` is byte-identical minus that one form and MUST
+  load. Without it the RED would prove "something in the file is bad", not "exactly this form is
+  missing" (R59).
+- **the acceptance criterion, written before the code** — `the_gap_diagnostic_does_not_name_the_helper`
+  asserts that nothing in today's diagnostic mentions `:probe::declared`. **It is designed to FAIL
+  when you land the strike**, and its panic message tells you exactly what to rewrite it into. That
+  is the flip from *allowing* the diagnostic to improve to *forcing* it.
+
+**Your job on this gate:** repoint the fixture's body at a NON-rete op so it exercises the membrane
+rather than the missing form, and rewrite the third test to assert the helper **is** named. Then
+prove it can still go RED by mutation (legal rete body → green; back → red). A gate that cannot be
+shown red is a claim, not a proof — this arc shipped eleven such gates before (`91bbb8cd`).
+
+One more ground fact, so you do not mis-read the failure: an arbitrary unknown head
+(`:no::such::form`) gives `UnresolvedReference`, **not** the MalformedForm above. So
+`:wat::rete::core::` is already handled specially — expect the form to need real registration, not
+merely a name.
 
 ## Blast radius
 

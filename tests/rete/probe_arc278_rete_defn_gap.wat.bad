@@ -1,0 +1,32 @@
+;; Arc 278 #88 — DISCONFIRMING PROBE: `(:wat::rete::core::defn …)` does not exist yet.
+;;
+;; The helper below is written EXACTLY as the ruled form will be, and its body is already
+;; law-A clean (`:wat::rete::core::i64::>` is a minted RETE_OPS row). So the ONE and ONLY
+;; reason this file fails to load today is that the declaration form itself is unminted.
+;; That is what makes this a disconfirming probe rather than a general negative: every
+;; line except the head of form #2 is live, checked wat.
+;;
+;; ⚠ TODAY'S FAILURE IS A SYMPTOM, NOT THE CAUSE. An unrecognised head is treated as a
+;; CALL, so the signature (`[n <- :wat::core::i64] -> :wat::core::bool`) is evaluated as
+;; ARGUMENTS, and the checker reports two MalformedForm errors saying `:wat::core::i64` is
+;; a TYPE keyword in value position. Nothing in that diagnostic mentions the declaration,
+;; the helper's contract, or law A — which is precisely the gap #88 closes.
+;;
+;; AFTER THE STRIKE this fixture becomes the ACCEPTANCE gate: change the body to a
+;; NON-rete op and it must be refused AT THE DEFINITION with an error naming
+;; `:probe::declared`. See EXPECTATIONS-rete-defn.md rows 2 and 3.
+;;
+;; Its non-vacuity control is the sibling `probe_arc278_rete_defn_gap_control.wat`:
+;; byte-identical minus form #2, and it MUST load. Without that control this fixture
+;; would prove only "some line is bad", not "exactly this form is missing".
+
+;; ── form #1 — CONTROL, an ordinary defn with the identical body. Live wat today. ────────
+(:wat::core::defn :probe::ordinary [n <- :wat::core::i64] -> :wat::core::bool
+  (:wat::rete::core::i64::> n 100))
+
+;; ── form #2 — THE GAP. Same signature, same body, the ruled head. Unminted today. ───────
+(:wat::rete::core::defn :probe::declared [n <- :wat::core::i64] -> :wat::core::bool
+  (:wat::rete::core::i64::> n 100))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:probe::ordinary 42)))
