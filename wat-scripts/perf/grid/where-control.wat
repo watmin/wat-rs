@@ -103,7 +103,7 @@
 
 ;; row 5's pure fn used inside a `let` — bump(x) := x + 1, a trivial CSE target so the row measures
 ;; whether a `let` binding a CALL (not a bare accessor) composes, and is used twice.
-(:wat::core::defn :wsc::bump [x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ x 1 :undefined 0))
+(:wat::rete::core::defn :wsc::bump [x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ x 1 :undefined 0))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wsc::conds [] -> :wat::WatAST

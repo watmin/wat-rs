@@ -8,7 +8,7 @@
 
 (:wat::core::defrecord :tf::In [n <- :wat::core::i64])
 
-(:wat::core::defn :tf::compute-scalar
+(:wat::rete::core::defn :tf::compute-scalar
   [n <- :wat::core::i64]
   -> :wat::core::i64
   (:wat::rete::core::i64::+ n 1 :undefined 0))

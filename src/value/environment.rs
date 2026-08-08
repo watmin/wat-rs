@@ -28,10 +28,21 @@ pub enum FunctionBody {
     Native,
 }
 
+/// Arc 278 #88 — the rete contract a `(:wat::rete::core::defn …)` declaration attests, checked
+/// AT THE DEFINITION SITE against the four axes `crate::rete::purity` already measures (Pure ∧
+/// Deterministic ∧ Total ∧ Law A — reusing those walks, never a second implementation; STOP-1).
+///
+/// `#87` hangs the bound (`depth` / `nodes` / `fold_nesting`) here — adding a field to THIS
+/// struct costs nothing, where a second field on [`Function`] would re-cascade across every
+/// construction site a second time. Empty today; `Some(ReteContract {})` is itself the marker.
+#[derive(Clone, Debug, Default)]
+pub struct ReteContract {}
+
 /// A callable. `define`-registered functions have `name = Some(path)`
 /// and `closed_env = None` (they resolve symbols via the global
 /// [`SymbolTable`] at call time). `fn` values have `name = None`
 /// and carry their `closed_env` from the creation site.
+#[derive(Clone)]
 pub struct Function {
     pub name: Option<String>,
     /// Parameter binders, as IDENTIFIERS — name plus hygiene scope set.
@@ -89,6 +100,13 @@ pub struct Function {
     /// Stone 255.1a — see [`FunctionBody`].
     pub body: FunctionBody,
     pub closed_env: Option<Environment>,
+    /// `Some` iff declared by `:wat::rete::core::defn` (arc 278 #88) and its body PROVED, once,
+    /// at that declaration, against all four rete axes. `head_ok` (`src/rete/purity.rs`)
+    /// consults this INSTEAD of walking the body — that substitution is the membrane. `None` for
+    /// every ordinary `:wat::core::defn` / `fn` value; a `None` fn is refused inside a `where`
+    /// regardless of how clean its body happens to be — the declaration IS the contract now, not
+    /// an accident of what the body contains.
+    pub rete: Option<ReteContract>,
 }
 
 impl fmt::Debug for Function {
@@ -248,6 +266,7 @@ mod tests {
             rest_param_type: None,
             body: nil_body(),
             closed_env: None,
+            rete: None,
         };
         let dbg = format!("{:?}", f);
         assert_eq!(
@@ -273,6 +292,7 @@ mod tests {
             rest_param_type: None,
             body: nil_body(),
             closed_env: Some(env),
+            rete: None,
         };
         let dbg = format!("{:?}", f);
         assert_eq!(

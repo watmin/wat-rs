@@ -8,7 +8,7 @@
 (:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
 (:wat::core::defrecord :cg::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
 
-(:wat::core::defn :cg::make-rate
+(:wat::rete::core::defn :cg::make-rate
   [c <- :wat::core::i64
    w <- :wat::core::i64]
   -> :cg::Rate

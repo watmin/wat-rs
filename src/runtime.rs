@@ -720,7 +720,7 @@ use crate::types::Nature;
 
 // Stone 251.2c — Function + Environment cluster moved to src/value/environment.rs.
 // Stone 255.1a — FunctionBody added.
-pub use crate::value::{Function, FunctionBody, Environment, EnvBuilder, BoundEntry};
+pub use crate::value::{Function, FunctionBody, Environment, EnvBuilder, BoundEntry, ReteContract};
 
 use crate::value::EncodingCtx;
 
@@ -840,6 +840,7 @@ pub fn register_defclause(
                     rest_param_type: None,
                     body: FunctionBody::Wat(Arc::new(stub_body)),
                     closed_env: None,
+                    rete: None,
                 });
                 sym.functions.insert(name.clone(), stub_fn);
             }
@@ -1145,6 +1146,7 @@ pub(crate) fn register_extend_type_surface_impls(
             rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
             body: FunctionBody::Wat(clause.body.clone()),
             closed_env: None,
+            rete: None,
         });
         sym.functions.insert(method_key, func);
     }
@@ -1555,6 +1557,7 @@ pub fn register_aggregate_methods(
                 rest_param_type: None,
                 body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
                 closed_env: None,
+                rete: None,
             };
             // Arc 294 item 9a follow-up — conform to `register_defines`' collision
             // policy (lines 530-549 above): silent-skip on re-walk. A forked bracket
@@ -1659,6 +1662,7 @@ pub fn register_aggregate_methods(
                 rest_param_type: None,
                 body: FunctionBody::Wat(Arc::new(accessor_body)),
                 closed_env: None,
+                rete: None,
             };
             // Same collision policy as the ctor mint above — silent-skip on a
             // same-aggregate re-walk (e.g. a forked bracket worker re-registering
@@ -1777,6 +1781,7 @@ pub fn register_enum_methods(
                         rest_param_type: None,
                         body: FunctionBody::Wat(Arc::new(WatAST::List(body_items, crate::rust_caller_span!()))),
                         closed_env: None,
+                        rete: None,
                     };
                     if sym.functions.contains_key(&constructor_path)
                         || sym.unit_variants.contains_key(&constructor_path)
@@ -1852,6 +1857,7 @@ pub fn register_newtype_methods(
             rest_param_type: None,
             body: FunctionBody::Wat(Arc::new(new_body)),
             closed_env: None,
+            rete: None,
         };
         if sym.functions.contains_key(&constructor_path) {
             // arc 138: no span — synthesized newtype constructor.
@@ -1881,6 +1887,7 @@ pub fn register_newtype_methods(
             rest_param_type: None,
             body: FunctionBody::Wat(Arc::new(accessor_body)),
             closed_env: None,
+            rete: None,
         };
         if sym.functions.contains_key(&accessor_path) {
             // arc 138: no span — synthesized newtype accessor.
@@ -1983,6 +1990,7 @@ pub fn register_type_predicates(
             rest_param_type: None,
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
+            rete: None,
         };
 
         if sym.functions.contains_key(&predicate_name) {
@@ -2107,13 +2115,55 @@ pub fn preregister_acronyms(
 ///
 /// The `env` parameter carries any enclosing let-bindings. At the
 /// outermost call (from `FrozenWorld::freeze`) this is `Environment::new()`.
+///
+/// Arc 278 #88 v2 — also THE ONE DOOR for the rete-defn definition-site check
+/// (`crate::rete::purity::apply_rete_defn_contracts`). It moved here from `build_env`
+/// (`freeze/env.rs`) because `register_runtime_defs` re-registers every `defn`-turned-`def`
+/// — rebuilding a fresh `Function` with `rete: None` (see the `:wat::core::def` arm below) —
+/// so a check that ran BEFORE this pass had its stamp silently dropped the moment this pass
+/// touched the same name (DESIGN-STONE-the-rete-defn.md, "WHAT THE FIRST STRIKE LEARNED" §3).
+///
+/// ⚠ THE STAMP RUNS AFTER **EACH** TOP-LEVEL FORM, NOT ONCE AFTER THE WHOLE LOOP — this is
+/// itself a correction, caught live on the SESSION path (`eval_form_against_defs`), not the
+/// boot path, which is exactly why it hides at boot. A top-level `(:wat::core::let […] body)`
+/// is registration-BEARING (`RUNTIME_DECLARATION_HEADS`) precisely so a closure-capture def
+/// nested in its body can see the let's bindings — and that means the `:wat::core::let` arm
+/// below EAGERLY EVALUATES its bindings as *registration*, not as the later "run the
+/// contributed expression" phase. A live-session line like
+/// `(let [rules (:wat::rete::collect-rules :usr) session (:wat::rete::compile rules)] …)`
+/// therefore calls `:wat::rete::compile` DURING this very loop. Stamping only once at the
+/// end meant every rete-defn registered EARLIER in `program` (by a PRIOR turn, re-registered
+/// fresh with `rete: None` by THIS pass's own `:wat::core::def` arm) was still unstamped at
+/// the moment that eager compile ran — a real, reproduced refusal
+/// (`:wat::rete::compile-rule` naming a just-declared, law-A-clean helper as "not a rete
+/// primitive") that never reproduces at boot, because a boot-time `let` almost always lives
+/// inside a `defn` body (evaluated on invocation, long after freeze) rather than bare at
+/// top level. Stamping per-form is safe to call repeatedly: a name not yet in `sym.functions`
+/// is skipped (`apply_rete_defn_contracts`'s own guard), an already-stamped name is
+/// re-verified identically (idempotent), and the whole-group `seen` seeding (stone §2) is
+/// unaffected — it seeds from `declared_rete_defns` itself, not from what happens to be
+/// registered yet.
+///
+/// Both callers of this fn — the boot path (`FrozenWorld::freeze`) and the live-session path
+/// (`eval_form_against_defs`) — get it for free, identically, with no second implementation
+/// (STOP-3).
+///
+/// `declared_rete_defns` names which of `program`'s registrations to check + stamp — see
+/// `freeze::env::extract_rete_defn_names` / `FrozenWorld::declared_rete_defns`.
 pub fn register_runtime_defs(
     program: &[WatAST],
     env: &Environment,
     sym: &mut SymbolTable,
+    declared_rete_defns: &std::collections::HashSet<String>,
 ) -> Result<(), EvalBreak> {
     for form in program {
         register_runtime_defs_form(form, env, sym)?;
+        match crate::rete::purity::apply_rete_defn_contracts(sym, declared_rete_defns) {
+            crate::rete::purity::ReteDefnCheckOutcome::Ok => {}
+            crate::rete::purity::ReteDefnCheckOutcome::AxisViolation { name, axis, head, span } => {
+                return Err(RuntimeError::new(span, RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head }).into());
+            }
+        }
     }
     Ok(())
 }
@@ -2301,6 +2351,7 @@ fn register_runtime_defs_form(
                         rest_param_type: func.rest_param_type.clone(),
                         body: func.body.clone(),
                         closed_env: func.closed_env.clone(),
+                        rete: None,
                     })
                 } else {
                     func.clone()
@@ -2528,6 +2579,7 @@ fn register_defalias(
             rest_param_type: target_fn.rest_param_type.clone(),
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
+            rete: None,
         });
         sym.functions.insert(alias.to_string(), alias_fn);
         return Ok(());
@@ -2556,6 +2608,7 @@ fn register_defalias(
             rest_param_type: scheme.rest_param_type.clone(),
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
+            rete: None,
         });
         sym.functions.insert(alias.to_string(), alias_fn);
         return Ok(());
@@ -2576,6 +2629,7 @@ fn register_defalias(
         rest_param_type: None,
         body: FunctionBody::Wat(Arc::new(stub_body)),
         closed_env: None,
+        rete: None,
     });
     sym.functions.insert(alias.to_string(), stub_fn);
     Ok(())
@@ -2708,6 +2762,7 @@ fn preregister_struct_accessors_from_form(
                     rest_param_type: None,
                     body: FunctionBody::Wat(stub_body.clone()),
                     closed_env: None,
+                    rete: None,
                 }),
             );
         }
@@ -2772,6 +2827,7 @@ fn preregister_struct_accessors_from_form(
                             rest_param_type: None,
                             body: FunctionBody::Wat(stub_body.clone()),
                             closed_env: None,
+                            rete: None,
                         }),
                     );
                 }
@@ -2888,6 +2944,7 @@ fn preregister_enum_constructors_from_form(
                         rest_param_type: None,
                         body: FunctionBody::Wat(stub_body.clone()),
                         closed_env: None,
+                        rete: None,
                     }),
                 );
             }
@@ -3094,6 +3151,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
             rest_param_type: None,
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
+            rete: None,
         }),
         metadata_opt,
     ))
@@ -3200,6 +3258,7 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
             rest_param_type: Some(rest_ty),
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
+            rete: None,
         }),
     ))
 }
@@ -3359,6 +3418,7 @@ fn try_parse_user_variadic_def_fn_form(
             rest_param_type: Some(rest_ty),
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
+            rete: None,
         }),
     )))
 }
@@ -3682,7 +3742,10 @@ pub fn canonical_callable_name(kw: &str) -> &str {
 
 /// Split a keyword like `:ns/foo<T,U>` into (`":ns/foo"`, `vec!["T","U"]`).
 /// A keyword with no `<` returns `(kw.to_string(), vec![])`.
-fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBreak> {
+///
+/// `pub(crate)` (arc 278 #88) — `freeze/env.rs`'s pre-macro-expansion rete-defn name scan
+/// needs the SAME canonical-name derivation this fn already is, rather than a second spelling.
+pub(crate) fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBreak> {
     let lt_index = match kw.find('<') {
         Some(i) => i,
         None => return Ok((kw.to_string(), Vec::new())),
@@ -10719,6 +10782,7 @@ fn eval_lazy_seq(
         rest_param_type: None,
         body: crate::value::FunctionBody::Wat(Arc::new(args[0].clone())),
         closed_env: Some(env.clone()),
+        rete: None,
     });
     Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Thunk(
         crate::stream::LazyCell { thunk },
@@ -24450,7 +24514,7 @@ pub(crate) fn eval_form_against_defs(
         .iter()
         .all(|f| head_of(f).map(|h| is_declaration_head(&h)).unwrap_or(false));
 
-    register_runtime_defs(&world.program, env, &mut session_sym)?;
+    register_runtime_defs(&world.program, env, &mut session_sym, &world.declared_rete_defns)?;
 
     if all_declarations {
         return Ok(form_outcome("Declared", vec![]));
@@ -34549,6 +34613,7 @@ mod tests {
                 rest_param_type: None,
                 body: FunctionBody::Wat(Arc::new(helper_body)),
                 closed_env: None,
+                rete: None,
             }),
         );
 

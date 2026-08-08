@@ -70,6 +70,7 @@ pub(crate) fn eval_fn(
         rest_param_type,
         body: crate::value::FunctionBody::Wat(Arc::new(body)),
         closed_env: Some(env.clone()),
+        rete: None,
     })))
 }
 

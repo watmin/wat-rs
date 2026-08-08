@@ -66,12 +66,12 @@
 ;;
 ;; combo?(a,b,c,d) := (a*c) > (b*d).  A CALL, not an inline expression — the shape a compiled
 ;; executor must hand back to the interpreter, now taking FOUR bound vars instead of row 5's one.
-(:wat::core::defn :wmv::combo? [a <- :wat::core::i64  b <- :wat::core::i64
+(:wat::rete::core::defn :wmv::combo? [a <- :wat::core::i64  b <- :wat::core::i64
                                  c <- :wat::core::i64  d <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::i64::> (:wat::rete::core::i64::* a c :undefined 0) (:wat::rete::core::i64::* b d :undefined 1000000)))
 
 ;; pent?(a,b,c,d,e) := (a+b+c) mod (d+e+1) == 0.  FIVE bound vars into one pure fn call.
-(:wat::core::defn :wmv::pent? [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64
+(:wat::rete::core::defn :wmv::pent? [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64
                                 d <- :wat::core::i64  e <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::i64::=
     (:wat::rete::core::i64::mod (:wat::rete::core::i64::+ a (:wat::rete::core::i64::+ b c :undefined 0) :undefined 0)

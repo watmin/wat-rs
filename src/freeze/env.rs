@@ -44,6 +44,13 @@ pub(crate) struct EnvBundle {
     /// Post-register, post-resolve user forms. Empty when called from
     /// the stdlib-only test path (`user_forms = vec![]`).
     pub residue: Vec<WatAST>,
+    /// Arc 278 #88 — the canonical (`<T,…>`-stripped) names of every top-level
+    /// `(:wat::rete::core::defn …)` declared anywhere in the load-resolved `user_forms`
+    /// (`extract_rete_defn_names`, collected below, pre-macro-expansion — see that fn's
+    /// doc). Carried out rather than consumed locally: the definition-site check moved to
+    /// `register_runtime_defs` (STOP-3, one door — see `FrozenWorld::freeze`), which needs
+    /// this exact set at BOTH its callers (the boot path and the live-session path).
+    pub declared_rete_defns: std::collections::HashSet<String>,
 }
 
 /// Build the full registered environment from already-parsed,
@@ -85,6 +92,18 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //     in user source resolves during step 4's macro expansion
     //     without an explicit `load!`.
     let stdlib = stdlib_forms()?;
+
+    // 3b. Arc 278 #88 — pull the `(:wat::rete::core::defn …)` declarations out of the RAW,
+    //     pre-macro-expansion user forms, and rewrite each head to plain `:wat::core::defn` so
+    //     it flows through the EXACT SAME macro-expansion → registration → type-checking
+    //     pipeline an ordinary defn does ("same parse, same registration, same symbol binding
+    //     as defn" — the design stone's own framing; reusing that path rather than a parallel
+    //     one). `declared_rete_defns` names WHICH registrations to check + stamp; v2 moved
+    //     that check out of `build_env` entirely (see the note beside step 6.97, below) —
+    //     this fn now only DERIVES the name set and carries it out on `EnvBundle` for the
+    //     caller to thread to `register_runtime_defs`, the check's new (and only) home.
+    let declared_rete_defns = extract_rete_defn_names(&user_forms);
+    let user_forms = rewrite_rete_defn_heads(user_forms);
 
     // 4. Macro registration + expansion. Stdlib defmacros register
     //    first; user defmacros layer on top and can shadow (subject
@@ -263,6 +282,19 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //       attach here is strictly for the resolve pass.
     symbols.types = Some(std::sync::Arc::new(types.clone()));
 
+    // Arc 278 #88 v2 — THE DEFINITION-SITE CHECK for every `(:wat::rete::core::defn …)`
+    // collected at step 3b used to run HERE (step 6.975), stamping `Function::rete` on
+    // `symbols` before `build_env` returns. But `FrozenWorld::freeze` (and the live-session
+    // path, `eval_form_against_defs` in runtime.rs) both call `register_runtime_defs`
+    // AFTER this point, and that pass RE-REGISTERS every `defn`-turned-`def`, rebuilding a
+    // fresh `Function` (`rete: None`) and dropping the stamp — so the file loaded (the
+    // check ran, correctly) while the runtime fence still refused every helper, because
+    // the `Function` it read back was unstamped (DESIGN-STONE-the-rete-defn.md, "WHAT THE
+    // FIRST STRIKE LEARNED" §3). The check now runs INSIDE `register_runtime_defs` itself —
+    // the one door both the boot path (`freeze.rs`, `FrozenWorld::freeze`) and the
+    // live-session path (`runtime.rs`, `eval_form_against_defs`) already call — so
+    // `declared_rete_defns` is carried OUT on `EnvBundle` instead of being consumed here.
+
     // 7. Name resolution.
     // Stone 251.1b — normalize before resolve so rewritten AST flows
     // through check + eval with keyword heads.
@@ -325,7 +357,53 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         macros,
         symbols,
         residue,
+        declared_rete_defns,
     })
+}
+
+/// Arc 278 #88 — step 3b's SCAN half: collect the canonical (`<T,…>`-stripped) name of every
+/// TOP-LEVEL `(:wat::rete::core::defn :name [args] -> :Ret body…)` declaration in `forms`, before
+/// macro expansion touches anything. Top-level only — every corpus site the design stone
+/// measured is a bare top-level declaration (mirrors the fixture and every `where`-callee in
+/// the corpus); a form nested inside a macro-emitted `do`/`let` is out of this slice's scope.
+fn extract_rete_defn_names(forms: &[WatAST]) -> std::collections::HashSet<String> {
+    let mut declared = std::collections::HashSet::new();
+    for form in forms {
+        let WatAST::List(items, _) = form else { continue };
+        let Some(WatAST::Keyword(k, _)) = items.first() else { continue };
+        if k != ":wat::rete::core::defn" {
+            continue;
+        }
+        if let Some(WatAST::Keyword(name_kw, _)) = items.get(1) {
+            if let Ok((name, _type_params)) = crate::runtime::split_name_and_type_params(name_kw) {
+                declared.insert(name);
+            }
+        }
+    }
+    declared
+}
+
+/// Arc 278 #88 — step 3b's REWRITE half: every top-level `(:wat::rete::core::defn …)` head
+/// becomes `:wat::core::defn`, so `expand_all` / `register_defines` / `check_program` see an
+/// ordinary defn — the SAME parse, the SAME registration, the SAME symbol binding
+/// (DESIGN-STONE-the-rete-defn.md). `extract_rete_defn_names` (above) ran first, on the
+/// UNREWRITTEN forms, so the rewrite here loses no information: it only erases the surface
+/// distinction the rest of the pipeline doesn't need to see.
+fn rewrite_rete_defn_heads(forms: Vec<WatAST>) -> Vec<WatAST> {
+    forms
+        .into_iter()
+        .map(|form| match form {
+            WatAST::List(mut items, span) => {
+                if let Some(WatAST::Keyword(k, kspan)) = items.first() {
+                    if k == ":wat::rete::core::defn" {
+                        items[0] = WatAST::Keyword(":wat::core::defn".to_string(), kspan.clone());
+                    }
+                }
+                WatAST::List(items, span)
+            }
+            other => other,
+        })
+        .collect()
 }
 
 /// W1a — recursive walk for build_env step 7.7: find every `extend-type` form

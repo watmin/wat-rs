@@ -46,7 +46,7 @@
 
 ;; the USER custom fold: Σ x² over the whole gathered vector — pure∧det (passes the 8-custom fence).
 ;; Identical to the repo differential exemplar (probe_arc278_8custom_native_differential.rs:26-30).
-(:wat::core::defn :ur::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64
+(:wat::rete::core::defn :ur::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64
   (:wat::rete::core::foldl
     (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
       ;; sum-of-squares over readings is always >= 0 (a square is never negative, and a sum of

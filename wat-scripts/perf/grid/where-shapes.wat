@@ -79,7 +79,7 @@
 
 ;; row 5's user-defined pure fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. big?(k) := k mod 7 > 3 (k mod 7 in {4,5,6}), so it discriminates a proper subset.
-(:wat::core::defn :wsh::big? [k <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :wsh::big? [k <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::i64::>
     (:wat::rete::core::i64::- k (:wat::rete::core::i64::* (:wat::rete::core::i64::/ k 7 :undefined 0) 7 :undefined 0) :undefined 0)
     3))

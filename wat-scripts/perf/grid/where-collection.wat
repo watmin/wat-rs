@@ -105,7 +105,7 @@
 
 ;; row 7's user-defined pure fn over a WHOLE bound collection (not one element of it):
 ;; heavy?(v) := length(v) > 2 AND v contains 7.
-(:wat::core::defn :wc::heavy? [v <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::bool
+(:wat::rete::core::defn :wc::heavy? [v <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::bool
   (:wat::rete::core::and
     (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length v) 2)
     (:wat::rete::core::PersistentVector/contains? v 7)))

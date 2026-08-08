@@ -37,12 +37,12 @@
 
 ;; ── pure string predicates (used in :where guards) ──────────────────────────
 ;; head-keyword-str? — name string is ::-namespaced.
-(:wat::core::defn :fix::head-keyword-str?
+(:wat::rete::core::defn :fix::head-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
   (:wat::rete::core::String/contains? name "::"))
 
 ;; type-shaped-keyword-str? — name has matching "<" + ">" OR "(" + ")".
-(:wat::core::defn :fix::type-shaped-keyword-str?
+(:wat::rete::core::defn :fix::type-shaped-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
   (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::core::String/contains? name "<")
                     (:wat::rete::core::String/contains? name ">")

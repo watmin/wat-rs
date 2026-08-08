@@ -399,6 +399,18 @@ pub struct FrozenWorld {
     /// Contains the toplevel program body (if any) that `:user::main`
     /// will evaluate against.
     pub program: Vec<WatAST>,
+    /// Arc 278 #88 — the canonical (`<T,…>`-stripped) names of every top-level
+    /// `(:wat::rete::core::defn …)` declared anywhere reachable from this world
+    /// (`env::extract_rete_defn_names`, collected pre-macro-expansion in `build_env`).
+    /// Carried on the frozen world — rather than re-derived from the residue, where the
+    /// rete-defn head marker no longer exists (`build_env` rewrites it to plain
+    /// `:wat::core::defn` before macro expansion so it flows through the ordinary
+    /// registration path) — so a SECOND `register_runtime_defs` pass over the SAME world
+    /// (the live-session path, `eval_form_against_defs`, runtime.rs) can re-check + re-stamp
+    /// using the exact same, correctly load-resolved set the boot path used, instead of
+    /// re-scanning a raw pre-load-resolve form list that could miss a rete-defn arriving
+    /// through a `:wat::load!`.
+    pub declared_rete_defns: std::collections::HashSet<String>,
 }
 
 /// BRIEF-construction-inside-a-fn.md, gap (b) — post-registration, freeze-time counterpart
@@ -455,6 +467,7 @@ impl FrozenWorld {
         mut symbols: SymbolTable,
         program: Vec<WatAST>,
         loader: Arc<dyn crate::load::SourceLoader>,
+        declared_rete_defns: std::collections::HashSet<String>,
     ) -> Result<Self, StartupError> {
         let ctx = Arc::new(EncodingCtx::from_config(&config));
         // BRIEF-construction-inside-a-fn.md, gap (b) — the HolonRecord bundle-capacity
@@ -561,7 +574,7 @@ impl FrozenWorld {
         // primitives see a fully-equipped SymbolTable. Parallels the
         // sigma-fn evaluation above — same pattern, broader scope.
         let env = crate::runtime::Environment::new();
-        crate::runtime::register_runtime_defs(&program, &env, &mut symbols)
+        crate::runtime::register_runtime_defs(&program, &env, &mut symbols, &declared_rete_defns)
             .map_err(|e| match e {
                 EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
                 // A Signal at the freeze boundary is an interpreter bug.
@@ -583,6 +596,7 @@ impl FrozenWorld {
             macros,
             symbols,
             program,
+            declared_rete_defns,
         })
     }
 
@@ -1192,6 +1206,7 @@ fn startup_from_forms_post_config(
         bundle.symbols,
         bundle.residue,
         loader,
+        bundle.declared_rete_defns,
     )
 }
 // ─── :user::main invocation ─────────────────────────────────────────────

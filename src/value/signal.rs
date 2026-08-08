@@ -471,6 +471,21 @@ pub enum RuntimeErrorKind {
     /// without extending the arc 278 "connect' OUTCOME WALL"; a design call
     /// left to a follow-up (see `typed_send`'s PipeFd match arm for the detail).
     WriteStopped,
+    /// Arc 278 #88 — a `(:wat::rete::core::defn …)` declaration's body failed one of the four
+    /// axes the fence measures (Pure / Deterministic / Total / Law A —
+    /// `crate::rete::purity::Axis`), checked ONCE at the definition site
+    /// (`crate::rete::purity::apply_rete_defn_contracts`) instead of being re-derived per call
+    /// site. `name` is the DECLARED helper's own FQDN — the inversion the whole stone exists
+    /// for: an ordinary `defn` used from a `where` fails naming the calling RULE, with not one
+    /// frame naming the helper; this error names the helper directly, at the point the author
+    /// edited. `axis` is the failing axis's `Axis::variant_name()`; `head` is the specific
+    /// violating sub-expression `find_axis_violation` located (may equal `name` itself, for a
+    /// single-form body, or a deeper call inside it).
+    ReteDefnAxisViolation {
+        name: String,
+        axis: &'static str,
+        head: String,
+    },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError.
@@ -695,6 +710,13 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::WriteStopped => {
                 write!(f, "{}write stopped: a process-wide shutdown was requested", prefix)
             }
+            RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head } => write!(
+                f,
+                "{}(:wat::rete::core::defn {} ...): declaration refused — '{}' is not proven {} \
+                 (a rete-defn's body is checked ONCE, at ITS OWN declaration, against Pure ∧ \
+                 Deterministic ∧ Total ∧ Law A; nothing calling {} needs to re-derive this)",
+                prefix, name, head, axis, name
+            ),
         }
     }
 }

@@ -1017,3 +1017,66 @@
      eds   (:wat::fix::wrap-seq-edits forms head needle before after lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
+
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; RE-HEAD A NAMED SET OF `defn`s  — arc 278 #88, the rete-defn migration.
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; The rename family above keys on the token being RENAMED. This one cannot: every target
+;; spells the same head, `:wat::core::defn`, and only the BOUND NAME (child[1]) says whether
+;; this particular declaration is a rete callee. A prefix/exact rename would re-head the whole
+;; corpus. So the predicate is a SIBLING's value, and the edit lands on the head.
+;;
+;; Emits one whole-token replace per matching form: child[0]'s span -> `:wat::rete::core::defn`.
+;; Idempotent by construction — an already-migrated form's head is no longer `:wat::core::defn`,
+;; so it cannot match a second time. Comments and formatting survive (fix-text-apply splices
+;; spans). Recursion covers nested declarations; a non-matching form is untouched.
+
+;; rehead-defn-target? — is this list a `(:wat::core::defn :NAME …)` whose NAME is in `names`?
+(:wat::core::defn :wat::fix::rehead-defn-target?
+  [kids  <- :wat::core::Vector<wat::WatAST>
+   names <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
+  (:wat::core::if (:wat::core::< (:wat::core::length kids) 2)
+    false
+    (:wat::core::if (:wat::core::= (:wat::fix::kw-name (:wat::core::first kids)) ":wat::core::defn")
+      (:wat::fix::str-in? (:wat::fix::kw-name (:wat::core::nth kids 1)) names)
+      false)))
+
+(:wat::core::defn :wat::fix::rehead-rete-defn-walk
+  [items <- :wat::core::Vector<wat::WatAST>
+   names <- :wat::core::Vector<wat::core::String>
+   lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::concat
+      (:wat::fix::rehead-rete-defn-edits (:wat::core::first items) names lines)
+      (:wat::fix::rehead-rete-defn-walk (:wat::core::rest items) names lines))))
+
+(:wat::core::defn :wat::fix::rehead-rete-defn-edits
+  [node  <- :wat::WatAST
+   names <- :wat::core::Vector<wat::core::String>
+   lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::if (:wat::fix::structural? node)
+    (:wat::core::let [kids  (:wat::core::ast->children node)
+                      inner (:wat::fix::rehead-rete-defn-walk kids names lines)]
+      (:wat::core::if (:wat::fix::rehead-defn-target? kids names)
+        (:wat::core::concat
+          (:wat::core::Vector :wat::fix::Edit
+            (:wat::core::Tuple
+              (:wat::fix::fix-text-offset-of (:wat::core::ast-span (:wat::core::first kids)) lines)
+              (:wat::core::string::length ":wat::core::defn")
+              ":wat::rete::core::defn"))
+          inner)
+        inner))
+    (:wat::core::Vector :wat::fix::Edit)))
+
+;; rehead-rete-defn — the entry point. `names` is the EXPLICIT worklist: the checker names
+;; each offender ("':X' is not a rete primitive"), and only those move.
+(:wat::core::defn :wat::fix::rehead-rete-defn
+  [names <- :wat::core::Vector<wat::core::String>
+   src   <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let
+    [lines (:wat::core::string::split src "\n")
+     tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+     eds   (:wat::fix::rehead-rete-defn-walk (:wat::core::ast->children tree) names lines)
+     rev   (:wat::core::reverse (:wat::core::sort eds))]
+    (:wat::fix::fix-text-apply src rev)))

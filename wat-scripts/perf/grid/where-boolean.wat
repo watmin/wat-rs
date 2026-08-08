@@ -67,7 +67,7 @@
 ;; row 14's user-defined pure fn — boolean-VALUED, itself built from `or`, then composed with an
 ;; inline `and`/`not` at the call site. edge?(k) := k < 30 or k >= 180 (the two 30-wide tails of
 ;; the 210-range) => 60 of 210 satisfy edge? on its own.
-(:wat::core::defn :wsb::edge? [k <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :wsb::edge? [k <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::or
     (:wat::rete::core::i64::< k 30)
     (:wat::rete::core::i64::>= k 180)))

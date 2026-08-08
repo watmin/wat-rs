@@ -1,32 +1,34 @@
-;; Arc 278 #88 — DISCONFIRMING PROBE: `(:wat::rete::core::defn …)` does not exist yet.
+;; Arc 278 #88 — THE ACCEPTANCE GATE for `(:wat::rete::core::defn …)`.
 ;;
-;; The helper below is written EXACTLY as the ruled form will be, and its body is already
-;; law-A clean (`:wat::rete::core::i64::>` is a minted RETE_OPS row). So the ONE and ONLY
-;; reason this file fails to load today is that the declaration form itself is unminted.
-;; That is what makes this a disconfirming probe rather than a general negative: every
-;; line except the head of form #2 is live, checked wat.
+;; Was: the DISCONFIRMING PROBE proving the form did not exist. It landed; the form now
+;; mints, parses, and registers exactly as `:wat::core::defn` does. This fixture now proves
+;; the SECOND half of the stone — THE MEMBRANE — by exercising it directly rather than the
+;; (now-closed) missing-form gap:
 ;;
-;; ⚠ TODAY'S FAILURE IS A SYMPTOM, NOT THE CAUSE. An unrecognised head is treated as a
-;; CALL, so the signature (`[n <- :wat::core::i64] -> :wat::core::bool`) is evaluated as
-;; ARGUMENTS, and the checker reports two MalformedForm errors saying `:wat::core::i64` is
-;; a TYPE keyword in value position. Nothing in that diagnostic mentions the declaration,
-;; the helper's contract, or law A — which is precisely the gap #88 closes.
-;;
-;; AFTER THE STRIKE this fixture becomes the ACCEPTANCE gate: change the body to a
-;; NON-rete op and it must be refused AT THE DEFINITION with an error naming
-;; `:probe::declared`. See EXPECTATIONS-rete-defn.md rows 2 and 3.
+;; form #2's body is deliberately a NON-rete op (`:wat::core::i64::>`, the CORE spelling,
+;; not the `:wat::rete::core::i64::>` RETE_OPS row) — the exact "reproduced live" shape
+;; DESIGN-STONE-the-rete-defn.md opens with. A `(:wat::rete::core::defn …)` declaration
+;; checks its body AT THE DEFINITION SITE against law A (only rete primitives / other
+;; rete-defns) plus pure ∧ deterministic ∧ total; `:wat::core::i64::>` fails law A, so this
+;; file must be REFUSED AT LOAD, with a located error naming `:probe::declared` — the
+;; declared helper itself, not some caller. See EXPECTATIONS-rete-defn.md rows 2 and 3.
 ;;
 ;; Its non-vacuity control is the sibling `probe_arc278_rete_defn_gap_control.wat`:
 ;; byte-identical minus form #2, and it MUST load. Without that control this fixture
-;; would prove only "some line is bad", not "exactly this form is missing".
+;; would prove only "some line is bad", not "exactly this declaration is what's refused".
+;;
+;; MUTATION (both directions, proven by hand — see the rider's report): repoint form #2's
+;; body back to `:wat::rete::core::i64::>` (rete-clean) and the file loads clean — RED ⇄
+;; GREEN, both ways, by mutation, exactly as EXPECTATIONS' "gate that cannot go red" trap
+;; door warns against shipping without.
 
-;; ── form #1 — CONTROL, an ordinary defn with the identical body. Live wat today. ────────
+;; ── form #1 — CONTROL, an ordinary defn. Never checked at its OWN declaration. Live today.
 (:wat::core::defn :probe::ordinary [n <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::i64::> n 100))
 
-;; ── form #2 — THE GAP. Same signature, same body, the ruled head. Unminted today. ───────
+;; ── form #2 — THE MEMBRANE'S REFUSAL. Same signature, a NON-rete body. Refused at load. ──
 (:wat::rete::core::defn :probe::declared [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> n 100))
+  (:wat::core::i64::> n 100))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:probe::ordinary 42)))

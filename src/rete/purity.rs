@@ -993,7 +993,12 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
         };
         return if ok { Ok(()) } else { Err(AxisViolation::new(head, axis)) };
     }
-    // User-defined fn → transitive check of its body on the SAME axis.
+    // User-defined fn → classify_fn (below). Arc 278 #88 — THE MEMBRANE lives INSIDE
+    // classify_fn's `FunctionBody::Wat` arm now, not here: a Wat-bodied fn is admitted on the
+    // strength of its DECLARATION (`Function::rete`), never by re-walking its body. This branch
+    // itself is unchanged so the `FunctionBody::Native` arm (native HOF combinators —
+    // `foldl`/`map`/… — registered in `sym.functions` and judged by `intrinsic_meta`, same as
+    // always) keeps working exactly as before; only the Wat arm's admission rule flipped.
     if sym.functions.contains_key(head) {
         return classify_fn(head, axis, sym, seen);
     }
@@ -1333,7 +1338,39 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
         None => return Err(AxisViolation::new(fqdn, axis)), // name not registered → deny
     };
     match &func.body {
-        FunctionBody::Wat(body_ast) => classify_expr(body_ast.as_ref(), axis, sym, seen),
+        // Arc 278 #88 — THE MEMBRANE. Pre-#88 this arm was
+        // `classify_expr(body_ast.as_ref(), axis, sym, seen)` — a transitive walk of the
+        // callee's body on EVERY reach, for EVERY axis, chased from whatever rule happened to
+        // call it. `Function::rete` is `Some(_)` iff this fn was declared
+        // `(:wat::rete::core::defn …)` and its body already PROVED, once, at THAT declaration,
+        // against all four axes (`apply_rete_defn_contracts`) — so admission here is
+        // unconditional on `axis`, the same way the declaration was unconditional on all four.
+        // An ordinary `:wat::core::defn` (`rete: None`) is refused ON LAW A: nobody declared the
+        // boundary, so nothing is proven — exactly the gap #88 closes
+        // (DESIGN-STONE-the-rete-defn.md's "reproduced live": editing one op inside an undeclared
+        // helper used to fail naming the RULE, with not one frame naming the helper; refusing here
+        // names the HELPER's own fqdn, `fqdn`, directly).
+        //
+        // ⚠ THE MEMBRANE IS SCOPED TO `RetePrimitive`, AND THE SCOPING IS LOAD-BEARING. An earlier
+        // cut of this arm denied an undeclared fn on EVERY axis, reasoning that the declaration
+        // proves all four so its absence should deny all four. That inverts wrongly: `Some(_)`
+        // may be admitted on any axis (all four WERE proven at the declaration), but `None` means
+        // only "undeclared" — it says nothing about purity. `:wat::rete::pure?` /
+        // `deterministic?` / `total?` are GENERAL predicates over any expression, not rete-
+        // admission tests, so denying them for a missing rete marker made `pure?` answer FALSE
+        // for an ordinary, genuinely pure fn. `Axis::RetePrimitive`'s own doc names the rule this
+        // violates: it exists as a separate variant precisely because reusing Pure/Deterministic/
+        // Total "would make the refusal LIE". So: declared → admitted anywhere; undeclared →
+        // refused on law A only, and the other three axes keep their pre-#88 body walk unchanged.
+        FunctionBody::Wat(body_ast) => {
+            if func.rete.is_some() {
+                Ok(())
+            } else if matches!(axis, Axis::RetePrimitive) {
+                Err(AxisViolation::new(fqdn, axis))
+            } else {
+                classify_expr(body_ast.as_ref(), axis, sym, seen)
+            }
+        }
         // A native builtin registered in sym.functions is opaque — its body cannot be inspected —
         // so consult the hand-managed intrinsic_meta on the requested axis. This is load-bearing
         // for the HOF combinators (foldl/map/…): they are native AND registered in sym.functions,
@@ -1507,6 +1544,119 @@ pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// wat-visible `:wat::rete::axis-violation` diagnostic surface (PROVISIONAL name, cast owed).
 pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -> Option<AxisViolation> {
     classify_expr(ast, axis, sym, &mut HashSet::new()).err()
+}
+
+/// Arc 278 #88 v2 — THE DEFINITION-SITE CHECK's OUTCOME, as a matchable VALUE rather than a
+/// raise. Shaped like `SiftRulesResponse` (`wat/query.wat:154-157`'s convention: one good
+/// result, N named bad ones, each carrying located structured fields), because
+/// THE DEPLOYMENT MODEL (DESIGN-STONE-the-rete-defn.md) rules that rule compilation is
+/// runtime-only, from forms arriving over a wire from a host we must never trust to have
+/// validated its own input — so a refused declaration must be a RESPONSE a caller can
+/// `match`, never something that unwinds across that boundary and takes the service down
+/// for every other client (the arc already paid for that mistake once: `28701476`→`b9d61bd6`).
+///
+/// This is the VALUE SHAPE ONLY — no service, no wire, no transport wraps it here (that is
+/// the #7 chaos engine / #17's contract). `apply_rete_defn_contracts` hands this back and
+/// leaves the decision of "raise at boot" vs "reply on a wire" to its caller, instead of
+/// deciding it here by returning something that IS itself a raise.
+pub(crate) enum ReteDefnCheckOutcome {
+    /// Every declared rete-defn in this registration batch proved all four axes;
+    /// `Function::rete` has been stamped for each.
+    Ok,
+    /// The 400-class sibling of `RequestMalformed`: a declared rete-defn's body failed
+    /// `axis`, at `head` — located (`span`), structured, never prose standing in for it.
+    AxisViolation {
+        name: String,
+        axis: &'static str,
+        head: String,
+        span: Span,
+    },
+}
+
+/// Arc 278 #88 — THE DEFINITION-SITE CHECK. Called from `register_runtime_defs`
+/// (`runtime.rs`) — the ONE door both the boot path (`freeze.rs`'s `FrozenWorld::freeze`)
+/// and the live-session path (`runtime.rs`'s `eval_form_against_defs`) already call — after
+/// `sym.types` is attached (running any earlier would false-positive every helper that reads
+/// an aggregate field or calls an aggregate constructor, since `constructor_meta`/
+/// `accessor_meta` need `sym.types` to recognize them; `sym.types` is attached in
+/// `build_env` well before `register_runtime_defs` ever runs, so that precondition still
+/// holds at the new call site).
+///
+/// `declared` is the set of canonical (`<T,…>`-stripped) names whose SURFACE form was
+/// `(:wat::rete::core::defn …)` — collected pre-macro-expansion
+/// (`freeze::env::extract_rete_defn_names`), because by the time this runs the head has
+/// already been rewritten to plain `:wat::core::defn` and registered through that ORDINARY
+/// path: same parse (`crate::function::parse_fn_signature`, unchanged), same registration
+/// (`register_defines`'s existing fn-shape-def branch, unchanged), same symbol binding — the
+/// design stone's own framing, "does everything `defn` does."
+///
+/// For each declared name, reuses the SAME four walks `is_pure_expr` / `is_deterministic_expr`
+/// / `is_total_expr` / `is_rete_primitive_expr` wrap (STOP-1: no second implementation) via
+/// `find_axis_violation`, which additionally names the violating head. A clean pass re-stamps
+/// the SAME `Function` with `rete: Some(ReteContract {})`; `classify_fn`'s `Wat` arm (above)
+/// consults that marker instead of re-walking — that consultation is the membrane.
+pub(crate) fn apply_rete_defn_contracts(
+    sym: &mut SymbolTable,
+    declared: &std::collections::HashSet<String>,
+) -> ReteDefnCheckOutcome {
+    for name in declared {
+        // A name collected pre-expansion but absent from `sym.functions` means registration
+        // refused it for an unrelated reason upstream (reserved prefix, unnamespaced, a
+        // collision) — that error already surfaced from `register_defines`; nothing to stamp.
+        let Some(func) = sym.functions.get(name).cloned() else {
+            continue;
+        };
+        let body_ast = match &func.body {
+            FunctionBody::Wat(ast) => Arc::clone(ast),
+            // No `(:wat::rete::core::defn …)` construction path produces a Native body today
+            // (see `Function::body`'s doc); kept as a controlled refusal, never a panic, mirroring
+            // `check_sigma_fn_contract`'s identical defensive arm (freeze.rs).
+            FunctionBody::Native => continue,
+        };
+        for axis in Axis::ALL {
+            // SEED `seen` WITH THE NAME BEING DECLARED. A self-call inside the very body we are
+            // proving would otherwise reach `classify_fn` while this name is still `rete: None`
+            // (the stamp happens below, after all four axes pass) and be denied for calling
+            // ITSELF — a chicken-and-egg that refuses every self-recursive rete-defn, with the
+            // diagnostic naming the fn as its own offending head.
+            //
+            // This is PARITY, not new leniency: `classify_fn`'s own cycle guard is
+            // `if seen.contains(fqdn) { return Ok(()) } // back-edge — no new violation from the
+            // recursive call`, and pre-#88 a self-recursive fn was admitted by exactly that rule
+            // (`self_recursive_pure_fn_is_pure` / `..._is_deterministic` passed at HEAD). Seeding
+            // reproduces it at the declaration site. Bounding recursion is #87's ruling to make,
+            // explicitly NOT IN SCOPE here — so #88 must not forbid, by accident, what the stone
+            // deferred on purpose.
+            //
+            // AND SEED IT WITH EVERY OTHER DECLARED NAME, for the same reason one step out.
+            // `declared` is a HashSet, so `for name in declared` runs in ARBITRARY, run-varying
+            // order. Seeding only `name` leaves a MUTUAL reference order-dependent: `where-nesting`
+            // declares `c1` then `c2`, and `c2` calls `c1` — if the loop happens to reach `c2`
+            // first, `c1` is not yet stamped and `c2` is refused; reach `c1` first and both pass.
+            // A check that answers differently depending on hash iteration order is not a check.
+            //
+            // Every member of `declared` is being proven in THIS pass, each independently against
+            // its own body, so a call from one to another is a back-edge within the declaration
+            // group — the identical assumption `classify_fn` already makes for a cycle, widened
+            // from self to the group. Soundness is unchanged: nobody is admitted without its own
+            // body passing all four axes; only the ORDER of proving stops mattering.
+            let mut seen: HashSet<String> = declared.clone();
+            seen.insert(name.clone());
+            if let Some(v) = classify_expr(body_ast.as_ref(), axis, sym, &mut seen).err() {
+                let span = v.span.clone().unwrap_or_else(|| body_ast.span().clone());
+                return ReteDefnCheckOutcome::AxisViolation {
+                    name: name.clone(),
+                    axis: axis.variant_name(),
+                    head: v.head,
+                    span,
+                };
+            }
+        }
+        let mut declared_func = (*func).clone();
+        declared_func.rete = Some(crate::value::ReteContract::default());
+        sym.functions.insert(name.clone(), Arc::new(declared_func));
+    }
+    ReteDefnCheckOutcome::Ok
 }
 
 // ─── WAT surfaces ───────────────────────────────────────────────────────────────

@@ -95,7 +95,7 @@
 ;; namespaces (`String/contains?` and `string::length`) composed with `and`. feline?(s) :=
 ;; contains(s,"cat") AND length(s) > 3. True for r=2 ("zzcatzz", len 7) and r=3 ("ねこcat", len 5);
 ;; false for r=1 ("cat", len 3 — contains but NOT longer than 3) and r=0/r=4 (no "cat" at all).
-(:wat::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
+(:wat::rete::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
   (:wat::rete::core::and
     (:wat::rete::core::String/contains? s "cat")
     (:wat::rete::core::i64::> (:wat::rete::core::string::length s) 3)))
