@@ -50,35 +50,65 @@ are genuinely two sequences and two positions — one in the input scan, one in 
 it. That is the inference explosion, and it is why a single `sk` token cannot express the resume
 point.
 
-## The state split — and the builder's ruling makes it structural
+## The state split — A MAP, not a field (corrected 2026-08-08 by the builder)
 
-Established convention, exactly the telemetry service's shape
-(`DESIGN-telemetry-service-and-query-surface.md:218`, `:ephemeral [store <- …]`):
+> ⚠ **The first draft of this stone wrote `:ephemeral [world, network]` — SINGULAR — as if a service
+> held one world. It holds MANY.** The builder: *"need a map of `(wat.type/HashMap [Connection
+> World])` or something such that concurrent connections never stomp on each other… we create an
+> entry on connection creation/rules statement and we destroy the entry on connection close."*
+> A single field is the same cross-tenant stomping this stone exists to prevent, moved one level in.
 
 ```clojure
-:durable   [defs         <- :wat::core::Vector<wat::WatAST>   ;; the SPEC — EDN, hibernates, ships
-            cursor       <- (:Option Cursor)]                 ;; a POSITION is data
-:ephemeral [world        <- <the frozen world>                ;; a live resource — NOT EDN
-            network      <- <the compiled rete network>]      ;; likewise
+:durable   [specs  <- HashMap<ConnId, ConnSpec>]   ;; per-connection SPEC — EDN: defs + cursor position
+:ephemeral [worlds <- HashMap<ConnId, World>]      ;; per-connection RESOURCES — frozen world + network
 ```
 
 **`:durable` is the thunk; `:ephemeral` is the forcing of it** — R5 at the connection layer, and the
-same reason the telemetry sink holds a backend *spec* durably and the live `Store` ephemerally. The
-world is rebuilt from `defs` in `:init`; it is never serialized, because it cannot be.
+same reason the telemetry sink holds a backend *spec* durably and the live `Store` ephemerally. A
+world is built from its connection's `defs`; it is never serialized, because it cannot be.
 
 That split is not stylistic. IPC is EDN-only, so a resource has no wire representation — the
-builder's *"we cannot express this state as edn"* is the whole argument, and it lands the world in
-`:ephemeral` by necessity rather than by preference.
+builder's *"we cannot express this state as edn"* is the whole argument, and it lands the worlds map
+in `:ephemeral` by necessity rather than preference.
+
+## ★★ THE KEY MUST BE STABLE — `idx` IS NOT
+
+The lifecycle events already exist: `ServiceEvent::Connection peer` · `Closed idx` ·
+`Lost idx cause`. **But they identify a client by POSITION, and the position is not stable.** Every
+eviction path is `(:wat::std::list::remove-at selectables idx)` — `service.wat:1058`, `:1061`,
+`:1352`, `:1364`. Remove client #2 of five and every client above it **shifts down one**.
+
+**So a `HashMap<idx, World>` silently hands client #3's compiled rules and cursor to client #4 after
+any disconnect.** Not a crash — a CROSS-TENANT LEAK, which is precisely the defect this whole stone
+exists to close, reintroduced by the bookkeeping. This is the single most dangerous way to build
+this and it is the obvious way.
+
+**Required: a `ConnId` minted at `Connection` and NEVER reused**, with `idx` demoted to a transient
+routing detail that never names anything. The substrate does not hand us this today; minting it is
+part of the stone.
+
+**And the ORDER is the correctness argument:** on `Closed`/`Lost`, resolve *idx → ConnId* against the
+live list **BEFORE** the `remove-at`, then drop that entry. Resolve after the eviction and you have
+resolved against a shifted list — the same bug wearing a different hat.
+
+*Neighbourhood:* `remove-at`'s idx handling is ALREADY a tracked open item (the `service.wat:958/961`
+idx-shift, the item-c ouroboros tail). This map would be its second consumer, which argues for fixing
+identity properly rather than coding around the shift.
 
 ## Lifetime — ruled
 
-**Peer dies ⇒ the world is dropped.** Nothing else. A `defservice`'s `:ephemeral` is thread-owned
-and dies with the service, so this should be close to free rather than a mechanism to build — but it
-is a claim to PROVE by a run, not to assume (STOP-2).
+**A client goes away ⇒ that client's entry is destroyed.** Created on `Connection` (or on the rules
+statement), destroyed on `Closed`/`Lost`.
 
-**Timeouts are explicitly NOT NOW** (the builder). Do not add one. 24y's `NO TIMEOUT` ruling stands
-and its reasoning applies here too: the number would be a guess, and a wedged connection should be
-visible rather than silently reaped.
+⚠ **The first draft got this wrong and the builder corrected it:** *"the ephemeral record is lost
+when the service goes down… but this does not mean anything about a client going away."* Those are
+UNRELATED events. `:ephemeral` dying with the SERVICE says nothing about per-CLIENT cleanup — a live
+service leaking one world per departed connection is exactly the defect, and no ambient RAII covers
+it. The create/destroy is explicit, per entry, and must be built.
+
+**Timeouts are explicitly NOT NOW** (the builder: *"we'll need to handle timeouts later"*). Do not
+add one. 24y's `NO TIMEOUT` ruling stands and its reasoning applies: the number would be a guess, and
+a wedged connection should be visible rather than silently reaped.
 
 ## The four questions
 
@@ -104,9 +134,18 @@ visible rather than silently reaped.
 1. **STOP-1 — the local path does not change.** A top-level `(:wat::rete::core::defn …)` in an
    ordinary program keeps registering globally, exactly as `a61056f0` ships it. If this stone starts
    rewriting that path, STOP — the builder's own streaming-app case depends on it.
-2. **STOP-2 — prove peer-death drops the world BY A RUN.** "`:ephemeral` dies with the service" is
-   the expectation, not the evidence. A leaked world per dead connection is the defect this stone
-   would be creating.
+2. **STOP-2 — ⚠ REWRITTEN. Prove a DEPARTED CLIENT's entry is destroyed, on a LIVE service, BY A RUN.**
+   The first draft asked to prove "peer-death drops the world" and gestured at `:ephemeral` dying
+   with the service — the WRONG EVENT (builder-corrected). Service teardown and a client leaving are
+   unrelated, and no ambient RAII covers the second. The gate: connect N clients, disconnect one,
+   and show that exactly its entry is gone, the service still serves, and **the survivors' worlds
+   are still their own** (a count alone would pass while the entries were silently re-keyed).
+6. **STOP-6 — THE MAP IS NOT KEYED ON `idx`.** If the key is a position into `selectables`, STOP:
+   `remove-at` shifts it and tenants inherit each other's worlds. Prove the key is stable across an
+   eviction by disconnecting a MIDDLE client and showing a higher-indexed survivor still resolves to
+   its own world. This is the defect most likely to ship green — nothing crashes when it is wrong.
+7. **STOP-7 — resolve *idx → ConnId* BEFORE the `remove-at`.** After it, the list has shifted and the
+   resolution is against the wrong world.
 3. **STOP-3 — ⚠ THE EPHEMERAL WALL IS UNCONFIRMED.** The record claims 293.W makes "an impure field
    can only live in `:ephemeral`" compiler-enforced. A grep for that enforcement did NOT locate it.
    Before relying on it as a WALL rather than a CONVENTION, confirm it — and if it is only a
