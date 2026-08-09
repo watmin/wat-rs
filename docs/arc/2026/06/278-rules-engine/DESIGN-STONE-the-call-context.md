@@ -193,13 +193,60 @@ precisely to be the armable ones. The workaround is also the better factoring: a
 internal `-tick` that both call one shared helper. So (a) does not lose the capability; it forces the
 decomposition that should have been written anyway.
 
-### ⚠ ONE THING NOT RUN, and it could make (a) FREE
+### ✅ RUN 2026-08-09 — (a) IS NOT FREE, AND THE HOLE IS LIVE, REACHABLE AND SILENT
 
-`after` returns `Peer<nil, O>` (`check.rs:10175`) while `selectables` is `Vector<Peer<Reply, Op>>` —
-so a timer is already being coerced into that vector. Whether a reply-`send` to a timer is a type
-error today, a silent no-op, or worse, is **UNKNOWN — not run.** If the checker already refuses it,
-(a) is already half-built and the fork closes itself. **Ten-line probe; run it before implementing
-either path.** Do not inherit "arming a public op is already broken" as fact — it is a hypothesis.
+The hypothesis was *"maybe the checker already refuses arming a public op, so (a) is half-built."*
+**Refuted by run.** Three results, in order, each on `target/release/wat`:
+
+| # | form | verdict |
+|---|---|---|
+| 1 | `:op :poll` — bare keyword, mirroring the working `:op :-tick` | **refused**, exit 1 — `TypeMismatch: expects Alarm<keyword>; got Alarm<probe::tick2::Op>` |
+| 2 | `:op (:probe::tick2::Op::Bump (…Request…))` — the explicit ctor | **ACCEPTED**, `--check` exit 0 |
+| 3 | the same, RUN with a state-mutating witness | **the handler FIRED** — durable count `7 → 8`, process exit 0 |
+
+**Result 1 is an ACCIDENT, not a wall.** The macro's keyword→`Op` resolution covers *internal* (`-`)
+ops only (`service.wat:992` — *"rewrite each internal-op keyword (`:-tick`) … to its `<service>::Op`
+variant ctor"*), so a bare `:poll` never becomes an `Op` and the `Alarm<keyword>`/`Alarm<Op>` mismatch
+trips. Nothing is checking intent. **Result 2 is the route around it, and it is the natural one if you
+follow the types.**
+
+**Result 3 is the finding, and it needed the witness.** The first run armed the read-only `poll` and
+printed `7` — the service survived, but that could not distinguish *"fired and was harmless"* from
+*"never fired at all."* Re-run with a **mutating** public op (`bump`, `count + 1`) as a non-vacuity
+control: the client's later read returned **8**. So the armed PUBLIC handler **executed from the timer
+fire**, with a timer in the `idx` slot, **mutated durable state**, and returned `Outcome::Reply` — and
+**no error surfaced anywhere**; the service went on to serve a real client normally.
+
+**So the defect exists TODAY, independent of ctx: a handler can run believing it is serving a client,
+have no client, and have its reply go nowhere with nothing reported.** That is a silent discard of
+exactly the kind this arc has spent itself annihilating (R55/R57) — reached by writing one ordinary
+constructor.
+
+**Consequences for the fork, stated:**
+- **(a) must be BUILT** — a real checker rule refusing a public op inside an `Alarm`. It is not free.
+- **(a) gains a second and stronger justification:** it does not merely keep ctx's identity honest, it
+  **closes a live silent-discard that exists right now**, before ctx is built at all.
+- **(b) would surface** the case (the handler must face `Caller::Timer`) — but at 120 dead arms, and
+  it leaves the wrong form *writable*, merely observable.
+- A **third, lower rung** is now visible: keep arming legal and make the callerless reply LOUD, reusing
+  the `assertion-failed!` the internal-op arm already carries. Cheaper than (b), no dead arms — but a
+  runtime error where a compile-time refusal is available.
+
+**Reproduction, kept so the numbers outlive the session.** A `defsurface` with two public ops
+(`bump` mutating, `poll` reading) and a `defservice` whose `start` arms the public op:
+
+```clojure
+(start [s req]
+  (:wat::service::Outcome::ReplyAndArm s (:probe::Tick2::StartResponse::Ok)
+    ;; ⛔ a PUBLIC op, armed. --check exit 0. Fires. Mutates. Reply vanishes.
+    [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
+       :op (:probe::tick2::Op::Bump (:probe::Tick2::BumpRequest)))]))
+```
+
+Driver: `start` the service at `:count 7`, connect, call `start` (arming it), wait 60ms via a
+`select'`-on-`after` nap (not a sleep-guess), then `poll`. **Observed `8`.** Without the mutating
+witness the run prints `7` and proves nothing — that control is the difference between a finding and
+a vacuous green.
 
 ## The four questions
 
