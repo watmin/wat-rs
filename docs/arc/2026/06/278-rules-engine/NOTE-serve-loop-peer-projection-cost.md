@@ -22,11 +22,25 @@ peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector ~selectab
 
 ## The cost
 
-**`~peers-only-expr` is spliced RAW at two sites** — `wat/service.wat:1412` (the `poll` call) and
-`:1495` (the `serve-dispatch-op` call). There is no `let` hoisting it.
+**`~peers-only-expr` is spliced RAW at two sites** — the `poll` call and the `serve-dispatch-op`
+call (grep `peers-only-expr`; the ctx strike moved the line numbers once already). There is no
+`let` hoisting it.
 
-So at runtime, per message: **two full O(N) vector rebuilds**, N = connected clients. Per iteration
-without a message: one.
+### ★ CORRECTED 2026-08-09 — it is THREE O(N) passes per message, not two
+
+The original count was wat-side only, written from reading `service.wat` and **asserting about the
+Rust side without opening it.** `poll` does not consume the projected vector cheaply — it rebuilds
+the same information again natively (`runtime.rs`, `eval_poll_prime`, the `arg 2: peers` block):
+it walks every element, `downcast_ref_opaque`s each to a `PeerCell`, clones each into a fresh
+`Vec<PeerCell>`, then acquires an N-length `Vec<RefGuard>`. **Every call.**
+
+| pass | where | cost |
+|---|---|---|
+| wat fold → bare peers | the `poll` call site | fresh N-element Value vector |
+| downcast + clone + guard | inside `poll` | N downcasts, N `Arc` clones, N guard acquisitions |
+| wat fold → bare peers, again | the `serve-dispatch-op` call site | another fresh N-element vector |
+
+Per iteration without a message: the first two.
 
 ⚠ **The macro comment reads *"Computed ONCE here (outer macro scope) so `serve-body` below can splice
 it at both call sites."*** That "once" is **macro-EXPANSION-time** — the expression is built once and
@@ -46,11 +60,23 @@ break for it to go red. Nothing here would.
 ## The fixes, cheapest first
 
 1. **Hoist it.** Bind the projection once per iteration at the top of `serve-body`; `poll` and
-   `serve-dispatch-op` share it. Halves the cost, ~5 lines, no Rust. Still O(N) per iteration.
+   `serve-dispatch-op` share it. Removes ONE of the three passes, ~5 lines, no Rust.
 2. **Teach the intrinsics the tuple.** Let `poll`/`serve-dispatch-op` read element `.1` of a
-   `(i64, Peer)` entry, and delete the projection entirely. O(0). A `src/` change to two intrinsics —
-   the correct fix, and it removes the whole class rather than halving it.
-3. **Measure first.** Neither is worth doing blind. A service-with-N-clients bench does not exist;
+   `(i64, Peer)` entry, and delete the projection entirely. **⚠ CORRECTED: this is NOT O(0).** It
+   removes the two wat folds and leaves `poll`'s own downcast/clone/guard rebuild completely
+   untouched — the largest of the three passes. The original claim ("delete the projection
+   entirely. O(0)") was wrong.
+3. **★ Own the peer set on the Rust side** (the builder's proposal, 2026-08-09) — a persistent,
+   serve-loop-owned table that `poll` reads directly instead of being handed a fresh vector each
+   call. This is the only option that removes all three passes, because it attacks the actual
+   cause: **`poll`'s signature is "hand me the whole set again every time."** The set changes only
+   on connect and eviction — rare events — so per-message rebuilding recomputes something already
+   known unchanged, which the lockstep serve loop has perfect knowledge of.
+   Legibility, the one thing the current shape does better, is recoverable by a **query intrinsic**
+   — the substrate already does exactly this with `:wat::program::env` (`runtime.rs`, returns a
+   pure `Env` record; the serve loop already calls it). Ask-and-be-told beats read-the-form-and-
+   infer, and it cannot go stale: single-threaded, nothing runs between the query and the act.
+4. **Measure first.** None is worth doing blind. A service-with-N-clients bench does not exist;
    building one is the honest precondition, and it would serve the connection-scoped world too.
 
 ## Standing caution
@@ -59,3 +85,23 @@ Do NOT "optimise" this by reintroducing a parallel bare-peer vector kept in sync
 `selectables`. That is exactly STOP-2, and the projection's whole virtue is that it is a DERIVED view
 of one canonical structure — it cannot desync because there is nothing to forget to update. Any fix
 must preserve that property.
+
+**Fix 3 does NOT violate STOP-2 — provided the table is the SINGLE OWNER**, not a mirror. A Rust-side
+table that *replaces* `selectables` as the one canonical structure has nothing to desync from; a
+Rust-side table kept *alongside* the wat vector is the exact defect STOP-2 names. The distinction is
+ownership, and it is the whole design.
+
+## ⚠ A silent trap for anyone "simplifying" the projection away
+
+`broadcast_peer_crashed_best_effort` (`src/kernel/peer.rs`) walks `clients` and **`continue`s on any
+element that is not a `Peer'` opaque**:
+
+```rust
+let crate::value::Value::RustOpaque(inner) = elem else { continue; };
+```
+
+Hand it the `Tuple<i64,Peer>` vector raw and it skips **every element** — the service crashes and
+**not one client is notified**, with no error anywhere. It is a `serve-dispatch-op` call site, so it
+is on the panic path, where nothing is watching. That is a mask of exactly the class R55 spent an arc
+tearing out, and it ships green. Any change to what these two intrinsics receive must confirm this
+function still sees real peers.

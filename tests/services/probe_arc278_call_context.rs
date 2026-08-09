@@ -1,6 +1,6 @@
 //! Arc 278 — THE ACCEPTANCE GATE for the call context: an OPT-IN third arm parameter
 //! `[s ctx req]` on a `defservice` op handler, carrying a five-field pure context
-//! (`:wat::service::CallCtx` — a PLACEHOLDER name, STOP-5: an intueri cast is owed), with a
+//! (`:wat::service::Invocation` — name ratified 2026-08-09; the owed intueri cast is paid), with a
 //! stable monotonic caller id minted in the generated serve loop and travelling WITH its peer
 //! (STOP-2: never a parallel position-keyed vector).
 //!

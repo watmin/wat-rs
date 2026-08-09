@@ -340,7 +340,7 @@
 ;; the impl invokes it tier-neutrally via `apply` — the thread impl captures and
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients next-id state) -> nil. (arc 278 the call
-;; context added `next-id`, the monotonic caller-id counter, as the 4th positional arg.)
+;; context added `next-id`, the monotonic conn-id counter, as the 4th positional arg.)
 (:wat::core::defsurface :wat::spawn::Locus :nature :wat::core::Struct
   ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
   ;; The returned Launched carries the lineage peer as Peer'<Sh,Lu>.
@@ -481,7 +481,7 @@
                       ((:wat::kernel::SendOutcome::Lost _c) nil))]
                 ;; arc 278 the call context — `serve`'s wiring contract is now 5 args, not 4:
                 ;; `(serve self-peer listener clients next-id state) -> nil`. The extra `0` is
-                ;; the initial monotonic caller-id counter (defservice's serve loop threads it as
+                ;; the initial monotonic conn-id counter (defservice's serve loop threads it as
                 ;; pure state from here; a hand-rolled serve ignoring it is unaffected).
                 (:wat::core::apply  serve self-peer
                   (:wat::spawn::Bound/listener b)

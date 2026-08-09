@@ -61,11 +61,26 @@ supplies the caller identity it was waiting on. What remains for it:
 
 ## ⛔ STILL OPEN
 
-**Owed casts:** `CallCtx` (ctx's type name) and the correlation surface's namespace/type — the second
-has a completed intueri verdict awaiting ratification (`:wat::correlation::Correlation`, runner-up
-`:wat::correlation::Scope`; `Scope` judged Level-2 for colliding with lexical/sandbox/`wat_dispatch`
-scope). Field name **`conn-id`** was cast and won; **`resource-id` was rejected** — "resource" in this
-substrate means a live handle that cannot cross a wire, and this is pure data.
+**Owed casts — the ctx one is PAID (2026-08-09).** `CallCtx` → **`Invocation`**, cast and ratified by
+the builder; the field shipped as `caller-id` and is now **`conn-id`**, matching what the brief and
+the stone always said. Recorded migration: `wat-scripts/fixes/rename-call-ctx-to-invocation.wat`
+(the type prefix, the accessor, and the `:caller-id` kwarg via `rename-keyword-prefix`; the bare
+field symbol in the `defrecord` is the one site the verb cannot reach and was edited by hand).
+The ward's reasoning, kept because it generalises: `Ctx` fails intueri's own carve-out (*"ctx is
+acceptable when the TYPE speaks"* — here `Ctx` **is** the type), and the record braids three
+lifetimes, so `Invocation` names the **event** rather than any one field's scope. The binder stays
+`ctx`, judged separately, earning brevity by scope like `s` and `req`.
+
+⚠ Two of the ward's supporting claims did **not** survive weighing, and neither should be reused:
+it argued the register from five `:wat::service::` siblings when there are **three** (`Alarm`,
+`Outcome`, `Invocation` — `Handle`/`State`/`Record` are per-service macro-generated), and it called
+`Invocation` a clean namespace when the word already appears twice in Rust doc comments meaning
+*an enum-variant call expression*. The recommendation stood; those two arguments did not.
+
+**Still owed:** the correlation surface's namespace/type — a completed intueri verdict awaits
+ratification (`:wat::correlation::Correlation`, runner-up `:wat::correlation::Scope`; `Scope` judged
+Level-2 for colliding with lexical/sandbox/`wat_dispatch` scope). `resource-id` was rejected —
+"resource" here means a live handle that cannot cross a wire, and this is pure data.
 
 **Telemetry, and the builder's bar is already met:** *"i do not care that we don't have reads written
 — we need the data written such that a read can be built trivially."* The WRITE side is complete —
@@ -77,6 +92,21 @@ and proven (`query.wat:527`; `probe_arc278_tagged_keys_store.wat` Test B). **One
 **The ctx→telemetry refinement** (whether ctx splices a shared correlation surface, the relocation,
 `tags`) — `DESIGN-STONE-the-call-context.md` § SCOPE CUT. A later splice replaces hand-declared fields
 without touching a call site, so none of it is urgent.
+
+**★ A RULING WITH A SHORT SHELF LIFE — write it into #49a before #49a is built.** The claim
+*"rules are data, a Session is pure, worlds are serializable"* is **true today** (`wat/rete.wat:184`
+— `network` is a PersistentMap of node RECORDS, `rules` is the rule-set as data, and the alpha/beta
+memories are fire-scoped and come back EMPTY) and **expires the moment the compiled `where` lands**,
+because that is precisely the artifact that would put a non-data thing inside a `Rule`. The builder
+saw this coming: *"'rules are data' will be valid for like… days?.. hours?"*
+
+The fork, cheap now and a migration later: **the compiled table must live kernel-side, derived from
+`{network, rules}`, and be reconstructible from the rule data alone — it must never enter `Session`
+or `Rule`.** Put it in the record and R5 dies (*store the thunk, not the answer*), EDN dies, 293.W
+refuses it in `:durable`, and we have rebuilt Clara's version-fragile `durability.clj` blob — the one
+thing this engine's whole snapshot story exists to not be. That is R22 `OCVLI NOVI, ORACVLVM
+IMMOTVM` one layer down: the kernel grows a faster *sight* of the same data, the data does not
+change. Add it to #49a as a STOP while the thing is still unbuilt.
 
 **Recorded, not fixed:** `NOTE-serve-loop-peer-projection-cost.md` — the bare-peer projection is
 spliced RAW at both the `poll` and `serve-dispatch-op` sites, so it evaluates **twice per message**,

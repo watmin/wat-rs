@@ -6,7 +6,7 @@
 ;; Modelled on tests/services/probe_arc278_per_op_request_too_large.{rs,wat} (connect/round-trip
 ;; shape) and tests/types/probe_arc278_opaque_purity_wall.* (the acceptance-gate framing).
 ;;
-;; ⚠ `:wat::service::CallCtx` is a PLACEHOLDER type name (STOP-5, DESIGN-STONE-the-call-context.md):
+;; `:wat::service::Invocation` — name RATIFIED 2026-08-09 (was the placeholder `CallCtx`; the
 ;; an intueri cast is OWED. Do not read this identifier as ratified.
 ;;
 ;; Three things, and the third is the one that matters most (the brief, verbatim):
@@ -46,9 +46,9 @@
   [(whoami [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::CallCtx3::WhoamiResponse::Ok
-         (:wat::service::CallCtx/caller-id ctx)
-         (:wat::service::CallCtx/namespace ctx)
-         (:wat::service::CallCtx/operation ctx))))
+         (:wat::service::Invocation/conn-id ctx)
+         (:wat::service::Invocation/namespace ctx)
+         (:wat::service::Invocation/operation ctx))))
    (ping [s req]
      (:wat::service::Outcome::Reply s (:probe::CallCtx3::PingResponse::Ok true)))])
 

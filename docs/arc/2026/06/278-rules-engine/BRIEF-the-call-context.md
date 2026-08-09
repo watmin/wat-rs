@@ -54,9 +54,32 @@ handler, which handler purity already enforces.
 ## Implementation sketch
 
 **Carry the id WITH the peer, never beside it.** A parallel `conn-ids` vector desynchronises the
-moment a timer is removed from one and not the other (`service.wat:1058`/`:1061` remove fired alarm
-timers from the same `selectables`) — the third symptom of the positional-identity disease this whole
-design exists to kill.
+moment a timer is removed from one and not the other (the internal-op arms remove fired alarm timers
+from the same `selectables`; grep `remove-at selectables`).
+
+> **★ FRAMING CORRECTED 2026-08-09 — "the positional-identity DISEASE" oversells it.** This brief
+> called `idx` a disease the design exists to kill. That is wrong about the existing code, and the
+> correction matters because it changes what the counter is *for*.
+>
+> **Within one round, `idx` is a complete and correct identity.** Select fires, you get a seat
+> number, and you can reply to that peer (`nth selectables idx`) and evict it (`remove-at`) with no
+> ambiguity. **Every existing use in the serve loop consumes the idx inside the same arm that
+> received it** — all the reply sites, all five `remove-at` sites. All correct.
+>
+> It is not an identity **across** rounds, because the vector mutates between them. And it never was
+> a design shortcut: `poll` registers self-peer at 0, listener at 1, clients at 2..N+1 and returns
+> `index.0 - 2`, so `idx` is **crossbeam's registration position** flowing up through our own
+> `ReceiverIndex(usize)`. A set of anonymous channels has nothing else to offer — the positional
+> vocabulary was inherited from the transport, not chosen.
+>
+> So the counter does not cure a bug. **It adds a second, longer-lived name for the first consumer
+> whose lifetime exceeds a round** — the connection-scoped world, written in round N and read in
+> round N+500. Both names are legitimate and they compose: `idx` finds the connection *this* round;
+> `conn-id` is how anything durable remembers it. The eviction path uses both, in that order —
+> `(first (nth selectables idx))`.
+>
+> The stability gate still earns its place, for the sharper reason: not "positions are bad," but
+> "**this** consumer outlives the position."
 
 ```clojure
 ;; selectables element becomes a pair-like carrying (id, peer) — id travels with its peer,

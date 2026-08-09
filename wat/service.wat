@@ -62,21 +62,35 @@
   :ReplyAndArm   [state <- :S  reply <- :R  arms <- :wat::core::Vector<wat::service::Alarm<O>>]
   :NoReplyAndArm [state <- :S  arms <- :wat::core::Vector<wat::service::Alarm<O>>])
 
-;; ── CallCtx — the OPT-IN third arm param, `[s ctx req]` (arc 278 the call context) ────────
+;; ── Invocation — the OPT-IN third arm param, `[s ctx req]` (arc 278 the call context) ─────
 ;;
-;; ⚠ PLACEHOLDER NAME — `CallCtx` is a working name, NOT a ratified one (DESIGN-STONE-the-
-;; call-context.md STOP-5: "the type name is an intueri CAST, owed, not narrated"). An intueri
-;; cast is still owed; do not treat this identifier as settled.
+;; NAME RATIFIED 2026-08-09 (was the placeholder `CallCtx`; STOP-5's owed intueri cast is now
+;; PAID). The ward judged `CallCtx` a Level-2 mumble on two axes: `Ctx` fails intueri's own
+;; carve-out ("ctx is acceptable when the TYPE speaks" — here `Ctx` IS the type, so the
+;; abbreviation stands in for nothing), and the record braids THREE lifetimes, so no
+;; field-lifetime name can be honest. `Invocation` names the EVENT instead — one dispatch of one
+;; operation — and an invocation legitimately HAS a caller without claiming to BE one.
+;; The user-facing binder stays `ctx`, judged separately: it earns its brevity by SCOPE (the
+;; fixed middle slot of `[s ctx req]`, a positional role name exactly like `s` and `req`), not by
+;; mirroring the type. Type name and binder deliberately do not track each other.
+;; Migration recorded: wat-scripts/fixes/rename-call-ctx-to-invocation.wat.
 ;;
 ;; The five-field floor, pinned by the builder (DESIGN-STONE-the-call-context.md, "the ctx
 ;; floor — five fields, all pure scalars"): every field here is a pure scalar (i64/keyword/
-;; String/Uuid), so CallCtx itself is pure — wire-crossable, `:durable`-legal — even though it
+;; String/Uuid), so Invocation itself is pure — wire-crossable, `:durable`-legal — even though it
 ;; is PRODUCED at an impure boundary (the serve loop: a fresh Uuid, a clock read, the live
 ;; connection table) and only ever CONSUMED by a pure handler. Concrete (no type params): every
 ;; field's type is the same scalar shape regardless of which service declares the ctx-arm, so
 ;; this is minted ONCE here, not synthesized per-service the way State/Op/Reply are.
-;;   caller-id  — the stable monotonic i64 minted in the serve loop (never reused; STOP-2: it
+;;   conn-id    — the stable monotonic i64 minted in the serve loop (never reused; STOP-2: it
 ;;                travels WITH its peer in `selectables`, never a parallel position-keyed vec).
+;;                NAMED FOR THE CONNECTION, not the caller: it is not a principal, carries no
+;;                authz, and does NOT survive a reconnect — a client that drops and redials gets
+;;                a fresh one. Nor is it a POSITION: `idx` is the round-scoped seat number the
+;;                transport hands up (crossbeam's registration order; see `poll`), valid only
+;;                within the round that issued it. `conn-id` is the name that outlives the round,
+;;                which is the whole reason it exists — anything keyed on it (a per-connection
+;;                world) survives the vector mutations that shift every `idx`.
 ;;   namespace  — the service's own fqdn (`fqdn-kw`), a compile-time literal spliced by the macro.
 ;;   operation  — the op arm's own kebab name (`op-str`), a compile-time literal spliced by the
 ;;                macro.
@@ -84,8 +98,8 @@
 ;;   start-ns   — one clock read (`epoch-nanos (now)`), stamped fresh per call in the serve loop.
 ;; STOP-3/STOP-6 (brief): internal (`-`) ops get NO ctx at all (their 1-param `[s]` arm is
 ;; untouched), and this strike does not build lifecycle hooks — it only mints + carries the id.
-(:wat::core::defrecord :wat::service::CallCtx
-  [caller-id  <- :wat::core::i64
+(:wat::core::defrecord :wat::service::Invocation
+  [conn-id    <- :wat::core::i64
    namespace  <- :wat::core::keyword
    operation  <- :wat::core::String
    request-id <- :wat::core::Uuid
@@ -1191,8 +1205,8 @@
                               ;; in the GENERATED code, evaluated at RUNTIME inside the serve loop
                               ;; (the impure boundary: the live connection table, a fresh Uuid, a
                               ;; clock read) — never at macro-expand time.
-                              ctx-ctor-expr `(:wat::service::CallCtx
-                                                :caller-id  (:wat::core::first (:wat::core::nth selectables idx))
+                              ctx-ctor-expr `(:wat::service::Invocation
+                                                :conn-id  (:wat::core::first (:wat::core::nth selectables idx))
                                                 :namespace  ~fqdn-kw
                                                 :operation  ~op-str
                                                 :request-id (:wat::core::Uuid/v4)
@@ -1382,7 +1396,7 @@
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
      ;; self/l/clients/state in the Vector are fine as literal symbols.
      ;; arc 278 the call context — `next-id` is the NEW 5th param: the stable monotonic
-     ;; caller-id counter, threaded as pure state (no clock, no entropy, no global — the
+     ;; conn-id counter, threaded as pure state (no clock, no entropy, no global — the
      ;; ONE pinned contract decision). `selectables` is now `selectable-entry-vec-ty`
      ;; (Tuple<i64,Peer> — the id travels WITH its peer, STOP-2), not the bare peer vector.
      serve-params `[self        <- ~lineage-peer-ty
