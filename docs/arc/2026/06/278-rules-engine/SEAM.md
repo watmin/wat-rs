@@ -29,7 +29,30 @@ HEAD 18d117d7   pushed   floor 4384 passed / 0 failed / 262 skipped   clippy 0
 | `1948eaa0` | **opaque purity SELF-ENROLS** — a registered `#[wat_dispatch]` opaque reads impure on both `is_pure_type` arms; no hand list, cannot drift |
 | `a6be7308` | **STOP-3 answered** — 293.W is a compiler-enforced wall AND it reaches `:durable`; its *enrollment* was the hole |
 
-## ▶ FIRST ACT — the connection-scoped world. It is unblocked.
+## ▶ FIRST ACT — `DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md`. READ IT FIRST.
+
+**Ruled 2026-08-09, nothing built.** It SUPERSEDES the opt-in ctx design that shipped in `c8fcfe0d`
+and the arity table below it. In one line each:
+
+- **ctx is MANDATORY**, never opt-in — *"optional things always bite us eventually."*
+- **Arity is NOT a discriminator** — the leading `-` is. `(op [s ctx req])` / `(-op [s ctx])`; the
+  shape follows the NAME. The old arity table was meaning-derived-from-position, the same defect as
+  `idx`, and it ran out of room the day an internal op needed a payload.
+- **An internal op is still an INVOCATION** — it gets a ctx (id + time) so a timer or a lifecycle
+  event is visible to telemetry. This REVERSES the old STOP-3.
+- **Lifecycle = internal ops** `-on-connect` / `-on-disconnect`, in `:impls` only, NEVER the surface
+  (the `-tick` precedent).
+- **The macro reports IPC FACTS; the user owns POLICY.** The `:per-connection` macro-managed map is
+  KILLED — a service holds its own map in `:ephemeral`.
+- **TWO context types (option B), 4/4 on the four questions** — a `conn-id: Option` fails Obvious,
+  Simple AND Honest (it cannot distinguish "no connection caused this" from "we didn't look").
+- **The migration is a 120-arm codemod**, and the opt-in design existed to dodge exactly that —
+  the R65 argument, got wrong one day after it was recorded.
+
+**Prove before briefing:** (a) that `(-op [s ctx])` is representable today (ten-line probe — do NOT
+assert it); (b) that the `~@` splice composes across both context types, which is B's one real cost.
+
+## ▶ THEN — the connection-scoped world. Its blocker is named above.
 
 `DESIGN-STONE-the-connection-scoped-world.md` is ruled and corrected. **Do NOT re-derive it.** ctx now
 supplies the caller identity it was waiting on. What remains for it:
