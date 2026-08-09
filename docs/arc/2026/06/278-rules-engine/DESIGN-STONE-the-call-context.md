@@ -139,6 +139,81 @@ correlate nothing.
 > defining it and `telemetry.wat` splicing it. Do NOT hand-copy the id from ctx into `Scope` at the
 > producer — that is derive-is-the-wall violated, and it drifts on the first refactor.
 
+## ★ THE SHAPE, RULED 2026-08-09 — three levels, and the metric half is ALREADY BUILT
+
+The builder specified the observability shape from his AWS practice. Grounding it against the disk
+found most of it already shipped in `wat/telemetry/span.wat`.
+
+**Ruling 1 — CloudWatch is a VOCABULARY REFERENCE, not a constraint.** *"we own the db layer here -
+we don't have to get parity with cloudwatch."* So the fan-out/dimension-identity questions the
+CloudWatch model forces do not bind us.
+
+**Ruling 2 — `namespace : operation` is a TWO-LEVEL NAMESPACE.** *"i view the metric-name as a
+secondary namespace"* — `namespace: "my-app"`, `operations: ["my-first-request-handler", …]`.
+
+**Ruling 3 — TAGS LEAVE THE METRIC.** *"tags are just a thing we put on the logs records as just
+extra metadata about this specific invocation that all log lines share in addition to uuid… i've
+never really reached for dimensions… we can just have an empty dimension set until we know we need
+it."* Tags are LOG metadata. (Independently confirmed by the CloudWatch doc: dimensions are part of a
+metric's *identity*, so a varying tag-set forks the metric — and a per-request uuid as a dimension is
+a cardinality bomb. We avoid the whole class by not putting them there.)
+
+**Ruling 4 — RAW SAMPLES ARE KEPT; the derived stats come at emit.** `{:timers {"some-timed-thing"
+[25000 25000]}}` → summed to a total and a count. R5 at the telemetry layer: store the samples, derive
+the answer. (Also the only way to keep percentiles — the CloudWatch doc says a pre-aggregated
+StatisticSet forfeits them.)
+
+**Ruling 5 — the REQUIREMENT, stated:** *"we need to be able to see where our largest time sinks are."*
+Ranking by total time is the acceptance criterion, not a nice-to-have.
+
+### ⇒ THE THREE LEVELS
+
+| level | fields | lifetime |
+|---|---|---|
+| **unit of work** | `uuid`, `namespace` | the whole request — THE CORRELATION CORE |
+| **operation** | `operation`, counters, timers, start/end | one `with-op` scope; emits N metrics at close |
+| **event** | instant, level, message, **tags** | one log line |
+
+**`time-ns` is NOT in the correlation core** — it varies by role (`time-ns` per log event,
+`start-time-ns` per operation), which is precisely why `span::Record` had to hand-redeclare three of
+`Scope`'s four fields instead of splicing it. **`tags` is NOT in it either** (ruling 3). The core is
+`{uuid, namespace}`.
+
+### ★ ALREADY ON THE DISK — do not rebuild
+
+`wat/telemetry/span.wat`'s own header: *"On `close` it emits the accumulated state as Metrics to the
+sink (**each counter → 1 Metric; each duration name → a `<name>/count` + a `<name>/duration`
+Metric**)"* — the builder's exact fan-out. And the vocabulary exists:
+
+```clojure
+(defenum   :wat::telemetry::Numeric :I64 [val] :F64 [val])                 ;; the :value
+(defenum   :wat::telemetry::Unit    :Count :Nanos :Millis :Bytes :Percent) ;; the :type
+(typealias :wat::telemetry::Samples (Vector i64))                          ;; the raw [25000 25000]
+(defrecord :wat::telemetry::Metric  [~@Scope start-time-ns name value unit])
+(defservice :wat::telemetry::span   :durable [namespace uuid tags start-time-ns counters durations])
+```
+
+`Counter` = `Unit::Count`; `Duration` = `Unit::Nanos`. (R61 `PAR NON ARGVIT, NOSTRA ARGVVNT` — our own
+prior art, consulted this time.)
+
+### THE DELTA — what is actually missing
+
+1. **`operation`** — carried by NOTHING today. Not in `Scope`, not in `span::Record`. It is the
+   builder's secondary namespace and the thing that makes a metric legible; without it every metric
+   from one service is distinguishable only by its timer names.
+2. **`tags` moves** — off `Scope`/`Metric`, onto the log record (ruling 3).
+3. **the correlation cut** — `Scope` loses `time-ns` and `tags`, becoming `{uuid, namespace}`; each
+   consumer stamps its own time with its own meaning.
+4. **ctx plumbing** — the per-call context that makes any of this reachable from a handler; this stone.
+
+### ⛔ ONE OPEN, and it is small
+
+**Does a Metric carry the `uuid`?** Ruling 3 puts tags on logs "in addition to uuid", which says logs
+carry it; it does not say metrics lose it. Recommendation: **keep it on metrics.** We own the DB, so
+there is no cardinality penalty, and it buys the single most valuable debugging move — *this operation
+was slow → here are that exact invocation's log lines.* Drop it and metrics and logs can only be
+joined by namespace+time, which is a guess.
+
 ## Extension — surface-splice, not a bag
 
 The wat-native answer exists and is shipped: `defsurface` + `~@Surface` splice. `Scope` → `Metric`/
