@@ -11,129 +11,108 @@
 ## Where the code is — nothing parked, nothing uncommitted
 
 ```
-HEAD a6be7308   pushed   floor 4376 passed / 0 failed / 262 skipped   clippy 0
+HEAD c8fcfe0d+   pushed   floor 4384 passed / 0 failed / 262 skipped   clippy 0
 ```
 
 `git status` empty.
 
-> ⚠ **The line above is written IN the commit it names, so it can never match at wake.** A
-> one-commit mismatch is EXPECTED and benign; a mismatch of more than one is the real alarm. (The
-> freshness probe was silently useless until 2026-08-08 — it could not pass by construction.)
+> ⚠ **The HEAD line is written IN the commit it names, so a ONE-commit mismatch at wake is EXPECTED
+> and benign.** More than one is the real alarm. (This probe could not pass by construction until
+> 2026-08-08; do not read a single-commit drift as staleness.)
 
-## ★ WHAT LANDED (2026-08-06 → 08)
+## ★ WHAT LANDED (2026-08-08 → 09) — five strikes, each weighed by my own `--release` re-run
 
 | commit | |
 |---|---|
-| `a61056f0` | **#88 SHIPPED** — `(:wat::rete::core::defn …)` exists; its membrane bites at runtime; a refusal names **the helper**, located at the declaration |
-| `8ea35334` · `53885f70` | **the CONNECTION-SCOPED WORLD** stone — ruled, drawn, corrected, **unbuilt** |
-| `ee6770c8` · `9f6340a1` | two LIVE deadlock captures under `cargo test`, nothing killed |
-| `47478223` · `2aa3b61f` · `cb98db6a` | #88's docs, brief, expectations, and the committed probe |
+| `c8fcfe0d` | **THE CALL CONTEXT** — an opt-in `[s ctx req]` arm; a stable monotonic caller id minted in the generated serve loop and carried **with** its peer |
+| `30f6a9d9` · `e84572bf` | **arming is INTERNAL-ONLY** — a public op in an `Alarm` is refused at the definition; killed a LIVE silent discard. Renamed by an intueri cast → `PublicOpInAlarm` |
+| `1948eaa0` | **opaque purity SELF-ENROLS** — a registered `#[wat_dispatch]` opaque reads impure on both `is_pure_type` arms; no hand list, cannot drift |
+| `a6be7308` | **STOP-3 answered** — 293.W is a compiler-enforced wall AND it reaches `:durable`; its *enrollment* was the hole |
 
-## ✅ STOP-3 IS ANSWERED (`a6be7308`) — do NOT re-derive it
+## ▶ FIRST ACT — the connection-scoped world. It is unblocked.
 
-**293.W is a COMPILER-ENFORCED WALL and it DOES reach `:durable`** (the slot synthesizes
-`<svc>::Record`, a pure aggregate). Proven by run with both controls: `IOWriter` in `:durable`
-refused; `i64` accepted. **But its ENROLLMENT is a hand-written list, and an unenrolled Rust opaque
-walks straight through** — `Lru<String,i64>` in `:durable` compiles clean. For a *parametric* opaque
-the miss is the `TypeExpr::Parametric` fallthrough (`pure iff its type ARGS are pure`), **not** the
-Path arm the 293 NOTE recorded; `Lru<IOWriter,i64>` is correctly refused, which is what proves it.
+`DESIGN-STONE-the-connection-scoped-world.md` is ruled and corrected. **Do NOT re-derive it.** ctx now
+supplies the caller identity it was waiting on. What remains for it:
 
-**So the stone's `:ephemeral` placement is CORRECT and CHOSEN, not enforced** — `World` will be a
-`#[wat_dispatch]` opaque and would compile in `:durable` today. STOP-3 now states both halves.
-`wat/cache.wat` claimed the opposite about the exact type it named; corrected.
+1. **Lifecycle hooks** — threading USER state on `Connection`/`Closed`/`Lost`. Today all three arms
+   pass `state` through **unchanged** (`service.wat:1265`/`:1351`/`:1361`), so there is nowhere to
+   create or destroy an entry. **The hook's signature is UNDESIGNED** — that design is the first work,
+   deliberately kept out of the ctx strike rather than smuggled in.
+2. **The map**, keyed on ctx's caller id — never on `idx`.
 
-## ✅ AND THE HOLE IT UNCOVERED IS CLOSED — same day, builder-ruled
+**⚠ The two traps, both already grounded, both ship GREEN when wrong:**
+- **`idx` is a POSITION and shifts on every eviction.** A map keyed on it hands one tenant another's
+  rules and cursor. Nothing crashes. The ctx strike's stability gate is the shape to copy: three
+  clients, evict the MIDDLE one, assert a survivor still sees its ORIGINAL id.
+- **Two of the four `remove-at selectables idx` sites (`:1058`/`:1061`) remove fired ALARM TIMERS,
+  not clients.** Any per-connection bookkeeping must not fire there.
 
-*"this is unacceptable — i want to attack this immediate symptom now … if its a foreign symbol we
-just deny it?"* Built. `is_pure_type` consults the `#[wat_dispatch]` opaque registry
-(`RustDepsRegistry.types`) on **both** arms — a registered Rust opaque is impure regardless of type
-args. **Self-enrolling**: the macro already registers every opaque, so no hand list, no drift.
-Gate both ways: `tests/types/probe_arc278_opaque_purity_wall.{rs,wat.bad}` + `_control.wat`.
+## ⛔ STILL OPEN
 
-**⛔ The remaining hole is NOT the opaques — it is our OWN unregistered core types.** Measured by
-imposing the deny (`Path` arm `None => true` → `false`): **2713 of 4376** red, and *not one* a
-foreign opaque. The population is formal type parameters plus **six core types that are pure and
-were simply never registered** — `PersistentMap`, `PersistentVector`, `WatAST`, `HolonAST`,
-`time::Instant`, `time::Duration`. **That enrolment is arc 255's registry** (`255/NOTE-purity-is-
-definition-time-queryable-metadata.md` already files this class's three instances). Worklist,
-checker-produced: `278/BRIEF-opaque-purity-self-enrolls.md` § NOT IN SCOPE. **Do not start it
-without a ruling — 255 is parked by the builder's own call.**
+**Owed casts:** `CallCtx` (ctx's type name) and the correlation surface's namespace/type — the second
+has a completed intueri verdict awaiting ratification (`:wat::correlation::Correlation`, runner-up
+`:wat::correlation::Scope`; `Scope` judged Level-2 for colliding with lexical/sandbox/`wat_dispatch`
+scope). Field name **`conn-id`** was cast and won; **`resource-id` was rejected** — "resource" in this
+substrate means a live handle that cannot cross a wire, and this is pure data.
 
-## ▶ FIRST ACT — build the connection-scoped world
+**Telemetry, and the builder's bar is already met:** *"i do not care that we don't have reads written
+— we need the data written such that a read can be built trivially."* The WRITE side is complete —
+every `Metric` and `Log` writes the `by-uuid` correlation GSI (`journal.wat:12`/`:46`/`:59`, schema
+`:99`). What is missing is a READER: `query-metrics`/`query-logs` call `Store/scan` on the base table
+and **never** `Store/scan-index`, so the uuid pivot cannot be performed. `Store/scan-index` is built
+and proven (`query.wat:527`; `probe_arc278_tagged_keys_store.wat` Test B). **One op, not a mechanism.**
 
-Its STOP-3 is answered and its guarantee is now real. Read the stone; do NOT re-derive it. The trap
-below it (`idx` as the map key) is still the thing most likely to ship green and wrong.
+**The ctx→telemetry refinement** (whether ctx splices a shared correlation surface, the relocation,
+`tags`) — `DESIGN-STONE-the-call-context.md` § SCOPE CUT. A later splice replaces hand-declared fields
+without touching a call site, so none of it is urgent.
 
-## Then — the connection-scoped world, and the trap is named
+**Recorded, not fixed:** `NOTE-serve-loop-peer-projection-cost.md` — the bare-peer projection is
+spliced RAW at both the `poll` and `serve-dispatch-op` sites, so it evaluates **twice per message**,
+O(N) in clients, in the multiplexer's hot path. No gate measures it (tests use 1–3 clients; there is
+no many-client bench). Fixes ranked in the note; **measure before choosing.**
 
-Read the stone. Do NOT re-derive it; the model, the state split, the lifetime and seven STOPs are
-ruled. Two things in it will bite whoever builds it:
-
-- **⚠ THE KEY MUST NOT BE `idx`.** `Closed idx` / `Lost idx cause` identify a client by POSITION, and
-  every eviction is `remove-at selectables idx` (`service.wat:1058`/`:1061`/`:1352`/`:1364`). Remove
-  client #2 of five and everyone above shifts down — so a map keyed on `idx` hands client #3's rules
-  and cursor to client #4. **Nothing crashes.** A cross-tenant leak that ships green, and it is the
-  obvious way to build it. Mint a stable `ConnId`; resolve *idx → ConnId* BEFORE the `remove-at`.
-- **`:ephemeral` dying with the SERVICE says nothing about a CLIENT leaving.** Different events. The
-  create/destroy is explicit and must be built.
-
-Then #19/#20 (the composite cursor) become this object's read surface — **already designed** at
-`DESIGN-service-io-budgets.md:319`, `:max-page-bytes 524288`. Reconcile into them; do not open a
-parallel plan.
-
-## ⛔ STILL OPEN, and #88 is NOT closed
-
-`a61056f0` registers rete-defns **globally**. The builder: *"many users could define the same funcs…
-they must not become globals."* That defect is what the connection-scoped stone closes. #88 ships a
-working form with a wrong tenancy model.
-
-Also open: **#87** `bound_expr` (the limits are **the builder's to set**, from a real distribution —
-mine were wrong twice: source-form 7/9, fully inlined **33/33**) · **#49** the IR · #7 · #17 · #19 ·
-#20 · #50 · #58 · #60 · #64 · #67 · #81.
-
-## The `cargo test` deadlock — dispositioned, tracked, NOT closed
-
-Reproduced twice, different builds and fixtures, 16 loci parked in `io_cqring_wait` while the
-parent's readers sat on `anon_pipe_read`. **The identical tree is green under `nextest`**, which
-forks per test — so the mechanism is the harness's shared-process state. The builder: *"cargo test
-will be dealt with in time."*
-
-**★ The substrate finding survives that disposition and is bigger than the harness:** a lock-step
-system parked its loci twice with **no deadline, no diagnostic, and no way for any participant to
-name who it was waiting on.** `ZERO-MUTEX.md` predicts the class; 24y ruled NO TIMEOUT deliberately
-*because a wedged stop must hang VISIBLY, naming the service*. These hung invisibly and named nothing.
+**Also open:** the six unregistered core types (`PersistentMap`, `PersistentVector`, `WatAST`,
+`HolonAST`, `time::Instant`, `time::Duration`) that keep `is_pure_type`'s `None => true` alive —
+arc **255**'s registry, worklist in `BRIEF-opaque-purity-self-enrolls.md` § NOT IN SCOPE. #87 `bound_expr`
+(limits are the builder's, from a real distribution). #49 the IR. #7 · #17 · #19 · #20 · #50 · #58 ·
+#60 · #64 · #67 · #81.
 
 ## The rules this stretch paid for
 
-- **A check bound to a NEIGHBOURING lifecycle event compiles, reads right, and is wrong** — twice:
-  the stamp dropped by a later pass, the cleanup hung on the wrong death.
-  ([[feedback_bind_a_check_to_the_lifecycle_that_governs_it]])
-- **"Bank it" is banned.** Say the mechanical act — *commit and push*, *write it to the seam*, *file
-  task #N*. The builder has now said this twice, seven weeks apart, and the memory existed both times.
-- **An enumeration with an escape hatch is not an enumeration.** "…`--test lint`, **etc.**" in a
-  rider brief authorised the full suite and cost two deadlocks. Rider gates are **BUILD-ONLY**.
-- **A `head -2` window read as success** on a 15-line output that exited 2 — and three moves were
-  built on it before the full read.
-- **Our own prior art is the oracle we keep not consulting** — three times in two days:
-  yesterday's `kwargs-construct` fix, `eval-with-defs!`/`FormOutcome`, and the composite cursor.
+- **A CONTENT question and a MECHANISM question have different difficulty — never defer the cheap one
+  on the hard one's grounds.** I cut ctx to one field because *splicing a shared surface* was hard;
+  four of the five were compile-time literals the macro already held. Cost would have been the same
+  120 call sites migrated twice. ([[feedback_do_not_defer_content_on_mechanisms_difficulty]])
+- **An asymmetry claim is TWO claims.** "A log has no caller; a request has no facility" — I checked
+  the first half only, and the second was false. Twice this session, both caught by the builder.
+  ([[feedback_ground_each_case_before_the_verdict]], new face)
+- **A test filter matching ZERO tests reports PASS.** My brief named a control by name; both its tests
+  were pre-existing `#[ignore]`d, so `nextest -E` matched nothing and exited 0. Verify a control is
+  ALIVE (`nextest list -E`), not merely named. ([[feedback_a_green_test_can_prove_nothing]])
+- **A brief and its spawn prompt are ONE artifact.** Mine contradicted across the two channels and
+  left a rider with no compliant move. ([[feedback_brief_constraint_contradictions]])
+- **A hole-demonstration cannot live where everything must load.** I put a probe that had to go RED
+  when fixed inside the loader gate. `.wat.bad` from the start, where red IS pass.
 
-## Weigh a rider's report; never relay it
+## Weigh a rider; never relay it
 
-The #88 rider's report was wrong in two places my own run caught: the membrane denied **all four**
-axes (making `pure?` answer false for an ordinary pure fn, breaking nine tests in unrelated files),
-and it reported four STOP-4s of which **zero** were real. I relayed one of those to the builder as
-fact; a commit from the previous day disproved it.
+Both riders this stretch **corrected my briefs on grounded evidence**, and both corrections were
+right: the room map for the opaque strike named a function that is dead code for that rule, and the
+ctx strike's blast radius genuinely reached `wat/spawn.wat` (a fixed-arity `apply` whose callee check
+is fully dynamic — a missed arg would have failed at RUNTIME on every thread-tier launch). But a
+ward's verdict is also a hypothesis: intueri claimed *no sibling narrates with an active verb*, and
+`ProcessJoinHoldsStdinSender` refutes it. **The recommendation survived; that argument did not.**
 
 ---
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> HEAD is green, pushed, clean. #88's form ships and its tenancy model does not. The next stone is
-> drawn and its most dangerous defect — a map keyed on a shifting index — is named in advance,
-> because it would ship green.
+> HEAD is green, pushed, clean. A handler can finally be told who is calling — and the connection-
+> scoped world, blocked on exactly that since the arc's start, is now waiting only on a hook whose
+> signature nobody has designed yet.
 >
-> The line this stretch cost the most to buy: **a thing bound to the wrong lifecycle looks correct
-> from every angle except a run.** Freeze instead of registration; the service's death instead of the
-> client's. Both compiled, both read well, both were wrong, and reasoning found neither.
+> The line this stretch cost the most to buy: **the realization that you need a carrier IS the
+> realization to put in it what you already know it will carry.** I nearly shipped a three-field
+> context and migrated the same call sites twice to finish it.
 >
 > `NISI FRANGAS, NIHIL PROBAS.` · `IN TENEBRIS VISVS CORRIGOR.`
