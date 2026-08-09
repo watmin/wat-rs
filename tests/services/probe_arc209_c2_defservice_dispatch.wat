@@ -68,10 +68,21 @@
      addr (:wat::spawn::Bound/address pair)
      ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<Status,Admin>),
      ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
+     ;; arc 278 the call context — the GENERATED `serve` grew a 5th positional arg (`next-id`,
+     ;; the monotonic caller-id counter) and its `clients` slot is now Tuple<i64,Peer<…>>
+     ;; entries (the id travels WITH its peer), not the bare Peer vector.
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
-                (:wat::core::Vector :wat::kernel::Peer<my::Counter::Reply,my::Counter::Op>)
+                ;; arc 278 the call context — the Op slot must be the SERVICE superset type
+                ;; (`my::counter::Op`, not the surface `my::Counter::Op`) DIRECTLY: the
+                ;; surface-Op<:service-Op widening is proven for a BARE Peer compare
+                ;; (assignable's Peer-specific branch) but does not propagate through a
+                ;; Tuple wrapper (unify recurses into tuple elements without re-entering
+                ;; assignable) — so an empty vector built at the widened surface type no
+                ;; longer round-trips once `clients`' element is Tuple<i64,Peer<…>>.
+                (:wat::core::Vector :(wat::core::i64,wat::kernel::Peer<my::Counter::Reply,my::counter::Op>))
+                0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop

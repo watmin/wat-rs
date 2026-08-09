@@ -62,6 +62,35 @@
   :ReplyAndArm   [state <- :S  reply <- :R  arms <- :wat::core::Vector<wat::service::Alarm<O>>]
   :NoReplyAndArm [state <- :S  arms <- :wat::core::Vector<wat::service::Alarm<O>>])
 
+;; ── CallCtx — the OPT-IN third arm param, `[s ctx req]` (arc 278 the call context) ────────
+;;
+;; ⚠ PLACEHOLDER NAME — `CallCtx` is a working name, NOT a ratified one (DESIGN-STONE-the-
+;; call-context.md STOP-5: "the type name is an intueri CAST, owed, not narrated"). An intueri
+;; cast is still owed; do not treat this identifier as settled.
+;;
+;; The five-field floor, pinned by the builder (DESIGN-STONE-the-call-context.md, "the ctx
+;; floor — five fields, all pure scalars"): every field here is a pure scalar (i64/keyword/
+;; String/Uuid), so CallCtx itself is pure — wire-crossable, `:durable`-legal — even though it
+;; is PRODUCED at an impure boundary (the serve loop: a fresh Uuid, a clock read, the live
+;; connection table) and only ever CONSUMED by a pure handler. Concrete (no type params): every
+;; field's type is the same scalar shape regardless of which service declares the ctx-arm, so
+;; this is minted ONCE here, not synthesized per-service the way State/Op/Reply are.
+;;   caller-id  — the stable monotonic i64 minted in the serve loop (never reused; STOP-2: it
+;;                travels WITH its peer in `selectables`, never a parallel position-keyed vec).
+;;   namespace  — the service's own fqdn (`fqdn-kw`), a compile-time literal spliced by the macro.
+;;   operation  — the op arm's own kebab name (`op-str`), a compile-time literal spliced by the
+;;                macro.
+;;   request-id — one `Uuid/v4`, minted fresh per call in the serve loop.
+;;   start-ns   — one clock read (`epoch-nanos (now)`), stamped fresh per call in the serve loop.
+;; STOP-3/STOP-6 (brief): internal (`-`) ops get NO ctx at all (their 1-param `[s]` arm is
+;; untouched), and this strike does not build lifecycle hooks — it only mints + carries the id.
+(:wat::core::defrecord :wat::service::CallCtx
+  [caller-id  <- :wat::core::i64
+   namespace  <- :wat::core::keyword
+   operation  <- :wat::core::String
+   request-id <- :wat::core::Uuid
+   start-ns   <- :wat::core::i64])
+
 ;; ── Capability — the uniform capability surface (arc 170 capability circuit) ──────
 ;;
 ;; RELOCATED (stone 2) + RENAMED (stone A, was Grantable): the :wat::capability::Capability
@@ -860,13 +889,46 @@
      service-op-ty-str (:wat::core::string::interpolate "{b}::Op{p}" :b fqdn-base :p fqdn-tp)
      service-op-decl-kw (:wat::core::keyword/from-string service-op-ty-str)
      ;; selectable-peer-ty: Peer<proto::Reply, service::Op> (the poll' element — superset O).
-     selectable-peer-ty (:wat::core::keyword/from-string
-                          (:wat::core::string::interpolate "wat::kernel::Peer<{r},{o}>"
-                            :r proto-reply-ty-str :o service-op-ty-str))
-     ;; selectable-vec-ty: Vector<Peer<proto::Reply, service::Op>> (serve's `selectables` param).
+     selectable-peer-ty-str (:wat::core::string::interpolate "wat::kernel::Peer<{r},{o}>"
+                               :r proto-reply-ty-str :o service-op-ty-str)
+     selectable-peer-ty (:wat::core::keyword/from-string selectable-peer-ty-str)
+     ;; selectable-vec-ty: Vector<Peer<proto::Reply, service::Op>> — the BARE peer vector, the
+     ;; shape `:wat::kernel::poll`/`:wat::kernel::serve-dispatch-op` require (both are Rust
+     ;; intrinsics that downcast every element to a real Peer opaque; neither can see through a
+     ;; wrapper). Still used as the PROJECTED view built fresh each iteration (`peers-only-expr`
+     ;; below) — never as `selectables`' own declared type anymore (see `selectable-entry-vec-ty`).
      selectable-vec-ty (:wat::core::keyword/from-string
                          (:wat::core::string::interpolate "wat::core::Vector<wat::kernel::Peer<{r},{o}>>"
                            :r proto-reply-ty-str :o service-op-ty-str))
+     ;; ── arc 278 the call context: the caller id travels WITH its peer (STOP-2) ──────────────
+     ;; selectable-entry-ty: (i64, Peer<R,O>) — the NATIVE tuple type spelling `:(T1,T2)` (NOT
+     ;; the `Tuple<T1,T2>` angle-bracket form — the checker infers a `(:wat::core::Tuple a b)`
+     ;; ctor call at exactly `:(T1,T2)`, and the two spellings do not unify as declared-vs-
+     ;; inferred; proven by running `--check` and reading the TypeMismatch). ONE element, id+peer
+     ;; coupled by construction (never a second vector keyed by position: `remove-at` drops both
+     ;; together, always, because there is only ever one vector). selectable-entry-vec-ty is
+     ;; `selectables`' REAL declared type from here down; `selectable-vec-ty`/`selectable-peer-ty`
+     ;; above survive only as the bare-peer PROJECTION poll'/serve-dispatch-op still need.
+     selectable-entry-ty-str (:wat::core::string::interpolate "(wat::core::i64,{p})"
+                                :p selectable-peer-ty-str)
+     selectable-entry-ty (:wat::core::keyword/from-string selectable-entry-ty-str)
+     selectable-entry-vec-ty-str (:wat::core::string::interpolate "wat::core::Vector<(wat::core::i64,{p})>"
+                                    :p selectable-peer-ty-str)
+     selectable-entry-vec-ty (:wat::core::keyword/from-string selectable-entry-vec-ty-str)
+     ;; peers-only-expr — the BARE-peer projection `:wat::kernel::poll` / `:wat::kernel::
+     ;; serve-dispatch-op` need (both are Rust intrinsics that downcast every Vector element to
+     ;; a real Peer opaque; a Tuple wrapper is invisible to them). Built fresh, once per
+     ;; serve-loop iteration, from the single canonical `selectables` — a DERIVED view, never an
+     ;; independently-mutated structure, so it cannot desync (STOP-2 again: the risk that rule
+     ;; guards against is two vectors someone forgets to update together; a projection
+     ;; recomputed from the one source of truth has nothing to forget). Computed ONCE here
+     ;; (outer macro scope) so `serve-body` below can splice it at both call sites.
+     peers-acc-sym (:wat::core::symbol-node "pacc")
+     peers-t-sym   (:wat::core::symbol-node "pt")
+     peers-fold-fn `(:wat::core::fn [~peers-acc-sym <- ~selectable-vec-ty  ~peers-t-sym <- ~selectable-entry-ty]
+                        -> ~selectable-vec-ty
+                      (:wat::core::conj ~peers-acc-sym (:wat::core::second ~peers-t-sym)))
+     peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector ~selectable-peer-ty) selectables)
      ;; alarm-o-ty: Alarm<service::Op> — the arm-foldl binder type.
      alarm-o-ty      (:wat::core::keyword/from-string
                        (:wat::core::string::interpolate "wat::service::Alarm<{o}>" :o service-op-ty-str))
@@ -1036,15 +1098,42 @@
                           ;; the ARM fn — folds each Alarm into `selectables` as an `after` timer at
                           ;; the service's OWN tier (env-grab own-kind → both loci). alarm.op is a
                           ;; concrete <service>::Op value → the timer is Peer<Never,O>, joins poll'.
+                          ;; arc 278 the call context — `selectables`' element is now
+                          ;; Tuple<i64,Peer<R,O>> (STOP-2: id travels WITH its peer, one vector,
+                          ;; never a second one keyed by position), so a timer needs an id slot
+                          ;; too, purely to keep the vector's element type uniform. `-1` is a
+                          ;; SENTINEL, never a real caller id (real ids are minted >= 0 in the
+                          ;; Connection arm) — and it is never READ: a fired timer only ever
+                          ;; dispatches through the INTERNAL (1-param `[s]`) arm, which STOP-3
+                          ;; forbids from receiving a ctx at all, so nothing ever asks this
+                          ;; sentinel for a caller identity.
                           arm-acc-sym   (:wat::core::symbol-node "acc")
                           arm-alarm-sym (:wat::core::symbol-node "alarm")
-                          arm-fn        `(:wat::core::fn [~arm-acc-sym <- ~selectable-vec-ty  ~arm-alarm-sym <- ~alarm-o-ty]
-                                             -> ~selectable-vec-ty
+                          ;; `after` is honestly typed `Peer<Never,O>` (it can never RECEIVE a
+                          ;; Reply — arc 278 Stone 2's own comment: "after's honest uninhabited
+                          ;; send-type"). `assignable`'s Peer<Never,_> <: Peer<Reply,_> widening
+                          ;; (src/check.rs, the "SAME-head parametric" branch) fires for a BARE
+                          ;; Peer-vs-Peer compare, but `unify` recurses into Tuple elements
+                          ;; WITHOUT re-entering `assignable` — so `(i64,Peer<Never,O>)` does not
+                          ;; widen to `(i64,Peer<Reply,O>)` once nested inside the tuple (proven by
+                          ;; running `--check` and reading the TypeMismatch: touching that is a
+                          ;; src/check.rs change, outside this strike's blast radius). Route the
+                          ;; timer peer through a one-element `Vector<Peer<Reply,O>>` first — THAT
+                          ;; conj DOES hit the working bare-Peer widening — then `first` it back out;
+                          ;; the checker now reads it at `Peer<Reply,O>` before it ever reaches the
+                          ;; Tuple ctor. Values are unaffected: Peer's type params are erased at
+                          ;; runtime (this file's own comment elsewhere: "params are erased in a
+                          ;; runtime type_path") — this is a check-time-only detour.
+                          arm-fn        `(:wat::core::fn [~arm-acc-sym <- ~selectable-entry-vec-ty  ~arm-alarm-sym <- ~alarm-o-ty]
+                                             -> ~selectable-entry-vec-ty
                                            (:wat::core::conj ~arm-acc-sym
-                                             (:wat::kernel::after
-                                               (:wat::program::Env/wat.peer-kind (:wat::program::env))
-                                               (:wat::service::Alarm/after ~arm-alarm-sym)
-                                               (:wat::service::Alarm/op ~arm-alarm-sym))))]
+                                             (:wat::core::Tuple -1
+                                               (:wat::core::first
+                                                 (:wat::core::conj (:wat::core::Vector ~selectable-peer-ty)
+                                                   (:wat::kernel::after
+                                                     (:wat::program::Env/wat.peer-kind (:wat::program::env))
+                                                     (:wat::service::Alarm/after ~arm-alarm-sym)
+                                                     (:wat::service::Alarm/op ~arm-alarm-sym)))))))]
                          (:wat::core::if is-internal
                            
                            ;; ── INTERNAL op arm (1-param [s]) ──────────────────────────────────────
@@ -1055,10 +1144,11 @@
                              `((~op-variant-kw)
                                 (:wat::core::match (:wat::core::let ~let-bindings ~body) 
                                   ((:wat::service::Outcome::NoReply new-state)
-                                    (~serve-name self l (:wat::std::list::remove-at selectables idx) new-state))
+                                    (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id new-state))
                                   ((:wat::service::Outcome::NoReplyAndArm new-state arms)
                                     (~serve-name self l
                                       (:wat::core::foldl ~arm-fn (:wat::std::list::remove-at selectables idx) arms)
+                                      next-id
                                       new-state))
                                   ((:wat::service::Outcome::Reply new-state resp)
                                     (:wat::kernel::assertion-failed!
@@ -1072,11 +1162,58 @@
                                     (:wat::kernel::assertion-failed!
                                       "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)"
                                       :wat::core::None :wat::core::None)))))
-                           ;; ── SURFACE op arm (2-param [s req]) ───────────────────────────────────
+                           ;; ── SURFACE op arm (2-param [s req] OR 3-param [s ctx req]) ────────────
                            ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
                            ;; client persists even on a NoReply cast). …AndArm folds new timers in.
+                           ;; arc 278 the call context — arity dispatch on param-vec's length is the
+                           ;; SECOND axis on top of the is-internal branch above (the precedent this
+                           ;; brief names: `service.wat:1048`, the macro already branches arm shape).
+                           ;; has-ctx?/req-binder/ctx-binder are all MACRO-EXPAND-TIME conditionals
+                           ;; (param-ch is macro-time AST data), so for an ORDINARY 2-param op every
+                           ;; one of them folds back to EXACTLY the original expression below —
+                           ;; STOP-1: zero emitted-code change for an existing `[s req]` arm.
                            (:wat::core::let
-                             [req-binder    (:wat::core::first (:wat::core::rest param-ch))
+                             [arity         (:wat::core::length param-ch)
+                              has-ctx?      (:wat::core::= arity 3)
+                              req-binder    (:wat::core::if has-ctx?
+                                              (:wat::core::first (:wat::core::rest (:wat::core::rest param-ch)))
+                                              (:wat::core::first (:wat::core::rest param-ch)))
+                              ;; ctx-binder is only ever EMITTED when has-ctx? — the fallback value
+                              ;; (req-binder) is never referenced in generated code on the 2-param
+                              ;; path; it exists only so this `let` binding is well-formed either way.
+                              ctx-binder    (:wat::core::if has-ctx?
+                                              (:wat::core::first (:wat::core::rest param-ch))
+                                              req-binder)
+                              ;; ctx-ctor-expr — the ctx CONSTRUCTOR CALL, built here at macro-expand
+                              ;; time. `~fqdn-kw`/`~op-str` splice as LITERALS (the macro already
+                              ;; holds them for other purposes — fqdn-kw / op-str, per the design
+                              ;; stone); `selectables`/`idx`/`next-id` are bare — literal identifiers
+                              ;; in the GENERATED code, evaluated at RUNTIME inside the serve loop
+                              ;; (the impure boundary: the live connection table, a fresh Uuid, a
+                              ;; clock read) — never at macro-expand time.
+                              ctx-ctor-expr `(:wat::service::CallCtx
+                                                :caller-id  (:wat::core::first (:wat::core::nth selectables idx))
+                                                :namespace  ~fqdn-kw
+                                                :operation  ~op-str
+                                                :request-id (:wat::core::Uuid/v4)
+                                                :start-ns   (:wat::time::epoch-nanos (:wat::time::now)))
+                              ;; arm-let-bindings — [s-binder state] for a 2-param op (BYTE-IDENTICAL
+                              ;; to the pre-strike `let-bindings`, reused unchanged: the fallback arm
+                              ;; below IS `let-bindings`, not a re-derivation); [s-binder state
+                              ;; ctx-binder ctx-ctor-expr] for a 3-param op — ctx is bound via LET
+                              ;; (never a match-pattern field): it is synthesized locally, not part
+                              ;; of the wire message (the Op variant still carries exactly one field,
+                              ;; `req` — STOP-1 again: the wire/dispatch pattern never changes shape).
+                              arm-let-bindings (:wat::core::if has-ctx?
+                                                  (:wat::core::with-children param-vec
+                                                    (:wat::core::conj
+                                                      (:wat::core::conj
+                                                        (:wat::core::conj
+                                                          (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
+                                                          state-sym)
+                                                        ctx-binder)
+                                                      ctx-ctor-expr))
+                                                  let-bindings)
                               op-upper      (:wat::core::string::to-uppercase op-str)
                               cap-const-kw  (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base
@@ -1099,7 +1236,7 @@
                                                 (:wat::core::string::interpolate "::{variant-pascal}Response::RequestMalformed" :variant-pascal variant-pascal)))
                               n-sym         (:wat::core::symbol-node "n")
                               outcome-match `(:wat::core::match
-                                                  (:wat::core::let ~let-bindings ~body) 
+                                                  (:wat::core::let ~arm-let-bindings ~body)
                                                 ;; arc 278 the send'-outcome wall — a reply to a gone
                                                 ;; client is NOT a service error (the client left); every
                                                 ;; arm's continuation is the SAME regardless of outcome.
@@ -1115,13 +1252,13 @@
                                                 ;; identical-arms discard the stone forbids, at every service
                                                 ;; this macro will ever generate.
                                                 ((:wat::service::Outcome::Reply new-state resp)
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-variant-kw resp))
-                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables new-state))
-                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables new-state))   ;; client gone → keep serving
+                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
+                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id new-state))
+                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id new-state))   ;; client gone → keep serving
                                                     (:wat::kernel::SendOutcome::Stopped nil)                                          ;; the WORLD is stopping → return, do not recurse
-                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables new-state))))
+                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id new-state))))
                                                 ((:wat::service::Outcome::Stop final-state resp)
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
                                                     (:wat::kernel::SendOutcome::Sent   nil)
                                                     (:wat::kernel::SendOutcome::Closed nil)   ;; client gone → still stopping
                                                     ;; uniform here and the precondition is the whole reason:
@@ -1130,18 +1267,18 @@
                                                     (:wat::kernel::SendOutcome::Stopped nil)
                                                     ((:wat::kernel::SendOutcome::Lost _c) nil)))
                                                 ((:wat::service::Outcome::NoReply new-state)
-                                                  (~serve-name self l selectables new-state))
+                                                  (~serve-name self l selectables next-id new-state))
                                                 ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-variant-kw resp))
-                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))
-                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))   ;; client gone → keep serving
+                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
+                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))
+                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))   ;; client gone → keep serving
                                                     ;; the world is stopping → return WITHOUT arming: arming a
                                                     ;; new selectable on the way down would register work the
                                                     ;; loop is about to abandon.
                                                     (:wat::kernel::SendOutcome::Stopped nil)
-                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))))
+                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))))
                                                 ((:wat::service::Outcome::NoReplyAndArm new-state arms)
-                                                  (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
+                                                  (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)))
                               ;; ── arc 278 — the REQUEST-MALFORMED sanitization wall (UNCONDITIONAL) ──
                               ;; The SIZE guard's sibling, in the SAME slot and for the same reason.
                               ;; `:max-request-bytes` asks "is this request too BIG?"; this asks "is
@@ -1218,23 +1355,23 @@
                                                  ;; (`types.rs`, `RTL_VARIANT`/`RM_VARIANT` named
                                                  ;; together), so it builds off the identical
                                                  ;; guaranteed-correct literal ctor.
-                                                 (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx)
+                                                 (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw (~rm-ctor-kw ~mpath-sym ~mexp-sym ~mgot-sym)))
-                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; client gone → keep serving
                                                    (:wat::kernel::SendOutcome::Stopped nil)                                    ;; arc 278 #73 — the WORLD is stopping → return
-                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
+                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
                                                  ;; arc 278 the send'-outcome wall — a gone client here is
                                                  ;; not fatal either; every arm keeps serving the rest.
-                                                 (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx)
+                                                 (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
-                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; client gone → keep serving
                                                    (:wat::kernel::SendOutcome::Stopped nil)                                    ;; arc 278 #73 — the WORLD is stopping → return
-                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))
+                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))
                                                  ~shape-guarded))]
                              (:wat::core::conj acc
                                `((~op-variant-kw ~req-binder) ~guarded-arm))))))
@@ -1244,9 +1381,14 @@
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
      ;; self/l/clients/state in the Vector are fine as literal symbols.
+     ;; arc 278 the call context — `next-id` is the NEW 5th param: the stable monotonic
+     ;; caller-id counter, threaded as pure state (no clock, no entropy, no global — the
+     ;; ONE pinned contract decision). `selectables` is now `selectable-entry-vec-ty`
+     ;; (Tuple<i64,Peer> — the id travels WITH its peer, STOP-2), not the bare peer vector.
      serve-params `[self        <- ~lineage-peer-ty
                     l           <- ~listener-ty
-                    selectables <- ~selectable-vec-ty
+                    selectables <- ~selectable-entry-vec-ty
+                    next-id     <- :wat::core::i64
                     state       <- ~state-ty]
 
      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
@@ -1260,10 +1402,20 @@
      ;;   Hibernate → send Hibernated(full-state) up + terminate
      ;;   Init(_)   → assertion-failed! (startup-only message)
      ;;   Resume(_) → assertion-failed! (startup-only message)
-     serve-body   `(:wat::core::match (:wat::kernel::poll self l selectables) 
+     ;; arc 278 the call context — `poll'`/`serve-dispatch-op'` are Rust intrinsics that
+     ;; downcast every Vector element to a real Peer opaque; `selectables` is now the
+     ;; Tuple-wrapped canonical vector, so BOTH calls receive `~peers-only-expr` — the
+     ;; bare-peer projection built fresh from `selectables` this iteration — never
+     ;; `selectables` itself. The returned `idx` is a POSITION, valid identically against
+     ;; either vector (the projection preserves order 1:1), so every other `idx` use below
+     ;; (nth/remove-at against the CANONICAL `selectables`) is unaffected.
+     serve-body   `(:wat::core::match (:wat::kernel::poll self l ~peers-only-expr)
                      (:wat::spawn::ServiceEvent::Shutdown nil)
                      ((:wat::spawn::ServiceEvent::Connection peer)
-                       (~serve-name self l (:wat::core::conj selectables peer) state))
+                       ;; mint THIS connection's id = the current next-id (pre-increment);
+                       ;; pair it with the peer so it travels together from birth (STOP-2);
+                       ;; the recursive call's OWN next-id is next-id+1, for the NEXT connect.
+                       (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::core::i64::+ next-id 1) state))
                      ((:wat::spawn::ServiceEvent::Admin admin-msg)
                        (:wat::core::match admin-msg 
                          ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`
@@ -1297,10 +1449,10 @@
                              ;; faces a gone-owner outcome on its side; the serve loop always
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-allowed-kw)
-                               (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; owner's recv' already faces this
+                               (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; owner's recv' already faces this
                                (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
-                               ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
+                               ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
                          ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
                          ;; the lineage peer (request/reply — owner blocks so revoke-before-return
@@ -1317,10 +1469,10 @@
                              ;; faces a gone-owner outcome on its side; the serve loop always
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-denied-kw)
-                               (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; owner's recv' already faces this
+                               (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; owner's recv' already faces this
                                (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
-                               ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
+                               ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
                          ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Init after startup (protocol error)"
@@ -1340,7 +1492,7 @@
                      ;; resumes the SAME panic unchanged — the service still crashes exactly as
                      ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
                      ((:wat::spawn::ServiceEvent::Message idx op)
-                       (:wat::kernel::serve-dispatch-op selectables
+                       (:wat::kernel::serve-dispatch-op ~peers-only-expr
                          ;; Arc 278 the parametric protocol — TYPE-position spellings on both
                          ;; sides: `infer_retag_op` reads arg[2] as this form's RESULT TYPE, and
                          ;; the arms below dispatch over the instantiated `<service>::Op<K,V>`.
@@ -1349,7 +1501,7 @@
                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-kw ~service-op-decl-kw)
                            ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
-                       (~serve-name self l (:wat::std::list::remove-at selectables idx) state))
+                       (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
                      ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
                      ;; swallowed the death reason — the exact masking this arc forbids). There
@@ -1361,7 +1513,7 @@
                      ((:wat::spawn::ServiceEvent::Lost idx cause)
                        (:wat::core::do
                          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)
-                         (~serve-name self l (:wat::std::list::remove-at selectables idx) state)))
+                         (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state)))
                      ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
                      ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
                      ;; to THAT client as `Reply::Failed[cause]` (its generated method raises with
@@ -1371,11 +1523,11 @@
                      ((:wat::spawn::ServiceEvent::Malformed idx cause)
                        ;; arc 278 the send'-outcome wall — a gone client here is not fatal
                        ;; either (same "reply to a gone client" doctrine); keep serving.
-                       (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (~reply-failed-kw cause))
-                         (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
-                         (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                       (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
+                         (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                         (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; client gone → keep serving
                          (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
-                         ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))
+                         ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state))))
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
@@ -1390,12 +1542,12 @@
                      ;; panic — a client-triggerable crash / DoS).
                      ((:wat::spawn::ServiceEvent::Rejected idx cause)
                        (:wat::core::do
-                         (:wat::core::match (:wat::kernel::try-send (:wat::core::nth selectables idx) (~reply-failed-kw cause))
+                         (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
                            (:wat::kernel::TrySendOutcome::Sent       nil)
                            (:wat::kernel::TrySendOutcome::WouldBlock nil)   ;; client not draining — evict anyway (it learns via EPIPE)
                            (:wat::kernel::TrySendOutcome::Closed     nil)
                            ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
-                         (~serve-name self l (:wat::std::list::remove-at selectables idx) state))))
+                         (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- Peer<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
@@ -1872,10 +2024,14 @@
                                           ;; as its own event; the owner's recv' faces it too.
                                           (:wat::kernel::SendOutcome::Stopped nil)
                                           ((:wat::kernel::SendOutcome::Lost _c) nil))]
-                          (:wat::core::apply 
+                          ;; arc 278 the call context — the process-tier child's OWN initial
+                          ;; `serve` call: the empty selectables vector is now Tuple-entry typed,
+                          ;; and next-id starts at 0 (the first connection mints id 0).
+                          (:wat::core::apply
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
-                            (:wat::core::Vector ~selectable-peer-ty)
+                            (:wat::core::Vector ~selectable-entry-ty)
+                            0
                             ~cm-st-sym [])))
      ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child
      ;; main. Emitted as `(defn :<fqdn>::service-forms [] -> Vector<WatAST> (forms …))`.

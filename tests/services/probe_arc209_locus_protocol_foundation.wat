@@ -1,8 +1,12 @@
 ;; A trivial serve loop — proves the launch WIRING (not the poll loop, which 4a-iii covers).
+;; arc 278 the call context — `serve`'s wiring contract grew a 5th arg (`next-id`, the
+;; monotonic caller-id counter defservice's generated serve threads as pure state); this
+;; hand-rolled probe ignores it, same as it already ignores everything else it receives.
 (:wat::core::defn :my::svc::serve
   [self    <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>
    l       <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
    clients <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>
+   next-id <- :wat::core::i64
    st      <- :wat::core::i64] -> :wat::core::nil
   nil)
 
