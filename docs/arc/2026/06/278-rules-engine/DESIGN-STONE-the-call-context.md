@@ -99,9 +99,45 @@ That is the builder's ctx list, already minted and shipped.
 id.** If ctx mints one uuid and `Scope` mints another, we hold two ids for one unit of work and
 correlate nothing.
 
-> **⛔ RULING OWED (the builder's):** is ctx **the same object as `Scope`**, does ctx **splice**
-> `Scope`, or does `Scope` splice **ctx**? They are not independent and must not be designed apart.
-> This is the fork most likely to produce two ids for one request if left unruled.
+> ⚠ **THE FORK AS FIRST POSED WAS ONE-SIDED — builder-corrected 2026-08-09:** *"so the option is we
+> have correlation or we don't?…… feels kinda like a one sided question?"* Correct. If a correlation
+> id only earns its name when the logs carry the request's id, then "two independent ids" is not an
+> option, it is the failure mode. Posing it as a choice manufactured a non-option
+> (`[[feedback_ground_the_decision_before_you_pose_it]]`).
+>
+> **The real question is mechanical, and the disk has already answered most of it.**
+>
+> **LOAD ORDER FORCES THE DIRECTION.** `wat/service.wat` is registered at `src/stdlib.rs:324`;
+> `wat/telemetry.wat` at `:422` — **service loads ~100 entries FIRST** (confirmed by the neighbours'
+> own comments: telemetry's journal *"Loads LAST — after telemetry.wat … and service.wat"*). So:
+>
+> - **ctx CANNOT splice `:wat::telemetry::Scope`** — `Scope` does not exist yet when `service.wat` loads.
+> - **`Scope` CAN splice a type defined in `service.wat`** — it loads after.
+>
+> **AND NEITHER IS A SUPERSET OF THE OTHER**, which kills the "one of them just splices the other"
+> shape:
+>
+> | | `Scope` (telemetry) | ctx (service) |
+> |---|---|---|
+> | correlation id | `uuid` | request-id |
+> | a timestamp | `time-ns` | start-ns |
+> | **only here** | `namespace`, `tags` | **caller identity** |
+>
+> A log line has no caller; a request has no facility/tags. Splicing either into the other drags a
+> field that does not belong — a `caller` on every `Metric` is exactly the kind of lie 293 exists to
+> prevent.
+>
+> **⇒ THE SHAPE THAT SURVIVES: both splice a SHARED CORRELATION CORE** — smaller than both, holding
+> only `{correlation id, timestamp}` — and that core must live **at or below `service.wat`'s load
+> position** for ctx to reach it. The record already gestures at this: the 2026-07-04 curare lists
+> *"the shared correlation-core surface"* as an OPEN ITEM, and `Scope` is described in its own header
+> as *"the correlation core."* It was designed as a core; it just lives too late in the load order to
+> be one for `service.wat`.
+>
+> **⛔ WHAT IS ACTUALLY OWED (narrow, and a real question):** **where does the shared core live, and
+> what exactly is in it?** Candidates: a new low-loading home; `wat/core.wat`; or `service.wat` itself
+> defining it and `telemetry.wat` splicing it. Do NOT hand-copy the id from ctx into `Scope` at the
+> producer — that is derive-is-the-wall violated, and it drifts on the first refactor.
 
 ## Extension — surface-splice, not a bag
 
