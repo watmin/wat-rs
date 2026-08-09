@@ -11,10 +11,14 @@
 ## Where the code is — nothing parked, nothing uncommitted
 
 ```
-HEAD 53885f70   pushed   floor 4376 passed / 0 failed / 262 skipped   clippy 0
+HEAD a6be7308   pushed   floor 4376 passed / 0 failed / 262 skipped   clippy 0
 ```
 
 `git status` empty.
+
+> ⚠ **The line above is written IN the commit it names, so it can never match at wake.** A
+> one-commit mismatch is EXPECTED and benign; a mismatch of more than one is the real alarm. (The
+> freshness probe was silently useless until 2026-08-08 — it could not pass by construction.)
 
 ## ★ WHAT LANDED (2026-08-06 → 08)
 
@@ -25,12 +29,34 @@ HEAD 53885f70   pushed   floor 4376 passed / 0 failed / 262 skipped   clippy 0
 | `ee6770c8` · `9f6340a1` | two LIVE deadlock captures under `cargo test`, nothing killed |
 | `47478223` · `2aa3b61f` · `cb98db6a` | #88's docs, brief, expectations, and the committed probe |
 
-## ▶ FIRST ACT — the cheapest thing, and it decides what the stone is worth
+## ✅ STOP-3 IS ANSWERED (`a6be7308`) — do NOT re-derive it
 
-**STOP-3 of `DESIGN-STONE-the-connection-scoped-world.md`: is 293.W's "an impure field can only live
-in `:ephemeral`" a COMPILER-ENFORCED WALL, or a convention?** The record claims enforcement; one grep
-did not locate it. If it is a wall, the stone describes a guarantee. If it is a habit, the stone must
-say so — and probably earn the wall. One grep, done properly.
+**293.W is a COMPILER-ENFORCED WALL and it DOES reach `:durable`** (the slot synthesizes
+`<svc>::Record`, a pure aggregate). Proven by run with both controls: `IOWriter` in `:durable`
+refused; `i64` accepted. **But its ENROLLMENT is a hand-written list, and an unenrolled Rust opaque
+walks straight through** — `Lru<String,i64>` in `:durable` compiles clean. For a *parametric* opaque
+the miss is the `TypeExpr::Parametric` fallthrough (`pure iff its type ARGS are pure`), **not** the
+Path arm the 293 NOTE recorded; `Lru<IOWriter,i64>` is correctly refused, which is what proves it.
+
+**So the stone's `:ephemeral` placement is CORRECT and CHOSEN, not enforced** — `World` will be a
+`#[wat_dispatch]` opaque and would compile in `:durable` today. STOP-3 now states both halves.
+`wat/cache.wat` claimed the opposite about the exact type it named; corrected.
+
+## ▶ FIRST ACT — a decision that is the BUILDER'S, and it now has its number
+
+**Enroll the Rust opaques in `is_pure_type` (both arms), or leave the hole?** It was deferred
+2026-07-25 (*"i'm not chasing it now"*) on two premises that have **both since changed**:
+
+- *"it is a cascade, not a one-liner"* — **measured wrong.** Three live opaque families, 18 corpus
+  sites, **zero** illegal aggregate fields. Enrolling them goes RED on nothing.
+- *nothing depended on it* — **the connection-scoped world now does.** It is the next stone and its
+  central guarantee is exactly this wall.
+
+Do not reverse a builder ruling unilaterally. Pose it with the number.
+Full grounding: `293/NOTE-containment-wall-blind-to-rust-opaques.md` (sharpened this session).
+The pre-written acceptance gate already exists:
+`wat-scripts/scratch-pad/probe-293w-durable-admits-unenrolled-opaque.wat` — **it loads GREEN today,
+and that is the defect; when enrollment lands it MUST go RED.**
 
 ## Then — the connection-scoped world, and the trap is named
 
