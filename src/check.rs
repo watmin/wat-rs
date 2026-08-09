@@ -5428,6 +5428,26 @@ fn infer_list(
         // when) that's genuinely what `k` is. See its doc comment.
         let callee = canonical_ctor_callee(k, env);
 
+        // Arc 278 BRIEF-arming-is-internal-only — the positional-PRIME door: a direct call
+        // `(:wat::service::Alarm' after-val op-val)` (proven live and used elsewhere for
+        // other aggregates — e.g. `(:test::db::HR' 7 8)`, `tests/types/probe_arc293_surface_splice.wat`)
+        // reaches THIS generic call path, NOT `infer_aggregate_new_check` — verified by an
+        // instrumented run 2026-08-09: that fn only ever re-checks `:T'`'s OWN generated body
+        // (whose args are always bound PARAMETER SYMBOLS, never a literal op ctor), so hooking
+        // it alone leaves this door open. The kwargs sugar `(:wat::service::Alarm :after … :op
+        // …)` delegates HERE too — `infer_kwargs_construct_check` builds a synthetic `(:T'
+        // …)` call and `infer()`s it — so this ONE hook covers both the exemplar kwargs form
+        // and the positional-prime form; adding a second check inside
+        // `infer_kwargs_construct_check` would double-report the same site. `field_values =
+        // args` because a call to `:T'` receives the aggregate's fields positionally, in
+        // declared order, with no leading class keyword (unlike `aggregate-new`/
+        // `kwargs-construct`, which both carry the class keyword at args[0]).
+        if let Some(bare) = canonical_k.strip_suffix('\'') {
+            if let Some(err) = alarm_op_internal_check(bare, args, env) {
+                local_errors.push(err);
+            }
+        }
+
         // Arc 150 — variadic-define call: when the callee's scheme
         // has rest_param_type set, accept `args.len() >= fixed arity`
         // and unify each rest-arg against the rest-param's element
@@ -11889,6 +11909,71 @@ fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
     k.to_string()
 }
 
+/// Arc 278 BRIEF-arming-is-internal-only — if `ast` is a literal enum-variant constructor
+/// CALL (`(:Type::Variant …)`, a `WatAST::List` whose head is a `Keyword`), and `:Type` is a
+/// registered `TypeDef::Enum` with a variant literally named `Variant`, return
+/// `(full_ctor_keyword, enum_type_path, variant_name)`. `None` for every dynamic shape (a
+/// symbol reference, a call to something else, a keyword that merely LOOKS like `Type::Name`
+/// but isn't a registered enum + variant) — this is deliberately conservative: STOP-2 (the
+/// brief) rules the dynamic case out of scope, so a false structural match here would be a
+/// wrong refusal, not a missed one.
+fn literal_enum_variant_ctor(ast: &WatAST, env: &CheckEnv) -> Option<(String, String, String)> {
+    let WatAST::List(items, _) = ast else { return None };
+    let WatAST::Keyword(k, _) = items.first()? else { return None };
+    let pos = k.rfind("::")?;
+    let (type_path, variant) = (&k[..pos], &k[pos + 2..]);
+    match env.types().get(type_path) {
+        Some(crate::types::TypeDef::Enum(e)) => {
+            let is_variant = e.variants.iter().any(|v| match v {
+                crate::types::EnumVariant::Unit(n) => n == variant,
+                crate::types::EnumVariant::Tagged { name, .. } => name == variant,
+            });
+            is_variant.then(|| (k.clone(), type_path.to_string(), variant.to_string()))
+        }
+        _ => None,
+    }
+}
+
+/// Arc 278 BRIEF-arming-is-internal-only — THE RULE: at a `:wat::service::Alarm` construction
+/// site, when the `op` field's VALUE is a literal `<service>::Op` variant ctor
+/// (`literal_enum_variant_ctor` above), the variant must be INTERNAL (its name begins with
+/// `-` — `wat/service.wat:876-892`, the dash-preserved variant naming that is the rule's
+/// ground truth). An alarm has no client in its `idx` slot; only an op *declared* to have no
+/// client may be armed (rationale + the live silent-discard this closes:
+/// `docs/arc/2026/06/278-rules-engine/BRIEF-arming-is-internal-only.md`).
+///
+/// `type_key` is the BARE aggregate type name being constructed (no `'`, no `<…>` suffix);
+/// this is a no-op unless it is exactly `:wat::service::Alarm`. `field_values` are the field
+/// VALUE asts in the aggregate's DECLARED field order (both call sites below already have
+/// them in that order — kwargs reordered by `reorder_kwargs_by_field_name`, positional is
+/// positional by construction) — the `op` field's index is looked up from the registered
+/// `AggregateDef` rather than hardcoded, so a future field reorder can't silently misindex.
+///
+/// STOP-2 (out of scope, by design): if `op`'s value is not a literal ctor — a variable, a
+/// call result — `literal_enum_variant_ctor` returns `None` and this fn is silent. A handler
+/// only ever receives `req`, never an `Op`, so a literal ctor is realistically the only way to
+/// obtain one; this is a narrow, stated limit, not a guess.
+fn alarm_op_internal_check(type_key: &str, field_values: &[WatAST], env: &CheckEnv) -> Option<CheckError> {
+    const ALARM: &str = ":wat::service::Alarm";
+    if type_key != ALARM {
+        return None;
+    }
+    let field_order: Vec<&str> = match env.types().get(ALARM) {
+        Some(crate::types::TypeDef::Aggregate(a)) => a.field_names().collect(),
+        _ => return None,
+    };
+    let op_idx = field_order.iter().position(|f| *f == "op")?;
+    let op_arg = field_values.get(op_idx)?;
+    let (variant_kw, op_type, variant) = literal_enum_variant_ctor(op_arg, env)?;
+    if variant.starts_with('-') {
+        return None; // internal — declared to have no client; armable.
+    }
+    Some(CheckError {
+        span: op_arg.span().clone(),
+        kind: CheckErrorKind::AlarmArmsPublicOp { variant: variant_kw, op_type },
+    })
+}
+
 /// Arc 294.c.2a — type inference for `:wat::core::aggregate-new`.
 ///
 /// `aggregate-new` is the ONE nature-dispatched constructor. It takes a direct
@@ -11961,6 +12046,14 @@ fn infer_aggregate_new_check(
             // Field VALUES are args[1..] — validate against the scheme's OWN params,
             // no `instantiate()` (see this fn's doc for why not).
             let field_args = &args[1..];
+            // Arc 278 BRIEF-arming-is-internal-only — the raw-builtin door: a hand-written
+            // `(:wat::core::aggregate-new :wat::service::Alarm …)` reaches this fn directly
+            // (this dispatch is unconditional on the literal callee, not gated to `:T'`'s own
+            // generated body — verified by instrumented run 2026-08-09). `bare_k` is already
+            // suffix-stripped, so this is exactly the aggregate's bare name.
+            if let Some(err) = alarm_op_internal_check(bare_k, field_args, env) {
+                local_errors.push(err);
+            }
             if field_args.len() != scheme.params.len() {
                 local_errors.push(CheckError {
                     span: head_span.clone(),

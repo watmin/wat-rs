@@ -304,6 +304,24 @@ pub enum CheckErrorKind {
         ref_key: String,
         binder_key: String,
     },
+    /// Arc 278 BRIEF-arming-is-internal-only — a `:wat::service::Alarm`'s `op` field is
+    /// constructed from a literal `<service>::Op` variant ctor whose name does NOT begin
+    /// with `-` (i.e. a PUBLIC, client-facing op). An alarm fires with no client in the
+    /// `idx` slot — only an op *declared* to have no client (internal, dash-prefixed,
+    /// `wat/service.wat:876-892`) may be armed. Constructing this with a public variant
+    /// compiles clean today and silently discards the reply when the timer fires
+    /// (proven by run: `docs/arc/2026/06/278-rules-engine/DESIGN-STONE-the-call-context.md`
+    /// § "RUN 2026-08-09").
+    ///
+    /// `variant` is the offending ctor's full keyword (e.g. `:probe::tick2::Op::Bump`);
+    /// `op_type` is the service's `Op` enum path it belongs to (e.g. `:probe::tick2::Op`).
+    ///
+    /// NAME PLACEHOLDER — an intueri cast on this error kind's name is OWED, not ratified
+    /// (per the brief; do not treat this name as settled).
+    AlarmArmsPublicOp {
+        variant: String,
+        op_type: String,
+    },
 }
 
 /// Arc 296 S7 — the 5 structural failure modes for `:ensure :fn` validation.
@@ -712,6 +730,17 @@ impl CheckErrorKind {
                     ref_key.split_once('\u{1}').map(|x| x.1).unwrap_or(""),
                     name,
                     binder_key.split_once('\u{1}').map(|x| x.1).unwrap_or(""),
+                )
+            }
+            CheckErrorKind::AlarmArmsPublicOp { variant, op_type } => {
+                write!(
+                    f,
+                    "{}`:wat::service::Alarm`'s `op` is `{}`, a PUBLIC (client-facing) variant of \
+                     `{}` — an alarm fires with no client, so only an INTERNAL op (its variant name \
+                     begins with `-`) may be armed; a public op's reply would go nowhere with \
+                     nothing reported. Declare an internal `-op` and arm that instead (a public op \
+                     and a `-tick` may share one helper fn).",
+                    prefix, variant, op_type,
                 )
             }
         }
