@@ -41,14 +41,14 @@ fn public_op_armed_via_alarm_is_refused_at_load() {
          an alarm has no client, so only an INTERNAL (`-`-prefixed) op may be armed",
     );
     let StartupError::Check(ce) = &err else {
-        panic!("expected StartupError::Check(AlarmArmsPublicOp), got {err:?}");
+        panic!("expected StartupError::Check(PublicOpInAlarm), got {err:?}");
     };
     let rendered = format!("{ce:?}");
     assert!(
         // rune:lint(loose-assert) — the rendering embeds a machine-specific span (absolute
         // source path + live line number), so a golden cannot pin it; a targeted PRESENCE
         // check for the error kind's own EDN tag is the precise claim available here.
-        rendered.contains("AlarmArmsPublicOp"),
+        rendered.contains("PublicOpInAlarm"),
         "expected the arming-is-internal-only violation, got: {rendered}"
     );
     // Name the SUBJECT, not just the kind: a wall that fires on the wrong op would pass the

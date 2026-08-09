@@ -318,7 +318,7 @@ pub enum CheckErrorKind {
     ///
     /// NAME PLACEHOLDER — an intueri cast on this error kind's name is OWED, not ratified
     /// (per the brief; do not treat this name as settled).
-    AlarmArmsPublicOp {
+    PublicOpInAlarm {
         variant: String,
         op_type: String,
     },
@@ -732,7 +732,7 @@ impl CheckErrorKind {
                     binder_key.split_once('\u{1}').map(|x| x.1).unwrap_or(""),
                 )
             }
-            CheckErrorKind::AlarmArmsPublicOp { variant, op_type } => {
+            CheckErrorKind::PublicOpInAlarm { variant, op_type } => {
                 write!(
                     f,
                     "{}`:wat::service::Alarm`'s `op` is `{}`, a PUBLIC (client-facing) variant of \

@@ -11970,7 +11970,7 @@ fn alarm_op_internal_check(type_key: &str, field_values: &[WatAST], env: &CheckE
     }
     Some(CheckError {
         span: op_arg.span().clone(),
-        kind: CheckErrorKind::AlarmArmsPublicOp { variant: variant_kw, op_type },
+        kind: CheckErrorKind::PublicOpInAlarm { variant: variant_kw, op_type },
     })
 }
 
