@@ -51,6 +51,44 @@ fill and no layer adds is dead weight.
 
 An open string-keyed bag is also precisely what arcs 293/296 spent themselves removing.
 
+## ⛔⛔ SCOPE CUT, builder-ruled 2026-08-09 — READ THIS BEFORE THE FLOOR BELOW
+
+> *"we stopped working on telemetry to resolve all the 170 IPC issues completely… i do not care that
+> we don't have reads written for them - we need the data written such that a read can be built
+> trivially. do we need query-by-uuid now to thread a context record into a service handler who bears
+> the caller's identity such that it can destroy a rete world on disconnect?"*
+
+**No.** And the question exposes that this stone had been accreting an observability payload that its
+actual job does not need.
+
+**The job:** a handler must know WHICH client is calling, so it can select that tenant's world; and
+the serve loop must create/destroy that world on connect/disconnect.
+
+**The minimum ctx for that is ONE FIELD: `conn-id`.**
+
+Everything else this document specifies — `uuid`, `namespace`, `tags`, `operation`, the correlation
+core, the `Scope` relocation, the two-level namespace — belongs to the **telemetry** stone. None of it
+is load-bearing here, and **all of it can be added later ADDITIVELY**, because the extension mechanism
+is `~@Surface` splice. Nothing is forfeited by shipping the one field first.
+
+**⇒ THE BUILD ORDER IS THEREFORE:**
+
+1. **ctx, minimal** — arity-dispatched arm shape (`[s]` / `[s req]` / `[s ctx req]`), a stable
+   `conn-id` minted in the generated serve loop, and lifecycle hooks that thread state on
+   `Connection`/`Closed`/`Lost`. **Unblocked by nothing. Buildable now.**
+2. **the connection-scoped world** — needs only (1).
+3. **telemetry** — the correlation core, the `Scope` relocation, `operation`, and the by-uuid read
+   path, whenever it is wanted. It splices into ctx without touching (1) or (2).
+
+**The telemetry state, for whoever picks it up:** the *write* side is complete and correct — every
+`Metric` and every `Log` writes the `by-uuid` correlation GSI (`journal.wat:12`, `:46`, `:59`, schema
+ensured at `:99`), so the data is already on disk in the shape a read needs. What is missing is only a
+*reader*: `query-metrics`/`query-logs` call `Store/scan` on the base table and **never call
+`Store/scan-index`**, so the uuid pivot cannot be performed today. `Store/scan-index` itself is built
+and proven (`query.wat:527`; `tests/services/probe_arc278_tagged_keys_store.wat` Test B round-trips a
+`#uuid` GSI scan). **The gap is one op, not a mechanism** — which is exactly the builder's bar: *the
+data is written such that a read can be built trivially.*
+
 ## The floor — and every field of it is PURE
 
 The builder's correction is the design's spine and it is grounded: **a value does not inherit its
