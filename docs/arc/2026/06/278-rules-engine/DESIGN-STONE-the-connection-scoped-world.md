@@ -78,10 +78,20 @@ This stone says *"Every eviction path is `(remove-at selectables idx)` — `serv
 an `Alarm` is folded into `selectables` as an `after` timer at `:1041-1047`, so timers and clients
 share the vector).
 
-**So a "drop this connection's world on every `remove-at`" implementation deletes a LIVE TENANT'S
-WORLD WHEN A TIMER FIRES.** Nothing crashes; the next request from that tenant silently rebuilds or
-errors. This is the same ship-green-and-wrong class as STOP-6, one level over, and it is invisible to
-any service that happens not to use alarms.
+⚠ **THE ALARM ATTACHED TO THIS FINDING WAS OVERSTATED — corrected by the builder, same day.** The
+first draft read: *"a 'drop the world on every `remove-at`' implementation deletes a LIVE TENANT'S
+WORLD WHEN A TIMER FIRES."* The builder: *"why would any world context be associated with a timer?
+the index would point to no such world to delete?"* **He is right.** The map is keyed on `ConnId`; a
+timer has no `ConnId`, so it has no entry, so resolving a timer's `idx` finds nothing and deletes
+nothing. This is **not an independent defect** — it is STOP-6's defect (positional keying) with a
+second way to trigger it, and the same ruling already forbids it. Recorded because the FACT below is
+still worth knowing, and because an overstated alarm in a stone is itself a defect.
+
+**What survives, and it is narrower:** if an implementation carries a **parallel positional
+structure** — a `conn-ids` vector alongside `selectables` — then removing a timer from one and not
+the other DESYNCS them, and every id after that point names the wrong peer. Same positional-identity
+disease, third symptom. **The cure is the cure for all three: carry the id WITH the peer (one vector
+of pairs), never beside it.**
 
 **5. THE SUBSTRATE ALREADY MODELS "NO CALLER", and it does it structurally.** An internal (`-`) op's
 arm is **1-param `[s]`** — no `req` binder — and returning `Reply`/`Stop`/`ReplyAndArm` from one is a

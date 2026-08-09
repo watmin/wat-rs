@@ -145,10 +145,61 @@ Two grounded facts:
 > **(b)** make the identity a closed enum — `Client[…] | Timer` — so the handler must face the
 > callerless case exhaustively.
 >
-> **My recommendation: (b).** It matches everything this arc has ruled — a closed set is an enum, name
-> every variant, no wildcard arm, no Option-as-skip — and it is *honest*: an alarm-fired call genuinely
-> has no client, and the handler should have to say what it does about that. (a) is simpler but bans a
-> capability nobody has yet asked to lose.
+> **⚠ MY RECOMMENDATION OF (b) IS WITHDRAWN — the four questions, run at the builder's direction,
+> flip it to (a). The reasoning that produced (b) is kept below, wrong, because it was wrong in an
+> instructive way.**
+>
+> *The withdrawn argument:* "(b) matches everything this arc has ruled — a closed set is an enum, name
+> every variant, no wildcard arm, no Option-as-skip — and it is honest." Right about closed sets;
+> **wrong about which situation this is.** The honest move is not to make 120 handlers face an
+> impossible case; it is to make the case impossible. That is the extirpare ladder, and (a) sits a
+> rung higher.
+
+### THE FOUR QUESTIONS — (a) vs (b), flat, each YES/NO
+
+**(a)** = arming a public op is REFUSED at the definition site; caller-fulness is carried by ARM SHAPE
+(`[s]` / `[s req]` / `[s ctx req]`, arity-dispatched); the identity is a plain, TOTAL `ConnId`.
+**(b)** = the identity is a `Client[…] | Timer` enum, faced at runtime in every caller-ful handler.
+
+| | **(a) compile-time refusal** | **(b) runtime enum** |
+|---|---|---|
+| **Obvious?** | **YES** — `[s req]` says "I don't need to know who"; `[s ctx req]` says "I do". The rule is learned once, at a located error. | **NO** — a reader meets `Caller::Timer` in a query handler and asks *when does a query fire from a timer?* For every service in the corpus the answer is **never**. A variant that cannot occur is not obvious; it is puzzling. |
+| **Simple?** | **YES** — ONE mechanism, and it EXTENDS one that already exists (the macro already dispatches a 1-param `[s]` arm for internal ops). No new type, no new match. | **NO** — adds a second type (`Caller`) **and** a mandatory match in every caller-ful arm. Two things where (a) has zero. |
+| **Honest?** | **YES** — the identity is TOTAL: it can never name a caller that does not exist, because the case cannot arise. | **NO** — and this is the surprise. It is honest about the *value* and dishonest about the *situation*: it models as live a case the design intends to be impossible, and mints **~120 arms nothing can ever contradict** (`[[feedback_an_unreachable_arm_accumulates_lies]]`). Worse, each such arm hand-reimplements the `assertion-failed!` the macro **already performs** for callerless ops (`service.wat:1063-1073`). |
+| **Good UX?** | **YES** — **0 existing arms change**; the third param is opt-in; no dead arms. | *not reached* — Obvious ∧ Simple ∧ Honest must hold first, and (b) fails all three. |
+
+**(a) = 4 × YES. (b) fails at the first question and does not reach UX.**
+
+### Why the compile-time bonus is decisive here, not merely nice
+
+The builder: *"compile time gets a pretty significant bonus."* It is the extirpare ladder stated as a
+preference, and this fork is a clean instance of it:
+
+```
+convention   "don't arm a public op"                    — nobody remembers
+check        (b) every handler inspects Caller at run   — 120 sites, 120 dead arms
+no form      (a) the definition is REFUSED              — the mistake cannot be written
+```
+
+(b) forces every handler to *look at* a value; it never forces any of them to *do* anything different
+— which is the must-use gate's own failure mode (`[[feedback_a_match_with_identical_arms_is_a_discard]]`).
+(a) removes the situation instead of documenting it 120 times.
+
+### What (a) costs, stated plainly
+
+One capability: **no public op may be alarm-armed.** Nobody does it today — the only live consumer
+arms a `-tick` (`tests/services/probe_arc278_self_scheduling.wat:44`) — and internal ops exist
+precisely to be the armable ones. The workaround is also the better factoring: a public op and an
+internal `-tick` that both call one shared helper. So (a) does not lose the capability; it forces the
+decomposition that should have been written anyway.
+
+### ⚠ ONE THING NOT RUN, and it could make (a) FREE
+
+`after` returns `Peer<nil, O>` (`check.rs:10175`) while `selectables` is `Vector<Peer<Reply, Op>>` —
+so a timer is already being coerced into that vector. Whether a reply-`send` to a timer is a type
+error today, a silent no-op, or worse, is **UNKNOWN — not run.** If the checker already refuses it,
+(a) is already half-built and the fork closes itself. **Ten-line probe; run it before implementing
+either path.** Do not inherit "arming a public op is already broken" as fact — it is a hypothesis.
 
 ## The four questions
 
