@@ -71,6 +71,12 @@ That split is not stylistic. IPC is EDN-only, so a resource has no wire represen
 builder's *"we cannot express this state as edn"* is the whole argument, and it lands the worlds map
 in `:ephemeral` by necessity rather than preference.
 
+> ⚠ **"Necessity" here is SEMANTIC, not yet MECHANICAL — see STOP-3(b).** The 293.W containment wall
+> does reach `:durable` and would refuse a known-impure field there; but a `#[wat_dispatch]` opaque
+> like `World` is not enrolled in the purity lists, so the compiler would accept the wrong placement
+> today. The map belongs in `:ephemeral` because a live world cannot cross a wire — that reason is
+> sound and independent. It is simply not, at this moment, a reason the checker knows.
+
 ## ★★ THE KEY MUST BE STABLE — `idx` IS NOT
 
 The lifecycle events already exist: `ServiceEvent::Connection peer` · `Closed idx` ·
@@ -146,10 +152,40 @@ a wedged connection should be visible rather than silently reaped.
    its own world. This is the defect most likely to ship green — nothing crashes when it is wrong.
 7. **STOP-7 — resolve *idx → ConnId* BEFORE the `remove-at`.** After it, the list has shifted and the
    resolution is against the wrong world.
-3. **STOP-3 — ⚠ THE EPHEMERAL WALL IS UNCONFIRMED.** The record claims 293.W makes "an impure field
-   can only live in `:ephemeral`" compiler-enforced. A grep for that enforcement did NOT locate it.
-   Before relying on it as a WALL rather than a CONVENTION, confirm it — and if it is only a
-   convention, say so plainly rather than describing it as structural.
+3. **STOP-3 — ✅ ANSWERED 2026-08-08, and the answer is TWO-SIDED. Read both halves before relying on it.**
+
+   **(a) The wall is REAL, compiler-enforced, and it DOES reach `:durable`.** A defservice's `:durable`
+   slot synthesizes `<svc>::Record`, a **pure aggregate**, so `validate_aggregate_containment` governs it.
+   Proven by run, with both controls, on `target/release/wat --check`:
+
+   | probe | verdict |
+   |---|---|
+   | `:durable [count <- :wat::core::i64]` | exit 0 — accepted *(non-vacuity control)* |
+   | `:durable [w <- :wat::io::IOWriter]` | **exit 1 — `ImpureFieldInPureAggregate`**, naming `":probe::ctr::Record"` |
+
+   So this is **not** a convention. The stone may describe the split as structural.
+
+   **(b) BUT the wall's ENROLLMENT has a hole, and this stone's `World` would sit squarely in it.**
+   `is_pure_type` decides a **Rust opaque's** purity from hand-written lists. For a *parametric* opaque
+   the miss is the `TypeExpr::Parametric` fallthrough `_ => args.iter().all(is_pure_type)` — the container
+   is presumed pure and only its type ARGS are checked. Proven in the same session:
+   `defrecord [c <- :wat::cache::Lru<String,i64>]` **compiles clean**, while `Lru<IOWriter,i64>` is
+   correctly refused. It is the same arm that admitted `Peer<i64,String>` until 2026-08-03.
+
+   **⛔ THE CONSEQUENCE FOR THIS STONE, stated plainly:** if `World` is minted as a `#[wat_dispatch]`
+   opaque — which is what it will be — then **nothing stops `:durable [worlds <- HashMap<ConnId, World>]`
+   from compiling.** The `:ephemeral` placement below is *correct*, and it is *chosen*, not *enforced*.
+   Do not write "correct by construction" into this stone about the worlds map until the opaque is
+   enrolled. (`wat/cache.wat` made exactly that claim about exactly this mechanism and was wrong for a
+   month; the comment is corrected as of this session.)
+
+   **The enrollment fix is cheap and its cost is now measured:** three live opaque families, 18 corpus
+   sites, **zero** of which are illegal aggregate fields — so enrolling them goes RED on nothing. Full
+   grounding, both arms, and the still-unchased sqlite question:
+   `293/NOTE-containment-wall-blind-to-rust-opaques.md`. It is **builder-deferred** (2026-07-25, *"i'm not
+   chasing it now"*) — a deferral taken when the cost was believed to be a cascade and when nothing
+   depended on it. **Both of those premises have now changed.** Re-pose it to the builder with the
+   measured number; do not unilaterally reverse it, and do not build this stone's guarantee on top of it.
 4. **STOP-4 — the cursor is COMPOSITE.** If the design collapses to a single resume token, STOP: it
    cannot express a position inside the derivations from one input page, which is the whole
    inference-explosion problem `DESIGN-service-io-budgets.md` already named.

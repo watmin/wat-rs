@@ -120,14 +120,24 @@
 ;;
 ;; ─── the one contract decision — durable holds the SPEC, ephemeral holds the HANDLE ─────────
 ;; `:wat::cache::Lru` is `scope = "thread_owned"` on the Rust shim (header above): it CANNOT
-;; cross a wire or a hibernation boundary, and 293.W enforces exactly that — an impure
-;; surface-typed field may live only in `:ephemeral`. So:
+;; cross a wire or a hibernation boundary. So:
 ;;   `:durable   [capacity <- i64]`        — plain EDN, the SPEC the resource is rebuilt from.
 ;;   `:ephemeral [cache <- Lru<K,V>]`      — the live handle, born inside `:init` by calling
 ;;                                           `Lru::new` on the durable capacity.
-;; This is R5 at the service layer — store the thunk, not the answer — and it is correct BY
+;; This is R5 at the service layer — store the thunk, not the answer.
+;;
+;; ⚠ CORRECTED 2026-08-08 (arc 278) — this paragraph used to claim the shape is "correct BY
 ;; CONSTRUCTION, not by discipline: writing the handle into `:durable` instead does not compile
-;; (293.W rejects an impure `Lru<K,V>` field outside `:ephemeral`).
+;; (293.W rejects an impure `Lru<K,V>` field outside `:ephemeral`)." THAT IS FALSE, and it was
+;; false about the exact type it named. PROVEN by run: a defservice declaring
+;; `:durable [c <- :wat::cache::Lru<String,i64>]` COMPILES CLEAN (exit 0), with an
+;; `IOWriter`-in-`:durable` positive control refused in the same probe. The 293.W containment
+;; wall IS real and DOES reach `:durable` (the slot synthesizes `<svc>::Record`, a pure
+;; aggregate) — but `is_pure_type` decides a PARAMETRIC opaque's purity by the fallthrough
+;; `_ => args.iter().all(is_pure_type)`, so the CONTAINER is presumed pure and only its type
+;; ARGS are checked (`Lru<IOWriter,i64>` is correctly refused; `Lru<String,i64>` is not).
+;; The `:ephemeral` placement here is therefore CONVENTION, correctly chosen, not a guarantee.
+;; See `293/NOTE-containment-wall-blind-to-rust-opaques.md`.
 ;; ─── batch, both directions (BRIEF-cache-batch-surface, file header above) ───────────────────
 ;; `get`: probes IN as a `Vector<K>`, results OUT as an INDEX-ALIGNED `Vector<GetResult<V>>` —
 ;; `results[i]` answers `probes[i]`. `put`: entries IN as a `Vector<Entry<K,V>>`, nothing

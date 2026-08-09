@@ -35,6 +35,44 @@ containers/newtypes/tuples, `TypeExpr::Var(_) => false`. But for **Rust opaques*
 Anything absent falls to `None => true` — *"portable by convention"*, the arm written for formal type
 parameters. **So every `#[wat_dispatch]` opaque minted since that list was written is invisible to the wall.**
 
+### ⚠ SHARPENED 2026-08-08 (arc 278, STOP-3) — for a PARAMETRIC opaque it is a DIFFERENT arm
+
+The paragraph above names the `TypeExpr::Path` arm's `None => true`. That is right for the two
+non-parametric sqlite handles. It is **not** the arm that admits `Lru<K,V>`: a parametric opaque never
+reaches the Path arm at all. It lands in `TypeExpr::Parametric`, whose match on `head.as_str()` lists only
+the kernel channel/peer heads and then falls through to
+
+```rust
+_ => args.iter().all(|a| is_pure_type(a, types)),   // "pure iff its TYPE ARGS are pure"
+```
+
+so the **container is presumed pure and only its type arguments are checked.** Proven by run this session
+(`--check`, exit codes by hand):
+
+| probe | verdict |
+|---|---|
+| `defrecord [c <- :wat::cache::Lru<String,i64>]` | **exit 0 — ACCEPTED** |
+| `defrecord [c <- :wat::cache::Lru<wat::io::IOWriter,i64>]` | exit 1 — refused |
+| `defrecord [c <- :rust::cache::Lru<String,i64>]` | **exit 0 — ACCEPTED** |
+| `defrecord [w <- :wat::io::IOWriter]` (control) | exit 1 — refused |
+
+The `IOWriter`-as-type-argument row is the discriminator: it proves the args ARE walked, so the miss is the
+container, not the recursion. **This matters for the fix:** enrolling opaques only in the Path list would
+leave every parametric opaque still admitted. Both arms need the same enrollment.
+
+**And it is the same arm, patched before.** `check.rs:12868-12882` records `Peer<i64,String>` being judged
+pure by this exact fallthrough and admitted into a pure Record — fixed 2026-08-03 by adding four names
+(`Peer`, `Thread`, `Process`, alongside `ThreadSelfPeer`) to the hardcoded head list. `Lru` is the next type
+standing in the identical hole. That is four hand-patches to one stem; the class is the list itself.
+
+### ⚠ AND THE WALL DOES REACH `:durable` — proven, with both controls
+
+Separately grounded this session, because the connection-scoped-world stone rested on it: a defservice's
+`:durable` slot synthesizes `<svc>::Record`, a **pure aggregate**, so `validate_aggregate_containment` does
+govern it. `:durable [w <- :wat::io::IOWriter]` → refused, naming `":probe::ctr::Record"`; `:durable [count
+<- i64]` → accepted (non-vacuity). **293.W is a compiler-enforced wall, not a convention** — the enrollment
+is the only hole.
+
 ## Proven — all exit 0 where they must be exit 3
 
 - `(defrecord :probe::Direct [c <- :wat::sqlite::Connection])` — a live, thread-owned sqlite handle.
@@ -70,11 +108,39 @@ permits it, which is precisely what 293.W set out to make impossible.
 Whether `:rust::sqlite::Connection` is **absent** from the `TypeEnv` entirely, or **present with a pure-reading
 nature**. That determines whether the fix is "register it" or "register it correctly." Ground it before drawing.
 
-## Blast radius warning
+> **2026-08-08 — STILL UNCHASED for the sqlite pair, and deliberately not guessed.** This session chased the
+> PARAMETRIC case (`Lru`) and settled it: that one never consults `types.get` at all, so absent-vs-present is
+> moot for it — the Parametric arm's arg-fallthrough decides it before the lookup. The sqlite handles are
+> non-parametric and DO reach `types.get`, where `None => true` and `Some(Alias(_)) => true` are
+> indistinguishable from the outside — both read pure. Which one fires is still unknown and still decides the
+> fix's shape. Do not inherit either reading.
+>
+> **One thing that IS now grounded and bears on the fix:** `scope = "thread_owned"` — the exact fact the wall
+> wants — is already DECLARED on the `#[wat_dispatch]` attribute (`src/rust_deps/cache.rs:60`). It is consumed
+> only by codegen (how the handle is wrapped), never projected into the type environment. So the narrow rung
+> does not need new information from the author; it needs the information already on the declaration to reach
+> `is_pure_type`. `scope != "shared"` ⇒ impure is a candidate projection, **not yet ruled** — the three scopes
+> are `shared | thread_owned | owned_move` (`crates/wat-macros/src/lib.rs:136`) and what `shared` should mean
+> for purity is a real question, not an obvious one.
 
-If opaques begin reading impure, **every record currently holding one goes RED at startup.** That is the point —
-293.W's containment pass caught six real stdlib mis-declarations when it landed and was called a design oracle —
-but it is a cascade, not a one-liner. Expect the same shape: real mis-declarations surfacing as the wall closes.
+## Blast radius warning — ⚠ MEASURED 2026-08-08, AND IT IS EMPTY
+
+The original warning read: *"If opaques begin reading impure, **every record currently holding one goes RED at
+startup** … it is a cascade, not a one-liner."* **Measured, that is wrong for today's corpus.**
+
+Every `#[wat_dispatch]` opaque in the tree is **three live families** — `:rust::cache::Lru`,
+`:rust::sqlite::Connection`, `:rust::sqlite::ReadConnection` (plus `:rust::lru::LruCache`, the study-only
+crate oracle slated for annihilation). A whole-corpus sweep for fields typed by any of them across
+`wat/ wat-tests/ wat-scripts/ tests/ crates/` returns **18 sites, and not one is an illegal aggregate field**:
+
+- **fn parameters** (the bulk) — legal; an opaque may be *passed*, it may only not be *held* by a pure aggregate.
+- **2 `:ephemeral` slots** (`sqlite-store.wat:247`, `cache.wat:180`) — the correct placement, by intent.
+- **1 aggregate that genuinely holds two opaques** — `:wat::cache::HolographicLru` (`cache.wat:254`) — and it
+  is already a **`defstruct`**, correctly impure, with a comment saying exactly why.
+
+**So enrolling the opaques would turn RED on zero existing sites.** The severity stands as the NOTE first
+recorded it — *latent, not observed* — but the COST does not: this is a small fix, not a cascade, and the
+"cascade" framing was the reason to defer it. Whoever re-poses the deferral should pose it with this number.
 
 ## Status
 
