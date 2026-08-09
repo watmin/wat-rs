@@ -22,6 +22,80 @@ silent clobber — which is the right guard for a LOCAL program laying defns ove
 is genuinely valuable there. But loud collision is not isolation. Only a separate world makes two
 tenants unable to see each other's names at all.
 
+## ⛔⛔ GROUNDED 2026-08-09, BEFORE THE BUILD — THIS STONE CANNOT BE BUILT AS SCOPED
+
+Three facts, each read off the current disk. They do not overturn the model; they move where it lands
+and they kill one of its three legs.
+
+**1. A `defservice` CANNOT OBSERVE CONNECTION LIFECYCLE.** All three lifecycle arms of the generated
+serve loop thread `state` through **unchanged** — the user's `:impls` are invoked for `Message` only:
+
+```clojure
+;; wat/service.wat, the generated serve-body
+((:wat::spawn::ServiceEvent::Connection peer)                                          ; :1265
+  (~serve-name self l (:wat::core::conj selectables peer) state))                      ;   state UNCHANGED
+((:wat::spawn::ServiceEvent::Closed idx)                                               ; :1351
+  (~serve-name self l (:wat::std::list::remove-at selectables idx) state))             ;   state UNCHANGED
+((:wat::spawn::ServiceEvent::Lost idx cause)                                           ; :1361
+  (:wat::core::do (:wat::kernel::assertion-failed! …)
+    (~serve-name self l (:wat::std::list::remove-at selectables idx) state)))          ;   state UNCHANGED
+```
+
+So **there is no hook to create or destroy an entry on.** This stone's "the create/destroy is
+explicit, per entry, and must be built" has nowhere to be built *today*.
+
+**2. AN OP HANDLER CANNOT KNOW WHICH CLIENT IS CALLING.** The user's body is spliced as
+`(:wat::core::let ~let-bindings ~body)` where `let-bindings` is `[s-binder state]` (`service.wat:1031`
+— "bind the impl's state param to serve's `state`"). `idx` is in scope in the *generated* frame (it
+is used for the reply `send`), but it is **not passed into the handler**. A handler receives
+`(state, request)` and nothing else. So even if the map existed, an op could not select its tenant's
+entry. `Outcome<S,R,O>`'s five variants all thread `S` — there is no per-connection concept anywhere
+in the handler contract.
+
+**3. ★ THE CURSOR DOES NOT FORCE CONNECTION SCOPE — and our own shipped service disproves it.**
+This stone says the cursor is *"the one that forces it … pagination REQUIRES state between requests;
+there is nowhere else to hold a position."* **False.** `wat/query.wat`'s `sift-rules` — the rete
+query service, already on the disk — carries the position **in the request and the response**:
+
+```clojure
+(:wat::core::defrecord ~req-kw  [… limit <- :i64  cursor <- (:wat::core::Option :String)])   ; :333
+(:wat::core::defenum   ~resp-kw :Deductions [items <- … cursor <- (:wat::core::Option :String)])  ; :336
+```
+
+The **client** holds its position, exactly as `wat.query/NextToken` and DynamoDB's own pagination do.
+The service is stateless with respect to it. (R61 `PAR NON ARGVIT, NOSTRA ARGVVNT` — our own prior art
+is the second oracle, and it was not consulted when this leg was written.)
+
+**What survives:** legs **1 (isolation)** and **2 (the prepared statement — a compiled network reused
+across requests)** are untouched and real. Isolation is the actual defect `#88` left open. Leg 3 is
+struck; do not argue from it.
+
+**4. ⚠ TWO OF THE FOUR `remove-at` SITES ARE NOT CLIENT EVICTIONS — they are ONE-SHOT TIMERS.**
+This stone says *"Every eviction path is `(remove-at selectables idx)` — `service.wat:1058`, `:1061`,
+`:1352`, `:1364`."* Read them: `:1352` (`Closed`) and `:1364` (`Lost`) are clients. **`:1058` and
+`:1061` are inside the INTERNAL-op arm**, removing the fired alarm's own one-shot timer from
+`selectables` (`:1050-1053` — *"On fire → REMOVE the one-shot timer's idx, then arm any re-arms"*;
+an `Alarm` is folded into `selectables` as an `after` timer at `:1041-1047`, so timers and clients
+share the vector).
+
+**So a "drop this connection's world on every `remove-at`" implementation deletes a LIVE TENANT'S
+WORLD WHEN A TIMER FIRES.** Nothing crashes; the next request from that tenant silently rebuilds or
+errors. This is the same ship-green-and-wrong class as STOP-6, one level over, and it is invisible to
+any service that happens not to use alarms.
+
+**5. THE SUBSTRATE ALREADY MODELS "NO CALLER", and it does it structurally.** An internal (`-`) op's
+arm is **1-param `[s]`** — no `req` binder — and returning `Reply`/`Stop`/`ReplyAndArm` from one is a
+**located assertion**: *"an internal (-) op has no client to reply to"* (`:1063-1065`). The
+caller-ful / caller-less distinction is already a difference in ARM SHAPE, not a nullable field.
+
+**What this means for the build:** the required capability is **in `defservice` itself** — caller
+identity at the op arm, and lifecycle hooks that thread state — which this stone's *"What is NOT in
+scope: … the service itself"* explicitly rules out. **The model is right; the scope boundary is
+wrong.** Placing the ConnId in the generated serve loop is arguably BETTER than this stone imagined:
+resolve-before-evict (STOP-7) and stable-key (STOP-6) become properties of generated code, written
+once, instead of a correctness burden on every future service author. **Builder ruling owed before
+any code.**
+
 ## The model — three things that want the same object
 
 A connection gets a world. That is not a compromise between two designs; it is the only shape in
