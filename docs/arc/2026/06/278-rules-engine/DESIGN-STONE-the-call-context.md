@@ -58,27 +58,58 @@ An open string-keyed bag is also precisely what arcs 293/296 spent themselves re
 > trivially. do we need query-by-uuid now to thread a context record into a service handler who bears
 > the caller's identity such that it can destroy a rete world on disconnect?"*
 
-**No.** And the question exposes that this stone had been accreting an observability payload that its
-actual job does not need.
+**No — query-by-uuid does not block this.** But the "one field" cut I drew from that is **WRONG and
+was overruled the same hour.** The builder:
 
-**The job:** a handler must know WHICH client is calling, so it can select that tenant's world; and
-the serve loop must create/destroy that world on connect/disconnect.
+> *"i want the fucking uuid, namespace and time on the context — just because we do not use them
+> doesn't mean we will not use them… can we not build the plumbing for a system not yet in use?… the
+> realization that we needed a context blob to bear the caller's identity IS the exact need to ship a
+> request-id, request-start-time and so on (the operation IS the request handler's name; the namespace
+> is literally the service's name… they're just keywords?)"*
 
-**The minimum ctx for that is ONE FIELD: `conn-id`.**
+**He is right, and the last clause is the proof.** GROUNDED:
 
-Everything else this document specifies — `uuid`, `namespace`, `tags`, `operation`, the correlation
-core, the `Scope` relocation, the two-level namespace — belongs to the **telemetry** stone. None of it
-is load-bearing here, and **all of it can be added later ADDITIVELY**, because the extension mechanism
-is `~@Surface` splice. Nothing is forfeited by shipping the one field first.
+- **`namespace` = the service's fqdn** — the macro already holds it: `fqdn` / `fqdn-str` / `fqdn-kw`
+  (`wat/service.wat:85-93`).
+- **`operation` = the op arm's name** — the macro already computes it: `op-str`
+  (`wat/service.wat:883`, `:942`, `:954`, `:988`, `:1417`).
 
-**⇒ THE BUILD ORDER IS THEREFORE:**
+**Both are COMPILE-TIME LITERALS the macro already has in hand for other purposes.** Splicing them
+into a ctx constructor is two keywords. There is no design work in it, no correlation core, no
+relocation.
 
-1. **ctx, minimal** — arity-dispatched arm shape (`[s]` / `[s req]` / `[s ctx req]`), a stable
-   `conn-id` minted in the generated serve loop, and lifecycle hooks that thread state on
-   `Connection`/`Closed`/`Lost`. **Unblocked by nothing. Buildable now.**
+**MY ERROR, named precisely:** I conflated *"ctx carries correlation fields"* with *"ctx splices the
+telemetry `Scope` surface."* The second needs the relocation and the naming ruling; the first is five
+scalars. I let the MECHANISM question contaminate the CONTENT question, then deferred the content on
+the mechanism's grounds — and nearly manufactured a second migration across every op arm to add
+fields we already know we want.
+
+**⇒ THE ctx FLOOR IS FIVE FIELDS, and none of them wait on telemetry:**
+
+| field | where it comes from | cost |
+|---|---|---|
+| **caller identity** | the serve loop's connection table | the stable id this stone exists for |
+| **namespace** | the service fqdn — `fqdn-kw`, compile-time | a spliced literal |
+| **operation** | the op name — `op-str`, compile-time | a spliced literal |
+| **request-id** | minted per call in the serve loop | one `Uuid/v4` |
+| **start-ns** | stamped per call in the serve loop | one clock read |
+
+All five are **pure scalars** (`Uuid` is in `is_pure_type`'s pure-scalar list). The record stays pure,
+wire-crossable, `:durable`-legal. **Build the plumbing once, with the fields we know we want.**
+
+**What genuinely IS deferred** (and only these): whether ctx SPLICES a shared correlation surface
+rather than declaring its own fields; the `Scope` relocation + namespace/type naming; `tags`; and the
+by-uuid READ path. Those are mechanism and telemetry. **None of them gate the five fields above** —
+a later splice can replace hand-declared fields without touching a single call site.
+
+**⇒ BUILD ORDER:**
+
+1. **ctx with the five-field floor** — arity-dispatched arm shape (`[s]` / `[s req]` / `[s ctx req]`),
+   a stable caller id minted in the generated serve loop, and lifecycle hooks threading state on
+   `Connection`/`Closed`/`Lost`. **Blocked by nothing.**
 2. **the connection-scoped world** — needs only (1).
-3. **telemetry** — the correlation core, the `Scope` relocation, `operation`, and the by-uuid read
-   path, whenever it is wanted. It splices into ctx without touching (1) or (2).
+3. **telemetry** — the correlation surface, the relocation, `tags`, the by-uuid reader. Refines (1)
+   without disturbing it.
 
 **The telemetry state, for whoever picks it up:** the *write* side is complete and correct — every
 `Metric` and every `Log` writes the `by-uuid` correlation GSI (`journal.wat:12`, `:46`, `:59`, schema
