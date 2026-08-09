@@ -11,7 +11,7 @@
 ## Where the code is — nothing parked, nothing uncommitted
 
 ```
-HEAD c8fcfe0d+   pushed   floor 4384 passed / 0 failed / 262 skipped   clippy 0
+HEAD 18d117d7   pushed   floor 4384 passed / 0 failed / 262 skipped   clippy 0
 ```
 
 `git status` empty.
@@ -35,17 +35,29 @@ HEAD c8fcfe0d+   pushed   floor 4384 passed / 0 failed / 262 skipped   clippy 0
 supplies the caller identity it was waiting on. What remains for it:
 
 1. **Lifecycle hooks** — threading USER state on `Connection`/`Closed`/`Lost`. Today all three arms
-   pass `state` through **unchanged** (`service.wat:1265`/`:1351`/`:1361`), so there is nowhere to
+   pass `state` through **unchanged** (`service.wat:1414`/`:1503`/`:1513`), so there is nowhere to
    create or destroy an entry. **The hook's signature is UNDESIGNED** — that design is the first work,
    deliberately kept out of the ctx strike rather than smuggled in.
 2. **The map**, keyed on ctx's caller id — never on `idx`.
 
-**⚠ The two traps, both already grounded, both ship GREEN when wrong:**
+> **The line numbers above were RE-GROUNDED 2026-08-09** — the ctx strike shifted every one of them
+> and the prior seam carried the pre-strike values (`:1265`/`:1351`/`:1361`, `:1058`/`:1061`). Trust
+> the arm names over any number here; re-grep before you cite.
+
+**⚠ The traps, all grounded, all ship GREEN when wrong:**
 - **`idx` is a POSITION and shifts on every eviction.** A map keyed on it hands one tenant another's
   rules and cursor. Nothing crashes. The ctx strike's stability gate is the shape to copy: three
   clients, evict the MIDDLE one, assert a survivor still sees its ORIGINAL id.
-- **Two of the four `remove-at selectables idx` sites (`:1058`/`:1061`) remove fired ALARM TIMERS,
-  not clients.** Any per-connection bookkeeping must not fire there.
+- **There are FIVE `remove-at selectables idx` sites, not four — and THREE evict a CLIENT.** The prior
+  seam said "four, two are timers" and **omitted `Rejected` entirely**. The census, re-run 2026-08-09:
+  - `:1147` · `:1150` — a fired **ALARM TIMER** (the internal 1-param arm). Per-connection bookkeeping
+    must NOT fire here.
+  - `:1504` **`Closed`** · `:1516` **`Lost`** · `:1550` **`Rejected`** — client evictions. **`Rejected`
+    is the over-budget frame path** (reply `Failed`, then evict, then keep serving); a world torn down
+    on `Closed`/`Lost` only would LEAK on every oversized-frame eviction.
+- **A timer's id slot is the sentinel `-1`** (`service.wat:1104-1109`), minted so the vector's element
+  type stays uniform, and never read — real caller ids are minted `>= 0` in the `Connection` arm. So a
+  caller-id-keyed map cannot collide with a timer, but `-1` must never be inserted as a key.
 
 ## ⛔ STILL OPEN
 
