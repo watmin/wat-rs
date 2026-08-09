@@ -126,18 +126,26 @@
 ;;                                           `Lru::new` on the durable capacity.
 ;; This is R5 at the service layer — store the thunk, not the answer.
 ;;
-;; ⚠ CORRECTED 2026-08-08 (arc 278) — this paragraph used to claim the shape is "correct BY
-;; CONSTRUCTION, not by discipline: writing the handle into `:durable` instead does not compile
-;; (293.W rejects an impure `Lru<K,V>` field outside `:ephemeral`)." THAT IS FALSE, and it was
-;; false about the exact type it named. PROVEN by run: a defservice declaring
-;; `:durable [c <- :wat::cache::Lru<String,i64>]` COMPILES CLEAN (exit 0), with an
-;; `IOWriter`-in-`:durable` positive control refused in the same probe. The 293.W containment
-;; wall IS real and DOES reach `:durable` (the slot synthesizes `<svc>::Record`, a pure
-;; aggregate) — but `is_pure_type` decides a PARAMETRIC opaque's purity by the fallthrough
-;; `_ => args.iter().all(is_pure_type)`, so the CONTAINER is presumed pure and only its type
-;; ARGS are checked (`Lru<IOWriter,i64>` is correctly refused; `Lru<String,i64>` is not).
-;; The `:ephemeral` placement here is therefore CONVENTION, correctly chosen, not a guarantee.
-;; See `293/NOTE-containment-wall-blind-to-rust-opaques.md`.
+;; ⚠ HISTORY, kept because the claim was wrong for a month and the correction is the point.
+;; This paragraph asserted the shape is "correct BY CONSTRUCTION, not by discipline: writing the
+;; handle into `:durable` does not compile (293.W rejects an impure `Lru<K,V>` field outside
+;; `:ephemeral`)." That was FALSE when written, about the exact type it named: 293.W's containment
+;; wall was real and DID reach `:durable`, but `is_pure_type` knew Rust opaques only through
+;; hand-written lists, and a PARAMETRIC one fell through `_ => args.iter().all(is_pure_type)` —
+;; the CONTAINER presumed pure, only its type args checked. `:durable [c <- Lru<String,i64>]`
+;; compiled clean; `Lru<IOWriter,i64>` was correctly refused, which is what proved the container
+;; was the miss. Found 2026-08-08 answering the connection-scoped-world stone's STOP-3.
+;;
+;; ✅ THE CLAIM IS NOW TRUE, and it is enforced rather than asserted. `is_pure_type` consults the
+;; `#[wat_dispatch]` opaque registry (`RustDepsRegistry.types`, which every opaque self-registers
+;; into) on BOTH arms: a registered Rust opaque is impure, regardless of type arguments. Writing
+;; this handle into `:durable` is a load-time `ImpureFieldInPureAggregate`. Standing gate, both
+;; directions: `tests/types/probe_arc278_opaque_purity_wall.{rs,wat.bad}` + its `_control.wat`.
+;;
+;; ⚠ STILL NOT COVERED — do not over-read the above: the wall knows *registered Rust opaques*.
+;; `is_pure_type`'s `TypeExpr::Path` arm still ends `None => true`, load-bearing for formal type
+;; parameters and for six of our own unregistered-but-pure core types. That is arc 255's registry
+;; work. See `293/NOTE-containment-wall-blind-to-rust-opaques.md`.
 ;; ─── batch, both directions (BRIEF-cache-batch-surface, file header above) ───────────────────
 ;; `get`: probes IN as a `Vector<K>`, results OUT as an INDEX-ALIGNED `Vector<GetResult<V>>` —
 ;; `results[i]` answers `probes[i]`. `put`: entries IN as a `Vector<Entry<K,V>>`, nothing

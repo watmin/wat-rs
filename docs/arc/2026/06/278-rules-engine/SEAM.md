@@ -42,21 +42,27 @@ Path arm the 293 NOTE recorded; `Lru<IOWriter,i64>` is correctly refused, which 
 `#[wat_dispatch]` opaque and would compile in `:durable` today. STOP-3 now states both halves.
 `wat/cache.wat` claimed the opposite about the exact type it named; corrected.
 
-## ▶ FIRST ACT — a decision that is the BUILDER'S, and it now has its number
+## ✅ AND THE HOLE IT UNCOVERED IS CLOSED — same day, builder-ruled
 
-**Enroll the Rust opaques in `is_pure_type` (both arms), or leave the hole?** It was deferred
-2026-07-25 (*"i'm not chasing it now"*) on two premises that have **both since changed**:
+*"this is unacceptable — i want to attack this immediate symptom now … if its a foreign symbol we
+just deny it?"* Built. `is_pure_type` consults the `#[wat_dispatch]` opaque registry
+(`RustDepsRegistry.types`) on **both** arms — a registered Rust opaque is impure regardless of type
+args. **Self-enrolling**: the macro already registers every opaque, so no hand list, no drift.
+Gate both ways: `tests/types/probe_arc278_opaque_purity_wall.{rs,wat.bad}` + `_control.wat`.
 
-- *"it is a cascade, not a one-liner"* — **measured wrong.** Three live opaque families, 18 corpus
-  sites, **zero** illegal aggregate fields. Enrolling them goes RED on nothing.
-- *nothing depended on it* — **the connection-scoped world now does.** It is the next stone and its
-  central guarantee is exactly this wall.
+**⛔ The remaining hole is NOT the opaques — it is our OWN unregistered core types.** Measured by
+imposing the deny (`Path` arm `None => true` → `false`): **2713 of 4376** red, and *not one* a
+foreign opaque. The population is formal type parameters plus **six core types that are pure and
+were simply never registered** — `PersistentMap`, `PersistentVector`, `WatAST`, `HolonAST`,
+`time::Instant`, `time::Duration`. **That enrolment is arc 255's registry** (`255/NOTE-purity-is-
+definition-time-queryable-metadata.md` already files this class's three instances). Worklist,
+checker-produced: `278/BRIEF-opaque-purity-self-enrolls.md` § NOT IN SCOPE. **Do not start it
+without a ruling — 255 is parked by the builder's own call.**
 
-Do not reverse a builder ruling unilaterally. Pose it with the number.
-Full grounding: `293/NOTE-containment-wall-blind-to-rust-opaques.md` (sharpened this session).
-The pre-written acceptance gate already exists:
-`wat-scripts/scratch-pad/probe-293w-durable-admits-unenrolled-opaque.wat` — **it loads GREEN today,
-and that is the defect; when enrollment lands it MUST go RED.**
+## ▶ FIRST ACT — build the connection-scoped world
+
+Its STOP-3 is answered and its guarantee is now real. Read the stone; do NOT re-derive it. The trap
+below it (`idx` as the map key) is still the thing most likely to ship green and wrong.
 
 ## Then — the connection-scoped world, and the trap is named
 

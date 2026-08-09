@@ -1,5 +1,33 @@
 # NOTE — the 293.W containment wall is BLIND to Rust opaques: a record can hold a live resource
 
+> ## ✅ CLOSED for REGISTERED RUST OPAQUES — 2026-08-08. Read this box before the body below.
+>
+> The builder, on being shown the hole: *"this is unacceptable … i want to attack this immediate
+> symptom now … if its a foreign symbol we just deny it?"* — built, green, standing gate.
+>
+> **The fix:** `is_pure_type` now consults the `#[wat_dispatch]` opaque registry
+> (`RustDepsRegistry.types`) on **both** the `Parametric` head arm and the `Path` arm, before
+> either fallthrough. **A registered Rust opaque is impure, regardless of type arguments.** It is
+> *self-enrolling* — the macro already emits `register_type` for every opaque — so there is no new
+> hand list and it cannot drift out of step with the macro. No `scope` threading was needed:
+> `#[wat_dispatch]` exists to expose a live Rust value, and all three scopes wrap a handle.
+>
+> **Gate, both directions:** `tests/types/probe_arc278_opaque_purity_wall.{rs,wat.bad}` +
+> `_control.wat`. Floor **4378/4378, 0 failed**; clippy 0. Blast radius was **zero**, as measured.
+>
+> **The eight hardcoded `Path` names STAY** — only four paths are `#[wat_dispatch]`;
+> `IOWriter`/`Hologram`/`Engram`/… register by another route and are not in that registry.
+> They dissolve under 255, not here.
+>
+> **⛔ WHAT REMAINS OPEN — the body below is still live for this:** the `Path` arm's terminal
+> `None => true`. Measured 2026-08-08 by imposing the deny: flipping it turns **2713 of 4376**
+> tests red, and *not one* of those is a foreign opaque. The population is (a) formal type
+> parameters and (b) **six of our own core types that are genuinely pure and simply never
+> registered** — `PersistentMap`, `PersistentVector`, `WatAST`, `HolonAST`, `time::Instant`,
+> `time::Duration`. Enrolling those six is the remaining work, and it is arc 255's registry. The
+> checker-produced worklist is tabulated in
+> `278/BRIEF-opaque-purity-self-enrolls.md` § NOT IN SCOPE.
+
 > **Found by probe 2026-07-25** (arc 278, grounding parametric records for cache Stone 2). Builder:
 > *"did you find a legit flaw in our enforcement?"* — yes. *"i'm not chasing it now"* → recorded, not fixed.
 > Recorded per the arc-109 `NOTE-*.md` convention.

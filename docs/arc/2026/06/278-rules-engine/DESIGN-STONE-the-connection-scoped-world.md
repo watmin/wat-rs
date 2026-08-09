@@ -71,11 +71,11 @@ That split is not stylistic. IPC is EDN-only, so a resource has no wire represen
 builder's *"we cannot express this state as edn"* is the whole argument, and it lands the worlds map
 in `:ephemeral` by necessity rather than preference.
 
-> ⚠ **"Necessity" here is SEMANTIC, not yet MECHANICAL — see STOP-3(b).** The 293.W containment wall
-> does reach `:durable` and would refuse a known-impure field there; but a `#[wat_dispatch]` opaque
-> like `World` is not enrolled in the purity lists, so the compiler would accept the wrong placement
-> today. The map belongs in `:ephemeral` because a live world cannot cross a wire — that reason is
-> sound and independent. It is simply not, at this moment, a reason the checker knows.
+> ✅ **And as of 2026-08-08 the necessity is MECHANICAL, not merely semantic — see STOP-3.** The
+> 293.W containment wall reaches `:durable`, and a registered `#[wat_dispatch]` opaque now reads
+> impure on both of `is_pure_type`'s arms. So a live `World` in `:durable` is a load-time error, not
+> a convention politely observed. The semantic reason still stands on its own and is the better one
+> to reason from: a live world cannot cross a wire.
 
 ## ★★ THE KEY MUST BE STABLE — `idx` IS NOT
 
@@ -172,20 +172,28 @@ a wedged connection should be visible rather than silently reaped.
    `defrecord [c <- :wat::cache::Lru<String,i64>]` **compiles clean**, while `Lru<IOWriter,i64>` is
    correctly refused. It is the same arm that admitted `Peer<i64,String>` until 2026-08-03.
 
-   **⛔ THE CONSEQUENCE FOR THIS STONE, stated plainly:** if `World` is minted as a `#[wat_dispatch]`
-   opaque — which is what it will be — then **nothing stops `:durable [worlds <- HashMap<ConnId, World>]`
-   from compiling.** The `:ephemeral` placement below is *correct*, and it is *chosen*, not *enforced*.
-   Do not write "correct by construction" into this stone about the worlds map until the opaque is
-   enrolled. (`wat/cache.wat` made exactly that claim about exactly this mechanism and was wrong for a
-   month; the comment is corrected as of this session.)
+   **✅ (b) IS NOW CLOSED — the hole was fixed the same day it was found.** Builder: *"this is
+   unacceptable … i want to attack this immediate symptom now."* `is_pure_type` consults the
+   `#[wat_dispatch]` opaque registry (`RustDepsRegistry.types`) on **both** arms: a registered Rust
+   opaque is impure regardless of type arguments. Self-enrolling — the macro already registers every
+   opaque, so there is no hand list to drift. Blast radius was **zero**, as measured beforehand.
 
-   **The enrollment fix is cheap and its cost is now measured:** three live opaque families, 18 corpus
-   sites, **zero** of which are illegal aggregate fields — so enrolling them goes RED on nothing. Full
-   grounding, both arms, and the still-unchased sqlite question:
-   `293/NOTE-containment-wall-blind-to-rust-opaques.md`. It is **builder-deferred** (2026-07-25, *"i'm not
-   chasing it now"*) — a deferral taken when the cost was believed to be a cascade and when nothing
-   depended on it. **Both of those premises have now changed.** Re-pose it to the builder with the
-   measured number; do not unilaterally reverse it, and do not build this stone's guarantee on top of it.
+   **So `World` IS protected, provided it is minted as a `#[wat_dispatch]` opaque** — which is what
+   it will be. `:durable [worlds <- HashMap<ConnId, World>]` will not compile. This stone MAY now say
+   "correct by construction" about the worlds map, with one precondition worth stating in the build:
+   **the guarantee comes from `World` being a registered opaque, not from the field's name or slot.**
+   A `World` modelled as a plain `defrecord` of pure fields would be pure and would (correctly) be
+   allowed anywhere — the wall tracks what the thing *is*.
+
+   Gate, both directions: `tests/types/probe_arc278_opaque_purity_wall.{rs,wat.bad}` + `_control.wat`.
+
+   **⛔ WHAT IS STILL OPEN, and do not over-read the above:** the wall knows *registered Rust
+   opaques*. `is_pure_type`'s `Path` arm still ends `None => true`, which is load-bearing for formal
+   type parameters and for six of our own core types that are pure but unregistered (`PersistentMap`,
+   `PersistentVector`, `WatAST`, `HolonAST`, `time::Instant`, `time::Duration` — measured: flipping
+   that arm turns 2713 of 4376 tests red, and none of those are foreign opaques). Enrolling those six
+   is arc **255**'s registry work. See `293/NOTE-containment-wall-blind-to-rust-opaques.md` and
+   `278/BRIEF-opaque-purity-self-enrolls.md` § NOT IN SCOPE for the checker-produced worklist.
 4. **STOP-4 — the cursor is COMPOSITE.** If the design collapses to a single resume token, STOP: it
    cannot express a position inside the derivations from one input page, which is the whole
    inference-explosion problem `DESIGN-service-io-budgets.md` already named.

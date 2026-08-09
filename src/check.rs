@@ -12844,6 +12844,29 @@ fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
 /// - `TypeExpr::Fn` — closures never cross universe boundaries.
 /// - `TypeExpr::Var` — unresolved type variable; conservatively impure.
 ///
+/// A path registered by `#[wat_dispatch]` (`crate::rust_deps::registry().types()`) is a
+/// live Rust handle — a thread-owned/shared/owned-move wrapper around a real resource,
+/// never EDN-representable — so it is unconditionally impure. Self-enrolling: the macro
+/// already calls `register_type` for every opaque (`crates/wat-macros/src/codegen.rs`),
+/// so this needs no new hand-written list and cannot drift out of step with it.
+///
+/// ⚠ NORMALISATION (STOP-1 of `docs/arc/2026/06/278-rules-engine/BRIEF-opaque-purity-self-enrolls.md`):
+/// the registry stores the attribute's literal `path` WITH a leading colon (e.g.
+/// `":rust::cache::Lru"`, see `#[wat_dispatch(path = ":rust::cache::Lru", ...)]`). A
+/// `TypeExpr::Parametric` head arrives BARE (no colon — see the hardcoded head arms just
+/// below, e.g. `"wat::kernel::Sender"`); a `TypeExpr::Path` arrives already colon-prefixed
+/// (see `bare` below, which strips it back off for the *other* comparisons in this fn).
+/// Normalise to the registry's own form — add the colon back when the caller's string is
+/// bare — so both call sites compare the SAME shape.
+fn is_registered_rust_opaque(path: &str) -> bool {
+    let reg = crate::rust_deps::registry();
+    if path.starts_with(':') {
+        reg.has_type(path)
+    } else {
+        reg.has_type(&format!(":{path}"))
+    }
+}
+
 /// (Arc 293.W.2b — renamed from `is_pure_type`; the cause is purity, not movement.)
 pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
     // Canonicalize: expand aliases and walk through any substitution.
@@ -12853,6 +12876,12 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
         TypeExpr::Var(_) => false,
         TypeExpr::Tuple(elems) => elems.iter().all(|e| is_pure_type(e, types)),
         TypeExpr::Parametric { head, args } => {
+            // A registered Rust opaque is impure regardless of type args — checked
+            // BEFORE the hardcoded head list so it can't be shadowed by the
+            // pure-if-args-pure fallthrough below (arc 278 BRIEF-opaque-purity-self-enrolls).
+            if is_registered_rust_opaque(head) {
+                return false;
+            }
             // Impure parametric heads regardless of type args.
             match head.as_str() {
                 "rust::crossbeam_channel::Sender"
@@ -12923,6 +12952,13 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 // would return a FALSE POSITIVE impure verdict.
                 | "wat::core::Record" => return true,
                 _ => {}
+            }
+            // A registered Rust opaque is impure — checked BEFORE the user-defined-type
+            // lookup below, whose `None => true` arm is load-bearing for formal type
+            // parameters and must stay untouched (STOP-2 of
+            // BRIEF-opaque-purity-self-enrolls.md).
+            if is_registered_rust_opaque(p) {
+                return false;
             }
             // Look up user-defined types.
             match types.get(p) {
