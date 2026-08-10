@@ -6,178 +6,152 @@
 > disk copy), ground HEAD against the disk, and read this whole file before you touch anything.
 
 > **There is exactly ONE seam. If you find a second, one of them is lying — prune it.** History
-> lives in `REALIZATIONS.md`, which is where history belongs.
+> lives in `REALIZATIONS.md`.
 
-## Where the code is — nothing parked, nothing uncommitted
+## Where the code is
 
 ```
-HEAD 18d117d7   pushed   floor 4384 passed / 0 failed / 262 skipped   clippy 0
+HEAD ff7705ba+   pushed   floor 4386 passed / 0 failed   clippy 0
 ```
 
-`git status` empty.
+`git status` clean. ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 
-> ⚠ **The HEAD line is written IN the commit it names, so a ONE-commit mismatch at wake is EXPECTED
-> and benign.** More than one is the real alarm. (This probe could not pass by construction until
-> 2026-08-08; do not read a single-commit drift as staleness.)
+**⛔ `stash@{0}` HOLDS UNWEIGHED WORK — do not `git stash drop`.** A stopped rider's lifecycle strike:
+`wat/service.wat` +298/−18 plus two new test files. It BUILT but was never floor-weighed, and it is
+superseded in part by the finding below. Read it before reusing it; do not assume it is good.
 
-## ★ WHAT LANDED (2026-08-08 → 09) — five strikes, each weighed by my own `--release` re-run
+## ★ WHAT LANDED (2026-08-09 → 10)
 
 | commit | |
 |---|---|
-| `c8fcfe0d` | **THE CALL CONTEXT** — an opt-in `[s ctx req]` arm; a stable monotonic caller id minted in the generated serve loop and carried **with** its peer |
-| `30f6a9d9` · `e84572bf` | **arming is INTERNAL-ONLY** — a public op in an `Alarm` is refused at the definition; killed a LIVE silent discard. Renamed by an intueri cast → `PublicOpInAlarm` |
-| `1948eaa0` | **opaque purity SELF-ENROLS** — a registered `#[wat_dispatch]` opaque reads impure on both `is_pure_type` arms; no hand list, cannot drift |
-| `a6be7308` | **STOP-3 answered** — 293.W is a compiler-enforced wall AND it reaches `:durable`; its *enrollment* was the hole |
+| `037ef43e` | **ctx is MANDATORY** — the leading `-` discriminates, arity is a consequence. 169 public arms → `[s ctx req]`, 3 internal → `[s ctx]`, via a recorded codemod. Fixed STOP-0: the internal branch had been silently DROPPING its second binder |
+| `b79b17a3` | **the invocation FAMILY** — `InvocationCore` spliced into `SelfInvocation` / `LifecycleInvocation` / `Invocation`; `request-id` → `invocation-id` |
+| `a3f39a21` | **the form-aware arm census** (`wat-scripts/census-defservice-arm-arity.wat`) — regex gave 52/179/44 for one question; the tree-walk gives the answer, and its header now carries its own three blind spots |
+| `e94013c5` · `ff7705ba` | the connection-lifecycle **stone + brief** (drawn, NOT built — see BLOCKED) |
 
-## ▶ FIRST ACT — `DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md`. READ IT FIRST.
+## ⛔ THE BLOCKER — and it is a substrate stone, not a service one
 
-**Ruled 2026-08-09, nothing built.** It SUPERSEDES the opt-in ctx design that shipped in `c8fcfe0d`
-and the arity table below it. In one line each:
+**`defservice` builds its forked child's world from a HAND-ENUMERATED manifest. The substrate has a
+transitive-closure extractor and `service.wat` has never called it.**
 
-- **ctx is MANDATORY**, never opt-in — *"optional things always bite us eventually."*
-- **Arity is NOT a discriminator** — the leading `-` is. `(op [s ctx req])` / `(-op [s ctx])`; the
-  shape follows the NAME. The old arity table was meaning-derived-from-position, the same defect as
-  `idx`, and it ran out of room the day an internal op needed a payload.
-- **An internal op is still an INVOCATION** — it gets a ctx (id + time) so a timer or a lifecycle
-  event is visible to telemetry. This REVERSES the old STOP-3.
-- **Lifecycle = internal ops** `-on-connect` / `-on-disconnect`, in `:impls` only, NEVER the surface
-  (the `-tick` precedent).
-- **The macro reports IPC FACTS; the user owns POLICY.** The `:per-connection` macro-managed map is
-  KILLED — a service holds its own map in `:ephemeral`.
-- **TWO context types (option B), 4/4 on the four questions** — a `conn-id: Option` fails Obvious,
-  Simple AND Honest (it cannot distinguish "no connection caused this" from "we didn't look").
-- **The migration is a 120-arm codemod**, and the opt-in design existed to dodge exactly that —
-  the R65 argument, got wrong one day after it was recorded.
+- `src/closure_extract.rs` — 2933 lines, exposed as `:wat::kernel::fn-forms`. Its own header:
+  *"recursively extract user dependencies (other defns, types) until fixpoint."* `wat/bracket.wat`
+  uses it for the identical problem. `wat/service.wat`: **zero hits**.
+- **MEASURED, by run** (`wat-scripts/scratch-pad/probe-arc278-fnforms-reaches-program-types.wat`):
+  `manifest=14 forms, closure=22`. The needle that matters — `defenum :probe::FFXTag`, the
+  DECLARATION — is **manifest=0 / closure=1**. The closure carries the program-level type; the
+  manifest does not. (A bare `FFXTag` needle hits BOTH, because a `Record` field *references* the
+  type. A name is not a declaration.)
+- **The consequence, also proven by run** (`probe-arc278-nullary-enum-process-repro.wat`): a
+  program-level `defenum` named in `:durable` and matched in an op body **does not cross a process
+  fork**. The child has the type's NAME but not its VARIANTS, treats it as open-typed, and dies at
+  startup. **Thread locus green, process locus dead** — locus-dependent silent divergence.
 
-**Prove before briefing:** (a) that `(-op [s ctx])` is representable today (ten-line probe — do NOT
-assert it); (b) that the `~@` splice composes across both context types, which is B's one real cost.
+### The one thing in the way, and there is only one
 
-## ▶ THEN — the connection-scoped world. Its blocker is named above.
+`fn-forms` on a service's `serve` **raises**:
 
-`DESIGN-STONE-the-connection-scoped-world.md` is ruled and corrected. **Do NOT re-derive it.** ctx now
-supplies the caller identity it was waiting on. What remains for it:
+```
+closure-extract internal: captured `def`-bound name
+:probe::FFX::PING-MAX-REQUEST-BYTES not yet supported by closure extraction (slice 1)
+                                                        — src/closure_extract.rs:769
+```
 
-1. **Lifecycle hooks** — threading USER state on `Connection`/`Closed`/`Lost`. Today all three arms
-   pass `state` through **unchanged** (`service.wat:1414`/`:1503`/`:1513`), so there is nowhere to
-   create or destroy an entry. **The hook's signature is UNDESIGNED** — that design is the first work,
-   deliberately kept out of the ctx strike rather than smuggled in.
-2. **The map**, keyed on ctx's caller id — never on `idx`.
+Every op's `:max-request-bytes` becomes a top-level `def`. The site's own comment says *"a future arc
+opens IFF a caller surfaces wanting it"* — **one has.**
 
-> **The line numbers above were RE-GROUNDED 2026-08-09** — the ctx strike shifted every one of them
-> and the prior seam carried the pre-strike values (`:1265`/`:1351`/`:1361`, `:1058`/`:1061`). Trust
-> the arm names over any number here; re-grep before you cite.
+**⚠ PROVEN by an enumeration probe (stub the arm to skip → rebuild → re-run → revert):** with `def`
+skipped, extraction **completes, exit 0, no second wall.** No unresolved symbol, no portability
+refusal. For this service `def` is the ONLY blocker. The stub was reverted; `git diff` on that file
+is 0 and the probe is RED again at the same line.
 
-**⚠ The traps, all grounded, all ship GREEN when wrong:**
-- **`idx` is a POSITION and shifts on every eviction.** A map keyed on it hands one tenant another's
-  rules and cursor. Nothing crashes. The ctx strike's stability gate is the shape to copy: three
-  clients, evict the MIDDLE one, assert a survivor still sees its ORIGINAL id.
-- **There are FIVE `remove-at selectables idx` sites, not four — and THREE evict a CLIENT.** The prior
-  seam said "four, two are timers" and **omitted `Rejected` entirely**. The census, re-run 2026-08-09:
-  - `:1147` · `:1150` — a fired **ALARM TIMER** (the internal 1-param arm). Per-connection bookkeeping
-    must NOT fire here.
-  - `:1504` **`Closed`** · `:1516` **`Lost`** · `:1550` **`Rejected`** — client evictions. **`Rejected`
-    is the over-budget frame path** (reply `Failed`, then evict, then keep serving); a world torn down
-    on `Closed`/`Lost` only would LEAK on every oversized-frame eviction.
-- **A timer's id slot is the sentinel `-1`** (`service.wat:1104-1109`), minted so the vector's element
-  type stays uniform, and never read — real caller ids are minted `>= 0` in the `Connection` arm. So a
-  caller-id-keyed map cannot collide with a timer, but `-1` must never be inserted as a key.
+### What the extractor must become — the builder's framing, and it is sharper than "ship everything"
 
-## ⛔ STILL OPEN
+The child is the same `wat` binary and bakes the whole stdlib (`src/stdlib.rs`, 96 files,
+`include_str!`, no load gate). Forms stream as EDN over the fork's **stdin** (`receive_in_child(0,1)`
+— two frames, substrate + program) and the child runs what it DECODED. So the invariant is:
 
-**Owed casts — the ctx one is PAID (2026-08-09).** `CallCtx` → **`Invocation`**, cast and ratified by
-the builder; the field shipped as `caller-id` and is now **`conn-id`**, matching what the brief and
-the stone always said. Recorded migration: `wat-scripts/fixes/rename-call-ctx-to-invocation.wat`
-(the type prefix, the accessor, and the `:caller-id` kwarg via `rename-keyword-prefix`; the bare
-field symbol in the `defrecord` is the one site the verb cannot reach and was edited by hand).
-The ward's reasoning, kept because it generalises: `Ctx` fails intueri's own carve-out (*"ctx is
-acceptable when the TYPE speaks"* — here `Ctx` **is** the type), and the record braids three
-lifetimes, so `Invocation` names the **event** rather than any one field's scope. The binder stays
-`ctx`, judged separately, earning brevity by scope like `s` and `req`.
+> **ship everything reachable from the entry, MINUS what the child already bakes.**
 
-⚠ Two of the ward's supporting claims did **not** survive weighing, and neither should be reused:
-it argued the register from five `:wat::service::` siblings when there are **three** (`Alarm`,
-`Outcome`, `Invocation` — `Handle`/`State`/`Record` are per-service macro-generated), and it called
-`Invocation` a clean namespace when the word already appears twice in Rust doc comments meaning
-*an enum-variant call expression*. The recommendation stood; those two arguments did not.
+The 2026-08-02 ruling (`DESIGN-STONE-the-child-needs-the-entry-not-the-library`) fixed
+**over-shipping** with a blanket *"nothing `:wat::`-rooted"* — a **proxy** for "what the bake has,"
+correct only while the two coincide. A closure computed against the bake is right in both directions;
+a namespace prefix is right in one. **The same manifest has now failed BOTH ways** — too much on
+2026-08-02 (14 tests red), too little today.
 
-**Still owed:** the correlation surface's namespace/type — a completed intueri verdict awaits
-ratification (`:wat::correlation::Correlation`, runner-up `:wat::correlation::Scope`; `Scope` judged
-Level-2 for colliding with lexical/sandbox/`wat_dispatch` scope). `resource-id` was rejected —
-"resource" here means a live handle that cannot cross a wire, and this is pure data.
+And the builder's question is the correct level: *"why is service called out specifically? this should
+be a property of spawn itself."* `spawn-process` accepts any forms vector and never asks whether it is
+self-contained. Two callers, one honours it. That is a CONVENTION — rung 1.
 
-**Telemetry, and the builder's bar is already met:** *"i do not care that we don't have reads written
-— we need the data written such that a read can be built trivially."* The WRITE side is complete —
-every `Metric` and `Log` writes the `by-uuid` correlation GSI (`journal.wat:12`/`:46`/`:59`, schema
-`:99`). What is missing is a READER: `query-metrics`/`query-logs` call `Store/scan` on the base table
-and **never** `Store/scan-index`, so the uuid pivot cannot be performed. `Store/scan-index` is built
-and proven (`query.wat:527`; `probe_arc278_tagged_keys_store.wat` Test B). **One op, not a mechanism.**
+**Four-questions ruled:** (a) fix `defservice` only → fails Honest (leaves the class); (b) **spawn takes
+an ENTRY and computes the closure → 4/4**; (c) spawn walls an incomplete manifest → fails Simple (two
+derivations of one fact); (d) document it → fails Honest. **(b).** And (c) falls out free — the wall's
+check IS the closure computation, so running both during the migration names every silent under-ship.
 
-**The ctx→telemetry refinement** (whether ctx splices a shared correlation surface, the relocation,
-`tags`) — `DESIGN-STONE-the-call-context.md` § SCOPE CUT. A later splice replaces hand-declared fields
-without touching a call site, so none of it is urgent.
+## ▶ FIRST ACT — teach closure extraction about `def`-bound names
 
-**★ A RULING WITH A SHORT SHELF LIFE — write it into #49a before #49a is built.** The claim
-*"rules are data, a Session is pure, worlds are serializable"* is **true today** (`wat/rete.wat:184`
-— `network` is a PersistentMap of node RECORDS, `rules` is the rule-set as data, and the alpha/beta
-memories are fire-scoped and come back EMPTY) and **expires the moment the compiled `where` lands**,
-because that is precisely the artifact that would put a non-data thing inside a `Rule`. The builder
-saw this coming: *"'rules are data' will be valid for like… days?.. hours?"*
+`closure_extract.rs:769`. The arm should record the `def` as a dependency so its define lands in the
+prologue, mirroring what the function/type arms already do. A `def` bound to a non-portable VALUE
+should then refuse through the existing `encode_value` arms (`Sender`/`Receiver`/`HandlePool`/
+`ChildHandle`/`IOReader`/`IOWriter`), which is correct, not a regression.
 
-The fork, cheap now and a migration later: **the compiled table must live kernel-side, derived from
-`{network, rules}`, and be reconstructible from the rule data alone — it must never enter `Session`
-or `Rule`.** Put it in the record and R5 dies (*store the thunk, not the answer*), EDN dies, 293.W
-refuses it in `:durable`, and we have rebuilt Clara's version-fragile `durability.clj` blob — the one
-thing this engine's whole snapshot story exists to not be. That is R22 `OCVLI NOVI, ORACVLVM
-IMMOTVM` one layer down: the kernel grows a faster *sight* of the same data, the data does not
-change. Add it to #49a as a STOP while the thing is still unbuilt.
+Its RED gate exists and is on disk: the probe above fails at that exact line today.
 
-**Recorded, not fixed:** `NOTE-serve-loop-peer-projection-cost.md` — the bare-peer projection is
-spliced RAW at both the `poll` and `serve-dispatch-op` sites, so it evaluates **twice per message**,
-O(N) in clients, in the multiplexer's hot path. No gate measures it (tests use 1–3 clients; there is
-no many-client bench). Fixes ranked in the note; **measure before choosing.**
+**THEN:** route `defservice`'s child-forms through it → then the spawn-boundary change (b) → then the
+lifecycle strike, which is drawn and briefed and only blocked on this.
 
-**Also open:** the six unregistered core types (`PersistentMap`, `PersistentVector`, `WatAST`,
-`HolonAST`, `time::Instant`, `time::Duration`) that keep `is_pure_type`'s `None => true` alive —
-arc **255**'s registry, worklist in `BRIEF-opaque-purity-self-enrolls.md` § NOT IN SCOPE. #87 `bound_expr`
-(limits are the builder's, from a real distribution). #49 the IR. #7 · #17 · #19 · #20 · #50 · #58 ·
-#60 · #64 · #67 · #81.
+## ⛔ ALSO OPEN
+
+**The lifecycle strike** — `DESIGN-STONE-connection-lifecycle-ops.md` + `BRIEF-connection-lifecycle-ops.md`,
+fully drawn, ten STOPs, gate specified. `-on-connect` MAY REFUSE (ruled): it gets its own
+`Accept | Refuse(reason)` outcome, and the refusal plumbing is the `Rejected` arm's `try-send`-then-drop
+reused verbatim. **STOP-8: `next-id` increments on a refusal too** — nothing else in the gate catches an
+id rollback. The admission type's NAME is a marked placeholder (`:wat::kernel::ConnectOutcome` is taken);
+cheap here because zero arms declare it.
+
+**Owed casts:** the admission type; the correlation surface (verdict `:wat::correlation::Correlation`
+awaiting ratification).
+
+**Rete-as-a-service, ruled but unbuilt:** a per-connection ratchet — `install-rules` (chunked EDN; the
+PARSE is the check, no sequence counters; home is #18/#19) → `insert-facts ×N` → `fire-rules` →
+`query ×N`. **Each step forward closes every prior operation.** ONE `:ephemeral` map, value = the user's
+own enum whose CONSTRUCTOR is the phase — never two maps, never a tracker field. `sift-rules` is NOT
+prior art: alpha-only, upstream, it PRODUCES the facts this consumes.
+
+**Older:** #87 · #49 · #7 · #17 · #19 · #20 · #50 · #58 · #60 · #64 · #67 · #81.
 
 ## The rules this stretch paid for
 
-- **A CONTENT question and a MECHANISM question have different difficulty — never defer the cheap one
-  on the hard one's grounds.** I cut ctx to one field because *splicing a shared surface* was hard;
-  four of the five were compile-time literals the macro already held. Cost would have been the same
-  120 call sites migrated twice. ([[feedback_do_not_defer_content_on_mechanisms_difficulty]])
-- **An asymmetry claim is TWO claims.** "A log has no caller; a request has no facility" — I checked
-  the first half only, and the second was false. Twice this session, both caught by the builder.
-  ([[feedback_ground_each_case_before_the_verdict]], new face)
-- **A test filter matching ZERO tests reports PASS.** My brief named a control by name; both its tests
-  were pre-existing `#[ignore]`d, so `nextest -E` matched nothing and exited 0. Verify a control is
-  ALIVE (`nextest list -E`), not merely named. ([[feedback_a_green_test_can_prove_nothing]])
-- **A brief and its spawn prompt are ONE artifact.** Mine contradicted across the two channels and
-  left a rider with no compliant move. ([[feedback_brief_constraint_contradictions]])
-- **A hole-demonstration cannot live where everything must load.** I put a probe that had to go RED
-  when fixed inside the loader gate. `.wat.bad` from the start, where red IS pass.
+- **Search for the MECHANISM by capability, never in the broken caller's own neighbourhood** — I
+  searched every file `defservice` touches, found nothing, and told the builder three times the tooling
+  did not exist. It was 2933 lines away, named for the capability, used by a sibling.
+  ([[feedback_search_for_the_mechanism_not_in_the_broken_callers_neighbourhood]])
+- **Told "go measure," I READ and wrote "Measured" over it** — and the read was wrong on the axis that
+  decided it. A run took four minutes. ([[feedback_measure_the_decomposition_never_read_it]])
+- **Any multi-option decision gets the four questions on EVERY option, flat** — enumerating surfaced a
+  4th option that read BEST and failed Honest.
+  ([[feedback_four_questions_for_any_multi_option_decision]])
+- **A targeted test filter cannot see the whole floor.** A rider reported "no STOPs fired" while the
+  floor was red in two places its filter could not reach. Splitting the gate between rider and
+  orchestrator, then asking for a verdict spanning both halves, is the orchestrator's bug.
+- **A name is not a declaration.** A substring needle hits every USE site. Search for the declaring form.
 
 ## Weigh a rider; never relay it
 
-Both riders this stretch **corrected my briefs on grounded evidence**, and both corrections were
-right: the room map for the opaque strike named a function that is dead code for that rule, and the
-ctx strike's blast radius genuinely reached `wat/spawn.wat` (a fixed-arity `apply` whose callee check
-is fully dynamic — a missed arg would have failed at RUNTIME on every thread-tier launch). But a
-ward's verdict is also a hypothesis: intueri claimed *no sibling narrates with an active verb*, and
-`ProcessJoinHoldsStdinSender` refutes it. **The recommendation survived; that argument did not.**
+Both riders this stretch produced real work AND a false green. The ctx rider's macro fix was correct
+and its `.wat.bad` finding was a catch I would have missed — and its floor was red in two places. The
+lifecycle rider thrashed, but its `v7` repro is the artifact that opened this whole finding. **Read the
+diff, run the floor yourself, and keep what the rider found even when you discard what it built.**
 
 ---
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> HEAD is green, pushed, clean. A handler can finally be told who is calling — and the connection-
-> scoped world, blocked on exactly that since the arc's start, is now waiting only on a hook whose
-> signature nobody has designed yet.
+> The arc's shape changed today. We were building a lifecycle hook; we found that a forked child does
+> not receive the program it needs, that the substrate has had the tool to fix it since arc 170, and
+> that nobody had wired it. The lifecycle work is drawn and waiting behind one arm in one Rust file.
 >
-> The line this stretch cost the most to buy: **the realization that you need a carrier IS the
-> realization to put in it what you already know it will carry.** I nearly shipped a three-field
-> context and migrated the same call sites twice to finish it.
+> The line that cost the most: **when one caller is broken, its own code paths are the last place the
+> missing mechanism will be — they are the set that shares its assumption.**
 >
 > `NISI FRANGAS, NIHIL PROBAS.` · `IN TENEBRIS VISVS CORRIGOR.`
