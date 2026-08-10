@@ -184,10 +184,100 @@ the defs text. Storing defs and re-deriving per message would build the oracle i
 
 ---
 
-## Not decided here
+## ✔ PRECONDITION (a) — ANSWERED BY PROBE, 2026-08-09. It is worse than "not representable."
 
-- Whether `(-op [s ctx])` is representable today, or whether the current arity handling reads a
-  2-param internal op as a public one. **A ten-line probe answers it; do not assert it.**
+The question was whether `(-op [s ctx])` works today. **It type-checks green and silently drops the
+second binder.**
+
+Probe: `tests/services/probe_arc278_self_scheduling.wat` copied to `/tmp`, its `(-tick [s])` changed
+to `(-tick [s ctx])`, `target/release/wat --check` → **exit 0, no output**. Then the body was made to
+actually REFERENCE `ctx` (`[_c ctx …]` in its `let`) → **still exit 0, no output.**
+(Exit code read directly, not through a pipe — the first attempt read `head`'s status, the trap
+`CLAUDE.md` names.)
+
+**The mechanism, read at the emission site** (`wat/service.wat:1107-1111`): the internal branch
+builds
+
+```clojure
+binding-items  [s-binder, state]                        ;; TWO items, always
+let-bindings   (with-children param-vec binding-items)  ;; takes param-vec's SHAPE, not its contents
+```
+
+so the emitted `let` binds `s`→`state` and **nothing else, whatever `param-vec` contains.** A second
+param is not rejected, not bound, not mentioned — it is read past. And because `--check` is not a
+complete RED arbiter for unbound symbols (`[[reference_check_is_not_a_complete_red_arbiter]]`), a
+body that uses the dropped binder also passes.
+
+**Not a regression from the ctx strike.** The internal branch's `let-bindings` is documented in-file
+as byte-identical to its pre-strike form; the ctx strike added arity dispatch to the PUBLIC branch
+only. This is a latent silent-discard the design walked into, not one it created.
+
+**Consequence for this stone:** `(-op [s ctx])` is not a form that needs permitting — it is a form
+that currently LIES. The internal branch must be changed to bind a ctx, and until it is, any
+`.wat` written to this design would compile and quietly do nothing. That is the shape of defect this
+arc exists to delete, so it is a STOP for the strike, not a footnote.
+
+## ★ THE STRUCTURE, RULED — THREE records over ONE spliced core, and NO Options anywhere
+
+Weighing B surfaced that there are **three** kinds of invocation, not two, and their field sets are a
+strict NESTING. Expressed with the shipped `~@` surface-splice (`wat/telemetry.wat:84`, `Scope` into
+`Metric`/`Log`):
+
+```clojure
+(:wat::core::defsurface :wat::service::InvocationCore          ;; name owed a cast
+  :nature :wat::core::Record
+  :features [namespace  <- :wat::core::keyword     ;; service fqdn — compile-time literal
+             operation  <- :wat::core::String      ;; op arm's name — compile-time literal
+             request-id <- :wat::core::Uuid        ;; minted by the SERVER, per dispatch
+             start-ns   <- :wat::core::i64])
+
+(:wat::core::defrecord :wat::service::<A>          ;; SELF-originated: a timer fired
+  [~@:wat::service::InvocationCore])
+
+(:wat::core::defrecord :wat::service::<B>          ;; CONNECTION-originated, no client message
+  [~@:wat::service::InvocationCore                 ;;   -on-connect / -on-disconnect
+   conn-id <- :wat::core::i64])
+
+(:wat::core::defrecord :wat::service::Invocation   ;; a CLIENT CALL
+  [~@:wat::service::InvocationCore
+   conn-id   <- :wat::core::i64
+   parent-id <- :wat::core::Uuid])                 ;; name owed a cast
+```
+
+### The caller's id — trust, and why it is NOT optional
+
+The server mints `request-id` **unconditionally**; that is this invocation's identity. `parent-id`
+is a *different* value: the id of the invocation on the CALLER's side that caused this one. It
+arrives as data and is used **only to draw an edge** — never keyed on, never trusted, never adopted.
+A hostile client can put anything there; the worst outcome is a false edge in its own trace. This is
+W3C Trace Context's move (mint your own span, record the caller's as parent), applied rather than
+invented.
+
+**It is MANDATORY, not an `Option`.** The client is OUR generated code and always mints and sends
+one, so a request lacking it is *malformed* — an existing named failure — not a legitimate absence.
+The `Option` that earlier drafts carried was an artifact of forgetting we generate the client, and
+it would have re-created the very cannot/did-not-look ambiguity that option B was chosen to kill
+(for kinds A and B, "absent" would have meant *no client message exists at all*).
+
+### The rejected alternative, expressed rather than gestured at
+
+The builder cut the word "envelope" — *"to me its a bucket of runtime unpacking.... wat is strong
+ADT .... let's see these expressed"*. Written out honestly it is not a bag, it is a typed generic
+wrapper:
+
+```clojure
+(:wat::core::defrecord :wat::service::Call<R>
+  [parent-id <- :wat::core::Uuid
+   request   <- R])
+;; arm: (op [s ctx call]) → every body must unwrap: (:wat::service::Call/request call)
+```
+
+**Rejected because it changes every request access in every body**, bolting a second migration onto
+the ctx migration for the sake of one field. Materialising both forms is what settled it — the
+apparatus had argued FOR this shape twice under the word "envelope," and seeing it written killed it
+(R17 self-prompt-injection: reason against the real form, never the description of one).
+
+## Not decided here
 - The two context types' NAMES. `Invocation` is ratified for the connection-originated one; its
   self-originated sibling is unnamed and owes an intueri cast.
 - The lifecycle event set beyond `-on-connect` / `-on-disconnect`, and whether the three eviction
