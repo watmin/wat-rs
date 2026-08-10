@@ -17,5 +17,5 @@
   :durable :wat::core::i64          ;; ← the DEFECT under test: bare type keyword, not a field vector
   :ephemeral []
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s (:my::Counter::GetResponse::Ok 0)))])

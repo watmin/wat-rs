@@ -28,7 +28,7 @@
   :durable   [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(create-web-acl [s req]
+  [(create-web-acl [s ctx req]
      (:wat::service::Outcome::Reply s
        (:my::aws::Waf::CreateWebACLResponse::Ok (:my::waf::Record/count (:my::waf::State/durable s)))))])
 

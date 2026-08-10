@@ -17,7 +17,7 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(increment [s req]
+  [(increment [s ctx req]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) (:my::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c)) (:my::Counter::IncrementResponse::Ok c))))])
 

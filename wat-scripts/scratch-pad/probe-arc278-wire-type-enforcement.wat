@@ -53,7 +53,7 @@
   :durable   [n <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(put [s req]
+  [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe-wire::Bag::PutResponse::Ok
          (:wat::edn::write (:probe-wire::Bag::PutRequest/items req)))))])

@@ -62,7 +62,15 @@
   :ReplyAndArm   [state <- :S  reply <- :R  arms <- :wat::core::Vector<wat::service::Alarm<O>>]
   :NoReplyAndArm [state <- :S  arms <- :wat::core::Vector<wat::service::Alarm<O>>])
 
-;; ── Invocation — the OPT-IN third arm param, `[s ctx req]` (arc 278 the call context) ─────
+;; ── Invocation — the MANDATORY third arm param, `[s ctx req]` (arc 278 the call context) ──
+;;
+;; ★ SUPERSEDED 2026-08-09 by DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md: ctx is no longer
+;; opt-in (see "THE SHAPE, RULED" + "PRECONDITION (a)" there). Every public arm now takes
+;; `[s ctx req]` unconditionally; every internal (`-`) arm takes `[s ctx]` and receives a
+;; `SelfInvocation` (see the InvocationCore/SelfInvocation/LifecycleInvocation/Invocation family
+;; just below this block, and STOP-0 there — the internal branch used to silently drop ctx). The
+;; "OPT-IN"/arity-dispatch history below is kept for the field-level detail that still holds
+;; (conn-id/namespace/operation semantics); do not read it as describing current arm shapes.
 ;;
 ;; NAME RATIFIED 2026-08-09 (was the placeholder `CallCtx`; STOP-5's owed intueri cast is now
 ;; PAID). The ward judged `CallCtx` a Level-2 mumble on two axes: `Ctx` fails intueri's own
@@ -94,10 +102,13 @@
 ;;   namespace  — the service's own fqdn (`fqdn-kw`), a compile-time literal spliced by the macro.
 ;;   operation  — the op arm's own kebab name (`op-str`), a compile-time literal spliced by the
 ;;                macro.
-;;   request-id — one `Uuid/v4`, minted fresh per call in the serve loop.
-;;   start-ns   — one clock read (`epoch-nanos (now)`), stamped fresh per call in the serve loop.
-;; STOP-3/STOP-6 (brief): internal (`-`) ops get NO ctx at all (their 1-param `[s]` arm is
-;; untouched), and this strike does not build lifecycle hooks — it only mints + carries the id.
+;;   invocation-id — one `Uuid/v4`, minted fresh per call in the serve loop (renamed from
+;;                   `request-id`, 2026-08-09 intueri cast — see InvocationCore below).
+;;   start-ns      — one clock read (`epoch-nanos (now)`), stamped fresh per call in the serve loop.
+;; SUPERSEDED (was STOP-3/STOP-6 in the opt-in brief): internal (`-`) ops now DO get a ctx — a
+;; `SelfInvocation`, never an `Invocation` (it has no connection, so it has no `conn-id` field to
+;; populate — structural, not a runtime `Option`). Lifecycle hooks (`-on-connect`/`-on-disconnect`)
+;; are still not built by this strike — `LifecycleInvocation` is declared and unused on purpose.
 ;; ── InvocationCore — the four facts EVERY invocation has, spliced into all three ─────────
 ;;
 ;; There are THREE kinds of invocation and their field sets are a strict NESTING, so the shared
@@ -1127,11 +1138,38 @@
                                                   (:wat::core::range 0 (:wat::core::length internal-op-kw-strs)))) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::core::macro-error (:wat::core::string::concat "defservice: internal-op body did not re-parse: " (:wat::core::Error/message __cause)))))))
                                           body0)
                           param-ch      (:wat::core::ast->children param-vec)
+                          arity         (:wat::core::length param-ch)
+                          ;; arc 278 ctx-is-mandatory — DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md
+                          ;; "THE SHAPE, RULED": the discriminator is the NAME (is-internal, computed
+                          ;; above from the leading `-`); arity is NEVER an input to what an arm means
+                          ;; (STOP-2) — it is consulted only here, to REFUSE a wrong shape, located and
+                          ;; naming the op.
+                          ;;   internal  -op [s ctx]     → arity 2, ctx : SelfInvocation
+                          ;;   public     op [s ctx req] → arity 3, ctx : Invocation
+                          _arity-ok     (:wat::core::if is-internal
+                                          (:wat::core::if (:wat::core::= arity 2)
+                                            nil
+                                            (:wat::core::macro-error
+                                              (:wat::core::string::concat "defservice: internal op '"
+                                                (:wat::core::string::concat op-str
+                                                  (:wat::core::string::concat "' must have shape [s ctx] (2 params); got "
+                                                    (:wat::core::string::concat (:wat::core::i64::to-string arity) " params"))))))
+                                          (:wat::core::if (:wat::core::= arity 3)
+                                            nil
+                                            (:wat::core::macro-error
+                                              (:wat::core::string::concat "defservice: public op '"
+                                                (:wat::core::string::concat op-str
+                                                  (:wat::core::string::concat "' must have shape [s ctx req] (3 params); got "
+                                                    (:wat::core::string::concat (:wat::core::i64::to-string arity) " params")))))))
                           s-binder      (:wat::core::first param-ch)
+                          ;; ctx-binder — the SECOND param, ALWAYS: both valid shapes ([s ctx] and
+                          ;; [s ctx req]) place ctx at index 1. Safe once _arity-ok has passed (every
+                          ;; surviving arity is >= 2).
+                          ctx-binder    (:wat::core::first (:wat::core::rest param-ch))
                           ;; dash-preserved variant pascal (SCOPED — strip `-`, kebab->pascal,
                           ;; re-prepend `-`; NOT the global kebab_to_pascal_with_acronyms).
                           variant-pascal (:wat::core::if is-internal
-                                           
+
                                            (:wat::core::string::concat "-"
                                              (:wat::core::string::kebab->pascal-in surface-kw
                                                (:wat::core::string::subs op-str 1 (:wat::core::string::length op-str))))
@@ -1146,10 +1184,36 @@
                                              (:wat::core::string::concat proto-base
                                                (:wat::core::string::concat "::Reply::" variant-pascal)))
                           state-sym     (:wat::core::symbol-node "state")
-                          ;; let-bindings [s-binder state] — bind the impl's state param to serve's `state`.
+                          ;; arc 278 ctx-is-mandatory — the ctx CONSTRUCTOR CALLS, built here at
+                          ;; macro-expand time. `~fqdn-kw`/`~op-str` splice as LITERALS;
+                          ;; `selectables`/`idx` are bare — literal identifiers in the GENERATED code,
+                          ;; evaluated at RUNTIME inside the serve loop (the impure boundary: the live
+                          ;; connection table, a fresh Uuid, a clock read) — never at macro-expand
+                          ;; time. Both forms are always built (cheap AST data, never evaluated here);
+                          ;; only the is-internal branch below picks which one is spliced.
+                          self-ctx-ctor-expr `(:wat::service::SelfInvocation
+                                                 :namespace      ~fqdn-kw
+                                                 :operation      ~op-str
+                                                 :invocation-id (:wat::core::Uuid/v4)
+                                                 :start-ns       (:wat::time::epoch-nanos (:wat::time::now)))
+                          pub-ctx-ctor-expr  `(:wat::service::Invocation
+                                                 :conn-id        (:wat::core::first (:wat::core::nth selectables idx))
+                                                 :namespace      ~fqdn-kw
+                                                 :operation      ~op-str
+                                                 :invocation-id (:wat::core::Uuid/v4)
+                                                 :start-ns       (:wat::time::epoch-nanos (:wat::time::now)))
+                          ;; let-bindings [s-binder state ctx-binder self-ctx-ctor-expr] — the
+                          ;; INTERNAL arm's binding vector. STOP-0, FIXED: a SelfInvocation ctx is now
+                          ;; bound (was silently dropped — `with-children` takes param-vec's SHAPE,
+                          ;; never its CONTENTS, so the old 2-item binding-items list bound only
+                          ;; [s-binder state] whatever the param vector held).
                           binding-items (:wat::core::conj
-                                          (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
-                                          state-sym)
+                                          (:wat::core::conj
+                                            (:wat::core::conj
+                                              (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
+                                              state-sym)
+                                            ctx-binder)
+                                          self-ctx-ctor-expr)
                           let-bindings  (:wat::core::with-children param-vec binding-items)
                           ;; the ARM fn — folds each Alarm into `selectables` as an `after` timer at
                           ;; the service's OWN tier (env-grab own-kind → both loci). alarm.op is a
@@ -1160,9 +1224,10 @@
                           ;; too, purely to keep the vector's element type uniform. `-1` is a
                           ;; SENTINEL, never a real caller id (real ids are minted >= 0 in the
                           ;; Connection arm) — and it is never READ: a fired timer only ever
-                          ;; dispatches through the INTERNAL (1-param `[s]`) arm, which STOP-3
-                          ;; forbids from receiving a ctx at all, so nothing ever asks this
-                          ;; sentinel for a caller identity.
+                          ;; dispatches through the INTERNAL (`[s ctx]`) arm, whose ctx is a
+                          ;; `SelfInvocation` — a type with NO `conn-id` field at all (STOP-3: an
+                          ;; internal op never gets a caller identity, STRUCTURALLY, not merely by
+                          ;; convention) — so nothing ever asks this sentinel for one.
                           arm-acc-sym   (:wat::core::symbol-node "acc")
                           arm-alarm-sym (:wat::core::symbol-node "alarm")
                           ;; `after` is honestly typed `Peer<Never,O>` (it can never RECEIVE a
@@ -1192,7 +1257,7 @@
                                                      (:wat::service::Alarm/op ~arm-alarm-sym)))))))]
                          (:wat::core::if is-internal
                            
-                           ;; ── INTERNAL op arm (1-param [s]) ──────────────────────────────────────
+                           ;; ── INTERNAL op arm (2-param [s ctx], ctx : SelfInvocation) ────────────
                            ;; No req-binder, no #16.2 guard, no reply variant. On fire → REMOVE the
                            ;; one-shot timer's idx, then arm any re-arms. Reply/Stop/ReplyAndArm are
                            ;; meaningless (no client) → a located assertion (never silently dropped).
@@ -1218,58 +1283,27 @@
                                     (:wat::kernel::assertion-failed!
                                       "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)"
                                       :wat::core::None :wat::core::None)))))
-                           ;; ── SURFACE op arm (2-param [s req] OR 3-param [s ctx req]) ────────────
+                           ;; ── SURFACE op arm (3-param [s ctx req], ctx : Invocation) ─────────────
                            ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
                            ;; client persists even on a NoReply cast). …AndArm folds new timers in.
-                           ;; arc 278 the call context — arity dispatch on param-vec's length is the
-                           ;; SECOND axis on top of the is-internal branch above (the precedent this
-                           ;; brief names: `service.wat:1048`, the macro already branches arm shape).
-                           ;; has-ctx?/req-binder/ctx-binder are all MACRO-EXPAND-TIME conditionals
-                           ;; (param-ch is macro-time AST data), so for an ORDINARY 2-param op every
-                           ;; one of them folds back to EXACTLY the original expression below —
-                           ;; STOP-1: zero emitted-code change for an existing `[s req]` arm.
+                           ;; arc 278 ctx-is-mandatory — ctx is UNCONDITIONAL: `_arity-ok` above has
+                           ;; already refused any arm that is not exactly [s ctx req], so there is no
+                           ;; longer a fallback shape to dispatch on here (STOP-2: arity is never an
+                           ;; input to what an arm means).
                            (:wat::core::let
-                             [arity         (:wat::core::length param-ch)
-                              has-ctx?      (:wat::core::= arity 3)
-                              req-binder    (:wat::core::if has-ctx?
-                                              (:wat::core::first (:wat::core::rest (:wat::core::rest param-ch)))
-                                              (:wat::core::first (:wat::core::rest param-ch)))
-                              ;; ctx-binder is only ever EMITTED when has-ctx? — the fallback value
-                              ;; (req-binder) is never referenced in generated code on the 2-param
-                              ;; path; it exists only so this `let` binding is well-formed either way.
-                              ctx-binder    (:wat::core::if has-ctx?
-                                              (:wat::core::first (:wat::core::rest param-ch))
-                                              req-binder)
-                              ;; ctx-ctor-expr — the ctx CONSTRUCTOR CALL, built here at macro-expand
-                              ;; time. `~fqdn-kw`/`~op-str` splice as LITERALS (the macro already
-                              ;; holds them for other purposes — fqdn-kw / op-str, per the design
-                              ;; stone); `selectables`/`idx`/`next-id` are bare — literal identifiers
-                              ;; in the GENERATED code, evaluated at RUNTIME inside the serve loop
-                              ;; (the impure boundary: the live connection table, a fresh Uuid, a
-                              ;; clock read) — never at macro-expand time.
-                              ctx-ctor-expr `(:wat::service::Invocation
-                                                :conn-id  (:wat::core::first (:wat::core::nth selectables idx))
-                                                :namespace  ~fqdn-kw
-                                                :operation  ~op-str
-                                                :invocation-id (:wat::core::Uuid/v4)
-                                                :start-ns   (:wat::time::epoch-nanos (:wat::time::now)))
-                              ;; arm-let-bindings — [s-binder state] for a 2-param op (BYTE-IDENTICAL
-                              ;; to the pre-strike `let-bindings`, reused unchanged: the fallback arm
-                              ;; below IS `let-bindings`, not a re-derivation); [s-binder state
-                              ;; ctx-binder ctx-ctor-expr] for a 3-param op — ctx is bound via LET
-                              ;; (never a match-pattern field): it is synthesized locally, not part
-                              ;; of the wire message (the Op variant still carries exactly one field,
-                              ;; `req` — STOP-1 again: the wire/dispatch pattern never changes shape).
-                              arm-let-bindings (:wat::core::if has-ctx?
-                                                  (:wat::core::with-children param-vec
+                             [req-binder    (:wat::core::first (:wat::core::rest (:wat::core::rest param-ch)))
+                              ;; arm-let-bindings — [s-binder state ctx-binder pub-ctx-ctor-expr] —
+                              ;; ctx is bound via LET (never a match-pattern field): it is synthesized
+                              ;; locally, not part of the wire message (the Op variant still carries
+                              ;; exactly one field, `req`).
+                              arm-let-bindings (:wat::core::with-children param-vec
+                                                  (:wat::core::conj
                                                     (:wat::core::conj
                                                       (:wat::core::conj
-                                                        (:wat::core::conj
-                                                          (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
-                                                          state-sym)
-                                                        ctx-binder)
-                                                      ctx-ctor-expr))
-                                                  let-bindings)
+                                                        (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
+                                                        state-sym)
+                                                      ctx-binder)
+                                                    pub-ctx-ctor-expr))
                               op-upper      (:wat::core::string::to-uppercase op-str)
                               cap-const-kw  (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base

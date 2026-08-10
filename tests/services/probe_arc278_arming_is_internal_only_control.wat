@@ -37,14 +37,14 @@
   :ephemeral []
   :impls
   [;; The one difference from the sibling `.wat.bad`: arms `-tick` (INTERNAL), not `bump`.
-   (start [s req]
+   (start [s ctx req]
      (:wat::service::Outcome::ReplyAndArm s (:probe::Tick2::StartResponse::Ok)
        [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
           :op (:probe::tick2::Op::-Tick))]))
 
-   (bump [s req]
+   (bump [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Tick2::BumpResponse::Ok)))
 
-   (-tick [s]
+   (-tick [s ctx]
      (:wat::service::Outcome::NoReply s))])

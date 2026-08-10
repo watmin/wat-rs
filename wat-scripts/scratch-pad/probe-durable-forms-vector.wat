@@ -53,7 +53,7 @@
   :durable   [defs <- :wat::core::Vector<wat::WatAST>]
   :ephemeral []
   :impls
-  [(eval-src [s req]
+  [(eval-src [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::DurableForms::EvalSrcResponse::Ok
          (:probe::DurableForms::EvalSrcRequest/src req))))])

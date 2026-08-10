@@ -49,7 +49,7 @@
           -> :prod::producer::State
           (:prod::producer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
-  [(flood [s req]
+  [(flood [s ctx req]
      (:wat::core::let
        [count    (:prod::Producer::FloodRequest/count req)
         ns       (:prod::Producer::FloodRequest/namespace req)
@@ -118,7 +118,7 @@
           -> :cons::consumer::State
           (:cons::consumer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
-  [(sift [s req]
+  [(sift [s ctx req]
      (:wat::core::let
        [journal    (:cons::consumer::State/journal s)
         ns         (:cons::Consumer::SiftRequest/namespace req)

@@ -29,7 +29,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(do-op [s req]
+  [(do-op [s ctx req]
      (:wat::core::let
        [enc (:wat::edn::write req)
         n   (:wat::core::string::length enc)

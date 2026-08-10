@@ -1,0 +1,26 @@
+;; tests/services/probe_arc278_call_context_two_param_public_arm.wat.bad — NEGATIVE fixture for
+;; probe_arc278_call_context.rs (arc 278 ctx-is-mandatory, acceptance-gate item 3):
+;;
+;; A PUBLIC `defservice` op arm declared `[s req]` (2 params — the OLD opt-in shape) is now a
+;; LOCATED compile error naming the op: ctx is mandatory (`[s ctx req]`), and arity is never a
+;; fallback to dispatch on (STOP-2 — DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md). Loaded via
+;; startup_from_file; must fail. (A hole-demonstration cannot live where everything must load —
+;; so this is its own file, not folded into probe_arc278_call_context.wat.)
+
+(:wat::core::defsurface :probe::BadCtxArity :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :probe::BadCtxArity::PingRequest [])
+   (:wat::core::defenum :probe::BadCtxArity::PingResponse :wat::enum::Pure
+     :Ok               [ok <- :wat::core::bool]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(ping [self <- :probe::BadCtxArity  req <- :probe::BadCtxArity::PingRequest] -> :probe::BadCtxArity::PingResponse :max-request-bytes 524288)])
+
+(:wat::service::defservice :probe::badctxaritysvc
+  :satisfies :probe::BadCtxArity
+  :durable   []
+  :ephemeral []
+  :impls
+  [(ping [s req]
+     (:wat::service::Outcome::Reply s (:probe::BadCtxArity::PingResponse::Ok true)))])

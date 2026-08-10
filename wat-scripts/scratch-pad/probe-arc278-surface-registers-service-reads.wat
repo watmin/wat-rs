@@ -85,7 +85,7 @@
   ;; KWARGS spelling, which exists only as a defmacro minted while the SURFACE above was
   ;; hoisted. A defservice is a separate top-level form, so reaching it here means the
   ;; write crossed the boundary on the same registry instance — past `scratch.clone()`.
-  [(count [s req]
+  [(count [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Chan::CountResponse::Ok
          (:probe::Chan::Tally :n (:probe::chan-svc::State/seen s)))))])

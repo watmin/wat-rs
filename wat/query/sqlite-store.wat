@@ -259,7 +259,7 @@
                       "sqlite-store: synchronous=NORMAL pragma failed")]
               conn)))
   :impls
-  [(ensure-schema [s req]
+  [(ensure-schema [s ctx req]
      (:wat::core::let
        [table   (:wat::query::Store::EnsureSchemaRequest/table req)
         indexes (:wat::query::Store::EnsureSchemaRequest/indexes req)
@@ -273,7 +273,7 @@
             ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn indexes)))]
        (:wat::service::Outcome::Reply s (:wat::query::ensure-schema-response chained))))
 
-   (put [s req]
+   (put [s ctx req]
      (:wat::core::let
        [new-rows (:wat::query::Store::PutRequest/rows req)
         conn  (:wat::query::sqlite-store::State/conn s)
@@ -289,7 +289,7 @@
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
        (:wat::service::Outcome::Reply s (:wat::query::put-response chained))))
 
-   (scan [s req]
+   (scan [s ctx req]
      (:wat::core::let
        [conn (:wat::query::sqlite-store::State/conn s)
         pk   (:wat::query::Store::ScanRequest/pk req)
@@ -311,7 +311,7 @@
                    ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::row-from-cells cell-rows))))]
        (:wat::service::Outcome::Reply s (:wat::query::scan-response rows-res lim))))
 
-   (scan-index [s req]
+   (scan-index [s ctx req]
      (:wat::core::let
        [conn (:wat::query::sqlite-store::State/conn s)
         name (:wat::query::Store::ScanIndexRequest/index req)

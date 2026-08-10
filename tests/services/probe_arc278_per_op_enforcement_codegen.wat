@@ -29,7 +29,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(do-op [s req]
+  [(do-op [s ctx req]
      (:wat::service::Outcome::Reply s (:probe::Cap1::DoOpResponse::Ok 0)))])
 
 ;; Build an ASCII string of n*32 bytes (byte-length == char-length for ASCII).

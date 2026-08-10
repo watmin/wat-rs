@@ -16,7 +16,7 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(boom [s req]
+  [(boom [s ctx req]
      (:wat::kernel::assertion-failed!
        "RST-BASELINE-SENTINEL-7731 — the handler crashed on purpose"
        (:wat::core::Some "boom")

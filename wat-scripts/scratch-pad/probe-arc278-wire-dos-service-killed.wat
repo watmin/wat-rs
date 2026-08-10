@@ -41,7 +41,7 @@
   :durable   [n <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(put [s req]
+  [(put [s ctx req]
      ;; uses the field AT ITS DECLARED TYPE — correct against the declaration
      (:wat::service::Outcome::Reply s
        (:dos::Bag::PutResponse::Ok

@@ -209,7 +209,7 @@
   ;; `results[i]` answers `probes[i]` by construction. `put`'s fold is side-effect-only (dummy
   ;; `nil` accumulator, mirrors `wat/bracket.wat`'s per-item fan-out folds) — `PutResponse` carries
   ;; nothing back (file-header departure note).
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::cache::Cache::GetResponse::Ok
          (:wat::core::foldl
@@ -222,7 +222,7 @@
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
            (:wat::core::Vector :wat::cache::Cache::GetResult<V>)
            (:wat::cache::Cache::GetRequest/probes req)))))
-   (put [s req]
+   (put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::core::let
          [_ (:wat::core::foldl
@@ -402,7 +402,7 @@
   ;; before batching; `PutResponse::Ok []` (file-header departure note) now says the same thing at
   ;; the whole-batch level instead of a per-entry `Option`. Eviction is still OBSERVABLE through
   ;; the service — just via a later `get` miss, exactly as the gate proves.
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::cache::Cache::GetResponse::Ok
          (:wat::core::foldl
@@ -415,7 +415,7 @@
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
            (:wat::core::Vector :wat::cache::Cache::GetResult<wat::holon::HolonAST>)
            (:wat::cache::Cache::GetRequest/probes req)))))
-   (put [s req]
+   (put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::core::let
          [_ (:wat::core::foldl

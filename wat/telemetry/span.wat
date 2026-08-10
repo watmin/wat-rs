@@ -41,7 +41,7 @@
                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [;; incr — PURE: counters[name] + 1, thread new state.
-   (incr [s req]
+   (incr [s ctx req]
      (:wat::core::let
        [name (:wat::telemetry::Span::IncrRequest/name req)
         rec  (:wat::telemetry::span::State/durable s)
@@ -61,7 +61,7 @@
          (:wat::telemetry::Span::IncrResponse::Ok))))
 
    ;; timed — PURE: durations[name] ++ nanos, thread new state.
-   (timed [s req]
+   (timed [s ctx req]
      (:wat::core::let
        [name  (:wat::telemetry::Span::TimedRequest/name req)
         nanos (:wat::telemetry::Span::TimedRequest/nanos req)
@@ -82,7 +82,7 @@
          (:wat::telemetry::Span::TimedResponse::Ok))))
 
    ;; log — build a Log from this span's scope, write it through the sink NOW; state unchanged.
-   (log [s req]
+   (log [s ctx req]
      (:wat::core::let
        [rec (:wat::telemetry::span::State/durable s)
         now (:wat::time::epoch-nanos (:wat::time::now))
@@ -99,7 +99,7 @@
        (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok))))
 
    ;; close — emit counters + durations as Metrics to the sink; pass the write outcome through.
-   (close [s req]
+   (close [s ctx req]
      (:wat::core::let
        [rec (:wat::telemetry::span::State/durable s)
         ns    (:wat::telemetry::span::Record/namespace rec)

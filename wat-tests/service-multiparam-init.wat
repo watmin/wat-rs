@@ -33,7 +33,7 @@
           -> :wat-tests::offset-counter::State
           (:wat-tests::offset-counter::State :durable record :base offset))
   :impls
-  [(total [s req]
+  [(total [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::OffsetCounter::TotalResponse::Ok
          (:wat::core::i64::+

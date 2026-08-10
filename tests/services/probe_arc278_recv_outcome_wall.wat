@@ -47,12 +47,12 @@
   :init (:wat::core::fn [record <- :probe::crash::Record] -> :probe::crash::State
           (:probe::crash::State :durable record))
   :impls
-  [(boom [s req]
+  [(boom [s ctx req]
      (:wat::kernel::assertion-failed!
        "BOOM-CRASH-SENTINEL-9173"
        (:wat::core::Some "boom")
        (:wat::core::Some "ok")))
-   (boomrt [s req]
+   (boomrt [s ctx req]
      (:wat::core::let
        [zero (:probe::crash::Record/x (:probe::crash::State/durable s))
         _    (:wat::core::i64::quot 987654321 zero)]        ;; RTERR-QUOT-SENTINEL: DivisionByZero at runtime

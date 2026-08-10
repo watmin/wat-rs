@@ -55,7 +55,7 @@
   :durable [requests <- :wat::core::i64  sighup <- :wat::core::bool  user1 <- :wat::core::bool  user2 <- :wat::core::bool]
   :ephemeral []
   :impls
-  [(observe [s req]
+  [(observe [s ctx req]
      (:wat::core::let
        [d          (:wat-tests::signal-observer::State/durable s)
         new-reqs   (:wat::core::i64::+ (:wat-tests::signal-observer::Record/requests d) 1)

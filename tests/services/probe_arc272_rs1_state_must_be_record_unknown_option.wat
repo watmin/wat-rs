@@ -17,6 +17,6 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))]
   :bogus-option :wat::core::Record)   ;; ← the DEFECT under test: an unrecognized trailing clause

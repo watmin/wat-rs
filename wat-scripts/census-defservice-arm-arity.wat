@@ -10,6 +10,24 @@
 ;; take its children as the arms, and read each arm's PARAM VECTOR length. There is nothing to
 ;; positive-control because there is no pattern — the shape is read, not matched.
 ;;
+;; ⚠ THE BLIND SPOT, and it cost a red floor on 2026-08-09. This census sees a `defservice` only
+;; where one is WRITTEN. It cannot see a service that is GENERATED:
+;;
+;;   1. A macro whose TEMPLATE contains a `defservice` (`wat/query.wat`'s
+;;      `:wat::query::sift-rules-defsvc`). Its consumers — e.g.
+;;      `tests/services/probe_arc278_sift_rules.wat` — contain no `defservice` form at all, and
+;;      the string "defservice" never appears in them either (the macro is spelled `-defsvc`), so
+;;      BOTH this census AND the `grep -rl 'defservice'` that feeds it paths skip them entirely.
+;;   2. A `defservice` nested inside a `defmacro`'s quasiquote template
+;;      (`tests/macros/probe_arc278_macro_generates_service.wat`) — not a top-level form.
+;;   3. `.wat.bad` negative fixtures — `--include=*.wat` never matches them, yet they load, so a
+;;      new wall fires there too and masks the error each fixture actually exists to prove.
+;;
+;; So this number is EXACT for services that are written down, and SILENT about services that are
+;; produced. When a change makes an old form illegal, do not trust this census as the worklist —
+;; impose the wall and read the screams ([[feedback_impose_the_check_and_read_the_screams]]). The
+;; census tells you the SIZE of the job; the checker tells you the WHOLE of it.
+;;
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["a.wat" "b.wat"]\n' | cargo wat ./wat-scripts/census-defservice-arm-arity.wat
 

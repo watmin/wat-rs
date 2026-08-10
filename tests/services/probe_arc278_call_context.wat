@@ -1,18 +1,26 @@
-;; Arc 278 — THE ACCEPTANCE GATE for the call context: an OPT-IN third arm parameter
-;; `[s ctx req]`, carrying a five-field pure context, with a stable monotonic caller id minted
-;; in the generated serve loop. See docs/arc/2026/06/278-rules-engine/BRIEF-the-call-context.md
-;; and DESIGN-STONE-the-call-context.md.
+;; Arc 278 — THE ACCEPTANCE GATE for ctx-is-mandatory: EVERY public op arm now takes the
+;; MANDATORY third param `[s ctx req]`, and every internal (`-`) op arm takes `[s ctx]` — no
+;; longer opt-in. See docs/arc/2026/06/278-rules-engine/BRIEF-ctx-is-mandatory.md and
+;; DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md (which SUPERSEDES BRIEF-the-call-context.md /
+;; DESIGN-STONE-the-call-context.md — this file used to be that strike's gate; it is now this
+;; one's, upgraded arm-by-arm rather than replaced, per "extend, do not start a new one").
 ;;
 ;; Modelled on tests/services/probe_arc278_per_op_request_too_large.{rs,wat} (connect/round-trip
 ;; shape) and tests/types/probe_arc278_opaque_purity_wall.* (the acceptance-gate framing).
 ;;
-;; `:wat::service::Invocation` — name RATIFIED 2026-08-09 (was the placeholder `CallCtx`; the
-;; an intueri cast is OWED. Do not read this identifier as ratified.
+;; `:wat::service::Invocation` (public) / `:wat::service::SelfInvocation` (internal) — the
+;; ratified names (2026-08-09).
 ;;
-;; Three things, and the third is the one that matters most (the brief, verbatim):
-;;   1. A 3-param arm receives a populated ctx — namespace/operation/caller-id.
-;;   2. A 2-param arm in the SAME service still works — proving opt-in, not migration.
-;;   3. ★ THE STABILITY GATE — the id survives an eviction: connect three clients, disconnect
+;; Four things, and the second is the one that matters most (STOP-0's own words — the test that
+;; would have caught it, and nothing else in the suite could):
+;;   1. A public arm receives a populated `Invocation` — namespace/operation/conn-id.
+;;   2. ★ An internal arm receives a populated `SelfInvocation`, read THROUGH the ctx binder —
+;;      `operation`/`namespace`, with NO `conn-id` field to even ask for (structural, not a
+;;      runtime absence).
+;;   3. A 2-param public op arm is now a LOCATED COMPILE ERROR naming the op — a `.wat.bad`
+;;      fixture (tests/services/probe_arc278_call_context_two_param_public_arm.wat.bad), red IS
+;;      pass (a hole-demonstration cannot live where everything must load).
+;;   4. ★ THE STABILITY GATE — the id survives an eviction: connect three clients, disconnect
 ;;      the MIDDLE one, then have a SURVIVOR call an op and assert it still sees its ORIGINAL id.
 ;;      A position-keyed implementation passes every other test and fails only this one.
 
@@ -31,17 +39,35 @@
    (:wat::core::defenum :probe::CallCtx3::PingResponse :wat::enum::Pure
      :Ok               [ok <- :wat::core::bool]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+   ;; arc 278 ctx-is-mandatory item (2) — `arm-mark` (client-callable) arms the INTERNAL `-mark`
+   ;; op via a one-shot Alarm; `-mark` (never on the wire, no request/response) stamps what its
+   ;; OWN `SelfInvocation` ctx said into durable state; `peek-mark` (client-callable) reads it
+   ;; back. This is the ONLY way to observe an internal arm's ctx: it has no client to reply to.
+   (:wat::core::defrecord :probe::CallCtx3::ArmMarkRequest [])
+   (:wat::core::defenum :probe::CallCtx3::ArmMarkResponse :wat::enum::Pure
+     :Ok               []
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :probe::CallCtx3::PeekMarkRequest [])
+   (:wat::core::defenum :probe::CallCtx3::PeekMarkResponse :wat::enum::Pure
+     :Ok               [seen-op <- :wat::core::String  seen-ns <- :wat::core::keyword]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
-  [(whoami [self <- :probe::CallCtx3  req <- :probe::CallCtx3::WhoamiRequest] -> :probe::CallCtx3::WhoamiResponse :max-request-bytes 524288)
-   (ping   [self <- :probe::CallCtx3  req <- :probe::CallCtx3::PingRequest]   -> :probe::CallCtx3::PingResponse   :max-request-bytes 524288)])
+  [(whoami   [self <- :probe::CallCtx3  req <- :probe::CallCtx3::WhoamiRequest]   -> :probe::CallCtx3::WhoamiResponse   :max-request-bytes 524288)
+   (ping     [self <- :probe::CallCtx3  req <- :probe::CallCtx3::PingRequest]     -> :probe::CallCtx3::PingResponse     :max-request-bytes 524288)
+   (arm-mark [self <- :probe::CallCtx3  req <- :probe::CallCtx3::ArmMarkRequest]  -> :probe::CallCtx3::ArmMarkResponse  :max-request-bytes 524288)
+   (peek-mark [self <- :probe::CallCtx3  req <- :probe::CallCtx3::PeekMarkRequest] -> :probe::CallCtx3::PeekMarkResponse :max-request-bytes 524288)])
 
-;; The satisfier — `whoami` is the NEW 3-param `[s ctx req]` arm (opt-in ctx); `ping` stays the
-;; ORDINARY 2-param `[s req]` arm, UNTOUCHED shape, in the SAME service (test 2's proof).
+;; The satisfier — every public arm is `[s ctx req]` (MANDATORY, arc 278 ctx-is-mandatory); the
+;; internal `-mark` arm is `[s ctx]`, ctx : `SelfInvocation` (item (2)'s subject).
 (:wat::service::defservice :probe::callctx3svc
   :satisfies :probe::CallCtx3
-  :durable   []
+  :durable   [seen-op <- :wat::core::String  seen-ns <- :wat::core::keyword]
   :ephemeral []
+  :init (:wat::core::fn [record <- :probe::callctx3svc::Record] -> :probe::callctx3svc::State
+          (:probe::callctx3svc::State :durable record))
   :impls
   [(whoami [s ctx req]
      (:wat::service::Outcome::Reply s
@@ -49,8 +75,28 @@
          (:wat::service::Invocation/conn-id ctx)
          (:wat::service::Invocation/namespace ctx)
          (:wat::service::Invocation/operation ctx))))
-   (ping [s req]
-     (:wat::service::Outcome::Reply s (:probe::CallCtx3::PingResponse::Ok true)))])
+   (ping [s ctx req]
+     (:wat::service::Outcome::Reply s (:probe::CallCtx3::PingResponse::Ok true)))
+   ;; client op: arm the ONE-SHOT `-mark` (no re-arm — one fire is all this gate needs).
+   (arm-mark [s ctx req]
+     (:wat::service::Outcome::ReplyAndArm s (:probe::CallCtx3::ArmMarkResponse::Ok)
+       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-mark)]))
+   ;; ★ item (2) — the INTERNAL op. Its ctx (`SelfInvocation`) is read THROUGH the ctx binder and
+   ;; stamped into durable state — the only channel available, since an internal op has no client
+   ;; to reply to. Never `Invocation`, never a `conn-id` (STOP-3: SelfInvocation has no such field
+   ;; to even ask for).
+   (-mark [s ctx]
+     (:wat::core::let
+       [rec (:probe::callctx3svc::Record
+              :seen-op (:wat::service::SelfInvocation/operation ctx)
+              :seen-ns (:wat::service::SelfInvocation/namespace ctx))
+        s'  (:probe::callctx3svc::State :durable rec)]
+       (:wat::service::Outcome::NoReply s')))
+   (peek-mark [s ctx req]
+     (:wat::service::Outcome::Reply s
+       (:probe::CallCtx3::PeekMarkResponse::Ok
+         (:probe::callctx3svc::Record/seen-op (:probe::callctx3svc::State/durable s))
+         (:probe::callctx3svc::Record/seen-ns (:probe::callctx3svc::State/durable s)))))])
 
 ;; ── helpers shared by every driver below ──────────────────────────────────────────────────
 (:wat::core::defn :probe::connect! [h <- :probe::callctx3svc::Handle] -> :probe::CallCtx3
@@ -93,7 +139,7 @@
 ;; alongside these two in one return value without a THIRD accessor round-trip.
 (:wat::core::defn :user::ctx-populated-id-and-op [] -> :(wat::core::i64,wat::core::String)
   (:wat::core::let
-    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record))
+    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::CallCtx3/whoami c (:probe::CallCtx3::WhoamiRequest))
       ((:wat::kernel::RecvOutcome::Message resp)
@@ -110,7 +156,7 @@
 ;; returning driver (the harness above already proves caller-id/operation).
 (:wat::core::defn :user::ctx-namespace-is-fqdn [] -> :wat::core::bool
   (:wat::core::let
-    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record))
+    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::CallCtx3/whoami c (:probe::CallCtx3::WhoamiRequest))
       ((:wat::kernel::RecvOutcome::Message resp)
@@ -123,10 +169,13 @@
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)))))
 
-;; ── (2) a 2-param arm in the SAME service still works (proving OPT-IN, not migration) ────
-(:wat::core::defn :user::two-param-arm-still-works [] -> :wat::core::bool
+;; ── a SECOND public op in the SAME service, also `[s ctx req]` — unremarkable on its own, but
+;; it keeps the service honest that ctx isn't special-cased to whichever op happens to be first
+;; declared. (This used to be "a 2-param arm still works, proving opt-in" — that framing died with
+;; the opt-in design; ctx is unconditional now, so `ping` carries it exactly like `whoami` does.)
+(:wat::core::defn :user::second-public-arm-also-works [] -> :wat::core::bool
   (:wat::core::let
-    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record))
+    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::CallCtx3/ping c (:probe::CallCtx3::PingRequest))
       ((:wat::kernel::RecvOutcome::Message resp)
@@ -138,7 +187,53 @@
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "ping: stop before reply" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "ping: closed before reply" :wat::core::None :wat::core::None)))))
 
-;; ── (3) ★ THE STABILITY GATE ───────────────────────────────────────────────────────────────
+;; ── (2) ★ THE test — an INTERNAL arm receives a populated `SelfInvocation` ────────────────────
+;; `arm-mark` (a public op) arms the one-shot internal `-mark`; `-mark` stamps its OWN ctx into
+;; durable state (the only channel: an internal op has no client to reply to — STOP-0's own
+;; mechanism, now closed: the old internal branch dropped this binder silently, so a body that
+;; read it would have compiled and returned the durable record's ZERO-VALUE defaults forever,
+;; never firing red). `peek-mark` reads it back. A bounded, event-driven poll (mirrors
+;; probe_arc278_self_scheduling.wat's `poll-until` — NOT a sleep-guess) waits for the async fire.
+(:wat::core::defn :probe::peek-mark! [c <- :probe::CallCtx3] -> :(wat::core::String,wat::core::keyword)
+  (:wat::core::match (:probe::CallCtx3/peek-mark c (:probe::CallCtx3::PeekMarkRequest))
+    ((:wat::kernel::RecvOutcome::Message resp)
+      (:wat::core::match resp
+        ((:probe::CallCtx3::PeekMarkResponse::Ok seen-op seen-ns) (:wat::core::Tuple seen-op seen-ns))
+        ((:probe::CallCtx3::PeekMarkResponse::RequestTooLarge _b _c) (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))
+        ((:probe::CallCtx3::PeekMarkResponse::RequestMalformed _p _e _g) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "peek-mark: stop before reply" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "peek-mark: closed before reply" :wat::core::None :wat::core::None))))
+
+;; peek-until — bounded retry, event-driven backoff (`:probe::nap!`), terminates on the OBSERVED
+;; seen-op becoming non-empty (i.e. `-mark` has genuinely fired and its ctx landed in state).
+(:wat::core::defn :probe::peek-until
+  [c <- :probe::CallCtx3  attempts <- :wat::core::i64] -> :(wat::core::String,wat::core::keyword)
+  (:wat::core::if (:wat::core::i64::<= attempts 0)
+    (:wat::kernel::assertion-failed! "peek-until: bound exhausted — -mark never fired" :wat::core::None :wat::core::None)
+    (:wat::core::let [got (:probe::peek-mark! c)]
+      (:wat::core::if (:wat::core::= (:wat::core::first got) "")
+        (:wat::core::let [_ (:probe::nap!)]
+          (:probe::peek-until c (:wat::core::i64::- attempts 1)))
+        got))))
+
+;; Returns Tuple(operation-is-dash-mark, namespace-is-fqdn) — both booleans, computed here (a
+;; keyword/String equality check on the ctx facts the INTERNAL arm actually saw).
+(:wat::core::defn :user::internal-arm-ctx-populated [] -> :(wat::core::bool,wat::core::bool)
+  (:wat::core::let
+    [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
+     c (:probe::connect! h)
+     _ (:wat::core::match (:probe::CallCtx3/arm-mark c (:probe::CallCtx3::ArmMarkRequest))
+         ((:wat::kernel::RecvOutcome::Message __r) __r)
+         ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "arm-mark: stop before reply" :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "arm-mark: closed before reply" :wat::core::None :wat::core::None)))
+     seen (:probe::peek-until c 40)
+     seen-op (:wat::core::first seen)
+     seen-ns (:wat::core::second seen)]
+    (:wat::core::Tuple (:wat::core::= seen-op "-mark") (:wat::core::= seen-ns :probe::callctx3svc))))
+
+;; ── (4) ★ THE STABILITY GATE ───────────────────────────────────────────────────────────────
 ;; Connect c1, c2, c3 IN ORDER (each `connect'` is a blocking handshake, so the server has
 ;; processed connection N before the client's connect' call for N+1 even begins — the mint
 ;; order is deterministic by construction) — ALL THREE simultaneously connected, matching the
@@ -172,7 +267,7 @@
 ;; minted — not merely "unchanged from whatever id-before happened to be").
 (:wat::core::defn :user::stability-gate [] -> :(wat::core::i64,wat::core::i64)
   (:wat::core::let
-    [h         (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record))
+    [h         (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      phase     (:probe::stability-connect-phase h)
      id-before (:wat::core::first phase)
      c1        (:wat::core::second phase)

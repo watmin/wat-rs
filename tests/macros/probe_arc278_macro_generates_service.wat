@@ -37,7 +37,7 @@
        :satisfies :probe::Echo
        :durable []
        :impls
-       [(echo [s req]
+       [(echo [s ctx req]
           (:wat::core::let
             [c (:probe::Echo::EchoRequest/c req)]
             (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok c))))])))

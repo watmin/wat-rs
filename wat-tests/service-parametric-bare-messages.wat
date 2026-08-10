@@ -51,7 +51,7 @@
   :durable   [held <- :wat::core::Option<T>]
   :ephemeral []
   :impls
-  [(put [s req]
+  [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::BareBox::PutResponse::Ok
          (:wat::core::i64::+

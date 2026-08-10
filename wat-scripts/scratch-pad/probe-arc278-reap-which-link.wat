@@ -28,7 +28,7 @@
 (:wat::service::defservice :rw::bag-svc
   :satisfies :rw::Bag  :durable [n <- :wat::core::i64]  :ephemeral []
   :impls
-  [(put [s req] (:wat::service::Outcome::Reply s (:rw::Bag::PutResponse::Ok 1)))])
+  [(put [s ctx req] (:wat::service::Outcome::Reply s (:rw::Bag::PutResponse::Ok 1)))])
 
 (:wat::core::defn :rw::try [c <- :wat::kernel::Peer<rw::Bag::Op,rw::Bag::Reply>
                            label <- :wat::core::String] -> :wat::core::nil

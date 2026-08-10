@@ -33,7 +33,7 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(wait-tick [s req]
+  [(wait-tick [s ctx req]
      (:wat::core::let
        [m (:wat::core::match
             (:wat::kernel::select

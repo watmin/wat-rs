@@ -41,10 +41,10 @@
   :durable   [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(ping [s req]
+  [(ping [s ctx req]
      ;; CONTROL — no minted construction; state returned unchanged.
      (:wat::service::Outcome::Reply s (:probe::Echo::PingResponse::Ok 1)))
-   (bump [s req]
+   (bump [s ctx req]
      ;; THE REGRESSION — constructs this defservice's OWN minted `::State`/`::Record`.
      (:wat::service::Outcome::Reply
        (:probe::echo::State :durable (:probe::echo::Record :count 7))

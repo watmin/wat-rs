@@ -38,7 +38,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s req] (:wat::service::Outcome::Reply s (:probe::Budget::PutResponse::Ok 7)))])
+  [(put [s ctx req] (:wat::service::Outcome::Reply s (:probe::Budget::PutResponse::Ok 7)))])
 
 ;; A String of exactly n*32 bytes (kept LOCAL — mirrors :probe::payload-of in the sibling FOO
 ;; fixture so this file has no cross-file dependency).

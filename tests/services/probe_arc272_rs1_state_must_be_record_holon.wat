@@ -17,7 +17,7 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(is-holon-record [s req]
+  [(is-holon-record [s ctx req]
      (:wat::service::Outcome::Reply s (:my::HCounter::IsHolonRecordResponse::Ok
                                         (:wat::core::record? (:my::hcounter::State/durable s)))))]
   :durable-parent :wat::holon::Record)

@@ -13,10 +13,10 @@
   :durable   []
   :ephemeral []
   :impls
-  [(incr  [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::IncrResponse::Ok)))
-   (timed [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::TimedResponse::Ok)))
-   (log   [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok)))
-   (close [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::CloseResponse::Done)))])
+  [(incr  [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::IncrResponse::Ok)))
+   (timed [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::TimedResponse::Ok)))
+   (log   [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok)))
+   (close [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::CloseResponse::Done)))])
 
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
 (:wat::core::defn :user::compute [] -> :wat::core::i64

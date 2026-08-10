@@ -36,5 +36,5 @@
   :durable   [capacity <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s (:probe::opq::Ctr::GetResponse::Ok 1)))])

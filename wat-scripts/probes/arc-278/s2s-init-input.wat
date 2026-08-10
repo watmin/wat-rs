@@ -15,7 +15,7 @@
           -> :probe::seedy::State
           (:probe::seedy::State :durable record :seed seed))
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Seedy::GetResponse::Ok (:probe::seedy::State/seed s))))])
 

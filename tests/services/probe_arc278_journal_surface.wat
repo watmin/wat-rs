@@ -8,26 +8,26 @@
   :durable   []
   :ephemeral []
   :impls
-  [(write-metrics [s req]
+  [(write-metrics [s ctx req]
      (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteMetricsResponse::Success)))
-   (write-logs [s req]
+   (write-logs [s ctx req]
      (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteLogsResponse::Success)))
-   (query-metrics [s req]
+   (query-metrics [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::QueryMetricsResponse::Success
          (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
-   (query-logs [s req]
+   (query-logs [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::QueryLogsResponse::Success
          (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))
    ;; arc 278 Stone 2 — sift-logs/sift-metrics widened the Journal surface; the toy must
    ;; implement every feature to satisfy it (mirrors the query-* stubs above; the sieve is
    ;; unused by this throwaway toy).
-   (sift-metrics [s req]
+   (sift-metrics [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::SiftMetricsResponse::Success
          (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
-   (sift-logs [s req]
+   (sift-logs [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::SiftLogsResponse::Success
          (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))])

@@ -37,11 +37,11 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::Counter::GetResponse::Ok
          (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)))))
-   (increment [s req]
+   (increment [s ctx req]
      (:wat::core::let [c (:wat::core::i64::+
                            (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))
                            (:wat-tests::Counter::IncrementRequest/n req))]

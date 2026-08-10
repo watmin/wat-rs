@@ -40,18 +40,18 @@
           (:probe::ticker::State :durable record))
   :impls
   [;; client op: arm the FIRST tick (reply Ok + arm) — the tick re-arms itself thereafter.
-   (start [s req]
+   (start [s ctx req]
      (:wat::service::Outcome::ReplyAndArm s (:probe::Ticker::StartResponse::Ok)
        [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
 
    ;; client op: reply the current count (proves the reactor serves clients between ticks).
-   (poll [s req]
+   (poll [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Ticker::PollResponse::Count
          (:probe::ticker::Record/count (:probe::ticker::State/durable s)))))
 
    ;; INTERNAL reactor op (leading dash): fire → +1; re-arm until target, else stop ticking.
-   (-tick [s]
+   (-tick [s ctx]
      (:wat::core::let
        [rec  (:probe::ticker::State/durable s)
         n    (:wat::core::i64::+ (:probe::ticker::Record/count rec) 1)

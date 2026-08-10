@@ -28,7 +28,7 @@
             [_ (:wat::kernel::assertion-failed! "BOOM-INIT-SENTINEL-99" :wat::core::None :wat::core::None)]
             (:t::boominit::State :durable record)))
   :impls
-  [(ping [s req]
+  [(ping [s ctx req]
      (:wat::service::Outcome::Reply s (:t::Boom::PingResponse::Ok 0)))])
 
 ;; The owner starts the crashing service and dials it. This MUST raise carrying the sentinel

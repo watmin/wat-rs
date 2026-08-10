@@ -57,7 +57,7 @@
   :durable   [k <- :wat::core::Option<K>  v <- :wat::core::Option<V>]
   :ephemeral []
   :impls
-  [(put [s req]
+  [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::Pair::PutResponse::Ok
          (:wat::core::i64::+

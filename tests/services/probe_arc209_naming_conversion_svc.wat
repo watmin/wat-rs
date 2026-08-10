@@ -22,7 +22,7 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(get-object [s req]
+  [(get-object [s ctx req]
      (:wat::service::Outcome::Reply s (:my::Svc::GetObjectResponse::Ok (:my::Svc::GetObjectRequest/n req))))])
 
 ;; End-to-end through the KEBAB client method `:my::svc/get-object` (multi-word); echoes the

@@ -33,7 +33,7 @@
   :ephemeral []
   :impls
   ;; The handler uses `items[0]` AS A STRING — exactly what the declaration promises.
-  [(put [s req]
+  [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe-det::Bag::PutResponse::Ok
          (:wat::core::string::length

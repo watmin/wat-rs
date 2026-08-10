@@ -25,7 +25,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(echo [s req]
+  [(echo [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Echo::EchoResponse::Ok
          (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
@@ -55,7 +55,7 @@
           -> :probe::caller::State
           (:probe::caller::State :durable record :echo (:wat::core::match (:wat::kernel::connect echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
-  [(run [s req]
+  [(run [s ctx req]
      (:wat::core::let
        [echo (:probe::caller::State/echo s)
         er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))

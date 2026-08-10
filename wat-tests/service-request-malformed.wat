@@ -60,7 +60,7 @@
   ;; handler — and the request-shape wall is generated into every one of its op arms regardless,
   ;; because that is what a service IS. The two deftests below are the proof.
   :impls
-  [(put [s req]
+  [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::MalBag::PutResponse::Ok
          (:wat::core::string::length

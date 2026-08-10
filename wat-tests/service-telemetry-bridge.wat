@@ -46,7 +46,7 @@
   :durable   [total <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(record [s req]
+  [(record [s ctx req]
      (:wat::service::Outcome::Reply
        (:wat-tests::recorder::State :durable
          (:wat-tests::recorder::Record :total
@@ -54,7 +54,7 @@
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
        (:wat-tests::Recorder::RecordResponse::Ok true)))
-   (total [s req]
+   (total [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::Recorder::TotalResponse::Ok
          (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)))))])
@@ -71,7 +71,7 @@
           -> :wat-tests::worker::State
           (:wat-tests::worker::State :durable record :recorder (:wat::core::match (:wat::kernel::connect recorder-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
-  [(work [s req]
+  [(work [s ctx req]
      (:wat::core::let
        [rresp (:wat-tests::Recorder/record
                 (:wat-tests::worker::State/recorder s)

@@ -93,7 +93,7 @@
   :durable   [fills <- :wat::core::Vector<V>]
   :ephemeral []
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::PCache::GetResponse::Ok
          (:wat-tests::PCache::GetRequest/probes req)

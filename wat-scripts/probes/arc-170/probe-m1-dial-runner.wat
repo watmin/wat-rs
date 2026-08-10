@@ -13,7 +13,7 @@
 
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
-  :impls [(echo [s req]
+  :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 

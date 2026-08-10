@@ -31,7 +31,7 @@
   :durable [count <- :wat::core::i64]
   :ephemeral []
   :impls
-  [(get [s req]
+  [(get [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::SeededCounter::GetResponse::Ok
          (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])

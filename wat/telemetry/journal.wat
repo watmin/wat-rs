@@ -99,7 +99,7 @@
                                     :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))]
             (:wat::telemetry::journal::State :durable record :store store)))
   :impls
-  [(write-metrics [s req]
+  [(write-metrics [s ctx req]
      (:wat::core::let
        [store (:wat::telemetry::journal::State/store s)
         batch (:wat::telemetry::Journal::WriteMetricsRequest/batch req)
@@ -143,7 +143,7 @@
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
        (:wat::service::Outcome::Reply s wresp)))
 
-   (write-logs [s req]
+   (write-logs [s ctx req]
      (:wat::core::let
        [store (:wat::telemetry::journal::State/store s)
         batch (:wat::telemetry::Journal::WriteLogsRequest/batch req)
@@ -189,7 +189,7 @@
 
    ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
    ;; stored row back to a Metric (:wat::edn::read off the tag), page via cursor. NO rete.
-   (query-metrics [s req]
+   (query-metrics [s ctx req]
      (:wat::core::let
        [store (:wat::telemetry::journal::State/store s)
         ns   (:wat::telemetry::Journal::QueryMetricsRequest/namespace req)
@@ -240,7 +240,7 @@
        (:wat::service::Outcome::Reply s qresp)))
 
    ;; query-logs — the same for the Log partition.
-   (query-logs [s req]
+   (query-logs [s ctx req]
      (:wat::core::let
        [store (:wat::telemetry::journal::State/store s)
         ns   (:wat::telemetry::Journal::QueryLogsRequest/namespace req)
@@ -294,7 +294,7 @@
    ;; `::`-source) is compiled ONCE (read-string -> unwrap -> verify pure?/deterministic? ->
    ;; eval-ast!), outside the foldl; applied PER ROW inside it. An impure/non-deterministic
    ;; predicate is REJECTED — `::Fatal` with a Fault, never a silent pass (no-hidden-failures).
-   (sift-logs [s req]
+   (sift-logs [s ctx req]
      (:wat::core::let
        [store    (:wat::telemetry::journal::State/store s)
         pred-src (:wat::core::match (:wat::telemetry::Journal::SiftLogsRequest/sieve req) 
@@ -359,7 +359,7 @@
        (:wat::service::Outcome::Reply s qresp)))
 
    ;; sift-metrics — the mechanical twin, over the Metric partition.
-   (sift-metrics [s req]
+   (sift-metrics [s ctx req]
      (:wat::core::let
        [store    (:wat::telemetry::journal::State/store s)
         pred-src (:wat::core::match (:wat::telemetry::Journal::SiftMetricsRequest/sieve req) 

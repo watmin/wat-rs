@@ -99,12 +99,12 @@
   :durable [rows <- :wat::core::PersistentVector<wat::query::StoredRow>]
   :ephemeral []
   :impls
-  [(ensure-schema [s req]
+  [(ensure-schema [s ctx req]
      ;; idempotent no-op — mem-store' has no physical schema to establish (the contract's
      ;; promise is satisfied trivially; sqlite's satisfier is where CREATE TABLE/INDEX happens).
      (:wat::service::Outcome::Reply s (:wat::query::Store::EnsureSchemaResponse::Success)))
 
-   (put [s req]
+   (put [s ctx req]
      (:wat::core::let
        [new-rows (:wat::query::Store::PutRequest/rows req)
         merged (:wat::core::foldl
@@ -118,7 +118,7 @@
          (:wat::query::mem-store::State (:wat::query::mem-store::Record merged))
          (:wat::query::Store::PutResponse::Success))))
 
-   (scan [s req]
+   (scan [s ctx req]
      (:wat::core::let
        [pk  (:wat::query::Store::ScanRequest/pk req)
         lo  (:wat::query::Store::ScanRequest/sk-lo req)
@@ -141,7 +141,7 @@
                    :wat::core::None)]
        (:wat::service::Outcome::Reply s (:wat::query::Store::ScanResponse::Success limited next-cur))))
 
-   (scan-index [s req]
+   (scan-index [s ctx req]
      (:wat::core::let
        [index (:wat::query::Store::ScanIndexRequest/index req)
         ipk   (:wat::query::Store::ScanIndexRequest/ipk req)

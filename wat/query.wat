@@ -369,7 +369,13 @@
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                    :template (:wat::rete::compile (:wat::core::PersistentVector ~@rule-lits))))
          :impls
-         [(sift-rules [s req]
+         ;; arc 278 ctx-is-mandatory — `[s ctx req]`, not `[s req]`: EVERY public op arm receives an
+         ;; `:wat::service::Invocation` (BRIEF-ctx-is-mandatory.md). This template was missed by the
+         ;; migration's file list because THIS FILE NEVER SAYS "defservice" at its consumers — a
+         ;; caller writes `(:wat::query::sift-rules-defsvc …)`, so `grep -rl 'defservice'` and a
+         ;; top-level `defservice`-form census BOTH skipped every consumer of this macro. The new
+         ;; arity wall is what surfaced it, by name, at load. One template, every consumer fixed.
+         [(sift-rules [s ctx req]
             (:wat::service::Outcome::Reply s
               (:wat::core::match
                 (:wat::telemetry::Journal/query-logs (~state-journal-kw s)
