@@ -98,12 +98,54 @@
 ;;   start-ns   — one clock read (`epoch-nanos (now)`), stamped fresh per call in the serve loop.
 ;; STOP-3/STOP-6 (brief): internal (`-`) ops get NO ctx at all (their 1-param `[s]` arm is
 ;; untouched), and this strike does not build lifecycle hooks — it only mints + carries the id.
+;; ── InvocationCore — the four facts EVERY invocation has, spliced into all three ─────────
+;;
+;; There are THREE kinds of invocation and their field sets are a strict NESTING, so the shared
+;; head is a surface spliced with `~@` (the shipped idiom — `Scope` into Metric/Log,
+;; wat/telemetry.wat:84). A telemetry consumer that wants "any invocation" reads THIS and does not
+;; care which kind it got.
+;;
+;; ★ `invocation-id`, NOT `request-id` (intueri, 2026-08-09). The old name was honest while this
+;; record was singular and always per-call. The moment the core is shared with SelfInvocation and
+;; LifecycleInvocation — two records DEFINED by having no request — a field called `request-id`
+;; asserts something false for two of the three kinds. The structure made a good name wrong; the
+;; name follows the structure.
+(:wat::core::defsurface :wat::service::InvocationCore
+  :nature :wat::core::Record
+  :features [namespace     <- :wat::core::keyword   ;; the service's own fqdn — compile-time literal
+             operation     <- :wat::core::String    ;; the op arm's own name — compile-time literal
+             invocation-id <- :wat::core::Uuid      ;; minted by THIS service, per dispatch
+             start-ns      <- :wat::core::i64])     ;; clock read, per dispatch
+
+;; SELF-originated: a self-scheduled alarm fired. No connection, no caller, no request — the
+;; service asked for this itself. It still gets a ctx because it is still an INVOCATION: a thing
+;; the service DID, at a time, which must be visible to telemetry exactly like a client call.
+(:wat::core::defrecord :wat::service::SelfInvocation
+  [~@:wat::service::InvocationCore])
+
+;; CONNECTION-LIFECYCLE-originated: `-on-connect` / `-on-disconnect`. The connection's STATE
+;; changed; nobody sent a message. Named for the lifecycle, NOT the connection — a plain
+;; `Invocation` is *also* connection-originated and also carries a conn-id, so `ConnectionInvocation`
+;; (the ward's pick) could not distinguish the two. What separates this is that it is about the
+;; connection changing rather than a call OVER it.
+(:wat::core::defrecord :wat::service::LifecycleInvocation
+  [~@:wat::service::InvocationCore
+   conn-id <- :wat::core::i64])
+
+;; A CLIENT CALL. Splice-first field order per the arc-293 house rule (wat/telemetry.wat:82).
+;;
+;; ⚠ OWED, and deliberately absent: `caller-invocation-id` — the id of the invocation on the
+;; CALLER's side that caused this one, used ONLY to draw an edge (never keyed on, never trusted,
+;; never adopted; this service mints `invocation-id` regardless, so a hostile value costs at most a
+;; false edge in the client's own trace). It is MANDATORY by design — our generated client always
+;; sends one, so a request lacking it is malformed, not legitimately absent — which is exactly why
+;; it CANNOT be declared until the client-side mechanism that populates it exists. A mandatory field
+;; with nothing to fill it is a lie from birth. It lands with that strike and costs nothing here:
+;; adding a FIELD does not touch an arm's binders. NOT `parent-id` — that name is taken, 44 sites in
+;; `wat/rete.wat`, meaning a join-node's tree parent (an i64, not a Uuid).
 (:wat::core::defrecord :wat::service::Invocation
-  [conn-id    <- :wat::core::i64
-   namespace  <- :wat::core::keyword
-   operation  <- :wat::core::String
-   request-id <- :wat::core::Uuid
-   start-ns   <- :wat::core::i64])
+  [~@:wat::service::InvocationCore
+   conn-id <- :wat::core::i64])
 
 ;; ── Capability — the uniform capability surface (arc 170 capability circuit) ──────
 ;;
@@ -1209,7 +1251,7 @@
                                                 :conn-id  (:wat::core::first (:wat::core::nth selectables idx))
                                                 :namespace  ~fqdn-kw
                                                 :operation  ~op-str
-                                                :request-id (:wat::core::Uuid/v4)
+                                                :invocation-id (:wat::core::Uuid/v4)
                                                 :start-ns   (:wat::time::epoch-nanos (:wat::time::now)))
                               ;; arm-let-bindings — [s-binder state] for a 2-param op (BYTE-IDENTICAL
                               ;; to the pre-strike `let-bindings`, reused unchanged: the fallback arm
