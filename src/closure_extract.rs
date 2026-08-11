@@ -345,6 +345,11 @@ pub fn extract_closure(
     // Assemble prologue in topological order:
     //   1. Type definitions (types in topological order)
     //   2. Captured-binding defines (`(def :user::closure-capture::X <encoded>)`)
+    //   2b. (Arc 278) `def`-bound values carried from the parent, under
+    //       their ORIGINAL name — in discovery order. Sits between step
+    //       2 and step 3: a def's encoded value may construct a user
+    //       type (step 1 must precede it), and a dep fn's body may read
+    //       the def (step 3 must follow it).
     //   3. User dependency defines (in topological order)
     //   4. (Arc 170 slice 3 Gap H) Lifted fn-body prelude forms —
     //      define/struct/enum forms extracted from the fn body's
@@ -376,6 +381,15 @@ pub fn extract_closure(
     // 2. Captured-binding defines.
     for cb in &state.captured_bindings {
         prologue.push(capture_define_form(cb));
+    }
+
+    // 2b. `def`-bound values, in discovery order. The body references
+    //     these by Keyword and `rewrite_captures` never rewrites a
+    //     Keyword, so each keeps its ORIGINAL name.
+    for name in &state.def_discovery_order {
+        if let Some(encoded) = state.captured_defs.get(name) {
+            prologue.push(def_form(name, encoded));
+        }
     }
 
     // 3. User defns in topological order.
@@ -623,6 +637,11 @@ struct ExtractState<'a> {
     dep_discovery_order: Vec<String>,
     /// Order in which types were discovered.
     type_discovery_order: Vec<String>,
+    /// `def`-bound values discovered in walked bodies, keyed by the
+    /// def's ORIGINAL keyword name. Emitted as top-level `def` forms.
+    captured_defs: BTreeMap<String, WatAST>,
+    /// Order in which defs were discovered (deterministic emission).
+    def_discovery_order: Vec<String>,
     /// Visited-set: types whose closure has been (or is being) walked,
     /// to break recursion through `:Vector<:Self>` and friends.
     types_visited: HashSet<String>,
@@ -656,6 +675,8 @@ impl<'a> ExtractState<'a> {
             captured_types: BTreeMap::new(),
             dep_discovery_order: Vec::new(),
             type_discovery_order: Vec::new(),
+            captured_defs: BTreeMap::new(),
+            def_discovery_order: Vec::new(),
             types_visited: HashSet::new(),
             deps_visited: HashSet::new(),
             dep_edges: BTreeMap::new(),
@@ -758,20 +779,18 @@ fn walk_free_symbols(
                 record_type_dependency(state, k.as_str(), type_def);
                 return Ok(());
             }
-            // Else: a `def`-bound value? Unbound? For arc 170 slice 1 we
-            // do not chase top-level defs (`runtime_def_values`); a
-            // future arc opens IFF a caller surfaces wanting it. Check:
-            // if it sits in runtime_def_values, surface as Internal so
-            // tests reveal the gap; else silently skip — this keyword
-            // may be a user-typed keyword literal at value position.
-            if state.parent_symbols.runtime_def_values.contains_key(k) {
-                return Err(ExtractionError {
-                    span: crate::rust_caller_span!(),
-                    kind: ExtractionErrorKind::Internal(format!(
-                        "captured `def`-bound name {} not yet supported by closure extraction (slice 1)",
-                        k
-                    )),
-                });
+            // Else: a `def`-bound value? Arc 278 — carry it. Encode the
+            // value through the same encoder used for captured locals
+            // and record it under its ORIGINAL name (Keyword references
+            // are never rewritten by `rewrite_captures`, so the def must
+            // keep the name the body already refers to it by).
+            if let Some(value) = state.parent_symbols.runtime_def_values.get(k).cloned() {
+                if !state.captured_defs.contains_key(k.as_str()) {
+                    let encoded = encode_value_to_ast(&value, k.as_str(), state)?;
+                    state.captured_defs.insert(k.to_string(), encoded);
+                    state.def_discovery_order.push(k.to_string());
+                }
+                return Ok(());
             }
             // Treat as a keyword literal at value position (no
             // resolution required).
@@ -2530,6 +2549,22 @@ fn capture_define_form(cb: &CapturedBinding) -> WatAST {
             WatAST::Keyword(":wat::core::def".into(), span.clone()),
             WatAST::Keyword(cb.synthetic_name.clone(), span.clone()),
             cb.encoded_ast.clone(),
+        ],
+        span,
+    )
+}
+
+fn def_form(name: &str, encoded: &WatAST) -> WatAST {
+    // Sibling of `capture_define_form`: same three-item
+    // `(:wat::core::def <name> <encoded>)` shape, but the name is the
+    // def's ORIGINAL keyword — the body references it by Keyword, and
+    // Keyword references are never rewritten, unlike captured locals.
+    let span = crate::rust_caller_span!();
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::def".into(), span.clone()),
+            WatAST::Keyword(name.to_string(), span.clone()),
+            encoded.clone(),
         ],
         span,
     )

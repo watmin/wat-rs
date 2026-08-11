@@ -799,6 +799,45 @@ fn t21_match_arm_binding_shadows_outer_let() {
     }
 }
 
+// ─── T22. top-level defn references a `def`-bound value ─────────────────
+
+/// RED gate for the `def` arm (`closure_extract.rs`'s Keyword walker).
+///
+/// A top-level `def` read from a fn body currently raises
+/// `Internal("captured `def`-bound name … not yet supported by closure
+/// extraction (slice 1)")`. That arm's own comment says a future arc opens
+/// IFF a caller surfaces wanting it — `defservice` is that caller: every
+/// op's `:max-request-bytes` becomes a top-level `def`, so `fn-forms` on a
+/// service's `serve` cannot complete.
+///
+/// The def must ride in the prologue under its ORIGINAL name: the body
+/// references it by Keyword, and `rewrite_captures` rewrites only
+/// bare-Symbol locals, never Keyword paths.
+#[test]
+fn t22_toplevel_defn_references_def_bound_value() {
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t22.wat");
+    let fn_value = lookup_fn(&parent, ":my::plus-limit");
+    let package = extract(&parent, &fn_value, Some(":my::plus-limit"));
+    assert_entry_form_keyword(&package.entry_form, ":my::plus-limit");
+
+    // Exact, not a membership check: this fixture captures no locals, so
+    // `:my::LIMIT` is the ONLY def the prologue may carry. An exact compare
+    // also catches a spurious extra def — a duplicate emission, or a capture
+    // synthesised where none belongs — that `contains` would wave through.
+    assert_eq!(
+        collect_def_names(&package.prologue),
+        vec![":my::LIMIT".to_string()],
+        "prologue must carry exactly :my::LIMIT's def, under its original name"
+    );
+
+    // The gate that matters: the extracted package must STAND ALONE in a
+    // fresh world. A prologue that names the def but does not bind it would
+    // pass the shape assert above and die here.
+    let fresh = re_freeze(package.prologue);
+    let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(8)]);
+    assert_i64(&result, 520);
+}
+
 // ─── helpers for form inspection ────────────────────────────────────────
 
 /// Pull the canonical name out of a `(:wat::core::defn :name [binders] -> :ret body)`
