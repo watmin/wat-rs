@@ -146,13 +146,68 @@ nothing: **you cannot root a walk at a call that exists because it is unresolvab
 the red is the point. The act is the question underneath, and it is a FORK FOR THE BUILDER:
 
 > **What is `serve`'s `self` type, across both tiers?**
-> (a) `serve` goes parametric over the self-peer type · (b) the two peer types are reconciled —
-> is `ThreadSelfPeer` a *purity* distinction rather than a representational one, and if so does the
-> process tier qualify? · (c) two `serve` emissions, one per tier.
+> (a) `serve` goes parametric over the self-peer type · (b) type `serve` at `Peer` (the wire
+> contract) · (c) two `serve` emissions, one per tier · **(e) make the RELATION explicit:
+> `Peer<S,R> <: ThreadSelfPeer<S,R>`, one-way.**
 
-Ground (b) FIRST — if the distinction is purely the purity escape hatch, it may be the cheap
-answer. **Do not pick this alone; it is a ruling.** Once the type is settled the static call, the
-one-entry `<fqdn>::child-entry [locus] -> nil`, the one-liner
+### MEASURED 2026-08-12 — (b) IS REFUTED, and the red named (e)
+
+Flipped `lineage-peer-ty` to `Peer<…>` (one line) and ran the floor: **4389 run, 1 FAILED.**
+
+```
+probe_arc209_c2_defservice_dispatch::defservice_generates_dispatch_loop_round_trips_on_thread
+  :my::counter::serve: parameter #1
+    expects :wat::kernel::Peer<my::counter::Status,my::counter::Admin>;
+    got    :wat::kernel::ThreadSelfPeer<my::counter::Status,my::counter::Admin>
+  at tests/services/probe_arc209_c2_defservice_dispatch.wat:76:36
+```
+
+**The red was the MOBILITY WALL WORKING, and (b) was worse than refuted — it demanded the UNSAFE
+subtype direction.** Read the arms carefully; the static site is a *hand-driver*, and production is
+dynamic on BOTH sides:
+
+| | peer VALUE it supplies | how it reaches `serve` |
+|---|---|---|
+| thread (shared memory) | `ThreadSelfPeer<Lu,Sh>` — `spawn.wat` ThreadOpts `launch` declares it on the prog it spawns | **`apply`** (same impl, ~20 lines down) |
+| process (not shared) | `Peer<S,R>` — `:wat::program::self-peer` | **`apply`** (generated child main) |
+| the one static site | a hand-written driver: `tests/services/probe_arc209_c2_defservice_dispatch.wat:76` declares `ThreadSelfPeer` to match serve's annotation | direct call |
+
+So `serve`'s declared `self` is enforced in production by **nothing** — only by that fixture and by
+serve's own self-recursion. And typing `serve` at `Peer` asks the thread tier's `ThreadSelfPeer`
+value to pass as a `Peer` — **`ThreadSelfPeer <: Peer`, the direction that must NEVER hold**,
+because it walks an in-locus peer holding live handles onto the wire. The checker refused exactly
+that. Reverted; tree clean.
+
+**Which means (e) needs NO change to `serve`'s declared type.** Keep it at `ThreadSelfPeer` (the
+permissive head) and add the one safe edge `Peer <: ThreadSelfPeer`: the thread tier already
+matches exactly, the process tier's `Peer` becomes statically passable, and the unsafe direction
+stays unwritten and keeps failing — as the fixture just demonstrated it does.
+
+**(e) is what the red surfaced, and it dissolves the fork instead of choosing a side.** The
+relation is real and directional: `ThreadSelfPeer` = in-locus, permits ANY I/O; `Peer` = wire-safe,
+permits PURE only. A value meeting the stricter contract meets the looser one, so with **identical
+type args** `Peer<S,R>` is safely usable where `ThreadSelfPeer<S,R>` is expected. Then the thread
+tier passes by exact match (as today), the process tier passes by the new edge, **the `apply`
+dies**, and every future remote locus — all of them wire, all of them handing over a `Peer` —
+passes for free. One branch in `is_subtype`; the same shape as R7's `:wat::core::Value` one-liner.
+
+⛔ **THE EDGE MUST BE ONE-WAY, and the omission is the wall.** `ThreadSelfPeer` must NEVER be
+accepted where `Peer` is expected — that direction would let an in-locus peer holding live handles
+cross the wire, and 293.W's whole mobility wall falls. The reverse branch is the one you do not
+write, and a test must assert it still refuses (R7's discipline: the top type is honest because of
+the rule that was never added).
+
+**📄 THE FULL REASONING IS FILED IN THE ARC THAT BUILT THE TOOLING:**
+`docs/arc/2026/06/293-struct-record-symmetry/NOTE-peer-and-threadselfpeer-are-one-relation-never-stated.md`
+— the two heads and the shared-memory line; where the line actually lives (the TWO `Locus`
+`extend-type`s in `wat/spawn.wat:451`/`:523`, with `defservice` locus-blind by design, which is
+what lets N remote loci join without touching it); the fact that the thread arm **ignores**
+`service-forms` entirely because serve is already in the parent universe; the directional relation;
+the ~24 lines across ~7 `check.rs` sites that enumerate the pair instead of stating it; today's red
+verbatim; and the two hard requirements on any fix.
+
+**Do not pick this alone — a new subtype edge is a ruling.** Once the type is settled the static
+call, the one-entry `<fqdn>::child-entry [locus] -> nil`, the one-liner
 `(defn :user::main [] -> nil (<fqdn>::child-entry :user::spawn::service-locus))`, one `fn-forms`
 over it, and the death of `service-forms-def` all follow.
 
