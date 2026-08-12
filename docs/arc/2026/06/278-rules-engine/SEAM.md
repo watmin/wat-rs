@@ -231,6 +231,31 @@ over it, and the death of `service-forms-def` all follow.
 
 **Blast radius is every `defservice` in the corpus.** Draw the stone and BRIEF it; do not hand-roll.
 
+### ▶▶ DRAWN AND BRIEFED (2026-08-12) — ready to release a rider
+
+| artifact | |
+|---|---|
+| `DESIGN-STONE-the-child-entry-kills-the-manifest.md` | the one contract decision, why it is possible NOW, out-of-scope REJECTED (not deferred), the four questions |
+| `BRIEF-child-entry-static-call.md` | rooms as exact `file:line`, the implementation sketch, blast radius `wat/service.wat` ONLY, **5 numbered STOPs** |
+| `EXPECTATIONS-child-entry-static-call.md` | 12-row scorecard fixed BEFORE the strike; rows **4** (walk ⊇ manifest) and **8** (thread tier untouched) load-bearing; 35–60 min, 2× box |
+| `wat-scripts/scratch-pad/probe-arc278-child-entry-static-call.wat` | **the disconfirming probe, PROVEN BY RUN** |
+
+**The probe settled both load-bearing claims before the brief was written:**
+
+- **A** — a `Peer'<Status,Admin>` reaches `serve`'s `ThreadSelfPeer'` slot in a **static** call:
+  `--check` **exit 0**. (Impossible before `310f8050`; this is what the peer edge bought.)
+- **B** — `fn-forms` rooted there reaches the internals: **`CLAIM-B PASS`, closure = 30 forms**,
+  including `serve` · `dispatch-admin` · `init` · `stop-project` · `hibernate-project` · every
+  type · the surface + its backing records · the protocol `Op`/`Reply` · the per-op budget const.
+  **That is the manifest, derived rather than remembered.**
+
+Two form-lessons the checker taught while writing it, worth copying: the selectables element is ONE
+tuple type-keyword, and its `Op` slot must be the **service** superset (`…::ce::Op`), because the
+surface→service widening does **not** propagate through the tuple.
+
+The single genuinely unproven thing is **STOP-1, the locus parameter's type** — the probe takes the
+listener directly and deliberately does not answer it. That is a STOP, not a guess.
+
 ## The wall, and how to work with it
 
 The five registries (`macro_registry` EXPAND · `types` CHECK · `functions`/`unit_variants`/
