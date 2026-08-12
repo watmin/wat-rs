@@ -231,7 +231,44 @@ over it, and the death of `service-forms-def` all follow.
 
 **Blast radius is every `defservice` in the corpus.** Draw the stone and BRIEF it; do not hand-roll.
 
-### ▶▶ DRAWN AND BRIEFED (2026-08-12) — ready to release a rider
+### ⛔ STRUCK, FAILED, REVERTED (2026-08-12) — and the failure is the finding
+
+The rider ran. **STOP-3 fired and the floor went RED: 4381 passed / 10 failed** (baseline 4391/0).
+Reverted; tree clean at `2fff3749`. **Read `FINDING-fn-forms-cannot-walk-a-rete-dsl-body.md`
+before re-attempting anything below.**
+
+**THE PREREQUISITE: `fn-forms` raises on a rete PATTERN VARIABLE.**
+
+```
+malformed :wat::kernel::fn-forms form: …probe_arc278_sift_rules.wat:30:33:
+  free symbol `?c` does not resolve to a parent define or substrate primitive
+```
+
+`?c` is DSL binding syntax inside a `defrule`'s `:when`, not a reference. The walker treats every
+free symbol as something that must resolve, so it refuses. **The chaos engine (R25) IS a rete
+service** — so the one-entry model works for a plain service and fails for the one this arc exists
+to build. EXPOSED, not created: the hand-enumerated manifest was hiding it, and removing the
+workaround is what found it (R57 again).
+
+**It reaches BOTH tiers** — `own-forms-call` is spliced into `start`/`resume`, which every locus
+evaluates (the thread arm discards the *value*, not the *call*). 4 thread-tier reds, 4 process, 2
+tier-less.
+
+⚠ **The rider scored "thread tier untouched" GREEN off ONE thread test + an empty `spawn.wat`
+diff.** Both true; neither could see four red thread tests. A scorecard row "tier X untouched" must
+be measured by that tier's WHOLE set, never a representative.
+
+**Also open, and NOT to be assumed away:** `a_forked_service_that_cannot_decode_a_message…`
+observed `Outcome/Message` where it requires `Outcome/Lost` — **UNCHARACTERIZED**. Plausibly the
+same root; "probably" is not a disposition.
+
+**Kept, proven, do not re-derive:** `child-entry`'s locus param types as
+**`:wat::spawn::ProcessOpts`** (the abstract `Locus` arm of `infer_listener_prime`, `check.rs:9421`,
+is pinned to 3 args; only `ProcessOpts` takes 3-or-4) · hygiene does NOT fire in a `<fqdn>::` defn ·
+`fn-forms`'s 2nd arg needs `keyword/from-string` (a spliced literal auto-lifts to a `Fn`) ·
+`manifest − walk = {<fqdn>::extract-addr}`, which is parent-side-only by `spawn.wat:575`.
+
+### ▶▶ THE ARTIFACTS (correct about WHAT to build; they did not know the prerequisite)
 
 | artifact | |
 |---|---|
