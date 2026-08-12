@@ -767,7 +767,7 @@ fn walk_free_symbols(
             }
             // Try unit-variant resolution. Unit variants live as
             // `:my::E::Variant` keys in `unit_variants`.
-            if let Some(ev) = state.parent_symbols.unit_variants.get(k) {
+            if let Some(ev) = state.parent_symbols.unit_variant(k) {
                 // The enum type itself is the dep; record it.
                 if !crate::resolve::is_reserved_prefix(&ev.type_path) {
                     record_type_dependency_by_name(state, &ev.type_path);
@@ -784,7 +784,7 @@ fn walk_free_symbols(
             // and record it under its ORIGINAL name (Keyword references
             // are never rewritten by `rewrite_captures`, so the def must
             // keep the name the body already refers to it by).
-            if let Some(value) = state.parent_symbols.runtime_def_values.get(k).cloned() {
+            if let Some(value) = state.parent_symbols.def_value(k).cloned() {
                 if !state.captured_defs.contains_key(k.as_str()) {
                     let encoded = encode_value_to_ast(&value, k.as_str(), state)?;
                     state.captured_defs.insert(k.to_string(), encoded);

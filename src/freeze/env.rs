@@ -280,7 +280,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //       `FrozenWorld::freeze` later overwrites `sym.types` with the same
     //       data (via `symbols.set_types(Arc::new(types.clone()))`); the early
     //       attach here is strictly for the resolve pass.
-    symbols.types = Some(std::sync::Arc::new(types.clone()));
+    symbols.types_insert(std::sync::Arc::new(types.clone()));
 
     // Arc 278 #88 v2 — THE DEFINITION-SITE CHECK for every `(:wat::rete::core::defn …)`
     // collected at step 3b used to run HERE (step 6.975), stamping `Function::rete` on

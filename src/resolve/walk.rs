@@ -275,7 +275,7 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // `defn` bodies that use unit variant match arms fail resolve (the `defn`
     // form stays in `residue` and is walked by step 7, unlike `define` bodies
     // which are consumed by `register_defines`).
-    if sym.unit_variants.contains_key(canonical) {
+    if sym.has_unit_variant(canonical) {
         return true;
     }
     // A macro call — shouldn't survive expansion, but accept for
@@ -303,7 +303,7 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
         //
         // `sym.types` is pre-attached at step 6.97 (freeze/env.rs) BEFORE this
         // resolve pass runs, so the TypeDef::Surface lookup is safe here.
-        if let Some(types) = sym.types.as_ref() {
+        if let Some(types) = sym.types() {
             if matches!(types.get(stem), Some(crate::types::TypeDef::Surface(_))) {
                 return true;
             }

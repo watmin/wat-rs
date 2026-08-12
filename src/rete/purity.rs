@@ -891,12 +891,12 @@ fn is_declaration_derived_construction(items: &[WatAST], sym: &SymbolTable) -> b
         return false;
     }
     let Some(WatAST::Keyword(type_name, _)) = items.get(1) else { return false };
-    let Some(types) = sym.types.as_deref() else { return false };
+    let Some(types) = sym.types_deref() else { return false };
     matches!(types.get(type_name.as_str()), Some(crate::types::TypeDef::Aggregate(_)))
 }
 
 fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
-    let types = sym.types.as_deref()?;
+    let types = sym.types_deref()?;
     // TypeEnv keys carry the leading colon (e.g. ":p::Rec") — use the head verbatim.
     // 1. Aggregate constructor (record / holon / struct) — the head IS the type name.
     //    `total: true` — EARNED, arc 278 BRIEF-construction-total-three-walls.md: #1 wired a
@@ -930,7 +930,7 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
 /// covers every user record; NOT a hand-list. INTERIM recognizer keyed on the frozen TypeEnv, until
 /// arc 255's builtin-registry becomes the single queryable purity source and subsumes it.
 fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
-    let types = sym.types.as_deref()?;
+    let types = sym.types_deref()?;
     // Accessors register as `{agg.name}/{field}` (runtime.rs); `agg.name` carries the leading
     // colon (e.g. ":wat::telemetry::Log"), so the type-path splits off verbatim for `types.get`.
     let (type_path, field) = head.rsplit_once('/')?;
@@ -999,7 +999,7 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
     // itself is unchanged so the `FunctionBody::Native` arm (native HOF combinators —
     // `foldl`/`map`/… — registered in `sym.functions` and judged by `intrinsic_meta`, same as
     // always) keeps working exactly as before; only the Wat arm's admission rule flipped.
-    if sym.functions.contains_key(head) {
+    if sym.has_function(head) {
         return classify_fn(head, axis, sym, seen);
     }
     // Arc 278 #55 slice one — THE ADMISSION TEST, a FOURTH consideration alongside the three
@@ -1333,7 +1333,7 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
     }
     seen.insert(fqdn.to_string());
 
-    let func = match sym.functions.get(fqdn) {
+    let func = match sym.get(fqdn) {
         Some(f) => Arc::clone(f),
         None => return Err(AxisViolation::new(fqdn, axis)), // name not registered → deny
     };
@@ -1603,7 +1603,7 @@ pub(crate) fn apply_rete_defn_contracts(
         // A name collected pre-expansion but absent from `sym.functions` means registration
         // refused it for an unrelated reason upstream (reserved prefix, unnamespaced, a
         // collision) — that error already surfaced from `register_defines`; nothing to stamp.
-        let Some(func) = sym.functions.get(name).cloned() else {
+        let Some(func) = sym.get(name).cloned() else {
             continue;
         };
         let body_ast = match &func.body {
@@ -1654,7 +1654,7 @@ pub(crate) fn apply_rete_defn_contracts(
         }
         let mut declared_func = (*func).clone();
         declared_func.rete = Some(crate::value::ReteContract::default());
-        sym.functions.insert(name.clone(), Arc::new(declared_func));
+        sym.register_function(name.clone(), Arc::new(declared_func));
     }
     ReteDefnCheckOutcome::Ok
 }

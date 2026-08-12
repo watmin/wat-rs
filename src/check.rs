@@ -530,7 +530,7 @@ fn is_fn_form_expr(node: &WatAST) -> bool {
 /// Returns `true` when `form` is a `(:wat::core::def :name (:wat::core::fn ...))` shape
 /// (with or without an optional metadata-map at items[2]) — a function-definition form
 /// whose body is registered in `sym.functions` and walked by the
-/// `for func in sym.functions.values()` loop in `check_program`.
+/// `for func in sym.function_values()` loop in `check_program`.
 ///
 /// Walking such a form in the `for form in forms` pre-inference validator loop would
 /// descend into the fn body a second time, producing byte-identical duplicate
@@ -597,7 +597,7 @@ pub fn check_program(
     // Arc 153/154/155 — legacy unit-name / let-star / lambda walkers retired
     // (sweep windows closed; variants + Display preserved as orphaned scaffolding).
     // Arc 159 — validate_legacy_typed_let_binding retired (sweep window closed).
-    for func in sym.functions.values() {
+    for func in sym.function_values() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
             validate_bare_legacy_primitives(body, &mut errors);
@@ -609,7 +609,7 @@ pub fn check_program(
     }
     for form in forms {
         // ROOT-1 — skip function-definition forms whose fn body is already
-        // walked by the `for func in sym.functions.values()` loop above.
+        // walked by the `for func in sym.function_values()` loop above.
         // A `(:wat::core::def :name (:wat::core::fn ...))` form (the expanded
         // shape of every `defn`) has its body in `sym.functions`; walking the
         // full form here would descend into the same body a second time and
@@ -645,7 +645,7 @@ pub fn check_program(
     // substrate-namespace fn is in the whitelist (e.g. `[:wat::kernel::]`
     // covers callers in `:wat::kernel::*`), it passes. The walker
     // applies uniformly.
-    for (name, func) in sym.functions.iter() {
+    for (name, func) in sym.functions_iter() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
             walk_for_restricted_call(body, name, &env, &mut errors);
@@ -674,7 +674,7 @@ pub fn check_program(
     validate_def_positions_in_forms(forms, &mut errors);
     // Also check inside user-defined function bodies (def inside fn body
     // is always non-top-level regardless of the call site).
-    for func in sym.functions.values() {
+    for func in sym.function_values() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
             validate_def_position_with_wrapper(
@@ -734,7 +734,7 @@ pub fn check_program(
     // loop is safe: function bodies don't depend on each other's
     // `defined_values` (they read from `env.get()` which has all
     // function signatures from `from_symbols`, populated before the loop).
-    for (path, func) in &sym.functions {
+    for (path, func) in sym.functions_iter() {
         if let Some(scheme) = env.get(path) {
             check_function_body(path, func, scheme, &env, &mut fresh, &mut errors);
         }

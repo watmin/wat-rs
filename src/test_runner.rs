@@ -583,7 +583,7 @@ fn collect_wat_files_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::R
 
 fn discover_tests(frozen: &FrozenWorld) -> Vec<String> {
     let mut out = Vec::new();
-    for (name, func) in &frozen.symbols().functions {
+    for (name, func) in frozen.symbols().functions_iter() {
         if is_test_function(name, func) {
             out.push(name.clone());
         }

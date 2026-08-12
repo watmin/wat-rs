@@ -146,7 +146,7 @@ impl<'a> CheckEnv<'a> {
     /// directly from `sym` — no `Arc::new(sym.binding_metadata.clone())`.
     pub fn from_symbols(sym: &'a SymbolTable, types: &'a TypeEnv) -> CheckEnv<'a> {
         let mut env = Self::with_builtins_and_types(types);
-        for (path, func) in &sym.functions {
+        for (path, func) in sym.functions_iter() {
             if let Some(scheme) = super::derive_scheme_from_function(func) {
                 // Arc 170 — the OVERLAY lands through the gate, not a bare insert.
                 // Privilege::Stdlib here because this loop replays an ALREADY-FROZEN
@@ -171,7 +171,7 @@ impl<'a> CheckEnv<'a> {
         // are defclauses that live in runtime_def_values after register_stdlib_defclauses.
         // Arc 232 Stone 232.1 — also load extend_registrations
         // from the extend-def Values in runtime_def_values.
-        for (name, value) in &sym.runtime_def_values {
+        for (name, value) in sym.def_values_iter() {
             match value {
                 crate::runtime::Value::wat__core__clauses(cs) => {
                     let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs.clauses.iter()
@@ -497,7 +497,7 @@ mod tests {
             metadata: None,
         });
         let mut sym = SymbolTable::new();
-        sym.runtime_def_values.insert(":my::op".into(), Value::wat__core__clauses(cs));
+        sym.register_def_value(":my::op".into(), Value::wat__core__clauses(cs));
 
         let types = TypeEnv::default();
         let env = CheckEnv::from_symbols(&sym, &types);

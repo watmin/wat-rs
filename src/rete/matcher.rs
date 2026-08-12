@@ -791,7 +791,7 @@ fn build_insert_fact_call(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
-    let func = match sym.functions.get(head) {
+    let func = match sym.get(head) {
         Some(f) => f.clone(),
         None => {
             return Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::MalformedForm {

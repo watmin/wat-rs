@@ -827,7 +827,7 @@ pub fn register_defclause(
             // reserved `:wat::core::` namespace by construction.
             let reserved_ok = matches!(privilege, crate::resolve::Privilege::Stdlib)
                 || !crate::resolve::is_reserved_prefix(&name);
-            if reserved_ok && !sym.functions.contains_key(&name) {
+            if reserved_ok && !sym.has_function(&name) {
                 // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
                 let stub_body = WatAST::NilLit(form.span().clone());
                 let stub_fn = Arc::new(Function {
@@ -842,15 +842,15 @@ pub fn register_defclause(
                     closed_env: None,
                     rete: None,
                 });
-                sym.functions.insert(name.clone(), stub_fn);
+                sym.register_function(name.clone(), stub_fn);
             }
         }
         ClauseRegPhase::Runtime => {
             // Effect 2 — the real ClauseSet into runtime_def_values,
             // replacing any stub registered by a prior Stub-phase call.
             let value = Value::wat__core__clauses(cs.clone());
-            sym.functions.remove(&name); // remove stub if pre-registered
-            sym.runtime_def_values.insert(name.clone(), value);
+            sym.remove_function(&name); // remove stub if pre-registered
+            sym.register_def_value(name.clone(), value);
         }
     }
 
@@ -909,7 +909,7 @@ pub fn register_defines(
             // is the USER path (stdlib runtime defs go through register_stdlib_runtime_defs);
             // presence maps to Equivalent → NoOp (skip the pre-register; `def`'s redef
             // discipline in infer_def owns real divergence — a Duplicate never arises here).
-            let existing = if sym.functions.contains_key(&path) {
+            let existing = if sym.has_function(&path) {
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
@@ -922,7 +922,7 @@ pub fn register_defines(
                     return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
-                    sym.functions.insert(path.clone(), func);
+                    sym.register_function(path.clone(), func);
                 }
                 crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
@@ -945,7 +945,7 @@ pub fn register_defines(
         } else if let Some((path, func)) = try_parse_user_variadic_def_fn_form(&form)? {
             let form_span = form.span().clone();
             // Phase-1 migration to the ONE gate (user variadic def arm; see the fn-shape arm above).
-            let existing = if sym.functions.contains_key(&path) {
+            let existing = if sym.has_function(&path) {
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
@@ -958,7 +958,7 @@ pub fn register_defines(
                     return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
-                    sym.functions.insert(path, func);
+                    sym.register_function(path, func);
                 }
                 crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
@@ -1070,7 +1070,7 @@ pub(crate) fn register_extend_type_surface_impls(
     skip_if_present: bool,
 ) -> Result<(), RuntimeError> {
     let (_canonical_key, ed) = parse_extend_type_form(form)?;
-    let surface_def = sym.types.as_deref()
+    let surface_def = sym.types_deref()
         .and_then(|t| t.get(&ed.protocol_name))
         .and_then(|td| match td {
             crate::types::TypeDef::Surface(s) => Some(s.clone()),
@@ -1093,7 +1093,7 @@ pub(crate) fn register_extend_type_surface_impls(
         .collect();
     for (method_name, clause) in &ed.impl_clauses {
         let method_key = format!("{}/{}", ed.type_name, method_name);
-        if sym.functions.contains_key(&method_key) {
+        if sym.has_function(&method_key) {
             if skip_if_present {
                 continue;
             }
@@ -1148,7 +1148,7 @@ pub(crate) fn register_extend_type_surface_impls(
             closed_env: None,
             rete: None,
         });
-        sym.functions.insert(method_key, func);
+        sym.register_function(method_key, func);
     }
     Ok(())
 }
@@ -1191,12 +1191,12 @@ pub fn register_stdlib_runtime_defs(
             ":wat::core::extend-type" => {
                 register_extend_type_surface_impls(form, sym, /*skip_if_present=*/false)?;
                 let (canonical_key, ed) = parse_extend_type_form(form)?;
-                let is_surface = sym.types.as_deref()
+                let is_surface = sym.types_deref()
                     .and_then(|t| t.get(&ed.protocol_name))
                     .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
                     .unwrap_or(false);
                 if !is_surface {
-                    sym.runtime_def_values.insert(canonical_key, Value::wat__core__extend_def(ed));
+                    sym.register_def_value(canonical_key, Value::wat__core__extend_def(ed));
                 }
             }
             // Arc 255 escape-hatch — scalar stdlib `def` forms (e.g. MAX-READLN-BYTES).
@@ -1230,7 +1230,7 @@ pub fn register_stdlib_runtime_defs(
                     Ok(tv) => {
                         let value = tv.value_owned();
                         if !matches!(value, Value::wat__core__fn(_)) {
-                            sym.runtime_def_values.insert(name, value);
+                            sym.register_def_value(name, value);
                         }
                     }
                     Err(_) => continue, // stdlib def eval failed; check pass caught it
@@ -1288,8 +1288,8 @@ pub fn register_stdlib_defines(
         // resolves recursive self-references. Bypasses the reserved-prefix
         // gate (stdlib is privileged — all names are under :wat::* by design).
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
+            if !sym.has_function(&path) {
+                sym.register_function(path.clone(), func);
             }
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
@@ -1301,7 +1301,7 @@ pub fn register_stdlib_defines(
             // None for variadic forms (allow_rest_binder=false). This branch handles them:
             // parse with allow_rest_binder=true, set rest_param + rest_param_type on the Function.
             // Stdlib is PRIVILEGED — reserved-prefix gate bypassed.
-            sym.functions.entry(path).or_insert(func);
+            sym.function_entry(path).or_insert(func);
             rest.push(form);
         } else if let Some((alias, target)) = parse_defalias_form(&form) {
             // Stone 241.12 — stdlib defalias native registration.
@@ -1567,7 +1567,7 @@ pub fn register_aggregate_methods(
             // re-walk, not an error. The TypeEnv is the authoritative collision
             // check for aggregate *types*; this loop only mints derived functions
             // from already-registered types, so re-minting the identical ctor is safe.
-            sym.functions.entry(ctor_name).or_insert_with(|| Arc::new(ctor_func));
+            sym.function_entry(ctor_name).or_insert_with(|| Arc::new(ctor_func));
         }
 
         // Emit ONE accessor per OWN field with the correct absolute index.
@@ -1667,7 +1667,7 @@ pub fn register_aggregate_methods(
             // Same collision policy as the ctor mint above — silent-skip on a
             // same-aggregate re-walk (e.g. a forked bracket worker re-registering
             // its shipped surface-forms).
-            sym.functions.entry(accessor_path).or_insert_with(|| Arc::new(accessor_func));
+            sym.function_entry(accessor_path).or_insert_with(|| Arc::new(accessor_func));
         }
     }
     Ok(())
@@ -1725,15 +1725,15 @@ pub fn register_enum_methods(
             match variant {
                 EnumVariant::Unit(variant_name) => {
                     let key = format!("{}::{}", enum_def.name, variant_name);
-                    if sym.unit_variants.contains_key(&key) {
+                    if sym.has_unit_variant(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
                         return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(key)));
                     }
-                    if sym.functions.contains_key(&key) {
+                    if sym.has_function(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
                         return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(key)));
                     }
-                    sym.unit_variants.insert(
+                    sym.register_unit_variant(
                         key,
                         EnumValue {
                             type_path: enum_def.name.clone(),
@@ -1783,14 +1783,13 @@ pub fn register_enum_methods(
                         closed_env: None,
                         rete: None,
                     };
-                    if sym.functions.contains_key(&constructor_path)
-                        || sym.unit_variants.contains_key(&constructor_path)
+                    if sym.has_function(&constructor_path)
+                        || sym.has_unit_variant(&constructor_path)
                     {
                         // arc 138: no span — synthesized enum tagged-variant.
                         return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(constructor_path)));
                     }
-                    sym.functions
-                        .insert(constructor_path, Arc::new(func));
+                    sym.register_function(constructor_path, Arc::new(func));
                 }
             }
         }
@@ -1859,11 +1858,11 @@ pub fn register_newtype_methods(
             closed_env: None,
             rete: None,
         };
-        if sym.functions.contains_key(&constructor_path) {
+        if sym.has_function(&constructor_path) {
             // arc 138: no span — synthesized newtype constructor.
             return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(constructor_path)));
         }
-        sym.functions.insert(constructor_path, Arc::new(new_func));
+        sym.register_function(constructor_path, Arc::new(new_func));
 
         // Accessor — `<newtype>/0`. Single param `self` of newtype.
         // Body invokes `:wat::core::struct-field self 0`. The `/0`
@@ -1889,11 +1888,11 @@ pub fn register_newtype_methods(
             closed_env: None,
             rete: None,
         };
-        if sym.functions.contains_key(&accessor_path) {
+        if sym.has_function(&accessor_path) {
             // arc 138: no span — synthesized newtype accessor.
             return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(accessor_path)));
         }
-        sym.functions.insert(accessor_path, Arc::new(accessor_func));
+        sym.register_function(accessor_path, Arc::new(accessor_func));
     }
     Ok(())
 }
@@ -1993,11 +1992,11 @@ pub fn register_type_predicates(
             rete: None,
         };
 
-        if sym.functions.contains_key(&predicate_name) {
+        if sym.has_function(&predicate_name) {
             // Collision: a user-defined function already occupies this name.
             return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(predicate_name)));
         }
-        sym.functions.insert(predicate_name, Arc::new(pred_func));
+        sym.register_function(predicate_name, Arc::new(pred_func));
     }
     Ok(())
 }
@@ -2318,7 +2317,7 @@ fn register_runtime_defs_form(
             // emitted DefRedefForbidden; here we simply skip to avoid
             // overwriting the prior value (the program may still partially
             // execute to surface other errors).
-            if sym.runtime_def_values.contains_key(&name) && !sym.redef_allowed {
+            if sym.has_def_value(&name) && !sym.redef_allowed {
                 return Ok(()); // redef rejected; type checker already caught it
             }
             // Evaluate the expr in the current env (which carries any
@@ -2356,7 +2355,7 @@ fn register_runtime_defs_form(
                 } else {
                     func.clone()
                 };
-                sym.functions.insert(name.clone(), named_func);
+                sym.register_function(name.clone(), named_func);
             }
             // Stone 241.7 — store metadata for non-fn defs. fn-shape defs are
             // handled earlier by try_parse_fn_shape_def → register_defines. Non-fn
@@ -2367,7 +2366,7 @@ fn register_runtime_defs_form(
                     sym.binding_metadata.insert(name.clone(), meta);
                 }
             }
-            sym.runtime_def_values.insert(name, value);
+            sym.register_def_value(name, value);
         }
         ":wat::core::do" => {
             // Splice: each child is a potential def position.
@@ -2466,7 +2465,7 @@ fn register_runtime_defs_form(
         // arm is unchanged.
         ":wat::core::extend-type" => {
             let (canonical_key, ed) = parse_extend_type_form(form)?;
-            let is_surface = sym.types.as_deref()
+            let is_surface = sym.types_deref()
                 .and_then(|t| t.get(&ed.protocol_name))
                 .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
                 .unwrap_or(false);
@@ -2475,7 +2474,7 @@ fn register_runtime_defs_form(
             } else {
                 // Protocol path: keep existing behavior.
                 let value = Value::wat__core__extend_def(ed);
-                sym.runtime_def_values.insert(canonical_key, value);
+                sym.register_def_value(canonical_key, value);
             }
         }
         _ => {
@@ -2545,7 +2544,7 @@ fn register_defalias(
     // Phase-1 migration to the ONE gate (resolve::registration). check_reserved maps to
     // Privilege; present -> NoOp (idempotent skip). A Duplicate can't arise (Existing is
     // only Absent|Equivalent — this path doesn't compare definitions).
-    let existing = if sym.functions.contains_key(alias) {
+    let existing = if sym.has_function(alias) {
         crate::resolve::Existing::Equivalent
     } else {
         crate::resolve::Existing::Absent
@@ -2562,7 +2561,7 @@ fn register_defalias(
     }
 
     // Case 1: target is a user-defined function already in sym.functions.
-    if let Some(target_fn) = sym.functions.get(target) {
+    if let Some(target_fn) = sym.get(target) {
         // Create a delegating Function whose body calls `(target params...)`.
         // This mirrors what the old define-alias macro produced: a new define whose
         // signature copies the target's params and return type, and whose body calls
@@ -2581,7 +2580,7 @@ fn register_defalias(
             closed_env: None,
             rete: None,
         });
-        sym.functions.insert(alias.to_string(), alias_fn);
+        sym.register_function(alias.to_string(), alias_fn);
         return Ok(());
     }
 
@@ -2610,7 +2609,7 @@ fn register_defalias(
             closed_env: None,
             rete: None,
         });
-        sym.functions.insert(alias.to_string(), alias_fn);
+        sym.register_function(alias.to_string(), alias_fn);
         return Ok(());
     }
 
@@ -2631,7 +2630,7 @@ fn register_defalias(
         closed_env: None,
         rete: None,
     });
-    sym.functions.insert(alias.to_string(), stub_fn);
+    sym.register_function(alias.to_string(), stub_fn);
     Ok(())
 }
 
@@ -2737,7 +2736,7 @@ fn preregister_struct_accessors_from_form(
     // Constructor: bare `{type}` (arc 293.R2.3 — parity with records; `/new` annihilated)
     let constructor_path = type_base.to_string();
     // Phase-1 migration to the ONE gate (struct constructor). present -> NoOp (skip).
-    let cons_existing = if sym.functions.contains_key(&constructor_path) {
+    let cons_existing = if sym.has_function(&constructor_path) {
         crate::resolve::Existing::Equivalent
     } else {
         crate::resolve::Existing::Absent
@@ -2750,7 +2749,7 @@ fn preregister_struct_accessors_from_form(
             return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
         }
         crate::resolve::Registration::Insert => {
-            sym.functions.insert(
+            sym.register_function(
                 constructor_path,
                 Arc::new(Function {
                     name: None,
@@ -2802,7 +2801,7 @@ fn preregister_struct_accessors_from_form(
                 _ => { idx += 3; continue; }
             };
             let accessor_path = format!("{}/{}", type_base, field_name);
-            let acc_existing = if sym.functions.contains_key(&accessor_path) {
+            let acc_existing = if sym.has_function(&accessor_path) {
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
@@ -2815,7 +2814,7 @@ fn preregister_struct_accessors_from_form(
                     return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(accessor_path)));
                 }
                 crate::resolve::Registration::Insert => {
-                    sym.functions.insert(
+                    sym.register_function(
                         accessor_path,
                         Arc::new(Function {
                             name: None,
@@ -2919,7 +2918,7 @@ fn preregister_enum_constructors_from_form(
         let is_tagged = matches!(variant_items.get(vi + 1), Some(WatAST::Vector(_, _)));
 
         let constructor_path = format!("{}::{}", type_base, variant_name);
-        let cons_existing = if sym.functions.contains_key(&constructor_path) {
+        let cons_existing = if sym.has_function(&constructor_path) {
             crate::resolve::Existing::Equivalent
         } else {
             crate::resolve::Existing::Absent
@@ -2932,7 +2931,7 @@ fn preregister_enum_constructors_from_form(
                 return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
             }
             crate::resolve::Registration::Insert => {
-                sym.functions.insert(
+                sym.register_function(
                     constructor_path,
                     Arc::new(Function {
                         name: None,
@@ -3453,7 +3452,7 @@ fn preregister_fn_defs_in_do(
     // keyword; items[1..] are the body children.
     for child in &items[1..] {
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
-            let existing = if sym.functions.contains_key(&path) {
+            let existing = if sym.has_function(&path) {
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
@@ -3466,7 +3465,7 @@ fn preregister_fn_defs_in_do(
                     return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
-                    sym.functions.insert(path.clone(), func);
+                    sym.register_function(path.clone(), func);
                 }
                 crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
@@ -3530,7 +3529,7 @@ fn preregister_fn_defs_in_let(
     // items[2..] = body forms (arc 168 multi-form body)
     for child in items.get(2..).unwrap_or(&[]) {
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
-            let existing = if sym.functions.contains_key(&path) {
+            let existing = if sym.has_function(&path) {
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
@@ -3543,7 +3542,7 @@ fn preregister_fn_defs_in_let(
                     return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
-                    sym.functions.insert(path.clone(), func);
+                    sym.register_function(path.clone(), func);
                 }
                 crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
@@ -3923,7 +3922,7 @@ fn eval_tail(
                 // Head resolves in sym.functions; anything else (kernel/
                 // algebra/config primitive, :rust:: shim) runs through
                 // regular eval.
-                other if sym.functions.contains_key(other) => {
+                other if sym.has_function(other) => {
                     let func = sym.get(other).expect("contains_key above").clone();
                     emit_tail_call(func, args, env, sym, list_span)
                 }
@@ -4428,7 +4427,7 @@ pub(crate) fn eval_inner(
             // path (`:enum::Variant`). When the keyword evaluates,
             // return the variant value directly (no function call).
             // Mirrors the `:None` shortcut for Option.
-            if let Some(ev) = sym.unit_variants.get(k) {
+            if let Some(ev) = sym.unit_variant(k) {
                 return Ok(TrackedValue::from(Value::Enum(Arc::new(ev.clone()))));
             }
             // Arc 157 — top-level `def` bindings. A keyword that was
@@ -4440,7 +4439,7 @@ pub(crate) fn eval_inner(
             // precedence) and BEFORE the function-value lift (so a
             // def-bound closure is returned as the stored Value rather
             // than re-lifted through `sym.get`).
-            if let Some(v) = sym.runtime_def_values.get(k) {
+            if let Some(v) = sym.def_value(k) {
                 return Ok(TrackedValue::from(v.clone()));
             }
             // Arc 009 — names are values. If the keyword is a registered
@@ -6053,7 +6052,7 @@ fn dispatch_keyword_head_value(
                 // the concrete FQDN. Both paths use the identical dispatch lookup.
                 //
                 // `sym.types` is populated at freeze time (`FrozenWorld::freeze` → `symbols.set_types`).
-                if let Some(types) = sym.types.as_ref() {
+                if let Some(types) = sym.types() {
                     if let Some(crate::types::TypeDef::Surface(s)) = types.get(protocol_fqdn) {
                         if let Some(member) = s.members.iter().find(|m| match m {
                             crate::types::SurfaceMember::Method { name, .. } => name == method_name,
@@ -6405,7 +6404,7 @@ fn dispatch_keyword_head_value(
                     // should dispatch through `apply_function` rather than
                     // erroring. The canonical strip is skipped here —
                     // `def` names are registered verbatim.
-                    if let Some(v) = sym.runtime_def_values.get(other) {
+                    if let Some(v) = sym.def_value(other) {
                         match v {
                             Value::wat__core__fn(f) => {
                                 let func = f.clone();
@@ -9489,7 +9488,7 @@ fn eval_apply(
     }
 
     // (b) def-bound callable value.
-    if let Some(v) = sym.runtime_def_values.get(head_kw.as_str()) {
+    if let Some(v) = sym.def_value(head_kw.as_str()) {
         match v {
             Value::wat__core__fn(f) => {
                 return apply_function(f.clone(), combined, sym, list_span).map_err(Into::into);
@@ -11641,7 +11640,7 @@ pub fn lookup_form<'a>(
     // FIRST so that reflection primitives (lookup-define, body-of, signature-of-defn)
     // see the type definition rather than the synthesized ctor function that lives
     // under the same key in sym.functions.
-    if let Some(types) = &sym.types {
+    if let Some(types) = sym.types() {
         if let Some(def) = types.get(name) {
             let is_auto_ctor = match def {
                 crate::types::TypeDef::Aggregate(a) => a.nature == crate::types::Nature::Struct,
@@ -11658,7 +11657,7 @@ pub fn lookup_form<'a>(
         }
     }
     // 1. User defines shadow builtins (call-dispatch precedent).
-    if let Some(f) = sym.functions.get(name) {
+    if let Some(f) = sym.get(name) {
         return Some(Binding::UserFunction {
             name: name.to_string(),
             f,
@@ -11666,7 +11665,7 @@ pub fn lookup_form<'a>(
         });
     }
     // 2. Macros — only when a registry is attached.
-    if let Some(reg) = &sym.macro_registry {
+    if let Some(reg) = sym.macro_registry() {
         if let Some(def) = reg.get(name) {
             return Some(Binding::Macro {
                 name: name.to_string(),
@@ -11687,7 +11686,7 @@ pub fn lookup_form<'a>(
         });
     }
     // 4. Types — only when a type registry is attached.
-    if let Some(types) = &sym.types {
+    if let Some(types) = sym.types() {
         if let Some(def) = types.get(name) {
             return Some(Binding::Type {
                 name: name.to_string(),
@@ -12786,7 +12785,7 @@ fn resolve_aggregate_def_for_reflection<'a>(
     span: &Span,
     sym: &'a SymbolTable,
 ) -> Result<&'a crate::types::AggregateDef, EvalBreak> {
-    match sym.types.as_ref().and_then(|t| t.get(type_kw)) {
+    match sym.types().and_then(|t| t.get(type_kw)) {
         Some(crate::types::TypeDef::Aggregate(a)) => Ok(a),
         Some(_) => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
@@ -25221,7 +25220,7 @@ fn step_list(
             // User-defined function looked up by full keyword path.
             // Top-level defines have closed_env=None; closures (from
             // fn) have it Some — we refuse those for now (Phase 3).
-            if sym.functions.contains_key(&head_kw) {
+            if sym.has_function(&head_kw) {
                 step_user_call(items, list_span, env, sym, &head_kw)
             } else {
                 Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::NoStepRule {
@@ -34601,7 +34600,7 @@ mod tests {
         let (stdlib_sym, _, _) = stdlib_loaded();
         let mut outer_sym = stdlib_sym.clone();
         let helper_body = crate::parse_one!("42").expect("parse body");
-        outer_sym.functions.insert(
+        outer_sym.register_function(
             ":my::helper".to_string(),
             Arc::new(Function {
                 name: Some(":my::helper".to_string()),

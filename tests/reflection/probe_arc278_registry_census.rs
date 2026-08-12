@@ -31,50 +31,36 @@
 //! public `contains` rather than enumerated. The four other registries are enumerated.
 
 use std::collections::{BTreeMap, BTreeSet};
+use wat::value::symbol_table::RegistryKind;
 
-/// The registries a name can be registered in. This mirrors what a real
-/// `RegistryKind` enum would carry — the census exists to check whether that
-/// enum is a set-of-facets or a set-of-rivals.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Kind {
-    Macro,
-    Type,
-    Function,
-    UnitVariant,
-    DefValue,
-}
-
-fn census(path: &str) -> BTreeMap<String, BTreeSet<Kind>> {
+/// The census now goes THROUGH THE DOOR (`SymbolTable::registrations`) rather
+/// than reaching into the registries by hand — the wall this stone raised made
+/// the hand-reach uncompilable, and this test was its last offender. So it is
+/// now a test OF the door as well as a census: if `registrations` ever stops
+/// reporting a facet, the shape assertions below go red.
+///
+/// Name ENUMERATION still needs the per-registry iterators (the door answers
+/// per-name, it does not list names). Macro-only names are therefore invisible
+/// here — stated, not hidden, because it bounds the result.
+fn census(path: &str) -> BTreeMap<String, BTreeSet<RegistryKind>> {
     let world = wat::freeze::startup_from_file(path).expect("freeze should succeed");
     let sym = world.symbols();
-    let mut out: BTreeMap<String, BTreeSet<Kind>> = BTreeMap::new();
 
-    for name in sym.functions.keys() {
-        out.entry(name.clone()).or_default().insert(Kind::Function);
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    names.extend(sym.functions_iter().map(|(n, _)| n.clone()));
+    names.extend(sym.unit_variants_iter().map(|(n, _)| n.clone()));
+    names.extend(sym.def_values_iter().map(|(n, _)| n.clone()));
+    if let Some(types) = sym.types_deref() {
+        names.extend(types.iter().map(|(n, _)| n.clone()));
     }
-    for name in sym.unit_variants.keys() {
-        out.entry(name.clone()).or_default().insert(Kind::UnitVariant);
-    }
-    for name in sym.runtime_def_values.keys() {
-        out.entry(name.clone()).or_default().insert(Kind::DefValue);
-    }
-    if let Some(types) = sym.types() {
-        for (name, _def) in types.iter() {
-            out.entry(name.clone()).or_default().insert(Kind::Type);
-        }
-    }
-    // Macro membership is PROBED (the registry's map is pub(super)); every name any other
-    // registry knows is asked. A macro registered under a name NO other registry knows is
-    // therefore invisible to this census — stated, not hidden, because it bounds the result.
-    if let Some(macros) = &sym.macro_registry {
-        let names: Vec<String> = out.keys().cloned().collect();
-        for name in names {
-            if macros.contains(&name) {
-                out.entry(name).or_default().insert(Kind::Macro);
-            }
-        }
-    }
-    out
+
+    names
+        .into_iter()
+        .map(|n| {
+            let kinds: BTreeSet<RegistryKind> = sym.registrations(&n).iter().collect();
+            (n, kinds)
+        })
+        .collect()
 }
 
 #[test]
@@ -83,11 +69,11 @@ fn registry_census_names_the_multi_registry_shape() {
     // constructors — the exact shape whose closure shipped uncallable.
     let all = census("wat-scripts/scratch-pad/probe-arc278-union-closure-boots-a-process-child.wat");
 
-    let multi: BTreeMap<&String, &BTreeSet<Kind>> =
+    let multi: BTreeMap<&String, &BTreeSet<RegistryKind>> =
         all.iter().filter(|(_, k)| k.len() > 1).collect();
 
     // Group by the KIND-SET, so the shape is legible rather than a wall of names.
-    let mut by_shape: BTreeMap<Vec<Kind>, Vec<&str>> = BTreeMap::new();
+    let mut by_shape: BTreeMap<Vec<RegistryKind>, Vec<&str>> = BTreeMap::new();
     for (name, kinds) in &multi {
         by_shape
             .entry(kinds.iter().copied().collect())

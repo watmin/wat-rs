@@ -51,8 +51,7 @@ pub(crate) fn eval_collect_rules(
 
     // Select zero-arg fns in the namespace whose return type is the `defrule` marker `:wat::rete::Rule`.
     let mut names: Vec<String> = sym
-        .functions
-        .iter()
+        .functions_iter()
         .filter(|(name, f)| {
             let bare = name.strip_prefix(':').unwrap_or(name);
             bare.starts_with(&prefix)

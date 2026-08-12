@@ -30,7 +30,7 @@ pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
 #[derive(Clone)]
 #[derive(Default)]
 pub struct SymbolTable {
-    pub functions: HashMap<String, Arc<Function>>,
+    functions: HashMap<String, Arc<Function>>,
     // TRANSFORMS — clojure-ination (keyword-keyed)
     /// Arc 048 — pre-built [`EnumValue`]s for each registered
     /// unit-variant enum constructor. Populated by
@@ -39,10 +39,10 @@ pub struct SymbolTable {
     /// Consulted in `eval`'s keyword arm before the function-lookup
     /// fallback so a bare keyword evaluates directly to its
     /// variant value (mirrors the `:None` shortcut).
-    pub unit_variants: HashMap<String, EnumValue>,
+    unit_variants: HashMap<String, EnumValue>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn SourceLoader>>,
-    pub macro_registry: Option<Arc<MacroRegistry>>,
+    macro_registry: Option<Arc<MacroRegistry>>,
     /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
     /// dim, returns σ count. Used by `presence?` to compute the
     /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
@@ -59,7 +59,7 @@ pub struct SymbolTable {
     /// declarations (variant fields, struct fields, alias targets) —
     /// e.g. to walk a consumer's entry-enum decl and synthesize
     /// schemas + INSERT statements without consumer code (arc 085).
-    pub types: Option<Arc<TypeEnv>>,
+    types: Option<Arc<TypeEnv>>,
     /// Arc 140 slice 1 — when this SymbolTable belongs to a sub-
     /// program (one started via `:wat::kernel::run-sandboxed-ast` /
     /// `run-sandboxed-hermetic-ast`), this field carries an
@@ -105,7 +105,7 @@ pub struct SymbolTable {
     /// separation: check-time carries `(TypeExpr, Span)`; runtime carries
     /// `Value`. Populated by `register_runtime_defs` in `FrozenWorld::freeze`
     /// after all capability carriers are installed.
-    pub runtime_def_values: HashMap<String, Value>,
+    runtime_def_values: HashMap<String, Value>,
     /// Arc 157 slice 1a-ii — controls compile-time / load-time `def` redef.
     /// Default `false` (opt-in). Toggled via
     /// `(:wat::config::set-redef! true)`. Type-stability check applies
@@ -169,13 +169,199 @@ impl std::fmt::Debug for SymbolTable {
     }
 }
 
+/// Every registry a name can be registered in — arc 278,
+/// `DESIGN-STONE-registry-kind-one-door.md`.
+///
+/// The registries answer at DIFFERENT PHASES (`Macro` at expand, `Type` at check, the rest at
+/// eval), which is why they are separate tables and not one — fusing them would collapse the
+/// phase ordering the language depends on. What was missing was a single QUERY surface, so a
+/// consumer asking "what is this name?" had to remember all five. `closure_extract` remembered
+/// four; the omitted `Macro` is why a synthesized record shipped to a forked child as a type
+/// with no callable constructor.
+///
+/// ⛔ EXHAUSTIVE BY LAW. The `_`-wildcard ban on enum scrutinees
+/// (`109/NOTE-full-enum-match-mandatory-no-wildcard-arm.md`) means adding a sixth registry
+/// turns every consumer's match RED until it decides what the new kind means. That is the
+/// point of the enum: a new registry cannot be silently skipped, because there is no wildcard
+/// to swallow it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RegistryKind {
+    /// Expand-time. Macro definitions — including every kwargs constructor.
+    Macro,
+    /// Check-time. `TypeEnv` entries.
+    Type,
+    /// Eval-time. Registered functions.
+    Function,
+    /// Eval-time. Nullary enum variants, keyed by full path.
+    UnitVariant,
+    /// Eval-time. `def`-bound values.
+    DefValue,
+}
+
+/// Every facet a name is registered under. MEASURED (the registry census,
+/// `tests/reflection/probe_arc278_registry_census.rs`): over a defservice world, 207 of 2489
+/// names appear in more than one registry, in exactly two shapes — `[Macro, Type]` (a record's
+/// type + its constructor) and `[Function, DefValue]` (every `defn`, since `defn` expands to
+/// `(def :n (fn …))`). Nothing appears in three or more, and NO name means two unrelated
+/// things. So this is a set of FACETS OF ONE CONCEPT, never rivals — which is why there is no
+/// precedence field here and no precedence ruling to make. A caller takes the facet its phase
+/// needs.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RegistrationSet {
+    kinds: Vec<RegistryKind>,
+}
+
+impl RegistrationSet {
+    pub fn is_empty(&self) -> bool {
+        self.kinds.is_empty()
+    }
+    pub fn contains(&self, kind: RegistryKind) -> bool {
+        self.kinds.contains(&kind)
+    }
+    pub fn iter(&self) -> impl Iterator<Item = RegistryKind> + '_ {
+        self.kinds.iter().copied()
+    }
+    fn push(&mut self, kind: RegistryKind) {
+        self.kinds.push(kind);
+    }
+}
+
 impl SymbolTable {
     pub fn new() -> Self {
         Self::default()
     }
 
+    // ─── THE DOOR ───────────────────────────────────────────────────────
+    //
+    // One call answers "what is registered under this name?" across every
+    // registry. Empty ⇒ unregistered (at value position, a keyword literal).
+    //
+    // Consumers that need only ONE registry use the phase-named narrow
+    // accessors below — so a single-registry read is a DELIBERATE, greppable
+    // choice, never the default that happens because four were forgotten.
+
+    /// Every facet `name` is registered under, across all five registries.
+    pub fn registrations(&self, name: &str) -> RegistrationSet {
+        let mut set = RegistrationSet::default();
+        // Ordered to mirror the phases: expand → check → eval. The order is
+        // presentational, NOT precedence — see `RegistrationSet`.
+        if self
+            .macro_registry
+            .as_ref()
+            .is_some_and(|m| m.contains(name))
+        {
+            set.push(RegistryKind::Macro);
+        }
+        if self.types.as_ref().is_some_and(|t| t.contains(name)) {
+            set.push(RegistryKind::Type);
+        }
+        if self.functions.contains_key(name) {
+            set.push(RegistryKind::Function);
+        }
+        if self.unit_variants.contains_key(name) {
+            set.push(RegistryKind::UnitVariant);
+        }
+        if self.runtime_def_values.contains_key(name) {
+            set.push(RegistryKind::DefValue);
+        }
+        set
+    }
+
+    // ─── NARROW, PHASE-NAMED READS ──────────────────────────────────────
+
     pub fn get(&self, path: &str) -> Option<&Arc<Function>> {
         self.functions.get(path)
+    }
+
+    /// Narrow: is `path` a registered FUNCTION? (Not "is it registered".)
+    pub fn has_function(&self, path: &str) -> bool {
+        self.functions.contains_key(path)
+    }
+
+    /// Narrow: iterate registered functions. Bulk transfer, not name lookup.
+    pub fn functions_iter(&self) -> impl Iterator<Item = (&String, &Arc<Function>)> {
+        self.functions.iter()
+    }
+
+    pub fn function_values(&self) -> impl Iterator<Item = &Arc<Function>> {
+        self.functions.values()
+    }
+
+    /// Narrow: the nullary-enum-variant facet.
+    pub fn unit_variant(&self, path: &str) -> Option<&EnumValue> {
+        self.unit_variants.get(path)
+    }
+
+    pub fn has_unit_variant(&self, path: &str) -> bool {
+        self.unit_variants.contains_key(path)
+    }
+
+    pub fn unit_variants_iter(&self) -> impl Iterator<Item = (&String, &EnumValue)> {
+        self.unit_variants.iter()
+    }
+
+    /// Narrow: the `def`-bound-value facet.
+    pub fn def_value(&self, path: &str) -> Option<&Value> {
+        self.runtime_def_values.get(path)
+    }
+
+    pub fn has_def_value(&self, path: &str) -> bool {
+        self.runtime_def_values.contains_key(path)
+    }
+
+    pub fn def_values_iter(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.runtime_def_values.iter()
+    }
+
+    // NOTE: the macro facet's narrow accessor already exists further down as
+    // `macro_registry()` — kept as the incumbent rather than duplicated here.
+    // It had TWO call sites in the whole tree before this stone, which is
+    // exactly why omitting the macro registry went unnoticed for two arcs.
+
+    // ─── REGISTRATION (writes) ──────────────────────────────────────────
+    //
+    // The registration path is NOT a door consumer: it names one registry on
+    // purpose. These exist so the fields can stay private.
+
+    pub fn register_function(&mut self, path: String, f: Arc<Function>) {
+        self.functions.insert(path, f);
+    }
+
+    pub fn remove_function(&mut self, path: &str) -> Option<Arc<Function>> {
+        self.functions.remove(path)
+    }
+
+    pub fn register_unit_variant(&mut self, path: String, v: EnumValue) {
+        self.unit_variants.insert(path, v);
+    }
+
+    pub fn register_def_value(&mut self, path: String, v: Value) {
+        self.runtime_def_values.insert(path, v);
+    }
+
+    pub fn remove_def_value(&mut self, path: &str) -> Option<Value> {
+        self.runtime_def_values.remove(path)
+    }
+
+    /// Narrow: the type facet, dereferenced. Companion to [`Self::types`]
+    /// (which yields `&Arc<TypeEnv>`); several call sites want `&TypeEnv`.
+    pub fn types_deref(&self) -> Option<&TypeEnv> {
+        self.types.as_deref()
+    }
+
+    /// Attach/replace the `TypeEnv`, yielding the stored handle. Mirrors the
+    /// `Option::insert` the field previously exposed directly.
+    pub fn types_insert(&mut self, t: Arc<TypeEnv>) -> &mut Arc<TypeEnv> {
+        self.types.insert(t)
+    }
+
+    /// Mutable access to a registered function, for the in-place fixups the
+    /// freeze pipeline performs after registration.
+    pub fn function_entry(
+        &mut self,
+        path: String,
+    ) -> std::collections::hash_map::Entry<'_, String, Arc<Function>> {
+        self.functions.entry(path)
     }
 
     /// Attach an encoding context. Called once at freeze time by
