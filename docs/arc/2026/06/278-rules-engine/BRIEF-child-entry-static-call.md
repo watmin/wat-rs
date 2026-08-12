@@ -90,15 +90,30 @@ read it as the worklist (`docs/SUBSTRATE-AS-TEACHER.md`), not a crisis.
 
 ## Verification you run yourself
 
-- `./target/release/wat --check <a corpus service .wat>` — fast per-file arbiter (~0.2s). **Read the
-  output, not a piped exit code:** `--check f | tail` returns *tail's* exit status.
+**Cargo is yours.** You are the only rider in the field, so the `target/` build lock belongs to
+you — build and test freely. (The standing caution about riders and cargo is about N riders
+thrashing one lock, which does not apply to a solo strike.)
+
+**Run every verification in the FOREGROUND and block on it.** You are a rider, not the
+orchestrator: **ending your turn ENDS you.** It does not suspend you, nothing will wake you, and no
+notification is coming. Your turn ends when the numbers are in your hands, not when the command is
+launched. A backgrounded run you return early from reports nothing.
+
+- `./target/release/wat --check <a corpus service .wat>` — fast per-file arbiter (~0.2s), after a
+  `cargo build --release` (a `wat/` edit is baked, so the binary must be rebuilt to see it).
+  **Read the output, not a piped exit code:** `--check f | tail` returns *tail's* exit status.
 - `:wat::deporder::verify-stdlib` must print `[]` (a two-line `:user::main`) — catches stdlib
   load-order violations `--check` cannot see. Mandatory for any `wat/` edit.
 - `cargo test --release --test services -- probe_arc209_c2_defservice_dispatch` and
   `-- probe_arc272_6b_defservice_on_process` — the two closest existing gates.
-- Do **not** run a full `cargo nextest`; the orchestrator weighs the floor centrally, once.
+- `cargo nextest run --release` for the whole floor once you are close. Baseline is
+  **4391 passed / 0 failed / 262 skipped**. Read the **Summary line** — never a piped exit code.
+
+**On a RED: do NOT re-run it.** A re-run that goes green destroys the only evidence. Copy the
+failing test's whole stdout+stderr **verbatim** into your report, name the exact assertion or match
+arm that fired, and surface it. There is no such thing as a known flake.
 
 ## Do not
 
 Do not commit, push, stash, or revert. Do not use a git worktree. Leave the tree dirty for the
-orchestrator to weigh.
+orchestrator, who re-runs the scorecard and weighs the floor independently.
