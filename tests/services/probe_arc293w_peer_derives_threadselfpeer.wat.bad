@@ -1,0 +1,27 @@
+;; probe_arc293w_peer_derives_threadselfpeer.wat.bad — THE MOBILITY WALL. MUST STAY RED.
+;;
+;; The FORBIDDEN direction: a `ThreadSelfPeer'` (in-locus, may hold live crossbeam handles)
+;; handed to a `Peer'` (wire-safe, pure I/O only) parameter. If this ever compiles, an in-locus
+;; peer can be laundered into a wire-safe position and arc 293.W's whole mobility guarantee is
+;; gone.
+;;
+;; ⛔ THIS FILE IS THE OMISSION MADE VISIBLE. The safe edge `Peer' derives ThreadSelfPeer'` is
+;; declared in `wat/spawn.wat`; the REVERSE edge is the one deliberately NOT declared, and an
+;; un-written rule is invisible — nothing fails when someone adds it. This negative gate is what
+;; makes the absence enforceable, exactly as `probe_arc278_value_universal_top`'s down-checked
+;; asserts keep `:wat::core::Value` from degrading into an `any` (arc 278 R7: the top type is a
+;; fixed point BECAUSE the second, looser rule was never added).
+;;
+;; If a future change makes this file compile, that change is wrong — do not "fix" this file.
+
+(:wat::core::defn :probe::takes-peer
+  [p <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::i64
+  1)
+
+;; ★ THE VIOLATION — must be refused, forever.
+(:wat::core::defn :probe::thread-self-peer-must-not-satisfy-peer
+  [p <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::i64
+  (:probe::takes-peer p))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "unreachable — this file must not compile"))

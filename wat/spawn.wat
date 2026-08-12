@@ -245,6 +245,32 @@
 (:wat::core::derive :wat::kernel::Thread  :wat::kernel::Peer)
 (:wat::core::derive :wat::kernel::Process :wat::kernel::Peer)
 
+;; ── arc 293.W.2d / arc 278 — a wire-safe Peer' IS usable in-locus ────────────
+;; THE LINE IS SHARED MEMORY OR NOT, and it is DIRECTIONAL:
+;;   ThreadSelfPeer'<S,R>  in-locus, ANY I/O   (the escape hatch for peers holding live handles)
+;;   Peer'<S,R>            wire-safe, PURE I/O only
+;; `Peer'` is STRICTLY STRICTER, so it satisfies every constraint a `ThreadSelfPeer'` position
+;; imposes — one derive states the relation the checker previously enumerated by hand at ~7
+;; sites (check.rs 9835 / 10159 / 11091 / poll'-select' self / the 10176 error string).
+;; Args stay INVARIANT (the Parametric<:Parametric arm unifies them); this is a HEAD edge only.
+;;
+;; ⛔ ONE-WAY, AND THE OMISSION IS THE WALL. The reverse — ThreadSelfPeer' derives Peer' — must
+;; NEVER be written: it would launder an in-locus peer (live crossbeam handles) into a wire-safe
+;; position and arc 293.W's mobility guarantee is gone. An un-written rule is invisible, so the
+;; absence is made enforceable by a negative gate:
+;;   tests/services/probe_arc293w_peer_derives_threadselfpeer.wat.bad  (must stay RED, forever)
+;; Same discipline that keeps `:wat::core::Value` from degrading into an `any` (278 R7).
+;;
+;; NOTE this cannot weaken the WIRE wall: `is_pure_type` (check.rs ~12979) refuses ALL FOUR peer
+;; heads by NAME in an exhaustive match — "they are resources — they are not pure" (builder,
+;; 2026-08-03). A subtype edge does not touch a head-keyed match; only ADDRESSES cross (293.W).
+;;
+;; WHY IT WAS NEEDED (arc 278): defservice's generated child main reached `serve` through
+;; `(apply (keyword/from-string …))` — a call that existed BECAUSE it did not resolve statically,
+;; so no closure walk could follow it. The process tier holds a `Peer'` and `serve` declares a
+;; `ThreadSelfPeer'`; this edge is what lets that call be STATIC.
+(:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)
+
 ;; ── Bound<S,R> — the listening state minted by (listener' (thread) :S :R) ─────
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
 ;; (Listener'/Address'). `listener` is the server accept-side; `address` is what

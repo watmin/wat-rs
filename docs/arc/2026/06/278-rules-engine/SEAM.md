@@ -107,6 +107,24 @@ probe's header (which also asserts non-vacuously that the reconstruction path st
   in the child. (`probe-arc278-free-user-name-in-parent-defn.wat`, both arms + control.)
 - **Ship EXPANDED forms.** Shipping unexpanded means `defservice` itself must cross the fork.
 
+## ✅ THE PEER EDGE IS RULED AND LANDED (2026-08-12) — the blocker below is now OPEN
+
+The builder ruled **(e)**: *"take (e) - one way edge with the negative test."* Landed as **one
+`derive` line** in `wat/spawn.wat` — no Rust — because the `Parametric<:Parametric` arm was already
+driven by the derive graph and `spawn.wat:243` had pre-written the instruction (*"ONE more `derive`
+line — zero edits to the assignable rule"*):
+
+```clojure
+(:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)
+```
+
+`serve` keeps its `ThreadSelfPeer` annotation; the process tier's `Peer` is now **statically
+passable**. Guarded one-way by `tests/services/probe_arc293w_peer_derives_threadselfpeer.wat.bad`
+(**must stay RED forever** — do not "fix" it). Floor **4391/4391**, clippy 0. Full reasoning:
+`docs/arc/2026/06/293-struct-record-symmetry/NOTE-peer-and-threadselfpeer-are-one-relation-never-stated.md`.
+
+**So the type blocker is gone. What remains below is the mechanical half.**
+
 ## ▶ NEXT ACT — kill the dynamic `apply` (grounded this session, with coordinates)
 
 The one-entry model needs a real parent `defn` a closure walk can root at. Today the generated

@@ -94,21 +94,49 @@ So `serve`'s declared `self` type is enforced in production by **nothing** — o
 and by `serve`'s own self-recursion. The generic `Locus/launch` impl *cannot* name a per-service
 `serve` statically, which is why the `apply` exists; that part is honest genericity, not laziness.
 
-## The open question (NOT ruled here)
+## RULED AND LANDED (builder, 2026-08-12): state the safe edge once
 
-**Should the safe edge be stated once — `Peer'<S,R> <: ThreadSelfPeer'<S,R>` — instead of
-enumerated at each site?** If so, `serve` keeps its current `ThreadSelfPeer` annotation (the
-permissive head), the thread tier still matches exactly, and the process tier's `Peer` becomes
-**statically passable** — which is what unblocks a static call and a rootable closure walk. Every
-remote locus, being wire, hands over a `Peer` and passes for free.
+> *"take (e) - one way edge with the negative test"*
 
-Two hard requirements on any such change, and they are the whole risk:
+**And it needed no Rust.** The mechanism was already the right shape and said so in its own
+comment — `check.rs` ≈`14678`: *"a parametric type satisfies a parametric bound iff its head
+DERIVES the expected head (the derive graph …). The head check is driven entirely by the derive
+graph, **never a hardcoded list** — a new locus joins with one derive."* And `spawn.wat:243` had
+already written the extension instruction: *"a future remote locus joins the peer family with **ONE
+more `derive` line** — zero edits to the assignable rule."*
 
-1. **ONE-WAY ONLY.** The reverse edge must never be written. `check.rs:12986`'s refusal must keep
-   firing, and a negative test must assert it — the same discipline that keeps
-   `:wat::core::Value` honest (arc 278 R7: the top type is a fixed point *because* the second,
-   looser rule was never added).
-2. **Identical type args only.** Do not invent variance on `S`/`R` while adding the head edge.
+So the relation is stated where the graph already lives, beside its two siblings:
+
+```clojure
+(:wat::core::derive :wat::kernel::Thread  :wat::kernel::Peer)
+(:wat::core::derive :wat::kernel::Process :wat::kernel::Peer)
+(:wat::core::derive :wat::kernel::Peer    :wat::kernel::ThreadSelfPeer)   ;; ← this
+```
+
+`serve` keeps its `ThreadSelfPeer` annotation; the thread tier still matches exactly; the process
+tier's `Peer` is now **statically passable** — which is what unblocks a static call and a rootable
+closure walk (arc 278). Every remote locus, being wire, hands over a `Peer` and passes for free.
+
+**Both requirements held, and both are enforced rather than remembered:**
+
+1. **ONE-WAY ONLY** — `tests/services/probe_arc293w_peer_derives_threadselfpeer.wat.bad` +
+   `…rs::thread_self_peer_is_refused_where_a_peer_is_expected`. The forbidden edge is the rule
+   *nobody writes*, and an un-written rule is invisible: nothing fails the day someone adds it
+   "for symmetry." The negative gate converts that absence into something enforceable, exactly as
+   the down-checked asserts keep `:wat::core::Value` from degrading into an `any` (278 R7). The
+   test pins the **exact arm** (`callee == ":probe::takes-peer"`, both heads named), so a fixture
+   that failed for an unrelated reason could not stand in for the wall (278 R59).
+2. **Identical type args only** — a HEAD edge; the `Parametric<:Parametric` arm still unifies
+   args invariantly. No variance was invented on `S`/`R`.
+
+**The wire wall is untouched, checked before the edit rather than after:** `is_pure_type`
+(`check.rs` ≈`12979`) refuses all four peer heads **by name** in an exhaustive match — *"they are
+resources — they are not pure"* (builder, 2026-08-03) — and a subtype edge cannot affect a
+head-keyed match.
+
+**Weighed: floor 4391/4391 passed, 0 failed, 262 skipped** (4389 + exactly the two new tests),
+clippy 0, by my own `--release` re-run. RED-probe-first: both fixtures failed on their own
+direction before the edge, each located to the byte.
 
 Cross-refs: `BRIEF-293.W.2d-peer-purity.md` (the mint), `DESIGN-293.W-deep-wire-wall.md` (the
 mobility wall), `docs/arc/2026/05/209-defservice/` + `wat/spawn.wat:336-523` (the Locus protocol),
