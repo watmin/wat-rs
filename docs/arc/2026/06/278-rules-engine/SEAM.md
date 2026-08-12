@@ -11,147 +11,135 @@
 ## Where the code is
 
 ```
-HEAD ff7705ba+   pushed   floor 4386 passed / 0 failed   clippy 0
+HEAD a5ac88ca+   pushed   floor 4388 passed / 0 failed   clippy 0
 ```
 
 `git status` clean. ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 
-**⛔ `stash@{0}` HOLDS UNWEIGHED WORK — do not `git stash drop`.** A stopped rider's lifecycle strike:
-`wat/service.wat` +298/−18 plus two new test files. It BUILT but was never floor-weighed, and it is
-superseded in part by the finding below. Read it before reusing it; do not assume it is good.
+**⛔ `stash@{0}` HOLDS THE ONLY COPY OF THREE FILES — do not `git stash drop`.** It was made with
+`-u`, so it has **three parents**; `git stash show --stat` shows only the tracked one (`wat/service.wat`
++298/−18) and **cannot see the untracked payload**. That payload —
+`tests/services/probe_arc278_connection_lifecycle.{rs,wat}` and
+`wat-scripts/scratch-pad/probe-arc278-nullary-enum-process-repro.wat` — exists **nowhere else on
+disk**, and the third is the repro this whole finding rests on. Read it with
+`git show 'stash@{0}^3:<path>'`. Restoring those three into the tree is owed.
 
-## ★ WHAT LANDED (2026-08-09 → 10)
+## ★ WHAT LANDED (2026-08-11) — six commits, each weighed by own `--release` re-run
 
 | commit | |
 |---|---|
-| `037ef43e` | **ctx is MANDATORY** — the leading `-` discriminates, arity is a consequence. 169 public arms → `[s ctx req]`, 3 internal → `[s ctx]`, via a recorded codemod. Fixed STOP-0: the internal branch had been silently DROPPING its second binder |
-| `b79b17a3` | **the invocation FAMILY** — `InvocationCore` spliced into `SelfInvocation` / `LifecycleInvocation` / `Invocation`; `request-id` → `invocation-id` |
-| `a3f39a21` | **the form-aware arm census** (`wat-scripts/census-defservice-arm-arity.wat`) — regex gave 52/179/44 for one question; the tree-walk gives the answer, and its header now carries its own three blind spots |
-| `e94013c5` · `ff7705ba` | the connection-lifecycle **stone + brief** (drawn, NOT built — see BLOCKED) |
+| `e306da6f` | closure extraction carries **`def`-bound names** (`closure_extract.rs:769`'s raise, gone) |
+| `9e9503a8` | `fn-forms` emitted the retired **`:()`** unit spelling — every nil-returning fn shipped a program no child could start |
+| `db0028d1` | the **registry census** + the **free-rendezvous-name** probe |
+| `7134f4eb` `52cdc063` `372175d0` | the **`RegistryKind` stone** — drawn, its census corrected, then re-ruled to *impose the wall* |
+| `20abf6cc` | **THE WALL** — the five registries go private, one door opens |
+| `a5ac88ca` | **macros ship** — a type's constructor rides with it |
 
-## ⛔ THE BLOCKER — and it is a substrate stone, not a service one
+## The architecture, as the builder ruled it
 
-**`defservice` builds its forked child's world from a HAND-ENUMERATED manifest. The substrate has a
-transitive-closure extractor and `service.wat` has never called it.**
+**`defservice` hand-enumerates a manifest; `bracket` ships `fn-forms` closure ++ a one-liner main.**
+`defservice` is the outlier, and the manifest is a *workaround* for the extractor's holes — which is
+why pulling it out is what exposed them.
 
-- `src/closure_extract.rs` — 2933 lines, exposed as `:wat::kernel::fn-forms`. Its own header:
-  *"recursively extract user dependencies (other defns, types) until fixpoint."* `wat/bracket.wat`
-  uses it for the identical problem. `wat/service.wat`: **zero hits**.
-- **MEASURED, by run** (`wat-scripts/scratch-pad/probe-arc278-fnforms-reaches-program-types.wat`):
-  `manifest=14 forms, closure=22`. The needle that matters — `defenum :probe::FFXTag`, the
-  DECLARATION — is **manifest=0 / closure=1**. The closure carries the program-level type; the
-  manifest does not. (A bare `FFXTag` needle hits BOTH, because a `Record` field *references* the
-  type. A name is not a declaration.)
-- **The consequence, also proven by run** (`probe-arc278-nullary-enum-process-repro.wat`): a
-  program-level `defenum` named in `:durable` and matched in an op body **does not cross a process
-  fork**. The child has the type's NAME but not its VARIANTS, treats it as open-typed, and dies at
-  startup. **Thread locus green, process locus dead** — locus-dependent silent divergence.
+- **ONE entry, not a root set.** The entry is the child's **main**, not `serve` — `init` /
+  `dispatch-admin` / `extract-addr` are main's callees, not separate entries. My "root-set verb" was
+  building machinery around a limitation instead of deleting it.
+- **The entry takes the rendezvous as a PARAMETER.** MEASURED: a free `:user::` name in a parent
+  defn is typed `:wat::core::keyword` and refuses any typed use — *that* is why `child-main-form` is
+  quasiquoted data and not a defn. The namespace ruling permits the NAME; it cannot supply a TYPE.
+  The free name appears only in the shipped one-liner, checked in the child where it IS defined.
+  Bracket already does this. (`probe-arc278-free-user-name-in-parent-defn.wat`, both arms + control.)
+- **The dynamic `apply` must die first** — a closure walk cannot follow it, so rooting at `main`
+  today finds nothing.
+- **Ship EXPANDED forms.** Shipping unexpanded means `defservice` itself must cross the fork — a
+  bigger closure problem, and two expansions that can disagree.
 
-### The one thing in the way, and there is only one
+## ⛔ THE LIVE DEFECT — one root cause, discovered one child-death at a time
 
-`fn-forms` on a service's `serve` **raises**:
+**`type_def_to_ast` RECONSTRUCTS where a retained form should be SHIPPED**, and every reconstruction
+drops whatever its description does not model.
 
 ```
-closure-extract internal: captured `def`-bound name
-:probe::FFX::PING-MAX-REQUEST-BYTES not yet supported by closure extraction (slice 1)
-                                                        — src/closure_extract.rs:769
+layer 1  the program-level defenum      → fixed by the closure (e306da6f)
+layer 2  the record's CONSTRUCTOR       → fixed by shipping macros (a5ac88ca)
+layer 3  the record's ACCESSORS         → LIVE  (Record/tag, State/durable)
 ```
 
-Every op's `:max-request-bytes` becomes a top-level `def`. The site's own comment says *"a future arc
-opens IFF a caller surfaces wanting it"* — **one has.**
+`record_dep_dependency` skips auto-synthesized accessors because *"the freeze pipeline re-synthesizes
+these when the type definition is registered"* — and in the child it does not, because the type
+arrives as a **reconstructed bare `recordtype`**, not the retained form.
 
-**⚠ PROVEN by an enumeration probe (stub the arm to skip → rebuild → re-run → revert):** with `def`
-skipped, extraction **completes, exit 0, no second wall.** No unresolved symbol, no portability
-refusal. For this service `def` is the ONLY blocker. The stub was reverted; `git diff` on that file
-is 0 and the probe is RED again at the same line.
+**▶ FIRST ACT — synthesized types retain a source form**, the mirror of what `MacroDef` just got and
+what `TypeEnv::source_form` already does for user types. Then `type_def_to_ast` becomes a fallback
+that never fires and can eventually be deleted. **Do NOT teach the reconstructor a third special
+case** — that is the hard-coding the builder ruled out.
 
-### What the extractor must become — the builder's framing, and it is sharper than "ship everything"
+**GROUNDING OWED BEFORE BUILDING IT:** does the expansion that generates `recordtype` still hold its
+form at registration, the way `parse_defmacro_form` did? It came back YES for macros. **Do not assume
+it transfers.**
 
-The child is the same `wat` binary and bakes the whole stdlib (`src/stdlib.rs`, 96 files,
-`include_str!`, no load gate). Forms stream as EDN over the fork's **stdin** (`receive_in_child(0,1)`
-— two frames, substrate + program) and the child runs what it DECODED. So the invariant is:
+The gate is on disk and honest: `probe-arc278-union-closure-boots-a-process-child.wat` reports
+`VERDICT INCOMPLETE` and names the accessors. Its non-vacuity control is real (drop a root → the
+child dies naming it).
 
-> **ship everything reachable from the entry, MINUS what the child already bakes.**
+## The wall, and how to work with it
 
-The 2026-08-02 ruling (`DESIGN-STONE-the-child-needs-the-entry-not-the-library`) fixed
-**over-shipping** with a blanket *"nothing `:wat::`-rooted"* — a **proxy** for "what the bake has,"
-correct only while the two coincide. A closure computed against the bake is right in both directions;
-a namespace prefix is right in one. **The same manifest has now failed BOTH ways** — too much on
-2026-08-02 (14 tests red), too little today.
+The five registries (`macro_registry` EXPAND · `types` CHECK · `functions`/`unit_variants`/
+`runtime_def_values` EVAL) are **private**. Use `registrations(name)` — every facet — or a
+**phase-named narrow accessor** (`has_function`, `unit_variant`, `def_value`, `types_deref`,
+`functions_iter`, …). A single-registry read is now a deliberate, greppable choice.
 
-And the builder's question is the correct level: *"why is service called out specifically? this should
-be a property of spawn itself."* `spawn-process` accepts any forms vector and never asks whether it is
-self-contained. Two callers, one honours it. That is a CONVENTION — rung 1.
+`RegistryKind` is exhaustive **by law**: a sixth registry turns every match red until it is handled.
 
-**Four-questions ruled:** (a) fix `defservice` only → fails Honest (leaves the class); (b) **spawn takes
-an ENTRY and computes the closure → 4/4**; (c) spawn walls an incomplete manifest → fails Simple (two
-derivations of one fact); (d) document it → fails Honest. **(b).** And (c) falls out free — the wall's
-check IS the closure computation, so running both during the migration names every silent under-ship.
-
-## ▶ FIRST ACT — teach closure extraction about `def`-bound names
-
-`closure_extract.rs:769`. The arm should record the `def` as a dependency so its define lands in the
-prologue, mirroring what the function/type arms already do. A `def` bound to a non-portable VALUE
-should then refuse through the existing `encode_value` arms (`Sender`/`Receiver`/`HandlePool`/
-`ChildHandle`/`IOReader`/`IOWriter`), which is correct, not a regression.
-
-Its RED gate exists and is on disk: the probe above fails at that exact line today.
-
-**THEN:** route `defservice`'s child-forms through it → then the spawn-boundary change (b) → then the
-lifecycle strike, which is drawn and briefed and only blocked on this.
+**MEASURED, and it is the arc's sharpest instrument lesson:** my best grep found 41 sites / 7 files.
+The wall found **197 errors / 11 files in `src/` alone**, five of them files no grep of mine reached.
+It also caught my own codemod's overreach (`\.types\.insert\(` matched any receiver, wrongly rewriting
+`TypeEnv`/`RustDepsBuilder`). Census twice wrong; wall right immediately.
 
 ## ⛔ ALSO OPEN
 
 **The lifecycle strike** — `DESIGN-STONE-connection-lifecycle-ops.md` + `BRIEF-connection-lifecycle-ops.md`,
-fully drawn, ten STOPs, gate specified. `-on-connect` MAY REFUSE (ruled): it gets its own
-`Accept | Refuse(reason)` outcome, and the refusal plumbing is the `Rejected` arm's `try-send`-then-drop
-reused verbatim. **STOP-8: `next-id` increments on a refusal too** — nothing else in the gate catches an
-id rollback. The admission type's NAME is a marked placeholder (`:wat::kernel::ConnectOutcome` is taken);
-cheap here because zero arms declare it.
+fully drawn, ten STOPs. Its rider's work is `stash@{0}`, **unweighed** — read the diff, do not assume
+it is good. Its own code comment carries a real finding (`wat_edn_bridge.rs:442`, "3 unresolved
+references", one per splice site) that **reconciles** with this arc's finding rather than competing.
 
-**Owed casts:** the admission type; the correlation surface (verdict `:wat::correlation::Correlation`
-awaiting ratification).
+**Filed, not scheduled:** `109/NOTE-two-resolvers-over-the-five-registries.md` — `runtime.rs`
+≈`11644-11690` holds a pre-existing `Binding` walk over the same registries, with a **different
+order**. Two derivations of one question, and this arc added the second. The note explicitly does
+**not** rule on it; the `Binding` walk is unread.
 
-**Rete-as-a-service, ruled but unbuilt:** a per-connection ratchet — `install-rules` (chunked EDN; the
-PARSE is the check, no sequence counters; home is #18/#19) → `insert-facts ×N` → `fire-rules` →
-`query ×N`. **Each step forward closes every prior operation.** ONE `:ephemeral` map, value = the user's
-own enum whose CONSTRUCTOR is the phase — never two maps, never a tracker field. `sift-rules` is NOT
-prior art: alpha-only, upstream, it PRODUCES the facts this consumes.
+**Owed intueri casts:** the admission type (`:wat::kernel::ConnectOutcome` is taken); the correlation
+surface.
 
 **Older:** #87 · #49 · #7 · #17 · #19 · #20 · #50 · #58 · #60 · #64 · #67 · #81.
 
 ## The rules this stretch paid for
 
-- **Search for the MECHANISM by capability, never in the broken caller's own neighbourhood** — I
-  searched every file `defservice` touches, found nothing, and told the builder three times the tooling
-  did not exist. It was 2933 lines away, named for the capability, used by a sibling.
-  ([[feedback_search_for_the_mechanism_not_in_the_broken_callers_neighbourhood]])
-- **Told "go measure," I READ and wrote "Measured" over it** — and the read was wrong on the axis that
-  decided it. A run took four minutes. ([[feedback_measure_the_decomposition_never_read_it]])
-- **Any multi-option decision gets the four questions on EVERY option, flat** — enumerating surfaced a
-  4th option that read BEST and failed Honest.
-  ([[feedback_four_questions_for_any_multi_option_decision]])
-- **A targeted test filter cannot see the whole floor.** A rider reported "no STOPs fired" while the
-  floor was red in two places its filter could not reach. Splitting the gate between rider and
-  orchestrator, then asking for a verdict spanning both halves, is the orchestrator's bug.
-- **A name is not a declaration.** A substring needle hits every USE site. Search for the declaring form.
-
-## Weigh a rider; never relay it
-
-Both riders this stretch produced real work AND a false green. The ctx rider's macro fix was correct
-and its `.wat.bad` finding was a catch I would have missed — and its floor was red in two places. The
-lifecycle rider thrashed, but its `v7` repro is the artifact that opened this whole finding. **Read the
-diff, run the floor yourself, and keep what the rider found even when you discard what it built.**
+- **When a check comes back CLEAN, ask what it cannot SEE.** `git stash show --stat` can't see an
+  untracked payload; `git worktree list` can't see a poisoned `target/`. Both returned the
+  *comforting* answer, and I reported both.
+  ([[feedback_a_pass_answers_only_the_question_the_instrument_asks]])
+- **Do not survey for a worklist — impose the check and read the screams.** A wrong count does not
+  stay a note: mine reached a committed stone and a ruling.
+  ([[feedback_impose_the_check_and_read_the_screams]])
+- **A reconstruction drops what its description does not model.** Retain the form. `MacroDef` could
+  not rebuild its own declaration (names-only params, no return type); `type_def_to_ast` dropped the
+  constructor, then the accessors.
+- **Having the measurement is not using it.** The census said `[Macro, Type]` — 182 names, one
+  concept — and I still put the macro check in the Keyword walker, where that pairing cannot fire.
+- **A rider used a git WORKTREE** because my brief carried the work but not the standing prohibition.
+  Positive-only briefing does not exempt hard doctrine.
 
 ---
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> The arc's shape changed today. We were building a lifecycle hook; we found that a forked child does
-> not receive the program it needs, that the substrate has had the tool to fix it since arc 170, and
-> that nobody had wired it. The lifecycle work is drawn and waiting behind one arm in one Rust file.
+> Today the arc stopped guessing and started imposing. Two censuses were wrong; the compiler was
+> right on the first run. The wall it raised then caught my own migration's overreach. What remains
+> is one defect wearing three faces — a rebuild standing where a retained form belongs — and the
+> next act is the mirror of the one just made, not a third special case.
 >
-> The line that cost the most: **when one caller is broken, its own code paths are the last place the
-> missing mechanism will be — they are the set that shares its assumption.**
+> The line that cost the most: **a narrow instrument's clean answer is the most dangerous output it
+> produces**, because it feels like confirmation and costs nothing to accept.
 >
 > `NISI FRANGAS, NIHIL PROBAS.` · `IN TENEBRIS VISVS CORRIGOR.`
