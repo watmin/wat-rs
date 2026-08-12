@@ -144,6 +144,76 @@ a corrupt derived fact. I measured **compile only**. "Compiles silently but fail
 "never diagnosed at all" are materially different dispositions and I will not assert which one this
 is. That measurement is owed before the new defect gets a fix.
 
+## ✅ FIXED (builder ruled scope **(ii)**) — the walker routes through the door
+
+`closure_extract.rs`'s `walk_free_symbols` now dispatches every list head through
+`quote_boundary`, exhaustively:
+
+| boundary | traversal |
+|---|---|
+| `AllData` (`quote`/`forms`/`define`/`holon::literal`) | return — nothing inside is a reference |
+| `Quasiquote` | descend the template, walk **only** unquote escapes (real deps live there) |
+| `Match` | **not the door's** — answered by the binder arm; `match` on an enum is core to the language and this walker needs its arm patterns' binders |
+| `MatchesSubject` · `MakeRule` | ⛔ **REFUSED — see below** |
+| `Ordinary` | plain recursion, unchanged |
+
+### ⛔ THE DOOR ITSELF CARRIES LIBRARY PRIVILEGE — refused, not inherited
+
+The builder caught this on review: *"i saw a `MakeRule` in the closure extract… this means we cannot
+support user defined dsls… we cannot make ourselves special."* He is right, and the first cut of
+this fix made it worse by spreading the privilege to a **second** consumer.
+
+`quote_boundary`'s entries are two different kinds:
+
+- **the language declaring its own grammar** — `quote`, `quasiquote`, `match`, `define`, `forms`.
+  Legitimate; every compiler knows its own special forms.
+- **a LIBRARY's grammar inside the compiler** — `:wat::rete::make-rule` → `MakeRule`, plus
+  `is_where_form()`, an entire function for one library form (`:wat::rete::where`). rete got to
+  edit the compiler's list; **a user's DSL cannot.** That is precisely what makes a user DSL
+  second-class. (`:wat::holon::literal` also sits in `AllData`, but holon-rs is slated to merge INTO
+  wat-rs and stop being a dep — builder's call — so it is not the same class.)
+
+So this walker honours the language facts and **refuses the library ones**. `walk_make_rule_when`
+is deleted; the `is_where_form` import is gone. The `MatchesSubject | MakeRule => {}` arm is a
+**self-deleting marker**: it exists only because those variants exist, and the exhaustive match
+makes it a compile error the moment they die. It cannot outlive the defect it marks.
+
+**MEASURED — refusing them cost nothing on the raise path.** `fn-forms` over a rule fn still returns
+`closure forms=5` with no `MakeRule` handling at all, because `make-rule`'s `:when` **is itself a
+`quote` form** — plain recursion meets it and the `AllData` arm stops there. The special case was
+never buying raise-avoidance; `quote` already did. It bought only dep-collection inside `where`
+bodies, so refusing it trades a false POSITIVE (a refused valid program, unfixable by the user) for
+a false NEGATIVE (a missing dep the child names at startup, legible and located).
+
+**The cure, for the door's own ruling:** the language already has the universal mechanism —
+`quote` for data, `quasiquote`/`unquote` for data-with-code-holes. Every library entry exists
+because that form did **not** use it. rete's `:when` expressed as a quasiquote with `where` bodies
+as unquote escapes needs **zero** compiler knowledge, and `quote_boundary` shrinks to core forms.
+
+**One honest refinement to the ruling.** (ii) said "delete the arms the door subsumes." Grounding
+found the existing arms answer a **different question** — `let`/`fn`/`match`/`defstruct`/`defenum`
+are about *what is in scope* (binders), not *what is data*. The door subsumes none of them, so the
+diff is ADDITIVE where I had said it would be subtractive. `match` was briefly routed through the
+door and then backed out: it is core to the language and the walker already knew it.
+
+`is_unquote_escape` widened `pub(super)` → `pub(crate)`. Its own doc calls the escape set *"a
+language fact, encoded here exactly once so the two descents cannot drift"* — there are three
+descents now, and a copy would have broken the property that doc protects.
+
+**MEASURED:**
+
+- the RED probe flipped — both arms extract; **it is now a standing REGRESSION gate**, and its
+  verdict line was rewritten, because it still read *"the claim is REFUTED"* (true when reaching
+  that line WAS the disconfirmation, a lie the moment the fix landed).
+- **`fn-forms` over a rule fn: `closure forms=5`.** This is the specific blocker that reverted the
+  child-entry strike, and it is measured rather than inferred — the floor could not have shown it
+  either way, since the floor was green with the strike reverted.
+- floor **4391/4391 passed, 0 failed, 262 skipped** — baseline count, no regressions.
+
+**STILL NOT CLAIMED:** that the child-entry strike now passes. Its other reds (the rotted
+`wat-scripts` consumer of `service-forms`; the UNCHARACTERIZED `dead_child_speaks` arm) are
+untouched by this fix, and the strike remains reverted. Re-attempting it is a separate act.
+
 ## Disposition
 
 - **The quote bug: RULED a bug, isolated rete-free, ready to strike.** `src/closure_extract.rs`,

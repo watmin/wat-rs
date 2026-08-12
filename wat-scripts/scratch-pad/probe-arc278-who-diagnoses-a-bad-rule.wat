@@ -35,7 +35,18 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [ctl (:wat::core::PersistentVector (:usr::ok-rule))
+    [;; ★ THE BLOCKER, CLOSED HONESTLY. The child-entry strike died because `fn-forms` raised
+     ;; on `?c` while walking a rules body. `defrule` expands to a defn calling `make-rule`
+     ;; with QUOTED :when/:then, so extracting a closure rooted at a rule fn is the exact
+     ;; shape that failed. If this returns, the specific blocker that reverted the strike is
+     ;; gone — measured, not inferred from "the floor is green" (the floor was green with the
+     ;; strike reverted, so it could not have shown this either way).
+     rule-forms (:wat::kernel::fn-forms :usr::ok-rule
+                  (:wat::core::keyword/from-string "user::root-rule"))
+     _r  (:wat::kernel::println
+           (:wat::core::string::concat "fn-forms OVER A RULE FN: closure forms="
+             (:wat::core::i64::to-string (:wat::core::length rule-forms))))
+     ctl (:wat::core::PersistentVector (:usr::ok-rule))
      _a  (:wat::kernel::println "CONTROL rule built")
      cs  (:wat::rete::compile ctl)
      _b  (:wat::kernel::println "CONTROL compiled OK — the well-formed rule passes its own gate")

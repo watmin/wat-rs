@@ -96,7 +96,11 @@ pub(crate) fn quote_boundary(head: &str) -> Boundary {
 /// quasiquote-template descents (`super::quote::check_quasiquote_template` —
 /// borrow + resolve; `super::normalize::normalize_quasiquote_template` — consume
 /// + rewrite) cannot drift on which heads open an escape.
-pub(super) fn is_unquote_escape(head: &str) -> bool {
+///
+/// Arc 278 — widened `pub(super)` → `pub(crate)`: `crate::closure_extract`'s free-symbol
+/// walk is a THIRD quasiquote-template descent and must use the same language fact, or it
+/// re-creates the drift this function exists to prevent.
+pub(crate) fn is_unquote_escape(head: &str) -> bool {
     head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing"
 }
 

@@ -32,6 +32,10 @@
 //! synthetic-name counter — slice 1b retired the entry-keyword ceremony.
 
 use crate::ast::WatAST;
+// Arc 278 — the data/code boundary classifier. This walker consults the ONE place the
+// boundary-head set is encoded rather than re-deriving it (see the dispatch in
+// `walk_free_symbols`); `resolve::walk` and `resolve::normalize` are the other two consumers.
+use crate::resolve::boundary::{is_unquote_escape, quote_boundary, Boundary};
 use crate::scope::Identifier;
 use crate::runtime::{eval, Environment, Function, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::value::value::AggregateValue;
@@ -875,6 +879,13 @@ fn walk_free_symbols(
                     // Stone 241.16 — `:wat::core::define` arm DELETED.
                     // HARD CUT total (Stone 241.11 startup check + Stone 241.16 eval residue).
                     // No define-headed form reaches closure extraction; arm is permanently unreachable.
+                    //
+                    // `match` on an enum is CORE to the language — a special form like `let`
+                    // and `fn`, and this walker has always needed its arm patterns' BINDERS to
+                    // enter the arm body's scope. That is a scope question, not a data/code
+                    // one, so it is answered HERE and never routed through the boundary door
+                    // (routing it there made this walker depend on the door for something it
+                    // already knew — my error, backed out).
                     ":wat::core::match" => {
                         return walk_match_form(rest, locals, state);
                     }
@@ -894,6 +905,75 @@ fn walk_free_symbols(
                         return walk_defmacro_form(rest);
                     }
                     _ => {}
+                }
+
+                // ── Arc 278 — THE DATA/CODE BOUNDARY IS NOT THIS WALKER'S QUESTION ──────────
+                //
+                // `crate::resolve::boundary::quote_boundary` is, by its own doc, "the ONE place
+                // the boundary-head set is encoded"; the call-head resolution walk
+                // (`resolve::walk`) and the symbol-ref normalization pass (`resolve::normalize`)
+                // both route through it. This walker was a THIRD derivation that bypassed it
+                // entirely — it had no concept of `quote` at all (`grep -n quote` returned
+                // nothing) — and so it READ QUOTED DATA AS CODE, raising `UnresolvedSymbol` on
+                // symbols that were never references.
+                //
+                // MEASURED, rete-free, two arms differing in exactly one thing
+                // (`wat-scripts/scratch-pad/probe-arc278-fnforms-walks-into-quoted-data.wat`):
+                // an un-quoted body extracted fine; the same body wrapped in `quote` raised on
+                // `mystery-symbol` — a plain bare Symbol, deliberately NOT `?`-prefixed. The rete
+                // symptom that surfaced this (`?c` in a `defrule`) was incidental: `defrule`
+                // QUOTES its `:when`/`:then` (wat/rete.wat:2385), so its pattern variables are
+                // quoted data like any other. Nothing here knows about rete, and nothing should:
+                // any user DSL that quotes its forms is covered by construction.
+                //
+                // The binder arms above are a DIFFERENT question — they answer "what is in
+                // scope", not "what is data" — so they stay and are consulted first.
+                //
+                // This match is EXHAUSTIVE by law: a new `Boundary` variant turns it red until
+                // handled, which is the structural guarantee that the three passes cannot drift.
+                match quote_boundary(k) {
+                    // quote / forms / define / holon::literal — every argument is data.
+                    // Nothing inside is a reference; collecting deps from it is meaningless and
+                    // demanding that it resolve is the bug.
+                    Boundary::AllData => return Ok(()),
+
+                    // quasiquote — the template is data EXCEPT inside unquote / unquote-splicing
+                    // escapes, which are live code and may name real dependencies we must ship.
+                    Boundary::Quasiquote => {
+                        if let Some(template) = items.get(1) {
+                            walk_quasiquote_template(template, locals, state)?;
+                        }
+                        return Ok(());
+                    }
+
+                    // `match` is answered by the BINDER arm above (it is core to the language
+                    // and this walker needs its arm patterns' binders). Listed only to keep
+                    // this match exhaustive; unreachable in practice.
+                    Boundary::Match => {}
+
+                    // ⛔ DELIBERATELY NOT HONOURED — these two are LIBRARY grammar sitting in a
+                    // substrate list: `:wat::form::matches?` and `:wat::rete::make-rule` (plus
+                    // `is_where_form`, a whole function for one library form). Honouring them
+                    // here would spread that privilege to a SECOND consumer, and privilege is
+                    // exactly what makes a user-defined DSL second-class: rete and holon got to
+                    // edit the compiler's list; a user cannot.
+                    //
+                    // The language already has the universal mechanism — `quote` for data,
+                    // `quasiquote`/`unquote` for data-with-code-holes — and a DSL that uses it
+                    // needs NO entry anywhere (proven: probe-arc278-fnforms-walks-into-quoted-
+                    // data.wat skips `mystery-symbol` with nothing naming it). These two forms
+                    // needed entries only because they did NOT use it.
+                    //
+                    // Falling through is SAFE in the direction that matters: `make-rule`'s
+                    // `:when` is itself a `quote` form, so the recursion below meets it and the
+                    // AllData arm stops there — no false raise. The cost is a FALSE NEGATIVE:
+                    // deps inside a `(:wat::rete::where …)` body go uncollected, and the child
+                    // names them at startup. A missing dep is legible; a refused valid program
+                    // is not.
+                    Boundary::MatchesSubject | Boundary::MakeRule => {}
+
+                    // Not a boundary — fall through to the plain-list recursion below.
+                    Boundary::Ordinary => {}
                 }
             }
             // Plain list — recurse on every child.
@@ -1162,6 +1242,37 @@ fn walk_defmacro_form(_args: &[WatAST]) -> Result<(), ExtractionError> {
     Ok(())
 }
 
+/// Arc 278 — descend a `quasiquote` TEMPLATE, walking only the live-code escapes.
+///
+/// Mirrors `resolve::quote::check_quasiquote_template`, which is the reference traversal;
+/// the escape-head set comes from `resolve::boundary::is_unquote_escape` so this third
+/// descent cannot drift from the other two. Template data is skipped (it is not code and
+/// must not be resolved), but recursion CONTINUES through it because an escape can sit
+/// arbitrarily deep — including inside bracketed forms, which a List-only walk would miss.
+fn walk_quasiquote_template(
+    node: &WatAST,
+    locals: &BTreeSet<String>,
+    state: &mut ExtractState<'_>,
+) -> Result<(), ExtractionError> {
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if is_unquote_escape(head) {
+                // An escape: its arguments are live code, and may name real dependencies.
+                for arg in items.iter().skip(1) {
+                    walk_free_symbols(arg, locals, state)?;
+                }
+                return Ok(());
+            }
+            // Any other head (including a nested quasiquote) is template DATA — do not
+            // resolve it, but keep descending for escapes deeper in the tree.
+        }
+    }
+    for child in node.children().iter() {
+        walk_quasiquote_template(child, locals, state)?;
+    }
+    Ok(())
+}
+
 /// Walk a `(:wat::core::match scrut arm1 arm2 ...)` form.
 ///
 /// Each arm is a 2-list `(pattern body)`. Pattern names BIND inside
@@ -1171,6 +1282,7 @@ fn walk_defmacro_form(_args: &[WatAST]) -> Result<(), ExtractionError> {
 /// type the closure-extraction needs in the prologue).
 ///
 /// Pattern shapes recognized (mirroring `runtime::try_match_pattern`):
+///
 ///   - `_` wildcard         — no binding
 ///   - bare Symbol          — binds that name
 ///   - `:enum::Variant`     — unit-variant keyword (no binding)

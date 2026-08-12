@@ -43,5 +43,10 @@
      _j (:wat::kernel::println
           (:wat::core::string::concat "SUBJECT closure forms="
             (:wat::core::i64::to-string (:wat::core::length junk-forms))))]
+    ;; ★ THIS FILE CHANGED ROLE WHEN THE FIX LANDED. It was written as a RED gate: reaching
+    ;; this line at all was the DISCONFIRMATION, because the subject arm raised before it.
+    ;; The walker now routes through `resolve::boundary::quote_boundary`, so both arms return
+    ;; and this line is the PASS. Left in place as the standing REGRESSION gate — if the
+    ;; subject arm ever raises again, the walker has gone back to reading data as code.
     (:wat::kernel::println
-      "BOTH ARMS RETURNED — the walker did NOT descend into the quote; the claim is REFUTED")))
+      "PASS — both arms extracted; the walker treats quoted data as DATA, not as references")))
