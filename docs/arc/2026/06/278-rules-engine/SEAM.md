@@ -16,12 +16,41 @@ HEAD 8e661362   pushed   floor 4389 passed / 0 failed / 262 skipped   clippy 0
 
 `git status` clean. ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 
-**⛔ `stash@{0}` HOLDS THE ONLY COPY OF THREE FILES — do not `git stash drop`.** It was made with
-`-u`, so it has **three parents**; `git stash show --stat` shows only the tracked one (`wat/service.wat`
-+298/−18) and **cannot see the untracked payload**. That payload —
-`tests/services/probe_arc278_connection_lifecycle.{rs,wat}` and
-`wat-scripts/scratch-pad/probe-arc278-nullary-enum-process-repro.wat` — exists **nowhere else on
-disk**. Read it with `git show 'stash@{0}^3:<path>'`. Restoring those three into the tree is owed.
+**⛔ `stash@{0}` STILL HOLDS THE LIFECYCLE STRIKE — do not `git stash drop`.** It was made with
+`-u`, so it has **three parents**; `git stash show --stat` shows only the tracked one
+(`wat/service.wat` +298/−18) and **cannot see the untracked payload**. Read the payload with
+`git show 'stash@{0}^3:<path>'`.
+
+**The owed restore was ATTEMPTED and is now PARTIALLY DISCHARGED, with a finding:**
+
+| file | disposition |
+|---|---|
+| `wat-scripts/scratch-pad/probe-arc278-nullary-enum-process-repro.wat` | **RESTORED + COMMITTED** — `--check` exit 0, clean |
+| `tests/services/probe_arc278_connection_lifecycle.{rs,wat}` | **LEFT IN THE STASH — the `.wat` is STALE, `--check` exit 1** |
+
+The lifecycle probe **does not compile against today's substrate**, 5 errors, verbatim:
+
+```
+malformed :wat::core::let form: unhandled :wat::kernel::RecvOutcome<probe::Ratchet::PadResponse>
+  in statement/discard position — a recv outcome must be faced (match it: Message/Closed/Lost),
+  not dropped. This is the peer-lifecycle OUTCOME WALL (Phase 3).
+malformed :wat::core::match form: keyword variant pattern
+  :wat::service::DisconnectReason::Closed   on a :?<var> scrutinee
+:wat::service::DisconnectReason::Lost       on a :?<var> scrutinee
+:wat::service::DisconnectReason::Rejected   on a :?<var> scrutinee
+malformed :wat::core::match form: non-exhaustive: open-typed match needs at least one
+  hash-destructure arm or a wildcard `_` arm.
+```
+
+Four of the five are one root: the `DisconnectReason` scrutinee resolves to an unbound type var, so
+no keyword-variant arm can match it and the match reads as open-typed. The fifth is the send/recv
+outcome wall (R57) landing on a `recv` the probe drops. **This is the rider's unweighed work
+failing exactly the way the seam warned it might** — restoring it to the tree turns the floor red,
+so it stays stashed until the lifecycle strike is actually taken up, and *that* strike now begins
+with a known, located worklist rather than an assumption that the code was good.
+
+⚠ **`./target/release/wat --check <f> | tail` returns TAIL's exit code.** Both files "passed" until
+they were re-run without a pipe. The doctrine names this for the floor; it applies to `--check` too.
 
 ## ★ THE GATE IS GREEN, AND THE ARC'S CENTRAL CLAIM IS PROVEN BY A BREAK
 
