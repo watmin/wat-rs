@@ -43,14 +43,38 @@ The corrected census, counting actual cross-registry READ sites:
 41  read sites across 7 files   (includes test code — not yet separated)
 ```
 
-**41 is a SURFACE, not a worklist.** Many of those sites are legitimately single-registry: at
-CHECK time, asking only "is this name a type?" is phase-correct, not a hole. Handing a rider
-"migrate 41 sites" would repeat the original error at larger scale.
+**41 is a SURFACE, not a worklist** — and it is not the worklist we will use.
 
-**PREREQUISITE, and it gates the brief:** a per-site disposition over all 41 — for each,
-*phase-correct single-registry lookup* (leave) vs *resolution that should ask the door*
-(migrate) — with the reason recorded per site. That inventory IS the migration worklist. No
-migration may be briefed off a count.
+### ★ THE WORKLIST IS THE COMPILER'S, NOT A CENSUS'S (builder's ruling)
+
+> *"this kind of migration is our bread and butter — we need a rust compiler check to light
+> ablaze all heretics who speak the wrong thing — they self identify the migration's targets."*
+
+Two censuses in this doc were wrong. A third would also be wrong, because a grep cannot
+distinguish a mention from a lookup, a test from production, or a phase-correct narrow read from
+a hole. **Do not survey for the worklist. Impose the wall and read the screams** —
+`[[feedback_impose_the_check_and_read_the_screams]]`, and R52 `QVOD LEX ACCENDIT`: the corrected
+law lights every violator ablaze, and that fire IS the worklist.
+
+**The mechanism is field visibility.** All five registries are `pub` today
+(`symbol_table.rs:33/42/45/62/108`), so reaching directly into one is the path of least
+resistance and the omission of the other four is invisible. Make them **private**, expose only:
+
+```rust
+pub fn registrations(&self, name: &str) -> RegistrationSet;   // the door — every facet
+pub fn macro_only(&self, name: &str)   -> Option<&MacroDef>;  // narrow, PHASE-NAMED,
+pub fn type_only(&self, name: &str)    -> Option<&TypeDef>;   //   deliberate, greppable
+…
+```
+
+Then `cargo build` enumerates **every** site — across `src/`, `tests/`, `crates/`, `examples/`,
+including the eleven outside-`src/` files and any this doc's greps never reached. Each screaming
+site is fixed to either the door or a **named narrow accessor**, so a surviving single-registry
+read becomes an explicit, auditable choice rather than the default that happens because someone
+forgot the other four.
+
+The census numbers above are kept as **context for why the door is needed** — never as the
+migration's worklist. The compiler owns that.
 
 `closure_extract` asks four of five. It never reads `macro_registry`. That is not a missing
 *entry* — it is a missing **dependency kind**, and it shipped a forked child a record type with
@@ -147,16 +171,33 @@ enum, not a helper function, is the right shape.
 
 ## Scope
 
-**In:** the enum; the resolver on `SymbolTable`; migrating `closure_extract` to it (the one
-proven-wrong consumer), which fixes the missing-constructor bug as a *consequence* rather than
-as a patch.
+**In — and it is the WHOLE corpus, by the builder's ruling** (*"a half migration is worse"*):
+
+1. `RegistryKind` + `RegistrationSet` + `registrations()`, plus the phase-named narrow
+   accessors.
+2. **Make the five registry fields private.** This is the wall; everything below is its fire.
+3. Fix every site the compiler names — door or named-narrow, per site.
+4. `closure_extract` adopts the door, which fixes the missing-constructor bug as a
+   *consequence*, not as a patch.
+
+Order matters: the wall is imposed BEFORE the sites are enumerated, because the enumeration is
+the wall's output. Writing the wall first and reading its screams is the strike; any list drawn
+before it is a guess.
 
 **Out, affirmatively — not deferred:**
-- Migrating the other five consumers. They are not known-wrong, and a migration is only honest
-  once each one's *phase-correct registry set* is stated. Tracked as its own stone.
 - Merging or reordering any registry. Ruled against above.
 - The one-entry `child-entry` reshape and deleting `service-forms-def`. Downstream, and blocked
   on this — a clean entry closure still ships uncallable types until the door exists.
+- Collecting arbitrary USER macros transitively (see the template section) — a separate
+  question with a separate consumer.
+
+## Honest note on size
+
+The corpus fire is **not measured** and this doc will not pretend it is. 41 read sites is a
+grep's lower bound on `src/` only; the true count includes `tests/`, `crates/`, `examples/`, and
+whatever the pattern could not reach — which is the entire reason the compiler is being made to
+produce it. Expect the first build after privatisation to be large, and treat the fail-count as
+the progress meter (`docs/SUBSTRATE-AS-TEACHER.md`), not a crisis.
 
 ## Gates
 
