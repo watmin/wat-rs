@@ -2945,7 +2945,17 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),
             args_vec,
             WatAST::Symbol(Identifier::bare("->"), span.clone()),
-            WatAST::Keyword(crate::check::format_type(&func.ret_type), span.clone()),
+            // Arc 278 — the ROUND-TRIP renderer, not `check::format_type`.
+            // `check::format_type` renders the unit type (`Tuple(vec![])`) as
+            // `:()`, the spelling arcs 109/153/179 retired; a child's freeze
+            // rejects it with `BareLegacyUnitType`. The sibling emit sites
+            // above already use `format_type_for_emit`; this one did not, and
+            // `fn-forms` routes EVERY call through this path (see
+            // `eval_kernel_fn_forms`' doc — it fronts extraction uniformly via
+            // the inline-lambda path), so any nil-returning fn in a closure
+            // shipped a program the child could not start. Proven by run:
+            // wat-scripts/scratch-pad/probe-arc278-union-closure-boots-a-process-child.wat
+            WatAST::Keyword(format_type_for_emit(&func.ret_type), span.clone()),
             rewritten_body,
         ],
         span,
