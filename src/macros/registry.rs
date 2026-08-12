@@ -27,6 +27,26 @@ pub struct MacroDef {
     /// this macro. Used by register/register_stdlib to attribute MacroError
     /// emissions back to the user's source position.
     pub span: Span,
+    /// Arc 278 — the RETAINED `(:wat::core::defmacro …)` form, verbatim.
+    ///
+    /// A `MacroDef` CANNOT reconstruct its own declaration: `params` holds
+    /// names only, and the return type is not kept, so the canonical form
+    /// `(defmacro :name [p <- :T … ] -> :AST<Ret> body)` is unrecoverable
+    /// from the parts. Closure extraction must SHIP macros — the forms it
+    /// sends a forked child still contain macro CALLS (every kwargs
+    /// constructor), which expand on the far side — so it needs the form
+    /// itself, not a rebuild.
+    ///
+    /// Same discipline `TypeEnv::source_form` already follows: ship the
+    /// retained original, never a reconstruction. A rebuild from a
+    /// description drops whatever the description does not model, and that
+    /// is precisely how a synthesized record shipped without its
+    /// constructor (`DESIGN-STONE-registry-kind-one-door.md`).
+    ///
+    /// ⚠ NOT part of `macro_structurally_equivalent` — two structurally
+    /// identical macros registered from different sources must stay
+    /// equivalent for the redef gate.
+    pub source_form: WatAST,
 }
 
 /// Keyword-path ↦ `MacroDef` registry.

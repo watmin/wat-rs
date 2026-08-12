@@ -299,6 +299,19 @@ pub fn extract_closure(
     for (name, def) in parent_types.iter() {
         if !crate::resolve::is_reserved_prefix(name) {
             record_type_dependency(&mut state, name, def);
+            // Arc 278 — A TYPE'S CONSTRUCTOR RIDES WITH IT.
+            //
+            // The registry census measured 182 names carrying BOTH a `Type`
+            // and a `Macro` facet: a record's type declaration and its kwargs
+            // constructor share one name. Sweeping the type alone ships a type
+            // the child cannot construct — which is exactly how a synthesized
+            // record arrived uncallable.
+            //
+            // This is the RIGHT place, not the Keyword walker: types are swept
+            // UNCONDITIONALLY (see above), so a record whose constructor is
+            // only ever called from a form we generate — never named as a free
+            // keyword in a walked body — is reached here and nowhere else.
+            record_macro_dependency(&mut state, name);
         }
     }
 
@@ -343,6 +356,9 @@ pub fn extract_closure(
     let (body_prelude_forms, final_body) = split_body_prelude(rewritten_body);
 
     // Assemble prologue in topological order:
+    //   0. (Arc 278) Macros — retained `(defmacro …)` forms, shipped
+    //      verbatim. First, because expansion precedes everything and any
+    //      later form may call one.
     //   1. Type definitions (types in topological order)
     //   2. Captured-binding defines (`(def :user::closure-capture::X <encoded>)`)
     //   2b. (Arc 278) `def`-bound values carried from the parent, under
@@ -363,6 +379,14 @@ pub fn extract_closure(
     //      with rewritten body — appended after all deps. For
     //      inline-lambda, the entry never appears in prologue.
     let mut prologue: Vec<WatAST> = Vec::new();
+
+    // 0. Macros, in discovery order. They come FIRST: a macro is an
+    //    EXPAND-time registration, and every later form may call one.
+    for name in &state.macro_discovery_order {
+        if let Some(form) = state.captured_macros.get(name) {
+            prologue.push(form.clone());
+        }
+    }
 
     // 1. Types in deterministic topological order.
     let type_order = topo_sort_types(&state);
@@ -637,6 +661,13 @@ struct ExtractState<'a> {
     dep_discovery_order: Vec<String>,
     /// Order in which types were discovered.
     type_discovery_order: Vec<String>,
+    /// Macros discovered in walked bodies, keyed by name, holding the
+    /// RETAINED `(defmacro …)` form. Shipped verbatim — a `MacroDef`
+    /// cannot rebuild its own declaration (no param types, no return
+    /// type), and the forms we ship still CALL these macros.
+    captured_macros: BTreeMap<String, WatAST>,
+    /// Order in which macros were discovered (deterministic emission).
+    macro_discovery_order: Vec<String>,
     /// `def`-bound values discovered in walked bodies, keyed by the
     /// def's ORIGINAL keyword name. Emitted as top-level `def` forms.
     captured_defs: BTreeMap<String, WatAST>,
@@ -675,6 +706,8 @@ impl<'a> ExtractState<'a> {
             captured_types: BTreeMap::new(),
             dep_discovery_order: Vec::new(),
             type_discovery_order: Vec::new(),
+            captured_macros: BTreeMap::new(),
+            macro_discovery_order: Vec::new(),
             captured_defs: BTreeMap::new(),
             def_discovery_order: Vec::new(),
             types_visited: HashSet::new(),
@@ -752,6 +785,26 @@ fn walk_free_symbols(
             if crate::resolve::is_reserved_prefix(k) {
                 return Ok(());
             }
+            // ─── Arc 278: ASK THE DOOR ───────────────────────────────
+            //
+            // `registrations` reports every FACET a name carries. The
+            // facets are not alternatives in general — a record's name is
+            // BOTH a `Type` and a `Macro` (its kwargs constructor), and a
+            // child needs both — so the macro facet is handled ADDITIVELY
+            // here and the value/type facets fall through to the chain
+            // below.
+            //
+            // The chain below stays first-match on purpose: `[Function,
+            // DefValue]` co-occur for every `defn` (`defn` expands to
+            // `(def :n (fn …))`), and there the Function facet is the one
+            // to ship — encoding the DefValue would hit the fn-value wall
+            // in `encode_value_to_ast`. Same concept, one right facet.
+            //
+            // Macros must ship because the forms we send still CONTAIN
+            // macro calls: `(:my::Rec :field v)` expands in the CHILD.
+            // Omitting this facet is why a synthesized record arrived as a
+            // type with no callable constructor.
+            record_macro_dependency(state, k.as_str());
             // Try function lookup.
             if let Some(func) = state.parent_symbols.get(k) {
                 record_dep_dependency(state, k.as_str(), func);
@@ -1262,6 +1315,33 @@ fn collect_pattern_bindings(
 }
 
 // ─── Dep + type recording ───────────────────────────────────────────────
+
+/// Record a name's MACRO facet, if it has one — the retained `(defmacro …)`
+/// form, shipped verbatim. Idempotent; a no-op for names with no macro facet.
+/// Asks the door (`registrations`) for the facet, then takes it through the
+/// narrow accessor.
+fn record_macro_dependency(state: &mut ExtractState<'_>, name: &str) {
+    if state.captured_macros.contains_key(name) {
+        return;
+    }
+    if !state
+        .parent_symbols
+        .registrations(name)
+        .contains(crate::value::symbol_table::RegistryKind::Macro)
+    {
+        return;
+    }
+    if let Some(mac) = state
+        .parent_symbols
+        .macro_registry()
+        .and_then(|reg| reg.get(name))
+    {
+        state
+            .captured_macros
+            .insert(name.to_string(), mac.source_form.clone());
+        state.macro_discovery_order.push(name.to_string());
+    }
+}
 
 fn record_dep_dependency(
     state: &mut ExtractState<'_>,

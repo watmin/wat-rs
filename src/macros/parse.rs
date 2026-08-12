@@ -81,6 +81,10 @@ pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
 /// `parse_defmacro_signature` DELETED (Stone 241.17). The canonical argspec parser
 /// (`parse_argspec_triples`) is the sole argspec parser across fn/defn/defclause/defmacro.
 pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
+    // Arc 278 — retain the declaration VERBATIM before destructuring. The
+    // parts cannot rebuild it (params carry no types; no return type is
+    // kept), and closure extraction must ship macros to forked children.
+    let source_form = form.clone();
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
         // All four call sites guard with `is_defmacro_form`, which requires WatAST::List.
@@ -243,6 +247,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         rest_param,
         body: body_item,
         span: list_span,
+        source_form,
     })
 }
 
