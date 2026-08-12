@@ -117,17 +117,44 @@ wat/service.wat:2101   (apply (keyword/from-string ~dispatch-admin-name-str) shi
 wat/service.wat:2120   (apply (keyword/from-string ~serve-name-str) self …)
 ```
 
-and `:2045` states it as a CHOICE, not a constraint — *"serve is invoked via apply (dynamic
-keyword) — the child main never statically names the per-service serve fn."* The macro holds both
-names at expand time and already splices per-service nodes beside them (`~status-ty`,
-`~proto-op-ty-kw`, `~status-started-kw`), so a keyword node is available. **Ground the reason the
-dynamic form was chosen before replacing it** — the hygiene gate (`ProgramBodyIntroducesName`) and
-the reserved-prefix wall both live in this template and one of them may be why.
+### ⛔ THE OWED GROUNDING WAS PAID, AND THE ANSWER RE-SHAPES THE ACT
 
-Shape, once static: parent defines `<fqdn>::child-entry [locus] -> nil` (a REAL defn, statically
-naming `dispatch-admin`/`serve`); the shipped main is the one-liner
-`(defn :user::main [] -> nil (<fqdn>::child-entry :user::spawn::service-locus))`; ONE `fn-forms`
-over `child-entry` replaces the whole manifest, and `service-forms-def` dies.
+**The dynamic `apply` is not a style choice. It is a deliberate TYPE-CHECK BYPASS**, and
+`wat/service.wat` says so twice in its own comments:
+
+```
+:782  "process-tier `apply` bypasses the type check so the same serve fn works for both tiers"
+:800  "Process-tier calls serve via `apply` … which bypasses the type check — the process-tier
+       Peer<Status,Admin> from self-peer is accepted at runtime without a static mismatch"
+```
+
+**Verified against the source, not the comments:**
+
+| | |
+|---|---|
+| `serve`'s `self` param | `ThreadSelfPeer<Status,Admin>` — `wat/service.wat:1478` binds `~lineage-peer-ty`, built at `:803` |
+| what the child main HAS | `Peer<Status,Admin>` — `:wat::program::self-peer` (`runtime.rs:21853`; its error text at `runtime.rs:28298` says *"Peer<_,_> (self-peer, the owner/supervisor link)"*) |
+| are they one type? | **NO** — the checker tests them as distinct heads in an `\|\|` (`check.rs:9835`, `:10159`). `ThreadSelfPeer` is the arc-293.W.2d *in-locus, any-I/O* escape hatch from the purity wall |
+
+So a STATIC call `(<fqdn>::serve self …)` **will not type-check today** — it is a genuine mismatch,
+and the `apply` through a runtime-built keyword is precisely what smuggles it past. This is the
+class the arc has spent months annihilating: a form whose *function* is to evade the checker
+(R63 — *you cannot compile a lie*; R57 — a mask). It is also exactly why a closure walk finds
+nothing: **you cannot root a walk at a call that exists because it is unresolvable statically.**
+
+**Therefore the act is NOT "swap `apply` for a keyword node."** That goes red on a real defect, and
+the red is the point. The act is the question underneath, and it is a FORK FOR THE BUILDER:
+
+> **What is `serve`'s `self` type, across both tiers?**
+> (a) `serve` goes parametric over the self-peer type · (b) the two peer types are reconciled —
+> is `ThreadSelfPeer` a *purity* distinction rather than a representational one, and if so does the
+> process tier qualify? · (c) two `serve` emissions, one per tier.
+
+Ground (b) FIRST — if the distinction is purely the purity escape hatch, it may be the cheap
+answer. **Do not pick this alone; it is a ruling.** Once the type is settled the static call, the
+one-entry `<fqdn>::child-entry [locus] -> nil`, the one-liner
+`(defn :user::main [] -> nil (<fqdn>::child-entry :user::spawn::service-locus))`, one `fn-forms`
+over it, and the death of `service-forms-def` all follow.
 
 **Blast radius is every `defservice` in the corpus.** Draw the stone and BRIEF it; do not hand-roll.
 
