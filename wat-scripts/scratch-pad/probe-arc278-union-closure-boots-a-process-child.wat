@@ -78,9 +78,34 @@
     (:user::decl-names forms (:wat::core::i64::+ i 1)
       (:wat::core::conj acc (:user::decl-name (:wat::core::nth forms i))))))
 
-;; ── dedup a forms vector by declared name (first occurrence wins) ────────────────────────
-;; Each root's `fn-forms` prologue carries its OWN copy of every shared type, so a plain
-;; concat of N roots declares the same type N times — a duplicate-define at child startup.
+;; ── the DEDUP KEY of a top-level form: its declaration HEAD *and* its name ───────────────
+;; ⚠ A NAME IS NOT A KEY. `decl-name` alone is unsound as a dedup key, and this probe proved
+;; it by running: the RAW union carried FOUR forms declaring `:probe::ffx::Record` — two
+;; `defmacro` (the kwargs constructor) and two `recordtype` (the type declaration) — and a
+;; name-keyed first-wins dedup kept the macro and DISCARDED THE TYPE. The child then held a
+;; name with no type behind it, so no accessors were minted and `:probe::ffx::Record/tag`
+;; came back unresolved. The type declaration was never missing from `fn-forms`; the
+;; instrument ate it.
+;;
+;; This arc's own census had already said so: `SymbolTable::registrations` reports 182 names
+;; in this very world as `[Macro, Type]` — one CONCEPT, two FACETS, registered in different
+;; registries at different phases (EXPAND vs CHECK). A name maps to a SET, so a set keyed by
+;; name collapses facets that were never duplicates. Key on (head, name).
+(:wat::core::defn :user::decl-key [form <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::let
+    [ch   (:wat::core::ast->children form)
+     head (:wat::core::ast-name (:wat::core::first ch))]
+    (:wat::core::if (:wat::core::= head ":wat::core::do")
+      (:user::decl-key (:wat::core::first (:wat::core::rest ch)))
+      (:wat::core::string::concat head
+        (:wat::core::string::concat " "
+          (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch))))))))
+
+;; ── dedup a forms vector by declaration KEY (first occurrence wins) ──────────────────────
+;; Each root's `fn-forms` prologue carries its OWN copy of every shared declaration, so a
+;; plain concat of N roots declares the same thing N times — a duplicate-define at child
+;; startup. Two forms are duplicates only when they share a head AND a name; a `recordtype`
+;; and a `defmacro` of the same name are two facets of one concept and BOTH must ship.
 ;; Whether this dedup belongs to the extractor or the caller is a DESIGN question this probe
 ;; surfaces rather than settles; doing it here keeps the measurement about completeness.
 (:wat::core::defn :user::dedup-forms
@@ -93,11 +118,11 @@
     out
     (:wat::core::let
       [form (:wat::core::nth forms i)
-       nm   (:user::decl-name form)]
-      (:wat::core::if (:wat::fix::str-in? nm seen)
+       k    (:user::decl-key form)]
+      (:wat::core::if (:wat::fix::str-in? k seen)
         (:user::dedup-forms forms (:wat::core::i64::+ i 1) seen out)
         (:user::dedup-forms forms (:wat::core::i64::+ i 1)
-          (:wat::core::conj seen nm)
+          (:wat::core::conj seen k)
           (:wat::core::conj out form))))))
 
 ;; ── the child's main — MINIMAL, and it exercises the roots on purpose ────────────────────
@@ -105,10 +130,19 @@
 ;; the service Record, and matches the PROGRAM-LEVEL enum — the exact form that does not
 ;; cross the fork today. Ends with the pass-marker `println 0` on fd 1, which the parent
 ;; recv's (the same contract `run-hermetic'` uses, wat/test.wat:418).
+;;
+;; ⚠ THE ENTRY ARRIVES UNDER ITS *RENAMED* NAME. `fn-forms` fronts its entry through the
+;; inline-lambda path and emits `(def <renamed> <entry-form>)` — so `:probe::ffx::init`'s
+;; closure declares `:user::root-init`, and the original name is nowhere in the union. (A
+;; SELF-RECURSIVE entry like `serve` also appears under its own name, because its body
+;; calls it — which is why serve looked fine and init did not. The asymmetry is
+;; recursion, not a dropped form.) A caller composing a union must therefore call the
+;; name it ASKED FOR, not the name it started from. MEASURED: calling `:probe::ffx::init`
+;; here left exactly one unresolved reference in both arms.
 (:wat::core::defn :user::child-main-form [] -> :wat::WatAST
   `(:wat::core::defn :user::main [] -> :wat::core::nil
      (:wat::core::let
-       [st (:probe::ffx::init (:probe::ffx::Record :tag (:probe::FFXTag::Alpha)))
+       [st (:user::root-init (:probe::ffx::Record :tag (:probe::FFXTag::Alpha)))
         t  (:probe::ffx::Record/tag (:probe::ffx::State/durable st))
         ok (:wat::core::match t
              ((:probe::FFXTag::Alpha) 0)
