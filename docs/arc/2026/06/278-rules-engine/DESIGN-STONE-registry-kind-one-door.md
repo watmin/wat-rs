@@ -18,16 +18,39 @@ phase:
 **There is no resolver across them.** A grep for one returns nothing. Every consumer that must
 answer *"what is registered under this name?"* asks each registry by hand, from memory, forever.
 
-Measured — six files hand-consult three or more:
+### ⚠ THE FIRST CENSUS IN THIS DOC WAS WRONG — corrected 2026-08-11, kept visible
+
+The original table listed "six files hand-consulting three or more registries"
+(`runtime.rs`, `symbol_table.rs`, `freeze.rs`, `closure_extract.rs`, `freeze/env.rs`,
+`check/env.rs`). It was produced by a **file-level co-occurrence grep**, which cannot tell a
+name LOOKUP from a mention — so it counted setters, bulk iteration, and test lines as
+consumers. **The builder ruled "migrate all six" off that table.** The number was wrong in both
+directions: four of the six are not resolution consumers at all (an owner, a `set_macro_registry`
+call, a test line, a bulk `for` over two registries), and it MISSED five files that are —
+including the largest by a factor of three.
+
+The corrected census, counting actual cross-registry READ sites:
 
 ```
-5  src/runtime.rs             functions unit_variants runtime_def_values macro_registry types
-4  src/value/symbol_table.rs  functions unit_variants runtime_def_values macro_registry
-4  src/freeze.rs              functions                runtime_def_values macro_registry types
-4  src/closure_extract.rs     functions unit_variants runtime_def_values                types   ← WRONG
-3  src/freeze/env.rs          functions                runtime_def_values                types
-3  src/check/env.rs           functions unit_variants runtime_def_values
+27  src/check.rs              ← absent from the first table entirely
+ 8  src/runtime.rs
+ 2  src/closure_extract.rs    ← the proven-wrong one
+ 1  src/types.rs
+ 1  src/rete/matcher.rs
+ 1  src/rete/compiled_rhs.rs
+ 1  src/resolve/walk.rs
+───
+41  read sites across 7 files   (includes test code — not yet separated)
 ```
+
+**41 is a SURFACE, not a worklist.** Many of those sites are legitimately single-registry: at
+CHECK time, asking only "is this name a type?" is phase-correct, not a hole. Handing a rider
+"migrate 41 sites" would repeat the original error at larger scale.
+
+**PREREQUISITE, and it gates the brief:** a per-site disposition over all 41 — for each,
+*phase-correct single-registry lookup* (leave) vs *resolution that should ask the door*
+(migrate) — with the reason recorded per site. That inventory IS the migration worklist. No
+migration may be briefed off a count.
 
 `closure_extract` asks four of five. It never reads `macro_registry`. That is not a missing
 *entry* — it is a missing **dependency kind**, and it shipped a forked child a record type with
