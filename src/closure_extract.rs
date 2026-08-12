@@ -951,26 +951,48 @@ fn walk_free_symbols(
                     // this match exhaustive; unreachable in practice.
                     Boundary::Match => {}
 
-                    // ⛔ DELIBERATELY NOT HONOURED — these two are LIBRARY grammar sitting in a
-                    // substrate list: `:wat::form::matches?` and `:wat::rete::make-rule` (plus
-                    // `is_where_form`, a whole function for one library form). Honouring them
-                    // here would spread that privilege to a SECOND consumer, and privilege is
-                    // exactly what makes a user-defined DSL second-class: rete and holon got to
-                    // edit the compiler's list; a user cannot.
+                    // `:wat::form::matches?` — only the subject (`items[1]`) is code; the
+                    // pattern (`items[2..]`) is DSL data owned by check.rs's
+                    // `infer_form_matches` grammar walker. Identical to `resolve::walk`'s
+                    // `Boundary::MatchesSubject` arm.
                     //
-                    // The language already has the universal mechanism — `quote` for data,
-                    // `quasiquote`/`unquote` for data-with-code-holes — and a DSL that uses it
-                    // needs NO entry anywhere (proven: probe-arc278-fnforms-walks-into-quoted-
-                    // data.wat skips `mystery-symbol` with nothing naming it). These two forms
-                    // needed entries only because they did NOT use it.
+                    // ⚠ THIS ARM WAS `{}` AND THAT WAS A LIVE BUG, proven by run. Falling
+                    // through walks the PATTERN as code and raises on its DSL tokens — the
+                    // pattern is NOT quoted, so nothing downstream stops the walk:
                     //
-                    // Falling through is SAFE in the direction that matters: `make-rule`'s
-                    // `:when` is itself a `quote` form, so the recursion below meets it and the
-                    // AllData arm stops there — no false raise. The cost is a FALSE NEGATIVE:
-                    // deps inside a `(:wat::rete::where …)` body go uncollected, and the child
-                    // names them at startup. A missing dep is legible; a refused valid program
-                    // is not.
-                    Boundary::MatchesSubject | Boundary::MakeRule => {}
+                    //   free symbol `=` does not resolve to a parent define or substrate
+                    //   primitive   (probe_matches_pattern_var.wat:26:21)
+                    //
+                    // i.e. NO fn containing a `matches?` could be closure-extracted — the
+                    // exact "walker refuses a valid program" defect this whole hook exists to
+                    // kill, left standing for a second form. The `{}` was justified by
+                    // `make-rule`'s reasoning (below), which does NOT transfer.
+                    Boundary::MatchesSubject => {
+                        if let Some(subject) = items.get(1) {
+                            walk_free_symbols(subject, locals, state)?;
+                        }
+                        return Ok(());
+                    }
+
+                    // ⛔ DELIBERATELY NOT HONOURED — `:wat::rete::make-rule` is LIBRARY grammar
+                    // sitting in a substrate list (plus `is_where_form`, a whole function for
+                    // one library form). Honouring it here would spread that privilege to
+                    // another consumer, and privilege is exactly what makes a user-defined DSL
+                    // second-class: rete got to edit the compiler's list; a user cannot.
+                    //
+                    // Falling through is safe HERE, and the reason is specific to this form:
+                    // `make-rule`'s `:when` is itself a `quote` form, so the recursion below
+                    // meets it and the `AllData` arm stops there — no false raise. The cost is
+                    // a FALSE NEGATIVE: deps inside a `(:wat::rete::where …)` body go
+                    // uncollected, and the child names them at startup. A missing dep is
+                    // legible; a refused valid program is not.
+                    //
+                    // ⚠ This refusal removes NO privilege on its own — `quote_boundary` still
+                    // returns `MakeRule`, and `walk`/`normalize`/`expand` all still honour it.
+                    // It is a marker, not a cure. The cure is the boundary-DECLARATION stone
+                    // (ruled 2026-08-12): a form declares its own boundary, the compiler holds
+                    // no library's grammar, and this variant ceases to exist.
+                    Boundary::MakeRule => {}
 
                     // Not a boundary — fall through to the plain-list recursion below.
                     Boundary::Ordinary => {}
