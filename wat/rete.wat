@@ -1966,6 +1966,41 @@
 ;; For each rule: required = max(stratum[n]+1 for n in negated, default 0).
 ;; For each produced type p: stratum[p] = max(stratum[p], required).
 ;; Returns StratifyAcc{updated type-strata, changed flag (true if any stratum rose)}.
+;; rule-consumes — the fact types a rule reads POSITIVELY (task #94).
+;;
+;; The stratifier needs this and did not have it. Correct stratification requires BOTH
+;;   stratum(r) >= stratum(p)  for every p used POSITIVELY
+;;   stratum(r) >  stratum(p)  for every p NEGATED
+;; Only the second was implemented, so a rule consuming a fact produced in a HIGHER stratum
+;; was left in a LOWER one, fired to fixpoint before its input existed, and never re-fired.
+;;
+;; Engine forms (:wat::rete::not / where / accumulate / exists) are NOT fact patterns and are
+;; excluded by prefix; everything else in an lhs is a user fact type.
+(:wat::core::defn :wat::rete::rule-consumes
+  [rule <- :wat::rete::Rule]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::let [lhs (:wat::rete::Rule/lhs rule)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+                       form <- :wat::WatAST]
+        -> :wat::core::PersistentVector<wat::core::String>
+        (:wat::core::let [form-ch (:wat::core::ast->children form)
+                          head    (:wat::core::first form-ch)
+                          hd-nm   (:wat::core::ast-name head)]
+          ;; TOTAL prefix test: `subs` is PARTIAL, so the length guard comes FIRST — a head
+          ;; shorter than the prefix (":nc::Item" is 9) must answer false, never raise.
+          (:wat::core::if (:wat::core::if (:wat::core::i64::>= (:wat::core::string::length hd-nm) 12)
+                            (:wat::core::= (:wat::core::string::subs hd-nm 0 12) ":wat::rete::")
+                            false)
+            acc
+            (:wat::core::let [raw-nm  hd-nm
+                              type-nm (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-nm 0 1) ":")
+                                        (:wat::core::string::subs raw-nm 1 (:wat::core::string::length raw-nm))
+                                        raw-nm)]
+              (:wat::core::PersistentVector/conj acc type-nm)))))
+      (:wat::core::PersistentVector)
+      lhs)))
+
 (:wat::core::defn :wat::rete::stratify-sweep
   [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
    type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
@@ -1978,8 +2013,9 @@
                         changed  (:wat::rete::StratifyAcc/changed acc)
                         produced (:wat::rete::rule-produces rule)
                         negated  (:wat::rete::rule-negates rule)
-                        ;; required = max(stratum[n]+1 for n in negated, default 0)
-                        required (:wat::core::foldl
+                        consumed (:wat::rete::rule-consumes rule)
+                        ;; req-neg = max(stratum[n]+1 for n in negated, default 0)
+                        req-neg  (:wat::core::foldl
                                    (:wat::core::fn [mx  <- :wat::core::i64
                                                     neg <- :wat::core::String]
                                      -> :wat::core::i64
@@ -1992,6 +2028,21 @@
                                        (:wat::core::if (:wat::core::i64::> v mx) v mx)))
                                    0
                                    negated)
+                        ;; req-pos = max(stratum[c] for c in consumed, default 0) — task #94.
+                        ;; NOT +1: a positive consumer may sit in the SAME stratum as its input
+                        ;; (that is ordinary forward chaining); it merely may not sit BELOW it.
+                        req-pos  (:wat::core::foldl
+                                   (:wat::core::fn [mx  <- :wat::core::i64
+                                                    con <- :wat::core::String]
+                                     -> :wat::core::i64
+                                     (:wat::core::let [cs (:wat::core::match
+                                                             (:wat::core::HashMap/get ts con)
+                                                           ((:wat::core::Some v) v)
+                                                           (:wat::core::None 0))]
+                                       (:wat::core::if (:wat::core::i64::> cs mx) cs mx)))
+                                   0
+                                   consumed)
+                        required (:wat::core::if (:wat::core::i64::> req-neg req-pos) req-neg req-pos)
                         ;; for each produced type: raise stratum to required if higher
                         new-acc  (:wat::core::foldl
                                    (:wat::core::fn [inner <- :wat::rete::StratifyAcc

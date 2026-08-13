@@ -91,6 +91,14 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          {1,3} non-empty.",
     ),
     (
+        "neg-consumer",
+        &[4],
+        "size=[items]; the THREE-WAY axis — Ok(k) :- Item(k), NOT Bad(k) is the negation gate \
+         and Final(k) :- Ok(k), Tag(k) is the POSITIVE consumer downstream of it (task #94). \
+         items=4 leaves the odd keys {1,3} non-empty. Emits :oracle-derived as well, so the \
+         verdict carries :oracle-accuracy (spec vs Clara) and :port-accuracy (spec vs native).",
+    ),
+    (
         "node-share",
         &[2, 4],
         "size=[rules items]; every k in [0,items) satisfies EXACTLY one of the N rules \
