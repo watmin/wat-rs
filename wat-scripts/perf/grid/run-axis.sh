@@ -125,6 +125,9 @@ for SIZE in "$@"; do
   WAT_WALLS=""
   CLARA_WALLS=""
   ACCURACY=":match"
+  ORACLE_ACCURACY=":match"
+  PORT_ACCURACY=":match"
+  HAS_ORACLE=0
 
   for RUN in $(seq 1 "$GRID_RUNS"); do
     # ── wat side: native fire-rules, timed inside the script itself ──────────
@@ -190,6 +193,31 @@ for SIZE in "$@"; do
       echo "  clara :derived $CLARA_DERIVED" >&2
     fi
 
+    # ── THREE-WAY (opt-in): an axis may ALSO emit :oracle-derived, the wat SPEC's answer ──
+    # Every other axis runs NATIVE only, so a flaw the oracle and its faithful Rust port SHARE
+    # is invisible: `oracle == native` passes and Clara is never asked about the oracle. Where
+    # the axis supplies the column we render it, and the THREE pairings diagnose differently:
+    #   oracle vs clara  MISMATCH  =>  the SPEC is wrong
+    #   native vs clara  MISMATCH  =>  the fast path is wrong
+    #   oracle vs native MISMATCH  =>  a PORT bug
+    # Absent the field this block is inert, so the 2-way axes are byte-for-byte unaffected.
+    ORACLE_DERIVED="$(echo "$WAT_LINE" | grep -oP ':oracle-derived\s+(?:#wat\.core/PersistentVector\s+)?\K\[[^]]*\]' || true)"
+    if [ -n "$ORACLE_DERIVED" ]; then
+      HAS_ORACLE=1
+      if [ "$ORACLE_DERIVED" != "$CLARA_DERIVED" ]; then
+        ORACLE_ACCURACY=":MISMATCH"
+        echo "run-axis: ORACLE MISMATCH axis=$AXIS size=[$SIZE] run=$RUN" >&2
+        echo "  oracle :derived $ORACLE_DERIVED" >&2
+        echo "  clara  :derived $CLARA_DERIVED" >&2
+      fi
+      if [ "$ORACLE_DERIVED" != "$WAT_DERIVED" ]; then
+        PORT_ACCURACY=":MISMATCH"
+        echo "run-axis: PORT MISMATCH (oracle != native) axis=$AXIS size=[$SIZE] run=$RUN" >&2
+        echo "  oracle :derived $ORACLE_DERIVED" >&2
+        echo "  native :derived $WAT_DERIVED" >&2
+      fi
+    fi
+
     RATIOS="$RATIOS $(awk -v n="$WAT_NS" -v c="$CLARA_NS" 'BEGIN { printf "%.4f", (n>0)? c/n : -1 }')"
     WAT_NSS="$WAT_NSS $WAT_NS"
     CLARA_NSS="$CLARA_NSS $CLARA_NS"
@@ -235,5 +263,9 @@ for SIZE in "$@"; do
   # in someone's memory.
   FIRE_SHARE="$(awk -v ns="$WAT_MEAN" -v wall="$WAT_WALL" 'BEGIN { printf "%.2f", (wall>0)? (ns/1000000.0)*100.0/wall : -1 }')"
 
-  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :clara-ns $CLARA_MEAN :winner $WINNER :wat-wall-ms $WAT_WALL :clara-wall-ms $CLARA_WALL :wall-ratio $WALL_RATIO :wall-winner $WALL_WINNER :fire-share-pct $FIRE_SHARE}"
+  ORACLE_FIELDS=""
+  if [ "$HAS_ORACLE" = "1" ]; then
+    ORACLE_FIELDS=" :oracle-accuracy $ORACLE_ACCURACY :port-accuracy $PORT_ACCURACY"
+  fi
+  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY$ORACLE_FIELDS :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :clara-ns $CLARA_MEAN :winner $WINNER :wat-wall-ms $WAT_WALL :clara-wall-ms $CLARA_WALL :wall-ratio $WALL_RATIO :wall-winner $WALL_WINNER :fire-share-pct $FIRE_SHARE}"
 done

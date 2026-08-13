@@ -30,6 +30,11 @@ GRID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -A LADDER=(
   [min-finding]="500 3|1000 3|2000 3"        # dial: stations   (threshold fixed at 3)
   [negation]="250|500|1000"                  # dial: items
+  [neg-consumer]="250|500|1000"              # dial: items. THE THREE-WAY AXIS — a positive
+                                              # consumer downstream of a negation gate, the one
+                                              # shape no other axis crosses. Emits :oracle-derived
+                                              # so the verdict carries :oracle-accuracy and
+                                              # :port-accuracy. RED until task #94 is closed.
   [asym-join]="500|1000|2000"                # dial: items
   [strat-neg]="6 500|6 1000|6 2000"          # dial: items      (strata fixed at 6 — chain depth)
   [user-reduce]="10 25|20 50|40 100"         # dial: locs × reads together
@@ -45,7 +50,7 @@ declare -A LADDER=(
 )
 
 # Deterministic order — the table reads the same every run.
-ORDER=(min-finding negation asym-join strat-neg user-reduce node-share accum deep-cascade fanout)
+ORDER=(min-finding negation neg-consumer asym-join strat-neg user-reduce node-share accum deep-cascade fanout)
 
 # ── DISCOVERY, because a LIST cannot notice what was never added to it ────────────────────────
 #
