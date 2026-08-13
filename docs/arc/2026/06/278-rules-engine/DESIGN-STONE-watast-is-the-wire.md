@@ -24,6 +24,49 @@ A declared field type is therefore **not** a gate on *whether* a value may cross
 type that narrowing is a real predicate. For `:wat::WatAST` itself the narrowing is the **identity**,
 and identity is the one case the guard does not implement.
 
+## ★ WHAT THIS STONE ACTUALLY IS — the tail of an unfinished migration
+
+Not "the guard is wrong about one type." **The wire was built for the PREDECESSOR AST, and one
+edge of the successor's migration was never walked.**
+
+The builder's history, and it explains everything above: *"all of wat started on holon-ast … we
+slowly built out wat-ast and … never fully killed holon-ast."*
+
+So `src/edn_shim.rs:42`'s table is chronology, not design:
+
+```
+| HolonAST | Tagged per variant (Symbol/String/I64/F64/Bool/Atom/Bind/Bundle/Permute/Thermometer/Blend) |
+```
+
+HolonAST got the wire treatment because it **was** the AST when the wire was built. WatAST grew up
+underneath it and the encoder never caught up — it serializes faithfully (`:604-607`) and the decode
+side has no arm for it. `types.rs:915` shows the seam in one sentence: *"wat::WatAST, the terminal
+value as wat::holon::HolonAST."* Two AST types, a bridge between them, and one of them older.
+
+**⛔ RULED 2026-08-12 (the builder): HolonAST is not going anywhere — it is for VSA ops now.**
+
+That is a ruling on what the thing IS, which is the only honest tiebreaker
+(`[[feedback_no_consumers_does_not_mean_dead]]`). It also explains why the two fixes are DUALS
+rather than the same fix:
+
+| | identified by | why |
+|---|---|---|
+| **HolonAST** | **its tag** | its composites (`Bind`/`Bundle`/`Permute`/`Thermometer`/`Blend`) are VSA operations with NO bare EDN spelling — the tag is what makes them EDN at all. It must stay tagged. |
+| **WatAST** | **"it parsed"** | its variants ARE the EDN shapes — a List *is* `(…)`, a Keyword *is* `:foo`. There is nothing to tag, and tagging would break `write-forms` output being `read-string`-able as plain text. |
+
+So WatAST is not catching up to HolonAST. Once the identity arm lands it crosses by the **cheaper**
+mechanism: HolonAST pays a tag per node; WatAST pays nothing, because the bare list on the wire IS
+the form.
+
+**⚠ NOT MEASURED, and the distinction cost real time today:** the table documents the ENCODER. No
+HolonAST has been observed crossing a live service op in this session — "HolonAST was already
+permitted" is well-evidenced, not proven. Worth a one-op positive control before any realization
+claims a gap closed; a sentence resting on a table is not resting on a run.
+
+**Filed separately:** where HolonAST still does AST duty rather than VSA duty is a CENSUS question,
+not a guess — and per the ruling above it produces an inventory needing dispositions, never a kill
+list.
+
 ## The symptom, measured
 
 `wat-scripts/scratch-pad/probe-arc278-rules-cross-the-wire.wat` — a real `defservice`, process
