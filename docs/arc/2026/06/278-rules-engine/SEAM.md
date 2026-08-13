@@ -1,3 +1,24 @@
+# SEAM — ⛔ PARKED 2026-08-13. THE LIVE SEAM IS ARC 251.
+
+> **This arc is PARKED. Do not resume from this file.**
+> The one live breadcrumb is **`docs/arc/2026/06/251-types-as-forms/SEAM.md`** — read that first.
+>
+> The builder, 2026-08-13: *"back to 251 we go… we'll resume 278 once we have the clojure syntax
+> conversion complete."* 251 was abandoned FOR rete; rete is what made 251 executable. The
+> tooling 251 needed — a rules engine that classifies by POSITION, an extractor turning real
+> source into facts, and a diagnostic that names the cause instead of the call site — did not
+> exist in June and all three landed today.
+>
+> **What 278 holds when you return:** rete is ONE optimization from done — compiled `where`
+> forms (#49). The arc: prove the compiler in rete, then compile all of wat. Still open: **#92**
+> (invert the decode; a PREREQUISITE to symbol-heads, not an alternative), **#93**, **#91**,
+> **#90**, and the grid's untested FEATURE INTERACTIONS — #94 lived in one such seam and the
+> others are unswept.
+>
+> Everything below is 278's state as parked, preserved for that return.
+
+---
+
 # SEAM — the ONE live breadcrumb for arc 278. Replaced in place, never appended.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
