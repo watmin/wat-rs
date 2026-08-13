@@ -1,0 +1,196 @@
+;; symbol-namespace-vocabulary.wat — the naming target for arc 251's SYMBOL correction.
+;;
+;; ── THE CORRECTION BEING NAMED ────────────────────────────────────────────────────────────
+;;
+;; wat has never implemented symbols. It has a `WatAST::Keyword(String, Span)` whose own doc
+;; comment admits the fusion, verbatim from crates/wat-reader/src/ast.rs:99-107:
+;;
+;;   "Keyword token, as in `:foo`, `:wat::holon::Atom` ... Used both as keyword literals
+;;    (payloads for wat keyword atoms) AND as keyword-path references (heads of calls, type
+;;    annotations). Distinguished by context at later passes."
+;;
+;; That last sentence is the defect, written at the definition site. One node does two
+;; unrelated jobs — a VALUE and a REFERENCE — and every downstream pass must re-decide which.
+;;
+;; The builder's ruling (2026-08-13): `:wat::core::+` NEVER WAS A KEYWORD. It is a
+;; COLON-QUOTED SYMBOL, misfiled as a keyword since the beginning. The correction is not
+;; "add symbols" — it is un-misfiling the ones we always had.
+;;
+;; ── THE SHAPE RULED ───────────────────────────────────────────────────────────────────────
+;;
+;;   every symbol is (namespace, name, scopes) — a namespace is NEVER absent
+;;
+;;   <binder-ns>/x    a LOCAL binder   — reserved, un-spellable by user source
+;;   wat.core/+       a reference      — the substrate's
+;;   user/f           a reference      — the program's
+;;   :foo             a KEYWORD, and only ever a value
+;;
+;; The rule this makes structural (today it holds, but only at RUNTIME — a bare `(foo 1)`
+;; head fails with UnboundSymbol at eval, never at check):
+;;
+;;   A NON-NAMESPACED SYMBOL IS LEGAL ONLY IN A BINDER POSITION.
+;;   ALL OTHER SYMBOLS MUST BE NAMESPACED.
+;;
+;; Giving binders their own reserved namespace makes every symbol ONE shape, so "is this a
+;; reference?" becomes a namespace match instead of the four hand-rolled string tests that
+;; decide it today, each independently:
+;;
+;;   src/resolve/normalize.rs:81   ident.as_str().contains('/')
+;;   src/macros/expand.rs:537      ident.as_str().contains('/')
+;;   src/runtime.rs:3048           s.as_str().contains('/')
+;;   src/runtime.rs:3307           s.as_str().contains('/')
+;;
+;; ── WHY A NAMED NAMESPACE AND NOT `Option<Namespace>` ─────────────────────────────────────
+;;
+;; The alternative shape is an optional namespace whose `None` means "this is a binder".
+;; That was cut, on precedent one day old (arc 278 R66): an `Option` whose `None` meant
+;; "skip the check" collapsed two unrelated situations and passed BOTH. A named namespace
+;; makes the binder case a match arm that cannot be forgotten; `None` is what gets
+;; `unwrap_or_default`'d. Uniform shape > optional field.
+;;
+;; ── GROUNDING FOR THE NAMESPACE SPELLING ──────────────────────────────────────────────────
+;;
+;; `$`-prefixed namespaces are LEGAL IN CLOJURE — verified by the builder against Clojure
+;; 1.12.4 in a live REPL:
+;;
+;;   user=>   (ns $bound)          ;; nil
+;;   $bound=> (def x [42])         ;; #'$bound/x
+;;   $bound=> (ns user)            ;; nil
+;;   user=>   (println $bound/x)   ;; [42]
+;;
+;; So a `$`-prefixed namespace is Clojure-faithful, not a wat-only hack — which matters,
+;; because wat is a Clojure DIALECT (300 R7 VIRTVTE PARES).
+;;
+;; MEASURED FREE: zero occurrences of `$bound` or `$binder` as a namespace anywhere in
+;; wat/, wat-tests/, tests/, wat-scripts/, src/, crates/. Probed live: `$binder/x` in head
+;; position resolves to `:$binder::x` and reports UnresolvedReference — nobody owns it.
+;; The `$` character already lexes in identifiers (`$x` is a legal binder today), so the
+;; reader needs NO change to carry it.
+;;
+;; RESERVATION MECHANISM (exists, one door): src/resolve/reserved.rs
+;;   pub const RESERVED_PREFIXES: &[&str] = &[":wat::", ":rust::"];
+;;   pub fn is_reserved_prefix(keyword: &str) -> bool
+;; already consulted at registration, resolution, and closure extraction. The binder
+;; namespace joins that list as one entry, so user source cannot define into it.
+
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;; SLOT 1 — THE RESERVED BINDER NAMESPACE
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;;
+;; The namespace every non-namespaced (binder) symbol silently carries. It appears in NO
+;; user source — `(let [x 1] ... x)` is unchanged. It is what you get back when you ASK a
+;; symbol for its namespace, and what an error message says when a bare symbol appears
+;; somewhere a reference was required.
+;;
+;; The two the builder offered, plus siblings weighed for register:
+;;
+;;   $bound    — "this name is BOUND here" — the state of the thing. Reads as a fact about
+;;               the symbol (it has a binding in scope). Clojure-verified spelling above.
+;;   $binder   — "this name is a BINDER" — the ROLE. But a binder is the thing that BINDS
+;;               (the `[x 1]` slot); a USE of `x` in the body is a bound OCCURRENCE, not a
+;;               binder. Does the name mislead at the use site, which is most sites?
+;;   $local    — the scoping fact: not global, not namespaced, resolved in the frame.
+;;               Familiar from every language's "local variable". Says less about binding.
+;;   $lexical  — precise (lexical scope) but heavier; does it earn the extra syllable?
+;;   $scope    — names the mechanism (`Identifier` already carries `scopes: BTreeSet<ScopeId>`
+;;               for hygiene), but then the namespace and the scope-set say the same word for
+;;               two different things — a collision of vocabulary, not of names.
+;;
+;; ★ THE DISCRIMINATOR TO WEIGH: the namespace is read at the USE site far more often than
+;;   at the binding site. Which spelling keeps its promise when the reader meets it in an
+;;   error message about `x` appearing where `wat.core/foo` was required?
+
+(:wat::core::defn :naming::SLOT-1-binder-namespace
+  [] -> :wat::core::String
+  ;; What a symbol's namespace accessor returns for a plain `x` bound by a `let`.
+  ;; <binder-ns-name> goes here — the reserved namespace, e.g. "$bound".
+  "PLACEHOLDER-BINDER-NAMESPACE")
+
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;; SLOT 2 — THE ACCESSOR THAT ASKS A SYMBOL FOR ITS NAMESPACE
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;;
+;; Given a symbol, yield the namespace part. Total — every symbol has one, which is the
+;; whole point of the correction (no Option, no absence).
+;;
+;; SIBLINGS it sits beside (the wat surface's existing reflection/accessor tone):
+;;   (:wat::core::ast-kind node)      ;; -> String   the node's kind
+;;   (:wat::core::ast-name node)      ;; -> String   the node's name (PARTIAL — raises)
+;;   (:wat::core::ast->children node) ;; -> children
+;;
+;; Clojure's own pair, for dialect fidelity: (namespace 'wat.core/+) => "wat.core"
+;;                                            (name 'wat.core/+)      => "+"
+;;
+;; Candidates:
+;;   symbol-namespace  — explicit, verbose, unambiguous.
+;;   sym-ns            — terse; does `ns` read as namespace here or as the `ns` FORM?
+;;   namespace         — Clojure-faithful and shortest. But is a bare `namespace` too
+;;                       generic at a wat call site, where FQDN spelling is the norm?
+;;   ast-namespace     — matches the `ast-kind` / `ast-name` family already on the surface.
+;;                       Is the symbol accessor part of that family, or its own thing?
+;;
+;; ★ AND THE PAIRED QUESTION: `ast-name` is PARTIAL today (it raises on a non-nameable
+;;   node — the exact defect that killed the codemod on 43 of 1392 corpus files). Should the
+;;   namespace accessor be TOTAL by returning the binder namespace, and does its NAME need to
+;;   carry that it never fails?
+
+(:wat::core::defn :naming::SLOT-2-namespace-accessor
+  [s <- :wat::WatAST] -> :wat::core::String
+  ;; <accessor-name> goes here — reads the namespace off a symbol node.
+  (:wat::core::PLACEHOLDER-ACCESSOR-NAME s))
+
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;; SLOT 3 — THE PREDICATE: "IS THIS SYMBOL A REFERENCE, OR A BINDER?"
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;;
+;; The question the four `contains('/')` sites each hand-roll today. After the correction it
+;; is a namespace comparison, and it wants ONE name and ONE door.
+;;
+;; The two directions are not symmetric — which way should the predicate read?
+;;
+;;   binder?      — true for the reserved namespace. Positive about the LOCAL case.
+;;   bound?       — same, in $bound's register.
+;;   reference?   — true for everything else. Positive about the REFERENCE case, which is
+;;                  what almost every caller actually wants to know ("may I resolve this?").
+;;   namespaced?  — the mechanical fact. Honest, but after the correction EVERY symbol is
+;;                  namespaced, so the word would be a lie unless it means "user-namespaced".
+;;   resolvable?  — what the caller does next. But it promises resolution SUCCESS, which the
+;;                  predicate cannot deliver (an unknown `user/nope` is namespaced and
+;;                  unresolvable) — does it over-promise?
+;;
+;; ★ THE HONESTY EDGE: whichever way it reads, the OPPOSITE case must not become the
+;;   `_`-arm — full enum matching is doctrine here
+;;   (109/NOTE-full-enum-match-mandatory-no-wildcard-arm.md), and this predicate is exactly
+;;   the shape that tempts a wildcard.
+
+(:wat::core::defn :naming::SLOT-3-role-predicate
+  [s <- :wat::WatAST] -> :wat::core::bool
+  ;; <predicate-name> goes here — and the NAME decides which case is the positive one.
+  (:wat::core::PLACEHOLDER-PREDICATE-NAME s))
+
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;; SLOT 4 — WHAT THE MISFILED NODE IS CALLED WHILE BOTH SPELLINGS LIVE
+;; ══════════════════════════════════════════════════════════════════════════════════════════
+;;
+;; During dual-read, `:wat::core::+` and `wat.core/+` are TWO SPELLINGS OF ONE SYMBOL. The
+;; record and the code currently call the first one a "keyword", which the builder's ruling
+;; says is exactly the misfiling being corrected. Docs, errors and commit messages need a
+;; word for it that does not re-assert the lie.
+;;
+;;   colon-quoted symbol  — the builder's own phrase. Says precisely what it is: a symbol
+;;                          whose spelling leads with a colon. Long; is it too long for a
+;;                          diagnostic?
+;;   colon symbol         — terser; does dropping "quoted" lose the point?
+;;   legacy spelling      — true and short, but says nothing about WHAT it is; and "legacy"
+;;                          dates it rather than describing it.
+;;   keyword-form symbol  — bridges to what readers have called it for months; or does
+;;                          keeping the word "keyword" perpetuate the misfiling?
+;;
+;; ★ AND THE REAL QUESTION UNDER IT: once symbols are un-misfiled, does `WatAST::Keyword`
+;;   keep its name for the VALUE role it retains, or does the variant itself want renaming
+;;   so no future reader repeats the fusion its doc comment currently describes?
+
+(:wat::core::defn :naming::SLOT-4-legacy-spelling-term
+  [] -> :wat::core::String
+  ;; The term a diagnostic uses for `:wat::core::+` when it must name the spelling.
+  "PLACEHOLDER-LEGACY-SPELLING-TERM")
