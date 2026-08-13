@@ -3,7 +3,7 @@
  :location nil
  :causes []
  :errors [#wat.check/ReservedPrefix
-          {:message "cannot define :wat::core::pi — reserved prefix (:wat::, :rust::); user defines must use their own prefix"
+          {:message "cannot define :wat::core::pi — reserved prefix (:wat::, :rust::, :$bound::); user defines must use their own prefix"
            :location #wat.core/Span
                      {:file "tests/wat_lang/wat_arc157_def_reserved_scalar.wat.bad"
                       :line 10

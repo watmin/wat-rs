@@ -222,7 +222,10 @@ pub enum CheckErrorKind {
     /// `MacroErrorKind` got theirs in `72a1ac3d`.
     UnnamespacedName { name: String },
     /// Arc 278 BRIEF-scalar-def-reaches-the-gate — a top-level `:wat::core::def`
-    /// binding whose name uses a reserved prefix (`:wat::` / `:rust::`) from
+    /// binding whose name uses a reserved prefix (the live list is
+    /// `resolve::reserved::RESERVED_PREFIXES` — do NOT re-spell it here; it
+    /// grew a third entry at arc 251.8a and this comment was stale within the
+    /// hour) from
     /// unprivileged (user) source. Same door as `UnnamespacedName` above: a
     /// scalar def never reached `resolve::gate` before this change, so this
     /// hole was open too — found by grounding the BRIEF's `Reserved` question

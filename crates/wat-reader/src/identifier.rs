@@ -31,6 +31,12 @@
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// The reserved namespace every non-namespaced (binder) symbol carries.
+/// Reserved so user source cannot define into it — see
+/// `src/resolve/reserved.rs`'s `RESERVED_PREFIXES` (entry `":$bound::"`,
+/// doubled-colon form to match `is_reserved_prefix`'s stripping).
+pub const BOUND_NAMESPACE: &str = "$bound";
+
 /// A unique integer identifying a lexical scope — macro invocation,
 /// `let` / `fn` / `match` scope, etc.
 ///
@@ -127,6 +133,29 @@ impl Identifier {
         &self.name
     }
 
+    /// The symbol's namespace. TOTAL — every symbol has one; a binder's is
+    /// [`BOUND_NAMESPACE`] (`$bound`). Never an absence: the uniform shape is
+    /// the point (see `DESIGN-STONE-251.8-symbol-proper.md`'s pinned
+    /// contract).
+    ///
+    /// STONE 251.8a: the namespace is DERIVED from the spelling (split on
+    /// the last `/`), not stored — `Identifier` still holds one `name`
+    /// string. 251.8b is where derived swaps for stored behind this same
+    /// signature.
+    pub fn namespace(&self) -> &str {
+        match self.name.rfind('/') {
+            Some(slash) => &self.name[..slash],
+            None => BOUND_NAMESPACE,
+        }
+    }
+
+    /// True when this symbol names something defined elsewhere, false when
+    /// it is a local binder. Exactly `namespace() != BOUND_NAMESPACE` — the
+    /// one indirection a reader has to cross between `$bound` and this.
+    pub fn is_reference(&self) -> bool {
+        self.namespace() != BOUND_NAMESPACE
+    }
+
     // rune:struere(invariant-coupling) — &BTreeSet IS the contract: its sorted,
     // deterministic iteration is load-bearing (env_key's canonical encoding and
     // hash.rs's scope renumbering both depend on the ordering); an opaque iterator
@@ -185,5 +214,25 @@ mod tests {
         set.insert(Identifier::bare("x"));
         set.insert(Identifier::bare("x").add_scope(fresh_scope()));
         assert_eq!(set.len(), 2, "identifiers differ by scope");
+    }
+
+    // STONE 251.8a — the one-door probe. A binder identifier (no `/` in its
+    // spelling) answers the reserved BOUND_NAMESPACE from `namespace()` and
+    // `false` from `is_reference()`; a namespaced identifier answers its own
+    // namespace and `true`. This is deliberately NOT just the negative case
+    // (trap door: "the probe could pass on a tautology") — it also asserts
+    // the reference direction on a real namespaced identifier.
+    #[test]
+    fn binder_symbol_is_not_a_reference() {
+        let id = Identifier::bare("x");
+        assert_eq!(id.namespace(), BOUND_NAMESPACE);
+        assert!(!id.is_reference());
+    }
+
+    #[test]
+    fn namespaced_symbol_is_a_reference() {
+        let id = Identifier::bare("wat.core/+");
+        assert_eq!(id.namespace(), "wat.core");
+        assert!(id.is_reference());
     }
 }

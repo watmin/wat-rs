@@ -534,7 +534,7 @@ pub(super) fn expand_form(
             // happens downstream). The macro's own body ignores the head token, so no head
             // rewrite is needed here — only the raw tail args flow in.
             if let Some(WatAST::Symbol(ident, _)) = items.first() {
-                if ident.as_str().contains('/') {
+                if ident.is_reference() {
                     let slash_pos = ident.as_str().rfind('/').unwrap();
                     let primary = crate::edn_shim::ns_to_wat_path(
                         &ident.as_str()[..slash_pos],

@@ -25,6 +25,14 @@ pub const RESERVED_PREFIXES: &[&str] = &[
     ":wat::",
     // :rust::* reserved for #[wat_dispatch]-surfaced Rust types.
     ":rust::",
+    // Arc 251 Stone 251.8a — $bound is the reserved namespace every
+    // non-namespaced (binder) symbol carries (see
+    // `wat_reader::identifier::BOUND_NAMESPACE`). Reserved so user source
+    // cannot define into it — a user-defined `$bound/x` would be
+    // indistinguishable from a real local binder. Doubled-colon form to
+    // match `is_reserved_prefix`'s stripping, same shape as the two
+    // entries above.
+    ":$bound::",
 ];
 
 /// True if `keyword` falls UNDER a reserved prefix — i.e. it is, or is nested

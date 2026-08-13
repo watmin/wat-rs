@@ -3045,7 +3045,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
         // def-name position (`user/main`) is the keyword FQDN's twin. Convert
         // to `:user::main` so the def registers under the SAME key the harness
         // and resolver look up. Additive — the Keyword arm above is unchanged.
-        WatAST::Symbol(s, _) if s.as_str().contains('/') => {
+        WatAST::Symbol(s, _) if s.is_reference() => {
             let slash_pos = s.as_str().rfind('/').unwrap();
             let kw = crate::edn_shim::ns_to_wat_path(
                 &s.as_str()[..slash_pos],
@@ -3304,7 +3304,7 @@ fn try_parse_user_variadic_def_fn_form(
         // Arc 300.1 — faithful-Clojure dual surface (variadic twin of Site B):
         // a namespaced Symbol def-name (`my/fold`) → keyword FQDN so faithful
         // VARIADIC defs register too. Additive — Keyword arm above unchanged.
-        WatAST::Symbol(s, _) if s.as_str().contains('/') => {
+        WatAST::Symbol(s, _) if s.is_reference() => {
             let slash_pos = s.as_str().rfind('/').unwrap();
             let kw = crate::edn_shim::ns_to_wat_path(
                 &s.as_str()[..slash_pos],

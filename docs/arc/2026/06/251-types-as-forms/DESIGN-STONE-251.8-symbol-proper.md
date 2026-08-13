@@ -168,6 +168,63 @@ spends.
 > so 8b swaps derived for stored behind it without moving a caller. Claiming 8a implements
 > symbols would be the overclaim this arc keeps catching.
 
+**251.8a-bis — THE ANGLE-BRACKET RETIREMENT. RULED 2026-08-13; PREREQUISITE OF 8b.**
+
+The builder:
+
+> *"i want essentially zero tolerance for `HashMap<K,V>` .... it must be `(HashMap [K V])` .... we
+> must support the angle brackets mid migration... but post migration these are completely
+> illegal... you may never declare a parametric type using angle brackets going forward....."*
+
+So: dual-read during, **hard illegal after** — the four-move de-prime pattern this project has
+already proven end to end (add the form → migrate callers → delete the old → wall at zero
+offenders, #41's shape).
+
+**★ WHY IT IS A PREREQUISITE OF 8b AND NOT A PARALLEL TRACK — measured against Clojure's own EDN
+reader, 2026-08-13:**
+
+```
+:wat::core::HashMap<wat::core::keyword,wat::core::string>
+  → REFUSED  "Invalid token: :wat::core::HashMap<wat::core::keyword"   ← the read stopped at the COMMA
+(:wat::core::defn :f [m <- …] -> :wat::core::nil nil)
+  → REFUSED  "Invalid token: :wat::core::defn"                          ← every `::` keyword is non-EDN
+(wat.type/HashMap [wat.type/keyword wat.type/string] :first "foo")  → OK, arity 6
+(wat.type/Vector [wat.type/i64])                                     → OK, arity 2
+(wat.core/defn some.ns/incr [n :- wat.type/i64] :- wat.type/i64 …)   → OK, arity 6
+```
+
+The builder's claim — *the language must become Clojure-compliant EDN; it is not now* — measured
+and confirmed. But the **ordering** argument is sharper than non-compliance, and it is about what
+happens AFTER 8b turns `::` references into symbols:
+
+```
+HashMap<K,V>       as an EDN symbol → reads as   HashMap<K          ← SILENTLY TRUNCATED
+(f HashMap<K,V>)   as EDN           → reads as   (f HashMap<K V>)   ARITY 3, was 2. NO ERROR.
+Vector<i64>        as an EDN symbol → reads as   Vector<i64>        arity intact
+```
+
+As a **keyword**, `HashMap<K,V>` survives only because `lex_keyword` (`src/lexer.rs:605`) hand-rolls
+a bracket-balancer EDN does not have. As a **symbol** it is accepted and **wrong** — the comma is
+EDN whitespace, so the form silently changes arity instead of failing. `<` and `>` are legal
+Clojure symbol characters (`->`, `>=`), so the comma is the *only* fatal one.
+
+**Measured population:** 3543 angle sites across 599 files; **965 of them carry a comma.** Those 965
+are the ones that would stop erroring and start lying. Top shapes: `<K,V>` 134, `<wat::core::i64,wat::core::i64>`
+121, `<S,R>` 102, `<probe::Echo::Op,probe::Echo::Reply>` 59.
+
+⚠ **The exact coupling depends on 8b's scope, which this design drew loosely.** If 8b converts
+references in TYPE-ANNOTATION positions (not only call heads), the 965 become mis-aritied symbols
+and this stone is a hard prerequisite. If 8b is call-heads-only, they remain keywords and the
+reckoning lands at 8d. **Either way they must die before the corpus is EDN** — the ruling is not
+conditional, only its position is. Pin 8b's scope before sequencing.
+
+**⊘ SUPERSEDED — `109/NOTE-generic-bracket-syntax-edn.md`.** That note (2026-06-04) proposes
+**pipe-separated** `<First|Second|Third>` to keep a parametric type atomic to Clojure's reader, and
+flags itself *"a POINTER, not a decision"* with no four-questions verdict locked. It is overtaken by
+measurement, not by preference: pipe keeps the type one *token*; the ruled form abandons tokenhood
+and makes it a *list*, which is natively EDN and arity-stable. The note's own stated goal is better
+served by the option it did not consider. Do not implement the pipe.
+
 **251.8b — INVERT THE NORMALIZER.** Today `resolve/normalize.rs` rewrites `Symbol("wat.core/+")`
 → `Keyword(":wat::core::+")` so that, in its own words, *"the UNTOUCHED downstream dispatch
 resolves it."* Under the correction that is backwards: the `::` keyword is the one that should

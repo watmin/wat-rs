@@ -78,7 +78,7 @@ fn normalize_form(
 ) -> WatAST {
     match form {
         // Namespaced symbol: the only node type this pass rewrites.
-        WatAST::Symbol(ref ident, ref span) if ident.as_str().contains('/') => {
+        WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
             match resolve_namespaced_symbol(ident.as_str(), span, sym, macros) {
                 Ok(kw) => kw,
                 Err(e) => {
