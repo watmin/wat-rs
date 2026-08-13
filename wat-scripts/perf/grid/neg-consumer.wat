@@ -35,11 +35,12 @@
 ;;
 ;; :derived is the sorted Final keys. Correct answer: exactly the ODD k. Clara derives them.
 ;;
-;; ⚠ EXPECTED RED TODAY (task #94): the stratifier orders by negation dependency only, so
-;; `final` — which negates nothing — is assigned a stratum BELOW the one that produces Ok,
-;; fires to fixpoint before Ok exists, and never re-fires. Both wat impls return EMPTY.
-;; This axis must read :accuracy :match on all three columns when #94 is closed. Until then
-;; its MISMATCH is the point, not a bug in the axis.
+;; ★ THIS AXIS FOUND AND THEN CLOSED task #94. As built it was RED: the stratifier ordered by
+;; negation dependency ONLY, so `final` — which negates nothing — was assigned a stratum BELOW
+;; the one producing Ok, fired before Ok existed, and never re-fired. BOTH wat impls returned
+;; EMPTY, which is why `oracle == native` passed and the internal differential was blind.
+;; Fixed in ff581b6f (positive dependencies now propagate). It must now read :accuracy :match
+;; on ALL THREE columns; any MISMATCH is that regression returning.
 
 (:wat::core::defrecord :nc::Item  [k <- :wat::core::i64])
 (:wat::core::defrecord :nc::Bad   [k <- :wat::core::i64])

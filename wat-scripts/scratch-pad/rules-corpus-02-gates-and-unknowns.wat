@@ -31,7 +31,13 @@
 ;; Querying those two is how the migration reports what it cannot do — instead of guessing,
 ;; and instead of dying on whichever file happens to contain the case first.
 ;;
-;; ─── ⛔ WHAT THIS FILE FOUND, AND IT IS AN ENGINE DEFECT ─────────────────────
+;; ─── ★ WHAT THIS FILE FOUND — AN ENGINE DEFECT, NOW CLOSED ──────────────────
+;; RESOLVED 2026-08-13 in ff581b6f. Every row below now reads its predicted value:
+;;   Concept 5 · StyleSeen 4 · Settled 2 · TargetNS 1 · Target 2 · Inconsistent 1 · NoRuling 1
+;; Kept in full because the diagnosis is the teaching, and because these rows are now the
+;; standing regression test for the stratifier's positive-dependency rule.
+;;
+;; ─── THE DEFECT, AS FOUND (history) ─────────────────────────────────────────
 ;; Every gate below derives correctly: Concept 5, StyleSeen 4, Settled 2, Inconsistent 1,
 ;; NoRuling 1 — all exactly as predicted. `Target` reads 0 where it must read 2.
 ;;
@@ -44,7 +50,7 @@
 ;; This BLOCKS the gate/unlock shape in general — "derive a gate by negation, then join the
 ;; gate against a ruling table" is precisely the pattern — so it is the thing to fix before
 ;; the migration rules are built out. The `Target` row is left RED on purpose: it is a live
-;; acceptance test for that fix, not a bug in the reasoning.
+;; acceptance test for that fix, not a bug in the reasoning.  [CLOSED — see above.]
 
 ;; ─── BASE FACTS — mechanical, asserted by a reader pass. NO reasoning here. ───
 ;; The prefix/base SPLIT is mechanical (cut at the last separator). Giving the rules
@@ -165,9 +171,9 @@
       (:m::show "Settled      (want 2 = i64, vector):                      "
         (:wat::core::length (:wat::rete::query fired :m::Settled)))
       ;; the two answers
-      (:m::show "TargetNS     (bisect, want 1; READS 0 = same defect, 2 conds): "
+      (:m::show "TargetNS     (bisect, want 1; GREEN since #94):              "
         (:wat::core::length (:wat::rete::query fired :m::TargetNS)))
-      (:m::show "Target       (want 2; READS 0 = the stratum-2 join defect):  "
+      (:m::show "Target       (want 2; GREEN since ff581b6f closed #94):      "
         (:wat::core::length (:wat::rete::query fired :m::Target)))
       ;; ★ the two DISTINCT unknowns — this is the deliverable
       (:m::show "Inconsistent (want 1 = 'string': String/ vs string::):    "

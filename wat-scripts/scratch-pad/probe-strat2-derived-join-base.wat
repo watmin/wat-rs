@@ -1,12 +1,15 @@
-;; RED PROBE — a POST-NEGATION derived fact does not join with a BASE fact downstream.
+;; REGRESSION PROBE (was RED) — a POST-NEGATION derived fact must join with a BASE fact
+;; downstream. FOUND RED 2026-08-13, CLOSED the same day in ff581b6f: the stratifier now
+;; propagates POSITIVE dependencies. Both arms must read 1; a 0 in SUBJECT is that regression.
 ;;
 ;; FOUND 2026-08-13 by building the migration's gate/unlock chain (rules-corpus-02), where
 ;; negation IS the gate: "a concept is settled iff nothing derived it inconsistent", and the
 ;; next rule joins that settled concept against a base-fact ruling table. The settled facts
-;; derive correctly; the downstream join silently yields nothing.
+;; derive correctly; the downstream join silently yielded nothing.
 ;;
 ;; The two arms below differ in EXACTLY ONE THING — whether `:z::S` is derived through a
-;; `(:wat::rete::not …)` condition — and the downstream join flips 1 -> 0.
+;; `(:wat::rete::not …)` condition. BEFORE the fix the downstream join flipped 1 -> 0 on that
+;; single difference; that is what named the mechanism.
 ;;
 ;;   CONTROL  (settled without negation, stratum 1):  S = 1   Out = 1
 ;;   SUBJECT  (settled through negation, stratum 2):  S = 1   Out = 0   <- WRONG
@@ -17,15 +20,14 @@
 ;;
 ;; WHY THE GRID NEVER CAUGHT IT: the negation axes assert on the negation's OWN output. None
 ;; of them chains a THIRD rule off a post-negation fact. The engine's stratified negation is
-;; proven (R18/R20, native == oracle == Clara); what is unproven — and now looks broken — is
+;; proven (R18/R20, native == oracle == Clara); what was NEVER proven — and was broken — was
 ;; CONSUMING a stratum-2 fact in stratum 3.
 ;;
-;; ⚠ This blocks forward-chaining gate/unlock designs generally: "derive a gate by negation,
-;; then join the gate against a table" is the shape, and it does not work today.
+;; ⚠ This BLOCKED forward-chaining gate/unlock designs generally: "derive a gate by negation,
+;; then join the gate against a table" is the shape. It works as of ff581b6f.
 ;;
-;; This file must go GREEN (Out = 1 in both arms) when the defect is fixed. It is deliberately
-;; written to PASS its checker and FAIL its assertion, so the loader gate keeps it alive while
-;; the run keeps it honest.
+;; Both arms MUST read 1. This file is loader-gated, so it stays alive; the run keeps it honest.
+;; A 0 in SUBJECT is the regression returning.
 
 (:wat::core::defrecord :z::A   [c <- :wat::core::String])
 (:wat::core::defrecord :z::Bad [c <- :wat::core::String])
@@ -72,7 +74,7 @@
       ;; non-vacuity: both gates must derive, or the Out rows below mean nothing
       (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f :z::S)))
       (:z::show "S2 plain         (want 1): " (:wat::core::length (:wat::rete::query f :z::S2)))
-      ;; the differential — these two must agree; today they do not
+      ;; the differential — these two must agree
       (:z::show "Out2 CONTROL     (want 1): " (:wat::core::length (:wat::rete::query f :z::Out2)))
-      (:z::show "Out  SUBJECT     (want 1; READS 0 TODAY = THE DEFECT): "
+      (:z::show "Out  SUBJECT     (want 1; GREEN since ff581b6f closed #94): "
         (:wat::core::length (:wat::rete::query f :z::Out))))))
