@@ -54,7 +54,11 @@
   [axis      <- :wat::core::String
    size      <- :wat::core::PersistentVector<wat::core::i64>
    derived   <- :wat::core::PersistentVector<wat::core::i64>
-   native-ns <- :wat::core::i64])
+   native-ns      <- :wat::core::i64
+   ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
+   ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
+   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-ns      <- :wat::core::i64])
 
 ;; encode stratum k — canonical single-i64 witness for one derived S<n> fact.
 ;; items is always far below 1,000,000 in every size this axis is run at (grid scale, not
@@ -241,6 +245,11 @@
                     fired   (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     derived (:strat::derived-vector fired strata)
-                    nat-ns  (:strat::ns-between n0 n1)]
+                    nat-ns  (:strat::ns-between n0 n1)
+                    ;; ORACLE — fired on the SAME staged session. Value semantics make the
+                    ;; two fires independent: `staged` is unchanged by either.
+                    o0      (:wat::time::now)
+                    ofired  (:wat::rete::fire-rules-spec staged)
+                    o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "strat-neg" :size (:wat::core::PersistentVector strata items) :derived derived :native-ns nat-ns))))
+      (:grid::Result :axis "strat-neg" :size (:wat::core::PersistentVector strata items) :derived derived :native-ns nat-ns :oracle-derived (:strat::derived-vector ofired strata) :oracle-ns (:strat::ns-between o0 o1)))))

@@ -48,7 +48,11 @@
   [axis      <- :wat::core::String
    size      <- :wat::core::PersistentVector<wat::core::i64>
    derived   <- :wat::core::PersistentVector<wat::core::i64>
-   native-ns <- :wat::core::i64])
+   native-ns      <- :wat::core::i64
+   ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
+   ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
+   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-ns      <- :wat::core::i64])
 
 ;; ─── the five accumulate/exists rules (fixed structure; only the FACTS scale) ───
 ;; Structure mirrors the 8a/8b probe rule exactly: [anchor] [?n <- (acc) :from …] => insert.
@@ -173,6 +177,11 @@
                     fired   (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     derived (:acc::derived-vector fired)
-                    nat-ns  (:acc::ns-between n0 n1)]
+                    nat-ns  (:acc::ns-between n0 n1)
+                    ;; ORACLE — fired on the SAME staged session. Value semantics make the
+                    ;; two fires independent: `staged` is unchanged by either.
+                    o0      (:wat::time::now)
+                    ofired  (:wat::rete::fire-rules-spec staged)
+                    o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "accum" :size (:wat::core::PersistentVector groups reads) :derived derived :native-ns nat-ns))))
+      (:grid::Result :axis "accum" :size (:wat::core::PersistentVector groups reads) :derived derived :native-ns nat-ns :oracle-derived (:acc::derived-vector ofired) :oracle-ns (:acc::ns-between o0 o1)))))

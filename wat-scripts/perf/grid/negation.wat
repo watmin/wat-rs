@@ -38,7 +38,11 @@
   [axis      <- :wat::core::String
    size      <- :wat::core::PersistentVector<wat::core::i64>
    derived   <- :wat::core::PersistentVector<wat::core::i64>
-   native-ns <- :wat::core::i64])
+   native-ns      <- :wat::core::i64
+   ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
+   ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
+   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-ns      <- :wat::core::i64])
 
 ;; build-rules — the single-rule set: Ok(k) :- Item(k) AND NOT Bad(k).
 ;; Two LHS conditions: bind ?k off Item, then negate Bad on the same ?k. One RHS insert.
@@ -98,6 +102,11 @@
                     fired   (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     derived (:neg::derived-vector fired)
-                    nat-ns  (:neg::ns-between n0 n1)]
+                    nat-ns  (:neg::ns-between n0 n1)
+                    ;; ORACLE — fired on the SAME staged session. Value semantics make the
+                    ;; two fires independent: `staged` is unchanged by either.
+                    o0      (:wat::time::now)
+                    ofired  (:wat::rete::fire-rules-spec staged)
+                    o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "negation" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns))))
+      (:grid::Result :axis "negation" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:neg::derived-vector ofired) :oracle-ns (:neg::ns-between o0 o1)))))

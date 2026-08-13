@@ -42,7 +42,11 @@
   [axis      <- :wat::core::String
    size      <- :wat::core::PersistentVector<wat::core::i64>
    derived   <- :wat::core::PersistentVector<wat::core::i64>
-   native-ns <- :wat::core::i64])
+   native-ns      <- :wat::core::i64
+   ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
+   ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
+   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-ns      <- :wat::core::i64])
 
 ;; the USER custom fold: Σ x² over the whole gathered vector — pure∧det (passes the 8-custom fence).
 ;; Identical to the repo differential exemplar (probe_arc278_8custom_native_differential.rs:26-30).
@@ -131,6 +135,11 @@
                     fired   (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     derived (:ur::derived-vector fired)
-                    nat-ns  (:ur::ns-between n0 n1)]
+                    nat-ns  (:ur::ns-between n0 n1)
+                    ;; ORACLE — fired on the SAME staged session. Value semantics make the
+                    ;; two fires independent: `staged` is unchanged by either.
+                    o0      (:wat::time::now)
+                    ofired  (:wat::rete::fire-rules-spec staged)
+                    o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "user-reduce" :size (:wat::core::PersistentVector locs reads) :derived derived :native-ns nat-ns))))
+      (:grid::Result :axis "user-reduce" :size (:wat::core::PersistentVector locs reads) :derived derived :native-ns nat-ns :oracle-derived (:ur::derived-vector ofired) :oracle-ns (:ur::ns-between o0 o1)))))

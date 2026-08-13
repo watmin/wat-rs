@@ -42,7 +42,11 @@
   [axis      <- :wat::core::String
    size      <- :wat::core::PersistentVector<wat::core::i64>
    derived   <- :wat::core::PersistentVector<wat::core::i64>
-   native-ns <- :wat::core::i64])
+   native-ns      <- :wat::core::i64
+   ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
+   ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
+   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-ns      <- :wat::core::i64])
 
 ;; facts-key k fanout — the Left(k,f)+Right(k,f) facts for f in [0,fanout), as a FACT VECTOR.
 ;; It no longer threads a Session: staging is now one BATCH call at the end (below), so the
@@ -109,6 +113,11 @@
                     fired   (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     derived (:fan::derived-vector fired)
-                    nat-ns  (:fan::ns-between n0 n1)]
+                    nat-ns  (:fan::ns-between n0 n1)
+                    ;; ORACLE — fired on the SAME staged session. Value semantics make the
+                    ;; two fires independent: `staged` is unchanged by either.
+                    o0      (:wat::time::now)
+                    ofired  (:wat::rete::fire-rules-spec staged)
+                    o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "fanout" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns))))
+      (:grid::Result :axis "fanout" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:fan::derived-vector ofired) :oracle-ns (:fan::ns-between o0 o1)))))
