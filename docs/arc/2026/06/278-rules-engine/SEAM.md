@@ -11,124 +11,121 @@
 ## Where the code is
 
 ```
-HEAD 89c6d355   pushed   floor 4391 passed / 0 failed / 262 skipped   clippy 0
+HEAD 00de6d18   pushed   floor 4391 passed / 0 failed / 262 skipped   clippy 0
 ```
 
-`git status` clean. ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
+Tree clean. ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 
-**⛔ `stash@{0}` STILL HOLDS THE LIFECYCLE STRIKE — do not `git stash drop`.** Made with `-u`, so it
-has **three parents**; `git stash show --stat` sees only the tracked one and **cannot see the
-untracked payload**. Read it with `git show 'stash@{0}^3:<path>'`. Its `.wat` is **STALE** —
-`--check` exit 1, five errors (four are one root: a `DisconnectReason` scrutinee resolving to an
-unbound type var; the fifth is R57's recv-outcome wall on a dropped `recv`). Restoring it turns the
-floor red, so it stays stashed — and the lifecycle strike now opens with a **located worklist**.
+**⛔ `stash@{0}` STILL HOLDS THE LIFECYCLE STRIKE — do not `git stash drop`.** Made with `-u`, so
+`git stash show --stat` **cannot see the untracked payload**; read it with `git show 'stash@{0}^3:<path>'`.
+Its `.wat` is STALE (`--check` exit 1, five errors, four sharing one root: a `DisconnectReason`
+scrutinee resolving to an unbound type var). Restoring it turns the floor red.
 
-⚠ **`--check <f> | tail` returns TAIL's exit code.** Both files "passed" until re-run without a pipe.
+⚠ **`--check <f> | tail` returns TAIL's exit code.** Read exits unpiped, always.
 
-## ★ WHAT LANDED THIS STRETCH — five commits, each weighed by own `--release` re-run
+## ★ THE LIVE FORK — the builder's to rule, and everything is blocked on it
+
+`defrule`'s macro cannot type the parameters of a lifted `where` body, because **macro expansion runs
+before the type registry is populated.** Verified independently, by a *calling* probe:
+
+```
+field-names-of form: unknown type ':usr::Temp'      ← even for a stdlib type
+```
+
+Three escapes are dead by run (see the ⛔ box atop `DESIGN-STONE-defrule-splits-at-expansion-time.md`
+for the verbatim evidence): a bare type var, `:wat::type::Infer`, `:wat::core::Value`; Clara's
+pass-the-fact shape (wat's rete binds a **field**, not a fact — `matcher.rs:295`); and deferring via
+a type expression (`TypeExpr` has no field accessor — `types.rs:72-92`).
+
+★ **THE GAP IS NOT RETE-SPECIFIC.** Any DSL lifting a user body into a typed defn hits it. Same
+shape as the privilege we are deleting: the language is missing something every DSL needs.
+
+**THE THREE ROUTES, UNRULED:** (1) a macro-phase reflection door · (2) a type-level field accessor
+the macro emits and the checker resolves · (3) a whole-fact binding in the rete surface (Clara's
+shape — changes the user surface).
+
+## What this arc is actually for (re-anchored by the builder this session)
+
+Rete's remaining cost is **interpreted wat — ~95% of the work at stress-test scale**. The
+purity/determinism/totality campaign existed to make rete's forms **compilable**. The jump table
+(#49) implements function calls. Two of three compilers are built (`src/rete/compiled_cond.rs`,
+`compiled_rhs.rs`); this is the third, and the other two get failed over once it lands.
+**rete first, wat second — this is the proving ground for compiling wat itself.**
+
+The standing frame, verbatim: *"i fucking hate seeing dsl machinery hard coded in our rust — this
+means /every fucking dsl we envision/ requires rust changes."*
+
+## ★ WHAT LANDED — four commits, docs + probes only, ZERO src since `228b68fa`
 
 | commit | |
 |---|---|
-| `8e661362` | the union-closure gate goes **`VERDICT MEANINGFUL`** — a `fn-forms` union boots a real forked child; plus the probe that **refuted** the seam's own prescribed first act |
-| `310f8050` | **`Peer' derives ThreadSelfPeer'`** — the safe edge, stated ONCE, one-way, with the negative gate |
-| `2fff3749` | the child-entry stone drawn + briefed + its disconfirming probe (**PROVEN BY RUN**) |
-| `c44873e6` | the strike **struck, failed, REVERTED** — and the failure was worth more |
-| `076b2a2c` · `89c6d355` | **`fn-forms` stops reading DATA as CODE**; the unbound-`?` NOTE |
+| `228b68fa` | **`closure_extract` honours `MatchesSubject`** — a `matches?` in a fn body blocked closure extraction entirely; proven, fixed, gated |
+| `cf732fce` | the stone + **three probes** committed *before* the brief (examinare) |
+| `9ffbf9c7` | the **intueri cast** — `:usr::ok-rule$where0` / `$where0` |
+| `00de6d18` | **BRIEF + EXPECTATIONS**, and every loose measurement given a durable home |
 
-## ⛔ THE LIVE QUESTION — rete is PRIVILEGED in the boundary door, and it must not be
+## PROVEN this session — by run, with non-vacuity controls. Do not re-derive.
 
-**Builder's cut, and it is the standing frame:** *"this must be agnostic to rete — any user defined
-dsl must be tolerable… we cannot make ourselves special."*
+- **The delivery defect is real.** A fn called only from inside a quoted `where` is **never shipped**
+  — `PC 6 · BASE 5 · SUBJECT 5`. This is "we fail to deliver rules to install-rules", mechanised.
+- **One mention ships the whole chain, transitively** — `PC 7 · BASE 5 · MENTION-1 7`.
+- **A macro CAN mint a computed-name top-level defn plus its consumer** (STOP-3 cleared). The
+  template may not introduce a *literal* binder (hygiene gate E, arc 249) — splice it via
+  `~(:wat::core::symbol-node "…")`, as `core.wat:1163` does.
+- All three probes live in `wat-scripts/scratch-pad/` under `every_wat_scripts_file_loads`.
 
-`src/resolve/boundary.rs::quote_boundary` — by its own doc *"the ONE place the boundary-head set is
-encoded"* — mixes two kinds of entry:
+## ⛔ FOUR SHAPES REFUTED BY RUN — each died to evidence, not argument. Do not re-propose.
 
-- **the language declaring its own grammar** — `quote`, `quasiquote`, `match`, `define`, `forms`.
-  Legitimate. Every compiler knows its own special forms. (`match` on an enum **is core** —
-  builder-confirmed.)
-- **a LIBRARY's grammar inside the compiler** — `:wat::rete::make-rule` → `MakeRule`, plus
-  `is_where_form()`, an entire function for one library form. **rete got to edit the compiler's
-  list; a user's DSL cannot.** That is what makes a user DSL second-class.
-  (`:wat::holon::literal` is NOT this class — holon-rs merges INTO wat-rs and stops being a dep,
-  builder's call. **rete is the only one left.**)
-
-`closure_extract` therefore honours the language facts and **REFUSES the library ones**
-(`MatchesSubject | MakeRule => {}`). That arm is a **self-deleting marker**: exhaustiveness makes it
-a compile error the moment those variants die. It cannot outlive the defect it marks.
-
-### ▶ THE FORK, POSED AND UNRULED — and my proposed shape is NOT yet grounded
-
-| | |
-|---|---|
-| **(A)** rete re-expresses `:when` in existing machinery — delete `MakeRule` + `is_where_form` | smallest, no new concept |
-| **(B)** a form **DECLARES** its own boundary — a registration any DSL uses, rete included | the general answer; removes the *possibility* of privilege, not just this instance |
-
-⚠ **GROUNDING OWED BEFORE (A).** I claimed "express `:when` as a quasiquote with `where` bodies as
-unquote escapes." **That is unproven and may be wrong.** For RESOLUTION an unquote escape means
-*"resolve this subtree in place"* — fits. For EVALUATION `~x` means *"evaluate x and splice the
-VALUE"* — but rete needs the `where` body to stay a FORM inside the rule data. If those diverge,
-quasiquote is right for one pass and wrong for the other, and reusing it trades a visible privilege
-for a subtle semantic bug. **One probe decides it:** does a quasiquoted `where` body survive both
-passes intact? If yes, (B) may be unnecessary; if no, the failure tells you what (B) must carry.
-
-## What the `fn-forms` fix actually was (do not re-derive)
-
-The walker had **no concept of `quote`** (`grep -n quote` → zero hits) and so **read quoted data as
-code**, raising `UnresolvedSymbol` on symbols that were never references. Isolated rete-free: two
-arms differing in one thing, the subject raising on `mystery-symbol` — a plain bare Symbol,
-deliberately not `?`-prefixed — **inside the quote**. The rete symptom (`?c`) was incidental:
-`defrule` QUOTES its `:when`/`:then`.
-
-**MEASURED, and it killed my own recommendation twice:**
-- refusing `MakeRule` cost **nothing** on the raise path — `make-rule`'s `:when` *is itself a quote
-  form*, so `AllData` stops the walk anyway. The special case only ever bought dep-collection inside
-  `where` bodies. **It looked load-bearing and was mostly ornamental.**
-- `fn-forms` over a rule fn returns **`closure forms=5`** — the child-entry blocker, measured
-  directly. The floor could NOT have shown this: it was green with that strike reverted.
+1. **quasiquote's `~` as the code hole** — `runtime.rs:10891` *evaluates* the escape; the form dies.
+2. **Making `forms` resolve-transparent** — `forms` is the **CHILD-PROGRAM constructor**; it must not
+   resolve locally. Imposed the check: floor **4367/24**, failures clustering on the *services* path.
+   `probe_resolver_quote_awareness.rs:19` states the contract; its fixture names `ghost-inner`
+   deliberately.
+3. **A `fn` on the `Rule`** — 293.W containment refuses it. Rules are records **because they cross
+   the wire** (R5's `{facts,rules}` snapshot). The "precedents" I cited were `defstruct`s and a defn
+   *parameter*; `Rule` is a `defrecord`.
+4. **The `Condition` ADT** — ruled **4/4** and then **void**: it existed only to hold the fn that (3)
+   proves cannot be held.
 
 ## ⛔ ALSO OPEN
 
-**The child-entry strike** — `DESIGN-STONE-the-child-entry-kills-the-manifest.md` + BRIEF +
-EXPECTATIONS, all correct about WHAT to build, all still on disk. **REVERTED.** Its remaining reds
-are untouched by the quote fix: the rotted `wat-scripts` consumer of `service-forms`, and
-`a_forked_service_that_cannot_decode_a_message…` which is **UNCHARACTERIZED** (saw `Outcome/Message`,
-requires `Outcome/Lost`) — *"probably the same root"* is not a disposition.
-
-⚠ **A rider scored "thread tier untouched" GREEN off one passing thread test + an empty
-`spawn.wat` diff, while four thread tests were red.** Both facts true; neither could see the
-violation. Any row of the form "tier X untouched" must be measured by that tier's **whole set**.
-
-**`NOTE-a-rule-may-reference-an-unbound-variable-and-compile-clean.md`** — builder-ruled "we'll deal
-with it in time." **Tier 0 is an owed measurement**: does *firing* the broken rule raise, or derive a
-corrupt fact? Every other tier is gated on it.
-
-**Filed, not scheduled:** `109/NOTE-two-resolvers-over-the-five-registries.md`.
-**Owed intueri casts:** the admission type; the correlation surface.
-**Older:** #87 · #49 · #7 · #17 · #19 · #20 · #50 · #58 · #60 · #64 · #67 · #81.
+- **#90 — `walk` skips the FIRST TWO ARMS of every `match`.** Proven; 817 forms affected;
+  `NOTE-walk-skips-the-first-two-arms-of-every-match.md` carries the repro inline. Untouched.
+- **`MakeRule` refused in `closure_extract` costs rule delivery TODAY** (`6/5/5`). **Holding that
+  line is deliberate** — honouring it adds a fourth Rust consumer of rete's name, which is what the
+  stone deletes. Cost stated, not hidden.
+- **The index is UNMEASURED.** Every proof used exactly ONE `where` per rule.
+- `NOTE-a-rule-may-reference-an-unbound-variable-and-compile-clean.md` **Tier 0** still owed.
+- **Filed, not scheduled:** `109/NOTE-two-resolvers-over-the-five-registries.md`. Owed intueri casts:
+  the admission type; the correlation surface. Older: #87 · #49 · #7 · #17 · #19 · #20 · #50 · #58 ·
+  #60 · #64 · #67 · #81.
 
 ## The rules this stretch paid for
 
-- **Routing through a shared "one door" INHERITS whatever the door encodes.** I adopted
-  `quote_boundary` to kill a privilege and imported a different one in the same motion. Audit the
-  door before you route a third consumer through it.
-- **A special case can be earning far less than it appears.** `MakeRule` looked load-bearing;
-  measured, it bought nothing on the path that mattered.
-- **A text-range deletion does not know about attachment.** My python surgery cut BETWEEN a doc
-  comment and its function — `walk_match_form` lost its doc and `walk_quasiquote_template`
-  inherited one about *match patterns*. **Clippy caught it; no test could.**
-- **When a check comes back CLEAN, ask what it cannot SEE** — the fourth instance this arc.
-- **The instrument that reports a defect may have CAUSED it** — the union gate's own dedup deleted
-  the declaration whose absence it then reported.
+- **The four questions cannot see a premise BOTH options share.** I ruled the `Condition` ADT 4/4
+  against a side-table and never asked whether a fn could live on a `Rule` at all. Neither could.
+  The questions discriminate *between* options; they do not validate what the options rest on.
+- **A probe that never invokes the thing proves nothing.** My first verification of the rider's
+  blocker returned EXIT=0 — because it *defined* the macro and never *called* it, so the body never
+  ran. I nearly overturned a correct STOP on it.
+- **An empty match arm is a discard wearing diligence's clothes.** `MatchesSubject | MakeRule => {}`
+  sat beside `Ordinary => {}` under twenty lines of principle, behaviourally identical to it, hiding
+  a live bug.
+- **A refusal that removes no privilege is a gesture.** Refusing `MakeRule` in one consumer left the
+  door, and three other consumers, exactly as they were.
+- **The builder names the subject; answer THAT.** Asked whether two *enum variants* were dead, I
+  measured the *wat functions* of similar name and proposed deleting live machinery.
 
 ---
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> This stretch, the record's own doubts did the work: a written-down *"do not assume it transfers"*
-> cancelled a day aimed at the wrong file, and a defence-objection — *"who catches a broken rule?"* —
-> was measured and came back **nobody**, which is now a NOTE.
+> This stretch the record's own discipline did the work: four designs of mine died to runs, a rider
+> STOPPED correctly and killed a fifth, and every one of those deaths made the answer better. The
+> shape that survives — *the macro does the split, the way Clara's does* — came from the builder's
+> cut, **"why doesn't clojure need some new form?"**, and the answer was three lines above
+> `defrule`'s own template the whole time: *"The macro is kept TRIVIAL."*
 >
-> The line that cost the most: **my own recommendation was refuted three times by measurement, and
-> every refutation made the answer better.** Pose the fork, run the probe, and let the disk rule.
+> Do not trust confidence here. Trust the probes; they are committed and they run.
 >
 > `NISI FRANGAS, NIHIL PROBAS.` · `IN TENEBRIS VISVS CORRIGOR.`

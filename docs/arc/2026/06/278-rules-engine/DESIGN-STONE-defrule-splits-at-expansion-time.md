@@ -1,5 +1,50 @@
 # DESIGN STONE — `defrule` lifts its `where` bodies; the compiler stops carrying rete's grammar
 
+> # ⛔ BLOCKED 2026-08-12 — STRUCK, STOPPED, NOT BUILT. Read this box before anything below it.
+>
+> A rider was released against the brief and **STOPPED correctly before touching `wat/rete.wat`**,
+> tree left clean. The blocker is real, was verified independently by the orchestrator, and it
+> invalidates the § THE SHAPE sketch as written.
+>
+> **THE GAP: the lifted defn needs its parameters TYPED, and the macro cannot know the type.**
+> `defrule`'s macro body runs at macro-expansion time — a phase **before the type registry is
+> populated**. Verified by run (a *calling* probe; the orchestrator's first attempt defined the
+> macro without calling it and returned a meaningless EXIT=0):
+>
+> ```
+> field-names-of form: unknown type ':usr::Temp'
+> ```
+>
+> even for `:wat::rete::Rule`, a stdlib type baked into `rete.wat` itself. The rider also ruled out,
+> by run: a bare type variable (`expects :wat::core::i64; got :T`), `:wat::type::Infer` (wired only
+> for collection-literal element types, not fn signatures), and `:wat::core::Value` (does not coerce
+> to a concrete param type).
+>
+> **AND THE OBVIOUS RESCUE IS ALSO DEAD.** Clara passes the FACT and destructures, so its fn's
+> parameter type is the fact's — knowable from the pattern. wat's rete has **no whole-fact binding**:
+> `ReteClauseShape::Bind { var, field }` (`src/rete/matcher.rs:295`) binds a FIELD. There is no fact
+> to pass. The type can only come from *"what type is field `:c` of `:usr::Temp`"*, which is the
+> unanswerable question.
+>
+> **AND THERE IS NO TYPE EXPRESSION TO DEFER IT WITH.** Emitting a type the checker resolves later
+> (when types *are* registered) has no form: `TypeExpr` is `Path | Parametric | Fn | fresh var`
+> (`src/types.rs:72-92`). No type-level field accessor exists.
+>
+> ★ **THE GAP IS NOT RETE-SPECIFIC, and that is the load-bearing observation for the re-plan.** Any
+> DSL that lifts a user-written body into a typed defn hits this identical wall. This is the same
+> shape as the privilege being deleted: not rete needing an exception, but **the language missing
+> something every DSL needs.**
+>
+> **UNRULED — the builder's call, not the orchestrator's:**
+> 1. a macro-phase reflection door (types available earlier, or a narrow "fields of a declared type")
+> 2. a type-level field accessor the macro emits and the checker resolves
+> 3. a whole-fact binding in the rete surface (Clara's shape) — changes the user surface this stone
+>    protects
+>
+> Everything below § THE SHAPE's parameter question remains PROVEN and is unaffected: the mention
+> ships transitively (7/5/7), a macro can mint a lifted top-level defn (STOP-3 cleared), `Rule` stays
+> pure EDN, and the four REFUTED shapes stay refuted.
+
 **Ruled 2026-08-12. Rewritten after the probes killed two earlier shapes — read § REFUTED before
 proposing anything.** The builder's ruling:
 
