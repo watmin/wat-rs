@@ -56,6 +56,45 @@
 ;;
 ;; ⚠ STILL NOT DETERMINED: where exactly the name comparison lives, and whether a BARE `WatAST`
 ;; field fails the same way as `Vector<WatAST>`. Do not guess either.
+;;
+;; ★ MEASURED 2026-08-12, after the identity arm (`edn_shim::edn_to_typed_value_inner`,
+;; `TypeExpr::Path` arm, `:wat::WatAST` case — DESIGN-STONE-watast-is-the-wire.md):
+;;
+;;   "CONTROL echo(i64)        => Ok n=7"
+;;   "SUBJECT count(Vec<WatAST>) => LOST disconnected"      (process locus — UNCHANGED)
+;;   "ISOLATOR count THREAD      => Ok n=3"                 (was REQUEST-MALFORMED — NOW FIXED)
+;;
+;; FINDING 1 (predicted) CONFIRMED: the identity arm closes the walker for both loci equally —
+;; `count THREAD` now decodes/validates a `Vector<WatAST>` correctly. Companion probe
+;; `probe-arc278-watast-identity-arm.wat` additionally confirms the BARE case (not only
+;; parametric) and the negative row (a wrong field type is still refused).
+;;
+;; FINDING 3, NEW and NOT predicted by the design stone — the process arm is STILL red, and
+;; it is NOT a decode/validate defect: `:wat::edn::validate` (the walker this stone fixes)
+;; never gets the chance to run. `strace -f` on the child service process shows it replying
+;; with a `Reply::Failed` carrying:
+;;
+;;   "poll (process tier): client message decode failed: src/edn_shim.rs:1773:52:
+;;    EDN Symbol — wat has no symbol value type"
+;;
+;; The GENERIC, untyped message dispatch decode (`edn_to_value`/`edn_to_value_caps`,
+;; `runtime.rs:28719`'s `decode_trusted_wire` call, used to figure out WHICH op a frame is for
+;; BEFORE any type-directed walk is possible) unconditionally refuses `Edn::Symbol`
+;; (`edn_shim.rs:1773`). A real WatAST form legitimately CONTAINS symbols (`<-`, bare
+;; identifiers) as part of its structure — so ANY non-trivial form crossing the process wire
+;; trips this refusal, upstream of and independent from the walker this stone's identity arm
+;; fixes. Confirmed by isolation: a bare `:wat::WatAST` field crashes the SAME way even when
+;; the op handler never touches the field (so it's not the handler; it's message decode), and
+;; a nested non-WatAST record field round-trips fine over the same locus (so it's not "any
+;; non-primitive field" — specifically Symbol-bearing content). service.wat's own comment
+;; (~line 727) says the generated client method should surface `Reply::Failed` as "an
+;; unignorable raise" — but the client here observes a plain `RecvOutcome::Lost disconnected`
+;; instead, which looks like the SEPARATE client-reply-handling gap the design stone's own
+;; "LOCUS ASYMMETRY" finding already flags (STOP-4) as real-and-separately-tracked, not this
+;; stone's scope. Reported, not fixed, per STOP-4 and the blast radius ("no defservice change,
+;; no wat/ change") — a real fix here means loosening `edn_to_value_caps`'s GENERAL untyped
+;; reader, used far beyond service dispatch, which is a materially larger change than "one arm
+;; in one walker."
 
 (:wat::core::defsurface :probe::WireKind :nature :wat::kernel::Peer
   :messages

@@ -218,7 +218,54 @@ this path stop firing, which would hide the asymmetry rather than close it. Its 
   transmission AT SIZE (the lifecycle stone's own scope). That is a different question from whether
   a form can be a typed field at all, and this stone must not be read as settling it.
 
-## The gate
+## ⛔ STRUCK 2026-08-12 — the arm LANDED and the gate was DRAWN WRONG. Three defects, not one.
+
+The identity arm is on the disk and correct, weighed by the orchestrator's own `--release` re-run:
+
+```
+ISOLATOR count THREAD      => Ok n=3        (was REQUEST-MALFORMED — the walker fix, proven)
+GATE-3 bare WatAST field   => VALID
+GATE-4 i64 handed a String => INVALID at ["n"] expected=:wat::core::i64 got=String
+floor 4391/4391 passed, 0 failed · clippy 0
+```
+
+**Gate rows 1 and 2 are NOT met, and that is this stone's error, not the strike's.** It was drawn
+believing there was ONE failure. A rider that kept digging when the gate disagreed with it — and
+found the root with `strace -f` on the child rather than by theory — established there are **three**:
+
+| # | defect | state |
+|---|---|---|
+| 1 | thread-tier post-decode validate refuses a form (`expected=:wat::WatAST got=List`) | **FIXED — this stone** |
+| 2 | process-tier GENERIC UNTYPED decode refuses any `Edn::Symbol` | **OPEN** |
+| 3 | the child's `Reply::Failed` never reaches the client, which sees `LOST disconnected` | **OPEN** |
+
+**Defect 2, verbatim from the child's own write, caught by strace:**
+
+```
+poll (process tier): client message decode failed: src/edn_shim.rs:1773:52:
+EDN Symbol — wat has no symbol value type
+```
+
+`edn_to_value_caps` (via `decode_trusted_wire`, `runtime.rs:28719`) runs FIRST, untyped, to
+determine WHICH op a frame is for — before any type-directed walk is reachable. It refuses
+`Edn::Symbol` unconditionally, and a real form always contains symbols (`<-`, bare identifiers).
+So no WatAST reaches a process-locus op at all, and this stone's arm is downstream of a door that
+never opens. It predates this work and is unaffected by it.
+
+**★ THE ARCHITECTURAL POINT, which is this stone's law arriving one level down.** The wire currently
+decodes **generic-then-validate**: EDN → `Value` (LOSSY — `Value` has no symbol variant, by design)
+→ refine against the declared type. If the law holds — *only a WatAST crosses* — then the honest
+order is inverted: **EDN → WatAST (TOTAL, lossless, every EDN value is one) → refine to the declared
+type.** The lossy generic step is where defect 2 lives, and `edn_to_watast`
+(`wat_edn_bridge.rs:412`) already exists to do it.
+
+**Defect 3 sharpens the locus asymmetry recorded below, and worsens it.** The child does NOT fail
+silently — the strace shows it constructing and writing a proper `#…Reply/Failed [#wat.kernel/Failure
+{…}]` frame carrying the full cause. The CLIENT loses it and reports `LOST disconnected`, where
+`wat/service.wat:727`'s own comment documents an unignorable raise. A failure is faced, written to
+the pipe, and destroyed in transit.
+
+## The gate (as originally drawn — rows 1 and 2 superseded by the box above)
 
 1. **★ `probe-arc278-rules-cross-the-wire.wat` goes green** — `SUBJECT DERIVED n=1` and
    `CONTROL REJECTED check-failed`. It is red-by-measurement today and its header says so; rewrite

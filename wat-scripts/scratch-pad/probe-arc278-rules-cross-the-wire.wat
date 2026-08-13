@@ -51,6 +51,22 @@
 ;; ★ THIS FILE IS KEPT RED-BY-MEASUREMENT, not deleted. It is the acceptance test for the decode
 ;; fix: once a `Vector<WatAST>` validates, this must print `DERIVED n=1` / `REJECTED
 ;; check-failed`. Rewrite this verdict then; do not leave it standing once it goes green.
+;;
+;; ★ MEASURED AGAIN 2026-08-12, after the identity arm (DESIGN-STONE-watast-is-the-wire.md,
+;; `edn_shim::edn_to_typed_value_inner`'s `:wat::WatAST` case): STILL RED, UNCHANGED —
+;;
+;;   "SUBJECT (helper IN payload) => LOST disconnected"
+;;   "CONTROL (helper OMITTED)    => LOST disconnected"
+;;
+;; NOT a regression and NOT evidence the identity arm is wrong: `probe-arc278-watast-on-the-
+;; wire-decomposed.wat`'s THREAD arm (which shares the exact same walker this stone fixed) now
+;; reads `Ok n=3`, proving the walker itself is correct. This probe is process-locus ONLY (by
+;; design — see the header above), and process locus has a SEPARATE, upstream defect: the
+;; generic message-dispatch decode (`edn_shim::edn_to_value_caps`, `Edn::Symbol` arm,
+;; edn_shim.rs:1773) refuses any EDN Symbol before a type-directed walk is even reachable, and
+;; a real WatAST form always contains symbols. Full chain in the decomposed probe's own header
+;; (its "FINDING 3"), captured via `strace -f` on the child. Out of this stone's blast radius
+;; (fixing it means loosening the general untyped reader, not "one arm in one walker").
 
 ;; ── the surface — `defs` is the SUBJECT: a Vector<WatAST> as a request field ───────────────
 (:wat::core::defsurface :probe::RuleWire :nature :wat::kernel::Peer

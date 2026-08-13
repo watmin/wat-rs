@@ -2044,6 +2044,22 @@ fn edn_to_typed_value_inner(
                 got: format!("{e}"),
                 path: String::new(),
             }),
+            // Arc 278 DESIGN-STONE-watast-is-the-wire — :wat::WatAST is the universal
+            // top of the WIRE: every well-formed EDN value IS a WatAST (a form crosses
+            // as a bare, untagged EDN list/vector/map/scalar — there is nothing to tag,
+            // it already IS the EDN). A declared field type is a refinement applied
+            // AFTER decode, never a gate on whether the value may cross; for WatAST
+            // that refinement is the IDENTITY. Same move as R7's universal top of the
+            // TYPE lattice (types.rs:5212, `:wat::core::Value`), one domain over.
+            // `edn_to_watast` is the write side's own inverse (`watast_to_edn`), so
+            // accepting here is literally undoing what the wire's own writer did.
+            ":wat::WatAST" => crate::wat_edn_bridge::edn_to_watast(edn)
+                .map(|ast| Value::wat__WatAST(Arc::new(ast)))
+                .map_err(|e| EdnCoerceError {
+                    expected: ":wat::WatAST".into(),
+                    got: format!("{e}"),
+                    path: String::new(),
+                }),
             ":wat::holon::HolonAST" => {
                 // Tagged round-trip OR natural-form lift to a leaf —
                 // mirrors `edn_shim`'s two-mode reader.
