@@ -108,6 +108,45 @@ ships; the function it calls does not; the child names the missing symbol at sta
 Also proven and NOT fixed: the refusal removes **no** privilege — `quote_boundary` still returns
 `MakeRule`, and `walk`/`normalize`/`expand` all still honour it.
 
+## Reproductions — inline, because both probes MUST FAIL
+
+Neither can live under `wat-scripts/` (the `every_wat_scripts_file_loads` gate would go red on a
+file that is supposed to be refused), and a `.wat.bad` with no paired `.rs` is an inert file nobody
+runs. So the sources live here, where the claim lives.
+
+**(A) `forms` is not resolve-transparent.** Same unresolvable head in two positions; only the bare
+one is reported. Run `target/release/wat --check <file>`:
+
+```clojure
+(:wat::core::defn :probe::bare [] -> :wat::core::i64
+  (:nosuchns::vanished 1))                                    ;; line 14 — REPORTED
+
+(:wat::core::defn :probe::in-forms [] -> :wat::core::Vector<wat::WatAST>
+  (:wat::core::forms (:nosuchns::vanished 1)))                ;; line 17 — NOT reported
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+```
+
+→ `1 unresolved reference`, line 14 only. (With `forms` removed from `Boundary::AllData` it becomes
+`2 unresolved references`, lines 14 **and** 17 — that is how the imposition was validated as live
+before the corpus census was believed.)
+
+**(B) A `Rule` cannot hold a fn — 293.W containment.** A record field of fn type is refused
+outright:
+
+```clojure
+(:wat::core::defrecord :probe::Cond
+  [pred <- :wat::core::Fn(wat::core::i64)->wat::core::bool])
+```
+
+→ `#wat.type/ImpureFieldInPureAggregate` — *"pure aggregate ':probe::Cond' may only hold pure
+fields… A struct cannot be reconstructed from EDN bytes across a comms boundary; a record or holon
+holding a struct field could never cross — it must not exist."*
+
+The fn-field precedents that made this look viable — `:wat::spawn::ThreadOpts` (`spawn.wat:51`) —
+are **`defstruct`**, not `defrecord`; `bracket.wat:34` is a defn **parameter**, not a field at all.
+`:wat::rete::Rule` is a `defrecord` (`rete.wat:52`).
+
 ## Kin
 
 R60 `QVOD FAVET PRIMVM CADIT` (two of my own premises died here and the answer improved) ·
