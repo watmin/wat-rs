@@ -24,7 +24,7 @@ use crate::macros::{
     expand_all, register_aggregate_kwargs_companions, register_defmacros,
     register_stdlib_defmacros, MacroRegistry,
 };
-use crate::resolve::{normalize_symbol_refs, resolve_references};
+use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
 use crate::runtime::{
     preregister_acronyms, preregister_stdlib_defclause_stub,
     register_aggregate_methods, register_defines, register_enum_methods, register_newtype_methods,
@@ -51,6 +51,15 @@ pub(crate) struct EnvBundle {
     /// `register_runtime_defs` (STOP-3, one door — see `FrozenWorld::freeze`), which needs
     /// this exact set at BOTH its callers (the boot path and the live-session path).
     pub declared_rete_defns: std::collections::HashSet<String>,
+    /// Arc 278 — a resolve failure DEFERRED so `check_program` (step 8) runs first.
+    ///
+    /// A malformed definition does not register, so every CALL to it becomes an
+    /// `UnresolvedReference` pointing at the CALL SITE — while the located `MalformedForm`
+    /// naming the real cause lives in `check_program`, which `?` on resolve prevented from
+    /// ever running. Measured 2026-08-13: the SAME file reports the cause when the caller is
+    /// deleted and the symptom when it is present. Carrying the error lets step 8 run and the
+    /// cause win; the symptom is re-raised only when check finds nothing.
+    pub deferred_resolve: Option<ResolveError>,
 }
 
 /// Build the full registered environment from already-parsed,
@@ -299,7 +308,10 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // Stone 251.1b — normalize before resolve so rewritten AST flows
     // through check + eval with keyword heads.
     residue = normalize_symbol_refs(residue, &symbols, &macros)?;
-    resolve_references(&residue, &symbols, &macros)?;
+    // DEFERRED, not swallowed: an unresolved reference is very often the SYMPTOM of a
+    // malformed definition that failed to register. Running `check_program` first lets the
+    // located cause be reported; if check is clean, this error is re-raised unchanged.
+    let deferred_resolve = resolve_references(&residue, &symbols, &macros).err();
 
     // 7.6. Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib
     //      defclause / extend-type / def forms into
@@ -358,6 +370,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         symbols,
         residue,
         declared_rete_defns,
+        deferred_resolve,
     })
 }
 

@@ -860,6 +860,14 @@ impl From<StdlibError> for StartupError {
 /// `base_canonical` is the entry file's canonical path when known
 /// (used for relative-path resolution of top-level `load!`s). Pass
 /// `None` when the entry source comes from a string rather than a file.
+/// Arc 278 — is this check error merely the resolver's own finding restated?
+///
+/// `UnknownCallee` is the same fact as an `UnresolvedReference`; only a DIFFERENT cause (a
+/// located `MalformedForm`) earns the right to outrank the deferred resolve error.
+fn is_unknown_callee(e: &crate::check::CheckError) -> bool {
+    matches!(e.kind, crate::check::CheckErrorKind::UnknownCallee { .. })
+}
+
 pub fn startup_from_source(
     entry_src: &str,
     base_canonical: Option<&str>,
@@ -1192,7 +1200,43 @@ fn startup_from_forms_post_config(
     bundle.symbols.eval_redef_allowed = config.eval_redef_allowed;
 
     // 8. Type check.
-    check_program(&bundle.residue, &bundle.symbols, &bundle.types)?;
+    //
+    // Arc 278 — THE CAUSE OUTRANKS THE SYMPTOM. Resolve (step 7) no longer short-circuits;
+    // its error is deferred to here so this check runs FIRST. A malformed definition does not
+    // register, so every CALL to it resolves to nothing — and reporting that unresolved
+    // reference points at the CALL SITE while the located `MalformedForm` naming the real
+    // cause sits unreached in this very check. Measured 2026-08-13 on one file: deleting the
+    // caller changed the report from the symptom to the cause. During a corpus-wide migration
+    // most malformed definitions HAVE callers, so the old order pointed at the wrong file
+    // essentially every time.
+    //
+    // The resolve error is NOT swallowed: if the check is clean it is re-raised unchanged,
+    // so a genuine unresolved reference (a real typo, a missing import) reports exactly as
+    // before. Only the case where a located cause EXISTS changes.
+    let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types);
+    match (check_result, bundle.deferred_resolve.take()) {
+        (Err(check_err), Some(resolve_err)) => {
+            // ★ THE CAUSE OUTRANKS THE SYMPTOM ONLY WHEN IT IS A DIFFERENT CAUSE.
+            //
+            // `check_program` ALSO reports unknown call heads (`UnknownCallee`) — the same
+            // finding the resolver already made. Preferring it there would merely reroute a
+            // plain typo from one subsystem to another: churn, not improvement, and it breaks
+            // the specified contract (`resolve_error_bubbles_up`, the REPL's bad-line arm, and
+            // `unknown-call-head-panics` all pin an unknown head to a RESOLVE error).
+            //
+            // So the check error wins only when it carries something the resolver could not
+            // have said — a MalformedForm naming a located, structural cause. That is exactly
+            // the masked case: a malformed definition never registers, so its callers surface
+            // as unresolved while the real message sits unreached in this check.
+            if check_err.0.iter().all(is_unknown_callee) {
+                return Err(resolve_err.into());
+            }
+            return Err(check_err.into());
+        }
+        (Err(check_err), None) => return Err(check_err.into()),
+        (Ok(()), Some(resolve_err)) => return Err(resolve_err.into()),
+        (Ok(()), None) => {}
+    }
 
     // 9. Freeze. The loader moves into the frozen world's
     //    SymbolTable so runtime primitives (`:wat::eval-file!` and
