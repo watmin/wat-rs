@@ -11,120 +11,125 @@
 ## Where the code is
 
 ```
-HEAD 00de6d18   pushed   floor 4391 passed / 0 failed / 262 skipped   clippy 0
+HEAD a604014f   pushed   floor 4391 passed / 0 failed / 262 skipped   clippy 0
 ```
 
 Tree clean. ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 
 **⛔ `stash@{0}` STILL HOLDS THE LIFECYCLE STRIKE — do not `git stash drop`.** Made with `-u`, so
 `git stash show --stat` **cannot see the untracked payload**; read it with `git show 'stash@{0}^3:<path>'`.
-Its `.wat` is STALE (`--check` exit 1, five errors, four sharing one root: a `DisconnectReason`
-scrutinee resolving to an unbound type var). Restoring it turns the floor red.
+Its `.wat` is STALE. Restoring it turns the floor red.
 
-⚠ **`--check <f> | tail` returns TAIL's exit code.** Read exits unpiped, always.
+**`bootstrap/wat-prekeyword-b472fe3e`** — a preserved pre-migration binary, verified `--check` exit 0
+on the current corpus, gitignored (16MB). The STASH-DANCE (`wat/fix.wat:23-53`) builds one at step 2
+but **pops the stash at step 4**; this copy lives outside the dance so a failed migration cannot
+strand us without a tool that reads the old form.
 
-## ★ THE LIVE FORK — the builder's to rule, and everything is blocked on it
+## ★ THE LIVE THREAD — the clojure migration, and it is FURTHER ALONG THAN ANYONE REMEMBERED
 
-`defrule`'s macro cannot type the parameters of a lifted `where` body, because **macro expansion runs
-before the type registry is populated.** Verified independently, by a *calling* probe:
+The builder's ruling, and it re-frames the arc: **`:wat::core::+` is a SYMBOL wearing a keyword's
+clothes.** A call head *refers*; a keyword is *self-denoting*. Measured: `items.first()` is matched
+as `WatAST::Keyword` at **57** sites, as `WatAST::Symbol` at **2**. `resolve/normalize.rs`'s own
+header states the collapse — *"rewrites every such symbol to the `WatAST::Keyword` it names…
+`wat.core/+` → `:wat::core::+`."* The substrate knows the distinction and flattens it.
 
+**MEASURED 2026-08-12, and this is the headline:**
+
+| | |
+|---|---|
+| the codemod | **BUILT** — `wat/fix.wat:119` `fix-seq`, position-aware via `prev-arrow?`; four rules (head / arrow / type / strip-if) |
+| the conversions | **BUILT** — `keyword/to-symbol`, `keyword/to-type-form` (`macros/eval.rs:662`) |
+| it runs TODAY | **YES** — full dialect flip on a real file with the current binary |
+| the substrate accepts the output | **YES** — `--check` exit 0 on a fully migrated file |
+
+```clojure
+(:wat::core::defn :probe::eval-symbol-head [] -> :wat::core::i64
+(wat.core/defn        probe/eval-symbol-head []  :- wat.type/i64
 ```
-field-names-of form: unknown type ':usr::Temp'      ← even for a stdlib type
-```
 
-Three escapes are dead by run (see the ⛔ box atop `DESIGN-STONE-defrule-splits-at-expansion-time.md`
-for the verbatim evidence): a bare type var, `:wat::type::Infer`, `:wat::core::Value`; Clara's
-pass-the-fact shape (wat's rete binds a **field**, not a fact — `matcher.rs:295`); and deferring via
-a type expression (`TypeExpr` has no field accessor — `types.rs:72-92`).
+Accessors came out correct too (`:probe::WireKind::CountRequest/defs` → `probe.WireKind.CountRequest/defs`,
+one slash). **Do NOT re-design this. It exists and it works.**
 
-★ **THE GAP IS NOT RETE-SPECIFIC.** Any DSL lifting a user body into a typed defn hits it. Same
-shape as the privilege we are deleting: the language is missing something every DSL needs.
+**WHAT IS ACTUALLY MISSING — the builder named it:** `fix-seq` is *"a bunch of if conditions"* —
+one linear walk carrying one boolean. **Rete was built to replace it.** *"we needed rules to work…
+doing this as a bunch of if conditions wasn't going to cut it… we built rete to solve this."* Rete's
+job here is **to DECIDE, not to rewrite** — per keyword, from position and shape, which rule applies
+or whether it is data. The builder: ***"we're building a mini-ai to upgrade us."***
 
-**THE THREE ROUTES, UNRULED:** (1) a macro-phase reflection door · (2) a type-level field accessor
-the macro emits and the checker resolves · (3) a whole-fact binding in the rete surface (Clara's
-shape — changes the user surface).
+**KNOWN ROUGH SPOT (his, unreproduced by me):** some name shape makes **double-`/` symbols, which are
+EDN-illegal.** Not the accessor case — that one is handled. Finding which shape is the next
+measurement: drive the codemod over the WHOLE corpus into a scratch copy and grep the output for
+illegal symbols. One drive, real number, failures self-identify. The bootstrap binary makes it safe.
 
-## What this arc is actually for (re-anchored by the builder this session)
+**⚠ ORDERING, load-bearing:** making heads real symbols makes **#92 WORSE** — today only binders
+(`c`, `<-`) leak as symbols; after the pivot every head is one. **#92 is a prerequisite, not an
+alternative.**
 
-Rete's remaining cost is **interpreted wat — ~95% of the work at stress-test scale**. The
-purity/determinism/totality campaign existed to make rete's forms **compilable**. The jump table
-(#49) implements function calls. Two of three compilers are built (`src/rete/compiled_cond.rs`,
-`compiled_rhs.rs`); this is the third, and the other two get failed over once it lands.
-**rete first, wat second — this is the proving ground for compiling wat itself.**
-
-The standing frame, verbatim: *"i fucking hate seeing dsl machinery hard coded in our rust — this
-means /every fucking dsl we envision/ requires rust changes."*
-
-## ★ WHAT LANDED — four commits, docs + probes only, ZERO src since `228b68fa`
+## ★ WHAT LANDED — six commits, floor green at every bank, all weighed by my own `--release` re-run
 
 | commit | |
 |---|---|
-| `228b68fa` | **`closure_extract` honours `MatchesSubject`** — a `matches?` in a fn body blocked closure extraction entirely; proven, fixed, gated |
-| `cf732fce` | the stone + **three probes** committed *before* the brief (examinare) |
-| `9ffbf9c7` | the **intueri cast** — `:usr::ok-rule$where0` / `$where0` |
-| `00de6d18` | **BRIEF + EXPECTATIONS**, and every loose measurement given a durable home |
+| `148a57c7` | **a rule is FORMS** — a declared payload carries a rule AND the fn its `where` calls, `derived=1`. The `6/5/5` is *bypassed*: nothing walks, so nothing can under-walk. Retires the lift, the parameter-typing blocker, and the boundary stone AS the delivery fix — all were teaching a **closure extractor** to understand rete, and a defrule is not a closure. |
+| `f1a811cb` | **the expander reads the boundary door** — its hand-rolled 3-head data set was missing `forms`; replaced by `quote_boundary`. `:wat::core::define` (a corpse) deleted from `AllData` first — order was load-bearing. |
+| `fedeba0c` | **ONLY a WatAST crosses the wire** (the builder's law) + stone + brief |
+| `4336eb66` | the wire gap is a **MIGRATION TAIL** — `edn_shim.rs:42`'s table is chronology, not design. **RULED: HolonAST is for VSA ops now.** |
+| `b472fe3e` | **the identity arm LANDS** — `:wat::WatAST` accepts any well-formed EDN. Thread arm `REQUEST-MALFORMED` → `Ok n=3`; a wrong field type still refused. |
+| `a604014f` | **`:wat::core::+` is a symbol** — 57 vs 2, measured; bootstrap binary preserved |
 
-## PROVEN this session — by run, with non-vacuity controls. Do not re-derive.
+## PROVEN this session — by run, with controls. Do not re-derive.
 
-- **The delivery defect is real.** A fn called only from inside a quoted `where` is **never shipped**
-  — `PC 6 · BASE 5 · SUBJECT 5`. This is "we fail to deliver rules to install-rules", mechanised.
-- **One mention ships the whole chain, transitively** — `PC 7 · BASE 5 · MENTION-1 7`.
-- **A macro CAN mint a computed-name top-level defn plus its consumer** (STOP-3 cleared). The
-  template may not introduce a *literal* binder (hygiene gate E, arc 249) — splice it via
-  `~(:wat::core::symbol-node "…")`, as `core.wat:1163` does.
-- All three probes live in `wat-scripts/scratch-pad/` under `every_wat_scripts_file_loads`.
+- **A declared payload crosses and fires** (in-process): `SUBJECT EVALUATED derived=1` ·
+  `CONTROL CHECK-FAILED` naming `:usr::big?`. Untyped at the wire, **fully typed at the freeze**.
+- **`(wat.core/+ 2 2)`** evaluates to 4, keeps its symbol in the quoted AST, and validates as
+  `:wat::WatAST`. **The blast radius of #92 is CENTRAL, not narrow** — no binder, no arrow, not a
+  declaration, and still refused by the wire. Essentially no non-trivial form crosses a process pipe.
+- **`forms` was data to the resolver and CODE to the expander** — one missing head, three drifted
+  consumers of one door (`expand.rs:441` fixed · `walk.rs:158` #90 · `validate.rs:453` open).
 
-## ⛔ FOUR SHAPES REFUTED BY RUN — each died to evidence, not argument. Do not re-propose.
+## ⛔ OPEN — the three the wire needs
 
-1. **quasiquote's `~` as the code hole** — `runtime.rs:10891` *evaluates* the escape; the form dies.
-2. **Making `forms` resolve-transparent** — `forms` is the **CHILD-PROGRAM constructor**; it must not
-   resolve locally. Imposed the check: floor **4367/24**, failures clustering on the *services* path.
-   `probe_resolver_quote_awareness.rs:19` states the contract; its fixture names `ghost-inner`
-   deliberately.
-3. **A `fn` on the `Rule`** — 293.W containment refuses it. Rules are records **because they cross
-   the wire** (R5's `{facts,rules}` snapshot). The "precedents" I cited were `defstruct`s and a defn
-   *parameter*; `Rule` is a `defrecord`.
-4. **The `Condition` ADT** — ruled **4/4** and then **void**: it existed only to hold the fn that (3)
-   proves cannot be held.
+- **#92 — invert the decode.** `edn_to_value_caps` (via `decode_trusted_wire`, `runtime.rs:28719`)
+  runs FIRST and UNTYPED and refuses every `Edn::Symbol`. Fix is **EDN → WatAST (total) → refine**,
+  not a new value type; `edn_to_watast` (`wat_edn_bridge.rs:412`) already exists. ⚠ That function is
+  *"THE ONE TRUSTED-WIRE DECODE DOOR"* for ocap — keep it exactly as narrow or it is a forge-hole.
+- **#93 — the child's `Reply::Failed` is DESTROYED in transit.** strace caught it writing 365 bytes
+  of full located cause; the client reports `LOST disconnected`. **Fixing #92 makes this path stop
+  firing, which HIDES it** — needs a deliberate break to close honestly.
+- **#91 — the HolonAST census.** AST duty (residue) vs VSA duty (permanent, ruled). Inventory needing
+  dispositions, never a kill list.
 
-## ⛔ ALSO OPEN
+## ⛔ OWED — two instruments that did not survive
 
-- **#90 — `walk` skips the FIRST TWO ARMS of every `match`.** Proven; 817 forms affected;
-  `NOTE-walk-skips-the-first-two-arms-of-every-match.md` carries the repro inline. Untouched.
-- **`MakeRule` refused in `closure_extract` costs rule delivery TODAY** (`6/5/5`). **Holding that
-  line is deliberate** — honouring it adds a fourth Rust consumer of rete's name, which is what the
-  stone deletes. Cost stated, not hidden.
-- **The index is UNMEASURED.** Every proof used exactly ONE `where` per rule.
-- `NOTE-a-rule-may-reference-an-unbound-variable-and-compile-clean.md` **Tier 0** still owed.
-- **Filed, not scheduled:** `109/NOTE-two-resolvers-over-the-five-registries.md`. Owed intueri casts:
-  the admission type; the correlation surface. Older: #87 · #49 · #7 · #17 · #19 · #20 · #50 · #58 ·
-  #60 · #64 · #67 · #81.
+A rider's isolation tests lived in `/tmp` and were **deleted after use**. Marked UNVERIFIED in #92,
+**do not cite**: *"reproduces when the handler never touches the field"* and *"a nested non-WatAST
+record round-trips fine over the same locus."* Rebuild as scratch-pad arms before either is used.
+
+Also open: **#90** · `validate.rs:453` · the lifecycle strike (designed, briefed `ff7705ba`, unbuilt —
+and per its own **STOP-6** it deliberately contains ZERO rete, so it will *not* tell us anything about
+delivery) · `collect-rules-forms` (form-for-name, unbuilt) · the `install-rules` macro · older:
+#87 · #49 · #7 · #17 · #19 · #20 · #50 · #58 · #60 · #64 · #67 · #81.
 
 ## The rules this stretch paid for
 
-- **The four questions cannot see a premise BOTH options share.** I ruled the `Condition` ADT 4/4
-  against a side-table and never asked whether a fn could live on a `Rule` at all. Neither could.
-  The questions discriminate *between* options; they do not validate what the options rest on.
-- **A probe that never invokes the thing proves nothing.** My first verification of the rider's
-  blocker returned EXIT=0 — because it *defined* the macro and never *called* it, so the body never
-  ran. I nearly overturned a correct STOP on it.
-- **An empty match arm is a discard wearing diligence's clothes.** `MatchesSubject | MakeRule => {}`
-  sat beside `Ordinary => {}` under twenty lines of principle, behaviourally identical to it, hiding
-  a live bug.
-- **A refusal that removes no privilege is a gesture.** Refusing `MakeRule` in one consumer left the
-  door, and three other consumers, exactly as they were.
-- **The builder names the subject; answer THAT.** Asked whether two *enum variants* were dead, I
-  measured the *wat functions* of similar name and proposed deleting live machinery.
+- **An error names where the INSTRUMENT gave up, never what the system lacks.** Three times: `LOST
+  disconnected` → "WatAST cannot cross" (nearly shipped text); one of three mechanisms read as the
+  whole; *"wat has no symbol value type"* → "build symbols" — when the fix is to stop asking that
+  component the question.
+- **Weighing is per-CLAIM, not per-REPORT.** I credited a rider's unreproducible isolation findings
+  because they arrived alongside reproducible probe outputs.
+- **Answering a ruling with a SEQUENCE is a deferral.** The builder: *"you are pushing so hard to not
+  do work."* One dry-run demolished the premise the sequence was protecting.
+- **Our own prior art answered three times** — the DDoS tree, chapter 59 *"42 IS an AST"*, and
+  `fix.wat` itself. Each time the peer could not convict us and the record could. Still **prompted**
+  every time, never self-initiated. `PAR NON ARGVIT, NOSTRA ARGVVNT`.
 
 ---
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> This stretch the record's own discipline did the work: four designs of mine died to runs, a rider
-> STOPPED correctly and killed a fifth, and every one of those deaths made the answer better. The
-> shape that survives — *the macro does the split, the way Clara's does* — came from the builder's
-> cut, **"why doesn't clojure need some new form?"**, and the answer was three lines above
-> `defrule`'s own template the whole time: *"The macro is kept TRIVIAL."*
+> The builder's verdict on the day was *"glad to see you're mostly back"* — **mostly**, and the
+> deferral pattern is why. He ruled a migration and got a three-step plan back. Do not do that
+> tomorrow: when he rules, the next move is a **measurement**, not an ordering.
 >
 > Do not trust confidence here. Trust the probes; they are committed and they run.
 >
