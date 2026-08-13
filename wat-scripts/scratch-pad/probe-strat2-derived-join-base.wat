@@ -1,0 +1,78 @@
+;; RED PROBE — a POST-NEGATION derived fact does not join with a BASE fact downstream.
+;;
+;; FOUND 2026-08-13 by building the migration's gate/unlock chain (rules-corpus-02), where
+;; negation IS the gate: "a concept is settled iff nothing derived it inconsistent", and the
+;; next rule joins that settled concept against a base-fact ruling table. The settled facts
+;; derive correctly; the downstream join silently yields nothing.
+;;
+;; The two arms below differ in EXACTLY ONE THING — whether `:z::S` is derived through a
+;; `(:wat::rete::not …)` condition — and the downstream join flips 1 -> 0.
+;;
+;;   CONTROL  (settled without negation, stratum 1):  S = 1   Out = 1
+;;   SUBJECT  (settled through negation, stratum 2):  S = 1   Out = 0   <- WRONG
+;;
+;; `S` is correct in both arms, so this is not a derivation bug — it is the DOWNSTREAM JOIN
+;; failing to see a fact that demonstrably exists. Nothing about the join itself is exotic:
+;; single variable, string key, base-fact partner, and the identical join works in the control.
+;;
+;; WHY THE GRID NEVER CAUGHT IT: the negation axes assert on the negation's OWN output. None
+;; of them chains a THIRD rule off a post-negation fact. The engine's stratified negation is
+;; proven (R18/R20, native == oracle == Clara); what is unproven — and now looks broken — is
+;; CONSUMING a stratum-2 fact in stratum 3.
+;;
+;; ⚠ This blocks forward-chaining gate/unlock designs generally: "derive a gate by negation,
+;; then join the gate against a table" is the shape, and it does not work today.
+;;
+;; This file must go GREEN (Out = 1 in both arms) when the defect is fixed. It is deliberately
+;; written to PASS its checker and FAIL its assertion, so the loader gate keeps it alive while
+;; the run keeps it honest.
+
+(:wat::core::defrecord :z::A   [c <- :wat::core::String])
+(:wat::core::defrecord :z::Bad [c <- :wat::core::String])
+(:wat::core::defrecord :z::R   [c <- :wat::core::String  t <- :wat::core::String])
+(:wat::core::defrecord :z::S   [c <- :wat::core::String])
+(:wat::core::defrecord :z::Out [c <- :wat::core::String  t <- :wat::core::String])
+
+;; SUBJECT — stratum 2: derived THROUGH a negation. `:z::Bad` is never seeded, so the
+;; negation is satisfied and `S` must (and does) derive.
+(:wat::rete::defrule :z::settled-neg
+  :when [(:z::A (?c <- :c))
+         (:wat::rete::not (:z::Bad (?c <- :c)))]
+  :then [(:z::S :c ?c)])
+
+;; CONTROL — stratum 1: the same conclusion with no negation in its path.
+(:wat::core::defrecord :z::S2  [c <- :wat::core::String])
+(:wat::core::defrecord :z::Out2 [c <- :wat::core::String  t <- :wat::core::String])
+(:wat::rete::defrule :z::settled-plain
+  :when [(:z::A (?c <- :c))]
+  :then [(:z::S2 :c ?c)])
+
+;; The IDENTICAL downstream join, once per arm.
+(:wat::rete::defrule :z::out-neg
+  :when [(:z::S (?c <- :c)) (:z::R (?c <- :c) (?t <- :t))]
+  :then [(:z::Out :c ?c :t ?t)])
+
+(:wat::rete::defrule :z::out-plain
+  :when [(:z::S2 (?c <- :c)) (:z::R (?c <- :c) (?t <- :t))]
+  :then [(:z::Out2 :c ?c :t ?t)])
+
+(:wat::core::defn :z::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+  (:wat::kernel::println (:wat::core::string::concat label (:wat::core::str n))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [f (:wat::rete::fire-rules
+         (:wat::rete::insert
+           (:wat::rete::insert
+             (:wat::rete::compile (:wat::core::PersistentVector
+               (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)))
+             (:z::A :c "i64"))
+           (:z::R :c "i64" :t "wat.core.i64")))]
+    (:wat::core::do
+      ;; non-vacuity: both gates must derive, or the Out rows below mean nothing
+      (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f :z::S)))
+      (:z::show "S2 plain         (want 1): " (:wat::core::length (:wat::rete::query f :z::S2)))
+      ;; the differential — these two must agree; today they do not
+      (:z::show "Out2 CONTROL     (want 1): " (:wat::core::length (:wat::rete::query f :z::Out2)))
+      (:z::show "Out  SUBJECT     (want 1; READS 0 TODAY = THE DEFECT): "
+        (:wat::core::length (:wat::rete::query f :z::Out))))))
