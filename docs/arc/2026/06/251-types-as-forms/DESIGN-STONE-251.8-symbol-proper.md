@@ -168,6 +168,54 @@ spends.
 > so 8b swaps derived for stored behind it without moving a caller. Claiming 8a implements
 > symbols would be the overclaim this arc keeps catching.
 
+**251.8a-ii — THE BINDER NAMESPACE IS UNFORGEABLE. RULED 2026-08-13. Its own strike.**
+
+The builder:
+
+> *"i think my stance is no one but rust's handling of binders can declare `$bound/*` symbols..."*
+
+**The defect this closes, measured on the post-8a binary** (task #99): `$bound/x` written in user
+source is accepted, treated as a binder, and dies at RUNTIME as `UnboundSymbol`. Before 8a it was a
+freeze-time `UnresolvedReference`. Meanwhile `(def :$bound::x 1)` IS refused at freeze with
+`ReservedPrefix`. So the reservation bites at the *definition* door and not the *reference* door,
+and 8a moved a freeze error to runtime for the one namespace it invents.
+
+**FOUR QUESTIONS, flat, on every option — and the shared premise checked first.**
+
+⚠ **B and C rest on a premise that expires.** Both assume the binder namespace is part of the NAME
+STRING. True in 8a (`namespace()` is derived from spelling); **false after 8b** (stored field). They
+are artifacts of a temporary implementation, not durable options.
+
+| option | Obvious | Simple | Honest | Good UX | |
+|---|---|---|---|---|---|
+| **A** — refuse at freeze (resolve layer) | YES | YES | YES | YES | 4/4 |
+| **D** — refuse at the READER; the namespace is never constructed | YES | YES | YES | YES | **4/4 — CHOSEN** |
+| **B** — treat as a binder *(what 8a ships)* | **NO** | YES | **NO** | **NO** | disqualified |
+| **C** — normalize, let the reserved-prefix gate refuse it *(pre-8a)* | YES | **NO** | **NO** | — | disqualified |
+
+**B fails Obvious** — `$bound/x` silently means `x`; the runtime error names a symbol the user
+believed they had qualified. **Fails Honest** — user source can forge what must be substrate-only.
+**C fails Simple on BRAIDING, not size** — it routes a *binder* namespace through the *keyword
+reference* pipeline so the refusal falls out as a side effect of pretending it is a reference; and
+**fails Honest** because the diagnostic tells the story of someone who tried to DEFINE into a
+reserved prefix, when they used it in REFERENCE position. (C is what shipped before 8a: 8a did not
+regress from a good state, it moved off a differently-broken one.)
+
+**★ WHY D OVER A, and it is the ladder.** A is a CHECK — every pass between the reader and that
+check can still be handed a forged binder. D is NO-FORM — the namespace is never constructed, so no
+downstream pass can hold one. Same reason `$bound` is a named namespace rather than an `Option`.
+
+**And D lands at its FINAL ADDRESS today.** 8b changes what `Identifier` STORES; it does not change
+where user text is first read. The rule goes in once and never moves — whereas A would put a
+refusal in the resolve layer that 8b relocates. This kills the "land it now, relocate later" hedge:
+there is nothing to relocate.
+
+**Scope, stated because the orchestrator got this wrong once and it must not survive into the
+brief:** the rule is about the **namespace `$bound`**, NOT about the character `$`. `$` is an
+ordinary identifier character (`is_symbol_break`, `lexer.rs:519`, does not list it) and is in live
+use as `:<name>$impl`, a macro-minted NAME SUFFIX inside a keyword — never a namespace. `$impl` is
+untouched by this stone.
+
 **251.8a-bis — THE ANGLE-BRACKET RETIREMENT. RULED 2026-08-13; PREREQUISITE OF 8b.**
 
 The builder:
