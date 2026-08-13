@@ -62,8 +62,37 @@ with a twist — the definition does not vanish, its **diagnostic** does — and
 the caller, not the cause"*).
 
 **Load-bearing for the migration:** during a corpus-wide flip, most malformed definitions WILL have
-callers. Every one of them will report the wrong location. Fix or at least characterise this before the
-one-shot, or the corner-case hunt is conducted through a diagnostic that lies about where to look.
+callers. Every one of them will report the wrong location. FIXED 2026-08-13 in `5e8eeb84` — resolve is
+deferred so `check_program` runs first and a located cause outranks the downstream symptom (narrowed:
+an `UnknownCallee` IS the resolver's own finding restated, so only a DIFFERENT cause outranks).
+
+## ⚠ CORRECTION — the `[…]` bracket is NOT "already claimed". There is NO collision.
+
+The un-hidden diagnostic reads *"function-type bracket needs a `:->` arrow: `[arg… :-> ret]`"*, and this
+note's author first read that as **the `[…]` bracket being taken by function types**, i.e. a collision
+that would force the 07-24 `[type-params]` grammar to move. **That was wrong.** Measured:
+
+```
+[A :-> B]                    exit 0   bare bracket standing alone as the type = FUNCTION TYPE, works
+[A B]                        exit 1   bare bracket, no arrow — correctly refused
+(:wat::type::Vector [A])     exit 1   SAME error — the parser applies its ONLY bracket rule
+```
+
+The parser has exactly ONE rule for `[` in type position. Meeting a bracket as a PARAMETRIC HEAD'S
+ARGUMENT, it applies that rule and fails. **Unimplemented case, not taken syntax.** The two are
+distinguished by POSITION, exactly as annotation-vs-construction is:
+
+```clojure
+[A :-> B]                  ; bracket STANDING ALONE as the type   -> function type
+(wat.type/HashMap [K V])   ; bracket as the ARGUMENT of a head    -> type-param list
+```
+
+**The proposed grammar needs no change.** The parser needs a rule for bracket-in-parametric-arg-position.
+
+★ This is `[[feedback_an_error_names_where_it_gave_up_not_what_is_missing]]`, THIRD instance in one day
+(after `LOST disconnected` and the `where`-fence's first-failing-axis). The message reported the
+ASSUMPTION THE PARSER MADE — "I took this for a function type" — not a declaration that the bracket is
+reserved. Corrected by the builder refusing the premise: *"what collision did we just encounter?"*
 
 ## The ambiguity the notes flagged is NOT a blocker
 
