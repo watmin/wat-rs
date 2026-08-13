@@ -41,9 +41,8 @@
 /// variant is the single specification of that form's boundary; the passes
 /// implement the traversal, but neither re-decides the classification.
 pub(crate) enum Boundary {
-    /// `:wat::core::quote` / `:wat::core::forms` / `:wat::core::define` — every
-    /// argument is captured as data; no child is code. (`define` is retired at
-    /// the checker, but the resolver still must not walk its body.)
+    /// `:wat::core::quote` / `:wat::core::forms` / `:wat::holon::literal` — every
+    /// argument is captured as data; no child is code.
     AllData,
     /// `:wat::core::quasiquote` — the template argument (`items[1]`) is data
     /// EXCEPT inside `:wat::core::unquote` / `:wat::core::unquote-splicing`
@@ -80,7 +79,7 @@ pub(crate) enum Boundary {
 pub(crate) fn quote_boundary(head: &str) -> Boundary {
     match head {
         // Arc 294.b — body is data (same as quote); no symbol resolution inside.
-        ":wat::core::quote" | ":wat::core::forms" | ":wat::core::define" | ":wat::holon::literal" => Boundary::AllData,
+        ":wat::core::quote" | ":wat::core::forms" | ":wat::holon::literal" => Boundary::AllData,
         ":wat::core::quasiquote" => Boundary::Quasiquote,
         ":wat::form::matches?" => Boundary::MatchesSubject,
         ":wat::core::match" => Boundary::Match,

@@ -434,11 +434,18 @@ pub(super) fn expand_form(
 
     match form {
         WatAST::List(items, list_span) => {
-            // Data forms — NOT expanded. quasiquote/quote/literal carry DATA, not code;
-            // recursing would eagerly expand macro calls the caller means to observe or
-            // template, not execute (arc 029/030; the macroexpand primitives rely on it).
+            // Data forms — NOT expanded. quote/forms/literal (`Boundary::AllData`) and
+            // quasiquote (`Boundary::Quasiquote`) carry DATA, not code; recursing would
+            // eagerly expand macro calls the caller means to observe or template, not
+            // execute (arc 029/030; the macroexpand primitives rely on it). Reuses
+            // `resolve::boundary`'s ALREADY-established classification — so this doesn't
+            // drift into a second, hand-rolled copy of the same language fact (arc 278: this
+            // exact set had drifted, omitting `:wat::core::forms`, so a `forms` block's
+            // arguments — data for another world — were macro-expanded in the parent's).
+            // Both variants are named on purpose: `quasiquote` classifies as
+            // `Boundary::Quasiquote`, not `AllData`, and its behaviour must not change.
             if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if head == ":wat::core::quasiquote" || head == ":wat::core::quote" || head == ":wat::holon::literal" {
+                if matches!(crate::resolve::boundary::quote_boundary(head), crate::resolve::boundary::Boundary::AllData | crate::resolve::boundary::Boundary::Quasiquote) {
                     return Ok(WatAST::List(items, list_span));
                 }
             }
