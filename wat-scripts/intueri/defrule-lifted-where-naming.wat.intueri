@@ -1,0 +1,162 @@
+;; defrule-lifted-where-naming.wat.intueri — the naming target for `defrule`'s LIFTED where-bodies
+;; (arc 278, DESIGN-STONE-defrule-splits-at-expansion-time.md).
+;;
+;; THE THING BEING NAMED. `defrule` today quotes its `:when` vector whole, so a `where` body — which
+;; is CODE — lands inside a runtime `quote`. Two consequences, both proven by run this session:
+;;   (a) the compiler needs a private hole to reach back in (Boundary::MakeRule + is_where_form,
+;;       rete grammar hardcoded in Rust — the thing this stone deletes), and
+;;   (b) a fn the body calls is NEVER SHIPPED to a spawned child (PC 6 · BASELINE 5 · SUBJECT 5,
+;;       wat-scripts/scratch-pad/probe-arc278-where-body-dep-not-shipped.wat).
+;;
+;; The fix: `defrule` LIFTS each where-body into its own top-level defn and emits ONE mention of it
+;; in code position. Two names are minted per where-condition, by the macro, and NO USER EVER WRITES
+;; EITHER — they are seen only in a `macroexpand` and in a stack frame.
+;;
+;; PROVEN COMPOSITION (probe-arc278-macro-mints-a-lifted-toplevel-defn.wat, and
+;; probe-arc278-lift-mention-ships-transitively.wat: PC 7 · BASE 5 · MENTION-1 7 — ONE mention
+;; collects the lifted fn AND everything it transitively calls).
+;;
+;; ⚠ NOT PROVEN — the INDEX. Both probes mint exactly ONE lifted fn, hardcoded `$where0`, for a
+;; rule with a SINGLE where-condition. Nothing has exercised two where-conditions in one rule, so
+;; "the index increments, stays unique, and two mention-binders coexist in one let vector" is a
+;; DESIGN CLAIM, not a measurement. (Caught by the ward, 2026-08-12; the first draft of this file
+;; stated it in the same breath as the measured facts and borrowed their credibility.)
+
+;; ── WHAT THE USER WRITES (unchanged — 222 call sites; this is NOT the naming question) ─────────
+(:wat::rete::defrule :usr::ok-rule
+  :when [(:usr::Temp (?c <- :c))
+         (:wat::rete::where (:usr::big? ?c))]
+  :then [(:usr::Hot :c ?c)])
+
+;; ── WHAT THE MACRO EMITS — the two minted names are marked <A> and <B> ─────────────────────────
+;;
+;;   (:wat::rete::core::defn <A> [?c <- :wat::core::i64] -> :wat::core::bool
+;;     (:usr::big? ?c))                          ; <A> = the LIFTED BODY's fqdn
+;;
+;;   (:wat::core::defn :usr::ok-rule [] -> :wat::rete::Rule
+;;     (:wat::core::let [<B> <A>]                ; <B> = the MENTION's local binder
+;;       (:wat::rete::make-rule "usr::ok-rule"
+;;         (:wat::core::quote [(:usr::Temp (?c <- :c))
+;;                             (:wat::rete::where (<A> ?c))])
+;;         (:wat::core::quote [(:usr::Hot :c ?c)]))))
+;;
+;; <B>'s ONLY job is to exist in code position so the closure walker collects <A>. It is never read.
+;; It is NOT dead code — deleting it silently breaks shipping — which is why `_`-prefix is refused:
+;; `_` means "intentionally unused", and that would be a LIE about a load-bearing binding. (Task #67
+;; also records that `_`-prefix slips must-use gates that bare `_` catches.)
+;;
+;; A rule may carry SEVERAL where-conditions, and ORDER IS LOAD-BEARING (a where sits at a position
+;; in the rete network), so the names carry a per-rule index that lines up with the conditions.
+;; ⚠ That multi-condition case is UNMEASURED — see the warning above. Index-by-position is chosen
+;; because it is the only scheme that survives an ARBITRARY predicate body (there is no name to
+;; borrow from `(:wat::rete::where (:wat::core::i64::> ?c 100))`), not because a probe proved it.
+
+;; ── CONSTRAINTS ON THE ANSWER (measured, not assumed) ──────────────────────────────────────────
+;;
+;; 1. <A> must be a FQDN keyword. The macro mints it with `keyword-node` from a string, so the
+;;    lexer is not a constraint — any spelling is available.
+;; 2. <B> CANNOT be a literal name in the macro template: hygiene gate E (arc 249 stone 249.2b-ii)
+;;    refuses `ProgramBodyIntroducesName`. It must be spliced via `~(:wat::core::symbol-node "…")`,
+;;    exactly as wat/core.wat:1163 does for `_kl-impl`. So <B> is also minted from a string.
+;;    core.wat:1145 records WHY that is safe: the unquote is a List at check time, not a Symbol, and
+;;    the name is macro-internal, never user-visible. <B> inherits that reasoning.
+;; 3. <A> must NOT return `:wat::rete::Rule` — `collect-rules` (src/rete/collect.rs:56-60) discovers
+;;    rules by "zero-arg fn returning :wat::rete::Rule". A lifted body returns `:bool`, so it is
+;;    excluded for free; the NAME must not suggest it is itself a rule.
+;;
+;; ── THE HOUSE PRECEDENT for macro-minted names (the register to match or depart from) ──────────
+;;   :<base>$impl          wat/core.wat:870   — the kwargs defn's positional implementation
+;;   :<surface>$core-record   wat/core.wat:1812
+;;   :<surface>$holon-record  wat/core.wat:1814
+;;   "<base>$impl"         wat/bracket.wat:298
+;; Six sites. Every one uses `$` as the macro-minted marker, and every one SPELLS THE WORD OUT —
+;; not a single abbreviation. `$` is not otherwise used in wat identifiers.
+;;
+;; ★ BUT THOSE ARE ALL FQDNs, so they are the precedent for <A> ONLY. The closer register for <B>
+;; — a SPLICED LOCAL BINDER inside a macro template — is wat/core.wat:1162-1167, which uses a
+;; LEADING UNDERSCORE and the identical `~(:wat::core::symbol-node "…")` mechanism:
+;;     [~(:wat::core::symbol-node "_kl-impl") ~impl-call-node
+;;      ~(:wat::core::symbol-node "_kl-kty")  … ]
+;; The first draft of this file cited :1163 for the MECHANISM and never surfaced it as a NAMING
+;; precedent — which left the `_where0` refusal undefended against the obvious objection.
+;;
+;; The refusal still stands, and here is the distinction that earns it: **`_kl-impl` IS READ** —
+;; core.wat:1167 consumes all five (`(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec …)`),
+;; so its underscore misrepresents nothing. **<B> is NEVER read.** On a binding that is genuinely
+;; never referenced, `_` tells a future unused-binding sweep it is safe to delete — and deleting it
+;; silently stops the dep from shipping. Same prefix, opposite honesty, because the referent differs.
+
+;; ── CANDIDATES for <A>, the lifted body's fqdn ─────────────────────────────────────────────────
+;; The use site reads `(<A> ?c)` inside the rule's quoted :when, and <A> appears in stack frames.
+;;
+;;   :usr::ok-rule$where0    — house `$` marker + the surface word the user wrote (`where`) + index.
+;;                             Says "minted from ok-rule's where #0". Does the index read as
+;;                             positional-in-:when (correct) or as an arbitrary counter?
+;;   :usr::ok-rule$where-0   — same, hyphenated index. Kebab is wat's word separator; is `-0`
+;;                             a separator or a subtraction-looking suffix?
+;;   :usr::ok-rule$pred0     — names what it IS (a predicate) rather than the syntax it came from.
+;;                             More honest about the value returned (:bool). But `where` is the word
+;;                             the USER wrote, and a stack frame naming `where0` points them back at
+;;                             their own source line; `pred0` makes them translate.
+;;   :usr::ok-rule$guard0    — rete/Clara register for a filtering condition. Same translation cost.
+;;   :usr::ok-rule$w0        — terse. Departs from the house rule that every `$` name is spelled out;
+;;                             saves four characters at the cost of a lookup on every read.
+;;   :usr::ok-rule$where$0   — `$` as both marker and index separator. Reads machine-minted twice.
+;;
+;; ── CANDIDATES for <B>, the mention's local binder ─────────────────────────────────────────────
+;; Seen only inside the emitted `let`, in a macroexpand. Never referenced.
+;;
+;;   $where0                 — the same word as <A>'s suffix, so binder and fqdn visibly agree and
+;;                             a reader knows which lifted body this mention ships.
+;;   $ships-where0           — says the binding's PURPOSE (it ships the dep), not just its subject.
+;;                             Longer; is the purpose obvious enough from the stone/comment instead?
+;;   $where0-ref             — "a reference to where0". Does `-ref` add anything the binding
+;;                             position does not already say?
+;;   _where0                 — ⛔ REFUSED, recorded here so the refusal is not re-litigated: `_`
+;;                             asserts "intentionally unused" about the one binding that must not be
+;;                             deleted.
+;;
+;; ── RULED OUT, so the omission is not read as an oversight ─────────────────────────────────────
+;;   :usr::ok-rule$big?      — derive <A> from the predicate the body CALLS. Refused: a where body
+;;                             is an ARBITRARY boolean expression. `(:wat::rete::where
+;;                             (:wat::core::i64::> ?c 100))` calls no user fn at all, so there is
+;;                             no name to borrow and the scheme has no total form.
+;;
+;; ── THE QUESTION FOR THE WARD ──────────────────────────────────────────────────────────────────
+;; Which <A> and which <B> KEEP THEIR PROMISE — say what they are, at the use site, to a reader who
+;; meets them in a macroexpand or a stack frame with no context? Should <A> name the SYNTAX it was
+;; lifted from (`where`, the word the user typed) or the THING it is (a predicate/guard returning
+;; :bool)? Should <B> echo <A> or name its own purpose? And does the `$`-house-style hold here, or
+;; is a lifted user-body different in kind from `$impl`/`$core-record` (which are minted from a
+;; declaration the user wrote, as this is too)?
+;;
+;; ══════════════════════════════════════════════════════════════════════════════════════════════
+;; ★ CAST + WEIGHED 2026-08-12 — RATIFIED
+;;
+;;   <A>  =  :usr::ok-rule$where0        (the lifted body's fqdn)
+;;   <B>  =  $where0                     (the mention's local binder)
+;;
+;; WHY, in the ward's strongest terms:
+;;   · `where` is THE WORD THE USER TYPED. A stack frame naming `where0` points them back at their
+;;     own source line; `pred0`/`guard0` make them translate into rete-internal vocabulary they
+;;     never opted into. `guard` additionally imports Clara/rete register the surface does not use.
+;;   · `pred0` is true of every boolean fn in the corpus — it says nothing about THIS one.
+;;   · <B> echoes <A>'s suffix and sits on the SAME `let` line as it, so the correspondence is
+;;     readable by juxtaposition — no lookup to know which lifted body a mention ships.
+;;   · `$ships-where0` was the runner-up for <B>: it answers "why does this binding exist?" — but
+;;     that is a STANDING DESIGN FACT, true of every <B> the macro will ever mint. A standing fact
+;;     belongs in ONE comment on the emitted `let` in rete.wat, not repeated in every instance with
+;;     "ships" doing no differentiating work.
+;;   · `$where-0` was the runner-up for <A>: inside a keyword token a bare digit after a word is
+;;     already unambiguous (no infix-arithmetic reading is available there), so the hyphen adds a
+;;     second separator convention on top of `$` and buys nothing.
+;;   · ★ AND THE DECIDING ONE, which the orchestrator had not made: the two committed probes
+;;     ALREADY MINT `:usr::ok-rule$where0` verbatim
+;;     (probe-arc278-macro-mints-a-lifted-toplevel-defn.wat, -lift-mention-ships-transitively.wat).
+;;     The composition was PROVEN under this exact spelling; renaming on aesthetic grounds would
+;;     fork the proven artifact from the shipped one for no measured reason.
+;;
+;; The ward's three criticisms are folded in above rather than argued with: the missing `_kl-impl`
+;; register precedent, the unmeasured index, and the un-stated exclusion of `$big?`. It ratified the
+;; orchestrator's preferred names — which is exactly when its reasoning was checked hardest, and the
+;; `_kl-impl` read-vs-unread distinction was verified against core.wat:1167 by hand, not relayed.

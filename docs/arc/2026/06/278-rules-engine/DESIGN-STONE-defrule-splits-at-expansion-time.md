@@ -148,8 +148,16 @@ proof the lift made them dead; a red one names exactly what still depends on the
 
 ## Owed before the strike
 
-- **An intueri cast on the lifted-name spelling** (`$where0` / the binder / the index scheme). `$`
-  and the spelled-out word are grounded; the exact form is a cast, not a narration.
+- ~~An intueri cast on the lifted-name spelling~~ **CAST + WEIGHED 2026-08-12 — RATIFIED.**
+  `<A>` = `:usr::ok-rule$where0` (the lifted body's fqdn) · `<B>` = `$where0` (the mention's
+  binder). Target + full reasoning: `wat-scripts/intueri/defrule-lifted-where-naming.wat.intueri`.
+  The deciding argument was the ward's, not mine: **the two committed probes already mint
+  `$where0` verbatim**, so the composition was proven under this exact spelling.
+  ⚠ **The INDEX is a design claim, not a measurement** — both probes mint exactly ONE lifted fn for
+  a single-`where` rule. Nothing has exercised two `where` conditions in one rule. Index-by-position
+  is chosen because it is the only scheme that survives an arbitrary predicate body (there is no
+  name to borrow from `(:wat::rete::where (:wat::core::i64::> ?c 100))`), and **the strike owes that
+  probe.**
 - **Whether `is_where_form` genuinely dies or merely relocates.** The quoted `(:wat::rete::where …)`
   wrapper still marks a condition kind for the network builder. The claim is that nothing needs to
   look *inside* it any more — that is what the deletion test settles.
