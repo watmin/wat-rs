@@ -22,3 +22,7 @@ wat-scripts/hunt/out/
 # arc 278 — scripts/floor.sh captures EVERY floor run (a red's arm must survive
 # the read). The SCRIPT is tracked; its captures are not.
 /.floor/
+
+# arc 278 — preserved pre-change wat binaries for the STASH-DANCE bootstrap
+# (wat/fix.wat:23-53). A 16MB artifact; kept on disk, never committed.
+bootstrap/
