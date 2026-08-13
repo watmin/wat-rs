@@ -133,3 +133,53 @@ hard-disable `<>`" is not scaffolding; it is one already-parsing grammar plus a 
   (`[A -> B]`), user records, `defsurface` `:features`, and the constructor (value) position.
 - The `[…]` refusal is characterised by its message, not by reading the parser. The mechanism behind
   "invalid type keyword" is unread.
+
+## ★ FUNCTION TYPES — the replacement is ALREADY LIVE, and the two spellings are ONE type
+
+Measured 2026-08-13. The long-symbol `Fn(A,B)->R` is not a syntax needing a designed replacement;
+it is a DUPLICATE THAT LOST. Both spellings run today, same 3-arg function, all returning "7":
+
+```clojure
+[f <- :wat::core::Fn(wat::core::i64,wat::core::String,wat::core::bool)->wat::core::i64]  ; 107 sites
+[f <- [:wat::core::i64 :wat::core::String :wat::core::bool :-> :wat::core::i64]]         ;  27 sites
+[f <- [wat.type/i64 wat.type/String wat.type/bool :-> wat.type/i64]]                     ; ★ the DOTTED
+```
+
+The third line is the destination surface — dotted symbols, whitespace-separated, EDN-clean — and it
+is **already in the corpus and already runs**. Nothing is waiting on anything.
+
+### The `:->` is a PIVOT, not a separator — edges measured
+
+```
+[:-> R]              exit 0   ZERO args; the pivot may start the vector
+[A :-> R]            exit 0
+[A B C D E :-> R]    exit 0   arity is FREE — no separator to run out of
+[A :->]              exit 1   no return — refused
+[A :-> R :-> S]      exit 1   two pivots — refused
+[A :-> R S]          exit 1   two returns — refused
+```
+
+Exactly one pivot, exactly one type after it, any arity before. That is why it scales where
+`Fn(...)` cannot: adding an argument is a symbol and a space, versus cramming another
+forbidden-whitespace comma INSIDE a single keyword token.
+
+### ★ AND THE TWO SPELLINGS UNIFY — this is the load-bearing result
+
+A parameter declared with the BRACKET form accepts a function passed through a parameter declared
+with the `Fn(...)` form, and the reverse, in one program (`"5"`, both directions). **They are ONE
+`TypeExpr` with two surfaces.**
+
+Consequence, and it removes the risk this note was about to raise: **the function-type flip is a
+codemod over TEXT, not a substrate migration.** No downstream Rust `match` arm can go quiet after
+it, because there is no second representation for it to stop seeing. Arc 109's recorded trap —
+`TypeExpr::Path` vs `Parametric`, 137 hand-matched sites, and a ruling-A lock that silently skipped
+parametric responses because *"a match that only has one arm at all… produces no output
+whatsoever"* — **does not apply here.**
+
+So the function-type half of the migration is: 107 sites → the 27 sites' form, plus deleting
+`lex_keyword`'s paren-balancing machinery. No grammar decision remains.
+
+**Bound:** unification is proven in the CHECKER for a concrete monomorphic shape. UNTESTED: generic
+type variables in the bracket form (the corpus has `Fn(T)->U` with free `T`/`U`), a function type
+NESTED inside a parametric, and whether EDN printing / macro reflection normalise the two
+identically. Unification is the load-bearing property and it holds; the rest is unmeasured.
