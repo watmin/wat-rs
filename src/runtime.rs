@@ -4673,6 +4673,14 @@ fn dispatch_keyword_head_value(
             return dispatch_rete_op(op, head, args, list_span, env, sym);
         }
     }
+    // Arc 255 Stone 255.1c-guard — the registry is consulted BEFORE the literal
+    // table, not as a guard arm partway down it. Registered wins, always: a
+    // literal arm below this point can no longer shadow a registration by
+    // sitting higher in the match (it was shadowable at HEAD — see
+    // docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-255.1c-guard-hoist.md).
+    if let Some(handler) = crate::intrinsic::registry().lookup(head) {
+        return handler(args, list_span, env, sym);
+    }
     match head {
         // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
         // Universal escape hatch: takes a keyword head + [-> :T] annotation +
@@ -5603,12 +5611,6 @@ fn dispatch_keyword_head_value(
         ":wat::holon::encode" => eval_holon_encode(args, list_span, env, sym),
         ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, list_span, env, sym),
         ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, list_span, env, sym),
-        // Arc 255 — registered builtins: look up and dispatch through the registry.
-        // Currently covers core::Bytes (to-hex, from-hex); more homes accrete in later strikes.
-        h if crate::intrinsic::registry().lookup(h).is_some() => {
-            let handler = crate::intrinsic::registry().lookup(h).unwrap();
-            handler(args, list_span, env, sym)
-        }
         ":wat::core::show" => eval_show(args, list_span, env, sym),
         // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
         // which wraps strings in `"..."`, `str` renders values as format fills them.
@@ -5935,8 +5937,8 @@ fn dispatch_keyword_head_value(
 
         // Time primitives — arc 056/097, carved to the registry at
         // `src/intrinsic/time.rs` (arc 255.1c-time, home #2). The
-        // registry guard above (`h if registry().lookup(h).is_some()`)
-        // intercepts all 41 `:wat::time::*` names before reaching here.
+        // pre-match registry check above (arc 255.1c-guard) intercepts
+        // all 41 `:wat::time::*` names before reaching here.
 
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
@@ -34986,6 +34988,68 @@ mod tests {
         let a = Value::wat__WatAST(Arc::new(ast_a));
         let b = Value::wat__WatAST(Arc::new(ast_b));
         assert_eq!(values_equal(&a, &b), Some(false));
+    }
+
+    // Arc 255 Stone 255.1c-guard — manual perf harness for
+    // `dispatch_keyword_head_value`. Drives the arithmetic hot path
+    // (`:wat::core::i64::+`) directly (not through a wat program — an
+    // interpreter loop's per-iteration cost is microseconds against the
+    // dispatch call's nanoseconds, which would drown the signal). Never
+    // part of the floor: `#[ignore]`d, run explicitly.
+    //
+    //   cargo test --release dispatch_keyword_head_value_perf -- --ignored --nocapture
+    //
+    // `std::hint::black_box` on both the args and the result stops LLVM
+    // from proving the call is a pure, input-invariant function and
+    // hoisting it out of the loop (loop-invariant code motion) or
+    // constant-folding ITERS calls into one — a real risk here because
+    // every iteration's arguments are otherwise identical. The
+    // accumulator is folded with `wrapping_add` and asserted against a
+    // closed-form expectation at the end, so the loop body's result is
+    // both used and checked — the optimiser cannot delete it without
+    // producing a wrong answer.
+    #[test]
+    #[ignore = "manual perf harness — run explicitly; see 255.1c-guard"]
+    fn dispatch_keyword_head_value_perf() {
+        let (stdlib_sym, _stdlib_macros, _stdlib_types) = stdlib_loaded();
+        let env = Environment::new();
+        let list_span = crate::rust_caller_span!();
+        let args = [
+            WatAST::IntLit(1, crate::rust_caller_span!()),
+            WatAST::IntLit(2, crate::rust_caller_span!()),
+        ];
+
+        const ITERS: u64 = 2_000_000;
+        let mut acc: i64 = 0;
+        let start = std::time::Instant::now();
+        for _ in 0..ITERS {
+            let head = std::hint::black_box(":wat::core::i64::+");
+            let result = dispatch_keyword_head_value(
+                head,
+                std::hint::black_box(&args[..]),
+                &list_span,
+                &env,
+                stdlib_sym,
+            );
+            match std::hint::black_box(result) {
+                Ok(Value::i64(n)) => acc = acc.wrapping_add(n),
+                other => panic!("unexpected dispatch result: {:?}", other),
+            }
+        }
+        let elapsed = start.elapsed();
+        let ns_per_op = elapsed.as_nanos() as f64 / ITERS as f64;
+
+        // Closed form: every iteration adds exactly 1 + 2 = 3, folded with
+        // wrapping_add — associative mod 2^64, so this equals a single
+        // wrapping multiply. A mismatch means the loop body did not run
+        // ITERS real dispatches.
+        let expected = 3i64.wrapping_mul(ITERS as i64);
+        assert_eq!(acc, expected, "accumulator mismatch — loop body was optimised away or short-circuited");
+
+        eprintln!(
+            "255.1c-guard dispatch_keyword_head_value_perf: {:.2} ns/op over {} iters (elapsed {:?}, acc={})",
+            ns_per_op, ITERS, elapsed, acc
+        );
     }
 
 }
