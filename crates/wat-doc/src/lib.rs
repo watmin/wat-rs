@@ -72,59 +72,21 @@ pub enum Determinism {
 const CATEGORY_LEGAL_VALUES: &str =
     "value must be one of: Transform, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io, Probe, Combine, Declaration";
 
-/// Functional category of an intrinsic or special form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ::wat_enum_derive::WatEnum)]
-pub enum Category {
-    /// Returns the SAME value in another form — `Bytes::to-hex`, `time::epoch-seconds`,
-    /// `string::trim`. Renamed from `Encoding` (2026-08-15): half its members were not
-    /// encodings at all — `trim` discards data, `to-lowercase` folds case, `split`
-    /// restructures. What unites them is that the OUTPUT IS A FORM OF THE INPUT.
-    /// Contrast `Probe` (a fact ABOUT the value, not a form of it) and `Combine`
-    /// (several values as one larger value).
-    Transform,
-    Reflection,
-    ControlFlow,
-    Binding,
-    /// Samples the wall clock. The reason such a verb is
-    /// `Determinism::Nondeterministic` — and it names WHICH external source,
-    /// which the determinism field alone cannot. Entropy sources get their own
-    /// append-only variant when one registers; do not widen this to cover them.
-    Clock,
-    /// Combines already-constructed domain values (`+`, `-`). Distinct from
-    /// `Transform`, which returns the same value in another form.
-    Arithmetic,
-    /// Performs input/output on a stream (stdio, and `:wat::io::` when it
-    /// carves — `is_effectful_op` already prefix-matches `:wat::io::`).
-    /// Distinct from `Transform`: returning another form of the value (`Bytes ⇄ hex`)
-    /// and performing I/O (writing/reading a fd) are different acts — `Io`
-    /// verbs may encode as a step on the way to the effect, but the effect
-    /// itself, not the encoding, is what the category names. Also distinct
-    /// from `Reflection`: reading fd 0 is not the program interrogating its
-    /// own state (the way `call-site`/`show-source`/`metadata-of` do); it is
-    /// exchanging bytes with the outside world, same level of abstraction as
-    /// `Clock` sampling the wall clock. Minted 2026-08-13 (builder ruling,
-    /// arc 255.1c-kernel-stdio) after `Transform` and `Reflection` were both
-    /// tried and rejected for the same reason `Clock` was minted earlier:
-    /// reaching for the nearest existing variant instead of naming the kind
-    /// of computation this actually is.
-    Io,
-    /// Interrogates a value and derives knowledge about it — `empty?`, `length`,
-    /// `contains?`. The output is a FACT about the input, never a form of it, and the
-    /// input is unchanged. Note this is NOT "returns a bool": `length` returns an i64
-    /// and belongs here; sorting by return type is the axis-mix that sank `Predicate`.
-    Probe,
-    /// Builds a larger value of the same kind from several — `concat`, `conj`, `assoc`,
-    /// `join`. NOT `Arithmetic`: `Vector/concat` is not math, and the family spans
-    /// strings, vectors, sets, maps and records.
-    Combine,
-    /// Registers a program-level entity — `def`, `defclause`, `declare-acronyms`.
-    /// DISTINCT FROM `Binding`: `let` introduces a LOCAL, scoped name at runtime;
-    /// a declaration registers into the program's symbol table, usually at load,
-    /// and is visible to everything after it. `declare-acronyms` is the clearest
-    /// case — parsed at load (`runtime.rs:2004`), stored on the SymbolTable
-    /// (`value/symbol_table.rs:147`), computes nothing at all.
-    Declaration,
-}
+// ⛔ `Category` IS GENERATED FROM wat — it is not written here.
+//
+// Builder ruling, 2026-08-15: *"wat is source of truth ... that's my pick."* The
+// variant list AND each variant's prose live in
+// `wat/runtime-meta.wat`'s `(:wat::core::defenum :wat::runtime::Category …)`.
+// Add a variant there and this type follows; there is no Rust list to forget.
+//
+// This is what `every_rust_enum_matches_its_wat_defenum` was scaffolding FOR — a
+// test comparing two lists. It is deleted with this change: a generated enum
+// cannot drift from its generator.
+::wat_enum_derive::wat_enum_from!(
+    pub enum Category,
+    "../../wat/runtime-meta.wat",
+    ":wat::runtime::Category"
+);
 
 
 

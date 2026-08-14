@@ -77,13 +77,39 @@
 ;; The Rust side is DERIVED from the enum; this side is hand-written. Drift here
 ;; goes red there.
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
+;; Returns the SAME value in another form — `Bytes::to-hex`, `epoch-seconds`,
+;; `string::trim`. Was `:Encoding` until 2026-08-15: half its members were not
+;; encodings at all (`trim` discards data, `to-lowercase` folds case, `split`
+;; restructures). What unites them is that the OUTPUT IS A FORM OF THE INPUT.
   :Transform
+;; The program interrogating ITSELF — `metadata-of`, `show-source`, `render-doc`.
+;; NOT reading a clock or a stream: those come from outside the program.
   :Reflection
+;; Directs evaluation — `if`, and applying a callable handed in as a value.
   :ControlFlow
+;; Introduces a LOCAL, scoped name at runtime — `let`. Contrast `:Declaration`,
+;; which registers a program-level entity.
   :Binding
+;; Samples the wall clock. Names WHICH external source a Nondeterministic verb
+;; draws from — which `:Determinism` alone cannot say. Entropy gets its own
+;; variant when a random verb actually registers; do not widen this to cover it.
   :Clock
+;; Math on numeric domain values. NOT string concatenation — `Vector/concat` is
+;; not math, and that absurdity is what exposed the mistake (2026-08-15).
   :Arithmetic
+;; Input/output on a stream — `println`, `readln'`. The effect IS the point;
+;; an encoding step along the way does not make it `:Transform`.
   :Io
+;; Interrogates a value and derives a FACT about it — `empty?`, `length`,
+;; `contains?`. The output is a fact ABOUT the input, never a form of it.
+;; NOT "returns a bool": `length` returns an i64 and belongs here. Sorting by
+;; return type is the axis-mix that sank the proposed `:Predicate`.
   :Probe
+;; Builds a larger value of the same kind from several — `concat`, `conj`,
+;; `assoc`, `join`. A cross-type family spanning strings, vectors, sets, maps
+;; and records.
   :Combine
+;; Registers a program-level entity — `def`, `defclause`, `declare-acronyms`.
+;; Distinct from `:Binding`: a declaration registers into the program and is
+;; visible to everything after it; `let` is local and scoped.
   :Declaration)

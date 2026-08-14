@@ -13,6 +13,7 @@ proc-macro = true
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
+wat-reader = { path = "../wat-reader" }
 
 # Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
 # FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`

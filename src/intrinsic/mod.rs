@@ -646,72 +646,17 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-mod wat_mirror_tests {
-    use super::*;
-
-    /// ⛔ THE COMMENT THIS REPLACES WAS A LIE FOR TWO MONTHS.
-    ///
-    /// `mod.rs`'s header asserted the Rust enums "MUST match the `defenum`
-    /// declarations in `wat/runtime-meta.wat` EXACTLY (checked by the iv-c nursery
-    /// probe)" — and that probe has been `#[ignore]`d since 2026-06-26
-    /// (`probe_arc255_ivc_metadata_plain_values.rs`, one of nine disabled that day).
-    /// So the invariant was asserted, never enforced, and on 2026-08-15 three new
-    /// variants were hand-added to that `.wat` file with nothing verifying them.
-    ///
-    /// This is the check. It reads the SAME `runtime-meta.wat` the runtime loads
-    /// (via `include_str!`, so it cannot drift to a different copy) and compares
-    /// each `defenum`'s variants against the DERIVED `variants()` — which comes
-    /// from the enum itself, not a hand-list. Both sides are now grounded.
-    #[test]
-    fn every_rust_enum_matches_its_wat_defenum() {
-        // Strip `;;` comments FIRST. The naive version of this test read to the
-        // first `)` and a doc comment containing "(empty?, length)" truncated the
-        // form — the instrument reported drift that did not exist. A parser that
-        // cannot see comments cannot read a lisp.
-        let raw = include_str!("../../wat/runtime-meta.wat");
-        let src: String = raw
-            .lines()
-            .map(|l| match l.find(";;") { Some(i) => &l[..i], None => l })
-            .collect::<Vec<_>>()
-            .join("\n");
-        let src = src.as_str();
-
-        // (type_path, derived variants) — the exhaustive match forces a new
-        // WatEnum-with-type_path to be listed here.
-        let mirrors: &[(&str, &[&str])] = &[
-            (Kind::WAT_TYPE_PATH, Kind::variants()),
-            (DefinedIn::WAT_TYPE_PATH, DefinedIn::variants()),
-            (Layer::WAT_TYPE_PATH, Layer::variants()),
-            (<wat_doc::Category as ToEnumValue>::WAT_TYPE_PATH, wat_doc::Category::variants()),
-            (<wat_doc::Purity as ToEnumValue>::WAT_TYPE_PATH, wat_doc::Purity::variants()),
-            (<wat_doc::Determinism as ToEnumValue>::WAT_TYPE_PATH, wat_doc::Determinism::variants()),
-        ];
-
-        for (type_path, rust_variants) in mirrors {
-            // Find `(:wat::core::defenum <type_path> ...)` and read to its close.
-            let head = format!("(:wat::core::defenum {type_path} ");
-            let start = src.find(&head).unwrap_or_else(|| {
-                panic!("no `defenum` for `{type_path}` in wat/runtime-meta.wat — the Rust enum has no wat mirror")
-            });
-            let rest = &src[start + head.len()..];
-            let end = rest.find(')').unwrap_or_else(|| panic!("unterminated defenum for `{type_path}`"));
-            let wat_variants: Vec<&str> = rest[..end]
-                .split_whitespace()
-                .filter(|t| t.starts_with(':') && !t.starts_with(":wat::"))
-                .map(|t| t.trim_start_matches(':'))
-                .collect();
-
-            assert_eq!(
-                wat_variants, *rust_variants,
-                "\n`{type_path}` DRIFTED between Rust and wat/runtime-meta.wat:\n  \
-                 wat  : {wat_variants:?}\n  rust : {rust_variants:?}\n\
-                 ★ RULING (builder, 2026-08-15): WAT IS THE SOURCE OF TRUTH; Rust conforms.
-                 So a mismatch means the RUST side is wrong, not the wat file. The end state is
-                 that the Rust enum is GENERATED from this defenum (wat-reader can parse it, and
-                 wat-macros already depends on wat-reader for exactly this reason) — at which
-                 point this test dissolves, because there is only one list."
-            );
-        }
-    }
-}
+// The `wat_mirror_tests` module that stood here is DELETED (2026-08-15). It
+// compared each Rust enum against its `defenum` in `wat/runtime-meta.wat` — a gate
+// over two hand-written lists. `Category` is now GENERATED from that defenum via
+// `wat_enum_from!`, so it cannot drift from it; a gate whose success condition is
+// its own deletion was scaffolding all along.
+//
+// PROVEN before removing it: a variant added to the .wat file ALONE, with zero Rust
+// edited, produced `error[E0004]: non-exhaustive patterns: Category::WatOnlySentinel
+// not covered`. wat drove the Rust type system.
+//
+// ⚠ Kind/DefinedIn/Layer still carry hand-written variants beside their
+// `#[wat_enum(type_path = …)]`. They are NEXT to be generated, and until then their
+// wat mirrors are UNCHECKED — the honest state, recorded here rather than removed
+// silently.
