@@ -64,7 +64,21 @@ Deferring fails **Obvious** (the phrase reads as "not built yet" — false for 3
 mechanisms for one question), and **Honest** (a deferral of *uniformity* described as a deferral of
 *capability* — different things, and the word conflates them).
 
-**⚠ SO THE FIRST MOVE IS TO RE-READ `255/DESIGN.md` AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
+**★ THE RE-GROUNDING IS DONE AND WRITTEN DOWN: `NOTE-2026-08-14-regrounding-the-premise.md`.**
+Read it BEFORE `DESIGN.md`. Both of the design's "decide before code moves" questions are answered
+by the substrate, the same way: **the mechanism exists and is unevenly applied.**
+- q2 `type_sig` day-one? — RULED YES (332 builtins already carry it).
+- q1 align `BuiltinMeta` with user-form metadata? — **there is no shape to invent.**
+  `SymbolTable.binding_metadata` (`src/value/symbol_table.rs:142`) already exists, is populated for
+  user forms, and is already mirrored into `CheckEnv.binding_metadata`.
+
+⚠ **WHICH RAISES THE ARC'S REAL FIRST QUESTION, replacing the two the design listed:
+does `BuiltinRegistry` deserve to exist at all?** The "registry" may already BE
+`CheckEnv.schemes` + `binding_metadata`, in which case minting a third table beside them would ADD
+an asymmetry while claiming to remove one. `examinare`: *"the thing you would build almost always
+already exists."* **Decide that before any code moves.**
+
+**⚠ AND STILL RE-READ `255/DESIGN.md` IN FULL AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
 says — its premise drifted, and its `CURRENT-STATE.md` drifted further (dated 2026-07-01, freshness
 probe expects floor **4285**, and its content narrates arc **296**, not 255). Do not brief from
 either without re-grounding. The arc is SMALLER than its design implies and closer to 251's work
