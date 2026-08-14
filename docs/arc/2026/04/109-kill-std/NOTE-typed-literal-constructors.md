@@ -108,3 +108,37 @@ the SAME head serves annotation AND construction with one uniform shape:
 - **Genuine open the deciding arc must answer:** `(wat.type/HashMap [K V])` is ambiguous between a *type
   annotation* and an *empty typed literal* — identical forms. The grammar needs a rule (position/context, or
   a distinct constructor head) to disambiguate zero-value construction from annotation.
+
+## ★ ADDENDUM 2026-08-15 — THE "GENUINE OPEN" IS CLOSED: `:-` is the production, so the ambiguity has no form
+
+The open above asked for "a rule (position/context, or a distinct constructor head)" to separate a type
+*annotation* from an *empty typed literal*. **It needs none of the three.** Builder, this session:
+
+> *"the ambiguous empty-collection vs annotated-type is moot.... the type annotation only matters where a
+> type is passed, not a collection literal..... `(wat.type/Vector [wat.type/i64])` is obvious where you
+> express it.... either an arg-type or a ret-type ... everywhere its a data literal....."*
+
+```clojure
+(wat.core/defn some.ns/some-func
+  [xs :- (wat.type/Vector [wat.type/i64])]     ; after :-  → TYPE
+  :- wat.type/i64                              ; after :-  → TYPE
+  (wat.core/+ (first xs) (rest xs)))           ; body      → DATA, always
+```
+
+**Why this is a closure and not a convention.** The grammar has exactly ONE production that yields a type
+form: `:- <type-form>`. A type is **unreachable by any other path**. So the reader never *decides* between
+annotation and literal — it cannot arrive at "annotation" without having just consumed `:-`. That is the top
+rung of the extirpare ladder (no form), not the middle one (a check that runs and can be wrong). The two
+spellings being byte-identical is simply irrelevant, exactly as `[a b]` is a binding vector in `let` and a
+vector literal everywhere else and Clojure has never needed a rule for it.
+
+**The open was an artifact of reading the form OUT OF ITS PRODUCTION.** `(wat.type/HashMap [K V])` looks
+ambiguous quoted on a page; it cannot occur ambiguously in a program. A form's ambiguity is a property of the
+grammar, never of the form in isolation.
+
+**Consequence for the arc-300 drive:** every site is decidable mechanically — `:-`-preceded ⇒ emit the type
+form; everywhere else ⇒ leave it a data literal. **No per-site judgment call, and therefore nothing for a
+codemod to get wrong by guessing.**
+
+Cross-ref: `2026/07/300-wat-source-is-edn/NOTE-the-type-converter-emits-the-superseded-form.md` — the Rust
+converter the drive calls still emits the **pre-2026-07-24 bare** form and must be fixed before any drive runs.
