@@ -68,6 +68,14 @@ D  Seqable + join renders its elements
 E  wat.string/* rename (1,617 sites, codemod), THEN home #4 carves onto final names
 ```
 
+⛔ **THE DESTINATION MOVED, 2026-08-14: the road ends at 294, not 280.** The chain below is still
+true but it is a TAIL — `#wat-edn.*` and `EdnRepresentable` belong to arcs 294 + 280, which had them
+drawn before this session re-derived them under new names. `294/RULING-holonast-and-hologram-are-both-correctly-named.md`
+is the live ruling: **R1's keystone rename is VOID — both names were right**, and "the remaining holon
+junk" is THREE items in wat-rs (tags 44 · `HolonRepresentable` 11 · HolonAST-doing-code-duty), not a
+cross-repo migration of 1263 sites. What survives of the chain below as genuinely NEW work: `str`'s
+totality (279.2, probe committed and RED) and the `Seqable`/`join`/`wat.string/*` tail downstream of it.
+
 It began as *"can `:wat::core::string` become `:wat::string`?"* and every layer under it was
 load-bearing: `join` renders its elements → so `str` must be total → the total renderer already
 exists (the EDN encoder) → adopting it broadcasts `#wat-edn` (the CRATE name) → renaming that
