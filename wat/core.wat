@@ -1858,3 +1858,33 @@
   [msg <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) :causes (:wat::core::Vector :wat::core::Error)))
+
+;; ─── Arc 296: :wat::core::EvalError — moving the source of truth to wat ───
+;;
+;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
+;; Arc 296 moves the source of truth for wat's own aggregate types from the
+;; hand-written Rust literal to a wat declaration; the Rust side is meant to
+;; become generated FROM this form rather than hand-maintained alongside it.
+;;
+;; Populated in the Err slot of a :Result returned by the eval-family forms
+;; (:wat::eval-ast! / eval-edn! / eval-digest! / eval-signed!) when dynamic
+;; evaluation fails. Carries a `kind` discriminator (short machine-readable
+;; variant name, e.g. "verification-failed", "parse-failed", "type-mismatch")
+;; and a `message` diagnostic (human-readable detail).
+(:wat::core::defstruct :wat::core::EvalError
+  [kind    <- :wat::core::String
+   message <- :wat::core::String])
+
+;; ─── Arc 296: :wat::core::Span — moving the source of truth to wat ────────
+;;
+;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
+;; Arc 296 moves the source of truth for wat's own aggregate types from the
+;; hand-written Rust literal to a wat declaration.
+;;
+;; The leaf source location an error's `:location` floor key carries (arc 278
+;; "errors first-class EDN"). `end` is `Option<Pos>` — `None` for point-spans.
+(:wat::core::defrecord :wat::core::Span
+  [file <- :wat::core::String
+   line <- :wat::core::i64
+   col  <- :wat::core::i64
+   end  <- :wat::core::Option<wat::core::Pos>])

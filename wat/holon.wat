@@ -91,3 +91,52 @@
 ;; cell's argmax for a soft scoring loop where the consumer applies
 ;; their own gate downstream.
 (:wat::core::defn :wat::holon::filter-accept-any [] -> :wat::core::Fn(wat::core::f64)->wat::core::bool (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool true))
+
+;; ─── Arc 296: :wat::holon::CapacityExceeded — moving the source of truth to wat ───
+;;
+;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
+;; Arc 296 moves the source of truth for wat's own aggregate types from the
+;; hand-written Rust literal to a wat declaration; the Rust side is meant to
+;; become generated FROM this form rather than hand-maintained alongside it.
+;;
+;; Populated in the Err slot of `:wat::holon::Bundle`'s :Result return when a
+;; frame's constituent count exceeds `floor(sqrt(dims))` (Kanerva's capacity
+;; budget). `cost` is what the Bundle was asked to hold; `budget` is what the
+;; substrate could hold. Both i64 because wat integer literals are i64.
+(:wat::core::defstruct :wat::holon::CapacityExceeded
+  [cost   <- :wat::core::i64
+   budget <- :wat::core::i64])
+
+;; ─── Arc 296: :wat::holon::CoincidentExplanation — moving the source of truth to wat ───
+;;
+;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
+;; Arc 296 moves the source of truth for wat's own aggregate types from the
+;; hand-written Rust literal to a wat declaration.
+;;
+;; Diagnostic record returned by `:wat::holon::coincident-explain`. Bundles the
+;; raw cosine, the current coincident floor, the dim where comparison
+;; happened, the sigma feeding the floor, the same boolean `coincident?` would
+;; have returned, and the smallest sigma at which the pair would coincide.
+(:wat::core::defstruct :wat::holon::CoincidentExplanation
+  [cosine             <- :wat::core::f64
+   floor              <- :wat::core::f64
+   dim                <- :wat::core::i64
+   sigma              <- :wat::core::i64
+   coincident         <- :wat::core::bool
+   min-sigma-to-pass  <- :wat::core::i64])
+
+;; ─── Arc 296: :wat::holon::Match — moving the source of truth to wat ───────
+;;
+;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
+;; Arc 296 moves the source of truth for wat's own aggregate types from the
+;; hand-written Rust literal to a wat declaration.
+;;
+;; The result of `:wat::holon::Hologram/find`. A Hologram matches by
+;; SIMILARITY, so the key `find` hands back is not necessarily the probe that
+;; was passed in — it is whatever stored key coincided above the filter's
+;; floor. `Match` carries that asymmetry in its name; `get` answers "what
+;; value did my probe reach?" and discards the matched key, while `find`
+;; exists so a caller can name the key that actually matched and act on it.
+(:wat::core::defrecord :wat::holon::Match
+  [key   <- :wat::holon::HolonAST
+   value <- :wat::holon::HolonAST])
