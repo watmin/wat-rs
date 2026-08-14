@@ -64,6 +64,12 @@ Existing tests may move: `format` expands to `str` calls, so any test asserting 
 - **STOP-3 — a test asserts that `str` REFUSES something.** Same rule: report it, do not delete or
   rewrite it. A test that pins the five-arm domain is measuring the thing this stone removes, and it
   needs a ruling, not an edit.
+- **STOP-0 — the `#wat-edn.*` tag namespace is NOT yours.** Routing `str` through the encoder means
+  an opaque or holon value will render with a `#wat-edn.opaque/…` / `#wat-edn.holon/…` tag. Those tags
+  are **arc 294's**, condemned there and unstruck (builder ruling 2026-08-14,
+  `294/RULING-holonast-and-hologram-are-both-correctly-named.md`). Do **not** rename, prettify, or
+  special-case them. Emit whatever the encoder emits. If a probe row seems to need a tag changed, that
+  is STOP-4, not a licence.
 - **STOP-4 — the probe would need changing to pass.** The probe is the contract. If your
   implementation produces a different string for any of the eight rows, the implementation is wrong
   or the encoder disagrees with what was measured — either way report it. **Do not edit
