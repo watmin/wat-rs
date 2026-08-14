@@ -114,7 +114,7 @@ impl Layer {
 }
 
 /// Category — what functional category is this intrinsic?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection :ControlFlow :Binding :Clock :Arithmetic)`.
+/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection :ControlFlow :Binding :Clock :Arithmetic :Io)`.
 /// Consumed by `eval_metadata_of` (runtime.rs) via `to_enum_value()`.
 pub(crate) enum RuntimeCategory {
     Encoding,
@@ -123,6 +123,7 @@ pub(crate) enum RuntimeCategory {
     Binding,
     Clock,
     Arithmetic,
+    Io,
 }
 
 impl RuntimeCategory {
@@ -134,6 +135,7 @@ impl RuntimeCategory {
             RuntimeCategory::Binding => "Binding",
             RuntimeCategory::Clock => "Clock",
             RuntimeCategory::Arithmetic => "Arithmetic",
+            RuntimeCategory::Io => "Io",
         };
         Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::runtime::Category".into(),
@@ -440,6 +442,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 }
 
 mod bytes;
+mod kernel_stdio;
 mod reflect;
 mod witness;
 mod special;
@@ -538,6 +541,16 @@ mod tests {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_type_arg_string).collect();
                 format!(":{}<{}>", head, args_str.join(","))
             }
+            // `nil` IS the unit type — registered as an alias to the empty tuple
+            // (types.rs:879) and canonicalized away at parse (types.rs:4706). The
+            // checker therefore stores it as `Tuple([])`, while every doc, signature
+            // and call site in the corpus writes `:wat::core::nil`. Render the
+            // canonical form back to the spelling humans use.
+            //
+            // Empty tuple only — a non-empty `Tuple` falls through to the fallback
+            // below; no registered intrinsic returns one, so a spelling for that
+            // case would be invented rather than verified.
+            crate::types::TypeExpr::Tuple(items) if items.is_empty() => ":wat::core::nil".to_string(),
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
                 format!(":wat::core::Fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))

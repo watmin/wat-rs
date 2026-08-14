@@ -61,10 +61,14 @@
 ;;                  Nondeterministic verb draws from; entropy gets its own
 ;;                  variant when one registers)
 ;;   :Arithmetic  — combines already-constructed domain values (+, -)
+;;   :Io          — performs I/O on a stream (stdio; :wat::io::* when it
+;;                  carves). Distinct from :Encoding — transforming a
+;;                  representation and performing I/O are different acts.
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
   :Encoding
   :Reflection
   :ControlFlow
   :Binding
   :Clock
-  :Arithmetic)
+  :Arithmetic
+  :Io)

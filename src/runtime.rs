@@ -5695,22 +5695,9 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
         ":wat::kernel::call-site" => eval_kernel_call_site(args, list_span),
         ":wat::kernel::macro-call-site" => eval_kernel_macro_call_site(args, list_span),
-        // Arc 170 slice 1f-α — thread-aware stdio helpers. Look up
-        // the calling thread's per-service channel handles from
-        // the `services::client::THREAD_IO` cell and run the mini-TCP
-        // block-on-completion lockstep. Slices 1f-β / γ / δ ship
-        // the wat-side service implementations + orchestrator;
-        // these primitives are the substrate surface users call.
-        ":wat::kernel::println" => crate::services::eval_kernel_println(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::pprintln" => crate::services::eval_kernel_pprintln(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::eprintln" => crate::services::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::epprintln" => crate::services::eval_kernel_epprintln(args, list_span, env, sym).map_err(Into::into),
-        // Arc 255 escape-hatch — readln' is the kernel-restricted positional prime
-        // that the readln defmacro expands to. The macro forwards the `-> :T`
-        // annotation intact; the prime carries an optional leading cap (i64).
-        ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
-        // Arc 170 — the raw-frame sibling: undecoded text + EOF as a matchable value.
-        ":wat::kernel::read-frame" => crate::services::eval_kernel_read_frame(args, list_span, env, sym).map_err(Into::into),
+        // Arc 255.1c-kernel-stdio — println/pprintln/eprintln/epprintln/readln'/read-frame
+        // moved to the intrinsic registry (`src/intrinsic/kernel_stdio.rs`); dispatch now
+        // reaches them via the registry lookup above, not a literal arm here.
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the
@@ -12145,6 +12132,7 @@ fn eval_metadata_of(
                 wat_doc::Category::Binding => crate::intrinsic::RuntimeCategory::Binding,
                 wat_doc::Category::Clock => crate::intrinsic::RuntimeCategory::Clock,
                 wat_doc::Category::Arithmetic => crate::intrinsic::RuntimeCategory::Arithmetic,
+                wat_doc::Category::Io => crate::intrinsic::RuntimeCategory::Io,
             };
             rc.to_enum_value()
         };

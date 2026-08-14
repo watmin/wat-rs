@@ -83,6 +83,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         wat_doc::Category::Binding => quote! { ::wat_doc::Category::Binding },
         wat_doc::Category::Clock => quote! { ::wat_doc::Category::Clock },
         wat_doc::Category::Arithmetic => quote! { ::wat_doc::Category::Arithmetic },
+        wat_doc::Category::Io => quote! { ::wat_doc::Category::Io },
     };
 
     let args_lit: Vec<TokenStream2> = doc.args.iter().map(|a| {

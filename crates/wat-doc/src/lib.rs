@@ -116,7 +116,7 @@ impl std::str::FromStr for Determinism {
 /// `Category::variants()`, so a new variant that forgets this line goes RED.
 /// (The proc-macro's two sibling messages DO derive — they are `format!`.)
 const CATEGORY_LEGAL_VALUES: &str =
-    "value must be one of: Encoding, Reflection, ControlFlow, Binding, Clock, Arithmetic";
+    "value must be one of: Encoding, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io";
 
 /// Functional category of an intrinsic or special form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,11 +133,26 @@ pub enum Category {
     /// Combines already-constructed domain values (`+`, `-`). Distinct from
     /// `Encoding`, which transforms one representation of a value into another.
     Arithmetic,
+    /// Performs input/output on a stream (stdio, and `:wat::io::` when it
+    /// carves — `is_effectful_op` already prefix-matches `:wat::io::`).
+    /// Distinct from `Encoding`: transforming a representation (`Bytes ⇄ hex`)
+    /// and performing I/O (writing/reading a fd) are different acts — `Io`
+    /// verbs may encode as a step on the way to the effect, but the effect
+    /// itself, not the encoding, is what the category names. Also distinct
+    /// from `Reflection`: reading fd 0 is not the program interrogating its
+    /// own state (the way `call-site`/`show-source`/`metadata-of` do); it is
+    /// exchanging bytes with the outside world, same level of abstraction as
+    /// `Clock` sampling the wall clock. Minted 2026-08-13 (builder ruling,
+    /// arc 255.1c-kernel-stdio) after `Encoding` and `Reflection` were both
+    /// tried and rejected for the same reason `Clock` was minted earlier:
+    /// reaching for the nearest existing variant instead of naming the kind
+    /// of computation this actually is.
+    Io,
 }
 
 impl Category {
     pub fn variants() -> &'static [&'static str] {
-        &["Encoding", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic"]
+        &["Encoding", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic", "Io"]
     }
     pub fn as_str(self) -> &'static str {
         match self {
@@ -147,6 +162,7 @@ impl Category {
             Category::Binding => "Binding",
             Category::Clock => "Clock",
             Category::Arithmetic => "Arithmetic",
+            Category::Io => "Io",
         }
     }
 }
@@ -161,6 +177,7 @@ impl std::str::FromStr for Category {
             "Binding" => Ok(Category::Binding),
             "Clock" => Ok(Category::Clock),
             "Arithmetic" => Ok(Category::Arithmetic),
+            "Io" => Ok(Category::Io),
             _ => Err(()),
         }
     }
