@@ -17,7 +17,16 @@ and divergence has no form. `VNVS LECTOR NE DIVIDANTVR`.
 > ```clojure
 > (wat.type/Vector  [wat.type/i64])                              ; annotation
 > (wat.type/HashMap [wat.type/keyword wat.type/i64] :first 1)    ; typed literal
+>
+> [:-> Z]                  ; fn type, zero-arity      (RULED 2026-08-15)
+> [A :-> Z]                ; 1-arity
+> [A B :-> Z]              ; 2-arity
+> [A B C D E F :-> Z]      ; 6-arity
 > ```
+>
+> The **fn type is a VECTOR** — args first, `:->` the separator, return last. The converter's `Fn`
+> arm (`edn_shim.rs:1237`) already emits exactly this at every arity, zero included; `300.0` does
+> **not** touch it. ⚠ The bare `->` separator in the 2026-06-06 109 addendum is superseded by `:->`.
 >
 > The `[…]` is the **seam** between type-params and value payload, so the partition lives in the
 > FORM instead of in a per-head arity table. The earlier bare spelling

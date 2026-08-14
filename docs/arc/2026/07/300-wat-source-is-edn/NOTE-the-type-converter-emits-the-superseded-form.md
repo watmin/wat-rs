@@ -87,10 +87,34 @@ edits, not for an intended edit in a stale shape.
 - update the **13** `probe_arc251_*` contract fixtures to the bracketed spelling — they are the
   mechanism that goes RED and teaches the change (R65 `SCVTVM IDEM INDEX`: the fixtures enumerate
   the worklist);
-- ⚠ **open, and not decided here:** whether `TypeExpr::Fn` (`:1237`, emits
-  `[args… :-> ret]`) and `TypeExpr::Tuple` (`:1246`) also need re-shaping. The 2026-07-24 ruling
-  speaks to **parametric heads**; the fn-type vector form is core.typed's own and may be correct as
-  written. **Do not change them on this note's authority — it is a builder question.**
+### ✅ `TypeExpr::Fn` — RULED 2026-08-15, and the converter ALREADY EMITS IT. Do not touch it.
+
+Builder, ruling the fn-type form (it was already settled; I should not have raised it as open):
+
+```clojure
+[:-> Z]                ;; zero-arity fn
+[A :-> Z]              ;; 1-arity
+[A B :-> Z]            ;; 2-arity
+[A B C D E F :-> Z]    ;; 6-ary
+```
+
+A **vector**, args first, `:->` the separator, return last. `type_expr_to_clojure_form`'s `Fn` arm
+(`edn_shim.rs:1237–1245`) builds exactly this — splice args, push `:->`, push ret, wrap in
+`WatAST::Vector` — and the zero-arity case falls out for free (empty args ⇒ `[:-> Z]`). **Verified
+against the ruling, all four arities. NO CHANGE REQUIRED.** `300.0` touches the `Parametric` arm
+only.
+
+⚠ Note the older 109 spelling used a bare `->` (`[wat.type/i64 -> wat.type/bool]`,
+`NOTE-typed-form-and-type-namespace.md` addendum 2026-06-06). The ruled separator is **`:->`**, which
+is what the converter emits. The bare `->` spelling is superseded.
+
+### `TypeExpr::Tuple` (`:1246`) — follows from the parametric ruling, no new ruling needed
+
+It emits `(wat.type/Tuple …items)` — type args spliced flat. A tuple's items **are** its
+type-params, so `(type [parametrics] & literals)` gives `(wat.type/Tuple [A B])` directly. This is a
+consequence of the standing ruling, not a new question; `300.0` reshapes it with the `Parametric`
+arm. (Its zero-arity case is deliberate and must survive: `(wat.type/Tuple)` / `(wat.type/Tuple [])`
+is a distinct zero-arity product, **not** unit — `nil` is wat's unit, per the arm's own comment.)
 
 ## The annotation-vs-literal question is CLOSED (do not re-open it)
 
