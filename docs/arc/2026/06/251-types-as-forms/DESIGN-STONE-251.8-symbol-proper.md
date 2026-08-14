@@ -216,6 +216,43 @@ ordinary identifier character (`is_symbol_break`, `lexer.rs:519`, does not list 
 use as `:<name>$impl`, a macro-minted NAME SUFFIX inside a keyword — never a namespace. `$impl` is
 untouched by this stone.
 
+### ⚠ WHAT 8a-ii's FIRST CONSUMER FOUND ABOUT 8a's DOOR — 8b MUST KNOW THIS
+
+Striking 8a-ii surfaced a limitation of the 8a door that 8a's own design did not anticipate, and it
+was found the way these always are — by the first real consumer (`PRIMVS VSVS ANGVLOS PANDIT`).
+
+**`namespace()` collapses two distinct cases to the same string:**
+
+```
+bare `x`          no slash        → "$bound"   (the DEFAULT arm)
+explicit `$bound/x`   slash present, segment == BOUND_NAMESPACE
+                                  → "$bound"   (the SEGMENT arm)
+```
+
+So the door **cannot express "was this namespace explicitly written?"** A guard of
+`namespace() == BOUND_NAMESPACE` would have refused **every bare binder in the corpus**. The rider
+verified both return the same value by hand, and Expectations row 3 (the positive control) is what
+would have caught it had the guard shipped that way — which is precisely the row that exists because
+the orchestrator had already confused `$bound` with `$` once.
+
+This is why 8a-ii's guard is a **literal-spelling check** (`strip_prefix(BOUND_NAMESPACE)` +
+`starts_with('/')`), not a use of the door. That is NOT a fifth hand-rolled classifier and does not
+trip STOP-1: the four sites 8a collapsed all answer *"is this a reference?"* — a general question,
+reused everywhere; this answers *"is this literally the one reserved spelling?"* — one constant, one
+site, never reused.
+
+**★ AND THE COLLAPSE IS HARMLESS AFTER 8a-ii, WHICH VINDICATES CHOOSING D OVER A.** Once the reader
+refuses `$bound/…`, the only way a symbol can carry the `$bound` namespace is that the substrate
+minted it. The distinction `namespace()` cannot express becomes a distinction that **cannot arise**.
+Option A (refuse at freeze) would have left the forgeable spelling constructible and the door's
+lossiness live in every pass between the reader and the check. D did not merely close a hole — it
+made the accessor's ambiguity unreachable.
+
+**FOR 8b:** when the namespace becomes STORED rather than derived, keep this property. A stored
+namespace must be set by the substrate for binders and be unforgeable from source; if 8b ever
+reintroduces a path where user text can produce the `$bound` namespace, the collapse becomes a live
+ambiguity again and this note is the reason it matters.
+
 **251.8a-bis — THE ANGLE-BRACKET RETIREMENT. RULED 2026-08-13; PREREQUISITE OF 8b.**
 
 The builder:

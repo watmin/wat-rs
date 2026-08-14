@@ -16,7 +16,7 @@
 //! [`parse_one_with_file`] / [`parse_all_with_file`] directly.
 
 use crate::ast::WatAST;
-use crate::identifier::Identifier;
+use crate::identifier::{Identifier, BOUND_NAMESPACE};
 use crate::lexer::{lex, LexError, SpannedToken, Token};
 use crate::span::Span;
 use std::fmt;
@@ -74,6 +74,18 @@ pub enum ParseErrorKind {
     TrailingContent,
     /// `parse_one` expected a form but the input was empty (all whitespace).
     Empty,
+    /// Arc 251 Stone 251.8a-ii — a symbol token spelled with the reserved
+    /// `$bound` namespace segment (`identifier::BOUND_NAMESPACE`) as its
+    /// namespace, e.g. `$bound/x`. Only the substrate's own binder
+    /// construction may produce a `$bound`-namespaced symbol; user source
+    /// writing it is refused HERE, at the reader — option D over option A
+    /// in DESIGN-STONE-251.8-symbol-proper.md §251.8a-ii: no downstream
+    /// pass can ever be handed a forged one, because the namespace is never
+    /// constructed at all, rather than constructed-then-checked.
+    ForgedBinderNamespace {
+        /// The offending spelling, verbatim, for the error message.
+        spelling: String,
+    },
 }
 
 impl fmt::Display for ParseErrorKind {
@@ -95,6 +107,12 @@ impl fmt::Display for ParseErrorKind {
                 write!(f, "trailing content (parse_one expected a single top-level form)")
             }
             ParseErrorKind::Empty => write!(f, "empty input — expected a form"),
+            ParseErrorKind::ForgedBinderNamespace { spelling } => write!(
+                f,
+                "`{spelling}` uses the reserved `{BOUND_NAMESPACE}` namespace — substrate-minted \
+                 for local binders, user source may not write it. A local is written bare \
+                 (e.g. `x`, not `{BOUND_NAMESPACE}/x`).",
+            ),
         }
     }
 }
@@ -158,6 +176,13 @@ impl wat_edn::ToEdn for ParseError {
             ),
             ParseErrorKind::TrailingContent => ("TrailingContent", vec![]),
             ParseErrorKind::Empty => ("Empty", vec![]),
+            ParseErrorKind::ForgedBinderNamespace { spelling } => (
+                "ForgedBinderNamespace",
+                vec![(
+                    OwnedValue::Keyword(Keyword::new("spelling")),
+                    OwnedValue::String(Cow::Owned(spelling.clone())),
+                )],
+            ),
         };
         // Append the span — always present (arc 298.2: every span is real).
         fields.push((
@@ -345,6 +370,22 @@ impl<'a> Cursor<'a> {
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone(), span))),
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone(), span))),
             Token::Symbol(s) if s == "nil" => Ok(Some(WatAST::NilLit(span))),
+            // Arc 251 Stone 251.8a-ii — refuse a symbol whose NAMESPACE
+            // SEGMENT (everything before the `/`) is exactly the reserved
+            // `$bound` namespace. A namespace check, not a whole-token
+            // equality like the `nil` arm above: `$bound/x`, `$bound/y`, …
+            // are all refused, while a bare `$bound` (no `/`, an ordinary
+            // binder name) and `$boundary`/`$bound2/x` (share the prefix
+            // but not the segment boundary) are untouched. Reads
+            // BOUND_NAMESPACE — the literal "$bound" is not re-spelled.
+            Token::Symbol(s)
+                if s.strip_prefix(BOUND_NAMESPACE).is_some_and(|rest| rest.starts_with('/')) =>
+            {
+                Err(ParseError {
+                    span,
+                    kind: ParseErrorKind::ForgedBinderNamespace { spelling: s.clone() },
+                })
+            }
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone()), span))),
             Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote", span),
             Token::Quote => self.parse_reader_macro(":wat::core::quote", span),
@@ -931,5 +972,95 @@ mod tests {
             crate::parse_one!(src).unwrap(),
             list(vec![sym("foo"), kw(":Vec<T>")])
         );
+    }
+
+    // ─── Stone 251.8a-ii — the $bound namespace is unforgeable ──────────
+    //
+    // `$bound` is the reserved namespace the substrate mints for local
+    // binders (`identifier::BOUND_NAMESPACE`). A user writing it explicitly
+    // — `$bound/x` — must be refused HERE, at the reader, before any
+    // downstream pass can hold a forged binder symbol.
+
+    #[test]
+    fn bound_namespace_symbol_is_refused_at_parse() {
+        let e = crate::parse_one!("$bound/x").unwrap_err();
+        assert!(
+            matches!(e, ParseError { kind: ParseErrorKind::ForgedBinderNamespace { .. }, .. }),
+            "expected ForgedBinderNamespace, got {e:?}"
+        );
+    }
+
+    #[test]
+    fn bound_namespace_error_names_the_spelling_and_is_located() {
+        let e = crate::parse_one!("$bound/x").unwrap_err();
+
+        // EXACT, not `contains` — and on `e.kind`, NOT `e`.
+        //
+        // `ParseError`'s own Display renders the structured EDN form
+        // (`#wat.parse/ForgedBinderNamespace {:spelling … :span …}`), so the
+        // loose `e.to_string().contains("$bound/x")` this replaces was matching
+        // the `:spelling` FIELD and never read the prose at all — it would have
+        // passed with the teaching message deleted entirely. The prose lives on
+        // `ParseErrorKind`. Byte-identical per docs/CONVENTIONS.md § 'Test
+        // idioms' (a scalar -> assert_eq!); the EDN form is not golden'd here
+        // because its :span carries a file:line that moves with this file.
+        assert_eq!(
+            e.kind.to_string(),
+            "`$bound/x` uses the reserved `$bound` namespace — substrate-minted for local binders, \
+             user source may not write it. A local is written bare (e.g. `x`, not `$bound/x`).",
+        );
+
+        // LOCATED — and this must be a DIFFERENTIAL, not a shape check. The
+        // previous form here asserted `!format!("{:?}", e.span).is_empty()`,
+        // which is vacuous: a Debug rendering of ANY span is non-empty, so it
+        // passed whether or not the error carried a real location. What proves
+        // location is that the span MOVES with the offending token: the same
+        // forged symbol at a later column reports a later column.
+        let early = crate::parse_one!("$bound/x").unwrap_err();
+        let later = crate::parse_one!("   $bound/x").unwrap_err();
+        assert_ne!(
+            (early.span.line, early.span.col),
+            (later.span.line, later.span.col),
+            "the span must track the offending token, not be a constant",
+        );
+    }
+
+    #[test]
+    fn bound_namespace_check_is_a_namespace_check_not_whole_token_equality() {
+        // Trap door named in EXPECTATIONS: copying `nil`'s bare-spelling-
+        // equality shape too literally gives a check that only fires on the
+        // exact token `$bound` with nothing after it. `$bound/anything` must
+        // also be refused, not just the literal 3-char-longer token.
+        assert!(matches!(
+            crate::parse_one!("$bound/anything-else"),
+            Err(ParseError { kind: ParseErrorKind::ForgedBinderNamespace { .. }, .. })
+        ));
+    }
+
+    #[test]
+    fn bound_namespace_positive_control_dollar_still_works() {
+        // Row 3 — the one that matters most. Without this, the probe cannot
+        // tell "refused `$bound/`" from "refused `$`". `$` is an ordinary
+        // identifier character; only the NAMESPACE `$bound` is reserved.
+        assert_eq!(crate::parse_one!("$x").unwrap(), sym("$x"));
+        // A bare token spelled exactly `$bound`, with no `/` after it, is
+        // just an ordinary binder name — not a forged namespace segment.
+        assert_eq!(crate::parse_one!("$bound").unwrap(), sym("$bound"));
+        // `:foo$impl`-style keyword — `$impl` is a macro-minted name SUFFIX
+        // inside a keyword, never a namespace. Untouched by this stone: the
+        // Keyword token type isn't even in the arm this stone changes.
+        assert_eq!(crate::parse_one!(":foo$impl").unwrap(), kw(":foo$impl"));
+        assert_eq!(
+            crate::parse_one!(":probe::work$impl").unwrap(),
+            kw(":probe::work$impl")
+        );
+    }
+
+    #[test]
+    fn bound_namespace_lookalike_but_not_a_slash_boundary_still_works() {
+        // `$boundary` shares the `$bound` PREFIX but is not the reserved
+        // namespace segment (no `/` right after `$bound`) — must parse clean.
+        assert_eq!(crate::parse_one!("$boundary").unwrap(), sym("$boundary"));
+        assert_eq!(crate::parse_one!("$bound2/x").unwrap(), sym("$bound2/x"));
     }
 }
