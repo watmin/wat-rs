@@ -42,70 +42,24 @@
 //! as illegal in the type position — the grammar is firm: `@arg <name> <type> <desc>`.
 
 /// Declared purity of an intrinsic or special form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ::wat_enum_derive::WatEnum)]
 pub enum Purity {
     Pure,
     Effectful,
     Preserving,
 }
 
-impl Purity {
-    pub fn variants() -> &'static [&'static str] {
-        &["Pure", "Effectful", "Preserving"]
-    }
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Purity::Pure => "Pure",
-            Purity::Effectful => "Effectful",
-            Purity::Preserving => "Preserving",
-        }
-    }
-}
 
-impl std::str::FromStr for Purity {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, ()> {
-        match s {
-            "Pure" => Ok(Purity::Pure),
-            "Effectful" => Ok(Purity::Effectful),
-            "Preserving" => Ok(Purity::Preserving),
-            _ => Err(()),
-        }
-    }
-}
 
 /// Declared determinism of an intrinsic or special form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ::wat_enum_derive::WatEnum)]
 pub enum Determinism {
     Deterministic,
     Nondeterministic,
     Preserving,
 }
 
-impl Determinism {
-    pub fn variants() -> &'static [&'static str] {
-        &["Deterministic", "Nondeterministic", "Preserving"]
-    }
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Determinism::Deterministic => "Deterministic",
-            Determinism::Nondeterministic => "Nondeterministic",
-            Determinism::Preserving => "Preserving",
-        }
-    }
-}
 
-impl std::str::FromStr for Determinism {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, ()> {
-        match s {
-            "Deterministic" => Ok(Determinism::Deterministic),
-            "Nondeterministic" => Ok(Determinism::Nondeterministic),
-            "Preserving" => Ok(Determinism::Preserving),
-            _ => Err(()),
-        }
-    }
-}
 
 /// The `@Category` legal-value message.
 ///
@@ -119,7 +73,7 @@ const CATEGORY_LEGAL_VALUES: &str =
     "value must be one of: Transform, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io, Probe, Combine, Declaration";
 
 /// Functional category of an intrinsic or special form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ::wat_enum_derive::WatEnum)]
 pub enum Category {
     /// Returns the SAME value in another form — `Bytes::to-hex`, `time::epoch-seconds`,
     /// `string::trim`. Renamed from `Encoding` (2026-08-15): half its members were not
@@ -136,15 +90,6 @@ pub enum Category {
     /// which the determinism field alone cannot. Entropy sources get their own
     /// append-only variant when one registers; do not widen this to cover them.
     Clock,
-    /// Interrogates a value and derives knowledge about it — `empty?`, `length`,
-    /// `contains?`. The output is a FACT about the input, never a form of it, and the
-    /// input is unchanged. Note this is NOT "returns a bool": `length` returns an i64
-    /// and belongs here; sorting by return type is the axis-mix that sank `Predicate`.
-    Probe,
-    /// Builds a larger value of the same kind from several — `concat`, `conj`, `assoc`,
-    /// `join`. NOT `Arithmetic`: `Vector/concat` is not math, and the family spans
-    /// strings, vectors, sets, maps and records.
-    Combine,
     /// Combines already-constructed domain values (`+`, `-`). Distinct from
     /// `Transform`, which returns the same value in another form.
     Arithmetic,
@@ -163,6 +108,15 @@ pub enum Category {
     /// reaching for the nearest existing variant instead of naming the kind
     /// of computation this actually is.
     Io,
+    /// Interrogates a value and derives knowledge about it — `empty?`, `length`,
+    /// `contains?`. The output is a FACT about the input, never a form of it, and the
+    /// input is unchanged. Note this is NOT "returns a bool": `length` returns an i64
+    /// and belongs here; sorting by return type is the axis-mix that sank `Predicate`.
+    Probe,
+    /// Builds a larger value of the same kind from several — `concat`, `conj`, `assoc`,
+    /// `join`. NOT `Arithmetic`: `Vector/concat` is not math, and the family spans
+    /// strings, vectors, sets, maps and records.
+    Combine,
     /// Registers a program-level entity — `def`, `defclause`, `declare-acronyms`.
     /// DISTINCT FROM `Binding`: `let` introduces a LOCAL, scoped name at runtime;
     /// a declaration registers into the program's symbol table, usually at load,
@@ -172,44 +126,7 @@ pub enum Category {
     Declaration,
 }
 
-impl Category {
-    pub fn variants() -> &'static [&'static str] {
-        &["Transform", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic", "Io", "Probe", "Combine", "Declaration"]
-    }
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Category::Transform => "Transform",
-            Category::Reflection => "Reflection",
-            Category::ControlFlow => "ControlFlow",
-            Category::Binding => "Binding",
-            Category::Clock => "Clock",
-            Category::Probe => "Probe",
-            Category::Combine => "Combine",
-            Category::Declaration => "Declaration",
-            Category::Arithmetic => "Arithmetic",
-            Category::Io => "Io",
-        }
-    }
-}
 
-impl std::str::FromStr for Category {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, ()> {
-        match s {
-            "Transform" => Ok(Category::Transform),
-            "Reflection" => Ok(Category::Reflection),
-            "ControlFlow" => Ok(Category::ControlFlow),
-            "Binding" => Ok(Category::Binding),
-            "Clock" => Ok(Category::Clock),
-            "Probe" => Ok(Category::Probe),
-            "Combine" => Ok(Category::Combine),
-            "Declaration" => Ok(Category::Declaration),
-            "Arithmetic" => Ok(Category::Arithmetic),
-            "Io" => Ok(Category::Io),
-            _ => Err(()),
-        }
-    }
-}
 
 /// One parsed `@example` / `@example-norun` directive.
 #[derive(Debug, Clone, PartialEq, Eq)]

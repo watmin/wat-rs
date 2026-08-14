@@ -1,0 +1,21 @@
+[package]
+name = "wat-enum-derive"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Derive macro for wat's closed-domain unit enums — generates `variants()`, `as_str()`, `FromStr` (and an optional wat `type_path`) FROM the enum, so the variant list has no hand-written form to go stale. Depends on nothing of wat's, so both wat-doc and the main crate can use it without a dependency cycle (the wat-to-edn-derive pattern; wat-macros already depends on wat-doc, so the derive cannot live there)."
+repository = "https://github.com/watmin/wat-rs"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+
+# Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
+# FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`
+# inside [package] parses as `package.lints` and cargo silently discards it.
+[lints]
+workspace = true

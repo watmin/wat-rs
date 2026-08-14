@@ -42,12 +42,53 @@ use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
 // `defenum` declarations in `wat/runtime-meta.wat` EXACTLY (checked by the
 // iv-c nursery probe).
 
+// The four `#[expect(dead_code)]` that sat on `Kind::{Macro,Fn}`, `DefinedIn::Wat`
+// and `Layer::Userland` were REMOVED 2026-08-15 when these enums moved to
+// `#[derive(WatEnum)]`. The derived `FromStr` CONSTRUCTS every variant
+// (`"Macro" => Ok(Self::Macro)`), so the variants are no longer dead and the
+// expectations became unfulfilled — i.e. the annotations had turned into lies.
+// `#[expect]` earning its keep exactly as the module doc above describes: it went
+// loud the moment its premise stopped holding.
+
 /// Kind — what kind of callable is this?
 /// Mirrors `(:wat::core::defenum :wat::runtime::Kind :Macro :Fn :Intrinsic :SpecialForm)`.
+/// Build the `Value::Enum` a closed-domain metadata field reflects as.
+///
+/// A LOCAL trait implemented on `wat_doc`'s types — which is why the three
+/// `Runtime{Category,Purity,Determinism}` mirror enums that used to live here are
+/// GONE (2026-08-15). They were member-for-member identical to their `wat_doc`
+/// counterparts, and the `wat_doc::X => RuntimeX` conversion in `runtime.rs` was a
+/// SIXTEEN-ARM hand-written list maintained purely to translate a type into itself.
+/// The only real constraint was that `wat-doc` is a leaf crate and cannot name
+/// `Value` — which argues for keeping the METHOD here, not for duplicating the TYPE.
+pub(crate) trait ToEnumValue {
+    const WAT_TYPE_PATH: &'static str;
+    fn variant_str(&self) -> &'static str;
+    fn to_enum_value(&self) -> Value {
+        Value::Enum(Arc::new(EnumValue {
+            type_path: Self::WAT_TYPE_PATH.into(),
+            variant_name: self.variant_str().into(),
+            fields: vec![],
+        }))
+    }
+}
+
+macro_rules! wat_doc_enum_value {
+    ($t:ty, $path:literal) => {
+        impl ToEnumValue for $t {
+            const WAT_TYPE_PATH: &'static str = $path;
+            fn variant_str(&self) -> &'static str { self.as_str() }
+        }
+    };
+}
+wat_doc_enum_value!(wat_doc::Category, ":wat::runtime::Category");
+wat_doc_enum_value!(wat_doc::Purity, ":wat::runtime::Purity");
+wat_doc_enum_value!(wat_doc::Determinism, ":wat::runtime::Determinism");
+
+#[derive(::wat_enum_derive::WatEnum)]
+#[wat_enum(type_path = ":wat::runtime::Kind")]
 pub(crate) enum Kind {
-    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
     Macro,
-    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
     Fn,
     Intrinsic,
     SpecialForm,
@@ -55,15 +96,9 @@ pub(crate) enum Kind {
 
 impl Kind {
     pub(crate) fn to_enum_value(&self) -> Value {
-        let variant_name = match self {
-            Kind::Macro => "Macro",
-            Kind::Fn => "Fn",
-            Kind::Intrinsic => "Intrinsic",
-            Kind::SpecialForm => "SpecialForm",
-        };
         Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Kind".into(),
-            variant_name: variant_name.into(),
+            type_path: Self::WAT_TYPE_PATH.into(),
+            variant_name: self.as_str().into(),
             fields: vec![],
         }))
     }
@@ -71,21 +106,18 @@ impl Kind {
 
 /// DefinedIn — implementation language.
 /// Mirrors `(:wat::core::defenum :wat::runtime::DefinedIn :Wat :Rust)`.
+#[derive(::wat_enum_derive::WatEnum)]
+#[wat_enum(type_path = ":wat::runtime::DefinedIn")]
 pub(crate) enum DefinedIn {
-    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
     Wat,
     Rust,
 }
 
 impl DefinedIn {
     pub(crate) fn to_enum_value(&self) -> Value {
-        let variant_name = match self {
-            DefinedIn::Wat => "Wat",
-            DefinedIn::Rust => "Rust",
-        };
         Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::DefinedIn".into(),
-            variant_name: variant_name.into(),
+            type_path: Self::WAT_TYPE_PATH.into(),
+            variant_name: self.as_str().into(),
             fields: vec![],
         }))
     }
@@ -93,109 +125,28 @@ impl DefinedIn {
 
 /// Layer — where in the system stack does this live?
 /// Mirrors `(:wat::core::defenum :wat::runtime::Layer :Substrate :Userland)`.
+#[derive(::wat_enum_derive::WatEnum)]
+#[wat_enum(type_path = ":wat::runtime::Layer")]
 pub(crate) enum Layer {
     Substrate,
-    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
     Userland,
 }
 
 impl Layer {
     pub(crate) fn to_enum_value(&self) -> Value {
-        let variant_name = match self {
-            Layer::Substrate => "Substrate",
-            Layer::Userland => "Userland",
-        };
         Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Layer".into(),
-            variant_name: variant_name.into(),
+            type_path: Self::WAT_TYPE_PATH.into(),
+            variant_name: self.as_str().into(),
             fields: vec![],
         }))
     }
 }
 
-/// Category — what functional category is this intrinsic?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Transform :Reflection :ControlFlow :Binding :Clock :Arithmetic :Io :Probe :Combine :Declaration)`.
-/// Consumed by `eval_metadata_of` (runtime.rs) via `to_enum_value()`.
-pub(crate) enum RuntimeCategory {
-    Transform,
-    Reflection,
-    ControlFlow,
-    Binding,
-    Clock,
-    Arithmetic,
-    Probe,
-    Combine,
-    Declaration,
-    Io,
-}
 
-impl RuntimeCategory {
-    pub(crate) fn to_enum_value(&self) -> Value {
-        let variant_name = match self {
-            RuntimeCategory::Transform => "Transform",
-            RuntimeCategory::Reflection => "Reflection",
-            RuntimeCategory::ControlFlow => "ControlFlow",
-            RuntimeCategory::Binding => "Binding",
-            RuntimeCategory::Clock => "Clock",
-            RuntimeCategory::Probe => "Probe",
-            RuntimeCategory::Combine => "Combine",
-            RuntimeCategory::Declaration => "Declaration",
-            RuntimeCategory::Arithmetic => "Arithmetic",
-            RuntimeCategory::Io => "Io",
-        };
-        Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Category".into(),
-            variant_name: variant_name.into(),
-            fields: vec![],
-        }))
-    }
-}
 
-/// Purity — declared purity of an intrinsic or special form.
-/// Mirrors `(:wat::core::defenum :wat::runtime::Purity :Pure :Effectful :Preserving)`.
-pub(crate) enum RuntimePurity {
-    Pure,
-    Effectful,
-    Preserving,
-}
 
-impl RuntimePurity {
-    pub(crate) fn to_enum_value(&self) -> Value {
-        let variant_name = match self {
-            RuntimePurity::Pure => "Pure",
-            RuntimePurity::Effectful => "Effectful",
-            RuntimePurity::Preserving => "Preserving",
-        };
-        Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Purity".into(),
-            variant_name: variant_name.into(),
-            fields: vec![],
-        }))
-    }
-}
 
-/// Determinism — declared determinism of an intrinsic or special form.
-/// Mirrors `(:wat::core::defenum :wat::runtime::Determinism :Deterministic :Nondeterministic :Preserving)`.
-pub(crate) enum RuntimeDeterminism {
-    Deterministic,
-    Nondeterministic,
-    Preserving,
-}
 
-impl RuntimeDeterminism {
-    pub(crate) fn to_enum_value(&self) -> Value {
-        let variant_name = match self {
-            RuntimeDeterminism::Deterministic => "Deterministic",
-            RuntimeDeterminism::Nondeterministic => "Nondeterministic",
-            RuntimeDeterminism::Preserving => "Preserving",
-        };
-        Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Determinism".into(),
-            variant_name: variant_name.into(),
-            fields: vec![],
-        }))
-    }
-}
 
 /// Arity — how many wat-side arguments does this intrinsic accept?
 /// `Exact(N)` means exactly N fixed args; `Variadic` means any number
@@ -691,6 +642,76 @@ mod tests {
                     entry.name, yields_type
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod wat_mirror_tests {
+    use super::*;
+
+    /// ⛔ THE COMMENT THIS REPLACES WAS A LIE FOR TWO MONTHS.
+    ///
+    /// `mod.rs`'s header asserted the Rust enums "MUST match the `defenum`
+    /// declarations in `wat/runtime-meta.wat` EXACTLY (checked by the iv-c nursery
+    /// probe)" — and that probe has been `#[ignore]`d since 2026-06-26
+    /// (`probe_arc255_ivc_metadata_plain_values.rs`, one of nine disabled that day).
+    /// So the invariant was asserted, never enforced, and on 2026-08-15 three new
+    /// variants were hand-added to that `.wat` file with nothing verifying them.
+    ///
+    /// This is the check. It reads the SAME `runtime-meta.wat` the runtime loads
+    /// (via `include_str!`, so it cannot drift to a different copy) and compares
+    /// each `defenum`'s variants against the DERIVED `variants()` — which comes
+    /// from the enum itself, not a hand-list. Both sides are now grounded.
+    #[test]
+    fn every_rust_enum_matches_its_wat_defenum() {
+        // Strip `;;` comments FIRST. The naive version of this test read to the
+        // first `)` and a doc comment containing "(empty?, length)" truncated the
+        // form — the instrument reported drift that did not exist. A parser that
+        // cannot see comments cannot read a lisp.
+        let raw = include_str!("../../wat/runtime-meta.wat");
+        let src: String = raw
+            .lines()
+            .map(|l| match l.find(";;") { Some(i) => &l[..i], None => l })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let src = src.as_str();
+
+        // (type_path, derived variants) — the exhaustive match forces a new
+        // WatEnum-with-type_path to be listed here.
+        let mirrors: &[(&str, &[&str])] = &[
+            (Kind::WAT_TYPE_PATH, Kind::variants()),
+            (DefinedIn::WAT_TYPE_PATH, DefinedIn::variants()),
+            (Layer::WAT_TYPE_PATH, Layer::variants()),
+            (<wat_doc::Category as ToEnumValue>::WAT_TYPE_PATH, wat_doc::Category::variants()),
+            (<wat_doc::Purity as ToEnumValue>::WAT_TYPE_PATH, wat_doc::Purity::variants()),
+            (<wat_doc::Determinism as ToEnumValue>::WAT_TYPE_PATH, wat_doc::Determinism::variants()),
+        ];
+
+        for (type_path, rust_variants) in mirrors {
+            // Find `(:wat::core::defenum <type_path> ...)` and read to its close.
+            let head = format!("(:wat::core::defenum {type_path} ");
+            let start = src.find(&head).unwrap_or_else(|| {
+                panic!("no `defenum` for `{type_path}` in wat/runtime-meta.wat — the Rust enum has no wat mirror")
+            });
+            let rest = &src[start + head.len()..];
+            let end = rest.find(')').unwrap_or_else(|| panic!("unterminated defenum for `{type_path}`"));
+            let wat_variants: Vec<&str> = rest[..end]
+                .split_whitespace()
+                .filter(|t| t.starts_with(':') && !t.starts_with(":wat::"))
+                .map(|t| t.trim_start_matches(':'))
+                .collect();
+
+            assert_eq!(
+                wat_variants, *rust_variants,
+                "\n`{type_path}` DRIFTED between Rust and wat/runtime-meta.wat:\n  \
+                 wat  : {wat_variants:?}\n  rust : {rust_variants:?}\n\
+                 ★ RULING (builder, 2026-08-15): WAT IS THE SOURCE OF TRUTH; Rust conforms.
+                 So a mismatch means the RUST side is wrong, not the wat file. The end state is
+                 that the Rust enum is GENERATED from this defenum (wat-reader can parse it, and
+                 wat-macros already depends on wat-reader for exactly this reason) — at which
+                 point this test dissolves, because there is only one list."
+            );
         }
     }
 }

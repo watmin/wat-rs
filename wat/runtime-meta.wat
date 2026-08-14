@@ -53,18 +53,29 @@
   :Preserving)
 
 ;; Category — functional category.
-;;   :Transform   — returns the SAME value in another form (was :Encoding;
-;;                  renamed 2026-08-15 — trim/to-lowercase/split are not encodings)
-;;   :Reflection  — reflection and introspection
-;;   :ControlFlow — control flow special forms (if, cond, etc.)
-;;   :Binding     — binding special forms (let, etc.)
+;; Category — what kind of computation an intrinsic or special form performs.
+;; ONE axis throughout: what the verb DOES. Not what it returns, not where its
+;; input comes from, not which direction it crosses a type boundary — each of
+;; those was proposed as a variant during arc 255 and rejected for mixing axes.
+;;   :Transform   — returns the SAME value in another form (was :Encoding, renamed
+;;                  2026-08-15: trim/to-lowercase/split are not encodings)
+;;   :Reflection  — the program interrogating ITSELF (metadata-of, show-source)
+;;   :ControlFlow — directs evaluation (if, and higher-order application)
+;;   :Binding     — introduces a LOCAL, scoped name at runtime (let)
 ;;   :Clock       — samples the wall clock (names WHICH external source a
-;;                  Nondeterministic verb draws from; entropy gets its own
-;;                  variant when one registers)
-;;   :Arithmetic  — combines already-constructed domain values (+, -)
-;;   :Io          — performs I/O on a stream (stdio; :wat::io::* when it
-;;                  carves). Distinct from :Transform — returning a
-;;                  representation and performing I/O are different acts.
+;;                  Nondeterministic verb draws from; entropy gets its own variant)
+;;   :Arithmetic  — math on numeric domain values
+;;   :Io          — input/output on a stream
+;;   :Probe       — interrogates a value, derives a FACT about it (empty?, length)
+;;   :Combine     — builds a larger value of the same kind (concat, conj, assoc)
+;;   :Declaration — registers a program-level entity (def, defclause,
+;;                  declare-acronyms). Distinct from :Binding — a declaration
+;;                  registers into the program, visible to everything after it.
+;;
+;; ⛔ ORDER AND MEMBERSHIP ARE CHECKED against the Rust enum by
+;; `intrinsic::wat_mirror_tests::every_rust_enum_matches_its_wat_defenum`.
+;; The Rust side is DERIVED from the enum; this side is hand-written. Drift here
+;; goes red there.
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
   :Transform
   :Reflection
@@ -72,13 +83,7 @@
   :Binding
   :Clock
   :Arithmetic
-;;   :Probe       — interrogates a value, derives a FACT about it (empty?, length)
-;;   :Combine     — builds a larger value of the same kind (concat, conj, assoc)
   :Io
   :Probe
-;;   :Declaration — registers a program-level entity (def, defclause,
-;;                  declare-acronyms). Distinct from :Binding — let is a LOCAL
-;;                  scoped name at runtime; a declaration registers into the
-;;                  program, visible to everything after it.
   :Combine
   :Declaration)

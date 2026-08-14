@@ -12103,16 +12103,8 @@ fn eval_metadata_of(
         };
         put(":arity", arity_val);
         // :purity / :determinism — declared enum values from the doc, not derived bools.
-        let purity_val = match entry.purity {
-            wat_doc::Purity::Pure => crate::intrinsic::RuntimePurity::Pure,
-            wat_doc::Purity::Effectful => crate::intrinsic::RuntimePurity::Effectful,
-            wat_doc::Purity::Preserving => crate::intrinsic::RuntimePurity::Preserving,
-        }.to_enum_value();
-        let determinism_val = match entry.determinism {
-            wat_doc::Determinism::Deterministic => crate::intrinsic::RuntimeDeterminism::Deterministic,
-            wat_doc::Determinism::Nondeterministic => crate::intrinsic::RuntimeDeterminism::Nondeterministic,
-            wat_doc::Determinism::Preserving => crate::intrinsic::RuntimeDeterminism::Preserving,
-        }.to_enum_value();
+        let purity_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.purity);
+        let determinism_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.determinism);
         put(":purity", purity_val);
         put(":determinism", determinism_val);
         // :doc — the GFM prose body from the structured doc contract (iv-b1).
@@ -12124,21 +12116,7 @@ fn eval_metadata_of(
         put(":added", Value::String(Arc::new(entry.added.to_string())));
         put(":ret", Value::String(Arc::new(entry.ret.to_string())));
         // :category — closed-domain Value::Enum (iv-c / arc 255.1b-iv-c Part C).
-        let category_val = {
-            let rc = match entry.category {
-                wat_doc::Category::Transform => crate::intrinsic::RuntimeCategory::Transform,
-                wat_doc::Category::Reflection => crate::intrinsic::RuntimeCategory::Reflection,
-                wat_doc::Category::ControlFlow => crate::intrinsic::RuntimeCategory::ControlFlow,
-                wat_doc::Category::Binding => crate::intrinsic::RuntimeCategory::Binding,
-                wat_doc::Category::Clock => crate::intrinsic::RuntimeCategory::Clock,
-                wat_doc::Category::Arithmetic => crate::intrinsic::RuntimeCategory::Arithmetic,
-                wat_doc::Category::Io => crate::intrinsic::RuntimeCategory::Io,
-                wat_doc::Category::Probe => crate::intrinsic::RuntimeCategory::Probe,
-                wat_doc::Category::Combine => crate::intrinsic::RuntimeCategory::Combine,
-                wat_doc::Category::Declaration => crate::intrinsic::RuntimeCategory::Declaration,
-            };
-            rc.to_enum_value()
-        };
+        let category_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.category);
         put(":category", category_val);
         return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))));
     }
