@@ -10,46 +10,48 @@
 ;; May be placed anywhere after wat/core.wat.
 
 ;; Kind — what kind of callable is this?
-;;   :Intrinsic   — implemented in Rust, exposed under a :wat:: FQDN
-;;   :Fn          — a user-defined :wat::core::defn
-;;   :Macro       — a user-defined :wat::core::defmacro
-;;   :SpecialForm — a substrate special form (no NativeHandler; runtime-dispatched)
 (:wat::core::defenum :wat::runtime::Kind :wat::enum::Pure
+;; A user-defined `:wat::core::defmacro` — expands at compile time.
   :Macro
+;; A user-defined `:wat::core::defn`.
   :Fn
+;; Implemented in Rust, exposed under a `:wat::` FQDN.
   :Intrinsic
+;; A substrate special form — no NativeHandler; dispatched by the runtime.
   :SpecialForm)
 
 ;; DefinedIn — implementation language.
-;;   :Rust — written in Rust (all intrinsics)
-;;   :Wat  — written in wat (user defn / defmacro)
 (:wat::core::defenum :wat::runtime::DefinedIn :wat::enum::Pure
+;; Written in wat — a user `defn` or `defmacro`.
   :Wat
+;; Written in Rust — every intrinsic.
   :Rust)
 
 ;; Layer — where in the system stack does this live?
-;;   :Substrate — kernel/stdlib layer (all intrinsics)
-;;   :Userland  — user-written code above the substrate
 (:wat::core::defenum :wat::runtime::Layer :wat::enum::Pure
+;; The kernel/stdlib layer — every intrinsic.
   :Substrate
+;; User-written code above the substrate.
   :Userland)
 
 ;; Purity — declared purity of an intrinsic or special form.
-;;   :Pure      — produces the same output for the same input, no observable side effects
-;;   :Effectful — has observable side effects (I/O, mutation, etc.)
-;;   :Preserving — special forms that preserve the purity of their sub-forms
 (:wat::core::defenum :wat::runtime::Purity :wat::enum::Pure
+;; Same output for the same input, with no observable side effect.
   :Pure
+;; Has an observable side effect — I/O, mutation, a signal.
   :Effectful
+;; A special form that PRESERVES the purity of its sub-forms rather than
+;; having one of its own: `if` is pure exactly when its branches are.
   :Preserving)
 
 ;; Determinism — declared determinism of an intrinsic or special form.
-;;   :Deterministic    — same input always produces same output
-;;   :Nondeterministic — output may differ across calls (e.g. UUID, random)
-;;   :Preserving       — special forms that preserve the determinism of their sub-forms
 (:wat::core::defenum :wat::runtime::Determinism :wat::enum::Pure
+;; The same input always produces the same output.
   :Deterministic
+;; The output may differ across calls — a clock read, a UUID, entropy.
   :Nondeterministic
+;; A special form that PRESERVES the determinism of its sub-forms rather
+;; than having one of its own.
   :Preserving)
 
 ;; Category — functional category.
@@ -72,10 +74,13 @@
 ;;                  declare-acronyms). Distinct from :Binding — a declaration
 ;;                  registers into the program, visible to everything after it.
 ;;
-;; ⛔ ORDER AND MEMBERSHIP ARE CHECKED against the Rust enum by
-;; `intrinsic::wat_mirror_tests::every_rust_enum_matches_its_wat_defenum`.
-;; The Rust side is DERIVED from the enum; this side is hand-written. Drift here
-;; goes red there.
+;; ⛔ THIS FILE IS THE SOURCE OF TRUTH FOR THE RUST ENUMS, not a mirror of them.
+;; Every `defenum` above and below is read at COMPILE TIME by
+;; `wat_enum_derive::wat_enum_from!` and becomes a Rust enum — variants, order, and
+;; the `;;` prose on each variant (which becomes its `///`). Add a variant here and
+;; the Rust type follows; every exhaustive `match` on it then fails to compile until
+;; the new variant is handled. There is no second list and no drift gate, because
+;; a generated type cannot drift from its generator.
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
 ;; Returns the SAME value in another form — `Bytes::to-hex`, `epoch-seconds`,
 ;; `string::trim`. Was `:Encoding` until 2026-08-15: half its members were not

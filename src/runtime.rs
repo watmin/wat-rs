@@ -12093,9 +12093,9 @@ fn eval_metadata_of(
         // :name — the FQDN as a plain keyword value.
         put(":name", Value::wat__core__keyword(Arc::new(entry.name.to_string())));
         // :kind / :defined-in / :layer — closed-domain Value::Enum (iv-c §5).
-        put(":kind", entry.kind.to_enum_value());
-        put(":defined-in", crate::intrinsic::DefinedIn::Rust.to_enum_value());
-        put(":layer", crate::intrinsic::Layer::Substrate.to_enum_value());
+        put(":kind", crate::intrinsic::ToEnumValue::to_enum_value(&entry.kind));
+        put(":defined-in", crate::intrinsic::ToEnumValue::to_enum_value(&crate::intrinsic::DefinedIn::Rust));
+        put(":layer", crate::intrinsic::ToEnumValue::to_enum_value(&crate::intrinsic::Layer::Substrate));
         // :arity — Exact(N) → N as i64; Variadic → -1 (sentinel for "variadic").
         let arity_val = match entry.arity {
             crate::intrinsic::Arity::Exact(n) => Value::i64(n as i64),

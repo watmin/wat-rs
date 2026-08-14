@@ -11,7 +11,7 @@
 ## Where the code is
 
 ```
-HEAD aa33c0e7 (+ this curare)   floor 4400 / 4400 passed / 263 skipped   clippy 0
+HEAD 16077bf5 (+ the all-six generation strike)   floor 4400 / 4400 passed / 263 skipped   clippy 0
 ```
 
 ## ⛔ FIRST ACTION: read the arc's own REALIZATIONS + `git log`, NOT just the design
@@ -51,19 +51,19 @@ finding. `git log --diff-filter=A -- <the arc's src dirs>` is one command.
 | the guard | **HOISTED** — registry consulted BEFORE the literal table; registered wins, always |
 | home #3 `kernel::stdio` | 6 names — **first `Effectful` rows; the 2×2 is complete** |
 | taxonomy | 10 variants, `Category` GENERATED FROM WAT |
+| **the six enums** | **ALL GENERATED FROM WAT** — `Kind` `DefinedIn` `Layer` `Category` `Purity` `Determinism`. No Rust enum in this workspace mirrors a `defenum` by hand. |
 | **registered** | **53 production names** |
 
 ## ⛔ FIRST STRIKE ON THE FAR SIDE
 
-**Generate `Kind` / `DefinedIn` / `Layer` from wat**, exactly as `Category` now is. They still carry
-hand-written variants beside their `#[wat_enum(type_path = …)]`, and **their wat mirrors are
-currently UNCHECKED** — the gate that covered them (`wat_mirror_tests`) was deleted with `aa33c0e7`
-because it was scaffolding for `Category`. That is the honest state and it is the reason this is
-first.
-
-Then: **`core::string`** — home #4, drawn and waiting, 23 arms (`declare-acronyms` cut: it is a
+**`core::string`** — home #4, drawn and waiting, 23 arms (`declare-acronyms` cut: it is a
 `Declaration`, not a computation), **1,329 corpus calls**, the highest-usage coherent family left.
 Its categories now exist, so no rider faces a taxonomy gap.
+
+*(The previous first strike — generate `Kind`/`DefinedIn`/`Layer` — SHIPPED. It turned out to be
+**five** enums, not three: `wat_mirror_tests` had covered `wat_doc::Purity`/`Determinism` too, so
+stopping at the three the seam named would have left the identical debt in a second file. Read what
+a deleted gate COVERED, not what the note about it mentions.)*
 
 Then `255.1b-iv` — **delete the blanket-accept** (`resolve/walk.rs:257`), the soundness fix the whole
 arc exists for. Nine `#[ignore]`d probes wait on it, each reading *"unlock when we circle back to arc
@@ -74,6 +74,15 @@ arc exists for. Nine `#[ignore]`d probes wait on it, each reading *"unlock when 
 - **A gate over two hand-lists IS a hand-list.** My morning drift gate slept through the exact drift
   it was built for, because `variants()` was itself hand-written and both went stale together. Ask
   what a gate's INPUTS are made of.
+- **When you delete a gate, inventory what it COVERED — not what your note about it mentions.**
+  The seam named three enums; the deleted `wat_mirror_tests` had covered five. My own note was the
+  narrower record, and following it would have left the same debt in a second crate.
+- **"wat drives rustc" is a claim about the CONSUMERS, not about generation.** Generation closes the
+  drift class for all six. The compile-BREAK demonstration needs an exhaustive `match` downstream:
+  `Category`/`Purity`/`Determinism` have four (in the two proc-macro files) and a wat-only variant
+  goes `error[E0004]`; `Kind`/`DefinedIn`/`Layer` have **none** — nothing matches on them, so a
+  wat-only variant compiles silently. Do not restate the demo as covering all six. Inventing a match
+  purely to make the demo work would be a gate whose only consumer is itself.
 - **A gate whose success condition is its own deletion is scaffolding.** True of `wat_mirror_tests`,
   and I proved the replacement before removing it.
 - **Assert on EVERY replacement; read the current text, never recall it.** Three silent no-matches in

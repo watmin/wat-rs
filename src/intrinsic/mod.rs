@@ -32,35 +32,57 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
 
-// ─── Arc 255.1b-iv-c: Closed-domain enum mirrors ─────────────────────────────
-// Three Rust enums that mirror the three `defenum`s in `wat/runtime-meta.wat`.
-// Each carries a `to_enum_value()` method that builds the corresponding
-// `Value::Enum` so the derivation site in `eval_metadata_of` (runtime.rs
-// ~10119-10122) is typo-proof at the call site.
+// ─── The closed-domain enums the reflection surface answers with ─────────────
 //
-// Invariant: the `type_path` and `variant_name` strings here MUST match the
-// `defenum` declarations in `wat/runtime-meta.wat` EXACTLY (checked by the
-// iv-c nursery probe).
-
+// ⛔ ALL SIX ARE GENERATED FROM `wat/runtime-meta.wat`. Builder ruling, 2026-08-15:
+// *"wat is source of truth for rust code ... that's my pick."* The variant lists AND
+// each variant's prose live in the `.wat` file's `defenum` forms; `wat_enum_from!`
+// reads them at compile time. Add a variant there and these types follow — there is
+// no Rust list to keep in step, which is why the drift gate that used to guard them
+// is gone rather than merely passing.
+//
+// Three live HERE (`Kind`/`DefinedIn`/`Layer`) and three in `wat-doc`
+// (`Category`/`Purity`/`Determinism`) — the split is only that `wat-doc` is a leaf
+// crate that cannot name `Value`, which is what `ToEnumValue` below exists to bridge.
+//
 // The four `#[expect(dead_code)]` that sat on `Kind::{Macro,Fn}`, `DefinedIn::Wat`
-// and `Layer::Userland` were REMOVED 2026-08-15 when these enums moved to
-// `#[derive(WatEnum)]`. The derived `FromStr` CONSTRUCTS every variant
-// (`"Macro" => Ok(Self::Macro)`), so the variants are no longer dead and the
-// expectations became unfulfilled — i.e. the annotations had turned into lies.
-// `#[expect]` earning its keep exactly as the module doc above describes: it went
-// loud the moment its premise stopped holding.
+// and `Layer::Userland` were REMOVED 2026-08-15: the generated `FromStr` CONSTRUCTS
+// every variant (`"Macro" => Ok(Self::Macro)`), so the expectations became
+// unfulfilled — i.e. the annotations had turned into lies, and `#[expect]` went loud
+// the moment its premise stopped holding.
 
-/// Kind — what kind of callable is this?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Kind :Macro :Fn :Intrinsic :SpecialForm)`.
+::wat_enum_derive::wat_enum_from!(
+    pub(crate) enum Kind,
+    "wat/runtime-meta.wat",
+    ":wat::runtime::Kind"
+);
+
+::wat_enum_derive::wat_enum_from!(
+    pub(crate) enum DefinedIn,
+    "wat/runtime-meta.wat",
+    ":wat::runtime::DefinedIn"
+);
+
+::wat_enum_derive::wat_enum_from!(
+    pub(crate) enum Layer,
+    "wat/runtime-meta.wat",
+    ":wat::runtime::Layer"
+);
+
 /// Build the `Value::Enum` a closed-domain metadata field reflects as.
 ///
-/// A LOCAL trait implemented on `wat_doc`'s types — which is why the three
-/// `Runtime{Category,Purity,Determinism}` mirror enums that used to live here are
-/// GONE (2026-08-15). They were member-for-member identical to their `wat_doc`
+/// ONE DOOR for all six enums. A local trait rather than an inherent method per
+/// type, because `wat-doc` is a leaf crate and cannot name `Value` — the METHOD has
+/// to live here even when the TYPE does not. That is also why the three
+/// `Runtime{Category,Purity,Determinism}` mirror enums that used to sit here are
+/// GONE (2026-08-15): they were member-for-member identical to their `wat_doc`
 /// counterparts, and the `wat_doc::X => RuntimeX` conversion in `runtime.rs` was a
 /// SIXTEEN-ARM hand-written list maintained purely to translate a type into itself.
-/// The only real constraint was that `wat-doc` is a leaf crate and cannot name
-/// `Value` — which argues for keeping the METHOD here, not for duplicating the TYPE.
+///
+/// `Kind`/`DefinedIn`/`Layer` reached this door late: each hand-rolled this exact
+/// body as an inherent `to_enum_value(&self)` until clippy's `wrong_self_convention`
+/// fired on them the moment generation made them `Copy`. The lint named a real
+/// defect — three copies of a method that already had a home.
 pub(crate) trait ToEnumValue {
     const WAT_TYPE_PATH: &'static str;
     fn variant_str(&self) -> &'static str;
@@ -73,74 +95,22 @@ pub(crate) trait ToEnumValue {
     }
 }
 
-macro_rules! wat_doc_enum_value {
-    ($t:ty, $path:literal) => {
+/// Implement [`ToEnumValue`] for a generated enum. `WAT_TYPE_PATH` is NOT restated
+/// here — it comes from the enum, which got it from the `.wat` file.
+macro_rules! enum_value_via_as_str {
+    ($t:ty) => {
         impl ToEnumValue for $t {
-            const WAT_TYPE_PATH: &'static str = $path;
+            const WAT_TYPE_PATH: &'static str = <$t>::WAT_TYPE_PATH;
             fn variant_str(&self) -> &'static str { self.as_str() }
         }
     };
 }
-wat_doc_enum_value!(wat_doc::Category, ":wat::runtime::Category");
-wat_doc_enum_value!(wat_doc::Purity, ":wat::runtime::Purity");
-wat_doc_enum_value!(wat_doc::Determinism, ":wat::runtime::Determinism");
-
-#[derive(::wat_enum_derive::WatEnum)]
-#[wat_enum(type_path = ":wat::runtime::Kind")]
-pub(crate) enum Kind {
-    Macro,
-    Fn,
-    Intrinsic,
-    SpecialForm,
-}
-
-impl Kind {
-    pub(crate) fn to_enum_value(&self) -> Value {
-        Value::Enum(Arc::new(EnumValue {
-            type_path: Self::WAT_TYPE_PATH.into(),
-            variant_name: self.as_str().into(),
-            fields: vec![],
-        }))
-    }
-}
-
-/// DefinedIn — implementation language.
-/// Mirrors `(:wat::core::defenum :wat::runtime::DefinedIn :Wat :Rust)`.
-#[derive(::wat_enum_derive::WatEnum)]
-#[wat_enum(type_path = ":wat::runtime::DefinedIn")]
-pub(crate) enum DefinedIn {
-    Wat,
-    Rust,
-}
-
-impl DefinedIn {
-    pub(crate) fn to_enum_value(&self) -> Value {
-        Value::Enum(Arc::new(EnumValue {
-            type_path: Self::WAT_TYPE_PATH.into(),
-            variant_name: self.as_str().into(),
-            fields: vec![],
-        }))
-    }
-}
-
-/// Layer — where in the system stack does this live?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Layer :Substrate :Userland)`.
-#[derive(::wat_enum_derive::WatEnum)]
-#[wat_enum(type_path = ":wat::runtime::Layer")]
-pub(crate) enum Layer {
-    Substrate,
-    Userland,
-}
-
-impl Layer {
-    pub(crate) fn to_enum_value(&self) -> Value {
-        Value::Enum(Arc::new(EnumValue {
-            type_path: Self::WAT_TYPE_PATH.into(),
-            variant_name: self.as_str().into(),
-            fields: vec![],
-        }))
-    }
-}
+enum_value_via_as_str!(wat_doc::Category);
+enum_value_via_as_str!(wat_doc::Purity);
+enum_value_via_as_str!(wat_doc::Determinism);
+enum_value_via_as_str!(Kind);
+enum_value_via_as_str!(DefinedIn);
+enum_value_via_as_str!(Layer);
 
 
 
@@ -656,7 +626,9 @@ mod tests {
 // edited, produced `error[E0004]: non-exhaustive patterns: Category::WatOnlySentinel
 // not covered`. wat drove the Rust type system.
 //
-// ⚠ Kind/DefinedIn/Layer still carry hand-written variants beside their
-// `#[wat_enum(type_path = …)]`. They are NEXT to be generated, and until then their
-// wat mirrors are UNCHECKED — the honest state, recorded here rather than removed
-// silently.
+// CLOSED 2026-08-15: the note that stood here recorded Kind/DefinedIn/Layer as
+// still hand-written and therefore UNCHECKED. All three are now generated by
+// `wat_enum_from!` (above), as are `wat_doc::Purity` and `wat_doc::Determinism`.
+// FIVE mirrors, not the three the seam named — the deleted gate covered every one
+// of them, so stopping at three would have left the identical debt in a second
+// file. No Rust enum in this workspace mirrors a `defenum` by hand any more.

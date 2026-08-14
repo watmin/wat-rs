@@ -41,23 +41,22 @@
 //! silent skip. Old separator forms (` — `, ` -- `, ` - `, `: `) are REJECTED
 //! as illegal in the type position — the grammar is firm: `@arg <name> <type> <desc>`.
 
-/// Declared purity of an intrinsic or special form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ::wat_enum_derive::WatEnum)]
-pub enum Purity {
-    Pure,
-    Effectful,
-    Preserving,
-}
+// ⛔ `Purity` and `Determinism` are GENERATED FROM wat, exactly as `Category` is
+// below. They were the last two Rust enums still mirroring a `defenum` by hand, and
+// after `every_rust_enum_matches_its_wat_defenum` was deleted as scaffolding
+// (`aa33c0e7`) nothing checked either of them. Generating them is what makes that
+// deletion honest rather than a quiet debt.
+::wat_enum_derive::wat_enum_from!(
+    pub enum Purity,
+    "../../wat/runtime-meta.wat",
+    ":wat::runtime::Purity"
+);
 
-
-
-/// Declared determinism of an intrinsic or special form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ::wat_enum_derive::WatEnum)]
-pub enum Determinism {
-    Deterministic,
-    Nondeterministic,
-    Preserving,
-}
+::wat_enum_derive::wat_enum_from!(
+    pub enum Determinism,
+    "../../wat/runtime-meta.wat",
+    ":wat::runtime::Determinism"
+);
 
 
 
