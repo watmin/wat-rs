@@ -2486,7 +2486,31 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // contains the path and `env.types().get(":wat::core::Record")` resolves
     // cleanly. Per-class types (`:myapp::Voltage` as `:wat::core::Record` aliases)
     // ship in Stone 234.2b when the defrecord macro lands.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
+    // ⛔ ARC 296 — nature CORRECTED from `Struct` to `Record` (2026-08-15).
+    //
+    // This umbrella was registered `nature: Nature::Struct` — which, read against the holder
+    // trit this project's own AGGREGATE-MODEL states (`Struct(−1)` impure-capable · `Record(0)`
+    // pure, edn-repr, crosses · `HolonRecord(+1)` pure + VSA), said **"a record may hold impure
+    // values"**: the exact inverse of what a record IS. The builder's verdict: *"this is
+    // outrageous heresy."*
+    //
+    // The cause was legible in the old comment — it wanted an OPAQUE placeholder and reached for
+    // `Struct` as the generic choice. `opaque` and `Struct` are not synonyms, and conflating them
+    // cost three separate defects:
+    //   1. `is_pure_type` grew a hardcoded short-circuit to undo it, whose own comment named the
+    //      symptom ("would return a FALSE POSITIVE impure verdict") — patched at the CONSUMER
+    //      instead of the declaration. That patch is DELETED with this fix.
+    //   2. The patch was never given to the sibling `:wat::holon::Record`, so no pure aggregate
+    //      could hold a field typed "any holon record" while "any record" was fine.
+    //   3. A SPURIOUS LATTICE EDGE: `register_builtin` derives each type's subtype edge from
+    //      `nature.root_keyword()`, so a Struct-natured Record umbrella emitted
+    //      `:wat::core::Record <: :wat::core::Struct` — making EVERY record in wat a subtype of
+    //      Struct, a claim nobody declared. With the nature correct, `child == root` and the
+    //      guard skips: no edge, and a record is no longer assignable to a `:Struct` slot.
+    //
+    // Zero fields is not a reason to pick a holder — a record with no fields is legal (builder,
+    // 2026-08-15). A root's nature is what it IS, not what is convenient to register.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::core::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -2495,16 +2519,23 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // Stone S-A — `:wat::holon::Record` opaque umbrella type + typesub root edge.
     //
-    // `:wat::holon::Record` is the "holonic record" flavor — a record that carries
-    // a HolonAST alongside its struct-form. Registered as an opaque zero-field
-    // struct (mirrors `:wat::core::Record` exactly). The `typesub` edge seeds the
-    // built-in is-a root: `:wat::holon::Record` is-a `:wat::core::Record`.
+    // `:wat::holon::Record` is the "holonic record" flavor — a core record that additionally
+    // keeps a hologram IN PARITY with its data (builder, 2026-08-15: *"holonic records are
+    // transmitted as edn and their holograms are rebuilt on consumption"*). The `typesub` edge
+    // seeds the built-in is-a root: `:wat::holon::Record` is-a `:wat::core::Record`.
     //
-    // NOTE: registering `:wat::holon::Record` as a struct causes
-    // `register_type_predicates` to synthesize `:wat::holon::is-Record?` for it
-    // (same as `:wat::core::Record` already gets `:wat::is-Record?`). This is correct —
-    // it is a type. See SCORE-STONE-S-A § Honest deltas.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
+    // ⛔ ARC 296 — nature CORRECTED from `Struct` to `HolonRecord` (2026-08-15), for the same
+    // reason as its sibling above. This one was the sharper defect of the pair: it never got the
+    // `is_pure_type` short-circuit that hid the sibling's, so the flavor that is MOST certainly
+    // pure data — a record plus a hologram — was the one the type system called impure, and a
+    // field typed `:wat::holon::Record` was REJECTED from every pure aggregate. Measured before
+    // the fix: `[r <- :wat::core::Record]` clean, `[r <- :wat::holon::Record]` →
+    // `ImpureFieldInPureAggregate`. It survived because nothing exercised the twin.
+    //
+    // NOTE: `register_type_predicates` synthesizes `:wat::holon::is-Record?` for this type
+    // (same as `:wat::core::Record` gets `:wat::is-Record?`). This is correct — it is a type.
+    // See SCORE-STONE-S-A § Honest deltas.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::HolonRecord,
         name: ":wat::holon::Record".into(),
         type_params: vec![],
         fields: vec![],

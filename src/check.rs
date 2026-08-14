@@ -13037,13 +13037,24 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::core::rational"
                 | "wat::core::bigint"
                 | "wat::core::nil"
-                | "wat::core::unit"
-                // the :wat::core::Record umbrella means "any record" — pure;
-                // assignability rejects structs from it (293.W b2).
-                // Must short-circuit BEFORE the types.get(p) aggregate arm, which
-                // sees Record registered as Nature::Struct (opaque umbrella) and
-                // would return a FALSE POSITIVE impure verdict.
-                | "wat::core::Record" => return true,
+                | "wat::core::unit" => return true,
+                // ⛔ ARC 296 — the `"wat::core::Record" => return true` arm is DELETED.
+                //
+                // It existed to undo a mis-registration, and its own comment named the symptom:
+                // the aggregate arm below "sees Record registered as Nature::Struct (opaque
+                // umbrella) and would return a FALSE POSITIVE impure verdict". That is a patch on
+                // the CONSUMER for a lie in the DECLARATION — the stem, not the root.
+                //
+                // `:wat::core::Record` now registers with `Nature::Record` (types.rs), so the
+                // aggregate arm reaches `a.nature.is_pure()` and answers `true` on its own. The
+                // short-circuit has nothing left to paper over.
+                //
+                // The tell that it was a patch and not a rule: it was never given to the sibling
+                // `:wat::holon::Record`, which fell through to the aggregate arm and was reported
+                // IMPURE. One special case, two identical umbrellas — a rule would have covered
+                // both, a patch covered the one that happened to be exercised
+                // ([[feedback_the_mirror_is_an_instrument_not_a_fix]]).
+
                 _ => {}
             }
             // A registered Rust opaque is impure — checked BEFORE the user-defined-type
