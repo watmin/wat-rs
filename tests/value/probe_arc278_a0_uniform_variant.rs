@@ -34,13 +34,13 @@ fn write_value_with(v: &Value, types: &TypeEnv) -> String {
 fn round_trip(v: &Value) -> Value {
     let s = write_value(v);
     let owned = wat_edn::parse_owned(&s).expect("parse EDN");
-    edn_to_value(&owned, None).expect("decode Value")
+    edn_to_value(&owned, None, None).expect("decode Value")
 }
 
 fn round_trip_with(v: &Value, types: &TypeEnv) -> Value {
     let s = write_value_with(v, types);
     let owned = wat_edn::parse_owned(&s).expect("parse EDN");
-    edn_to_value(&owned, Some(types)).expect("decode Value")
+    edn_to_value(&owned, Some(types), None).expect("decode Value")
 }
 
 /// A TypeEnv holding a user enum `:a0::Color` with three UNIT variants.
@@ -175,7 +175,7 @@ fn result_variants_round_trip() {
 #[test]
 fn bare_nil_decodes_to_unit_value() {
     let owned = wat_edn::parse_owned("nil").expect("parse nil");
-    let decoded = edn_to_value(&owned, None).expect("decode nil");
+    let decoded = edn_to_value(&owned, None, None).expect("decode nil");
     assert_eq!(
         decoded,
         Value::Unit,

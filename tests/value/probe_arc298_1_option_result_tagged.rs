@@ -27,7 +27,7 @@ fn write_value(v: &Value) -> String {
 fn round_trip(v: &Value) -> Value {
     let s = write_value(v);
     let owned = wat_edn::parse_owned(&s).expect("parse EDN");
-    edn_to_value(&owned, None).expect("decode Value")
+    edn_to_value(&owned, None, None).expect("decode Value")
 }
 
 // ── Write form: Option ────────────────────────────────────────────────────────

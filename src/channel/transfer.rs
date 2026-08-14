@@ -125,10 +125,16 @@ pub fn sender_close(
 /// - Tier 2 (PipeFd): reads one line from the fd, parses as EDN
 ///   via `read_edn`. The `types` registry interprets `#ns/Name`
 ///   tags as tagged structs / enums.
+///
+/// `ctx` (arc 294.g) — the ambient `EncodingCtx` `read_edn` needs to derive a decoded
+/// HolonRecord's hologram (the wire no longer carries it). Passed straight through from the
+/// caller's `SymbolTable`; `None` only where no live program's ctx is reachable — a decode
+/// that then meets a HolonRecord class errors loudly rather than fabricate a wrong-dim one.
 pub fn typed_recv(
     receiver: &ReceiverInner,
     types: Option<&crate::types::TypeEnv>,
     span: Span,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> RecvOutcome {
     match receiver {
         ReceiverInner::Comms(rx) => {
@@ -271,7 +277,7 @@ pub fn typed_recv(
                                 // Trim trailing newline for read_edn (which
                                 // also handles multi-line strings just fine).
                                 let trimmed = buf.trim_end_matches('\n');
-                                return match crate::edn_shim::read_edn(trimmed, types) {
+                                return match crate::edn_shim::read_edn(trimmed, types, ctx) {
                                     Ok(v) => RecvOutcome::Value(v),
                                     Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
                                 };

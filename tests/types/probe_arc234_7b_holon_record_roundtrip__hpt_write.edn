@@ -1,13 +1,1 @@
-#test.rd/HPt #wat-edn.holon/Bind [
-  #wat-edn.holon/Atom #wat-edn.holon/String "test::rd::HPt"
-  #wat-edn.holon/Bundle [
-    #wat-edn.holon/Bind [
-      #wat-edn.holon/Atom #wat-edn.holon/String "x"
-      #wat-edn.holon/Atom #wat-edn.holon/I64 7
-    ]
-    #wat-edn.holon/Bind [
-      #wat-edn.holon/Atom #wat-edn.holon/String "y"
-      #wat-edn.holon/Atom #wat-edn.holon/I64 8
-    ]
-  ]
-]
+#test.rd/HPt {:x 7 :y 8}

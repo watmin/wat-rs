@@ -28,6 +28,15 @@
 //! goes red, the implementation deleted the index rather than deriving it — the opposite of 294's
 //! cure, and a green row 2 alone would have hidden it.
 //!
+//! ⛔ THE TWO WIRE ROWS COMPARE VIA `.edn` GOLDENS + `assert_edn_eq!`, NOT byte-exact strings — and
+//! the distinction from stone 279.2's probe (which RUNED the lint instead) is the point. There, the
+//! claim WAS the punctuation: `[1 2 3]` vs `[1, 2, 3]` parse to the same EDN, so a semantic compare
+//! would have erased the difference under test. HERE the claim is STRUCTURAL — a field map versus a
+//! serialized hologram are genuinely different EDN values, so the semantic compare discriminates
+//! perfectly. It is also STRICTLY MORE CORRECT: a byte-exact assertion on a TWO-KEY map pins key
+//! ORDER, and maps are unordered (builder, 2026-08-14: *"we don't do string equality here, we do data
+//! equality"*). The first draft of this probe did exactly that and passed by luck.
+//!
 //! RED at HEAD (row 2). GREEN when the stone lands.
 
 use wat::freeze::call_beside_value;
@@ -55,7 +64,10 @@ fn cosine(target: &str) -> f64 {
 
 #[test]
 fn control_plain_record_wire_is_the_class_tag_and_its_fields() {
-    assert_eq!(wire(":t::wire-plain"), "#t/Plain {:x 1 :y 2}");
+    wat::assert_edn_eq!(
+        wire(":t::wire-plain"),
+        include_str!("probe_arc294_holon_wire_is_plain_edn__plain_wire.edn")
+    );
 }
 
 // ─── THE RED ────────────────────────────────────────────────────────────────
@@ -65,7 +77,10 @@ fn holon_record_wire_is_plain_edn_not_the_serialized_hologram() {
     // At HEAD this is a ~250-byte `#wat-edn.holon/Bind […]` tree. A holon record differs from a
     // plain one in HOLDER POLICY, not in what it IS, so the wire form must be identical modulo
     // the class name — compare against the control directly above.
-    assert_eq!(wire(":t::wire-holon"), "#t/Holo {:x 1 :y 2}");
+    wat::assert_edn_eq!(
+        wire(":t::wire-holon"),
+        include_str!("probe_arc294_holon_wire_is_plain_edn__holon_wire.edn")
+    );
 }
 
 // ─── NON-VACUITY — green at HEAD, and they MUST stay green ──────────────────

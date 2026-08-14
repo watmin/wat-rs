@@ -52,7 +52,7 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
-use crate::value::value::{AggregateValue, ForeignRecordValue, ForeignVariantValue, HolonForm};
+use crate::value::value::{AggregateValue, ForeignRecordValue, ForeignVariantValue};
 use crate::scope::Identifier;
 use crate::span::{span_prefix, Span};
 use std::sync::Arc;
@@ -183,7 +183,11 @@ pub fn eval_edn_read(
     }))?;
     // Arc 233 Stone 233.2.c — wrap result in Tracked with RuntimeBuilt provenance
     // so that errors flowing from edn::read-produced Values surface the producer origin.
-    let result = edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
+    let result = edn_to_value(
+        &edn,
+        sym.types().map(|a| a.as_ref()),
+        sym.encoding_ctx().map(|a| a.as_ref()),
+    ).map_err(|e| {
         RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: e.to_string()
@@ -237,11 +241,12 @@ fn read_json_outcome_malformed(
     };
     let cause_edn = wat_edn::write(&flat.error_edn());
     let types = sym.types().map(|t| &**t);
-    let cause = decode_trusted_wire(&cause_edn, types)
+    let ctx = sym.encoding_ctx().map(|c| &**c);
+    let cause = decode_trusted_wire(&cause_edn, types, ctx)
         .or_else(|_| {
             wat_edn::parse_owned(&cause_edn)
                 .map_err(|_| ())
-                .and_then(|owned| edn_to_value_foreign(&owned, types).map_err(|_| ()))
+                .and_then(|owned| edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
         })
         .unwrap_or_else(|_| {
             // A FlatMessage whose own EDN will not decode is itself a defect; report the
@@ -289,8 +294,9 @@ pub fn eval_edn_read_json(
         }
     };
     let types = sym.types().map(|a| a.as_ref());
+    let ctx = sym.encoding_ctx().map(|a| a.as_ref());
     let value = match wat_edn::from_json_string(&s) {
-        Ok(owned) => match edn_to_value(&owned, types) {
+        Ok(owned) => match edn_to_value(&owned, types, ctx) {
             Ok(v) => read_json_outcome_value(v),
             Err(e) => read_json_outcome_malformed(&e.to_string(), sym, list_span),
         },
@@ -335,7 +341,11 @@ pub fn eval_edn_read_foreign(
         head: OP.into(),
         reason: format!("EDN parse error: {e}")
     }))?;
-    let result = edn_to_value_foreign(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
+    let result = edn_to_value_foreign(
+        &edn,
+        sym.types().map(|a| a.as_ref()),
+        sym.encoding_ctx().map(|a| a.as_ref()),
+    ).map_err(|e| {
         RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: e.to_string()
@@ -531,11 +541,12 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
     use crate::to_edn::WatError;
     let cause_edn = wat_edn::write(&e.error_edn());
     let types = sym.types().map(|t| &**t);
-    let cause = decode_trusted_wire(&cause_edn, types)
+    let ctx = sym.encoding_ctx().map(|c| &**c);
+    let cause = decode_trusted_wire(&cause_edn, types, ctx)
         .or_else(|_| {
             wat_edn::parse_owned(&cause_edn)
                 .map_err(|_| ())
-                .and_then(|owned| edn_to_value_foreign(&owned, types).map_err(|_| ()))
+                .and_then(|owned| edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
         })
         .unwrap_or_else(|_| {
             // A parse error whose own EDN will not decode is itself a defect; report the headline
@@ -1414,12 +1425,18 @@ impl std::fmt::Display for EdnReadError {
 /// `:wat::edn::Tagged` / `:wat::edn::NoTag` TEXT cell back into
 /// the typed runtime [`Value`] the cursor's `step!` shim returns
 /// to wat callers.
+/// `ctx` (arc 294.g) is the ambient `EncodingCtx` a HolonRecord-nature class needs to DERIVE
+/// its hologram on decode (the wire no longer carries it). Pass `None` only when you know the
+/// registry the caller passed can't resolve to a `Nature::HolonRecord` class (e.g. `types` is
+/// itself `None`, or the registry is a fixed capability-codec type) — a decode that reaches a
+/// HolonRecord class with `ctx = None` errors loudly rather than derive a wrong-dimension index.
 pub fn read_edn(
     s: &str,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     // General (untrusted) decode — capability tags are REFUSED (allow_caps = false).
-    read_edn_caps(s, types, false)
+    read_edn_caps(s, types, false, ctx)
 }
 
 /// Arc 272 6a-i — the capability-aware decode worker. PRIVATE by design: when `allow_caps` is true,
@@ -1431,12 +1448,13 @@ fn read_edn_caps(
     s: &str,
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let edn = wat_edn::parse_owned(s)
         // arc 138: no span — read_edn operates on a raw &str with no WatAST trace
         .map_err(|e| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
     // Trusted peer wire is a KNOWN-types channel — never foreign-mode.
-    edn_to_value_caps(&edn, types, allow_caps, false)
+    edn_to_value_caps(&edn, types, allow_caps, false, ctx)
 }
 
 // ─── EDN value-framing (pipe wire protocol) ─────────────────────────────────
@@ -1714,15 +1732,18 @@ where
 // `Value` contains `Arc`-wrapped types with interior mutability, triggering the lint.
 // The opaque-handle variants with interior mutability are never inserted into the set
 // (only EDN-representable primitive values are bridged here). False positive.
+/// `ctx` (arc 294.g) — see [`read_edn`]'s doc: required to derive a HolonRecord's hologram
+/// on decode; `None` is safe only when `types` can't resolve to a `Nature::HolonRecord` class.
 pub fn edn_to_value(
     edn: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     // Arc 272 6a-i gating — the GENERAL decode path REFUSES portable-capability (`wat-edn.cap`)
     // tags. Object-capability rule: a capability is obtained only by being handed it on a trusted
     // channel, NEVER forged from parsed data. The trusted peer wire opts in via the `_caps` worker
     // with `allow_caps = true` (see `read_edn_caps` / `edn_string_to_value_trusted`).
-    edn_to_value_caps(edn, types, false, false)
+    edn_to_value_caps(edn, types, false, false, ctx)
 }
 
 /// Arc 278 Stone A — the DATA-MODE decode entry (`:wat::edn::read-foreign`).
@@ -1736,8 +1757,9 @@ pub fn edn_to_value(
 pub fn edn_to_value_foreign(
     edn: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    edn_to_value_caps(edn, types, /*allow_caps*/ false, /*foreign*/ true)
+    edn_to_value_caps(edn, types, /*allow_caps*/ false, /*foreign*/ true, ctx)
 }
 
 #[allow(clippy::mutable_key_type)]
@@ -1746,6 +1768,7 @@ fn edn_to_value_caps(
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
     foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     match edn {
@@ -1778,14 +1801,14 @@ fn edn_to_value_caps(
         Edn::List(items) => {
             let walked: std::collections::LinkedList<Value> = items
                 .iter()
-                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign))
+                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, ctx))
                 .collect::<Result<_, _>>()?;
             Ok(Value::wat__core__List(Arc::new(walked)))
         }
         Edn::Vector(items) => {
             let walked: Vec<Value> = items
                 .iter()
-                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign))
+                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, ctx))
                 .collect::<Result<_, _>>()?;
             Ok(Value::Vec(Arc::new(walked)))
         }
@@ -1797,8 +1820,8 @@ fn edn_to_value_caps(
             let mut backing: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(entries.len());
             for (k, v) in entries {
-                let k_val = edn_to_value_caps(k, types, allow_caps, foreign)?;
-                let v_val = edn_to_value_caps(v, types, allow_caps, foreign)?;
+                let k_val = edn_to_value_caps(k, types, allow_caps, foreign, ctx)?;
+                let v_val = edn_to_value_caps(v, types, allow_caps, foreign, ctx)?;
                 if !crate::runtime::value_is_key_hashable(&k_val) {
                     return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable map key: {}", k_val.type_name())) });
                 }
@@ -1811,7 +1834,7 @@ fn edn_to_value_caps(
             // Value: Hash + Eq (Stone 216.5a) makes this work natively.
             let mut backing = std::collections::HashSet::with_capacity(items.len());
             for x in items {
-                let v_val = edn_to_value_caps(x, types, allow_caps, foreign)?;
+                let v_val = edn_to_value_caps(x, types, allow_caps, foreign, ctx)?;
                 backing.insert(v_val);
             }
             Ok(Value::wat__std__HashSet(Arc::new(backing)))
@@ -1821,7 +1844,7 @@ fn edn_to_value_caps(
         // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
         // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::Instant(*t)` pattern.
         Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
-        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign),
+        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign, ctx),
     }
 }
 
@@ -1940,13 +1963,15 @@ pub fn edn_to_typed_value(
     sym: &crate::runtime::SymbolTable,
 ) -> Result<Value, EdnCoerceError> {
     let types = sym.types().map(|a| a.as_ref());
-    edn_to_typed_value_inner(target, edn, types)
+    let ctx = sym.encoding_ctx().map(|a| a.as_ref());
+    edn_to_typed_value_inner(target, edn, types, ctx)
 }
 
 fn edn_to_typed_value_inner(
     target: &crate::types::TypeExpr,
     edn: &wat_edn::OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnCoerceError> {
     use crate::types::TypeExpr;
     use wat_edn::Value as Edn;
@@ -1960,10 +1985,10 @@ fn edn_to_typed_value_inner(
             if let Some(def) = env.get(p) {
                 match def {
                     crate::types::TypeDef::Alias(a) => {
-                        return edn_to_typed_value_inner(&a.expr, edn, types);
+                        return edn_to_typed_value_inner(&a.expr, edn, types, ctx);
                     }
                     crate::types::TypeDef::Newtype(n) => {
-                        return edn_to_typed_value_inner(&n.inner, edn, types);
+                        return edn_to_typed_value_inner(&n.inner, edn, types, ctx);
                     }
                     _ => {}
                 }
@@ -2039,7 +2064,7 @@ fn edn_to_typed_value_inner(
             // `EdnRepresentable` (write side) and now an EDN coerce target (read
             // side) — closing the write-but-not-read asymmetry. `edn_to_value`
             // honours `types` so `#ns/Variant` enum tags rebuild as `Value::Enum`.
-            ":wat::core::Value" => edn_to_value(edn, types).map_err(|e| EdnCoerceError {
+            ":wat::core::Value" => edn_to_value(edn, types, ctx).map_err(|e| EdnCoerceError {
                 expected: ":wat::core::Value".into(),
                 got: format!("{e}"),
                 path: String::new(),
@@ -2099,7 +2124,7 @@ fn edn_to_typed_value_inner(
             // The var test is the substrate's own (`runtime::is_type_var_path`): bare, no
             // `::`, first alphabetic char uppercase — so no FQDN type can land here.
             _ if crate::runtime::is_type_var_path(p) => {
-                edn_to_value(edn, types).map_err(|e| EdnCoerceError {
+                edn_to_value(edn, types, ctx).map_err(|e| EdnCoerceError {
                     expected: crate::check::format_type(target),
                     got: e.to_string(),
                     path: String::new(),
@@ -2132,10 +2157,10 @@ fn edn_to_typed_value_inner(
                             crate::types::Nature::Struct | crate::types::Nature::Record
                         ) =>
                     {
-                        coerce_struct_path(p, a, edn, types, &[])
+                        coerce_struct_path(p, a, edn, types, ctx, &[])
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
-                        coerce_enum_path(p, def, edn, types, &[])
+                        coerce_enum_path(p, def, edn, types, ctx, &[])
                     }
                     _ => Err(mismatch(target, edn)),
                 }
@@ -2150,7 +2175,7 @@ fn edn_to_typed_value_inner(
                     Edn::Vector(items) | Edn::List(items) => {
                         let mut walked = Vec::with_capacity(items.len());
                         for (i, item) in items.iter().enumerate() {
-                            let v = edn_to_typed_value_inner(elem_ty, item, types)
+                            let v = edn_to_typed_value_inner(elem_ty, item, types, ctx)
                                 .map_err(|e| e.at(&format!(".[{}]", i)))?;
                             walked.push(v);
                         }
@@ -2168,7 +2193,7 @@ fn edn_to_typed_value_inner(
                     Edn::List(items) | Edn::Vector(items) => {
                         let mut walked = std::collections::LinkedList::new();
                         for (i, item) in items.iter().enumerate() {
-                            let v = edn_to_typed_value_inner(elem_ty, item, types)
+                            let v = edn_to_typed_value_inner(elem_ty, item, types, ctx)
                                 .map_err(|e| e.at(&format!(".[{}]", i)))?;
                             walked.push_back(v);
                         }
@@ -2187,7 +2212,7 @@ fn edn_to_typed_value_inner(
                             "None" => Ok(Value::Option(Arc::new(None))),
                             "Some" => {
                                 let inner_edn = coerce_variant_single(target, edn, body)?;
-                                let inner = edn_to_typed_value_inner(inner_ty, inner_edn, types)
+                                let inner = edn_to_typed_value_inner(inner_ty, inner_edn, types, ctx)
                                     .map_err(|e| e.at(".some"))?;
                                 Ok(Value::Option(Arc::new(Some(inner))))
                             }
@@ -2210,13 +2235,13 @@ fn edn_to_typed_value_inner(
                         match tag.name() {
                             "Ok" => {
                                 let inner_edn = coerce_variant_single(target, edn, body)?;
-                                let v = edn_to_typed_value_inner(ok_ty, inner_edn, types)
+                                let v = edn_to_typed_value_inner(ok_ty, inner_edn, types, ctx)
                                     .map_err(|e| e.at(".ok"))?;
                                 Ok(Value::Result(Arc::new(Ok(v))))
                             }
                             "Err" => {
                                 let inner_edn = coerce_variant_single(target, edn, body)?;
-                                let v = edn_to_typed_value_inner(err_ty, inner_edn, types)
+                                let v = edn_to_typed_value_inner(err_ty, inner_edn, types, ctx)
                                     .map_err(|e| e.at(".err"))?;
                                 Ok(Value::Result(Arc::new(Err(v))))
                             }
@@ -2256,9 +2281,9 @@ fn edn_to_typed_value_inner(
                             // The key's own coordinate is its written form — a map has no
                             // positional index, so `.{<key>}` is the honest segment.
                             let seg = format!(".{{{}}}", wat_edn::write(k_edn));
-                            let k = edn_to_typed_value_inner(key_ty, k_edn, types)
+                            let k = edn_to_typed_value_inner(key_ty, k_edn, types, ctx)
                                 .map_err(|e| e.at(&seg))?;
-                            let v = edn_to_typed_value_inner(val_ty, v_edn, types)
+                            let v = edn_to_typed_value_inner(val_ty, v_edn, types, ctx)
                                 .map_err(|e| e.at(&seg))?;
                             map.insert(k, v);
                         }
@@ -2276,7 +2301,7 @@ fn edn_to_typed_value_inner(
                             std::collections::HashSet::with_capacity(items.len());
                         for item in items.iter() {
                             let seg = format!(".{{{}}}", wat_edn::write(item));
-                            let v = edn_to_typed_value_inner(elem_ty, item, types)
+                            let v = edn_to_typed_value_inner(elem_ty, item, types, ctx)
                                 .map_err(|e| e.at(&seg))?;
                             set.insert(v);
                         }
@@ -2304,10 +2329,10 @@ fn edn_to_typed_value_inner(
                             crate::types::Nature::Struct | crate::types::Nature::Record
                         ) =>
                     {
-                        coerce_struct_path(&path, a, edn, types, args)
+                        coerce_struct_path(&path, a, edn, types, ctx, args)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
-                        coerce_enum_path(&path, def, edn, types, args)
+                        coerce_enum_path(&path, def, edn, types, ctx, args)
                     }
                     _ => Err(mismatch(target, edn)),
                 }
@@ -2334,7 +2359,7 @@ fn edn_to_typed_value_inner(
                     }
                     let mut walked = Vec::with_capacity(items.len());
                     for (i, (elem_ty, item)) in elements.iter().zip(items.iter()).enumerate() {
-                        let v = edn_to_typed_value_inner(elem_ty, item, types)
+                        let v = edn_to_typed_value_inner(elem_ty, item, types, ctx)
                             .map_err(|e| e.at(&format!(".[{}]", i)))?;
                         walked.push(v);
                     }
@@ -2432,6 +2457,7 @@ fn coerce_struct_path(
     def: &crate::types::AggregateDef,
     edn: &wat_edn::OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
     type_args: &[crate::types::TypeExpr],
 ) -> Result<Value, EdnCoerceError> {
     use wat_edn::Value as Edn;
@@ -2488,7 +2514,7 @@ fn coerce_struct_path(
         // Arc 278 the parametric protocol — a generic declaration's params are not registry
         // types; substitute them out first (no params ⇒ the identity, allocation aside).
         let fty = substitute_type_params(fty, &def.type_params, type_args);
-        let v = edn_to_typed_value_inner(&fty, fv, types)
+        let v = edn_to_typed_value_inner(&fty, fv, types, ctx)
             .map_err(|e| e.at(&format!(".{}", fname)))?;
         fields.push(v);
     }
@@ -2508,6 +2534,7 @@ fn coerce_enum_path(
     def: &crate::types::EnumDef,
     edn: &wat_edn::OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
     type_args: &[crate::types::TypeExpr],
 ) -> Result<Value, EdnCoerceError> {
     use wat_edn::Value as Edn;
@@ -2594,7 +2621,7 @@ fn coerce_enum_path(
             for (i, ((fname, fty), item)) in fields.iter().zip(items.iter()).enumerate() {
                 // Arc 278 the parametric protocol — see `substitute_type_params`.
                 let fty = substitute_type_params(fty, &def.type_params, type_args);
-                let v = edn_to_typed_value_inner(&fty, item, types)
+                let v = edn_to_typed_value_inner(&fty, item, types, ctx)
                     .map_err(|e| e.at(&format!(".{}", fname)))?;
                 let _ = i; // path uses field name, index reserved for future
                 walked.push(v);
@@ -2822,6 +2849,7 @@ fn tagged_to_value(
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
     foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     let ns = tag.namespace();
@@ -2873,7 +2901,7 @@ fn tagged_to_value(
         return Ok(Value::Option(Arc::new(match name {
             "None" => None,
             "Some" => {
-                let inner = variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign))?;
+                let inner = variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign, ctx))?;
                 Some(inner)
             }
             // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
@@ -2883,8 +2911,8 @@ fn tagged_to_value(
     // Arc 278 Stone A.0 — Result is VECTOR-bodied: `#wat.core.Result/Ok [v]` / `.../Err [e]`.
     if ns == "wat.core.Result" {
         return Ok(Value::Result(Arc::new(match name {
-            "Ok" => Ok(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign))?),
-            "Err" => Err(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign))?),
+            "Ok" => Ok(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign, ctx))?),
+            "Err" => Err(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign, ctx))?),
             // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
             _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) }),
         })));
@@ -2903,8 +2931,8 @@ fn tagged_to_value(
         };
         let mut pairs: Vec<(Value, Value)> = Vec::new();
         for (k, v) in entries {
-            let k_val = edn_to_value_caps(k, types, allow_caps, foreign)?;
-            let v_val = edn_to_value_caps(v, types, allow_caps, foreign)?;
+            let k_val = edn_to_value_caps(k, types, allow_caps, foreign, ctx)?;
+            let v_val = edn_to_value_caps(v, types, allow_caps, foreign, ctx)?;
             if !crate::runtime::value_is_key_hashable(&k_val) {
                 return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentMap key: {}", k_val.type_name())) });
             }
@@ -2926,7 +2954,7 @@ fn tagged_to_value(
         };
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for item in items {
-            let val = edn_to_value_caps(item, types, allow_caps, foreign)?;
+            let val = edn_to_value_caps(item, types, allow_caps, foreign, ctx)?;
             pv.push_back_mut(val);
         }
         return Ok(Value::wat__core__PersistentVector(pv));
@@ -2940,16 +2968,29 @@ fn tagged_to_value(
     //   Aggregate(kind!=Struct) → reconstruct_record,
     //   Aggregate(kind==Struct) or unknown → reconstruct_struct (returns UnknownTag on miss).
     match body {
+        // Arc 294.g — the discriminator moved from BODY SHAPE to the REGISTRY. Before this
+        // stone a holon record had a distinct `Edn::Tagged(#wat-edn.holon/*, _)` body (the
+        // serialized hologram) so the decoder could tell it apart from a base record's
+        // `Edn::Map` body by shape alone. Now every record — Record or HolonRecord — wears
+        // the SAME `Edn::Map` body (class tag + fields), so the only signal left is what the
+        // type registry says `a.nature` is. `Nature::HolonRecord` routes to
+        // `reconstruct_holon_record`, which builds fields from the map exactly as
+        // `reconstruct_record` does and then DERIVES the hologram (`build_holon_hologram`,
+        // the same fn `aggregate-new` calls at construction) — never sniffs the body, never
+        // reads a marker key.
         Edn::Map(entries) => {
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
-                    reconstruct_record(ns, name, entries, types, allow_caps, foreign)
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::HolonRecord => {
+                    reconstruct_holon_record(ns, name, entries, types, allow_caps, foreign, ctx)
                 }
-                _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign),
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
+                    reconstruct_record(ns, name, entries, types, allow_caps, foreign, ctx)
+                }
+                _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign, ctx),
             }
         }
-        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps, foreign),
+        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps, foreign, ctx),
         // Arc 278 Stone A.0 — a bare-nil body is no longer a variant. Unit variants
         // are now `#tag []` (empty vector, handled above); `nil` is the unit value ONLY.
         // A generic `#tag nil` is malformed post-cutover → loud error (no-hidden-failures).
@@ -2959,22 +3000,6 @@ fn tagged_to_value(
                 "{ns}/{name} has a bare-nil body — retired (arc 278 A.0); unit variants are `#tag []`"
             )),
         }),
-        // Arc 234 Stone 234.7b — holon-tagged body: a #wat-edn.holon/* tagged value
-        // under a class tag. If the class resolves to a record Aggregate (kind!=Struct),
-        // this is a holon record (encoded by the 234.7b encode arm as hologram-as-edn).
-        // Base records have Edn::Map bodies (handled above) — these are distinct.
-        Edn::Tagged(inner_tag, _) if inner_tag.namespace() == "wat-edn.holon" => {
-            let path = ns_to_wat_path(ns, name);
-            match types.get(&path) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
-                    reconstruct_holon_record(ns, name, body, types)
-                }
-                _ => {
-                    // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
-                    Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: name.to_string(), body_shape: "tagged-holon" } })
-                }
-            }
-        }
         other => {
             let shape = match other {
                 Edn::Bool(_) => "bool",
@@ -3044,6 +3069,7 @@ fn reconstruct_struct(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
@@ -3054,7 +3080,7 @@ fn reconstruct_struct(
             // under an unregistered tag reconstructs a self-describing ForeignRecord
             // (the consumer LACKS the type); strict mode is UNCHANGED — it errors.
             if foreign {
-                return build_foreign_record(ns, name, entries, types);
+                return build_foreign_record(ns, name, entries, types, ctx);
             }
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: name.to_string(), body_shape: "map" } });
@@ -3088,7 +3114,7 @@ fn reconstruct_struct(
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownStructField { type_path: path.clone(), key: fname.clone() } }
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign)?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
     }
@@ -3109,6 +3135,7 @@ fn reconstruct_record(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
@@ -3120,7 +3147,7 @@ fn reconstruct_record(
             // registry changed between the tagged_to_value routing check and here;
             // handled symmetrically with reconstruct_struct for robustness.)
             if foreign {
-                return build_foreign_record(ns, name, entries, types);
+                return build_foreign_record(ns, name, entries, types, ctx);
             }
             return Err(EdnReadError {
                 span: crate::rust_caller_span!(),
@@ -3150,7 +3177,7 @@ fn reconstruct_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign)?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
         // Apply Option-rewrapping when the field is Option<T>.
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
@@ -3160,103 +3187,103 @@ fn reconstruct_record(
     Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
 }
 
-/// Arc 234 Stone 234.7b — Decode a holon-record tagged body (a `#wat-edn.holon/Bind[…]`
-/// inner value) back to `Value::Aggregate(nature=HolonRecord)`.
+/// Arc 234 Stone 234.7b (REWRITTEN by Arc 294.g) — Decode a holon-record tagged-MAP back to
+/// `Value::Aggregate(nature=HolonRecord)`.
 ///
-/// Steps:
-/// 1. Reconstruct `hologram` exactly via `edn_to_holon_ast` (the proven round-trip).
-/// 2. Project `fields` from the Bundle leaves:
-///    `hologram` must be `Bind(_, Bundle(children))`;
-///    each child must be `Bind(_, val_node)`;
-///    `fields[i] = from_holon_item(val_node)` (pure; no eval context).
-///    `val_node` is typically `Atom(to-holon(val))` — the Atom is unwrapped locally
-///    here (confined to record projection) before calling `from_holon_item`.
-/// 3. class from the wire tag path (strip leading ':').
+/// Before 294.g the wire body was the serialized hologram (`Bind(_, Bundle(children))`) and
+/// this function PROJECTED fields out of it. 294.g collapsed the encode side — a holon
+/// record's wire form is now IDENTICAL to a base record's (class tag + field map; the
+/// hologram never crosses the wire; see `value_to_edn_with`'s `Value::Aggregate` arm) — so
+/// that projection is retired. Fields now come from the map exactly as `reconstruct_record`
+/// builds them; the hologram is then DERIVED from those fields via `build_holon_hologram`
+/// (`crate::runtime`), the SAME function `aggregate-new` calls at construction time
+/// (arc 294.c.2a) — no second implementation, and the index is derived, never read off the
+/// wire (the non-vacuity guard this stone's probe rows 3-4 exist to enforce).
 ///
-/// STOP: if `hologram` is not `Bind(_, Bundle(_))` → `EdnReadError::Other`.
+/// `ctx` is the ambient `EncodingCtx` `build_holon_hologram` needs to derive the index
+/// (construction-capacity budget). It comes from the `SymbolTable` at the decode entry point
+/// (threaded down from `eval_edn_read` et al.). A decode call with no live program's
+/// `EncodingCtx` attached cannot derive an index for a HolonRecord class — this errors loudly
+/// rather than fabricate a wrong-dimension context or silently skip the derivation.
 fn reconstruct_holon_record(
     ns: &str,
     name: &str,
-    body: &OwnedValue,
-    _types: &crate::types::TypeEnv,
+    entries: &[(OwnedValue, OwnedValue)],
+    types: &crate::types::TypeEnv,
+    allow_caps: bool,
+    foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    use holon::HolonAST;
-
-    // 1. Reconstruct holon_form exactly via the proven edn round-trip.
-    let holon_arc = edn_to_holon_ast(body)?;
-    let holon_form: HolonAST = (*holon_arc).clone();
-
-    // 2. Project struct_form from the Bundle leaves.
-    //    Shape: Bind(_class, Bundle([Bind(_name, val_node), ...]))
-    let children = match &holon_form {
-        HolonAST::Bind(_, right) => match right.as_ref() {
-            HolonAST::Bundle(children) => children.clone(),
-            _ => {
-                return Err(EdnReadError {
-                    span: crate::rust_caller_span!(),
-                    kind: EdnReadErrorKind::Other(
-                        "reconstruct_holon_record: holon_form inner (right of outer Bind) must be Bundle".into()
-                    ),
-                });
-            }
-        },
+    let path = ns_to_wat_path(ns, name);
+    let def = match types.get(&path) {
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::HolonRecord => a,
         _ => {
+            // Arc 278 Stone A — foreign-mode miss (map body, unregistered/mismatched-nature
+            // tag) → ForeignRecord. Symmetric with reconstruct_struct/reconstruct_record.
+            if foreign {
+                return build_foreign_record(ns, name, entries, types, ctx);
+            }
             return Err(EdnReadError {
                 span: crate::rust_caller_span!(),
-                kind: EdnReadErrorKind::Other(
-                    "reconstruct_holon_record: holon_form must be Bind(class, Bundle)".into()
-                ),
+                kind: EdnReadErrorKind::UnknownTag {
+                    ns: ns.to_string(),
+                    name: name.to_string(),
+                    body_shape: "map",
+                },
             });
         }
     };
-
-    // Each child is Bind(_name, val_node); project val_node → Value.
-    // val_node is Atom(to-holon(field_val)) from the Record.wat macro.
-    // Unwrap the opaque-identity Atom here (confined to record projection),
-    // then decode the inner via from_holon_item. NOT widened into the shared
-    // from_holon_item, where it would silently misdecode a collection of holon values.
-    let op = "reconstruct_holon_record";
-    let span = crate::rust_caller_span!();
-    let mut fields: Vec<Value> = Vec::with_capacity(children.len());
-    for child in children.iter() {
-        match child {
-            HolonAST::Bind(_, val_node) => {
-                // The Record.wat macro stores each field value as Atom(to-holon(val)).
-                // Unwrap the opaque-identity Atom here (confined to record projection),
-                // then decode the inner via from_holon_item. NOT widened into the shared
-                // from_holon_item, where it would silently misdecode a collection of holon values.
-                let inner = match val_node.as_ref() {
-                    HolonAST::Atom(inner) => inner.as_ref(),
-                    other => other,
-                };
-                let v = crate::runtime::from_holon_item(inner, op, &span)
-                    .map_err(|e| EdnReadError {
-                        span: crate::rust_caller_span!(),
-                        kind: EdnReadErrorKind::Other(format!(
-                            "reconstruct_holon_record: from_holon_item failed: {e}"
-                        )),
-                    })?;
-                fields.push(v);
-            }
-            _ => {
-                return Err(EdnReadError {
-                    span: crate::rust_caller_span!(),
-                    kind: EdnReadErrorKind::Other(
-                        "reconstruct_holon_record: holon_form Bundle child must be Bind".into()
-                    ),
-                });
-            }
+    // Build a key → value lookup from the EDN map (bare keyword names) — identical to
+    // reconstruct_record; a holon record's wire body IS a base record's body.
+    let mut by_key: std::collections::HashMap<String, &OwnedValue> =
+        std::collections::HashMap::with_capacity(entries.len());
+    for (k, v) in entries {
+        if let OwnedValue::Keyword(kw) = k {
+            by_key.insert(kw.name().to_string(), v);
         }
     }
-
-    // 3. class from the wire tag path (strip leading ':').
-    let path = ns_to_wat_path(ns, name);
+    // Walk declared fields in declaration order.
+    let mut field_names: Vec<String> = Vec::with_capacity(def.fields.len());
+    let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
+    for (fname, fty) in def.fields.iter() {
+        let fv = by_key.get(fname.as_str()).ok_or_else(|| EdnReadError {
+            span: crate::rust_caller_span!(),
+            kind: EdnReadErrorKind::UnknownStructField {
+                type_path: path.clone(),
+                key: fname.clone(),
+            },
+        })?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
+        let wrapped = rewrap_option_field(fty, inner);
+        field_names.push(fname.clone());
+        fields.push(wrapped);
+    }
+    // class stored without leading ':'; path has it — strip.
     let class = path.strip_prefix(':').unwrap_or(&path).to_string();
+
+    // Derive the hologram from the decoded fields — the index is NEVER read off the wire.
+    let ctx = ctx.ok_or_else(|| EdnReadError {
+        span: crate::rust_caller_span!(),
+        kind: EdnReadErrorKind::Other(format!(
+            "reconstruct_holon_record: decoding {path} (a holon record) requires an \
+             EncodingCtx to derive its hologram, and none is attached to this decode call — \
+             the hologram is derived on arrival, never read off the wire (arc 294.g), so a \
+             decode door with no live program's EncodingCtx cannot reconstruct a holon record"
+        )),
+    })?;
+    let span = crate::rust_caller_span!();
+    let hologram = crate::runtime::build_holon_hologram(&class, &field_names, &fields, ctx, &span)
+        .map_err(|e| EdnReadError {
+            span: crate::rust_caller_span!(),
+            kind: EdnReadErrorKind::Other(format!(
+                "reconstruct_holon_record: build_holon_hologram failed: {e}"
+            )),
+        })?;
 
     Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class,
         Arc::new(fields),
-        Arc::new(holon_form),
+        hologram,
     ))))
 }
 
@@ -3287,6 +3314,7 @@ fn reconstruct_enum_tagged(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_enum_path(ns);
     let def = match types.get(&path) {
@@ -3296,7 +3324,7 @@ fn reconstruct_enum_tagged(
             // mode, reconstruct a self-describing ForeignVariant (enum-class +
             // variant + positional fields, recursively decoded); strict mode errors.
             if foreign {
-                return build_foreign_variant(ns, variant_name, items, types);
+                return build_foreign_variant(ns, variant_name, items, types, ctx);
             }
             // arc 138: no span — reconstruct_enum_tagged operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: variant_name.to_string(), body_shape: "vector" } });
@@ -3323,7 +3351,7 @@ fn reconstruct_enum_tagged(
     };
     let mut fields: Vec<Value> = Vec::with_capacity(items.len());
     for (idx, item) in items.iter().enumerate() {
-        let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign)?;
+        let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?;
         let wrapped = match declared_fields.get(idx) {
             Some((_, fty)) => rewrap_option_field(fty, inner),
             None => inner,
@@ -3349,6 +3377,7 @@ fn build_foreign_record(
     name: &str,
     entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     let class = path.strip_prefix(':').unwrap_or(&path).to_string();
@@ -3369,7 +3398,7 @@ fn build_foreign_record(
                 });
             }
         };
-        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true)?;
+        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?;
         fields.push((key, val));
     }
     Ok(Value::ForeignRecord(Arc::new(ForeignRecordValue { class, fields })))
@@ -3385,12 +3414,13 @@ fn build_foreign_variant(
     variant_name: &str,
     items: &[OwnedValue],
     types: &crate::types::TypeEnv,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let enum_path = ns_to_enum_path(ns);
     let enum_class = enum_path.strip_prefix(':').unwrap_or(&enum_path).to_string();
     let mut fields: Vec<Value> = Vec::with_capacity(items.len());
     for item in items {
-        fields.push(edn_to_value_caps(item, Some(types), /*allow_caps*/ false, /*foreign*/ true)?);
+        fields.push(edn_to_value_caps(item, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?);
     }
     Ok(Value::ForeignVariant(Arc::new(ForeignVariantValue {
         enum_class,
@@ -3447,7 +3477,9 @@ pub(crate) fn value_to_edn_string_with(
 /// defined structs/enums are not reconstructed without a TypeEnv; the
 /// process tier's program fn works on the decoded primitive scaffold.
 pub(crate) fn edn_string_to_value(s: &str) -> Result<Value, EdnReadError> {
-    read_edn(s, None)
+    // types=None ⇒ no tagged/registered value (incl. no HolonRecord) is ever reachable here —
+    // ctx=None is therefore exact, not a shortcut (see `read_edn`'s doc).
+    read_edn(s, None, None)
 }
 
 /// Arc 272 6a-i — **THE ONE TRUSTED-WIRE DECODE DOOR.** The sole entry that reconstructs portable
@@ -3468,8 +3500,9 @@ pub(crate) fn edn_string_to_value(s: &str) -> Result<Value, EdnReadError> {
 pub(crate) fn decode_trusted_wire(
     s: &str,
     types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    let v = read_edn_caps(s, types, true)?;
+    let v = read_edn_caps(s, types, true, ctx)?;
     // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────
     // The §7 runtime backstop that refused a top-level Nature::Struct at the
     // wire-decode door is gone. The compile-time purity wall at wire-peer
@@ -3528,7 +3561,7 @@ mod cap_decode_boundary {
     fn trusted_door_reconstructs_capability_tags() {
         let types = make_types();
         assert!(
-            decode_trusted_wire(CAP_TAG_GENERAL, Some(&types)).is_ok(),
+            decode_trusted_wire(CAP_TAG_GENERAL, Some(&types), None).is_ok(),
             "the trusted-wire door MUST reconstruct a wat-edn.cap tag into a live capability"
         );
     }
@@ -3781,47 +3814,43 @@ pub fn value_to_edn_with(
         // No guard here — the Struct arm above catches nature==Struct; this arm is reached
         // only for Record/HolonRecord. Guard dropped so Rust's exhaustiveness checker sees
         // Value::Aggregate(_) as fully covered.
-        // Dispatch on holon: Hologram → holon wire form; Empty → base named-field map.
+        //
+        // Arc 294.g — ONE arm, not two. A holon record's wire form is IDENTICAL to a base
+        // record's: the class tag and its fields. The hologram (`a.holon`) is a DERIVED
+        // INDEX — 294.c.1 landed identity-as-EDN-data (Eq/Hash keyed on (holder, class,
+        // fields)), so the hologram has no business crossing the wire; the receiver knows
+        // `:t::Holo` is holon-held from the type registry and derives its own
+        // (`build_holon_hologram`). This is the body every base record already produced
+        // (Arc 234 Stone 234.7a); the old `HolonForm::Hologram` arm (Stone 234.7b, riding
+        // the hologram as `#wat-edn.holon/Bind[...]`) is ANNIHILATED.
         Value::Aggregate(a) => {
             let type_key = format!(":{}", a.class);
             let tag = tag_from_type_path(&type_key);
-            match &a.holon {
-                HolonForm::Hologram(hologram) => {
-                    // Arc 234 Stone 234.7b — HolonRecord: ride hologram as edn.
-                    // The body is a #wat-edn.holon/Bind[...] value (NOT a map) so the decode
-                    // path can distinguish holon records from base records (which have Map bodies).
-                    // fields projection is not read here — identity lives in the hologram.
-                    OwnedValue::Tagged(tag, Box::new(holon_ast_to_edn(hologram)))
+            // class has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
+            // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
+            // Fallback to field-{i} when no def is found (no-types or unregistered class).
+            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
+                Some(crate::types::TypeDef::Aggregate(def)) if def.nature != crate::types::Nature::Struct => {
+                    def.field_names().map(|s| s.to_string()).collect()
                 }
-                HolonForm::Empty => {
-                    // Arc 234 Stone 234.7a — base Record: named-field tagged-map.
-                    // class has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
-                    // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
-                    // Fallback to field-{i} when no def is found (no-types or unregistered class).
-                    let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                        Some(crate::types::TypeDef::Aggregate(def)) if def.nature != crate::types::Nature::Struct => {
-                            def.field_names().map(|s| s.to_string()).collect()
-                        }
-                        _ => (0..a.fields.len()).map(|i| format!("field-{}", i)).collect(),
-                    };
-                    let entries: Vec<(OwnedValue, OwnedValue)> = a
-                        .fields
-                        .iter()
-                        .enumerate()
-                        .map(|(i, fv)| {
-                            let key = field_names
-                                .get(i)
-                                .cloned()
-                                .unwrap_or_else(|| format!("field-{}", i));
-                            (
-                                OwnedValue::Keyword(Keyword::new(key)),
-                                value_to_edn_with(fv, types),
-                            )
-                        })
-                        .collect();
-                    OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
-                }
-            }
+                _ => (0..a.fields.len()).map(|i| format!("field-{}", i)).collect(),
+            };
+            let entries: Vec<(OwnedValue, OwnedValue)> = a
+                .fields
+                .iter()
+                .enumerate()
+                .map(|(i, fv)| {
+                    let key = field_names
+                        .get(i)
+                        .cloned()
+                        .unwrap_or_else(|| format!("field-{}", i));
+                    (
+                        OwnedValue::Keyword(Keyword::new(key)),
+                        value_to_edn_with(fv, types),
+                    )
+                })
+                .collect();
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         // Arc 118 — Stream: opaque (lazy; realizing for EDN would diverge on infinite seqs).
         // Render the forced prefix if available, otherwise as an opaque lazy sentinel.
@@ -4303,7 +4332,7 @@ mod tests {
         // arm prefixes span_prefix, which returns "" for unknown spans.
         // This canary verifies the variant structurally carries a span and
         // that Display still renders without panic.
-        let result = read_edn("#unknown/Type {}", None);
+        let result = read_edn("#unknown/Type {}", None, None);
         let err = result.unwrap_err();
         let rendered = format!("{}", err);
         assert!(

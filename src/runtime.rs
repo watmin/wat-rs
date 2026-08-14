@@ -15681,7 +15681,11 @@ fn eval_holon_record_of(
 ///
 /// Called by `eval_aggregate_new` for `Nature::HolonRecord`; the caller already
 /// holds `ctx` from `require_encoding_ctx`.
-fn build_holon_hologram(
+// Arc 294.g — `pub(crate)` (was private): the wire decode side (`edn_shim.rs
+// reconstruct_holon_record`) is the SECOND caller. A holon record's wire form no longer
+// carries the hologram (294.g collapses the encode arms), so the receiver derives its own
+// index from the decoded fields via this SAME function — no second implementation.
+pub(crate) fn build_holon_hologram(
     class: &str,
     field_names: &[String],
     field_values: &[Value],
@@ -23626,7 +23630,9 @@ fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::Type
     if let Ok(parsed) = wat_edn::parse_owned(trimmed) {
         // A bare Vector<LociDiedError> death chain → bridge + take the head.
         if edn_is_loci_died_chain(&parsed) {
-            if let Ok(Value::Vec(items)) = crate::edn_shim::edn_to_value(&parsed, types) {
+            // ctx=None: this decodes only the fixed core `LociDiedError` enum — never a
+            // user-declared HolonRecord class — so no EncodingCtx is ever needed here.
+            if let Ok(Value::Vec(items)) = crate::edn_shim::edn_to_value(&parsed, types, None) {
                 if let Some(head) = items.first() {
                     return head.clone();
                 }
@@ -23635,7 +23641,7 @@ fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::Type
         // A single #wat.kernel.LociDiedError/… tagged value → bridge as-is.
         if let wat_edn::OwnedValue::Tagged(tag, _) = &parsed {
             if tag.namespace() == "wat.kernel.LociDiedError" {
-                if let Ok(v) = crate::edn_shim::edn_to_value(&parsed, types) {
+                if let Ok(v) = crate::edn_shim::edn_to_value(&parsed, types, None) {
                     return v;
                 }
             }
@@ -24166,6 +24172,7 @@ fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Val
     use crate::to_edn::WatError;
     let cause_edn = wat_edn::write(&e.error_edn());
     let types = sym.types().map(|t| &**t);
+    let ctx = sym.encoding_ctx().map(|c| &**c);
 
     // Two decodes, in order of how much the substrate can promise about the result:
     //
@@ -24182,10 +24189,10 @@ fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Val
     // returned value, so `:CheckFailed`'s declared `:wat::core::Error` is always
     // satisfied by a genuinely typed record — the dynamic part is contained in the
     // causes chain, which is exactly what a causes chain is for.
-    let nested = crate::edn_shim::decode_trusted_wire(&cause_edn, types).or_else(|_| {
+    let nested = crate::edn_shim::decode_trusted_wire(&cause_edn, types, ctx).or_else(|_| {
         wat_edn::parse_owned(&cause_edn)
             .map_err(|_| ())
-            .and_then(|owned| crate::edn_shim::edn_to_value_foreign(&owned, types).map_err(|_| ()))
+            .and_then(|owned| crate::edn_shim::edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
     });
 
     match nested {
@@ -26820,6 +26827,7 @@ fn eval_peer_recv_prime(
                                 Ok(edn_str) => match crate::edn_shim::decode_trusted_wire(
                                     &edn_str,
                                     sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
                                 ) {
                                     Ok(v) => recv_outcome_message(v),
                                     Err(e) => recv_outcome_lost(format!("recv EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
@@ -26881,6 +26889,7 @@ fn eval_peer_recv_prime(
                                 Ok(wire) => Ok(match crate::edn_shim::decode_trusted_wire(
                                     &wire,
                                     sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
                                 ) {
                                     Ok(v) => recv_outcome_from_decoded(v, sym.types().map(|a| a.as_ref())),
                                     Err(e) => recv_outcome_lost(format!("recv EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
@@ -27636,7 +27645,7 @@ fn eval_peer_select_prime(
                     Ok(edn_str) => {
                         // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
                         // decode through the capability door with the full type registry.
-                        let value = crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
+                        let value = crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref()), sym.encoding_ctx().map(|a| a.as_ref())).map_err(|e| {
                             EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
                                     reason: format!("select EDN decode failed: {}", e),
@@ -27838,6 +27847,7 @@ fn eval_peer_select_prime(
                                 let msg = crate::edn_shim::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
                                 )
                                 .map_err(|e| {
                                     EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
@@ -28548,6 +28558,7 @@ fn eval_poll_prime(
                                 let msg = crate::edn_shim::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
                                 )
                                 .map_err(|e| {
                                     EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
@@ -28598,6 +28609,7 @@ fn eval_poll_prime(
                                 match crate::edn_shim::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
                                 ) {
                                     // ServiceEvent::Message [idx <- i64  msg <- Value]
                                     Ok(msg) => Value::Enum(Arc::new(EnumValue {
@@ -28788,6 +28800,7 @@ fn eval_poll_prime(
                                                             match crate::edn_shim::decode_trusted_wire(
                                                                 ws2,
                                                                 sym.types().map(|a| a.as_ref()),
+                                                                sym.encoding_ctx().map(|a| a.as_ref()),
                                                             ) {
                                                                 Ok(msg2) => Value::Enum(Arc::new(EnumValue {
                                                                     type_path: SELECT_EVENT_TYPE
@@ -29022,7 +29035,7 @@ mod tests {
         // The owner's recv' Lost decoder STRICT-decodes the chain.
         let types = crate::types::TypeEnv::with_builtins();
         let parsed = wat_edn::parse_owned(&line).expect("emitted chain must parse");
-        let decoded = crate::edn_shim::edn_to_value(&parsed, Some(&types)).unwrap_or_else(|err| {
+        let decoded = crate::edn_shim::edn_to_value(&parsed, Some(&types), None).unwrap_or_else(|err| {
             panic!("the emitted StartupError chain must STRICT-decode to typed records; got {err:?}\n  line: {line}")
         });
 

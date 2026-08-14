@@ -119,6 +119,7 @@ impl CommListener for CrossbeamListener {
             &ReceiverInner::Comms(self.rx.clone()),
             sym.types().map(|a| a.as_ref()),
             span.clone(),
+            sym.encoding_ctx().map(|a| a.as_ref()),
         ) {
             crate::channel::RecvOutcome::Value(v) => v,
             // Arc 278 the accept' OUTCOME WALL — HANDLEABLE: the rendezvous is gone

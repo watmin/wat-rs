@@ -58,7 +58,7 @@ fn multiline_edn_value_frames_as_one_over_pipe() {
 
     // RED at HEAD: one read_line gets "{" → read_edn fails → DecodeError.
     // GREEN: the reader accumulates until the map parses → a single map Value.
-    match typed_recv(recv_inner, None, wat::rust_caller_span!()) {
+    match typed_recv(recv_inner, None, wat::rust_caller_span!(), None) {
         RecvOutcome::Value(v) => {
             // The whole multi-line frame decoded to ONE complete value.
             // (The build's own tests assert the map's field values; here we
@@ -107,11 +107,11 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
     drop(writer);
 
     // Recv the framed value back.
-    match typed_recv(recv_inner, None, wat::rust_caller_span!()) {
+    match typed_recv(recv_inner, None, wat::rust_caller_span!(), None) {
         RecvOutcome::Value(recv_val) => {
             // Re-decode the compact form and compare via Value::PartialEq
             // (HashMap equality is key-order-independent — correct for EDN maps).
-            let expected = wat::edn_shim::read_edn(compact, None)
+            let expected = wat::edn_shim::read_edn(compact, None, None)
                 .expect("compact read_edn should succeed");
             assert_eq!(
                 recv_val, expected,
@@ -246,7 +246,7 @@ fn anti_smuggling_two_values_in_one_frame_is_rejected() {
         .expect("write smuggled frame");
     drop(writer);
 
-    match typed_recv(recv_inner, None, wat::rust_caller_span!()) {
+    match typed_recv(recv_inner, None, wat::rust_caller_span!(), None) {
         RecvOutcome::DecodeError(msg) => {
             // Correct: the trailing `{:b 2}` triggered a Malformed/parse error.
             // Message content is not prescribed; just verify it's an error.

@@ -232,7 +232,7 @@ fn edn_roundtrip_list_parse_to_wat_core_list() {
     );
 
     // Convert through edn_shim: wat-edn List → wat Value::wat__core__List
-    let wat_val = edn_to_value(&parsed, None)
+    let wat_val = edn_to_value(&parsed, None, None)
         .expect("edn_to_value failed for List");
     match &wat_val {
         Value::wat__core__List(xs) => {
@@ -252,7 +252,7 @@ fn edn_roundtrip_vector_still_goes_to_vec() {
     let edn_src = "[1 2 3]";
     let parsed = parse(edn_src).expect("wat-edn parse of [1 2 3] failed");
 
-    let wat_val = edn_to_value(&parsed, None)
+    let wat_val = edn_to_value(&parsed, None, None)
         .expect("edn_to_value failed for Vector");
     match &wat_val {
         Value::Vec(xs) => {

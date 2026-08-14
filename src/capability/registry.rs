@@ -200,7 +200,9 @@ fn address_codec() -> CapCodec {
             // body is the OwnedValue body of #wat-edn.cap/address — expected to be a
             // #wat.kernel/SocketAddressWire tagged map (as produced by value_to_edn_with on the
             // SocketAddressWire record).
-            let record_val = crate::edn_shim::edn_to_value(body, Some(types)).map_err(|_| {
+            // ctx=None: this codec only ever decodes the fixed `SocketAddressWire` Record
+            // (never a user-declared HolonRecord class), so no EncodingCtx is ever needed.
+            let record_val = crate::edn_shim::edn_to_value(body, Some(types), None).map_err(|_| {
                 cap_decode_error("wat-edn.cap/address (body failed edn_to_value)")
             })?;
             let (minter_pid, name_bytes) = socket_address_wire_from_record(&record_val)?;

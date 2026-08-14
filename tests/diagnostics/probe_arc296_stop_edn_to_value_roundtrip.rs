@@ -34,7 +34,7 @@ fn check_errors_edn_does_not_round_trip_to_value() {
 
     // No type registry available here (the common case for a freshly-parsed
     // envelope) → NoTypeRegistry.
-    let decoded = wat::edn_shim::edn_to_value(&edn, None);
+    let decoded = wat::edn_shim::edn_to_value(&edn, None, None);
     eprintln!("edn_to_value(None) → {:?}", decoded.as_ref().map(|_| "Ok").map_err(|e| e.to_string()));
     assert!(
         decoded.is_err(),

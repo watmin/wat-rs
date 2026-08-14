@@ -345,7 +345,7 @@ pub fn eval_kernel_readln_prime(
     // stays a raise — that is a malformed wire, a genuine fault, not an outcome.
     Ok(match read_via_stdin(OP, list_span, sym, cap)? {
         ReadFrame::Text(line) => {
-            let v = crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()))
+            let v = crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()), sym.encoding_ctx().map(|a| a.as_ref()))
                 .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!("readln EDN decode failed: {}", e),

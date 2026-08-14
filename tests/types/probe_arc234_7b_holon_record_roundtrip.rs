@@ -15,12 +15,20 @@
 //! C2 — Projection: a FIELD ACCESSOR on the decoded record returns the correct
 //!      value. `Eq` alone can't see a wrong `struct_form` (which only `Eq`-compares
 //!      via `holon_form`); this contract catches a broken struct_form projection.
-//! C3 — Shape: the written EDN string contains `#wat-edn.holon`, proving the wire
-//!      carried the holon_form (not a field-N map).
+//! C3 — Shape: the written EDN is PLAIN — the class tag and its NAMED fields.
+//!      ⛔ INVERTED 2026-08-14 (stone 294.g). Originally: *"contains `#wat-edn.holon`,
+//!      proving the wire carried the holon_form (not a field-N map)."*
+//!      READ THAT PARENTHESIS — the hologram was never the GOAL, it was an ESCAPE from
+//!      `field-N`. 234.7b faced two options and took the better one available then.
+//!      294.g supplies the third neither state had: NAMED fields (`{:x 7 :y 8}`), which
+//!      satisfies 234.7b's actual intent — no positional keys — better than the hologram
+//!      did, and without shipping a derived index on the wire. The `field-N` fallback
+//!      this contract was defending against is tracked in
+//!      `296/NOTE-value-to-edn-renders-fields-positionally.md` (builder-deferred).
 //!
 //! ## RED at HEAD (before this stone)
 //!
-//! C3: `(:wat::edn::write h)` emits `{:field-0 7 :field-1 8}` → no `#wat-edn.holon`.
+//! C3 (as of 234.7b): `(:wat::edn::write h)` emitted `{:field-0 7 :field-1 8}` — positional.
 //! C1/C2: `(:wat::edn::read s)` errors `UnknownTag` → eval panics.
 //!
 //! ## GREEN after
@@ -34,9 +42,20 @@
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
-/// C3 — the written EDN string contains `#wat-edn.holon` (rode the holon encoding).
+/// C3 — the written EDN is PLAIN: the class tag and its fields, NOT a serialized hologram.
+///
+/// ⛔ INVERTED 2026-08-14 by stone 294.g, and this comment is the record of it. C3 was written for
+/// arc 234.7b and asserted the OPPOSITE — *"the written EDN string contains `#wat-edn.holon` (rode
+/// the holon encoding)"* — which was the contract until 294.c.1 (`ed7ecd50`) made the EDN FIELDS the
+/// identity. Once the fields are the identity the hologram is a DERIVED INDEX, and 294 R1 flaw #3
+/// names the tags *"scar tissue from a hologram-canonical wire"* with the cure *"the wire is plain
+/// EDN."* Builder, 2026-08-14: *"annihilation is our greatest joy .... then that's our target."*
+///
+/// Its siblings C1 (round-trip equality) and C2 (field accessor on the decoded record) PASSED
+/// unchanged across the flip — which is the evidence that only the WIRE SHAPE moved and the
+/// round-trip identity did not. Had they gone red, the stone would have been reverted instead.
 #[test]
-fn c3_holon_tag_in_edn_string() {
+fn c3_wire_is_plain_edn_not_a_serialized_hologram() {
     let got = call_beside_value(file!(), ":user::write-hpt")
         .expect("C3 eval must succeed (write-hpt)");
     let s = match got {

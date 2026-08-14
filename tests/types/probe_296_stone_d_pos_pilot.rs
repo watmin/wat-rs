@@ -30,7 +30,7 @@ fn c1_pos_is_registered_via_derive_drain() {
 fn c2_pos_edn_read_reconstructs() {
     let types = TypeEnv::with_builtins();
     // rune:lint(no-inlined-edn) — input under test: a tagged Pos record source fed to read_edn
-    let result = read_edn(r##"#wat.core/Pos {:line 1 :col 2}"##, Some(&types));
+    let result = read_edn(r##"#wat.core/Pos {:line 1 :col 2}"##, Some(&types), None);
     match result {
         Ok(Value::Aggregate(agg)) => {
             eprintln!("C2 PASS: edn::read returned Aggregate {:?}", agg.class);
