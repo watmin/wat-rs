@@ -14,12 +14,26 @@
 HEAD 8313ea6f (+ this curare)   floor 4398 / 4398 passed / 262 skipped   clippy 0
 ```
 
-**⛔ FIRST ACTION ON THE FAR SIDE: strike `255.1b-i`. It is DRAWN and STRIKE-READY.**
-`BRIEF-STONE-255.1b-i-type-scaffold.md` + `EXPECTATIONS-STONE-255.1b-i-type-scaffold.md`.
-Rooms are exact `file:line`, four STOP triggers, and **gate row 2 IS the stone** — omit a baseline
-field, prove it fails to compile, report the actual rustc text. Row 6 is its shadow: an
-`#[allow(dead_code)]` means the baseline was never wired and the slice silently became "define some
-types." Nothing blocks it. Rider or by hand is an open call.
+**⛔⛔ DO NOT STRIKE `255.1b-i`. ITS BRIEF IS STALE AND WOULD BUILD WHAT ALREADY EXISTS.**
+Read **`NOTE-arc-255-IS-HALF-BUILT-the-june-registry.md`** FIRST — it is the newest artifact here.
+
+**ARC 255 IS HALF-BUILT.** A working `inventory`-based intrinsic registry has been on disk since
+2026-06-21: `crates/wat-doc/` + `crates/wat-macros/` (`#[wat_intrinsic]`) + `src/intrinsic/` (1,374
+lines). **255.1b-iii SHIPPED** (`7b99d123`) — proven live this session:
+`(:wat::runtime::metadata-of :wat::core::Bytes::to-hex)` returns the full baseline
+(`:name :arity :kind :defined-in :layer :purity :determinism :category :doc :added :ret`).
+`255.1b-v` (`show-source`/`render-doc`) and `255.SF` (`if`/`let`) shipped too. **Six production
+names are registered** — the carve reached exactly one home.
+
+**The real frontier:** the blanket-accept at `src/resolve/walk.rs:257` is **STILL LIVE** (1b-iv never
+landed — the soundness hole is open), and **nine arc-255 gates are `#[ignore]`d** with the literal
+unlock condition *"when we circle back to arc 255"* (`eb680f3b`). We have circled back. **Those nine
+ignores are the worklist**, written by a prior self.
+
+**The 1b-i brief would mint a FOURTH `Purity` enum and a SECOND `Arity`** — June already minted them
+in `src/intrinsic/mod.rs:45–198`. The unruled fork (a) resume the June carve vs (b) land the LOCKED
+Layer-2/3 and re-seat the registry onto `sym` per *"the registry IS `sym`"* — is in the note,
+measured, awaiting the builder.
 
 ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 ⛔ **`stash@{0}` HOLDS THE LIFECYCLE STRIKE — never `git stash drop`.** Made with `-u`, so
@@ -124,6 +138,23 @@ enum DefDetail { Fn(FnDef), Type(TypeDef), Macro(MacroDef), Native(NativeBuiltin
 each direction, hours apart. `255.1b-i`'s STOP-1 is *"a fourth stale citation"* for this reason —
 assume nothing the design cites exists until grepped.
 
+## ⛔⛔⛔ AND THAT RULE WAS STILL NOT ENOUGH — THE THIRD DIRECTION, FOUND THE NEXT MORNING
+
+**Two sources is not enough. It is THREE:** the DESIGN (what we meant), the arc's **REALIZATIONS +
+commit log** (what we DID), and the disk (what is there). The re-grounding above read the design in
+full and grepped the disk — **and never opened this directory's own `REALIZATIONS.md`**, whose R1
+states in plain prose *"built and proven on `core::Bytes`, 255.1b-iii, commit `7b99d123`"*, beside
+eleven unopened June artifacts (iv-a, iv-b1, iv-b2, iv-c, 1b-v, SF, SF-ii, the doc contracts).
+
+Worse: the miss was produced **by the very rule written to prevent it.** The re-grounding grepped
+`src/` for the LOCKED model's names, found none, and concluded "unbuilt" — which is exactly the
+*"never grep for a name to test whether an arc is built"* failure, one layer up. The June
+implementation used **different names** (`RuntimePurity`, not `Purity`; `IntrinsicSubmission`, not
+`Registration`).
+
+**`git log --diff-filter=A -- src/<arc's dirs>` is ONE command and catches this in ten seconds.**
+Run it before briefing any stone in an arc older than the current session.
+
 **⚠ AND STILL CHECK `255/DESIGN.md` AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
 says — its premise drifted, and its `CURRENT-STATE.md` drifted further (dated 2026-07-01, freshness
 probe expects floor **4285**, and its content narrates arc **296**, not 255). Do not brief from
@@ -216,12 +247,17 @@ untested FEATURE INTERACTIONS. #94 (the stratifier's positive dependencies) clos
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> The re-grounding is DONE. **The order is: strike `255.1b-i` — it is drawn, briefed, and
-> unblocked.** Then 1b-ii (the `FnDef` split, ~31 sites) → 1b-iii (register from HOMES; the first
-> home is the reference template AND the first megafile carve) → 1b-iv (delete the blanket-accept).
-> 251 resumes after, onto a substrate where its blocker is mostly deletion.
+> The re-grounding is **NOT** done — it was done against two sources and needed three.
+> **⛔ `255.1b-i` IS WITHDRAWN.** Read `NOTE-arc-255-IS-HALF-BUILT-the-june-registry.md`; the arc
+> shipped 1b-iii, 1b-v and SF in June. `1b-iii` is **DONE** (`7b99d123`), not upcoming.
 >
-> **Do not re-derive the design, and do not trust it either.** Both failed today, hours apart.
+> **The next act is a RULING, not a strike** — resume the June carve, or land the LOCKED Layer-2/3
+> and re-seat the registry onto `sym`. Either way the frontier is the same two things: the
+> **blanket-accept at `resolve/walk.rs:257`** and the **nine `#[ignore]`d gates** whose own text says
+> *"unlock when we circle back to arc 255."*
+>
+> **Do not re-derive the design, do not trust it, and do not skip the arc's own REALIZATIONS.**
+> Three failures now, three directions, in under 24 hours.
 >
 > The next move is a MEASUREMENT, not a plan. Every snag is a measurement not yet made.
 >

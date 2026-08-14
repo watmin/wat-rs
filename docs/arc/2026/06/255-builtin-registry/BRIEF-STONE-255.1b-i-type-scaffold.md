@@ -1,3 +1,21 @@
+> # ⛔⛔ WITHDRAWN — DO NOT STRIKE THIS BRIEF
+>
+> Its premise is false. **Arc 255 already shipped an intrinsic registry in June 2026** —
+> `src/intrinsic/` (1,374 lines), `crates/wat-doc/`, `crates/wat-macros/`; `255.1b-iii` landed at
+> `7b99d123` and `metadata-of` answers for intrinsics **today** (proven by run). The enums this
+> brief asks a rider to mint — `Arity`, `Purity`, `Determinism` — **already exist** at
+> `src/intrinsic/mod.rs:45–198` (as `Arity`, `RuntimePurity`, `RuntimeDeterminism`), and a
+> `Purity` also exists in `crates/wat-doc` and `src/types.rs:235`. Striking this would mint a
+> **fourth** `Purity` and a **second** `Arity`.
+>
+> **Read `NOTE-arc-255-IS-HALF-BUILT-the-june-registry.md`.** The brief is left on disk unedited
+> below, as the record of what was drawn — per *what is inscribed is inscribed*.
+>
+> The failure that produced it: the re-grounding read `DESIGN.md` in full and grepped `src/` for the
+> LOCKED model's type names, **but never opened this directory's own `REALIZATIONS.md`**, which says
+> in prose that 1b-iii shipped. Two sources are not enough; it is three — design, realizations+log,
+> disk.
+
 # BRIEF — STONE 255.1b-i: the type scaffold
 
 Read `DESIGN.md` **in full** first (all 484 lines; the `═══ LOCKED RECORD MODEL ═══` at :389 says so
