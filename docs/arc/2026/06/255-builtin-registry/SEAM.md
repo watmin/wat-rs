@@ -11,7 +11,7 @@
 ## Where the code is
 
 ```
-HEAD 16077bf5 (+ the all-six generation strike)   floor 4400 / 4400 passed / 263 skipped   clippy 0
+HEAD 2278b350   floor 4400 / 4400 passed / 263 skipped (+8 new probe rows, 5 RED by design)   clippy 0
 ```
 
 ## ⛔ FIRST ACTION: read the arc's own REALIZATIONS + `git log`, NOT just the design
@@ -54,16 +54,29 @@ finding. `git log --diff-filter=A -- <the arc's src dirs>` is one command.
 | **the six enums** | **ALL GENERATED FROM WAT** — `Kind` `DefinedIn` `Layer` `Category` `Purity` `Determinism`. No Rust enum in this workspace mirrors a `defenum` by hand. |
 | **registered** | **53 production names** |
 
-## ⛔ FIRST STRIKE ON THE FAR SIDE
+## ⛔ FIRST STRIKE ON THE FAR SIDE — read `CHAIN-rendering-before-the-string-home.md` FIRST
 
-**`core::string`** — home #4, drawn and waiting, 23 arms (`declare-acronyms` cut: it is a
-`Declaration`, not a computation), **1,329 corpus calls**, the highest-usage coherent family left.
-Its categories now exist, so no rider faces a taxonomy gap.
+**The order is ON DISK and it is a DERIVATION, not a preference.** Home #4 moved from first to
+**last**. Read the CHAIN doc (sibling of this file) before drawing anything — every arrow in it is a
+"ship this out of order and X breaks", with the X named.
 
-*(The previous first strike — generate `Kind`/`DefinedIn`/`Layer` — SHIPPED. It turned out to be
-**five** enums, not three: `wat_mirror_tests` had covered `wat_doc::Purity`/`Determinism` too, so
-stopping at the three the seam named would have left the identical debt in a second file. Read what
-a deleted gate COVERED, not what the note about it mentions.)*
+```
+A  EdnRepresentable — the type declares its tag AND its portability   ← START HERE
+B  #wat-edn.* → #wat.*/*        (B before A DELETES the decoder's refusal check)
+C  279.2: `str` goes TOTAL      — DRAWN, probe committed and RED at 2278b350
+D  Seqable + join renders its elements
+E  wat.string/* rename (1,617 sites, codemod), THEN home #4 carves onto final names
+```
+
+It began as *"can `:wat::core::string` become `:wat::string`?"* and every layer under it was
+load-bearing: `join` renders its elements → so `str` must be total → the total renderer already
+exists (the EDN encoder) → adopting it broadcasts `#wat-edn` (the CRATE name) → renaming that
+namespace deletes a security check unless the type declares portability first.
+
+*(The strike before this — generate `Kind`/`DefinedIn`/`Layer` — SHIPPED as `b2136b02`. It turned
+out to be **five** enums, not three: `wat_mirror_tests` had covered `wat_doc::Purity`/`Determinism`
+too, so stopping at the three the seam named would have left the identical debt in a second file.
+Read what a deleted gate COVERED, not what the note about it mentions.)*
 
 Then `255.1b-iv` — **delete the blanket-accept** (`resolve/walk.rs:257`), the soundness fix the whole
 arc exists for. Nine `#[ignore]`d probes wait on it, each reading *"unlock when we circle back to arc
