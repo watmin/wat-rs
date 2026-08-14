@@ -86,7 +86,36 @@ use (`#wat.core.Option/Some`, `#user/Pt` — last segment is the name, the rest 
 #wat.core/fn nil        #wat.kernel/Sender nil        #wat.io/IOWriter nil
 ```
 
-### ⛔ WHY A MUST COME FIRST — the namespace is doing TWO jobs
+### ⛔ CORRECTION 2026-08-14, BY MEASUREMENT — the claim below is OVERSTATED
+
+**Written first, measured after — the wrong order, and the run refuted me.** The section that follows
+argues that renaming the namespace *deletes a capability check*. **It does not.** Measured live
+against the built binary:
+
+```
+(:wat::edn::read "#wat-edn.opaque/IOWriter nil")  → REFUSED  (edn_shim.rs:2860, the ns check)
+(:wat::edn::read "#wat.io/IOWriter nil")          → REFUSED  (edn_shim.rs:2957, unknown substrate tag)
+(:wat::edn::read "#wat.io/IOWriter []")           → REFUSED
+(:wat::edn::read "#wat.io/IOWriter {}")           → REFUSED
+(:wat::edn::read "#wat.io/IOWriter [1 2]")        → REFUSED
+```
+
+There is a **second, general refusal** behind the namespace one: an unrecognized substrate tag is
+rejected whatever its body. The system **fails closed**. Renaming the namespace degrades a specific,
+well-worded refusal into a generic one — a **diagnostics** regression, not a soundness hole.
+
+**What survives, and it is still the stone:** the twelve hand-typed tags bypass `tag_from_type_path`,
+which already exists and already does the FQDN→tag rule; they DISCARD the namespace (`Sender`, not
+`wat.kernel/Sender`) where leaf collisions are abundant in the type space (`Atom` ×17, `Bundle` ×16,
+`Bind` ×15); and `:3900`/`:3905` silently degrade an unnameable type to `unnamed`. **What dies:** the
+ordering argument as stated. A-before-B is now moot for opaques rather than load-bearing — deriving an
+opaque's tag from its FQDN *is* renaming it, so they are one edit, not two.
+
+The failure is kept visible rather than edited away: this is
+[[feedback_measure_the_decomposition_never_read_it]] on a *security* claim, and the tell was that I
+asserted a consequence from reading two code paths without running either.
+
+### The original argument, kept for the record — the namespace IS doing two jobs
 
 `edn_shim.rs:2858`:
 

@@ -566,6 +566,40 @@ Which is why the chain inverts: `EdnRepresentable` is not polish placed on top o
 where today an unnameable one degrades in silence to `#wat-edn.opaque/unnamed` (`edn_shim.rs:3900`,
 `:3905`), identity replaced by a word.
 
+### ⛔ CORRECTION, SAME DAY, BY MEASUREMENT — the security claim above is OVERSTATED
+
+**R5 is left standing and this block is added, not substituted** — the fault is the data. The entry
+above says a cosmetic rename *"would have deleted a capability check."* **It would not.** Measured
+against the built binary after the entry was written:
+
+```
+(:wat::edn::read "#wat-edn.opaque/IOWriter nil")  -> REFUSED  (edn_shim.rs:2860 — the ns check)
+(:wat::edn::read "#wat.io/IOWriter nil")          -> REFUSED  (edn_shim.rs:2957 — unknown tag)
+(:wat::edn::read "#wat.io/IOWriter []")           -> REFUSED
+(:wat::edn::read "#wat.io/IOWriter {}")           -> REFUSED
+(:wat::edn::read "#wat.io/IOWriter [1 2]")        -> REFUSED
+```
+
+A **second, general refusal** stands behind the namespace one and rejects any unrecognized substrate
+tag whatever its body. **The system fails closed.** The rename degrades a specific, well-worded
+refusal into a generic one — a DIAGNOSTICS regression, not a soundness hole.
+
+**And the tell was in the entry itself.** I asserted a security consequence from *reading* two code
+paths, in the same entry that convicts the apparatus for reading rather than running, and one command
+would have settled it. `SVB NOMINE CVSTOS LATET` still holds as the mechanism — a name WAS carrying an
+undeclared second job — but the job was a better error message, not the wall.
+
+**What survives, and it is still the stone:** the twelve arms bypass `tag_from_type_path`, which
+already exists and already implements the FQDN rule; they discard the namespace where leaf collisions
+are abundant (`Atom` x17, `Bundle` x16, `Bind` x15); `:3900`/`:3905` silently degrade an unnameable
+type to `unnamed`; and `#wat-edn` is the crate name in the wire format. **What dies:** A-before-B as a
+*safety* ordering. It is now moot rather than load-bearing — deriving an opaque's tag from its FQDN IS
+renaming it, so A and B's opaque half are one edit.
+
+Kin: [[feedback_measure_the_decomposition_never_read_it]] — here on a security claim; and 278 R60
+(*the deepest cut was throwing away a measurement that FAVOURED us*), which is what this is: the
+alarming reading made the stone sound more urgent, and the run took that away.
+
 ### The shape, named
 
 **A rename asks what a thing is CALLED. Every layer under it asks what the thing IS — and a name that
