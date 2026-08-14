@@ -253,7 +253,81 @@ namespace must be set by the substrate for binders and be unforgeable from sourc
 reintroduces a path where user text can produce the `$bound` namespace, the collapse becomes a live
 ambiguity again and this note is the reason it matters.
 
-**251.8a-bis — THE ANGLE-BRACKET RETIREMENT. RULED 2026-08-13; PREREQUISITE OF 8b.**
+**251.8a-bis — THE PARAMETRIC FORM. RULED 2026-08-13; PREREQUISITE OF 8b.**
+
+> ⚠ **THE CRITERION IS WAT-LEGALITY, NOT EDN-LEGALITY.** This section originally argued the vec
+> form from EDN compliance. That argument is WRONG and is corrected here rather than quietly
+> rewritten. Measured against Clojure's own reader: once the spelling is dotted, the FLAT form reads
+> perfectly well —
+>
+> ```
+> (wat.type/HashMap wat.type/keyword wat.type/string :foo "bar")   OK, arity 5
+> (t/Map t/Kw t/Str)      ← core.typed's OWN style is flat; the vec is not Clojure parity either
+> ```
+>
+> The builder's cut: *"the edn-legality isn't the concern.. the wat-legality is... the flat form is
+> just a list of values."* EDN-legality is **necessary, not sufficient** — a form can read cleanly
+> and still carry no structure.
+
+**THE RULED GRAMMAR:**
+
+```
+(<head> [<type> …] & <members>)          ;; head, a VEC of type params, then members
+```
+
+```clojure
+(wat.type/Vector  [wat.type/i64])                                  ;; empty, typed
+(wat.type/Vector  [wat.type/i64] 1 2)                              ;; with members
+(wat.type/HashMap [wat.type/keyword wat.type/string] :foo "bar")
+```
+
+**★ WHY THE VEC IS FORCED, and it is constraint engineering, not taste.** In the flat form the
+type/member boundary does not exist **in the form** — it is a homogeneous list of values, and the
+partition lives in a per-head arity TABLE the reader must consult. `(HashMap [K V] :foo "bar")`
+**cannot be mis-partitioned**; `(HashMap K V :foo "bar")` can only be partitioned correctly by
+already knowing. The wrong reading has no representation in the first and is one lookup away in the
+second.
+
+And the failure it makes impossible is a SILENT one: if a head's type-param arity ever changes,
+every flat call site **silently re-partitions** — the same text means something new and nothing goes
+red. With the vec they break loudly. That is R65 `SCVTVM IDEM INDEX` — the shield is the ledger.
+
+**BOTH LEGACY FORMS ARE CONDEMNED, not just the angle one:**
+
+| form | status |
+|---|---|
+| `:wat::core::HashMap<K,V>` (angle, in a keyword) | illegal post-migration |
+| `(:wat::core::HashMap :K :V :foo "bar")` (flat) | **illegal post-migration** |
+| `(wat.type/HashMap [K V] :foo "bar")` (vec) | the form |
+
+⚠ **SCALE IS APPROXIMATE AND THE REAL CENSUS MUST BE THE CHECKER'S.** Angle: 3543 sites / 599 files
+(965 comma-bearing). Flat constructor: two greps of the same corpus returned **1025** and **998** —
+they disagree, and that disagreement is itself the point. This arc's record is explicit that a grep
+census is a false green (R65: the checker enumerated 496 located sites where no grep could; 24h: a
+same-line pattern undercounted 20 as 4). **When the vec form becomes mandatory the checker
+enumerates every violator, and THAT is the worklist.** Do not brief a fleet against a grep number.
+
+**⊘ SUPERSEDED — `109/NOTE-generic-bracket-syntax-edn.md`.** It proposes **pipe-separated**
+`<First|Second|Third>` to keep a parametric type atomic to Clojure's reader, and flags itself *"a
+POINTER, not a decision."* Overtaken: pipe keeps the type one TOKEN; the ruled form abandons
+tokenhood and makes the type params a distinct SYNTACTIC NODE, which is what the arity-table problem
+actually requires. Do not implement the pipe.
+
+**OPEN, and upstream of the brief:** `wat.type/*` currently has **no constructors** — measured,
+`(wat.type/Vector [wat.type/i64])` fails with `UnknownFunction :wat::type::Vector`, while
+`:wat::core::Vector` constructs and `:wat::type::Vector` only annotates. So the two spellings in the
+builder's own question are not two spellings of one thing today; they are two namespaces with
+different roles. Whether `wat.type/*` gains constructors, or construction stays on `wat.core/*`, is
+a ruling this stone cannot make for itself.
+
+**ORDERING — why this precedes 8b:** after 8b turns `::` references into symbols, a comma-bearing
+angle type becomes a symbol EDN reads successfully and WRONGLY (`(f HashMap<K,V>)` → `(f HashMap<K
+V>)`, arity 2 → 3, no error). The 965 comma-bearing sites would stop erroring and start lying.
+⚠ The exact coupling depends on 8b's scope (call-heads-only vs type-annotation positions too), which
+this design drew loosely — pin 8b's scope before sequencing. Either way both legacy forms must die
+before the corpus is wat-legal.
+
+**251.8a-bis (historical framing) — THE ANGLE-BRACKET RETIREMENT. RULED 2026-08-13.**
 
 The builder:
 
