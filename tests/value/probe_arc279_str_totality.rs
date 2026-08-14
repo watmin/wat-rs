@@ -82,3 +82,19 @@ fn str_keeps_nested_strings_quoted() {
     // of a bare `(str "abc")` is unquoted, but a string INSIDE a collection stays quoted.
     assert_eq!(rendered(":t::probe-nested-string-stays-quoted"), "[\"a\"]");  // rune:lint(no-inlined-edn) — this asserts the SERIALIZATION, not the data; an .edn golden via assert_edn_eq! normalizes `[1 2 3]` and `[1, 2, 3]` to the same value, erasing the exact difference under test.
 }
+
+/// A RECORD renders by NAME, not positionally — the row the first draft of this probe missed.
+///
+/// It sampled a map, a float, a keyword, nil and a nested string: every shape EXCEPT the one
+/// that consults the type registry. So `str` was certified total while `(str <record>)`
+/// answered `{:field-0 1 :field-1 2}` — the names discarded — and `println` of the same value
+/// answered `{:x 1 :y 2}`. The cause was a door that hardcoded `None` for the registry
+/// (`value_to_edn_string`, now DELETED). Compared through an `.edn` golden because the claim is
+/// STRUCTURAL and a byte-exact compare would pin the key order of a two-key map.
+#[test]
+fn str_renders_a_record_by_name_not_positionally() {
+    wat::assert_edn_eq!(
+        rendered(":t::probe-record-named-fields"),
+        include_str!("probe_arc279_str_totality__record_named_fields.edn")
+    );
+}

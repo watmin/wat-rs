@@ -55,3 +55,16 @@
 ;; the row that proves `str` is not merely "show with the quotes stripped".
 (:wat::core::defn :t::probe-nested-string-stays-quoted [] -> :wat::core::String
   (:wat::core::str (:wat::core::Vector :wat::core::String "a")))
+
+;; ── THE ROW THIS PROBE SHOULD HAVE HAD ON DAY ONE ───────────────────────────
+;; `str` on a RECORD. The original probe sampled a map, a float, a keyword, nil and a
+;; nested string — every shape EXCEPT the one that routes through the type registry —
+;; so it certified `str` "total" while `(str <record>)` answered
+;; `#t/Pt {:field-0 1 :field-1 2}`: positional keys, names silently discarded, while
+;; `println` of the same value answered `{:x 1 :y 2}`. ONE VALUE, TWO FACES.
+;; Root: `value_to_edn_string` hardcoded `None` for the registry (296's `field-N`
+;; defect). That door is DELETED; this row is the wall that keeps it deleted.
+(:wat::core::defrecord :t::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+
+(:wat::core::defn :t::probe-record-named-fields [] -> :wat::core::String
+  (:wat::core::str (:t::Pt :x 1 :y 2)))

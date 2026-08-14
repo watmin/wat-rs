@@ -3440,19 +3440,20 @@ pub fn value_to_edn(v: &Value) -> OwnedValue {
     value_to_edn_with(v, None)
 }
 
-/// Encode a `Value` to a compact EDN `String` without a type registry.
-///
-/// This is the registry-free codec for process-tier wire serialisation when
-/// no `TypeEnv` is available (e.g. `EdnRepresentable::to_wire` for Value on
-/// the thread-tier, or `HolonRepresentable` paths). User-defined struct/enum
-/// fields are rendered with positional `:field-{i}` keys.
-///
-/// Arc 258.5b-ii: the socket-tier PEER_TYPE_PATH send path now uses
-/// [`value_to_edn_string_with`] (with `sym.types()`) so named record fields
-/// cross the wire correctly. This function no longer reads a thread-local.
-pub(crate) fn value_to_edn_string(v: &Value) -> String {
-    wat_edn::write(&value_to_edn_with(v, None))
-}
+// ⛔ `value_to_edn_string(v)` — the types-less door — is DELETED (2026-08-14).
+//
+// It hardcoded `None` for the type registry, so every caller silently rendered record
+// fields POSITIONALLY (`{:field-0 1 :field-1 2}`) instead of by name. The names were
+// never missing: `:wat::core::EvalError` is registered as `Aggregate`/`Nature::Struct`
+// WITH its fields, and the sibling `value_to_edn_string_with` reaches them fine — the
+// lookup simply was not wired through this door. Three unrelated symptoms, one cause:
+// the `field-N` diagnostics blob (296/NOTE-value-to-edn-renders-fields-positionally.md),
+// `send'`'s `field-0`/`field-1` (bridged with a thread-local in 258.5b, killed by
+// 258.5b-ii), and `(:wat::core::str <record>)` (introduced by 279.2 and fixed here).
+//
+// A default you cannot see at the call site is a default nobody audits. There is now ONE
+// door — `value_to_edn_string_with` — and a caller with no registry passes `None`
+// EXPLICITLY, in the open, where the next reader can ask why.
 
 /// Encode a `Value` to a compact EDN `String` with an optional type registry.
 ///
@@ -4541,7 +4542,7 @@ mod tests {
         let orig = Value::wat__core__PersistentVector(pv);
 
         // Serialize → tagged EDN string.
-        let s = value_to_edn_string(&orig);
+        let s = value_to_edn_string_with(&orig, None);
 
         // Parse back.
         let back = edn_string_to_value(&s).expect("round-trip parse");
@@ -4565,7 +4566,7 @@ mod tests {
             .expect("parse the form");
         let ast = forms.into_iter().next().expect("one form");
         let v = Value::wat__WatAST(Arc::new(ast));
-        let s = value_to_edn_string(&v);
+        let s = value_to_edn_string_with(&v, None);
         assert_eq!(s, "(:wat.core/< -5 0)", "a WatAST must render as its form (with operands), not opaque-nil");
     }
 
@@ -4581,7 +4582,7 @@ mod tests {
         let pm = Value::wat__core__PersistentMap(m);
 
         // Serialize → tagged EDN string.
-        let s = value_to_edn_string(&pm);
+        let s = value_to_edn_string_with(&pm, None);
 
         // Parse back.
         let back = edn_string_to_value(&s).expect("round-trip parse");

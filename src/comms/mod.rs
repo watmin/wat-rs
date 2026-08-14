@@ -793,7 +793,12 @@ fn extract_positional_binds<'a>(
 /// needed at the comms layer.
 impl EdnRepresentable for crate::value::Value {
     fn to_wire(&self) -> String {
-        crate::edn_shim::value_to_edn_string(self)
+        // `None` is FORCED here, not chosen: `EdnRepresentable::to_wire(&self)` takes no
+        // registry by signature, so a user record crossing THIS path renders positionally.
+        // 258.5b-ii already moved the socket tier OFF it (encode in the eval layer, ship
+        // bytes) precisely for this reason; the thread tier passes `T` directly. Anything
+        // still reaching here with a record is a plumbing gap, not a rendering choice.
+        crate::edn_shim::value_to_edn_string_with(self, None)
     }
 
     fn from_wire(s: &str) -> Result<Self, WireError>

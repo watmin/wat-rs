@@ -992,7 +992,11 @@ impl DeftestOutcome {
             DeftestOutcome::Passed => {}
             DeftestOutcome::Failed { failure } => panic!(
                 "{context}\n  deftest FAILED: {}",
-                crate::edn_shim::value_to_edn_string(&failure)
+                // `None`: `expect_passed` has no SymbolTable in scope, so THIS is the site
+                // that renders 296's `field-N` failure blob. Making it name its fields means
+                // threading a registry into `DeftestOutcome` — 296's actual stone, now a
+                // VISIBLE gap rather than a hidden default.
+                crate::edn_shim::value_to_edn_string_with(&failure, None)
             ),
             DeftestOutcome::DidNotRun { error } => panic!(
                 "{context}\n  deftest DID NOT RUN (the entry fn raised before returning a \
