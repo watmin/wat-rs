@@ -232,12 +232,20 @@ untested FEATURE INTERACTIONS. #94 (the stratifier's positive dependencies) clos
 > **Do not re-derive the design, do not trust it, and do not skip the arc's own REALIZATIONS.**
 > Three sources; any two disagreeing IS the finding.
 >
-> The first strike is named above and it is small: **generate `Kind`/`DefinedIn`/`Layer` from wat.**
-> Their mirrors are UNCHECKED right now because the gate that covered them was deleted as
-> scaffolding — that is a debt this seam is telling you about on purpose.
+> The first strike is named above — **296: make the `field-N` case ERROR, not degrade** (`freeze.rs`
+> `expect_passed`, the `None` at `:999`). It is NOT "generate `Kind`/`DefinedIn`/`Layer` from wat":
+> that landed in `b2136b02`, and all six enums are `wat_enum_from!` on disk (3 in `src/intrinsic/mod.rs`,
+> 3 in `crates/wat-doc/src/lib.rs`). **This paragraph said otherwise for one commit — a stale tail
+> under a replaced-in-place middle. Corrected 2026-08-15 during the bootstrap that caught it.**
 >
 > **Before you trust any gate you find here, ask what its INPUTS are made of.** One of mine compared
 > two hand-written lists and slept through the drift it existed to catch.
+>
+> ⚠ **The `HEAD` marker above is a MEASUREMENT STAMP, not an equality probe.** It names the commit the
+> floor was weighed at, and the curare commit that writes this file always lands *after* it — so the
+> marker can never equal live HEAD, and a bare mismatch is not the alarm. Read it as: *live HEAD should
+> be this commit, or this commit plus doc-only curare.* Anything further past it and the numbers here
+> are unweighed.
 >
 > The next move is a MEASUREMENT, not a plan. Every snag is a measurement not yet made.
 >
