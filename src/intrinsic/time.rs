@@ -36,7 +36,7 @@
 //! added for this family (2026-08-15). Every representation-transforming
 //! row here is a representation transform (raw i64 ⇄ Instant/Duration,
 //! String ⇄ Instant, or Instant/Duration combined into a new Instant/
-//! Duration) → `Encoding`, the same bucket `core::Bytes::to-hex`/`from-hex`
+//! Duration) → `Transform`, the same bucket `core::Bytes::to-hex`/`from-hex`
 //! and the doc-contract's own "Blend two things" fixture
 //! (`crates/wat-doc/src/lib.rs:993`, a plain 2-arg pure combinator) occupy.
 //! Every `Nondeterministic` row samples the wall clock → `Clock`,
@@ -81,7 +81,7 @@ pub(crate) fn eval_time_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     secs :wat::core::i64 epoch seconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-seconds mark
 /// @example (:wat::time::epoch-seconds (:wat::time::at 1000000000)) #=> 1000000000
@@ -111,7 +111,7 @@ pub(crate) fn eval_time_at(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     ms :wat::core::i64 epoch milliseconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-millis mark
 /// @example (:wat::time::epoch-millis (:wat::time::at-millis 1000000000000)) #=> 1000000000000
@@ -142,7 +142,7 @@ pub(crate) fn eval_time_at_millis(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     ns :wat::core::i64 epoch nanoseconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-nanos mark
 /// @example (:wat::time::epoch-nanos (:wat::time::at-nanos 1000000000000000000)) #=> 1000000000000000000
@@ -166,7 +166,7 @@ pub(crate) fn eval_time_at_nanos(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     s :wat::core::String the ISO 8601 / RFC 3339 timestamp string
 /// @ret     :wat::core::Option<wat::time::Instant> Some(Instant) on success, None on malformed input
 /// @example (:wat::time::from-iso8601 "not-a-date") #=> :None
@@ -195,7 +195,7 @@ pub(crate) fn eval_time_from_iso8601(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to format
 /// @arg     digits :wat::core::i64 fractional-second digit count, clamped to [0, 9]
 /// @ret     :wat::core::String the ISO 8601 / RFC 3339 string, `Z`-suffixed
@@ -242,7 +242,7 @@ pub(crate) fn eval_time_to_iso8601(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
 /// @ret     :wat::core::i64 epoch seconds since the Unix epoch, truncated
 /// @example (:wat::time::epoch-seconds (:wat::time::at 1000000000)) #=> 1000000000
@@ -264,7 +264,7 @@ pub(crate) fn eval_time_epoch_seconds(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
 /// @ret     :wat::core::i64 epoch milliseconds since the Unix epoch, truncated
 /// @example (:wat::time::epoch-millis (:wat::time::at-millis 1000000000000)) #=> 1000000000000
@@ -287,7 +287,7 @@ pub(crate) fn eval_time_epoch_millis(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
 /// @ret     :wat::core::i64 epoch nanoseconds since the Unix epoch
 /// @example (:wat::time::epoch-nanos (:wat::time::at-nanos 1000000000000000000)) #=> 1000000000000000000
@@ -370,7 +370,7 @@ fn unit_constructor(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of nanoseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N nanoseconds
 /// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
@@ -390,7 +390,7 @@ pub(crate) fn eval_time_unit_nanosecond(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of microseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N microseconds
 /// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
@@ -411,7 +411,7 @@ pub(crate) fn eval_time_unit_microsecond(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of milliseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N milliseconds
 /// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
@@ -432,7 +432,7 @@ pub(crate) fn eval_time_unit_millisecond(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of seconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N seconds
 /// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
@@ -452,7 +452,7 @@ pub(crate) fn eval_time_unit_second(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of minutes (non-negative)
 /// @ret     :wat::time::Duration the Duration of N minutes
 /// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
@@ -472,7 +472,7 @@ pub(crate) fn eval_time_unit_minute(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of hours (non-negative)
 /// @ret     :wat::time::Duration the Duration of N hours
 /// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
@@ -492,7 +492,7 @@ pub(crate) fn eval_time_unit_hour(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     n :wat::core::i64 the count of days (non-negative)
 /// @ret     :wat::time::Duration the Duration of N days
 /// @example (:wat::time::days (:wat::time::Day 5)) #=> 5
@@ -536,7 +536,7 @@ fn unit_readout(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in nanoseconds, truncated
 /// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
@@ -556,7 +556,7 @@ pub(crate) fn eval_time_nanoseconds(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in microseconds, truncated
 /// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
@@ -576,7 +576,7 @@ pub(crate) fn eval_time_microseconds(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in milliseconds, truncated
 /// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
@@ -596,7 +596,7 @@ pub(crate) fn eval_time_milliseconds(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in seconds, truncated
 /// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
@@ -616,7 +616,7 @@ pub(crate) fn eval_time_seconds(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in minutes, truncated
 /// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
@@ -636,7 +636,7 @@ pub(crate) fn eval_time_minutes(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in hours, truncated
 /// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
@@ -656,7 +656,7 @@ pub(crate) fn eval_time_hours(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in days, truncated
 /// @example (:wat::time::days (:wat::time::Day 5)) #=> 5

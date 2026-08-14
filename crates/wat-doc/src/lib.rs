@@ -116,12 +116,18 @@ impl std::str::FromStr for Determinism {
 /// `Category::variants()`, so a new variant that forgets this line goes RED.
 /// (The proc-macro's two sibling messages DO derive — they are `format!`.)
 const CATEGORY_LEGAL_VALUES: &str =
-    "value must be one of: Encoding, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io";
+    "value must be one of: Transform, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io, Probe, Combine, Declaration";
 
 /// Functional category of an intrinsic or special form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
-    Encoding,
+    /// Returns the SAME value in another form — `Bytes::to-hex`, `time::epoch-seconds`,
+    /// `string::trim`. Renamed from `Encoding` (2026-08-15): half its members were not
+    /// encodings at all — `trim` discards data, `to-lowercase` folds case, `split`
+    /// restructures. What unites them is that the OUTPUT IS A FORM OF THE INPUT.
+    /// Contrast `Probe` (a fact ABOUT the value, not a form of it) and `Combine`
+    /// (several values as one larger value).
+    Transform,
     Reflection,
     ControlFlow,
     Binding,
@@ -130,12 +136,21 @@ pub enum Category {
     /// which the determinism field alone cannot. Entropy sources get their own
     /// append-only variant when one registers; do not widen this to cover them.
     Clock,
+    /// Interrogates a value and derives knowledge about it — `empty?`, `length`,
+    /// `contains?`. The output is a FACT about the input, never a form of it, and the
+    /// input is unchanged. Note this is NOT "returns a bool": `length` returns an i64
+    /// and belongs here; sorting by return type is the axis-mix that sank `Predicate`.
+    Probe,
+    /// Builds a larger value of the same kind from several — `concat`, `conj`, `assoc`,
+    /// `join`. NOT `Arithmetic`: `Vector/concat` is not math, and the family spans
+    /// strings, vectors, sets, maps and records.
+    Combine,
     /// Combines already-constructed domain values (`+`, `-`). Distinct from
-    /// `Encoding`, which transforms one representation of a value into another.
+    /// `Transform`, which returns the same value in another form.
     Arithmetic,
     /// Performs input/output on a stream (stdio, and `:wat::io::` when it
     /// carves — `is_effectful_op` already prefix-matches `:wat::io::`).
-    /// Distinct from `Encoding`: transforming a representation (`Bytes ⇄ hex`)
+    /// Distinct from `Transform`: returning another form of the value (`Bytes ⇄ hex`)
     /// and performing I/O (writing/reading a fd) are different acts — `Io`
     /// verbs may encode as a step on the way to the effect, but the effect
     /// itself, not the encoding, is what the category names. Also distinct
@@ -143,24 +158,34 @@ pub enum Category {
     /// own state (the way `call-site`/`show-source`/`metadata-of` do); it is
     /// exchanging bytes with the outside world, same level of abstraction as
     /// `Clock` sampling the wall clock. Minted 2026-08-13 (builder ruling,
-    /// arc 255.1c-kernel-stdio) after `Encoding` and `Reflection` were both
+    /// arc 255.1c-kernel-stdio) after `Transform` and `Reflection` were both
     /// tried and rejected for the same reason `Clock` was minted earlier:
     /// reaching for the nearest existing variant instead of naming the kind
     /// of computation this actually is.
     Io,
+    /// Registers a program-level entity — `def`, `defclause`, `declare-acronyms`.
+    /// DISTINCT FROM `Binding`: `let` introduces a LOCAL, scoped name at runtime;
+    /// a declaration registers into the program's symbol table, usually at load,
+    /// and is visible to everything after it. `declare-acronyms` is the clearest
+    /// case — parsed at load (`runtime.rs:2004`), stored on the SymbolTable
+    /// (`value/symbol_table.rs:147`), computes nothing at all.
+    Declaration,
 }
 
 impl Category {
     pub fn variants() -> &'static [&'static str] {
-        &["Encoding", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic", "Io"]
+        &["Transform", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic", "Io", "Probe", "Combine", "Declaration"]
     }
     pub fn as_str(self) -> &'static str {
         match self {
-            Category::Encoding => "Encoding",
+            Category::Transform => "Transform",
             Category::Reflection => "Reflection",
             Category::ControlFlow => "ControlFlow",
             Category::Binding => "Binding",
             Category::Clock => "Clock",
+            Category::Probe => "Probe",
+            Category::Combine => "Combine",
+            Category::Declaration => "Declaration",
             Category::Arithmetic => "Arithmetic",
             Category::Io => "Io",
         }
@@ -171,11 +196,14 @@ impl std::str::FromStr for Category {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, ()> {
         match s {
-            "Encoding" => Ok(Category::Encoding),
+            "Transform" => Ok(Category::Transform),
             "Reflection" => Ok(Category::Reflection),
             "ControlFlow" => Ok(Category::ControlFlow),
             "Binding" => Ok(Category::Binding),
             "Clock" => Ok(Category::Clock),
+            "Probe" => Ok(Category::Probe),
+            "Combine" => Ok(Category::Combine),
+            "Declaration" => Ok(Category::Declaration),
             "Arithmetic" => Ok(Category::Arithmetic),
             "Io" => Ok(Category::Io),
             _ => Err(()),
@@ -247,7 +275,7 @@ pub struct DocComment {
     pub purity: Purity,
     /// `@Determinism <Variant>` — declared determinism.
     pub determinism: Determinism,
-    /// `@Category <Variant>` — closed-enum category (e.g. `Encoding`, `Reflection`).
+    /// `@Category <Variant>` — closed-enum category (e.g. `Transform`, `Reflection`).
     pub category: Category,
     /// `@yields <type> <desc>` — optional; the type handed into the fn-arg callback.
     /// `None` when the intrinsic does not yield to a callback.
@@ -975,7 +1003,7 @@ mod tests {
     /// The reference intrinsic doc block (`core::Bytes::to-hex`), in the exact
     /// joined form `sniff_doc` produces (`/// ` stripped, `\n`-joined). This IS
     /// the contract the parser must satisfy. Updated to firm grammar (no separator).
-    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
+    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
 
     #[test]
     fn parses_the_reference_intrinsic() {
@@ -1003,12 +1031,12 @@ mod tests {
         assert!(doc.see.is_empty());
         assert_eq!(doc.purity, Purity::Pure);
         assert_eq!(doc.determinism, Determinism::Deterministic);
-        assert_eq!(doc.category, Category::Encoding);
+        assert_eq!(doc.category, Category::Transform);
     }
 
     #[test]
     fn norun_example_may_omit_the_marker() {
-        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Encoding\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
+        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Transform\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
         let doc = parse(raw).expect("norun parses");
         assert_eq!(
             doc.examples,
@@ -1030,7 +1058,7 @@ mod tests {
 
     #[test]
     fn multiple_args_and_see_in_order() {
-        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
+        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
         let doc = parse(raw).expect("parses");
         assert_eq!(doc.args.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
         assert_eq!(doc.args[0].desc, "the first");
@@ -1040,7 +1068,7 @@ mod tests {
 
     #[test]
     fn deprecated_parses() {
-        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
+        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
         let doc = parse(raw).expect("parses");
         assert_eq!(
             doc.deprecated,
@@ -1156,14 +1184,14 @@ mod tests {
 
     #[test]
     fn check_args_zero_arity_ok() {
-        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
+        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
         let doc = parse(raw).unwrap();
         assert_eq!(check_args(&doc, &[]), Ok(()));
     }
 
     #[test]
     fn pure_and_deterministic_parse() {
-        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Category Encoding\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("pure+det doc parses");
         assert_eq!(doc.purity, Purity::Pure);
         assert_eq!(doc.determinism, Determinism::Nondeterministic);
@@ -1171,19 +1199,19 @@ mod tests {
 
     #[test]
     fn missing_purity_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        let raw = "Prose.\n\n@added 1.0.0\n@Determinism Deterministic\n@Category Transform\n@ret :wat::core::i64 x\n@example (f) #=> y";
         assert_eq!(parse(raw), Err(DocError::MissingPurity));
     }
 
     #[test]
     fn missing_determinism_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Category Encoding\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Category Transform\n@ret :wat::core::i64 x\n@example (f) #=> y";
         assert_eq!(parse(raw), Err(DocError::MissingDeterminism));
     }
 
     #[test]
     fn invalid_purity_value_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@Purity maybe\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity maybe\n@Determinism Deterministic\n@Category Transform\n@ret :wat::core::i64 x\n@example (f) #=> y";
         match parse(raw) {
             Err(DocError::MalformedDirective { tag, .. }) => assert_eq!(tag, "@Purity"),
             other => panic!("expected MalformedDirective for @Purity, got {:?}", other),
@@ -1231,6 +1259,48 @@ mod tests {
     /// `&'static str` (see `CATEGORY_LEGAL_VALUES`), so it cannot derive — this
     /// is the gate that makes the hand-copy safe. Add a variant, forget the
     /// message, go red.
+    /// ⛔ `variants()` and `CATEGORY_LEGAL_VALUES` are BOTH hand-written string
+    /// lists, so a test comparing only those two compares stale-to-stale and
+    /// passes while the ENUM has grown past both. That happened on 2026-08-15:
+    /// `Transform`/`Probe`/`Combine` were added to the enum and the gate stayed
+    /// green because the two lists still agreed with each other.
+    ///
+    /// This test closes it by enumerating from an EXHAUSTIVE MATCH: adding a
+    /// variant fails to compile here until it is listed, and only then can the
+    /// assertions below check that it reached both hand-lists. The compiler is
+    /// the ledger; the strings are just data it polices.
+    #[test]
+    fn every_enum_variant_reaches_both_hand_lists() {
+        // Exhaustive by construction — a new variant breaks THIS match first.
+        let all = [
+            Category::Transform, Category::Reflection, Category::ControlFlow,
+            Category::Binding, Category::Clock, Category::Arithmetic,
+            Category::Io, Category::Probe, Category::Combine, Category::Declaration,
+        ];
+        for c in all {
+            let name = match c {
+                Category::Transform => "Transform",
+                Category::Reflection => "Reflection",
+                Category::ControlFlow => "ControlFlow",
+                Category::Binding => "Binding",
+                Category::Clock => "Clock",
+                Category::Arithmetic => "Arithmetic",
+                Category::Io => "Io",
+                Category::Probe => "Probe",
+                Category::Combine => "Combine",
+                Category::Declaration => "Declaration",
+            };
+            assert_eq!(c.as_str(), name, "as_str() disagrees for {name}");
+            assert!(Category::variants().contains(&name),
+                "Category::variants() omits `{name}` — the enum grew past the hand-list");
+            assert!(CATEGORY_LEGAL_VALUES.contains(name),
+                "CATEGORY_LEGAL_VALUES omits `{name}`: {CATEGORY_LEGAL_VALUES}");
+            assert_eq!(name.parse::<Category>().ok(), Some(c), "FromStr round-trip failed for {name}");
+        }
+        assert_eq!(Category::variants().len(), all.len(),
+            "variants() has entries the enum does not: {:?}", Category::variants());
+    }
+
     #[test]
     fn category_message_lists_every_variant() {
         for v in Category::variants() {

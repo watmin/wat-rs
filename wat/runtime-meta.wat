@@ -53,7 +53,8 @@
   :Preserving)
 
 ;; Category — functional category.
-;;   :Encoding    — data encoding/decoding
+;;   :Transform   — returns the SAME value in another form (was :Encoding;
+;;                  renamed 2026-08-15 — trim/to-lowercase/split are not encodings)
 ;;   :Reflection  — reflection and introspection
 ;;   :ControlFlow — control flow special forms (if, cond, etc.)
 ;;   :Binding     — binding special forms (let, etc.)
@@ -62,13 +63,22 @@
 ;;                  variant when one registers)
 ;;   :Arithmetic  — combines already-constructed domain values (+, -)
 ;;   :Io          — performs I/O on a stream (stdio; :wat::io::* when it
-;;                  carves). Distinct from :Encoding — transforming a
+;;                  carves). Distinct from :Transform — returning a
 ;;                  representation and performing I/O are different acts.
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
-  :Encoding
+  :Transform
   :Reflection
   :ControlFlow
   :Binding
   :Clock
   :Arithmetic
-  :Io)
+;;   :Probe       — interrogates a value, derives a FACT about it (empty?, length)
+;;   :Combine     — builds a larger value of the same kind (concat, conj, assoc)
+  :Io
+  :Probe
+;;   :Declaration — registers a program-level entity (def, defclause,
+;;                  declare-acronyms). Distinct from :Binding — let is a LOCAL
+;;                  scoped name at runtime; a declaration registers into the
+;;                  program, visible to everything after it.
+  :Combine
+  :Declaration)

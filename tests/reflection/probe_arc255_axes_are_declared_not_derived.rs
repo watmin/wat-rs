@@ -36,7 +36,7 @@
 //!      total — which is why the rete fence carries its own `total` column (#52) and will keep
 //!      carrying it until 255 arrives. Nothing needs `@Total` today.
 //!   2. **`wat_doc::Category` has no arithmetic variant** — the closed set is
-//!      `Encoding | Reflection | ControlFlow | Binding | Clock | Arithmetic`
+//!      `Transform | Reflection | ControlFlow | Binding | Clock | Arithmetic | Io | Probe | Combine`
 //!      (append-only; see `Category::variants()`). Whenever 255 enrols
 //!      the arithmetic families it grows TWO closed sets, not one.
 //!
@@ -59,7 +59,7 @@ use wat_doc::{DocError, Determinism, Purity};
 /// than reporting a substrate finding is the instrument working
 /// ([[feedback_the_instrument_must_not_supply_the_result]]).
 ///
-/// `@Category Encoding` is deliberately wrong-but-valid for an arithmetic example — see fact 2 in
+/// `@Category Transform` is deliberately wrong-but-valid for an arithmetic example — see fact 2 in
 /// the module header. The category is irrelevant to what this file measures.
 fn doc_with(extra_tag_lines: &str) -> String {
     format!(
@@ -68,7 +68,7 @@ fn doc_with(extra_tag_lines: &str) -> String {
          @added         1.0.0\n\
          @Purity        Pure\n\
          @Determinism   Deterministic\n\
-         @Category      Encoding\n\
+         @Category      Transform\n\
          {extra_tag_lines}\
          @arg     a :wat::core::i64 the left operand\n\
          @arg     b :wat::core::i64 the right operand\n\

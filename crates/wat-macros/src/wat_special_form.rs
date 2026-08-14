@@ -77,13 +77,16 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         wat_doc::Determinism::Preserving => quote! { ::wat_doc::Determinism::Preserving },
     };
     let category_token = match doc.category {
-        wat_doc::Category::Encoding => quote! { ::wat_doc::Category::Encoding },
+        wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
         wat_doc::Category::ControlFlow => quote! { ::wat_doc::Category::ControlFlow },
         wat_doc::Category::Binding => quote! { ::wat_doc::Category::Binding },
         wat_doc::Category::Clock => quote! { ::wat_doc::Category::Clock },
         wat_doc::Category::Arithmetic => quote! { ::wat_doc::Category::Arithmetic },
         wat_doc::Category::Io => quote! { ::wat_doc::Category::Io },
+        wat_doc::Category::Probe => quote! { ::wat_doc::Category::Probe },
+        wat_doc::Category::Combine => quote! { ::wat_doc::Category::Combine },
+        wat_doc::Category::Declaration => quote! { ::wat_doc::Category::Declaration },
     };
 
     let args_lit: Vec<TokenStream2> = doc.args.iter().map(|a| {

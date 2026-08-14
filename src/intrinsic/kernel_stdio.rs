@@ -40,11 +40,11 @@
 //! ## Category — `Io`, minted mid-strike (builder ruling)
 //!
 //! The rider's first pass reached for the nearest existing variant —
-//! `Encoding` for the four writers (by analogy to a "write bytes to a path"
+//! `Encoding` (now `Transform`) for the four writers (by analogy to a "write bytes to a path"
 //! doc-contract fixture), `Reflection` for the two readers (by analogy to
 //! `Uuid/v4`, an ambient-read fixture) — and flagged both as judgment calls,
 //! not certainties. **Overruled**: writing to a stream is not a
-//! representation transform (nothing is transformed; `Encoding` means
+//! representation transform (nothing is transformed; `Transform` means
 //! `Bytes ⇄ hex`, `String ⇄ Instant`), and reading fd 0 is not the program
 //! interrogating its own state (`Reflection` is `call-site`/`show-source`/
 //! `metadata-of`; the same mistake a prior stone made calling a clock read

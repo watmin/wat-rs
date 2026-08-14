@@ -12126,13 +12126,16 @@ fn eval_metadata_of(
         // :category — closed-domain Value::Enum (iv-c / arc 255.1b-iv-c Part C).
         let category_val = {
             let rc = match entry.category {
-                wat_doc::Category::Encoding => crate::intrinsic::RuntimeCategory::Encoding,
+                wat_doc::Category::Transform => crate::intrinsic::RuntimeCategory::Transform,
                 wat_doc::Category::Reflection => crate::intrinsic::RuntimeCategory::Reflection,
                 wat_doc::Category::ControlFlow => crate::intrinsic::RuntimeCategory::ControlFlow,
                 wat_doc::Category::Binding => crate::intrinsic::RuntimeCategory::Binding,
                 wat_doc::Category::Clock => crate::intrinsic::RuntimeCategory::Clock,
                 wat_doc::Category::Arithmetic => crate::intrinsic::RuntimeCategory::Arithmetic,
                 wat_doc::Category::Io => crate::intrinsic::RuntimeCategory::Io,
+                wat_doc::Category::Probe => crate::intrinsic::RuntimeCategory::Probe,
+                wat_doc::Category::Combine => crate::intrinsic::RuntimeCategory::Combine,
+                wat_doc::Category::Declaration => crate::intrinsic::RuntimeCategory::Declaration,
             };
             rc.to_enum_value()
         };

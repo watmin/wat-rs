@@ -114,26 +114,32 @@ impl Layer {
 }
 
 /// Category — what functional category is this intrinsic?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection :ControlFlow :Binding :Clock :Arithmetic :Io)`.
+/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Transform :Reflection :ControlFlow :Binding :Clock :Arithmetic :Io :Probe :Combine :Declaration)`.
 /// Consumed by `eval_metadata_of` (runtime.rs) via `to_enum_value()`.
 pub(crate) enum RuntimeCategory {
-    Encoding,
+    Transform,
     Reflection,
     ControlFlow,
     Binding,
     Clock,
     Arithmetic,
+    Probe,
+    Combine,
+    Declaration,
     Io,
 }
 
 impl RuntimeCategory {
     pub(crate) fn to_enum_value(&self) -> Value {
         let variant_name = match self {
-            RuntimeCategory::Encoding => "Encoding",
+            RuntimeCategory::Transform => "Transform",
             RuntimeCategory::Reflection => "Reflection",
             RuntimeCategory::ControlFlow => "ControlFlow",
             RuntimeCategory::Binding => "Binding",
             RuntimeCategory::Clock => "Clock",
+            RuntimeCategory::Probe => "Probe",
+            RuntimeCategory::Combine => "Combine",
+            RuntimeCategory::Declaration => "Declaration",
             RuntimeCategory::Arithmetic => "Arithmetic",
             RuntimeCategory::Io => "Io",
         };
