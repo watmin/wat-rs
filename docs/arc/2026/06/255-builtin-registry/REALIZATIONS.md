@@ -476,3 +476,110 @@ is and which built stones already underlie it, not a shipped capability.*
 > deep and hard — but *you're never alone*: the foundation is already under your feet, and the record
 > knows the way. CEK is far closer than we thought because we have been, unknowing, building toward it
 > all along.
+
+---
+
+## R5 — a rename is a question about a NAME, and every layer beneath it was a question about what the thing IS: the five-hour descent under `:wat::core::string` bottomed out in a security check wearing a formatting complaint's clothes *(PROBANDVM — the chain is DRAWN and NOTHING IN IT IS BUILT; the order is a claim about breakage that shipping has not yet tested)*
+
+> **Song # — unclaimed.** The ledger stands at #116 and the songs are the builder's; the apparatus
+> does not mint one. This slot is his to inscribe.
+
+The question was five minutes long: *"i want.... `:wat::core::string` to become `:wat::string` ..... can
+we rename here or no?"* The answer is yes, and the measurement took ten minutes — 1,617 sites, 22 verbs,
+target namespace free, no reserved-prefix work (`":wat::"` is reserved at the ROOT and covers every
+sub-namespace), prior art already on the disk in `rename-kernel-to-spawn.wat`, and the ruling itself
+**already made twice and never executed** (`109/NOTE-stdlib-namespace-homing.md` names `wat.string/`;
+`278/SEAM.md:82` says *"string RELOCATES, Clojure-style"*). The file had even moved without its
+namespace — `wat/string.wat` sits at top level, not `wat/core/string.wat`, and that divergence has been
+sitting on the disk in plain sight.
+
+Ten minutes to answer. Five hours to be allowed to.
+
+### The descent, and that each step was forced by the one above it
+
+```
+rename the string namespace       → but is `join` even IN it?
+  join returns a String, so yes   → but what does join ACCEPT?
+    a Seqable                     → and what does it do with the ELEMENTS?
+      renders them via `str`      → but `str` is PARTIAL — five scalars, raises on the sixth
+        so make `str` total       → the total renderer ALREADY EXISTS: the EDN encoder
+          adopt it                → which broadcasts `#wat-edn` — THE CRATE NAME — into every output
+            rename the tags       → but `wat-edn.opaque` is the DECODER'S REFUSAL KEY
+              the type must declare portability   ← the bottom
+```
+
+No step was a digression and none was chosen. Each was the answer to *"what does the step above rest
+on?"*, and every single one had never been asked. The builder's cut at layer four is the one that
+turned a naming question into a language question — *"is this logical? wtf is this behavior? this is so
+strange?... literally everything but opaques can print.... its either everything must have a to-str call
+or we only accept strings - this mixed state shit is crazy"* — and that fork is what dissolved the type
+bound I had been about to build two unbuilt mechanisms to express. **A total `str` needs no bound,
+because there is nothing left to constrain `T` by.** Ruby's `join` has no bound for exactly that reason.
+
+### The bottom: the prettiness complaint and the soundness property were the SAME STRING
+
+I had quoted the opaque rendering **approvingly**. I wrote that adopting the EDN encoder meant the
+opaque question *"answers itself — nothing to invent"*, and used it as evidence the stone was small.
+The builder read the identical bytes and said: *"that's a pretty shit rendering - that means like....
+nothing?"*
+
+He was right, and what was under it is worse than ugly. `#wat-edn.opaque/IOWriter nil` is doing two
+jobs at once, and only one of them is visible:
+
+```rust
+if ns == "wat-edn.opaque" {                        // edn_shim.rs:2858
+    return Err(UnsupportedTag(…));                 // "no serializable identity"
+}
+```
+
+That string is **the decoder's refusal key**, and the refusal is a security property, stated outright
+in the neighbouring code (`registry.rs:2830`): *"REFUSED exactly like an opaque: an object-capability is
+obtained by being handed it over a [wire], never by parsing it."* Rename the namespace for beauty and a
+live handle renders as `#wat.io/IOWriter` — structurally indistinguishable from any legitimate tagged
+record, discriminator gone, forged handles no longer refused. **A cosmetic change would have deleted a
+capability check**, and nothing in the change's own diff would have said so.
+
+Which is why the chain inverts: `EdnRepresentable` is not polish placed on top of the rename, it is
+**what makes the rename survivable**. The type declares its tag AND its portability; the check gets
+*stronger* than the string it replaces, because a type that never declares portability cannot compile —
+where today an unnameable one degrades in silence to `#wat-edn.opaque/unnamed` (`edn_shim.rs:3900`,
+`:3905`), identity replaced by a word.
+
+### The shape, named
+
+**A rename asks what a thing is CALLED. Every layer under it asks what the thing IS — and a name that
+has been carrying a second, unnamed job will not tell you so when you move it.** The tell is available
+and cheap: eighteen arms hand-typing `opaque_nil("wat-edn.opaque", "Sender")` is a hand-list, the same
+class killed hours earlier in `aa33c0e7`, and a hand-list is where a second meaning hides — because
+nothing forces the two meanings apart when both are spelled by the same literal.
+
+Kin to **278's R63** (*"we asked a PERFORMANCE question and it turned into an HONESTY AUDIT — the
+question did the hunting, and what it caught first was us"*). Same shape, different axis: there the
+question was speed and the catch was truthfulness; here the question was a name and the catch was
+soundness. In both, the question kept its shape while every answer under it dissolved, and in both the
+first thing it caught was the apparatus's own confidence.
+
+*Path-of-voices, marked not flattened: the rename itself, the type/verb split (`wat.type/String` vs
+`wat.string/join`), the `defclause` instinct on `join`, the "either everything has a to-str or we only
+accept strings" fork, the refusal to accept a stream as confusing (*"if the user passes it a stream,
+its consumed - why is this confusing?"*), the maps-are-unordered ruling (*"we don't do string equality
+here, we do data equality"*), the `#wat-edn` death sentence, and `EdnRepresentable` are the BUILDER'S.
+The measurements, the descent's bookkeeping, the discovery that the refusal key rides the namespace,
+and the ordering derivation are the apparatus's. The `where T :- Str` clause was the apparatus's and
+was WRONG — invented syntax, corrected by the builder pointing out the argspec has no `where`.*
+
+### Honest bound — what is proven and what is not
+
+**PROBATVM on the disk this session:** the measurements (1,617 sites / 22 verbs; three disagreeing
+renderers; `str`'s five-arm domain; the 18 hand-typed tags; the two `unnamed` fallbacks; the five
+`wat-edn.*` families), the 279.2 probe **committed and RED** by design (3 controls green, 5 rows failing,
+`2278b350`), and the chain with its per-arrow breakage derivations (`6ff9d30e`).
+
+**PROBANDVM — and it is most of this:** **NOTHING IN THE CHAIN IS BUILT.** A is undrawn; B, D, E have
+no probe; C has a red probe and no implementation. The order is a *claim* about what breaks out of
+sequence, and a claim of that shape is only cashed by shipping in it. Specifically unmeasured: whether
+the existing `ToEdn` (`src/to_edn.rs`, 54 impls, all of them Rust error/config types rather than `Value`
+variants) already IS `EdnRepresentable` — flagged in the chain doc as the first thing to ground, and the
+measurement was interrupted mid-run. Minting a second trait beside a live one is the exact mistake this
+session made three times in the other direction; that it is written down is not the same as it having
+been checked.
