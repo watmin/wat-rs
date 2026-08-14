@@ -64,21 +64,32 @@ Deferring fails **Obvious** (the phrase reads as "not built yet" — false for 3
 mechanisms for one question), and **Honest** (a deferral of *uniformity* described as a deferral of
 *capability* — different things, and the word conflates them).
 
-**★ THE RE-GROUNDING IS DONE AND WRITTEN DOWN: `NOTE-2026-08-14-regrounding-the-premise.md`.**
-Read it BEFORE `DESIGN.md`. Both of the design's "decide before code moves" questions are answered
-by the substrate, the same way: **the mechanism exists and is unevenly applied.**
-- q2 `type_sig` day-one? — RULED YES (332 builtins already carry it).
-- q1 align `BuiltinMeta` with user-form metadata? — **there is no shape to invent.**
-  `SymbolTable.binding_metadata` (`src/value/symbol_table.rs:142`) already exists, is populated for
-  user forms, and is already mirrored into `CheckEnv.binding_metadata`.
+**★ READ `DESIGN.md` IN FULL — ALL 484 LINES — BEFORE ANYTHING ELSE.** Its `═══ LOCKED RECORD
+MODEL ═══` (line 389) says so itself: *"read THIS; the sections above are the derivation."* The
+design is SETTLED and its decomposition stands. It already answers, and does not need re-deriving:
 
-⚠ **WHICH RAISES THE ARC'S REAL FIRST QUESTION, replacing the two the design listed:
-does `BuiltinRegistry` deserve to exist at all?** The "registry" may already BE
-`CheckEnv.schemes` + `binding_metadata`, in which case minting a third table beside them would ADD
-an asymmetry while claiming to remove one. `examinare`: *"the thing you would build almost always
-already exists."* **Decide that before any code moves.**
+- **"The registry IS `sym`"** (line 117, restated 447) — there is NO bespoke `BuiltinRegistry`;
+  builtins register into `sym.functions` + `sym.binding_metadata`, the same structures user forms
+  use. Do not grep for `BuiltinRegistry` and conclude the arc is unbuilt — that name was killed.
+- **`type_sig` is NOT a deferred system** (line 131) — it is `Function.param_types`/`ret_type`.
+  The `defer type_sig` line at :61 is superseded 70 lines below itself.
+- **255 IS ALSO THE MEGAFILE CARVE** (line 275, builder-ruled 2026-06-21) — the per-home
+  `register_builtins` declaration IS the carve; `runtime.rs` becomes an assembler. One motion.
+- **255.1a IS LANDED** — `FunctionBody::{Wat, Native}` at `src/value/environment.rs:22`, 28 sites;
+  `Native` is a unit marker never yet constructed.
 
-**⚠ AND STILL RE-READ `255/DESIGN.md` IN FULL AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
+**`NOTE-2026-08-14-regrounding-the-premise.md`** carries only what the design does NOT have: **332
+builtins already hold a `TypeScheme`** in `register_builtins` (so 255.2 is smaller than the design
+thinks — the remainder is the **141** hand-inferred arms in `infer_list`), the moved counts (678
+dispatch arms vs the design's 454; `runtime.rs` 35,066, `check.rs` 20,863 — 64% of `src/`), and a
+retraction of bad advice. **Read the note AFTER the design, not instead of it.**
+
+⚠ **THE FAILURE TO NOT REPEAT:** the first version of that note re-derived two of the design's own
+conclusions and argued against a standing builder ruling, because it was written from the design's
+first 60 lines. `[[feedback_ground_the_substrate_not_just_the_chronicle]]` applies to OUR OWN
+DESIGN DOCS. Read the whole thing first.
+
+**⚠ AND STILL CHECK `255/DESIGN.md` AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
 says — its premise drifted, and its `CURRENT-STATE.md` drifted further (dated 2026-07-01, freshness
 probe expects floor **4285**, and its content narrates arc **296**, not 255). Do not brief from
 either without re-grounding. The arc is SMALLER than its design implies and closer to 251's work
