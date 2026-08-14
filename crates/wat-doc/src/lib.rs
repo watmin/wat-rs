@@ -46,13 +46,13 @@
 // after `every_rust_enum_matches_its_wat_defenum` was deleted as scaffolding
 // (`aa33c0e7`) nothing checked either of them. Generating them is what makes that
 // deletion honest rather than a quiet debt.
-::wat_enum_derive::wat_enum_from!(
+::wat_source_derive::wat_enum_from!(
     pub enum Purity,
     "../../wat/runtime-meta.wat",
     ":wat::runtime::Purity"
 );
 
-::wat_enum_derive::wat_enum_from!(
+::wat_source_derive::wat_enum_from!(
     pub enum Determinism,
     "../../wat/runtime-meta.wat",
     ":wat::runtime::Determinism"
@@ -81,7 +81,7 @@ const CATEGORY_LEGAL_VALUES: &str =
 // This is what `every_rust_enum_matches_its_wat_defenum` was scaffolding FOR — a
 // test comparing two lists. It is deleted with this change: a generated enum
 // cannot drift from its generator.
-::wat_enum_derive::wat_enum_from!(
+::wat_source_derive::wat_enum_from!(
     pub enum Category,
     "../../wat/runtime-meta.wat",
     ":wat::runtime::Category"

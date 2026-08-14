@@ -1,0 +1,22 @@
+[package]
+name = "wat-source-derive"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "wat is the source of truth; this crate generates the Rust. Reads a declaration from a `.wat` file at BUILD time (via wat-reader, the real parser) and emits the Rust that must agree with it, so the two cannot drift — there is no second copy to go stale. Named for the DIRECTION, not a shape: `wat-to-edn-derive` goes to EDN, this one comes from the wat source. Depends on nothing of wat's but wat-reader, so both wat-doc and the main crate can use it without a cycle (wat-macros already depends on wat-doc, so it cannot live there)."
+repository = "https://github.com/watmin/wat-rs"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+wat-reader = { path = "../wat-reader" }
+
+# Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
+# FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`
+# inside [package] parses as `package.lints` and cargo silently discards it.
+[lints]
+workspace = true

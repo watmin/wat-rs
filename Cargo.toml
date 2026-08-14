@@ -6,7 +6,7 @@ members = [
     "crates/wat-doc",
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
-    "crates/wat-enum-derive",
+    "crates/wat-source-derive",
     "examples/with-loader",
     "examples/console-demo",
 ]
@@ -114,7 +114,7 @@ tempfile = "3"
 wat-reader = { path = "crates/wat-reader" }
 wat-macros = { path = "crates/wat-macros" }
 wat-doc = { path = "crates/wat-doc" }
-wat-enum-derive = { path = "crates/wat-enum-derive" }
+wat-source-derive = { path = "crates/wat-source-derive" }
 wat-edn = { path = "crates/wat-edn" }
 uuid.workspace = true
 num-rational.workspace = true

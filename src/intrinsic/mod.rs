@@ -51,19 +51,19 @@ use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
 // unfulfilled — i.e. the annotations had turned into lies, and `#[expect]` went loud
 // the moment its premise stopped holding.
 
-::wat_enum_derive::wat_enum_from!(
+::wat_source_derive::wat_enum_from!(
     pub(crate) enum Kind,
     "wat/runtime-meta.wat",
     ":wat::runtime::Kind"
 );
 
-::wat_enum_derive::wat_enum_from!(
+::wat_source_derive::wat_enum_from!(
     pub(crate) enum DefinedIn,
     "wat/runtime-meta.wat",
     ":wat::runtime::DefinedIn"
 );
 
-::wat_enum_derive::wat_enum_from!(
+::wat_source_derive::wat_enum_from!(
     pub(crate) enum Layer,
     "wat/runtime-meta.wat",
     ":wat::runtime::Layer"
