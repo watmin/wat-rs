@@ -91,6 +91,60 @@ somewhere regardless — and their home is the namespace they belong to.
 `docs/MODULARIZATION-NOTES.md` (queued 2026-05-08, gated on "after arc 109 wraps") is the separate,
 still-unnumbered general breakup; 255 carves only what it touches.
 
+### 4. ⛔ THE DESIGN'S LAYER-2 `DefDetail` SUM IS STALE — 255.1b-i cannot be briefed as written
+
+The LOCKED RECORD MODEL specifies (line 409):
+
+```
+DefDetail { Fn(FnDef), Struct(StructDef), Enum(EnumDef), Record(RecordDef),
+            Protocol(ProtocolDef), Macro(MacroDef), Native(NativeBuiltin) }
+```
+
+Measured 2026-08-14 — **three of those records do not exist**, and the sum they belong to already
+does:
+
+| design cites | disk |
+|---|---|
+| `StructDef` | **NOT FOUND** — arc **293.2b** unified struct+record into `AggregateDef` (`types.rs:266`) |
+| `RecordDef` | **NOT FOUND** — same unification (266/STUB.md was re-opened by exactly this) |
+| `ProtocolDef` | **NOT FOUND** — arc **293.3-core** replaced it with `SurfaceDef` |
+| `EnumDef` | ✓ `types.rs:289` |
+| `MacroDef` | ✓ `macros/registry.rs:9` (exact) |
+| `Function` | ✓ `value/environment.rs:46` (design said `env.rs:35` — moved) |
+| `NativeBuiltin` | not found — **expected**, it is new in 255.1b-i |
+
+**And the sum already exists.** `TypeDef` (`src/types.rs:404`):
+
+```rust
+pub enum TypeDef {
+    Aggregate(AggregateDef),  // 293.2b — struct AND record
+    Enum(EnumDef),
+    Newtype(NewtypeDef),      // ← design does not mention
+    Alias(AliasDef),          // ← design does not mention
+    Union(UnionDef),          // ← design does not mention (stone 237.1)
+    Surface(SurfaceDef),      // ← 293.3-core, replaces Protocol
+}
+```
+
+So `DefDetail` as specified would (1) name three types that do not exist, (2) miss three kinds that
+do, and (3) **duplicate `TypeDef`'s job** — a second exhaustive sum over the same domain, which is
+the asymmetry 255 exists to remove.
+
+**THE FORK, and it is 255.1b-i's real first decision:**
+
+- **(a) `DefDetail { Fn(FnDef), Type(TypeDef), Macro(MacroDef), Native(NativeBuiltin) }`** — delegate
+  the type-kinds to the sum that already owns them. **Simple: YES** (one sum over type-kinds).
+  **Honest: YES** (a new type-kind lands in `TypeDef` and `DefDetail` needs no edit).
+- **(b) flatten `TypeDef`'s variants into `DefDetail`** — two exhaustive sums over one domain, drifting
+  apart from the moment they are written. **Simple: NO. Honest: NO.**
+
+**(a) is the shape.** Recorded here rather than silently chosen; it is a deviation from a LOCKED
+section and the deviation is a measurement, not a preference.
+
+⚠ **This is the mirror of failure #3 above.** There I ignored the design and re-derived it; here the
+design is stale and the disk wins. Neither is "trust the doc" or "trust the code" — it is *read
+both, and when they disagree, say so in writing before anyone builds.*
+
 ---
 
 ## THE ARC'S STATE, corrected
