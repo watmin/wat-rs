@@ -439,6 +439,7 @@ mod bytes;
 mod reflect;
 mod witness;
 mod special;
+mod time;
 
 // ─── Arc 255.1b-v: @see registry-check + firm-doc tests ──────────────────────
 //

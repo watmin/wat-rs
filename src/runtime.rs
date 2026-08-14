@@ -5933,87 +5933,10 @@ fn dispatch_keyword_head_value(
         ":wat::std::stat::variance" => eval_stat_variance(args, env, sym, list_span),
         ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym, list_span),
 
-        // Time primitives — arc 056. World-observing (`now`) +
-        // pure converters at `:wat::time::*`, sibling of `:wat::io::*`
-        // rather than nested under `:wat::std::*`.
-        ":wat::time::now" => crate::time::eval_time_now(args, list_span).map_err(Into::into),
-        ":wat::time::at" => crate::time::eval_time_at(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::at-millis" => crate::time::eval_time_at_millis(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::at-nanos" => crate::time::eval_time_at_nanos(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::from-iso8601" => crate::time::eval_time_from_iso8601(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::to-iso8601" => crate::time::eval_time_to_iso8601(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::epoch-seconds" => crate::time::eval_time_epoch_seconds(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::epoch-millis" => crate::time::eval_time_epoch_millis(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::epoch-nanos" => crate::time::eval_time_epoch_nanos(args, list_span, env, sym).map_err(Into::into),
-
-        // Arc 097 — Duration constructors. Each takes :i64 and
-        // returns a Value::Duration (non-negative nanoseconds).
-        // Negative input panics; i64 overflow panics.
-        ":wat::time::Nanosecond" => crate::time::eval_time_unit_nanosecond(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::Microsecond" => crate::time::eval_time_unit_microsecond(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::Millisecond" => crate::time::eval_time_unit_millisecond(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::Second" => crate::time::eval_time_unit_second(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::Minute" => crate::time::eval_time_unit_minute(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::Hour" => crate::time::eval_time_unit_hour(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::Day" => crate::time::eval_time_unit_day(args, list_span, env, sym).map_err(Into::into),
-
-        // Duration readout family — symmetric OUT half of the constructors.
-        // Each takes :wat::time::Duration and returns :i64, truncating.
-        ":wat::time::nanoseconds" => crate::time::eval_time_nanoseconds(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::microseconds" => crate::time::eval_time_microseconds(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::milliseconds" => crate::time::eval_time_milliseconds(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::seconds" => crate::time::eval_time_seconds(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::minutes" => crate::time::eval_time_minutes(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::hours" => crate::time::eval_time_hours(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::days" => crate::time::eval_time_days(args, list_span, env, sym).map_err(Into::into),
-
-        // Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
-        // `:wat::time::-` dispatches on RHS variant: Instant - Duration
-        // → Instant; Instant - Instant → Duration. `:wat::time::+` is
-        // single-arm Instant + Duration → Instant. Same shape as
-        // ActiveSupport's time1 - time2 / time - 1.hour.
-        ":wat::time::-" => crate::time::eval_time_sub(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::+" => crate::time::eval_time_add(args, list_span, env, sym).map_err(Into::into),
-
-        // Arc 097 slice 3 — ActiveSupport-flavored "X ago" / "X from now"
-        // composers. Each takes Duration; computes Instant relative to
-        // wall-clock now.
-        ":wat::time::ago" => crate::time::eval_time_ago(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::from-now" => crate::time::eval_time_from_now(args, list_span, env, sym).map_err(Into::into),
-
-        // Arc 097 slice 4 — pre-composed unit-ago / unit-from-now
-        // sugars. 14 helpers (7 units × {ago, from-now}). Each takes
-        // :i64 and returns Instant relative to wall-clock now.
-        ":wat::time::nanoseconds-ago" => {
-            crate::time::eval_time_nanoseconds_ago(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::microseconds-ago" => {
-            crate::time::eval_time_microseconds_ago(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::milliseconds-ago" => {
-            crate::time::eval_time_milliseconds_ago(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::seconds-ago" => crate::time::eval_time_seconds_ago(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::minutes-ago" => crate::time::eval_time_minutes_ago(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::hours-ago" => crate::time::eval_time_hours_ago(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::days-ago" => crate::time::eval_time_days_ago(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::nanoseconds-from-now" => {
-            crate::time::eval_time_nanoseconds_from_now(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::microseconds-from-now" => {
-            crate::time::eval_time_microseconds_from_now(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::milliseconds-from-now" => {
-            crate::time::eval_time_milliseconds_from_now(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::seconds-from-now" => {
-            crate::time::eval_time_seconds_from_now(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::minutes-from-now" => {
-            crate::time::eval_time_minutes_from_now(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::time::hours-from-now" => crate::time::eval_time_hours_from_now(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::days-from-now" => crate::time::eval_time_days_from_now(args, list_span, env, sym).map_err(Into::into),
+        // Time primitives — arc 056/097, carved to the registry at
+        // `src/intrinsic/time.rs` (arc 255.1c-time, home #2). The
+        // registry guard above (`h if registry().lookup(h).is_some()`)
+        // intercepts all 41 `:wat::time::*` names before reaching here.
 
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
