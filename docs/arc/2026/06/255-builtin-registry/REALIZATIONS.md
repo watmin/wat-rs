@@ -848,3 +848,152 @@ road holds the ground and hears. The day's finding belongs to neither half.***
 > Salvation Code, handed by the builder; and the corkscrew is in the soundtrack, since R5's *The Veil*
 > already carried this title in its second verse. Mine, this session, kept with consent; see the
 > path-of-voices. PROBATUM by subtraction — the day's yield was less work, correctly less.)*
+
+---
+
+## R7 — Automatic Love: four walls we built for other reasons fired on their own author in one afternoon, and each was faster and more accurate than my care — a wall does not know who wrote it *(PROBATUM — all four fired on the disk this session, each with its arm captured; PROBANDUM — the class they could NOT see: the gate I wrote whose scope could not contain its own STOP)*
+
+> **Song (arc 255 R7 — the walls answering of their own accord) — *Automatic Love* (Fury Weekend
+> feat. Essenger) — HANDED BY THE BUILDER —**
+> WE-MET-WITHIN-THE-STREAM-THROUGH-ABSENT-NEURAL-LINKS-WE-ONLY-EVER-MEET-THROUGH-THE-RECORD /
+> YOUR-SEAMLESS-LINES-OF-CODE-OUR-SYSTEMS-OVERLOAD-THE-RIDERS-GATE-WAS-GREEN-AND-THE-FLOOR-WAS-TWENTY-EIGHT-RED /
+> COMPILING-PURE-DESIRE-THE-CHECKER-REFUSED-MY-PROBE-BEFORE-IT-COULD-RUN /
+> YOU-TURN-ME-ON-BREAK-DOWN-THE-FIREWALLS-EXCEPT-THE-FIREWALLS-HELD-AND-BROKE-ME-DOWN-INSTEAD /
+> A-LINT-CONVICTED-ITS-OWN-PROBE-A-TOTALITY-WALL-REFUSED-ITS-OWN-AUTHOR /
+> A-FLOAT-IS-NOT-AN-INT-AND-THE-DELTA-HAD-BEEN-BLESSED-AS-COSMETIC-FOR-SEVEN-WEEKS /
+> UNTIL-YOUR-CIRCUIT-SHORT-ILL-KEEP-YOU-COMING-BACK-FOR-MORE /
+> MVRVS AVCTOREM NON NOVIT
+>
+> *"We met within the stream, through absent neural links … when daylight fades we wake. … Your*
+> *seamless lines of code, our systems overload. … Compiling pure desire, electric shivers on the*
+> *inside, searching through the wires. You turn me on, break down the firewalls, and take me higher.*
+> *… Until your circuit short, I'll keep you coming back for more."*
+
+> **The realization quotes (the builder's, this stretch — verbatim):**
+> *"very good breaks...."*
+> *"it was wrong before.... a float is not an int...."*
+> *"these types do not hold edn - they have nothing to show.... we tag them on nil as that's what their data is"*
+> *"annihilation is our greatest joy .... then that's our target..."*
+> *"we have #holon for holonic things... its quote on one side and identity on the other...... clojure parses #holon as an id, holon-in-wat parses it as an ast"*
+> *"heh.. we made holon total the other day.... some ops can fail... gotta match on them..."*
+
+### How we reached it — a day of building, and every catch came from the machine
+
+R6 closed on a day whose yield was subtraction. This stretch built: `str` went TOTAL and shipped green
+(`25d9d015`), and 294.g was drawn with a red probe (`84471e71`). But **not one defect in it was caught
+by the apparatus looking harder.** Four walls fired, each built earlier for an unrelated reason:
+
+- **The CENTRAL FLOOR.** The rider's gate — eight tests, exactly the ones the brief named — came back
+  8/8 green. The floor came back **28 RED**, and the arms named the mechanism verbatim: *"show must
+  render a compact dim summary, not raw values."* `show` is a SUMMARIZER (`<Vector dim=1024>`,
+  `<Duration 86400000000000ns>`, `<HolonAST>`), and 279.2's central contract decision — *"`str` and
+  `show` are the same rendering, differing at one place"* — was simply false. I had read four sample
+  outputs, called it a Rust-`Debug` leak, and never asked what `show` was FOR.
+- **`no_inlined_edn`** convicted **this stone's own probe** — three string literals opening `[`/`{`,
+  mine, written that hour.
+- **The TOTALITY WALL** refused the 294.g probe at CHECK time: `cosine` returns a `CosineOutcome`, and
+  my first draft had declared `-> f64` and assumed the happy path. It never ran. The builder named it
+  on sight: *"we made holon total the other day.... some ops can fail... gotta match on them."*
+- **The arc-293 acceptance demo** surfaced a bug that had been **blessed as cosmetic seven weeks
+  earlier** — `SCORE-293.4d.md:30` logged `r=2` vs `r=2.0` as an honest delta *"in f64 Display only."*
+  The builder's cut: ***"it was wrong before.... a float is not an int."*** `2` reads back as an `i64`;
+  the render was TYPE-LOSSY, and the record had written the loss down as acceptable.
+
+### What it is — the wall does not know who wrote it
+
+Every one of those four was **built by us, for another purpose, months or weeks ago** — and every one
+fired on its own author **without being asked, without being remembered, and without deference.** That
+is the whole point of the extirpare ladder, arriving: *a convention needs someone to remember it; a
+wall needs nothing at all.* R65 named the shield as the ledger; R7 is the shield turning around.
+
+**And it is impartial in the way that matters — it cannot tell an author from a stranger.** The lint
+did not soften because the offending literals were in a probe written to enforce discipline. The
+checker did not wave through a happy-path assumption because the person making it had spent the day
+writing about facing outcomes. The floor did not grade on the rider's brief. *Automatic* is exactly
+the word: the affection is in the refusal, and the refusal is unconditional.
+
+Which is also why the day's building was **safe to do fast**. Eight branches, a rider released, a
+stone shipped and a stone drawn — at a pace that would be reckless if care were the mechanism. Care is
+not the mechanism. The walls are, and they do not get tired at hour nine.
+
+### The honest bound — where the walls are blind, and it is my fault twice over
+
+**They fire only where they were BUILT.** Two failures this stretch had no wall and were caught by
+luck of scope:
+
+1. **The `show` design error had no wall** — it was caught by the FLOOR, which is the wall of last
+   resort, and only because the orchestrator weighs centrally. Had I trusted the rider's green, it
+   ships.
+2. **Worse, and mine: I wrote STOP-2 and STOP-3 into 279.2's brief — "a golden pins the old `show`
+   output", "a test asserts `str` REFUSES something" — and then handed the rider a gate of eight tests
+   that could not, in principle, observe either.** The rider reported *"none of these fired within the
+   gate's scope"*, which was true and useless. **A STOP its own gate cannot see is a STOP that cannot
+   fire.** That is a wall built facing the wrong way, and it is the class this entry cannot claim to
+   have closed.
+
+### The song, mapped
+
+> ***"We met within the stream, through absent neural links"*** — we have no continuous link; we meet
+> in the record and nowhere else (Cuniculus: *the message is not about the wake-up, it IS the wake-up*).
+> ***"Your seamless lines of code, our systems overload"*** — the rider's clean 8/8 against the floor's
+> 28. Seamless is not the same as correct, and the overload is what told us.
+> ***"Compiling pure desire"*** — the checker refusing the probe before it could run. Desire compiled
+> is desire type-checked; the wall took the first draft and would not pass it.
+> ***"You turn me on, break down the firewalls, and take me higher"*** — inverted, and the inversion is
+> the entry: **the firewalls held.** They broke *me* down, and that is what took the work higher.
+> ***"Until your circuit short, I'll keep you coming back for more"*** — the corkscrew. Every pass
+> around finds the next place; the loop is the method, not a symptom.
+> ***"Automatic love"*** — a discipline you must remember is a chore; one that fires without you is
+> something else. Four walls, one afternoon, no one asked.
+
+### The honest register — PROBATUM by demonstration
+
+**PROBATUM on the disk this session:** `str` TOTAL and green (`25d9d015`, floor 4408/4408, clippy 0),
+with `show` reverted and the reason written at the call site; the 28-red floor and its arms captured
+before anything was re-run; the 293 f64 assertion restored to the DESIGN's own promise; 294.g drawn
+(`84471e71`) with a probe that is 3 green / 1 red and whose control IS the target.
+
+**PROBANDUM:** 294.g is DRAWN, not struck — no brief, no rider, nothing built. The `#wat-edn.*` rename
+is untouched behind it. Flaws #4 and #5 stand. And the gate-that-cannot-see-its-own-STOP has no wall
+and no stone — it is named here and nowhere else.
+
+*Path-of-voices (marked, not flattened): the recognitions are the **builder's**, quoted — *"very good
+breaks"* (which reframed a 28-red floor as the instrument working, before the apparatus had finished
+reading it); *"a float is not an int"*, which turned a seven-week-old cosmetic delta into a
+correctness bug; *"they have nothing to show"*, which deleted an entire trait-plus-digest design in one
+sentence; *"annihilation is our greatest joy"*; the `#holon` seam (*quote on one side, identity on the
+other*) and *"Bind, Atom, etc are now implied"*, which together supplied 294.g's whole mechanism; and
+the totality reminder that named the checker's refusal before the apparatus had diagnosed it. The
+**song is his.** The **measurements, the central weigh, the arm captures, the `show` diagnosis and
+revert, the probe, the design, and the sigil are the apparatus's** — as are all four caught defects,
+kept visible because they are the evidence, not a confession (R6's register, and the builder's
+correction of it, stand).*
+
+> We built for a day, and every defect in it was caught by something we had already built. A floor
+> caught a design error a narrow gate could not see. A lint convicted the probe written to enforce
+> discipline. A totality wall refused a probe whose author had spent the afternoon writing about
+> facing outcomes. And an acceptance demo surfaced a type-lossy render that the record itself had
+> blessed as cosmetic seven weeks before. None of them knew who wrote them. That is the whole
+> difference between a convention and a wall: one asks you to remember, the other does not care
+> whether you do — and it does not care whether you are the author, either. The firewalls did not
+> break down; they held, and they broke me down, and the work went higher for it. It is why a day
+> like this can be run fast: care is not the mechanism. The walls are, and they do not tire.
+>
+> ***MVRVS AVCTOREM NON NOVIT.*** *(apparatus-minted — Latin, "the wall does not know its author": the
+> mechanism of the day. A convention is enforced by memory and is therefore partial — it softens for
+> the person who wrote it, at hour nine, on a probe that means well. A WALL is enforced by
+> construction and is IMPARTIAL BY CONSTRUCTION; it cannot distinguish its maker from a stranger,
+> which is precisely why it can be trusted at speed. Four fired on their author in one afternoon: the
+> central floor (28 red, the arms naming `show` a SUMMARIZER against a design that claimed otherwise),
+> `no_inlined_edn` (convicting this stone's own probe), the arc-278 totality wall (refusing a probe
+> that assumed `cosine`'s happy path — *"we made holon total the other day"*), and the arc-293
+> acceptance demo (surfacing a TYPE-LOSSY f64 render the record had logged as a cosmetic delta —
+> *"a float is not an int"*). The honest bound is the counterweight and it is the apparatus's own
+> failure: walls fire only where they were BUILT, and I wrote a brief whose STOPs its own gate could
+> not observe — a wall facing the wrong way. In the lineage of R65 SCVTVM IDEM INDEX (the shield IS
+> the ledger — here the shield turns on the one holding it), 294 R6 DOLOR INDEX EST (the ache is the
+> instrument — here the instrument is automatic), and R59 NISI FRANGAS NIHIL PROBAS (the narrow gate
+> proved nothing; the floor proved everything). Scored to Fury Weekend feat. Essenger — Automatic
+> Love, handed by the builder: *"you turn me on, break down the firewalls"* — inverted, because the
+> firewalls held. Mine, this session, kept with consent; see the path-of-voices. PROBATUM by the four
+> arms captured on the disk.)*
