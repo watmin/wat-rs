@@ -20189,6 +20189,14 @@ fn eval_show(
         }).into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
+    // ⛔ `show` is a SUMMARIZER, not a renderer — do NOT route it through the EDN
+    // encoder. It annotates with the type and ELIDES the payload: `<Vector dim=1024>`
+    // (never 1024 floats), `<Duration 86400000000000ns>`, `<HolonAST>`, `<WatAST>`.
+    // That bound is why `ValueSnapshot::of` shares it — an error message must not
+    // inline a whole VSA vector. Stone 279.2 tried the swap on the theory that `show`
+    // was `str`-with-quotes; the floor refuted it with 27 failures naming the elisions
+    // (`show must render a compact dim summary, not raw values`). `str` is the FULL
+    // rendering; `show` is the BOUNDED one. They are two jobs, not one with a flag.
     Ok(Value::String(Arc::new(crate::value::observe::render_value(&v, 0))))
 }
 
@@ -20225,17 +20233,9 @@ fn eval_str(
         }).into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let s = match v {
-        Value::String(s)  => (*s).clone(),
-        Value::i64(n)     => n.to_string(),
-        Value::f64(f)     => f.to_string(),
-        Value::bool(b)    => b.to_string(),
-        Value::u8(n)      => n.to_string(),
-        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "String | i64 | f64 | bool | u8",
-                got: Box::new(ValueSnapshot::of(&other)),
-            }).into()),
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => crate::edn_shim::value_to_edn_string(other),
     };
     Ok(Value::String(Arc::new(s)))
 }

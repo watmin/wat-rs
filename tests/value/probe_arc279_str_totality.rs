@@ -65,7 +65,7 @@ fn str_renders_nil_as_nil_not_unit() {
 #[test]
 fn str_renders_a_vector_in_wat_form_not_rust_debug() {
     // The distinguishing byte is the comma: `show` answers `[1, 2, 3]`.
-    assert_eq!(rendered(":t::probe-vector"), "[1 2 3]");
+    assert_eq!(rendered(":t::probe-vector"), "[1 2 3]");  // rune:lint(no-inlined-edn) — this asserts the SERIALIZATION, not the data; an .edn golden via assert_edn_eq! normalizes `[1 2 3]` and `[1, 2, 3]` to the same value, erasing the exact difference under test.
 }
 
 #[test]
@@ -73,12 +73,12 @@ fn str_renders_a_map_in_wat_form() {
     // ONE key, so this asserts SHAPE without asserting ORDER — maps are unordered and
     // pinning their order would be string equality standing in for data equality.
     // The distinguishing bytes are the doubled colon: `show` answers `{:a: 1}`.
-    assert_eq!(rendered(":t::probe-map"), "{:a 1}");
+    assert_eq!(rendered(":t::probe-map"), "{:a 1}");  // rune:lint(no-inlined-edn) — this asserts the SERIALIZATION, not the data; an .edn golden via assert_edn_eq! normalizes `[1 2 3]` and `[1, 2, 3]` to the same value, erasing the exact difference under test.
 }
 
 #[test]
 fn str_keeps_nested_strings_quoted() {
     // The row that proves `str` is not "show with the quotes stripped": the OUTER string
     // of a bare `(str "abc")` is unquoted, but a string INSIDE a collection stays quoted.
-    assert_eq!(rendered(":t::probe-nested-string-stays-quoted"), "[\"a\"]");
+    assert_eq!(rendered(":t::probe-nested-string-stays-quoted"), "[\"a\"]");  // rune:lint(no-inlined-edn) — this asserts the SERIALIZATION, not the data; an .edn golden via assert_edn_eq! normalizes `[1 2 3]` and `[1, 2, 3]` to the same value, erasing the exact difference under test.
 }
