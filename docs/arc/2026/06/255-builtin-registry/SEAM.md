@@ -14,8 +14,42 @@
 HEAD 8313ea6f (+ this curare)   floor 4398 / 4398 passed / 262 skipped   clippy 0
 ```
 
-**⛔⛔ DO NOT STRIKE `255.1b-i`. ITS BRIEF IS STALE AND WOULD BUILD WHAT ALREADY EXISTS.**
+## ★★★ THE RULING AND THE FRAME (builder, 2026-08-15) — the registry is a FOUNDATION, not a feature
+
+> *"so the registry is the near term end goal..... (a) sounds fine now... but the registry is where
+> we are headed..... once its built... we destroy all 'colon-quoted symbols' at once... the entire
+> code base goes up in flames..... we codemod all that we can.... maybe we do one 'keyword-as-symbol'
+> at a time to find our rhythm.... whatever....... we are going to lay the foundations necessary to
+> annihilate the ':rust::style::scheme' and move into `wat.is/a-clojure`"*
+
+**(a) IS RULED — resume the June carve.** And the destination is named: the registry exists to make
+the colon-quoted-symbol annihilation **survivable**.
+
+**WHY THE ORDER IS 255 → 251, and it is a REASON, not a schedule.** `DESIGN.md:206` names the defect
+the registry cures: *"the codebase classifies symbols by scattered exact-string-matching
+(`name == ":wat::…"`, `is_reserved_prefix`, `starts_with`, the verb-list `matches!`es) …
+**string-shape-as-truth** is exactly how `+'2` and the `make-*-queue` phantoms hid."*
+
+When `:wat::core::+` becomes `wat.core/+`, **every one of those classifiers breaks SILENTLY** — they
+stop matching and fall through to a default. `is_reserved_prefix` returns false; the blanket-accept
+stops accepting; 561 dispatch arms keyed on colon-quoted literals stop firing. Today that flip is
+unfalsifiable: *"we codemodded everything"* has no instrument that can contradict it.
+
+**After the registry, a name is a KEY IN A TABLE, and the checker enumerates every site that did not
+get renamed.** R65 `SCVTVM IDEM INDEX` — the exhaustive-match shield IS the ledger. That is the
+foundation being laid.
+
+**And it is what buys the "one at a time" option.** A registered name can carry both spellings during
+migration — the table holds the alias, the corpus keeps working, the old key deletes when the
+cascade goes quiet. Without a table there is nowhere to put an alias, so the flip genuinely is
+all-at-once-or-nothing. *(Design read, not yet measured — the registry is a name→entry lookup, so
+two names → one entry is trivially expressible, but no alias path is built.)*
+
+⛔ **DO NOT STRIKE `255.1b-i`. ITS BRIEF IS STALE AND WOULD BUILD WHAT ALREADY EXISTS.**
 Read **`NOTE-arc-255-IS-HALF-BUILT-the-june-registry.md`** FIRST — it is the newest artifact here.
+
+**⛔ NEXT STRIKE: `255.1c-time` — HOME #2, the `:wat::time::` carve.** Drawn this session:
+`DESIGN-STONE-255.1c-time-home.md` + `BRIEF-` + `EXPECTATIONS-`.
 
 **ARC 255 IS HALF-BUILT.** A working `inventory`-based intrinsic registry has been on disk since
 2026-06-21: `crates/wat-doc/` + `crates/wat-macros/` (`#[wat_intrinsic]`) + `src/intrinsic/` (1,374
