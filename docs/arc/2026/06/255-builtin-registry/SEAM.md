@@ -11,8 +11,15 @@
 ## Where the code is
 
 ```
-HEAD 40627086 (+ this curare)   floor 4398 / 4398 passed / 262 skipped   clippy 0
+HEAD 8313ea6f (+ this curare)   floor 4398 / 4398 passed / 262 skipped   clippy 0
 ```
+
+**⛔ FIRST ACTION ON THE FAR SIDE: strike `255.1b-i`. It is DRAWN and STRIKE-READY.**
+`BRIEF-STONE-255.1b-i-type-scaffold.md` + `EXPECTATIONS-STONE-255.1b-i-type-scaffold.md`.
+Rooms are exact `file:line`, four STOP triggers, and **gate row 2 IS the stone** — omit a baseline
+field, prove it fails to compile, report the actual rustc text. Row 6 is its shadow: an
+`#[allow(dead_code)]` means the baseline was never wired and the slice silently became "define some
+types." Nothing blocks it. Rider or by hand is an open call.
 
 ⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
 ⛔ **`stash@{0}` HOLDS THE LIFECYCLE STRIKE — never `git stash drop`.** Made with `-u`, so
@@ -88,6 +95,34 @@ retraction of bad advice. **Read the note AFTER the design, not instead of it.**
 conclusions and argued against a standing builder ruling, because it was written from the design's
 first 60 lines. `[[feedback_ground_the_substrate_not_just_the_chronicle]]` applies to OUR OWN
 DESIGN DOCS. Read the whole thing first.
+
+## ⛔⛔ AND THE MIRROR — THE DESIGN IS ALSO STALE ABOUT THE DISK, ONCE PER SECTION SO FAR
+
+Reading it in full does **not** make it true. Four citations checked, four wrong:
+
+| the design cites | the disk |
+|---|---|
+| `StructDef` | **GONE** — arc 293.2b unified struct+record into `AggregateDef` (`types.rs:266`) |
+| `RecordDef` | **GONE** — same unification |
+| `ProtocolDef` | **GONE** — arc 293.3-core replaced it with `SurfaceDef` |
+| `Function` at `env.rs:35` | moved — `value/environment.rs:46` |
+| "454 dispatch arms" | measured **678** |
+
+**So its Layer-2 `DefDetail` sum cannot be built as written**, and worse, the sum **already exists**:
+`TypeDef` (`src/types.rs:404`) = `Aggregate · Enum · Newtype · Alias · Union · Surface`, including
+three kinds the design never mentions. Building `DefDetail` with flattened variants would create a
+**second exhaustive sum over one domain** — the exact asymmetry 255 exists to remove.
+
+**RULED (recorded in the note as a deviation from a LOCKED section, with the measurement forcing it):**
+
+```rust
+enum DefDetail { Fn(FnDef), Type(TypeDef), Macro(MacroDef), Native(NativeBuiltin) }
+```
+
+★ **THE RULE THAT COVERS BOTH FAILURES:** it is neither *"trust the doc"* nor *"trust the code."*
+**Read both, and when they disagree, WRITE IT DOWN BEFORE ANYONE BUILDS.** Today produced one of
+each direction, hours apart. `255.1b-i`'s STOP-1 is *"a fourth stale citation"* for this reason —
+assume nothing the design cites exists until grepped.
 
 **⚠ AND STILL CHECK `255/DESIGN.md` AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
 says — its premise drifted, and its `CURRENT-STATE.md` drifted further (dated 2026-07-01, freshness
@@ -181,9 +216,12 @@ untested FEATURE INTERACTIONS. #94 (the stratifier's positive dependencies) clos
 
 > **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
 >
-> The order is: **re-ground `255/DESIGN.md` against the disk** (its premise drifted — three tables,
-> not zero), then shape the entry with `type_sig` DAY-ONE, then the registry. 251 resumes after,
-> onto a substrate where its blocker is mostly deletion.
+> The re-grounding is DONE. **The order is: strike `255.1b-i` — it is drawn, briefed, and
+> unblocked.** Then 1b-ii (the `FnDef` split, ~31 sites) → 1b-iii (register from HOMES; the first
+> home is the reference template AND the first megafile carve) → 1b-iv (delete the blanket-accept).
+> 251 resumes after, onto a substrate where its blocker is mostly deletion.
+>
+> **Do not re-derive the design, and do not trust it either.** Both failed today, hours apart.
 >
 > The next move is a MEASUREMENT, not a plan. Every snag is a measurement not yet made.
 >
