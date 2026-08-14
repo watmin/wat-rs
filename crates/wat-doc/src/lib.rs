@@ -114,11 +114,19 @@ pub enum Category {
     Reflection,
     ControlFlow,
     Binding,
+    /// Samples the wall clock. The reason such a verb is
+    /// `Determinism::Nondeterministic` — and it names WHICH external source,
+    /// which the determinism field alone cannot. Entropy sources get their own
+    /// append-only variant when one registers; do not widen this to cover them.
+    Clock,
+    /// Combines already-constructed domain values (`+`, `-`). Distinct from
+    /// `Encoding`, which transforms one representation of a value into another.
+    Arithmetic,
 }
 
 impl Category {
     pub fn variants() -> &'static [&'static str] {
-        &["Encoding", "Reflection", "ControlFlow", "Binding"]
+        &["Encoding", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic"]
     }
     pub fn as_str(self) -> &'static str {
         match self {
@@ -126,6 +134,8 @@ impl Category {
             Category::Reflection => "Reflection",
             Category::ControlFlow => "ControlFlow",
             Category::Binding => "Binding",
+            Category::Clock => "Clock",
+            Category::Arithmetic => "Arithmetic",
         }
     }
 }
@@ -138,6 +148,8 @@ impl std::str::FromStr for Category {
             "Reflection" => Ok(Category::Reflection),
             "ControlFlow" => Ok(Category::ControlFlow),
             "Binding" => Ok(Category::Binding),
+            "Clock" => Ok(Category::Clock),
+            "Arithmetic" => Ok(Category::Arithmetic),
             _ => Err(()),
         }
     }
@@ -1181,7 +1193,7 @@ mod tests {
 
     #[test]
     fn category_parses_all_variants() {
-        for v in &["Encoding", "Reflection", "ControlFlow", "Binding"] {
+        for v in &["Encoding", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic"] {
             assert!(v.parse::<Category>().is_ok(), "should parse: {}", v);
         }
         assert!("encoding".parse::<Category>().is_err());

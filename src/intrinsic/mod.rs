@@ -114,13 +114,15 @@ impl Layer {
 }
 
 /// Category — what functional category is this intrinsic?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection :ControlFlow :Binding)`.
+/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection :ControlFlow :Binding :Clock :Arithmetic)`.
 /// Consumed by `eval_metadata_of` (runtime.rs) via `to_enum_value()`.
 pub(crate) enum RuntimeCategory {
     Encoding,
     Reflection,
     ControlFlow,
     Binding,
+    Clock,
+    Arithmetic,
 }
 
 impl RuntimeCategory {
@@ -130,6 +132,8 @@ impl RuntimeCategory {
             RuntimeCategory::Reflection => "Reflection",
             RuntimeCategory::ControlFlow => "ControlFlow",
             RuntimeCategory::Binding => "Binding",
+            RuntimeCategory::Clock => "Clock",
+            RuntimeCategory::Arithmetic => "Arithmetic",
         };
         Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::runtime::Category".into(),

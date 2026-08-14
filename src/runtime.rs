@@ -12141,6 +12141,8 @@ fn eval_metadata_of(
                 wat_doc::Category::Reflection => crate::intrinsic::RuntimeCategory::Reflection,
                 wat_doc::Category::ControlFlow => crate::intrinsic::RuntimeCategory::ControlFlow,
                 wat_doc::Category::Binding => crate::intrinsic::RuntimeCategory::Binding,
+                wat_doc::Category::Clock => crate::intrinsic::RuntimeCategory::Clock,
+                wat_doc::Category::Arithmetic => crate::intrinsic::RuntimeCategory::Arithmetic,
             };
             rc.to_enum_value()
         };

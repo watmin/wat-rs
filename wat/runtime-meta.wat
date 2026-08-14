@@ -57,8 +57,14 @@
 ;;   :Reflection  — reflection and introspection
 ;;   :ControlFlow — control flow special forms (if, cond, etc.)
 ;;   :Binding     — binding special forms (let, etc.)
+;;   :Clock       — samples the wall clock (names WHICH external source a
+;;                  Nondeterministic verb draws from; entropy gets its own
+;;                  variant when one registers)
+;;   :Arithmetic  — combines already-constructed domain values (+, -)
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
   :Encoding
   :Reflection
   :ControlFlow
-  :Binding)
+  :Binding
+  :Clock
+  :Arithmetic)

@@ -376,6 +376,8 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
         wat_doc::Category::ControlFlow => quote! { ::wat_doc::Category::ControlFlow },
         wat_doc::Category::Binding => quote! { ::wat_doc::Category::Binding },
+        wat_doc::Category::Clock => quote! { ::wat_doc::Category::Clock },
+        wat_doc::Category::Arithmetic => quote! { ::wat_doc::Category::Arithmetic },
     };
 
     let yields_type_lit = match &doc.yields {

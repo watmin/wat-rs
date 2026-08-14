@@ -63,7 +63,7 @@ use crate::value::{
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @ret     :wat::time::Instant the instant sampled at call time
 /// @example-norun (:wat::time::now) #=> #inst "2026-08-13T12:00:00.000000000Z"
 #[wat_intrinsic(":wat::time::now")]
@@ -701,7 +701,7 @@ pub(crate) fn eval_time_days(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Arithmetic
 /// @arg     a :wat::time::Instant the instant to subtract from
 /// @arg     b :wat::time::Instant the RHS — a Duration or an Instant, dispatched at runtime
 /// @ret     :wat::time::Instant Instant when RHS is a Duration; :wat::time::Duration (elapsed, non-negative) when RHS is an Instant
@@ -772,7 +772,7 @@ pub(crate) fn eval_time_sub(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Category      Encoding
+/// @Category      Arithmetic
 /// @arg     a :wat::time::Instant the instant to advance
 /// @arg     b :wat::time::Duration the interval to advance by
 /// @ret     :wat::time::Instant the instant advanced by the duration
@@ -825,7 +825,7 @@ pub(crate) fn eval_time_add(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     d :wat::time::Duration the interval before now
 /// @ret     :wat::time::Instant the instant `d` before wall-clock now
 /// @example-norun (:wat::time::ago (:wat::time::Hour 1)) #=> #inst "one hour before now"
@@ -857,7 +857,7 @@ pub(crate) fn eval_time_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     d :wat::time::Duration the interval after now
 /// @ret     :wat::time::Instant the instant `d` after wall-clock now
 /// @example-norun (:wat::time::from-now (:wat::time::Hour 1)) #=> #inst "one hour after now"
@@ -972,7 +972,7 @@ fn unit_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of nanoseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N nanoseconds before wall-clock now
 /// @example-norun (:wat::time::nanoseconds-ago 5) #=> #inst "5ns before now"
@@ -992,7 +992,7 @@ pub(crate) fn eval_time_nanoseconds_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of microseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N microseconds before wall-clock now
 /// @example-norun (:wat::time::microseconds-ago 5) #=> #inst "5us before now"
@@ -1012,7 +1012,7 @@ pub(crate) fn eval_time_microseconds_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of milliseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N milliseconds before wall-clock now
 /// @example-norun (:wat::time::milliseconds-ago 5) #=> #inst "5ms before now"
@@ -1032,7 +1032,7 @@ pub(crate) fn eval_time_milliseconds_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of seconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N seconds before wall-clock now
 /// @example-norun (:wat::time::seconds-ago 5) #=> #inst "5s before now"
@@ -1052,7 +1052,7 @@ pub(crate) fn eval_time_seconds_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of minutes before now (non-negative)
 /// @ret     :wat::time::Instant the instant N minutes before wall-clock now
 /// @example-norun (:wat::time::minutes-ago 5) #=> #inst "5m before now"
@@ -1072,7 +1072,7 @@ pub(crate) fn eval_time_minutes_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of hours before now (non-negative)
 /// @ret     :wat::time::Instant the instant N hours before wall-clock now
 /// @example-norun (:wat::time::hours-ago 5) #=> #inst "5h before now"
@@ -1092,7 +1092,7 @@ pub(crate) fn eval_time_hours_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of days before now (non-negative)
 /// @ret     :wat::time::Instant the instant N days before wall-clock now
 /// @example-norun (:wat::time::days-ago 5) #=> #inst "5d before now"
@@ -1114,7 +1114,7 @@ pub(crate) fn eval_time_days_ago(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of nanoseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N nanoseconds after wall-clock now
 /// @example-norun (:wat::time::nanoseconds-from-now 5) #=> #inst "5ns after now"
@@ -1134,7 +1134,7 @@ pub(crate) fn eval_time_nanoseconds_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of microseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N microseconds after wall-clock now
 /// @example-norun (:wat::time::microseconds-from-now 5) #=> #inst "5us after now"
@@ -1155,7 +1155,7 @@ pub(crate) fn eval_time_microseconds_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of milliseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N milliseconds after wall-clock now
 /// @example-norun (:wat::time::milliseconds-from-now 5) #=> #inst "5ms after now"
@@ -1176,7 +1176,7 @@ pub(crate) fn eval_time_milliseconds_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of seconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N seconds after wall-clock now
 /// @example-norun (:wat::time::seconds-from-now 5) #=> #inst "5s after now"
@@ -1197,7 +1197,7 @@ pub(crate) fn eval_time_seconds_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of minutes after now (non-negative)
 /// @ret     :wat::time::Instant the instant N minutes after wall-clock now
 /// @example-norun (:wat::time::minutes-from-now 5) #=> #inst "5m after now"
@@ -1218,7 +1218,7 @@ pub(crate) fn eval_time_minutes_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of hours after now (non-negative)
 /// @ret     :wat::time::Instant the instant N hours after wall-clock now
 /// @example-norun (:wat::time::hours-from-now 5) #=> #inst "5h after now"
@@ -1238,7 +1238,7 @@ pub(crate) fn eval_time_hours_from_now(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Category      Reflection
+/// @Category      Clock
 /// @arg     n :wat::core::i64 the count of days after now (non-negative)
 /// @ret     :wat::time::Instant the instant N days after wall-clock now
 /// @example-norun (:wat::time::days-from-now 5) #=> #inst "5d after now"
