@@ -32,14 +32,14 @@
 //! off an already-sampled `Instant` argument — no `Utc::now()` anywhere.
 //! They are `Deterministic`. The body is truth; the sketch was orientation.
 //!
-//! `@Category` is a closed 4-variant domain (`Encoding | Reflection |
-//! ControlFlow | Binding`) with no arithmetic variant. Every `Deterministic`
+//! `@Category` is a closed, append-only domain; `Clock` and `Arithmetic` were
+//! added for this family (2026-08-15). Every representation-transforming
 //! row here is a representation transform (raw i64 ⇄ Instant/Duration,
 //! String ⇄ Instant, or Instant/Duration combined into a new Instant/
 //! Duration) → `Encoding`, the same bucket `core::Bytes::to-hex`/`from-hex`
 //! and the doc-contract's own "Blend two things" fixture
 //! (`crates/wat-doc/src/lib.rs:993`, a plain 2-arg pure combinator) occupy.
-//! Every `Nondeterministic` row samples ambient wall-clock state → `Reflection`,
+//! Every `Nondeterministic` row samples the wall clock → `Clock`,
 //! matching the `Uuid/v4` precedent in the same fixture file
 //! (`crates/wat-doc/src/lib.rs:985`: nondeterministic + `Reflection`).
 

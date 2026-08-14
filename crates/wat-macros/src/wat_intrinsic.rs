@@ -235,7 +235,8 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             "doc comment is missing a required `@Determinism <Variant>` directive".into()
         }
         wat_doc::DocError::MissingCategory => {
-            "doc comment is missing a required `@Category <Variant>` directive (known: Encoding, Reflection, ControlFlow, Binding)".into()
+            format!("doc comment is missing a required `@Category <Variant>` directive (known: {})",
+                wat_doc::Category::variants().join(", "))
         }
         wat_doc::DocError::MissingSyntax => {
             "doc comment is missing a required `@syntax (...)` directive (special forms only)".into()
@@ -257,7 +258,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             format!("unknown @Determinism variant `{}`; known: Deterministic, Nondeterministic, Preserving", got)
         }
         wat_doc::DocError::InvalidCategoryVariant { got } => {
-            format!("unknown @Category variant `{}`; known: Encoding, Reflection, ControlFlow, Binding", got)
+            format!("unknown @Category variant `{}`; known: {}", got, wat_doc::Category::variants().join(", "))
         }
     }
 }

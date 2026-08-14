@@ -107,6 +107,17 @@ impl std::str::FromStr for Determinism {
     }
 }
 
+/// The `@Category` legal-value message.
+///
+/// Hand-written, not derived: `DocError::MalformedDirective.why` is
+/// `&'static str` across 39 sites, and widening it to `String` for this one
+/// message is a cascade out of proportion to the fix. The test
+/// `category_message_lists_every_variant` gates it against
+/// `Category::variants()`, so a new variant that forgets this line goes RED.
+/// (The proc-macro's two sibling messages DO derive — they are `format!`.)
+const CATEGORY_LEGAL_VALUES: &str =
+    "value must be one of: Encoding, Reflection, ControlFlow, Binding, Clock, Arithmetic";
+
 /// Functional category of an intrinsic or special form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
@@ -570,7 +581,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     Ok(c) => category_val = Some(c),
                     Err(_) => return Err(DocError::MalformedDirective {
                         tag: "@Category".into(),
-                        why: "value must be one of: Encoding, Reflection, ControlFlow, Binding",
+                        why: CATEGORY_LEGAL_VALUES,
                     }),
                 }
             }
@@ -864,7 +875,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                     Ok(c) => category_val = Some(c),
                     Err(_) => return Err(DocError::MalformedDirective {
                         tag: "@Category".into(),
-                        why: "value must be one of: Encoding, Reflection, ControlFlow, Binding",
+                        why: CATEGORY_LEGAL_VALUES,
                     }),
                 }
             }
@@ -1193,10 +1204,24 @@ mod tests {
 
     #[test]
     fn category_parses_all_variants() {
-        for v in &["Encoding", "Reflection", "ControlFlow", "Binding", "Clock", "Arithmetic"] {
+        for v in Category::variants() {
             assert!(v.parse::<Category>().is_ok(), "should parse: {}", v);
         }
         assert!("encoding".parse::<Category>().is_err());
+    }
+
+    /// The `@Category` error message must name EVERY legal variant. It is a
+    /// `&'static str` (see `CATEGORY_LEGAL_VALUES`), so it cannot derive — this
+    /// is the gate that makes the hand-copy safe. Add a variant, forget the
+    /// message, go red.
+    #[test]
+    fn category_message_lists_every_variant() {
+        for v in Category::variants() {
+            assert!(
+                CATEGORY_LEGAL_VALUES.contains(v),
+                "@Category error message omits the legal variant `{v}`: {CATEGORY_LEGAL_VALUES}"
+            );
+        }
     }
 
     // ─── special-form: @arg ∨ @syntax shape rule ─────────────────────────────

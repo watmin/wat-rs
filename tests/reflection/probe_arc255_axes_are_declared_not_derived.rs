@@ -36,7 +36,8 @@
 //!      total — which is why the rete fence carries its own `total` column (#52) and will keep
 //!      carrying it until 255 arrives. Nothing needs `@Total` today.
 //!   2. **`wat_doc::Category` has no arithmetic variant** — the closed set is
-//!      `Encoding | Reflection | ControlFlow | Binding` (`lib.rs:112-117`). Whenever 255 enrols
+//!      `Encoding | Reflection | ControlFlow | Binding | Clock | Arithmetic`
+//!      (append-only; see `Category::variants()`). Whenever 255 enrols
 //!      the arithmetic families it grows TWO closed sets, not one.
 //!
 //! ## Reading it
