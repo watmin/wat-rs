@@ -46,7 +46,19 @@
    across all three holders), never a nominal base. `program::Env` matures into a **surface** ("must be a record with
    these minimal properties"). defservice `:durable-parent` is **not** inheritance — it is the holder selector
    (`:wat::Record` / `:holon`), already correct.
-5. **Requirements are SURFACES — a bare holder is illegal.** A parameter over an aggregate MUST be: a **concrete
+5. ⛔ **SUPERSEDED ON ITS CENTRAL CLAIM, 2026-08-15** — see
+   `296-diagnostics-fully-edn/RULING-bare-aggregates-are-transport-not-a-defect.md`. A bare holder
+   root in a slot is **LEGAL**: it is a **TRANSPORT MARKER**, not a failed type. Builder: *"aggregates
+   are legal in their bare form - they exist to be a transport - they do not know what they hold, the
+   caller who provides it and the reciever who operates on must be in agreement... it looks like no
+   such ban is necessary here."* The premise below — *"you can do nothing with it"* — is false: you
+   can **carry** it, which is the one use the corpus needs (`user.program`, arc 259; rete's facts,
+   principle 7). Transport is a property of the SLOT, not the VALUE, so it was never a type
+   prohibition to make. **Read the ruling before acting on any line of this principle** — believing
+   it as written cost a full session of work that had to be reverted. The rest (surfaces as
+   requirements, `:wat::core::Value` as the top) stands.
+
+   **Requirements are SURFACES — a bare holder is illegal.** A parameter over an aggregate MUST be: a **concrete
    type** (exact), a **surface** (the accessors you read), or **`:wat::core::Value`** (the absolute top, for generic
    guts). A bare holder root in a `[x <- …]` slot is an **Any** — its base state has nothing, so you can do nothing
    with it; it is FORBIDDEN. (`[r <- :wat::core::Record]` does not exist; write `[r <- :SomeSurface]`.)
