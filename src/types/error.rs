@@ -280,7 +280,7 @@ impl fmt::Display for TypeErrorKind {
             }
             TypeErrorKind::AnyBanned { raw } => write!(
                 f,
-                ":Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                ":Any is not part of the type system (058-030); use :wat::WatAST for any wat form, :wat::holon::HolonAST ONLY for a VSA/HDC algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
                 raw
             ),
             TypeErrorKind::CyclicAlias { name } => write!(

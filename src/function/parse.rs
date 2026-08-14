@@ -354,7 +354,13 @@ mod tests {
             _ => panic!("expected MalformedForm, got {:?}", err),
         };
         // reason() for BadRetType (line 120): "invalid return type: {kind}"
-        assert_eq!(reason, "invalid return type: :Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: :Any");
+        // Arc 296 — the remedy text CHANGED, and this pin is why the change was safe to make.
+        // It used to steer every `:Any` offender to `:wat::holon::HolonAST for any algebra
+        // value`. Builder ruling, 2026-08-15: *"we shouldn't be using HolonAST for anything but
+        // VSA ops — its been misused extensively — WatAST is the replacement for HolonAST in all
+        // places but VSA/HDC."* A diagnostic is a TEACHER, and this one was teaching the misuse
+        // (it steered the author of this change, an hour before the ruling landed).
+        assert_eq!(reason, "invalid return type: :Any is not part of the type system (058-030); use :wat::WatAST for any wat form, :wat::holon::HolonAST ONLY for a VSA/HDC algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: :Any");
     }
 
     // ─── Lines 244-246: parse_fn_signature_with_rest error mapper ─────────────
