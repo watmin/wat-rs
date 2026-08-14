@@ -11,7 +11,7 @@
 ## Where the code is
 
 ```
-HEAD 2278b350   floor 4400 / 4400 passed / 263 skipped (+8 new probe rows, 5 RED by design)   clippy 0
+HEAD fd2aa4d8   floor 4413 / 4413 passed / 263 skipped   clippy 0 (CI invocation: --workspace)
 ```
 
 ## ⛔ FIRST ACTION: read the arc's own REALIZATIONS + `git log`, NOT just the design
@@ -54,43 +54,74 @@ finding. `git log --diff-filter=A -- <the arc's src dirs>` is one command.
 | **the six enums** | **ALL GENERATED FROM WAT** — `Kind` `DefinedIn` `Layer` `Category` `Purity` `Determinism`. No Rust enum in this workspace mirrors a `defenum` by hand. |
 | **registered** | **53 production names** |
 
-## ⛔ FIRST STRIKE ON THE FAR SIDE — read `CHAIN-rendering-before-the-string-home.md` FIRST
+## ⛔ FIRST STRIKE ON THE FAR SIDE — 296: make the `field-N` case ERROR, not degrade
 
-**The order is ON DISK and it is a DERIVATION, not a preference.** Home #4 moved from first to
-**last**. Read the CHAIN doc (sibling of this file) before drawing anything — every arrow in it is a
-"ship this out of order and X breaks", with the X named.
+**The road ends at 294/296, not 255.** This seam stays the ONE live breadcrumb, but the WORK has
+moved. `255/CHAIN-rendering-before-the-string-home.md` is a TAIL, and its A/B stones are void or
+absorbed — read `294/RULING-holonast-and-hologram-are-both-correctly-named.md` before anything.
 
-```
-A  EdnRepresentable — the type declares its tag AND its portability   ← START HERE
-B  #wat-edn.* → #wat.*/*        (B before A DELETES the decoder's refusal check)
-C  279.2: `str` goes TOTAL      — DRAWN, probe committed and RED at 2278b350
-D  Seqable + join renders its elements
-E  wat.string/* rename (1,617 sites, codemod), THEN home #4 carves onto final names
-```
+### What landed 2026-08-14 (each floor-green at push)
 
-⛔ **THE DESTINATION MOVED, 2026-08-14: the road ends at 294, not 280.** The chain below is still
-true but it is a TAIL — `#wat-edn.*` and `EdnRepresentable` belong to arcs 294 + 280, which had them
-drawn before this session re-derived them under new names. `294/RULING-holonast-and-hologram-are-both-correctly-named.md`
-is the live ruling: **R1's keystone rename is VOID — both names were right**, and "the remaining holon
-junk" is THREE items in wat-rs (tags 44 · `HolonRepresentable` 11 · HolonAST-doing-code-duty), not a
-cross-repo migration of 1263 sites. What survives of the chain below as genuinely NEW work: `str`'s
-totality (279.2, probe committed and RED) and the `Seqable`/`join`/`wat.string/*` tail downstream of it.
+| | |
+|---|---|
+| `b2136b02` | **all six enums generated from wat** — no Rust enum mirrors a `defenum` by hand |
+| `25d9d015` | **`str` is TOTAL** — routed through the EDN encoder. `show` REVERTED: it is a bounded SUMMARIZER (`<Vector dim=1024>`, `<Duration …ns>`), not a renderer. 27 floor reds said so |
+| `21b7079f` | **294.g — the holon record's wire is PLAIN EDN.** `#t/Holo {:x 1 :y 2}`, not a 250-byte hologram. Flaw #3 CLOSED |
+| `fd2aa4d8` | **the `None` door DELETED** — `value_to_edn_string` is gone; every caller names its own case |
 
-It began as *"can `:wat::core::string` become `:wat::string`?"* and every layer under it was
-load-bearing: `join` renders its elements → so `str` must be total → the total renderer already
-exists (the EDN encoder) → adopting it broadcasts `#wat-edn` (the CRATE name) → renaming that
-namespace deletes a security check unless the type declares portability first.
+Floor **4413 / 4413**, clippy 0 **under CI's invocation** (`--release --workspace --all-targets`).
 
-*(The strike before this — generate `Kind`/`DefinedIn`/`Layer` — SHIPPED as `b2136b02`. It turned
-out to be **five** enums, not three: `wat_mirror_tests` had covered `wat_doc::Purity`/`Determinism`
-too, so stopping at the three the seam named would have left the identical debt in a second file.
-Read what a deleted gate COVERED, not what the note about it mentions.)*
+### The next strike, and its prerequisite is already done
 
-Then `255.1b-iv` — **delete the blanket-accept** (`resolve/walk.rs:257`), the soundness fix the whole
-arc exists for. Nine `#[ignore]`d probes wait on it, each reading *"unlock when we circle back to arc
-255."* Open question: how many homes is "enough", or do we arm it and read the screams.
+296's `NOTE-value-to-edn-renders-fields-positionally.md` demanded grounding before any fix. **That
+grounding is now on the disk** (see `fd2aa4d8`): the `_` arm swallowed THREE causes; `EvalError` IS
+registered with its fields; **the names were never missing — the lookup was never wired.**
+
+What remains is the honest half: **`expect_passed` (`freeze.rs`) still passes `None`** because it has
+no `SymbolTable`, so 296's `field-N` diagnostics blob is still real. It is now a **visible** gap with
+a comment at the site rather than a hidden default. The stone: thread a registry into
+`DeftestOutcome`, and make a genuinely-unresolvable name an ERROR — *"a failure to surface, not a
+silent degradation to indices"* (296's own words). **294.g's rider already set the precedent one file
+over**: a decode reaching a HolonRecord with no ctx now errors loudly.
+
+### Then, in order
+
+- **`#wat-edn.*` → `#wat.*/*`** — ~118 sites, five families (`opaque holon cap float local`). The
+  crate name is in the wire format. AFTER 296, since 294.g deleted some of what would be renamed.
+- **294 flaws #4 (`HolonRepresentable`, 11 impls) and #5** (HolonAST doing CODE-AST duty —
+  `special_forms.rs` 17 HolonAST / 2 WatAST is the sharpest tell; task #91).
+- **`Seqable` + `join`** then the **`wat.string/*`** rename (1,617 sites, codemod) — the old chain's tail.
+- **`CLOSE-SEQUENCE-293-294.md` is STALE** — marks a half-landed item `▶ NEXT`, omits `294.f`, and its
+  PHASE-1 block was overridden by decree seven weeks ago. It self-describes as canonical. Fix before
+  working from it.
 
 ## THE RULES THIS DAY PAID FOR
+
+- **A TOTALITY claim is only as good as its SAMPLING.** Twice: `str` was certified total by a probe
+  that sampled a map, a float, a keyword, nil and a nested string — every shape EXCEPT the one that
+  consults the type registry — so records rendered `{:field-0 1}` for twelve hours. And `show` was
+  called a "Rust Debug leak" from four sample outputs without asking what it was FOR (a bounded
+  SUMMARIZER; 27 floor reds said so). **List the shapes your claim ranges over, then check you sampled
+  the awkward one.**
+- **A default you cannot see at the CALL SITE is a default nobody audits.** `value_to_edn_string`
+  hardcoded `None` for the registry; 7 callers silently rendered positionally. Deleting the door beat
+  fixing the callers — now a caller with no registry passes `None` in the open, where the next reader
+  can ask why. The names were never missing; the lookup was never wired.
+- **A STOP its own gate cannot SEE is a STOP that cannot fire.** 279.2's brief carried STOP-2/STOP-3
+  and an eight-test gate that could not observe either; the rider truthfully reported "none fired
+  within scope" while the floor was 28 red. 294.g's gate was the whole floor, and both STOPs fired.
+- **⛔ MY LOCAL CLIPPY WAS NARROWER THAN CI'S.** Mine: `--release --all-targets`. CI's:
+  `--release --workspace --all-targets`. The wide one found 4 diagnostics mine reported as 0.
+  **Use CI's invocation.** Same class one rung out: `scripts/floor.sh` matches CI's nextest fine
+  (CI's `--profile ci` is strictly MORE lenient — 60s kill vs 30s), so the test gate was never the gap.
+- **"Commit the disconfirming probe RED" and "CI on every push" are incompatible by construction.**
+  The probe MUST be red at that commit — it is the evidence — and CI cannot tell red-by-design from
+  red-by-regression. Every properly-drawn stone reds CI for the window between the probe commit and
+  the stone commit. Not a defect in either practice; a collision to be aware of and to close fast.
+- **A number you did not RUN is not a baseline.** I wrote "floor 4408 / 4407 / 1 failed" into an
+  EXPECTATIONS from arithmetic — the last actual run was 28 minutes before the commit it described.
+  Truth was 4412 and 2. The rider caught it.
+
 
 - **A gate over two hand-lists IS a hand-list.** My morning drift gate slept through the exact drift
   it was built for, because `variants()` was itself hand-written and both went stale together. Ask
