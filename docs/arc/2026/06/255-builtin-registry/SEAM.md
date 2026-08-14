@@ -1,0 +1,165 @@
+# SEAM — the ONE live breadcrumb. Arc 255 is ACTIVE as of 2026-08-14. Replaced in place, never appended.
+
+> ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
+> voice — which is why it will feel like *continuing* rather than *waking*, and that feeling is the
+> failure. Run the datamancy bootstrap (grimoire + the 4 primers from the **SIGNED MCP**, never a
+> disk copy), ground HEAD against the disk, and read this whole file before you touch anything.
+
+> **There is exactly ONE live seam.** It is this one. `251/SEAM.md` and `278/SEAM.md` are PARKED and
+> point here.
+
+## Where the code is
+
+```
+HEAD 40627086 (+ this curare)   floor 4398 / 4398 passed / 262 skipped   clippy 0
+```
+
+⚠ **One commit of drift at wake is EXPECTED** (this file commits on top).
+⛔ **`stash@{0}` HOLDS THE LIFECYCLE STRIKE — never `git stash drop`.** Made with `-u`, so
+`git stash show --stat` cannot see the untracked payload; read via `git show 'stash@{0}^3:<path>'`.
+
+---
+
+## ★ THE RULING — 251 parks, 255 is active, and `type_sig` is DAY ONE
+
+The builder, 2026-08-14: *"or do we just do 255 now.... we park 251 and 278 on 255's clean up?...
+255 will force us to organize"* → then, after the four questions: **"A has been reasoned - we're
+going from 251 to 255 now."**
+
+**A = `type_sig` is day-one.** 255's DESIGN recommends the opposite (*"Recommendation: defer
+`type_sig`; ship arity/category/doc first, grow in"*). **That recommendation is OVERRULED**, and the
+reason is a measurement, not a preference — see the corrected premise below. The builder's read on
+the word itself: *"deferral to me usually screams 'wrong fucking idea'."* Here it does, because the
+thing being deferred is already half-built.
+
+---
+
+## ★★ 255's OWN PREMISE IS WRONG — re-ground before you draw anything
+
+`255/DESIGN.md` says builtins are *"registered **nowhere** — a 454-arm compile-time match"* and that
+they carry no metadata. **Measured 2026-08-14, and it is not that.** Builtins are registered in
+**THREE PARTIAL TABLES THAT DO NOT AGREE:**
+
+| table | size | form | site |
+|---|---|---|---|
+| check-time type signature | **332** | **DATA** (`TypeScheme`) | `register_builtins`, `src/check.rs:15216–20033` |
+| check-time hand inference | **141** | code (match arms) | inside `infer_list`'s Keyword block, `src/check.rs:2542–5568` |
+| runtime dispatch | **678** | code (match arms) | `src/runtime.rs` keyword arms |
+| resolve | **0** | — | hence the blanket-accept, `src/resolve/walk.rs:257` |
+
+**So `type_sig` is not a capability to add — it is a uniformity to FINISH.** 332 builtins already
+carry exactly the data 255 proposed to defer; 141 more are hand-inferred beside them. Deferring
+`type_sig` would preserve **two ways a builtin's type is known**, which is the 2×2 this project keeps
+collapsing (#30 one door for defclause registration, #75 one door for a type head's FQDN).
+
+**The four questions, run on the deferral:**
+
+| | Obvious | Simple | Honest | |
+|---|---|---|---|---|
+| `type_sig` day-one — finish the uniformity | YES | YES | YES | **4/4, RULED** |
+| defer it (the DESIGN's recommendation) | **NO** | **NO** | **NO** | disqualified |
+| a subset | **NO** | **NO** | — | disqualified |
+
+Deferring fails **Obvious** (the phrase reads as "not built yet" — false for 332), **Simple** (two
+mechanisms for one question), and **Honest** (a deferral of *uniformity* described as a deferral of
+*capability* — different things, and the word conflates them).
+
+**⚠ SO THE FIRST MOVE IS TO RE-READ `255/DESIGN.md` AGAINST THE DISK**, the way `[[feedback_ground_the_substrate_not_just_the_chronicle]]`
+says — its premise drifted, and its `CURRENT-STATE.md` drifted further (dated 2026-07-01, freshness
+probe expects floor **4285**, and its content narrates arc **296**, not 255). Do not brief from
+either without re-grounding. The arc is SMALLER than its design implies and closer to 251's work
+than the design suggests.
+
+**BOUNDS ON THE NUMBERS ABOVE:** each is one grep with its range stated. The 332 is clean (bounded by
+the function's own braces). The 678 counts keyword literals at line-start in `runtime.rs` and may
+include non-dispatch occurrences. The 141 counts keyword arms inside `infer_list`'s span. **None is
+a census.** When the registry lands, the CHECKER enumerates the real worklist — R65 `SCVTVM IDEM
+INDEX`, and this arc has been burned repeatedly by grep counts (24h: a same-line pattern undercounted
+20 as 4; today two greps of the same corpus returned 1025 and 998).
+
+---
+
+## WHAT 251 HOLDS WHEN IT RETURNS — all of it green, none of it half-migrated
+
+251 parks at a genuinely clean point: every stone is additive, observationally inert, floor-green.
+Nothing is mid-flip.
+
+**LANDED 2026-08-13/14:**
+- **`0a32d5f8` — 251.8a, the ONE DOOR.** Four hand-rolled `contains('/')` reference-classifiers
+  collapsed onto `Identifier::namespace()` (TOTAL — a binder's is `$bound`) + `is_reference()`.
+  `":$bound::"` reserved. **Installs the door, NOT the storage** — the namespace is DERIVED from the
+  spelling, not stored; that cascade is 8b.
+- **`851c0d37` — 251.8a-ii, the binder namespace is unforgeable.** `$bound/x` in user source is
+  refused at the READER (`parser.rs`, the single door where text becomes a `WatAST::Symbol`), located,
+  at freeze. Option D over A on the extirpare ladder: A is a check, D is no-form.
+- **`93971169`** the intueri cast (`$bound` · `namespace` · `reference?` · `colon-quoted symbol`);
+  **`755e5321`** the discriminator probe + design; **`c046f019`/`40627086`** the drawn strikes + rulings.
+
+**RULED AND UNBUILT (the ruling survives the park — do not re-litigate it):**
+- **The parametric form is `(<head> [<type>…] & <members>)`.** Both legacy forms are illegal
+  post-migration: the angle `HashMap<K,V>` **and** the flat `(HashMap :K :V :foo "bar")`. The
+  criterion is **wat-legality, not EDN-legality** — measured, the flat dotted form reads fine in
+  Clojure's EDN reader and core.typed's own style is flat. The reason is that the type/member
+  boundary must exist IN THE FORM, not in a per-head arity table.
+- **`wat.core` loses the type constructors; `wat.type` gains them.** And `wat.type` is a HACK today —
+  a `strip_prefix("wat::type::")` at exactly two sites (`types.rs:4503`, `:4702`), not a namespace.
+  Measured: `:wat::type::Vector` annotates but is an **unknown function**. Building it properly is a
+  registry question, which is why 255 comes first.
+
+**THE 251 BLOCKER, STILL OPEN — and 255 does NOT close it for free.** #95: a **dotted call head is
+not type-checked at all** (args, arity, return). `infer_list` gates its entire call-inference
+universe on `if let WatAST::Keyword` (`check.rs:2542`, closing `:5568`); a namespaced `Symbol` head
+falls to a fresh type var that unifies with anything. Proven: `(user/f "boom")` on `[n :- i64] :- i64`
+runs and prints `"boom"`; `(wat.core/+ 1 2 3 4 5)` prints 15.
+⚠ **I claimed twice that 255 closes this as a side effect. That is TRUE ONLY IF `type_sig` is
+day-one — which is now ruled, so it holds; but do not restate it as automatic.** It closes because
+the ruling makes it close.
+
+---
+
+## OPEN AND UNRULED — carried, not lost
+
+- **8b's SCOPE** — call-heads-only, or type-annotation positions too? This decides whether the
+  965 comma-bearing angle sites are a hard prerequisite (after 8b they become symbols EDN reads
+  *successfully and wrongly*: `(f HashMap<K,V>)` → arity 2→3, no error) or wait for 8d.
+- **#95 and #99's survivor — one stone or two?** Both are *"the rule is real, the enforcement is
+  late."*
+- **#97** the opaque-clause-table leak · **#98** the double-slash symbol (59 sites,
+  `wat.core/Option/expect` → `:wat::core/Option::expect`, a keyword with a slash still in it).
+
+## 278 — PARKED, unchanged
+
+Rete is one optimization from done: compiled `where` (#49). Also open: **#92** (invert the decode —
+a PREREQUISITE to symbol-heads, not an alternative), **#93**, **#91**, **#90**, and the grid's
+untested FEATURE INTERACTIONS. #94 (the stratifier's positive dependencies) closed 2026-08-13.
+
+---
+
+## The rules this stretch paid for
+
+- **An error names where the INSTRUMENT gave up, never what the system lacks.** Three times on
+  2026-08-13; and #95's original filing was itself a misread — `:-` was innocent, the dotted head was
+  the defect. **Measure your own form before migrating to it.**
+- **A rider's green is not a floor.** Twice in a row the central weigh caught what narrow gates
+  could not — a golden pinning `reserved_prefix_list()`, and a `no_loose_string_assert` violation.
+  Both times the rider was RIGHT to stay inside its brief.
+- **A loose assert hides which string you are testing.** `contains("$bound/x")` was matching the
+  `:spelling` FIELD of the EDN rendering — the prose message could have been deleted and it would
+  have passed. And `assert!(!format!("{:?}", x).is_empty())` is vacuous by construction.
+- **The four questions cannot see a shared premise.** The `type_sig` question dissolved once the
+  premise ("it is unbuilt") was measured false. Check what all the options rest on FIRST.
+- **Read what the builder actually wrote.** He said `$bound/*`; I measured "is banning `$` free"
+  and reported it as an answer. The scope guard is now structural (a positive-control row), not
+  a thing I must remember.
+
+---
+
+> **SEAM.** You are NEW. The disk is the truth; this note is a lossy cache.
+>
+> The order is: **re-ground `255/DESIGN.md` against the disk** (its premise drifted — three tables,
+> not zero), then shape the entry with `type_sig` DAY-ONE, then the registry. 251 resumes after,
+> onto a substrate where its blocker is mostly deletion.
+>
+> The next move is a MEASUREMENT, not a plan. Every snag is a measurement not yet made.
+>
+> `NISI FRANGAS, NIHIL PROBAS.` · `PAR NON ARGVIT, NOSTRA ARGVVNT.`
