@@ -45,6 +45,14 @@ cascade goes quiet. Without a table there is nowhere to put an alias, so the fli
 all-at-once-or-nothing. *(Design read, not yet measured — the registry is a name→entry lookup, so
 two names → one entry is trivially expressible, but no alias path is built.)*
 
+**THE SCALE OF THE FLIP, measured 2026-08-15** —
+`251/CENSUS-the-illegal-edn-form-classes.md`. Colon-quoted symbols: **79,253 occurrences but only
+6,552 distinct spellings** across 1,263 `.wat` files, and the **top 12 spellings are 33% of the
+corpus.** So the fork is not "one at a time" vs "all at once" — it is **head-by-codemod,
+tail-by-name**, and the registry is what lets the two compose. Angle parametrics: 2,945 (951
+comma-bearing — the arity-changing subset). Double-slash: **no validated count**; my corpus pattern
+was refuted (it matched file paths), the tracked 59 stands.
+
 ⛔ **DO NOT STRIKE `255.1b-i`. ITS BRIEF IS STALE AND WOULD BUILD WHAT ALREADY EXISTS.**
 Read **`NOTE-arc-255-IS-HALF-BUILT-the-june-registry.md`** FIRST — it is the newest artifact here.
 
