@@ -324,7 +324,7 @@ fn run_user_main_in_child(
     // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is ambient.
     //
     // Arc 209 C0b.3b-e — env-fn dispatch: when env_fn is Some(src), the child evals
-    // the source string in its own frozen world (eval_in_frozen) to produce user.program.
+    // the source string in its own frozen world (eval_in_frozen) to produce user-data.
     // Dispatch: a 0-arg fn → apply it; a :wat::core::Record → use directly; else clean child death.
     // None → invoke_user_main (the CLI/non-spawn callers; unchanged behavior).
     // Errors in the Some arm are threaded into the catch_unwind Result → finish_forked_child.

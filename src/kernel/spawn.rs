@@ -441,7 +441,7 @@ pub enum ProcessSelectable {
 /// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model,
 ///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `Thread'<R,S>`.
 /// - `args[1]` — init-fn: `fn [] -> :wat::core::Record` — runs at the peer's start,
-///   its return value becomes `user.program` in the peer's env.
+///   its return value becomes `user-data` in the peer's env.
 /// - `args[2]` — post-spawn-fn: `fn [l <- ThreadLaunch] -> nil` — runs OWNER-side
 ///   after the thread is spawned, before returning, for effects.
 ///
@@ -558,7 +558,7 @@ pub fn eval_kernel_spawn_process_prime(
         }
     };
 
-    // arg 2: env-fn — a wat source string the child evals to produce user.program.
+    // arg 2: env-fn — a wat source string the child evals to produce user-data.
     let env_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
@@ -617,7 +617,7 @@ pub fn eval_kernel_spawn_process_prime(
 ///
 /// The `init_fn` is a 0-arg fn returning `:wat::core::Record`. It runs at the peer's
 /// start (inside the closure, at peer-start timing); its return value becomes
-/// `user.program` in the peer's env (replacing the hardcoded EmptyEnv literal).
+/// `user-data` in the peer's env (replacing the hardcoded EmptyEnv literal).
 ///
 /// The `post_spawn_fn` is a 1-arg fn receiving `ThreadLaunch`, returning nil.
 /// It runs OWNER-side after `std::thread::Builder::spawn` returns the handle
@@ -662,10 +662,10 @@ pub fn spawn_thread_peer(
             let pid = std::process::id() as i64;
             let tid = unsafe { libc::gettid() } as i64;
             // cpu_count = available_parallelism() via host_cpu_count(), same host → same value as
-            // the parent. Inherited host constant (like wat.started-at). Fallback 1.
+            // the parent. Inherited host constant (like started-at). Fallback 1.
             let cpu_count = crate::runtime::host_cpu_count();
 
-            // Run the init-fn at peer-start to get the user.program value (it
+            // Run the init-fn at peer-start to get the user-data value (it
             // builds the user's record — `(thread)`'s default returns EmptyEnv).
             let user_program = match apply_function(
                 init_fn.clone(),
@@ -677,7 +677,7 @@ pub fn spawn_thread_peer(
                 // The init-fn is USER code; if it errors the peer cannot build an
                 // honest env. Exit the thread — `output_tx` (moved here) drops, the
                 // parent's cascade-aware `recv'` raises (the peer died). NEVER smuggle
-                // a non-record fallback into the `:wat::core::Record` user.program slot.
+                // a non-record fallback into the `:wat::core::Record` user-data slot.
                 Err(_) => return,
             };
 

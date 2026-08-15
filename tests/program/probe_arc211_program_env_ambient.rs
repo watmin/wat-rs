@@ -4,8 +4,8 @@
 //! ambient context, installed into a `PROGRAM_ENV` thread-local (mirroring
 //! `AMBIENT_STDIO`) at the post-bootstrap / pre-`:user::main` seam, and read back
 //! via an ambient verb. The base carries two kernel-stamped fields:
-//!   - `wat.started-at`      : Instant — the CLI-boot instant, INHERITED unchanged down the spawn tree
-//!   - `wat.peer-started-at`: Instant — THIS frame's start, RE-STAMPED per peer (via `assoc`)
+//!   - `started-at`      : Instant — the CLI-boot instant, INHERITED unchanged down the spawn tree
+//!   - `peer-started-at`: Instant — THIS frame's start, RE-STAMPED per peer (via `assoc`)
 //!
 //! User extension is the nested `user` field (later); brackets subtypes with
 //! `wat.worker-id` (#196). This probe is the FLOOR.
@@ -45,15 +45,15 @@ fn call_value(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Value {
 
 #[test]
 fn c02_program_env_carries_peer_started_at() {
-    // program::Env gains a SECOND field `wat.peer-started-at`.
-    // RED at HEAD: program::Env has only `wat.started-at` (arity 1) → the 2-arg
+    // program::Env gains a SECOND field `peer-started-at`.
+    // RED at HEAD: program::Env has only `started-at` (arity 1) → the 2-arg
     // constructor is an arity error.
     let world = startup_beside(file!()).expect("startup");
     let got = call_i64(&world, ":probe::c02-compute");
     assert_eq!(
         got,
         Ok(6000),
-        "program::Env carries wat.peer-started-at as its second field (re-stamped per frame)"
+        "program::Env carries peer-started-at as its second field (re-stamped per frame)"
     );
 }
 

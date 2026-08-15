@@ -1252,7 +1252,7 @@
                                                (:wat::core::first
                                                  (:wat::core::conj (:wat::core::Vector ~selectable-peer-ty)
                                                    (:wat::kernel::after
-                                                     (:wat::program::Env/wat.peer-kind (:wat::program::env))
+                                                     (:wat::program::Env/peer-kind (:wat::program::env))
                                                      (:wat::service::Alarm/after ~arm-alarm-sym)
                                                      (:wat::service::Alarm/op ~arm-alarm-sym)))))))]
                          (:wat::core::if is-internal

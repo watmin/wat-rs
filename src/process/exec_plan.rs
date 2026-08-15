@@ -102,7 +102,7 @@ impl ExecPlan {
     /// Build the plan — ALL allocation happens here, in the parent.
     ///
     /// `label` is arc 170 closure #6's `ps`-visible identity: the `edn::write`
-    /// rendering of the spawner's `user.program` record (e.g. `#my.app/CounterSvc
+    /// rendering of the spawner's `user-data` record (e.g. `#my.app/CounterSvc
     /// {}`, `#wat.brackets/Worker {:id 3}`), or `None` when the caller declared no
     /// identity. When present it becomes argv\[1\]; `None` leaves argv exactly
     /// `[exe]`, unchanged from before this field existed.

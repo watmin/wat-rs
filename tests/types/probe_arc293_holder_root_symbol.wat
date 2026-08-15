@@ -1,6 +1,6 @@
 ;; Arc 293 item-2a — a surface's :nature bound takes the nature-root SYMBOL (:wat::core::Record),
 ;; NOT the magic shorthand :record. A 0-member :nature surface = "any aggregate of that nature"
-;; (the portability shape behind program::Env's user.program — "must be ≥ a record").
+;; (the portability shape behind program::Env's user-data — "must be ≥ a record").
 ;;
 ;; RED at HEAD: parse_defsurface (surface.rs:322) hand-matches :struct / :record / :holon-record,
 ;; so `:nature :wat::core::Record` is a MalformedDecl → this world fails to start.

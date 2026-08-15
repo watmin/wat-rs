@@ -1,18 +1,18 @@
-//! Arc 209 C0b.3b-d (foundation) — `user.program` injection: the seam.
+//! Arc 209 C0b.3b-d (foundation) — `user-data` injection: the seam.
 //!
 //! `invoke_user_main` (freeze.rs) is the chokepoint BOTH the root main and every process child
 //! run through. Today it hardcodes the 7th field of `:wat::program::Env` to
-//! `(:wat::program::EmptyEnv')` (freeze.rs:1095) and offers NO way to supply a `user.program` —
+//! `(:wat::program::EmptyEnv')` (freeze.rs:1095) and offers NO way to supply a `user-data` —
 //! so wat-cli can't inject one into the root universe and process children can't either. Only
 //! thread children (via the `init-fn` closure) can. This stone opens the seam: `invoke_user_main`
-//! accepts an optional produced `user.program` Record; `None` keeps the `EmptyEnv` default (every
+//! accepts an optional produced `user-data` Record; `None` keeps the `EmptyEnv` default (every
 //! current path unchanged). The consumers build on this — root (`wat-cli --env fqdn/fn`) and
 //! process (`ProcessOpts` env-fn name → child resolves+runs) are follow-on sub-stones.
 //!
 //! TWO proofs (arc-170 update: `:user::main` returns `:nil` per the wall, so — per the IPC triangle,
-//! recovery §13 — it WRITES the `user.program` as EDN to stdout; the test captures + asserts it):
+//! recovery §13 — it WRITES the `user-data` as EDN to stdout; the test captures + asserts it):
 //! 1. `injected_user_program_flows_to_main` — inject a `:user::MyEnv` Record; `:user::main` reads
-//!    `(:wat::program::Env/user.program (:wat::program::env))` and prints it; the test captures the
+//!    `(:wat::program::Env/user-data (:wat::program::env))` and prints it; the test captures the
 //!    stdout EDN and asserts it is the injected record (`#user/MyEnv {:token 42}`), not `EmptyEnv`.
 //! 2. `default_user_program_is_empty_env` — `None` → `:user::main` sees `EmptyEnv` (the current
 //!    behavior is preserved by the default; the regression guard).
@@ -53,7 +53,7 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     lines
 }
 
-/// Install a captured ambient stdio, run `main` (which prints the user.program EDN), drain stdout.
+/// Install a captured ambient stdio, run `main` (which prints the user-data EDN), drain stdout.
 fn capture_stdout(run: impl FnOnce()) -> Vec<String> {
     let _ = take_ambient_stdio();
     let (stdin_service, _stdin_inject) = pipe_pair();
@@ -72,8 +72,8 @@ fn capture_stdout(run: impl FnOnce()) -> Vec<String> {
 #[test]
 fn injected_user_program_flows_to_main() {
     let world = startup_beside(file!())
-        .expect("startup should succeed (C0b.3b-d: user.program injection foundation)");
-    // Build the injected user.program Record in the frozen world via the co-located
+        .expect("startup should succeed (C0b.3b-d: user-data injection foundation)");
+    // Build the injected user-data Record in the frozen world via the co-located
     // zero-arg wrapper :user::make-my-env (no inline ctor in the .rs).
     let make_my_env = world
         .symbols()
@@ -82,7 +82,7 @@ fn injected_user_program_flows_to_main() {
         .clone();
     let injected = apply_function(make_my_env, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("MyEnv constructs");
-    // Inject it through the additive seam; main reads user.program + prints it as EDN.
+    // Inject it through the additive seam; main reads user-data + prints it as EDN.
     let lines = capture_stdout(|| {
         invoke_user_main_with_program(&world, vec![], injected)
             .unwrap_or_else(|e| panic!("invoke_user_main_with_program raised: {e:?}"));
@@ -90,12 +90,12 @@ fn injected_user_program_flows_to_main() {
     assert_eq!(
         lines.len(),
         1,
-        "expected main to read + emit the INJECTED user.program (user::MyEnv), not EmptyEnv"
+        "expected main to read + emit the INJECTED user-data (user::MyEnv), not EmptyEnv"
     );
     wat::assert_edn_eq!(
         lines[0].clone(),
         include_str!("probe_arc209_c0b3bd_user_program_foundation__injected_user_program_flows_to_main.edn"),
-        "expected main to read + emit the INJECTED user.program (user::MyEnv), not EmptyEnv"
+        "expected main to read + emit the INJECTED user-data (user::MyEnv), not EmptyEnv"
     );
 }
 
@@ -110,11 +110,11 @@ fn default_user_program_is_empty_env() {
     assert_eq!(
         lines.len(),
         1,
-        "expected the default user.program to be EmptyEnv when none is injected"
+        "expected the default user-data to be EmptyEnv when none is injected"
     );
     wat::assert_edn_eq!(
         lines[0].clone(),
         include_str!("probe_arc209_c0b3bd_user_program_foundation__default_user_program_is_empty_env.edn"),
-        "expected the default user.program to be EmptyEnv when none is injected"
+        "expected the default user-data to be EmptyEnv when none is injected"
     );
 }

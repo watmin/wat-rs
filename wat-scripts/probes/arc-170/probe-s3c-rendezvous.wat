@@ -3,7 +3,7 @@
 ;; The current process arm SHIPS the runner and lets it reference the work-fn BY NAME
 ;; (a closure over a shipped symbol). To BAKE the runner into :wat::bracket:: (reserved,
 ;; privileged, zero user input) it CANNOT reference a :user::bracket:: name — that would be
-;; a stdlib -> user.program forward reference the resolver rejects. So the runner must take
+;; a stdlib -> user-data forward reference the resolver rejects. So the runner must take
 ;; the work-fn as a VALUE argument and thread it through its recursion (like the thread
 ;; runner-loop already does), and :user::main passes it from the RENDEZVOUS coordinate.
 ;;

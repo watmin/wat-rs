@@ -1311,7 +1311,7 @@ pub fn invoke_user_main(
     invoke_user_main_orchestrated(frozen, args, None)
 }
 
-/// Like [`invoke_user_main`], but installs `user_program` as the `user.program` field of the
+/// Like [`invoke_user_main`], but installs `user_program` as the `user-data` field of the
 /// ambient `:wat::program::Env` (instead of the `EmptyEnv` default) before `:user::main` runs.
 /// `user_program` must be a `:wat::core::Record` (any subtype). The root (wat-cli `--env`) and process
 /// children supply the result of running their env-producing fn here.
@@ -1323,7 +1323,7 @@ pub fn invoke_user_main_with_program(
     invoke_user_main_orchestrated(frozen, args, Some(user_program))
 }
 
-/// Resolve a process/CLI env-fn SOURCE STRING into a `user.program` `:wat::core::Record`, evaluated
+/// Resolve a process/CLI env-fn SOURCE STRING into a `user-data` `:wat::core::Record`, evaluated
 /// in `world` (the universe that has the type loaded). Dispatches on the eval result:
 /// - a 0-arg fn (`Value::wat__core__fn`) → applied (0 args); the result must be a `:wat::core::Record`
 /// - a `:wat::core::Record` (any subtype, including holon variants) → used directly
@@ -1377,21 +1377,21 @@ fn invoke_user_main_orchestrated(
 
     // Arc 259 (The Forced Hand) — install the ambient program env BEFORE
     // `:user::main`. The live VM constructs the base env itself (self-hosted):
-    // `wat.started-at`      = boot clock (real epoch — primed by wat-cli at its
-    //                         earliest point; re-captured across a fork so a
-    //                         :process peer measures its own boot). The gap
-    //                         started-at → peer-started-at is the real
-    //                         boot→entry latency.
-    // `wat.peer-started-at` = now at the seam (this frame's entry).
-    // `wat.process-id` = OS pid; `wat.os-thread-id` = OS thread id (gettid).
-    // `wat.peer-kind` = :process — root main OWNS its address space (builder-locked).
+    // `started-at`      = boot clock (real epoch — primed by wat-cli at its
+    //                     earliest point; re-captured across a fork so a
+    //                     :process peer measures its own boot). The gap
+    //                     started-at → peer-started-at is the real
+    //                     boot→entry latency.
+    // `peer-started-at` = now at the seam (this frame's entry).
+    // `process-id` = OS pid; `os-thread-id` = OS thread id (gettid).
+    // `peer-kind` = :process — root main OWNS its address space (builder-locked).
     //   Thread peers stamp :thread; forked process peers stamp :process.
-    // `wat.cpu-count` = available_parallelism(), a host constant inherited down the
-    //   spawn tree (like wat.started-at). Fallback 1 if the OS refuses to report.
+    // `cpu-count` = available_parallelism(), a host constant inherited down the
+    //   spawn tree (like started-at). Fallback 1 if the OS refuses to report.
     // The RAII guard is held across main's run on this thread and uninstalls on
     // scope exit.
     //
-    // Arc 209 C0b.3b-d — `user.program` injection seam: the 7th field of
+    // Arc 209 C0b.3b-d — `user-data` injection seam: the 7th field of
     // `:wat::program::Env` is populated from the injected value (if any) or the
     // `EmptyEnv` default (current behavior, preserved). The value is bound as a
     // local in `ctor_env` and referenced by name in the env constructor source —
@@ -1400,7 +1400,7 @@ fn invoke_user_main_orchestrated(
     let tid = unsafe { libc::gettid() } as i64;
     let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
     // cpu_count = available_parallelism() via host_cpu_count(), a host constant inherited
-    // down the spawn tree (like wat.started-at). Fallback 1 if the OS refuses to report.
+    // down the spawn tree (like started-at). Fallback 1 if the OS refuses to report.
     let cpu_count = crate::runtime::host_cpu_count();
     let user_program_val = match user_program {
         Some(v) => v,
@@ -1421,7 +1421,7 @@ fn invoke_user_main_orchestrated(
         .build();
     let env_src = format!(
         // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
-        "(:wat::program::Env :wat.started-at (:wat::time::at-nanos {boot_nanos}) :wat.peer-started-at (:wat::time::now) :wat.process-id {pid} :wat.os-thread-id {tid} :wat.peer-kind :wat::program::PeerKind::process :wat.cpu-count {cpu_count} :user.program user-program)"
+        "(:wat::program::Env :started-at (:wat::time::at-nanos {boot_nanos}) :peer-started-at (:wat::time::now) :process-id {pid} :os-thread-id {tid} :peer-kind :wat::program::PeerKind::process :cpu-count {cpu_count} :user-data user-program)"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");

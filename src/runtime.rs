@@ -949,6 +949,9 @@ pub fn register_defines(
                 crate::resolve::Registration::Unnamespaced => {
                     return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
                 }
+                crate::resolve::Registration::DottedName => {
+                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::DottedName(path)));
+                }
                 crate::resolve::Registration::Insert => {
                     sym.register_function(path.clone(), func);
                 }
@@ -984,6 +987,9 @@ pub fn register_defines(
                 }
                 crate::resolve::Registration::Unnamespaced => {
                     return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
+                }
+                crate::resolve::Registration::DottedName => {
+                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::DottedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
                     sym.register_function(path, func);
@@ -2585,6 +2591,9 @@ fn register_defalias(
         crate::resolve::Registration::Unnamespaced => {
             return Err(RuntimeError::new(span, RuntimeErrorKind::UnnamespacedName(alias.to_string())));
         }
+        crate::resolve::Registration::DottedName => {
+            return Err(RuntimeError::new(span, RuntimeErrorKind::DottedName(alias.to_string())));
+        }
         crate::resolve::Registration::Insert => {}
     }
 
@@ -2776,6 +2785,9 @@ fn preregister_struct_accessors_from_form(
         crate::resolve::Registration::Unnamespaced => {
             return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
         }
+        crate::resolve::Registration::DottedName => {
+            return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::DottedName(constructor_path)));
+        }
         crate::resolve::Registration::Insert => {
             sym.register_function(
                 constructor_path,
@@ -2840,6 +2852,9 @@ fn preregister_struct_accessors_from_form(
                 }
                 crate::resolve::Registration::Unnamespaced => {
                     return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(accessor_path)));
+                }
+                crate::resolve::Registration::DottedName => {
+                    return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::DottedName(accessor_path)));
                 }
                 crate::resolve::Registration::Insert => {
                     sym.register_function(
@@ -2957,6 +2972,9 @@ fn preregister_enum_constructors_from_form(
             }
             crate::resolve::Registration::Unnamespaced => {
                 return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
+            }
+            crate::resolve::Registration::DottedName => {
+                return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::DottedName(constructor_path)));
             }
             crate::resolve::Registration::Insert => {
                 sym.register_function(
@@ -3492,6 +3510,9 @@ fn preregister_fn_defs_in_do(
                 crate::resolve::Registration::Unnamespaced => {
                     return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
                 }
+                crate::resolve::Registration::DottedName => {
+                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::DottedName(path)));
+                }
                 crate::resolve::Registration::Insert => {
                     sym.register_function(path.clone(), func);
                 }
@@ -3568,6 +3589,9 @@ fn preregister_fn_defs_in_let(
                 }
                 crate::resolve::Registration::Unnamespaced => {
                     return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
+                }
+                crate::resolve::Registration::DottedName => {
+                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::DottedName(path)));
                 }
                 crate::resolve::Registration::Insert => {
                     sym.register_function(path.clone(), func);
@@ -6882,10 +6906,17 @@ pub fn parse_defclause_form(
     // privileged stdlib calls via allow_reserved=true). Stone 237.8b: stdlib defclauses
     // live under :wat::core::*. Phase-1 migration to the ONE gate (defclause). A
     // standalone declaration guard with no adjacent dedup, so Existing::Absent — gate
-    // yields Unnamespaced (reject), Reserved (reject), or Insert (proceed).
+    // yields Unnamespaced (reject), DottedName (reject), Reserved (reject), or Insert
+    // (proceed). Arc 296 stone H-1: DottedName gets its own explicit arm here (not
+    // folded into the `_` wildcard below) so a dotted defclause name is refused the
+    // same as everywhere else the gate is consulted — the wildcard would otherwise have
+    // silently treated it as Insert.
     match crate::resolve::gate(&name, privilege, crate::resolve::Existing::Absent) {
         crate::resolve::Registration::Unnamespaced => {
             return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(name)));
+        }
+        crate::resolve::Registration::DottedName => {
+            return Err(RuntimeError::new(form_span, RuntimeErrorKind::DottedName(name)));
         }
         crate::resolve::Registration::Reserved => {
             return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(name)));
@@ -21735,7 +21766,7 @@ fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// `(:wat::program::cpu-count)` — nullary; returns the host parallelism as
 /// `:wat::core::i64` via [`host_cpu_count`].
 ///
-/// Arc 259 S3.2b-i. Unlike the stamped `wat.cpu-count` env field (reachable only
+/// Arc 259 S3.2b-i. Unlike the stamped `cpu-count` env field (reachable only
 /// via `(:wat::program::env)` when a program env is installed), this verb answers
 /// `std::thread::available_parallelism()` directly — no installed program env
 /// required. Mirrors `(:wat::time::now)`: a live host fact available in ANY eval

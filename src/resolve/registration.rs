@@ -59,6 +59,15 @@ pub enum Registration {
     /// A new top-level name with no namespace — caller emits its own UnnamespacedName
     /// error. Held even against `Privilege::Stdlib` — there is no privilege escape.
     Unnamespaced,
+    /// Arc 296 stone H-1 — the type NAME (the segment after the last `::`) contains a
+    /// `.`. Caller emits its own DottedName-shaped error. Held even against
+    /// `Privilege::Stdlib` — there is no privilege escape, same as `Unnamespaced`. A dot
+    /// in a name is reserved: stone H's tagged-variant wire form is `#ns/Enum.Variant`,
+    /// where the dot in the NAME half is the discriminator that says "this tag is a
+    /// variant, not a record." If a record's own name could contain a dot, it could
+    /// forge that tag — so the dot is banned at the one door every name passes through,
+    /// not merely absent from the corpus by chance.
+    DottedName,
 }
 
 /// A top-level name must carry a namespace. Only fn args and `let` bindings may be bare,
@@ -70,14 +79,26 @@ pub fn is_namespaced(name: &str) -> bool {
     name.contains("::")
 }
 
+/// Arc 296 stone H-1 — true if the NAME half (the segment after the LAST `::`) contains
+/// a `.`. The namespace half is untouched: `:wat::core::Fault` has namespace `wat::core`
+/// and name `Fault`; only `Fault` is checked. Works whether or not `name` carries the
+/// leading `:` (parametric heads drop it — arc 170's 24t seam), because `rsplit("::")`
+/// finds the last segment either way. At registration the name is always `::`-separated
+/// (dots appear later, only in the wire tag built by `tag_from_type_path`), so this is a
+/// pure ban, not a parse of an already-dotted form.
+fn has_dotted_name(name: &str) -> bool {
+    name.rsplit("::").next().unwrap_or(name).contains('.')
+}
+
 /// THE gate. The rule + ordering, once:
 ///
 /// ```text
 ///   Existing::Equivalent                        -> NoOp       (benign re-declaration)
 ///   Existing::Divergent                         -> Duplicate
 ///   Absent + !namespaced                         -> Unnamespaced
-///   Absent + namespaced + reserved + Privilege::User -> Reserved
-///   Absent + namespaced + (Privilege::Stdlib | !reserved) -> Insert
+///   Absent + namespaced + dotted name             -> DottedName
+///   Absent + namespaced + undotted + reserved + Privilege::User -> Reserved
+///   Absent + namespaced + undotted + (Privilege::Stdlib | !reserved) -> Insert
 /// ```
 ///
 /// Idempotent-BEFORE-reserved is the ordering that fixes "you cannot declare an existing
@@ -90,6 +111,11 @@ pub fn is_namespaced(name: &str) -> bool {
 /// `Unnamespaced` is tested before `Reserved` because a bare name cannot be reserved
 /// (every reserved prefix contains `::`), and "not namespaced" is the more specific
 /// truth about it.
+///
+/// `DottedName` (arc 296 stone H-1) is tested right after `Unnamespaced` and before
+/// `Reserved`, on the same footing as `Unnamespaced`: it is a WALL, not a
+/// privilege-gated permission, so it is held even against `Privilege::Stdlib` — there is
+/// no privilege escape from it, exactly as there is none from the namespacing wall.
 pub fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registration {
     match existing {
         Existing::Equivalent => Registration::NoOp,
@@ -97,6 +123,8 @@ pub fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registratio
         Existing::Absent => {
             if !is_namespaced(name) {
                 Registration::Unnamespaced
+            } else if has_dotted_name(name) {
+                Registration::DottedName
             } else if privilege == Privilege::User && is_reserved_prefix(name) {
                 Registration::Reserved
             } else {
@@ -170,5 +198,33 @@ mod tests {
     #[test]
     fn bare_name_idempotent_replay_still_noops() {
         assert_eq!(gate(":no-ns", Privilege::User, Existing::Equivalent), Registration::NoOp);
+    }
+
+    // ─── Arc 296 stone H-1 — the dot wall ──────────────────────────────
+
+    #[test]
+    fn dotted_name_from_user_is_rejected() {
+        assert_eq!(gate(":my::Shape.Circle", Privilege::User, Existing::Absent), Registration::DottedName);
+    }
+
+    #[test]
+    fn dotted_name_from_stdlib_is_still_rejected() {
+        // No privilege escape from the dot wall, same as Unnamespaced.
+        assert_eq!(gate(":wat::telemetry::Numeric.I64", Privilege::Stdlib, Existing::Absent), Registration::DottedName);
+    }
+
+    #[test]
+    fn dot_in_namespace_half_is_untouched() {
+        // Only the segment AFTER the last `::` is checked; a dot earlier in the path
+        // (however unlikely) does not trip the wall.
+        assert_eq!(gate(":my::v1.2::Thing", Privilege::User, Existing::Absent), Registration::Insert);
+    }
+
+    #[test]
+    fn dotted_name_idempotent_replay_still_noops() {
+        // A benign equivalent re-declaration is never blocked, even for a name that
+        // would fail the dot wall on first registration — same ordering guarantee as
+        // Unnamespaced/Reserved.
+        assert_eq!(gate(":my::Shape.Circle", Privilege::User, Existing::Equivalent), Registration::NoOp);
     }
 }

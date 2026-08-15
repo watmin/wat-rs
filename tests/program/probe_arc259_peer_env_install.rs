@@ -5,11 +5,11 @@
 //! spawned thread peer runs its prog with NO env in its thread-local, so
 //! `(:wat::program::env)` inside a peer fails "no env installed". This stone installs
 //! a fresh env in the spawned thread BEFORE the prog runs:
-//!   - `wat.started-at`   INHERITED (same process boot)
-//!   - `wat.process-id`   INHERITED (same process)
-//!   - `wat.os-thread-id` RE-STAMPED — the spawned thread's own `gettid`
-//!   - `wat.peer-kind`    `:thread` (a thread peer shares the address space)
-//!   - `wat.peer-started-at` = now (the thread's start)
+//!   - `started-at`   INHERITED (same process boot)
+//!   - `process-id`   INHERITED (same process)
+//!   - `os-thread-id` RE-STAMPED — the spawned thread's own `gettid`
+//!   - `peer-kind`    `:thread` (a thread peer shares the address space)
+//!   - `peer-started-at` = now (the thread's start)
 //!
 //! The proof flows back over the CHANNEL (an assertion inside a peer is swallowed by
 //! the closure's catch_unwind; only what the peer sends reaches the parent).
@@ -44,7 +44,7 @@ fn thread_peer_reads_its_own_os_thread_id() {
     );
 }
 
-/// The peer's `wat.peer-kind` is `:thread` (it shares the address space) — finally
+/// The peer's `peer-kind` is `:thread` (it shares the address space) — finally
 /// exercising the `:thread` variant the root main never stamps.
 #[test]
 fn thread_peer_kind_is_thread() {
@@ -52,5 +52,5 @@ fn thread_peer_kind_is_thread() {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };
-    assert_eq!(got, 111, "a thread peer's wat.peer-kind is :thread");
+    assert_eq!(got, 111, "a thread peer's peer-kind is :thread");
 }

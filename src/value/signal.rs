@@ -211,6 +211,15 @@ pub enum RuntimeErrorKind {
     /// privilege escape from the namespacing wall.
     #[to_edn(key = "name")]
     UnnamespacedName(String),
+    /// Arc 296 stone H-1 — a name reached the registration gate with a `.` in its name
+    /// segment (the part after the last `::`). Same door as `UnnamespacedName` /
+    /// `ReservedPrefix` above — second taxonomy entry for `Registration::DottedName`
+    /// (`TypeErrorKind`, `RuntimeErrorKind`, `MacroErrorKind`, `CheckErrorKind` all got
+    /// theirs). Reserved because a dotted NAME is the wire discriminator for a
+    /// tagged-enum variant (`#ns/Enum.Variant`); a record whose name contained a dot
+    /// could forge it.
+    #[to_edn(key = "name")]
+    DottedName(String),
     /// A declaration form (`:wat::core::def`, `:wat::core::define`, etc.)
     /// found in expression position at runtime. Declaration forms are
     /// top-level registration forms; calling one at expression position
@@ -557,6 +566,14 @@ impl RuntimeErrorKind {
                 prefix,
                 name,
                 name.trim_start_matches(':')
+            ),
+            RuntimeErrorKind::DottedName(name) => write!(
+                f,
+                "{}name '{}' contains a '.' in its name segment — reserved: a dot in a tag's \
+                 NAME half means \"this is an enum variant\" (`#ns/Enum.Variant`), so a \
+                 registered name may not contain one, or it could forge that tag; rename \
+                 without the dot",
+                prefix, name
             ),
             RuntimeErrorKind::DeclarationInExpressionPosition(head) => write!(
                 f,

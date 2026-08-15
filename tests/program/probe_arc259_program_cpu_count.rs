@@ -1,12 +1,12 @@
 //! Arc 259 S3.2b-i — `(:wat::program::cpu-count)`: the LIVE host-parallelism verb.
 //!
 //! cpu-count is a host fact wat surfaces two ways, mirroring time:
-//!   - the STAMPED env field `wat.cpu-count` (snapshot at peer-start; interrogation)
+//!   - the STAMPED env field `cpu-count` (snapshot at peer-start; interrogation)
 //!     — already exists, read via `(:wat::program::env)` (needs a seam-installed env);
 //!   - the LIVE verb `(:wat::program::cpu-count)` (always available; pool sizing)
 //!     — THIS stone.
 //!
-//! Like `(:wat::time::now)` (the live twin of the stamped `wat.started-at`), the verb
+//! Like `(:wat::time::now)` (the live twin of the stamped `started-at`), the verb
 //! needs NO installed program env — it answers `std::thread::available_parallelism()`
 //! directly, in ANY eval context. The brackets pool sizes its default runner count
 //! from it: the env field is unreachable without a seam install, and a pool must be

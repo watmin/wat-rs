@@ -611,6 +611,9 @@ impl TypeEnv {
             crate::resolve::Registration::Unnamespaced => {
                 return Err(TypeError::new(span, TypeErrorKind::UnnamespacedName { name }))
             }
+            crate::resolve::Registration::DottedName => {
+                return Err(TypeError::new(span, TypeErrorKind::DottedName { name }))
+            }
             crate::resolve::Registration::Insert => {}
         }
         // Reject cyclic aliases BEFORE insertion so `expand_alias` can
@@ -2568,6 +2571,7 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
         ("DuplicateDefine", vec![("name".into(), string())]),
         ("ReservedPrefix", vec![("prefix".into(), string())]),
         ("UnnamespacedName", vec![("name".into(), string())]),
+        ("DottedName", vec![("name".into(), string())]),
         ("DeclarationInExpressionPosition", vec![("head".into(), string())]),
         ("EvalForbidsMutationForm", vec![("head".into(), string())]),
         ("UserMainMissing", vec![]),
@@ -5562,6 +5566,25 @@ mod tests {
 
         let err = collect(r#"(:wat::core::defstruct :wat::std::Bad [x <- :f64])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
+    }
+
+    #[test]
+    fn dotted_name_rejected() {
+        // Arc 296 stone H-1 — the dot wall. A dot in a record's name segment (the part
+        // after the last `::`) would forge stone H's tagged-variant wire discriminator
+        // (`#ns/Enum.Variant`), so registration refuses it authoritatively rather than
+        // relying on the corpus never happening to use one.
+        //
+        // Row 1 (negative): a record whose name contains a dot is refused, structurally
+        // on the error kind — not on message text.
+        let err = collect(r#"(:wat::core::defstruct :my::Shape.Circle [x <- :f64])"#).unwrap_err();
+        assert!(matches!(err.kind(), TypeErrorKind::DottedName { .. }));
+
+        // Row 2 (positive control): an ordinary undotted record in the SAME test still
+        // registers successfully. Without this row, row 1 alone cannot distinguish "the
+        // dot wall works" from "registration is broken for everything."
+        let (env, _) = collect(r#"(:wat::core::defstruct :my::Shape [x <- :f64])"#).unwrap();
+        assert!(env.get(":my::Shape").is_some());
     }
 
     #[test]

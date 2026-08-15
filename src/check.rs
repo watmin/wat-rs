@@ -8106,6 +8106,9 @@ fn collect_splice_defs_ctx(
                     crate::resolve::Registration::Reserved => {
                         errors.push(CheckError { span, kind: CheckErrorKind::ReservedPrefix { name } });
                     }
+                    crate::resolve::Registration::DottedName => {
+                        errors.push(CheckError { span, kind: CheckErrorKind::DottedName { name } });
+                    }
                     crate::resolve::Registration::Insert => {
                         // First binding — always register. Also store the body AST for
                         // arc-054 byte-equivalence checking on redef (infer_def consults
@@ -9950,7 +9953,7 @@ fn infer_spawn_thread_prime(
 ///   with `Fn(:wat::spawn::ProcessLaunch) -> :wat::core::nil`. This causes the
 ///   accessor type-check at parse time (ProcessLaunch/bogus-field → check error).
 /// - `args[2]`: env-fn; a `:wat::core::String` source string the child evals to
-///   produce `user.program`; inferred (runtime validates the result is a :wat::core::Record).
+///   produce `user-data`; inferred (runtime validates the result is a :wat::core::Record).
 /// - `args[3]`: max-message-bytes; an `:wat::core::i64` per-receiver frame-size
 ///   budget extracted from `ProcessOpts/max-message-bytes`; inferred only (runtime
 ///   validates the value is an i64).

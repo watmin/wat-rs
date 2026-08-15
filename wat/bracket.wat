@@ -25,7 +25,7 @@
 ;; kernel-required entry, `[] -> :nil`).  Bracket installs a second one:
 ;; `:user::bracket::work-fn` — the work function a process-pool child's
 ;; baked runner (`:wat::bracket::process-runner<I,O>` below) applies.  The
-;; runner itself is baked/reserved (never shipped); the child's user.program
+;; runner itself is baked/reserved (never shipped); the child's user-data
 ;; only ever ships the user's own work-fn, reified at this coordinate, plus a
 ;; generated `:user::main` that passes the coordinate's value into the runner.
 
@@ -65,7 +65,7 @@
 ;; input.  A user can never allocate it (`:wat::` is undefinable anywhere) and
 ;; it is never shipped, so nothing can collide with it.  The work-fn is taken
 ;; as a VALUE (not referenced by name) so the runner stays generic/baked with
-;; no stdlib -> user.program forward reference; the process arm's spawn-runner
+;; no stdlib -> user-data forward reference; the process arm's spawn-runner
 ;; ships only the work-fn (at the :user::bracket::work-fn rendezvous
 ;; coordinate) and a generated :user::main that passes it in here.
 (:wat::core::defn :wat::bracket::process-runner<D,I,O>
@@ -209,7 +209,7 @@
 ;; coordinate `:user::bracket::work-fn` (fn-forms), plus a generated
 ;; `:user::main` that calls the baked runner, passing that coordinate's VALUE
 ;; in (the runner is baked, so `:user::main` passes the value — it cannot look
-;; the coordinate up from stdlib; that would be a stdlib -> user.program
+;; the coordinate up from stdlib; that would be a stdlib -> user-data
 ;; forward reference the resolver rejects).
 ;;
 ;; `:user::main`'s `self-peer` call still needs CONCRETE peer types — a

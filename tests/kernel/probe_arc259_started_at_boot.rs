@@ -1,11 +1,11 @@
-//! Arc 259 — the timing correction: `wat.started-at` is the BOOT instant, not the seam.
+//! Arc 259 — the timing correction: `started-at` is the BOOT instant, not the seam.
 //!
 //! `259.0c` shipped `started-at = peer-started-at = now` — a placeholder LIE that
 //! collapses the measurement. The corrected model:
-//!   - `wat.started-at`      = captured at the EARLIEST point (wat-cli's boot),
+//!   - `started-at`      = captured at the EARLIEST point (wat-cli's boot),
 //!     held in a pid-keyed process-global that re-captures across a fork (so a
 //!     `:process` peer measures its OWN boot, never the parent's stale value).
-//!   - `wat.peer-started-at` = `now` at the seam (this frame's entry).
+//!   - `peer-started-at` = `now` at the seam (this frame's entry).
 //!
 //! Their gap is the real boot→entry latency — and a program reads it with the
 //! Duration readout family (`(seconds (- peer-started-at started-at))`).
@@ -21,7 +21,7 @@ use wat::freeze::call_beside_value;
 
 /// The seam reads the PRIMED boot clock for started-at — not a fresh `now`.
 /// Inject a known-old boot (epoch 1000s) for this process; `:my::assert-started-at`
-/// asserts `wat.started-at` is epoch 1000 (the primed value), proving the seam reads
+/// asserts `started-at` is epoch 1000 (the primed value), proving the seam reads
 /// the boot global rather than stamping `now`.
 #[test]
 #[ignore = "RED: seam must read process boot global (set_process_boot_instant) not fresh now — unlock: implement boot-clock global in the seam"]
@@ -29,7 +29,7 @@ fn started_at_is_the_primed_boot_not_the_seam() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
     assert!(
         call_beside_value(file!(), ":my::assert-started-at").is_ok(),
-        "wat.started-at must be the primed boot (epoch 1000), not the seam's now"
+        "started-at must be the primed boot (epoch 1000), not the seam's now"
     );
 }
 

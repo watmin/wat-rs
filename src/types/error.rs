@@ -65,6 +65,12 @@ pub enum TypeErrorKind {
     /// and never reach a gate. Held against `Privilege::Stdlib` too; there
     /// is no privilege escape from the namespacing wall.
     UnnamespacedName { name: String },
+    /// Arc 296 stone H-1 — the type name (the segment after the last `::`) contains a
+    /// `.`. Held against `Privilege::Stdlib` too; there is no privilege escape from the
+    /// dot wall, same as `UnnamespacedName`. Reserved because a dotted NAME is the wire
+    /// discriminator for a tagged-enum variant (`#ns/Enum.Variant`) — a record whose own
+    /// name contained a dot could forge that tag.
+    DottedName { name: String },
     /// Arc 138 slice 2 — names the whole malformed decl form
     /// (`(:wat::core::struct ...)` outer span).
     MalformedDecl { head: String, reason: String },
@@ -248,6 +254,14 @@ impl fmt::Display for TypeErrorKind {
                  may be bare; give it a namespace, e.g. ':my::{}'",
                 name,
                 name.trim_start_matches(':')
+            ),
+            TypeErrorKind::DottedName { name } => write!(
+                f,
+                "type name '{}' contains a '.' in its name segment — reserved: a dot in a \
+                 tag's NAME half means \"this is an enum variant\" (`#ns/Enum.Variant`), so a \
+                 record name may not contain one, or it could forge that tag; rename without \
+                 the dot",
+                name
             ),
             TypeErrorKind::MalformedDecl { head, reason } => {
                 write!(f, "malformed {} declaration: {}", head, reason)

@@ -1,4 +1,4 @@
-//! Arc 259 — `wat.peer-kind`: the program-env's first TYPED-ENUM identity field.
+//! Arc 259 — `peer-kind`: the program-env's first TYPED-ENUM identity field.
 //!
 //! peer-kind answers "what KIND of peer am I" as a nominal `:wat::program::PeerKind`
 //! enum, not a raw keyword:
@@ -9,7 +9,7 @@
 //! Kernel-stamped at the post-bootstrap / pre-main seam; read via the accessor.
 //!
 //! RED at HEAD: `Env` is a 4-arg record → the 5-arg constructor is an arity error,
-//! and the seam env carries no `wat.peer-kind`.
+//! and the seam env carries no `peer-kind`.
 //!
 //! Wat source lives in the co-located sibling fixture `probe_arc259_env_peer_kind.wat`,
 //! slurped via `startup_beside(file!())`.
@@ -19,7 +19,7 @@
 use wat::freeze::{call_beside_value, invoke_user_main, startup_beside};
 use wat::runtime::Value;
 
-/// The record carries `wat.peer-kind` as a `PeerKind` value (RED via arity at HEAD:
+/// The record carries `peer-kind` as a `PeerKind` value (RED via arity at HEAD:
 /// a 5-arg `Env` constructor is an arity error). `conforms?` proves the field holds
 /// a genuine `:wat::program::PeerKind` (the proven nominal-membership idiom).
 #[test]
@@ -28,7 +28,7 @@ fn env_record_carries_peer_kind() {
     assert_eq!(
         got,
         Value::bool(true),
-        "Env carries wat.peer-kind (5th field) holding a :wat::program::PeerKind"
+        "Env carries peer-kind (5th field) holding a :wat::program::PeerKind"
     );
 }
 
@@ -41,6 +41,6 @@ fn seam_stamps_process_for_root_main() {
     let world = startup_beside(file!()).expect("startup");
     assert!(
         invoke_user_main(&world, vec![]).is_ok(),
-        "the seam must stamp wat.peer-kind = :process before :user::main; assert-eq failed"
+        "the seam must stamp peer-kind = :process before :user::main; assert-eq failed"
     );
 }

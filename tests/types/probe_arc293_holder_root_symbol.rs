@@ -1,6 +1,6 @@
 //! RED probe — arc 293 item-2a: a surface's `:nature` bound takes the nature-root SYMBOL
 //! (`:wat::core::Record`), not the magic shorthand `:record`. A 0-member `:nature` surface is "any
-//! aggregate of that nature" — the portability shape behind `program::Env`'s `user.program`
+//! aggregate of that nature" — the portability shape behind `program::Env`'s `user-data`
 //! ("must be at minimum a record").
 //!
 //! RED at HEAD: `parse_defsurface` (surface.rs:322) hand-matches `:struct`/`:record`/`:holon-record`,

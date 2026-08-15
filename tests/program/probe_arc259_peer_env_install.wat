@@ -7,7 +7,7 @@
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                              (:wat::core::match
                                (:wat::kernel::send self
-                                 (:wat::program::Env/wat.os-thread-id (:wat::program::env)))
+                                 (:wat::program::Env/os-thread-id (:wat::program::env)))
                                (:wat::kernel::SendOutcome::Sent nil)
                                (:wat::kernel::SendOutcome::Closed nil)
                                ;; arc 278 #73 — this is the worker's final send back to
@@ -36,7 +36,7 @@
                              (:wat::core::match
                                (:wat::kernel::send self
                                  (:wat::core::if
-                                   (:wat::core::= (:wat::program::Env/wat.peer-kind (:wat::program::env)) :wat::program::PeerKind::thread)
+                                   (:wat::core::= (:wat::program::Env/peer-kind (:wat::program::env)) :wat::program::PeerKind::thread)
                                    111 222))
                                (:wat::kernel::SendOutcome::Sent nil)
                                (:wat::kernel::SendOutcome::Closed nil)

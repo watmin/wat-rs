@@ -1,9 +1,9 @@
-//! Arc 259 — the program init-fn: `(thread/init f)` populates `user.program` with a
+//! Arc 259 — the program init-fn: `(thread/init f)` populates `user-data` with a
 //! CUSTOM record, end to end. The user-extension half, completed.
 //!
-//!   `(thread)`        → user.program = EmptyEnv (the default init-fn thunk).
-//!   `(thread/init f)` → user.program = f's record, where f : [] -> SomeRecord, run
-//!                       AT THE PEER'S START (in the peer thread, so user.program
+//!   `(thread)`        → user-data = EmptyEnv (the default init-fn thunk).
+//!   `(thread/init f)` → user-data = f's record, where f : [] -> SomeRecord, run
+//!                       AT THE PEER'S START (in the peer thread, so user-data
 //!                       reflects the peer's own context).
 //!
 //! No optional token: `(thread)` is a COMPLETE constructor whose init-fn IS the
@@ -11,7 +11,7 @@
 //! picks intent by verb, never by an omitted arg.
 //!
 //! RED at HEAD: `(thread/init …)` does not exist, ThreadOpts carries no init-fn, and
-//! user.program is always EmptyEnv. The peer reads `user.program`'s `port` field
+//! user-data is always EmptyEnv. The peer reads `user-data`'s `port` field
 //! back over the channel (a peer assertion is swallowed; only what it sends counts).
 //!
 //! Wat source lives in the co-located sibling fixture `probe_arc259_program_init_fn.wat`,
@@ -23,8 +23,8 @@
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
-/// A `(thread/init f)` peer's `user.program` is f's custom record. f returns a
-/// `MyEnv{port: 8080}`; the peer reads `user.program`'s port back. Parent asserts 8080.
+/// A `(thread/init f)` peer's `user-data` is f's custom record. f returns a
+/// `MyEnv{port: 8080}`; the peer reads `user-data`'s port back. Parent asserts 8080.
 #[test]
 fn thread_init_populates_user_program() {
     let got = match call_beside_value(file!(), ":probe::compute-init").expect("compute eval") {
@@ -33,12 +33,12 @@ fn thread_init_populates_user_program() {
     };
     assert_eq!(
         got, 8080,
-        "(thread/init f) peer's user.program is f's MyEnv{{port:8080}}"
+        "(thread/init f) peer's user-data is f's MyEnv{{port:8080}}"
     );
 }
 
 /// An init-fn that ERRORS kills the peer honestly — the env is never built with a
-/// non-record fallback in `user.program`. Arc 278 recv'-wall: the dead peer surfaces as a matchable
+/// non-record fallback in `user-data`. Arc 278 recv'-wall: the dead peer surfaces as a matchable
 /// `RecvOutcome::Lost` VALUE (never a raise — a raise unwinds past the reader); the fixture RETURNS
 /// the Lost cause's `Failure/message`. We assert `is_ok` (it matched Lost as a value) + that the
 /// returned reason is the init-fn's crash (::Lost, not a smuggled ::Message/::Closed).
@@ -64,7 +64,7 @@ fn erroring_init_fn_kills_the_peer() {
     );
 }
 
-/// A plain `(thread)` peer's `user.program` stays the EmptyEnv default — the default
+/// A plain `(thread)` peer's `user-data` stays the EmptyEnv default — the default
 /// constructor's init-fn is the EmptyEnv thunk. The peer reports conformance (1/0).
 #[test]
 fn thread_default_user_program_is_empty_env() {
@@ -72,5 +72,5 @@ fn thread_default_user_program_is_empty_env() {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };
-    assert_eq!(got, 1, "(thread) peer's user.program defaults to EmptyEnv");
+    assert_eq!(got, 1, "(thread) peer's user-data defaults to EmptyEnv");
 }

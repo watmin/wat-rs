@@ -15,32 +15,37 @@
   :thread
   :process)
 
-;; EmptyEnv — the 0-field nominal default for `user.program`.
+;; EmptyEnv — the 0-field nominal default for `user-data`.
 ;; A real record, never nil: "didn't provide one" is honest because there is no nil branch.
 ;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::core::Record (the root).
 (:wat::core::defrecord :wat::program::EmptyEnv [])
 
-;; Seven kernel-stamped fields (arc 259 — The Forced Hand):
-;;   wat.started-at      — the app epoch (CLI-boot instant), INHERITED unchanged down the spawn tree.
-;;   wat.peer-started-at — THIS peer's start, RE-STAMPED at each spawn (`peer-`, not `thread-`:
-;;                         a peer may be :thread or :process; `thread-` would lie to a process peer).
-;;   wat.process-id      — OS process id (`std::process::id()`), stamped at the seam as i64.
-;;   wat.os-thread-id    — OS thread id (Linux `gettid()`), stamped at the seam as i64.
-;;   wat.peer-kind       — which KIND of peer (PeerKind enum); root main stamps :process (owns its
-;;                         address space); thread peers stamp :thread.
-;;   wat.cpu-count       — host available parallelism (`std::thread::available_parallelism()`,
-;;                         fallback 1); a host constant, INHERITED unchanged down the spawn tree
-;;                         (like `wat.started-at`). The escape-hatch home for "how many CPUs".
-;;   user.program        — the user-extension slot, typed :wat::core::Record (the root — any record fits
-;;                         as a subtype); default :wat::program::EmptyEnv. NOT `wat.*` — user data,
-;;                         distinct from platform-owned fields.
-;; All `wat.*` fields are reserved/platform-owned. Subtypes extend this base — see
-;; docs/arc/2026/06/259-forced-hand/DESIGN.md.
+;; Six kernel-stamped fields, plus one user-data slot (arc 259 — The Forced Hand):
+;;   started-at      — the app epoch (CLI-boot instant), INHERITED unchanged down the spawn tree.
+;;   peer-started-at — THIS peer's start, RE-STAMPED at each spawn (`peer-`, not `thread-`:
+;;                     a peer may be :thread or :process; `thread-` would lie to a process peer).
+;;   process-id      — OS process id (`std::process::id()`), stamped at the seam as i64.
+;;   os-thread-id    — OS thread id (Linux `gettid()`), stamped at the seam as i64.
+;;   peer-kind       — which KIND of peer (PeerKind enum); root main stamps :process (owns its
+;;                     address space); thread peers stamp :thread.
+;;   cpu-count       — host available parallelism (`std::thread::available_parallelism()`,
+;;                     fallback 1); a host constant, INHERITED unchanged down the spawn tree
+;;                     (like `started-at`). The escape-hatch home for "how many CPUs".
+;;   user-data       — the user-supplied slot, typed :wat::core::Record (the root — any record
+;;                     fits); default :wat::program::EmptyEnv. EC2-style user-data: arbitrary
+;;                     user-specified data that crosses the spawn boundary and stays
+;;                     referenceable in the spawned locus.
+;;
+;; Arc 296 stone H-1b: ownership used to be spelled with a `wat.`/`user.` name prefix; that prefix
+;; is now dropped (renamed, not respelled) because POSITION already carries the distinction a plain
+;; `defrecord` (arc 293 — no longer an extensible base, see the header above) makes structural: a
+;; top-level field on `Env` IS wat-provided, kernel-stamped at the spawn seam; `user-data` is the
+;; one field that is the user's — anything the user needs lives inside the record they put there.
 (:wat::core::defrecord :wat::program::Env
-  [wat.started-at <- :wat::time::Instant
-   wat.peer-started-at <- :wat::time::Instant
-   wat.process-id <- :wat::core::i64
-   wat.os-thread-id <- :wat::core::i64
-   wat.peer-kind <- :wat::program::PeerKind
-   wat.cpu-count <- :wat::core::i64
-   user.program <- :wat::core::Record])
+  [started-at <- :wat::time::Instant
+   peer-started-at <- :wat::time::Instant
+   process-id <- :wat::core::i64
+   os-thread-id <- :wat::core::i64
+   peer-kind <- :wat::program::PeerKind
+   cpu-count <- :wat::core::i64
+   user-data <- :wat::core::Record])

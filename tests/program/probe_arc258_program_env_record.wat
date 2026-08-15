@@ -7,9 +7,9 @@
 ;; c01: construct base program::Env with started-at=5000, read epoch-millis of started-at.
 (:wat::core::defn :probe::c01-compute [] -> :wat::core::i64
   (:wat::time::epoch-millis
-    (:wat::program::Env/wat.started-at
+    (:wat::program::Env/started-at
       (:wat::program::Env
-        :wat.started-at (:wat::time::at-millis 5000)
-        :wat.peer-started-at (:wat::time::at-millis 0)
-        :wat.process-id 0 :wat.os-thread-id 0 :wat.peer-kind :wat::program::PeerKind::process :wat.cpu-count 1
-        :user.program (:wat::program::EmptyEnv)))))
+        :started-at (:wat::time::at-millis 5000)
+        :peer-started-at (:wat::time::at-millis 0)
+        :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind::process :cpu-count 1
+        :user-data (:wat::program::EmptyEnv)))))

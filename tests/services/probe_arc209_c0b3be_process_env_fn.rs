@@ -1,7 +1,7 @@
-//! Arc 209 C0b.3b-e — the env-fn resolver: a source string → `user.program` record.
+//! Arc 209 C0b.3b-e — the env-fn resolver: a source string → `user-data` record.
 //!
 //! `ProcessOpts` carries `env-fn`, a wat SOURCE STRING the spawned child evals IN ITS OWN
-//! frozen world (post-load, just before `:user::main`) to produce `user.program`. The core is
+//! frozen world (post-load, just before `:user::main`) to produce `user-data`. The core is
 //! `resolve_env_program(world, src)`: parse the string, eval it in `world`, and dispatch on the
 //! result — a 0-arg fn → apply it; a `:wat::core::Record` (ANY subtype: `app::Env`, holon, …) → use
 //! directly; anything else → error. The result feeds the 3b-d seam
@@ -50,7 +50,7 @@ fn assert_class(got: Value, expected_fqdn: &str, via: &str) {
 }
 
 // The four env-fn source strings under test live in co-located .wat fixtures (no inline wat in
-// this .rs) — resolve_env_program's own contract is "a source string -> user.program record", so
+// this .rs) — resolve_env_program's own contract is "a source string -> user-data record", so
 // the fixture content IS the raw source text it parses, loaded via include_str! rather than typed
 // as a Rust string literal.
 
@@ -79,7 +79,7 @@ fn default_empty_env_resolves() {
 
 #[test]
 fn non_record_non_fn_is_an_error() {
-    // An env-fn that produces a non-record (here an i64) is rejected — user.program MUST be a
+    // An env-fn that produces a non-record (here an i64) is rejected — user-data MUST be a
     // :wat::core::Record.
     let src = include_str!("probe_arc209_c0b3be_process_env_fn_non_record.wat");
     let outcome = resolve_env_program(&world(), src.trim());

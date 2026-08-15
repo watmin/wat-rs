@@ -231,6 +231,13 @@ pub enum CheckErrorKind {
     /// hole was open too — found by grounding the BRIEF's `Reserved` question
     /// with a run, not closed as a silent bonus.
     ReservedPrefix { name: String },
+    /// Arc 296 stone H-1 — the name (the segment after the last `::`) reached the
+    /// registration gate containing a `.`. Same door as `UnnamespacedName` /
+    /// `ReservedPrefix` above — fifth taxonomy entry for `Registration::DottedName`
+    /// (`TypeErrorKind`, `RuntimeErrorKind`, `MacroErrorKind`, `CheckErrorKind`).
+    /// Reserved because a dotted NAME is the wire discriminator for a tagged-enum
+    /// variant (`#ns/Enum.Variant`); a record whose name contained a dot could forge it.
+    DottedName { name: String },
     /// Arc 170 slice 1e — `:user::main` with non-canonical signature.
     ///
     /// D1: primary span was `:location`; normalized to `:span`.
@@ -629,6 +636,14 @@ impl CheckErrorKind {
                 prefix,
                 name,
                 crate::resolve::reserved_prefix_list()
+            ),
+            CheckErrorKind::DottedName { name } => write!(
+                f,
+                "{}name '{}' contains a '.' in its name segment — reserved: a dot in a tag's \
+                 NAME half means \"this is an enum variant\" (`#ns/Enum.Variant`), so a \
+                 registered name may not contain one, or it could forge that tag; rename \
+                 without the dot",
+                prefix, name
             ),
             CheckErrorKind::BareLegacyMainSignature => write!(
                 f,

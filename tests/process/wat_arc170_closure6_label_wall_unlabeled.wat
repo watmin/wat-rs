@@ -10,7 +10,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [_p (:wat::kernel::println (:wat::program::Env/wat.process-id (:wat::program::env)))
+               [_p (:wat::kernel::println (:wat::program::Env/process-id (:wat::program::env)))
                 outcome (:wat::kernel::readln)]
                (:wat::core::match outcome
                  ((:wat::kernel::ReadlnOutcome::Datum _d) nil)

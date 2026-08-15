@@ -13,7 +13,7 @@
 ;;      "label present, ambient argv still empty" invariant) BEFORE reporting anything —
 ;;      an assert-eq failure here panics the child, which the outer surfaces as a raise,
 ;;      which crosses to a non-zero outer exit code the harness can see.
-;;   3. the child reports its own pid (`wat.process-id` off its Env) over the peer wire;
+;;   3. the child reports its own pid (`process-id` off its Env) over the peer wire;
 ;;      the outer relays it to STDOUT and then blocks on its OWN stdin — so BOTH the outer
 ;;      and the (still-held) child peer stay alive while the harness reads
 ;;      /proc/<pid>/cmdline for the REAL OS argv the label produced.
@@ -48,7 +48,7 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
                [_a (:wat::test::assert-eq 0 (:wat::core::length (:wat::runtime::argv)))
-                _p (:wat::kernel::println (:wat::program::Env/wat.process-id (:wat::program::env)))
+                _p (:wat::kernel::println (:wat::program::Env/process-id (:wat::program::env)))
                 outcome (:wat::kernel::readln)]
                (:wat::core::match outcome
                  ((:wat::kernel::ReadlnOutcome::Datum _d) nil)

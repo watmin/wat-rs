@@ -175,7 +175,7 @@ use crate::runtime::set_argv;
 pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // Arc 259 — prime the boot clock at the earliest wat-controlled point,
     // before install_batteries and argv parsing. The lazy-capture is
-    // triggered here so that wat.started-at reflects real boot→entry latency
+    // triggered here so that started-at reflects real boot→entry latency
     // rather than the seam's frame time.
     let _ = crate::time::process_boot_instant();
 

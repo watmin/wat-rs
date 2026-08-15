@@ -1,6 +1,6 @@
 //! Arc 259 S3.2b — `:wat::bracket::map`: the coordinator-fed pool (Ruby's `Parallel.map`).
 //!
-//! A bounded pool of N runners (N defaults to `wat.cpu-count`) draining a work list,
+//! A bounded pool of N runners (N defaults to `cpu-count`) draining a work list,
 //! dynamically balanced, results in INPUT ORDER. Built over `spawn-program` + the
 //! S3.2a runner-loop: each runner is a `spawn-program` peer; the coordinator feeds
 //! `(idx, item)` to whichever runner is free (via `select'`) and collects `(idx,

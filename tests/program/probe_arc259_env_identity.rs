@@ -5,14 +5,14 @@
 //! program reads as ordinary data instead of reaching for raw syscalls. It carried
 //! only the two timing fields; this stone adds the first IDENTITY fields — the
 //! companions to timing:
-//!   `wat.process-id`   : i64 — `std::process::id()`
-//!   `wat.os-thread-id` : i64 — the OS thread (Linux `gettid`)
+//!   `process-id`   : i64 — `std::process::id()`
+//!   `os-thread-id` : i64 — the OS thread (Linux `gettid`)
 //! Both kernel-stamped at the post-bootstrap / pre-`:user::main` seam; read via
 //! the record accessors. (`peer-kind`, the typed `PeerKind` enum, is the next
 //! stone.)
 //!
 //! RED at HEAD: `Env` is a 2-arg record → the 4-arg constructor is an arity error,
-//! and the seam-installed env carries no `wat.process-id`.
+//! and the seam-installed env carries no `process-id`.
 //!
 //! Wat source lives in the co-located sibling fixture `probe_arc259_env_identity.wat`,
 //! slurped via `startup_beside(file!())`.
@@ -22,7 +22,7 @@
 use wat::freeze::{call_beside_value, invoke_user_main, startup_beside};
 use wat::runtime::Value;
 
-/// The record carries `wat.process-id` + `wat.os-thread-id` as readable i64 fields
+/// The record carries `process-id` + `os-thread-id` as readable i64 fields
 /// (RED via arity at HEAD: a 4-arg `Env` constructor is an arity error).
 #[test]
 fn env_record_carries_process_and_thread_id() {
@@ -30,7 +30,7 @@ fn env_record_carries_process_and_thread_id() {
     assert_eq!(
         got,
         Value::i64(12345),
-        "Env carries wat.process-id as its 3rd field (os-thread-id is the 4th)"
+        "Env carries process-id as its 3rd field (os-thread-id is the 4th)"
     );
 }
 

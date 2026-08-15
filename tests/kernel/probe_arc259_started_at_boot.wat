@@ -5,7 +5,7 @@
   (:wat::core::do
     (:wat::test::assert-eq<:wat::core::i64>
       (:wat::time::epoch-seconds
-        (:wat::program::Env/wat.started-at (:wat::program::env)))
+        (:wat::program::Env/started-at (:wat::program::env)))
       1000)
     nil))
 
@@ -15,8 +15,8 @@
       (:wat::core::>
         (:wat::time::seconds
           (:wat::time::-
-            (:wat::program::Env/wat.peer-started-at (:wat::program::env))
-            (:wat::program::Env/wat.started-at (:wat::program::env))))
+            (:wat::program::Env/peer-started-at (:wat::program::env))
+            (:wat::program::Env/started-at (:wat::program::env))))
         0))
     nil))
 

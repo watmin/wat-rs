@@ -2,12 +2,12 @@
 //!
 //! At HEAD `:wat::program::Env` is a `typealias = HashMap<keyword, HolonAST>` (the dynamic store
 //! whose cast-accessors A1 deleted). A2 replaces it with a recordtype base carrying the first
-//! system field `wat.started-at : Instant`, defined in blessed stdlib `wat/program.wat` via
+//! system field `started-at : Instant`, defined in blessed stdlib `wat/program.wat` via
 //! `Record::def`, and swaps the spawn arg[1] check `unify`→`assignable` so an *extended* env
 //! (a child recordtype) satisfies the base.
 //!
 //! RED at HEAD on both counts:
-//!   C01 — program::Env has no record constructor/accessor (it's a HashMap) → no `wat.started-at`.
+//!   C01 — program::Env has no record constructor/accessor (it's a HashMap) → no `started-at`.
 //!   C02 — program::Env can't be a recordtype PARENT (it's a typealias, not a record).
 //!
 //! Wat source lives in the co-located sibling fixture `probe_arc258_program_env_record.wat`,
@@ -38,7 +38,7 @@ fn c01_base_record_started_at() {
     let world = startup_beside(file!()).expect("startup");
     let got = call_i64(&world, ":probe::c01-compute");
     assert_eq!(got, Ok(5000),
-        "program::Env is a record with a wat.started-at : Instant field, constructed + read");
+        "program::Env is a record with a started-at : Instant field, constructed + read");
 }
 
 // c02_user_extends_program_env DELETED — arc 293 inheritance annihilation:

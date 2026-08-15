@@ -95,6 +95,9 @@ impl MacroRegistry {
             Registration::Unnamespaced => {
                 Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::UnnamespacedName(def.name) })
             }
+            Registration::DottedName => {
+                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DottedName(def.name) })
+            }
         }
     }
 

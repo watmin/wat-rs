@@ -1,6 +1,6 @@
 ;; wat-tests/timer-env-grab-parity.wat — arc 292 R3: the env-grab idiom, locus-parity proof.
 ;;
-;; THE idiom "programs don't care about their tier": code reads its OWN `wat.peer-kind`
+;; THE idiom "programs don't care about their tier": code reads its OWN `peer-kind`
 ;; off its ambient `(:wat::program::env)` and hands it to `(after …)`. The tier-open
 ;; `Timer'<O>` fuses into whatever reactor it landed on. The SAME service runs unchanged
 ;; on a thread (crossbeam) and a process (io_uring).
@@ -39,7 +39,7 @@
             (:wat::kernel::select
               (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,wat::core::keyword>
                 (:wat::kernel::after
-                  (:wat::program::Env/wat.peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
+                  (:wat::program::Env/peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
                   (:wat::time::Millisecond 50)
                   :tick)))
              

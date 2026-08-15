@@ -42,7 +42,7 @@
 
 ;; ── The keys (locus opts records) ───────────────────────────────────────────
 ;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::core::Record.
-;; The init-fn runs at the peer's start and populates user.program.
+;; The init-fn runs at the peer's start and populates user-data.
 ;; ProcessOpts carries no config — its TYPE is the whole message.
 ;; Both opts records carry post-spawn-fn: an owner-side fn that runs after
 ;; the peer is spawned, before spawn-program' returns, for effects. Receives
@@ -341,7 +341,7 @@
   ;; The locus's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
   ;; after the child is forked, with a ProcessLaunch{pid} carrying the child pid.
   ;; The locus's env-fn (extracted via ProcessOpts/env-fn) is a source string the child
-  ;; evals in its own frozen world to produce user.program.
+  ;; evals in its own frozen world to produce user-data.
   ;; The locus's label (extracted via ProcessOpts/label) is arc 170 closure #6's
   ;; ps-visible identity — a VALUE (unlike env-fn), read straight off the locus.
   ([locus <- :wat::spawn::ProcessOpts

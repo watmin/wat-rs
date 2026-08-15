@@ -4,7 +4,7 @@
 (:wat::core::defrecord :user::MyEnv [port <- :wat::core::i64])
 
 ;; compute-init: spawn a thread peer with (thread/init f) where f returns MyEnv{port:8080};
-;; peer reads user.program's port and sends it back.
+;; peer reads user-data's port and sends it back.
 (:wat::core::defn :probe::compute-init [] -> :wat::core::i64
   (:wat::core::let
     [peer (:wat::test::spawn-peer
@@ -14,7 +14,7 @@
               (:wat::core::match
                 (:wat::kernel::send self
                   (:user::MyEnv/port
-                    (:wat::program::Env/user.program (:wat::program::env))))
+                    (:wat::program::Env/user-data (:wat::program::env))))
                 (:wat::kernel::SendOutcome::Sent nil)
                 (:wat::kernel::SendOutcome::Closed nil)
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
@@ -60,7 +60,7 @@
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
       (:wat::kernel::RecvOutcome::Closed "PEER-DIED-CLOSED"))))
 
-;; compute-default: spawn a plain (thread) peer — user.program defaults to EmptyEnv;
+;; compute-default: spawn a plain (thread) peer — user-data defaults to EmptyEnv;
 ;; peer sends 1 if conforms?, else 0.
 (:wat::core::defn :probe::compute-default [] -> :wat::core::i64
   (:wat::core::let
@@ -70,7 +70,7 @@
                 (:wat::kernel::send self
                   (:wat::core::if
                     (:wat::core::conforms?
-                      (:wat::program::Env/user.program (:wat::program::env))
+                      (:wat::program::Env/user-data (:wat::program::env))
                       :wat::program::EmptyEnv)
                     1 0))
                 (:wat::kernel::SendOutcome::Sent nil)
