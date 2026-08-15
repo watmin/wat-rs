@@ -277,6 +277,24 @@ impl AggregateDef {
     pub fn field_names(&self) -> impl Iterator<Item = &str> {
         self.fields.iter().map(|(n, _)| n.as_str())
     }
+    /// The field names as a shareable `Arc`, for [`crate::value::AggregateValue::names`] (arc 296 G).
+    ///
+    /// The door every REGISTRY-HOLDING construction site uses to hand the declaration's names to
+    /// the value it is building, so the value never has to be re-named by a lookup later — the
+    /// lookup that used to fail four ways and answer `:field-N` to all of them.
+    ///
+    /// Statically-typed sites with no registry in scope use a `wat_field_names_from!` const
+    /// instead; both roads lead to the same `.wat` declaration, and neither passes through a
+    /// human typing a field name into Rust.
+    ///
+    /// **Deliberately NOT a cached field on `AggregateDef`.** A stored `names` alongside `fields`
+    /// would be a second copy of one truth inside one struct, free to drift from it — the exact
+    /// shape this arc is removing one layer up. `fields` stays the single source; the small
+    /// allocation is paid at construction. If it shows up in a profile, that is the moment to
+    /// optimise it — with a number, not a guess.
+    pub fn names_arc(&self) -> std::sync::Arc<Vec<String>> {
+        std::sync::Arc::new(self.fields.iter().map(|(n, _)| n.clone()).collect())
+    }
     /// Iterator over field types in declaration order.
     pub fn field_types(&self) -> impl Iterator<Item = &TypeExpr> {
         self.fields.iter().map(|(_, t)| t)

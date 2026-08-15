@@ -407,3 +407,127 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
     }
     .into())
 }
+
+// ─── wat_field_names_from! ───────────────────────────────────────────────────
+//
+// Arc 296 G. The field NAMES of a wat-declared aggregate, as a `&'static [&'static str]`,
+// generated from the same `.wat` form `wat_record_from!` reads.
+//
+// ## Why this exists — and why the hand-written version was REJECTED
+//
+// G makes a `Value::Aggregate` carry its own field names, so rendering never needs a
+// registry lookup and `:field-N` has no way to be produced. Most construction sites hold
+// a registry and take names from the `AggregateDef`. But ~30 sites in the runtime build a
+// value of a STATICALLY KNOWN type with no registry in scope (a `Fault` from a raised
+// error, a `Failure` from a caught panic, rete's `Token`).
+//
+// The first attempt at G gave those sites a `static_field_names!("message", "location",
+// "causes")` macro — a hand-transcription of a declaration that already exists. The
+// builder stopped it: *"we did that exact move recently?"* A literal there is a second
+// place the names are written, and a right-count/wrong-name literal would render
+// CONFIDENTLY and wrongly — worse than the `:field-N` this arc is annihilating, because it
+// looks like an answer.
+//
+// So the names come from the same wat form as everything else. There is no arm of this
+// design in which a human types a field name into Rust.
+//
+// ## Shape
+//
+//     wat_field_names_from!(FAULT_FIELDS, "wat/core.wat", ":wat::core::Fault");
+//     // → const FAULT_FIELDS: &[&str] = &["message", "location", "causes"];
+//
+// Module position (a `const` item), unlike `wat_record_from!` which is a statement. Same
+// reader, same `include_str!` rebuild tracking, same STOP on splices.
+
+#[proc_macro]
+pub fn wat_field_names_from(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as WatFieldNamesArgs);
+    match expand_wat_field_names(&args) {
+        Ok(ts) => ts,
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+struct WatFieldNamesArgs {
+    ident: syn::Ident,
+    path: syn::LitStr,
+    type_path: syn::LitStr,
+}
+
+impl syn::parse::Parse for WatFieldNamesArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ident: syn::Ident = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let path: syn::LitStr = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let type_path: syn::LitStr = input.parse()?;
+        Ok(WatFieldNamesArgs { ident, path, type_path })
+    }
+}
+
+fn expand_wat_field_names(args: &WatFieldNamesArgs) -> syn::Result<TokenStream> {
+    let rel = args.path.value();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+        syn::Error::new_spanned(&args.path, "CARGO_MANIFEST_DIR unset — cannot resolve the wat file")
+    })?;
+    let abs: PathBuf = PathBuf::from(&manifest).join(&rel);
+    let src = std::fs::read_to_string(&abs).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("cannot read `{}`: {e}", abs.display()))
+    })?;
+
+    let want = args.type_path.value();
+    let names = field_names_of(&src, &abs.to_string_lossy(), &want)
+        .map_err(|m| syn::Error::new_spanned(&args.type_path, m))?;
+
+    let ident = &args.ident;
+    let type_path = &args.type_path;
+    let n: Vec<&String> = names.iter().collect();
+
+    Ok(quote! {
+        const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
+
+        #[doc = concat!("GENERATED field names for `", #type_path, "`, read from its wat declaration.")]
+        #[doc = ""]
+        #[doc = "⛔ Do NOT hand-write these. **wat is the source of truth** — the names live in the"]
+        #[doc = "`.wat` declaration and this const follows. A hand-written list here would be a"]
+        #[doc = "second place the names are stated, and a right-count/wrong-name list renders"]
+        #[doc = "confidently and wrongly — worse than the `:field-N` arc 296 annihilated."]
+        pub(crate) const #ident: &[&str] = &[ #( #n ),* ];
+    }
+    .into())
+}
+
+/// The `(name, _)` field list of a `defrecord`/`defstruct` in `src`, names only.
+///
+/// Shared by `wat_record_from!` and `wat_field_names_from!` so the two cannot disagree about
+/// what a declaration says — one walk, two emitters.
+fn field_names_of(src: &str, file: &str, want: &str) -> Result<Vec<String>, String> {
+    let forms = wat_reader::parse_all_with_file(src, file)
+        .map_err(|e| format!("wat parse error in `{file}`: {e:?}"))?;
+    for form in &forms {
+        let wat_reader::WatAST::List(items, _) = form else { continue };
+        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        if head != ":wat::core::defrecord" && head != ":wat::core::defstruct" { continue }
+        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
+        if tp != want { continue }
+        let Some(wat_reader::WatAST::Vector(fs, _)) = items.get(2) else {
+            return Err(format!("`{want}`: expected a `[name <- :Type …]` field vector"));
+        };
+        let mut out = Vec::new();
+        let mut i = 0usize;
+        while i < fs.len() {
+            match &fs[i] {
+                wat_reader::WatAST::Symbol(id, _) if id.as_str() == "~@" => {
+                    return Err(format!("`{want}` uses a SURFACE SPLICE — splices resolve against a live TypeEnv, which does not exist at compile time"));
+                }
+                wat_reader::WatAST::Symbol(name, _) => {
+                    out.push(name.as_str().to_string());
+                    i += 3;
+                }
+                other => return Err(format!("`{want}`: unexpected item in the field vector: {other:?}")),
+            }
+        }
+        return Ok(out);
+    }
+    Err(format!("no `defrecord`/`defstruct` for `{want}` in `{file}` — wat is the source of truth, so the names cannot be generated without it"))
+}
