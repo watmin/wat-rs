@@ -47,13 +47,21 @@ So, at every wave, in this order and no other:
 A wave that reports "N tests recaptured, all green" without a triage list has skipped the only step
 that distinguishes this from mass-blessing 224 assertions.
 
-## THE THREE TIERS — all 224 classified
+## THE THREE TIERS — RE-MEASURED 2026-08-15 (post Wave A)
 
-| tier | count | shape | work |
-|---|---|---|---|
-| **T1** | **105** | already on `assert_edn_matches_file!` | un-ignore → triage → recapture the stale |
-| **T2** | **101** | `assert_eq!(msg, "<inline literal>")` — an inline string pinning the `{:?}` face | convert to an `.edn` data-equality golden, then capture |
-| **T3** | **16** | `assert!(… contains …)` and kin | **rebuilt, not recaptured** |
+The original tiering (T1 105 · T2 101 · T3 16) is **superseded**. Re-measured after Wave A by
+classifying each ignored test's own body (brace-balanced, per test — not per file), and cross-checked
+against `cargo nextest list --run-ignored ignored-only`, which is the only authority on what the
+runner actually skips:
+
+| tier | then | **now** | shape | work |
+|---|---|---|---|---|
+| **T1** | 105 | **0** | already on `assert_edn_matches_file!` | ✅ **Wave A, done** |
+| **T2** | 101 | **113** | `assert_eq!(msg, "<inline literal>")` pinning the `{:?}` face | convert to an `.edn` golden, then capture |
+| **T3** | 16 | **2** | `assert!(… contains …)` and kin | **rebuilt, not recaptured** |
+
+**115 remain**, and `154 skipped = 115 + 37 other + 2 unlabelled` closes exactly. T3 is no longer a
+wave; it is two tests. Do not re-derive these from the old table — re-measure at brief time.
 
 **T3 is not a recapture.** A `contains` assertion does not pin a face — it pins a fragment, and this
 arc has a `no_loose_string_assert` lint against exactly that shape (it has fired on this arc's own
