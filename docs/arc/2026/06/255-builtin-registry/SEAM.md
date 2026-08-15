@@ -8,31 +8,24 @@
 > **There is exactly ONE live seam.** It is this one. `251/SEAM.md` and `278/SEAM.md` are PARKED and
 > point here.
 
-## ⛔⛔ READ THIS BEFORE ANY GIT COMMAND — THE TREE IS RED AND TWO COMMITS ARE UNPUSHED
+## STATE — GREEN AND PUSHED (2026-08-15, after J-2)
 
 ```
-origin/main   = last GREEN push (H-2a, 437edde1 lineage)
-HEAD          = 63fb6847   ← TWO LOCAL COMMITS AHEAD, BOTH MADE ON A RED TREE
-floor         = 4531 run / 4528 passed / 3 failed / 154 skipped
+origin/main   = bf155639   ← everything pushed; working tree CLEAN
+floor         = 4531 run / 4531 passed / 0 failed / 154 skipped   (my own run, .floor/)
 clippy        = 0
+stash@{0}     = "rider: lifecycle strike, stopped mid-flight" — INTACT, never drop
 ```
 
-**DO NOT PUSH until the floor is green.** `origin` is clean; nothing red has reached the DR site.
+The red is closed. **Verify this block against `git status` + `.floor/latest` before trusting it** —
+it was written the moment it was true, and it is the line most likely to age badly.
 
-**A process failure to own, because the next self will find it:** `800bf6db` was meant to commit a
-brief plus one test retirement. I typed `git add docs/ tests/` and swept in **131 files** — the whole
-of Wave A's recaptures and lifted ignores — **on a red tree**, breaking "we only commit to main with
-passing tests." It is local-only, so it is recoverable, and the fix is simply that the next commit
-lands green before anything is pushed. **Stage by path, never by directory, when the tree is dirty
-with other work.**
-
-Uncommitted right now: `src/wat_edn_bridge.rs` (stone J's span carriage — **working**),
-`tests/program/probe_arc213_program_edn_roundtrip__program_frame.edn`, and the new
-`tests/program/probe_296j_span_round_trip.rs`.
-
-**A rider (J-2) was in flight at the compaction boundary** — closing the three failing contracts. Its
-work may or may not be in the tree. **Check `git status` before assuming either way.** Its brief is
-`296/BRIEF-296-J2-the-three-contracts.md`.
+**A process failure worth keeping, because the habit outlives the incident:** `800bf6db` was meant to
+commit a brief plus one test retirement. I typed `git add docs/ tests/` and swept in **131 files** —
+the whole of Wave A — **on a red tree**, breaking "we only commit to main with passing tests." It was
+local-only and is now green and pushed. The rule it bought: **stage by explicit path, never by
+directory, whenever the tree is dirty with work that is not yours.** J+J-2 was staged as seven named
+paths.
 
 ## ⛔ FIRST ACTION: read the arc's REALIZATIONS + `git log`, NOT just the design
 
@@ -55,12 +48,19 @@ stretch.
 
 ## THE ROAD FROM HERE
 
-1. **J-2** — three contracts (`c02`, `c05`, the oracle). Brief written, rider dispatched. **This is
-   what unblocks the push.**
-2. **H (variants are maps)** — `DESIGN-STONE-H-variants-are-maps.md`. Drawn, ruled, **not built**.
-   213 occurrences / 103 files. The recapture machinery it needs now exists and is proven.
-3. **Wave B (T2, 101 tests)** and **Wave C (T3, 16)** — `CAMPAIGN-the-recapture-cascade.md`.
-4. **The frame-depth gap** — see below. Builder: *known issue, not now.*
+1. **H (variants are maps)** — `DESIGN-STONE-H-variants-are-maps.md`. Drawn, ruled, **not built**.
+   213 occurrences / 103 files *(a number from the pre-J stretch — RE-MEASURE it, counting THINGS not
+   files, before briefing anything on it)*. The recapture machinery it needs now exists and is proven
+   across 208 sites.
+2. **Wave B (T2, 101 tests)** and **Wave C (T3, 16)** — `CAMPAIGN-the-recapture-cascade.md`. Wave A
+   proved the law: the findings live in the TRIAGE, not the green.
+3. **The frame-depth gap** — wat has no multi-frame backtrace anywhere; see below. Builder: *known
+   issue, not now.* It is a real gap, deliberately not folded into J.
+4. **Task #48** — the unadopted-capability inventory. Five instances found by stumbling in one day.
+
+**J and J-2 are DONE and pushed** (`bf155639`). The oracle's subject was promoted out of the golden
+into a standing structural assertion, proven able to fail, before the golden was recaptured — so a
+future blind `UPDATE_EDN=1` cannot re-capture a span regression.
 
 ## ⛔ STONE J — WHAT IT ACTUALLY DELIVERS, MEASURED (do not restate this from memory)
 
@@ -138,11 +138,15 @@ Rete is one optimization from done: compiled `where` (#49). Also open: **#92** (
 > feeling is the failure.** Run the bootstrap against the SIGNED MCP, ground HEAD, and read this whole
 > file before you touch anything.
 >
-> **THE TREE IS RED AND TWO COMMITS ARE UNPUSHED. Do not push until the floor is green.** A rider was
-> mid-flight at the boundary — `git status` before you assume anything about the tree.
+> **The tree was green and fully pushed at `bf155639` when this was written. CHECK IT ANYWAY** —
+> `git status`, `git log origin/main..HEAD`, `.floor/latest`. A seam that says "green" is the easiest
+> line in this file to believe and the easiest to have gone stale.
 >
-> **Do not re-derive the design, do not trust it, and do not skip the arc's own REALIZATIONS** —
-> which lag this stretch entirely.
+> **Do not re-derive the design, do not trust it, and do not skip the arc's own REALIZATIONS.**
+> ⚠ 296's `REALIZATIONS.md` **stops at R19, 2026-07-02** — six weeks and roughly ten stones behind.
+> It is not a lagging record of this stretch; it is a different era's record, closing on a hand-off to
+> a swarm that has long since run. The `git log` and the DESIGN-STONE files are the only witnesses for
+> everything after it.
 >
 > ⚠ Every number in this file was wrong at least once today before a rider or the builder corrected
 > it. **Re-measure anything you are about to act on**, and count THINGS, not files.
