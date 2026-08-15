@@ -1698,10 +1698,43 @@ pub fn register_aggregate_methods(
                 closed_env: None,
                 rete: None,
             };
-            // Same collision policy as the ctor mint above — silent-skip on a
-            // same-aggregate re-walk (e.g. a forked bracket worker re-registering
-            // its shipped surface-forms).
-            sym.function_entry(accessor_path).or_insert_with(|| Arc::new(accessor_func));
+            // Arc 296 stone H-1c — route through THE ONE gate before minting.
+            // This loop is the actual accessor registration site for every
+            // Aggregate nature (Struct + Record + HolonRecord); the field name
+            // came straight off `agg.fields` with no dot check anywhere upstream
+            // of here. `preregister_struct_accessors_from_form` (the ONE other
+            // accessor gate) only fires for `defstruct`/`structtype` forms
+            // nested in a `do`/`let` body — a `defrecord`'s expansion
+            // (`recordtype`) never reaches it, so this was the hole a dotted
+            // record field slipped through. Privilege::Stdlib mirrors
+            // `CheckEnv::from_symbols`'s identical precedent (env.rs ~151-158):
+            // `types` was already vetted for Reserved/Unnamespaced at type
+            // registration, so only the DottedName wall can still fire here —
+            // and DottedName is held even against Stdlib, so the choice of
+            // privilege changes nothing for that arm.
+            let acc_existing = if sym.has_function(&accessor_path) {
+                crate::resolve::Existing::Equivalent
+            } else {
+                crate::resolve::Existing::Absent
+            };
+            match crate::resolve::gate(&accessor_path, crate::resolve::Privilege::Stdlib, acc_existing) {
+                crate::resolve::Registration::Reserved => {
+                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::ReservedPrefix(accessor_path)));
+                }
+                crate::resolve::Registration::Unnamespaced => {
+                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UnnamespacedName(accessor_path)));
+                }
+                crate::resolve::Registration::DottedName => {
+                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DottedName(accessor_path)));
+                }
+                crate::resolve::Registration::Insert => {
+                    sym.function_entry(accessor_path).or_insert_with(|| Arc::new(accessor_func));
+                }
+                // Same collision policy as the ctor mint above — silent-skip on a
+                // same-aggregate re-walk (e.g. a forked bracket worker re-registering
+                // its shipped surface-forms).
+                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
+            }
         }
     }
     Ok(())
