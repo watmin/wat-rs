@@ -17,6 +17,7 @@
 //! existing form" cannot recur: there is one gate, and it checks equivalence first.
 
 use super::reserved::is_reserved_prefix;
+use crate::span::Span;
 
 /// The ONE privilege bit — "is this registration processing STDLIB source or USER
 /// source?" — the single distinction the four old mechanisms all encoded. Threaded
@@ -116,7 +117,7 @@ fn has_dotted_name(name: &str) -> bool {
 /// `Reserved`, on the same footing as `Unnamespaced`: it is a WALL, not a
 /// privilege-gated permission, so it is held even against `Privilege::Stdlib` — there is
 /// no privilege escape from it, exactly as there is none from the namespacing wall.
-pub fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registration {
+fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registration {
     match existing {
         Existing::Equivalent => Registration::NoOp,
         Existing::Divergent => Registration::Duplicate,
@@ -131,6 +132,58 @@ pub fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registratio
                 Registration::Insert
             }
         }
+    }
+}
+
+/// Arc 296 stone I — what a caller gets back when [`register`] refuses. Carries enough
+/// for the caller's OWN error taxonomy to build its located error: the verdict (which
+/// wall fired), the name (what was being registered), and the span (where). `From<Rejection>`
+/// is implemented for each of the four error taxonomies (`RuntimeError`, `TypeError`,
+/// `MacroError`, `CheckError`) next to their own definitions, so `?` performs the
+/// taxonomy conversion at every call site — no caller matches on `Registration` itself.
+///
+/// `verdict` is never `Registration::Insert` or `Registration::NoOp` — [`register`] only
+/// ever builds a `Rejection` for a genuine refusal (`Duplicate` / `Reserved` /
+/// `Unnamespaced` / `DottedName`); those two are handled internally by performing (or
+/// skipping) the insert instead.
+#[derive(Debug, Clone)]
+pub struct Rejection {
+    pub verdict: Registration,
+    pub name: String,
+    pub span: Span,
+}
+
+/// THE one public entry to the gate. `gate` is private to this module — asking the door
+/// and separately performing the insert has no form, because inserting IS passing
+/// through: `insert` runs exactly when (and only when) the gate answers `Insert`, inside
+/// this call, so there is no window in which a caller can hold an `Insert` verdict and
+/// fail to act on it (or act on it wrong).
+///
+/// `insert` is fallible (`FnOnce() -> Result<T, E>`) so a caller whose own insert step
+/// has an independent failure mode (e.g. a cycle check that must run before the actual
+/// write) can surface it through the SAME `E` the rejection converts into — `E:
+/// From<Rejection>` is the only requirement, so `?` at the call site handles both the
+/// gate's rejection and the insert's own failure uniformly, with no arm written on
+/// `Registration` anywhere outside this module.
+///
+/// Returns `Ok(Some(t))` when the insert ran (gate said `Insert`) and produced `t`;
+/// `Ok(None)` when the name is already registered identically (gate said `NoOp` — a
+/// benign idempotent re-declaration, insert does NOT run); `Err(_)` when the gate
+/// refused (`Duplicate` / `Reserved` / `Unnamespaced` / `DottedName`).
+pub fn register<T, E>(
+    name: &str,
+    privilege: Privilege,
+    existing: Existing,
+    span: &Span,
+    insert: impl FnOnce() -> Result<T, E>,
+) -> Result<Option<T>, E>
+where
+    E: From<Rejection>,
+{
+    match gate(name, privilege, existing) {
+        Registration::Insert => insert().map(Some),
+        Registration::NoOp => Ok(None),
+        verdict => Err(E::from(Rejection { verdict, name: name.to_string(), span: span.clone() })),
     }
 }
 

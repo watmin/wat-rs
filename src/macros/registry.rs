@@ -2,7 +2,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
 
-use super::error::{MacroError, MacroErrorKind};
+use super::error::MacroError;
 
 /// A registered macro.
 #[derive(Debug, Clone)]
@@ -74,31 +74,19 @@ impl MacroRegistry {
     /// no-op; a divergent one errors DuplicateMacro; a new reserved-prefix name from User
     /// errors ReservedPrefix.
     pub fn register(&mut self, def: MacroDef, privilege: crate::resolve::Privilege) -> Result<(), MacroError> {
-        use crate::resolve::{gate, Existing, Registration};
+        use crate::resolve::Existing;
         let existing = match self.macros.get(&def.name) {
             None => Existing::Absent,
             Some(e) if macro_structurally_equivalent(e, &def) => Existing::Equivalent,
             Some(_) => Existing::Divergent,
         };
-        match gate(&def.name, privilege, existing) {
-            Registration::Insert => {
-                self.macros.insert(def.name.clone(), def);
-                Ok(())
-            }
-            Registration::NoOp => Ok(()),
-            Registration::Duplicate => {
-                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) })
-            }
-            Registration::Reserved => {
-                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) })
-            }
-            Registration::Unnamespaced => {
-                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::UnnamespacedName(def.name) })
-            }
-            Registration::DottedName => {
-                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DottedName(def.name) })
-            }
-        }
+        let name = def.name.clone();
+        let span = def.span.clone();
+        crate::resolve::register(&name, privilege, existing, &span, || -> Result<(), MacroError> {
+            self.macros.insert(def.name.clone(), def);
+            Ok(())
+        })?;
+        Ok(())
     }
 
 }

@@ -93,7 +93,7 @@ mod walk;
 // macros/registry.rs, closure_extract.rs).
 pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
-pub use registration::{gate, is_namespaced, Existing, Privilege, Registration};
+pub use registration::{is_namespaced, register, Existing, Privilege, Registration, Rejection};
 pub use reserved::{is_reserved_prefix, reserved_prefix_list};
 pub use walk::resolve_references;
 

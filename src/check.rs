@@ -569,7 +569,7 @@ pub fn check_program(
     // can be updated incrementally as top-level `def` forms are processed.
     // Stone 243.3.1 — pass `types` by reference (borrow); CheckEnv borrows it.
     // No Arc::new(types.clone()) — the borrow makes the deep-clone unrepresentable.
-    let mut env = CheckEnv::from_symbols(sym, types);
+    let mut env = CheckEnv::from_symbols(sym, types).map_err(|e| CheckErrors(vec![*e]))?;
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
@@ -8099,33 +8099,31 @@ fn collect_splice_defs_ctx(
                 } else {
                     crate::resolve::Existing::Absent
                 };
-                match crate::resolve::gate(&name, crate::resolve::Privilege::User, existing) {
-                    crate::resolve::Registration::Unnamespaced => {
-                        errors.push(CheckError { span, kind: CheckErrorKind::UnnamespacedName { name } });
-                    }
-                    crate::resolve::Registration::Reserved => {
-                        errors.push(CheckError { span, kind: CheckErrorKind::ReservedPrefix { name } });
-                    }
-                    crate::resolve::Registration::DottedName => {
-                        errors.push(CheckError { span, kind: CheckErrorKind::DottedName { name } });
-                    }
-                    crate::resolve::Registration::Insert => {
-                        // First binding — always register. Also store the body AST for
-                        // arc-054 byte-equivalence checking on redef (infer_def consults
-                        // `get_defined_value_ast` to allow identical re-declarations).
-                        if let WatAST::List(items, _) = form {
-                            let expr_idx = if items.len() == 4 { 3 } else { 2 };
-                            if let Some(ast) = items.get(expr_idx) {
-                                env.register_defined_value_ast(&name, ast.clone());
-                            }
+                // `already_defined` is the caller's OWN presence check (already computed
+                // above, for `existing`) — reused here instead of re-deriving it from the
+                // gate's verdict, so the redef decision below stays decoupled from what the
+                // door decides. `Duplicate` never actually arises here (we only ever pass
+                // `Equivalent` or `Absent` above); the door's `Err` path (Unnamespaced /
+                // Reserved / DottedName) is pushed to `errors` uniformly via `Rejection`'s
+                // `From<Rejection> for CheckError`.
+                let already_defined = matches!(existing, crate::resolve::Existing::Equivalent);
+                let outcome = crate::resolve::register(&name, crate::resolve::Privilege::User, existing, &span, || -> Result<(), Box<CheckError>> {
+                    // First binding — always register. Also store the body AST for
+                    // arc-054 byte-equivalence checking on redef (infer_def consults
+                    // `get_defined_value_ast` to allow identical re-declarations).
+                    if let WatAST::List(items, _) = form {
+                        let expr_idx = if items.len() == 4 { 3 } else { 2 };
+                        if let Some(ast) = items.get(expr_idx) {
+                            env.register_defined_value_ast(&name, ast.clone());
                         }
-                        env.register_defined_value(name, ty, span);
                     }
-                    crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {
-                        // The existing redef path — UNCHANGED. `Duplicate` never actually
-                        // arises here (we only ever pass `Equivalent` or `Absent` above),
-                        // matched alongside `NoOp` for the same reason every other gate
-                        // call site does: uniform handling if that ever changes.
+                    env.register_defined_value(name.clone(), ty.clone(), span.clone());
+                    Ok(())
+                });
+                match outcome {
+                    Err(e) => errors.push(*e),
+                    Ok(_) if already_defined => {
+                        // The existing redef path — UNCHANGED.
                         if env.redef_allowed {
                             // Arc 157 slice 1a-ii — opt-in redef with type-stability.
                             // If types match (already verified in infer_def), replace
@@ -8144,6 +8142,7 @@ fn collect_splice_defs_ctx(
                         // else: redef_allowed = false → DefRedefForbidden already
                         // emitted by infer_def; don't overwrite.
                     }
+                    Ok(_) => {}
                 }
             }
         }

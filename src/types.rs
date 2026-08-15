@@ -600,61 +600,48 @@ impl TypeEnv {
             Some(e) if e == &def => crate::resolve::Existing::Equivalent,
             Some(_) => crate::resolve::Existing::Divergent,
         };
-        match crate::resolve::gate(&name, privilege, existing) {
-            crate::resolve::Registration::NoOp => return Ok(()),
-            crate::resolve::Registration::Duplicate => {
-                return Err(TypeError::new(span, TypeErrorKind::DuplicateType { name }))
+        crate::resolve::register(&name, privilege, existing, &span, || -> Result<(), TypeError> {
+            // Reject cyclic aliases BEFORE insertion so `expand_alias` can
+            // assume every alias in the registry is non-cyclic.
+            if let TypeDef::Alias(alias) = &def {
+                check_alias_no_cycle(&name, &alias.expr, self, &span)?;
             }
-            crate::resolve::Registration::Reserved => {
-                return Err(TypeError::new(span, TypeErrorKind::ReservedPrefix { name }))
+            // Stone 237.1 — reject typeunions with invalid members or cycles.
+            if let TypeDef::Union(union) = &def {
+                validate_union_members(&name, &union.members, &span)?;
+                check_union_no_cycle(&name, &union.members, self, &span)?;
             }
-            crate::resolve::Registration::Unnamespaced => {
-                return Err(TypeError::new(span, TypeErrorKind::UnnamespacedName { name }))
+            // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
+            // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
+            // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
+            // aggregate registers :Name <: nature.root_keyword().
+            if let TypeDef::Aggregate(agg) = &def {
+                let root = agg.nature.root_keyword();
+                self.types.insert(name.clone(), def);
+                return self.register_subtype(&name, root, span.clone());
             }
-            crate::resolve::Registration::DottedName => {
-                return Err(TypeError::new(span, TypeErrorKind::DottedName { name }))
-            }
-            crate::resolve::Registration::Insert => {}
-        }
-        // Reject cyclic aliases BEFORE insertion so `expand_alias` can
-        // assume every alias in the registry is non-cyclic.
-        if let TypeDef::Alias(alias) = &def {
-            check_alias_no_cycle(&name, &alias.expr, self, &span)?;
-        }
-        // Stone 237.1 — reject typeunions with invalid members or cycles.
-        if let TypeDef::Union(union) = &def {
-            validate_union_members(&name, &union.members, &span)?;
-            check_union_no_cycle(&name, &union.members, self, &span)?;
-        }
-        // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
-        // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
-        // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
-        // aggregate registers :Name <: nature.root_keyword().
-        if let TypeDef::Aggregate(agg) = &def {
-            let root = agg.nature.root_keyword();
-            self.types.insert(name.clone(), def);
-            return self.register_subtype(&name, root, span);
-        }
-        // Arc 278 the string-wrap annihilation — a `:nature :wat::core::Record` surface
-        // IS a subtype of `:wat::core::Record`, exactly like a concrete Record aggregate:
-        // every value satisfying the surface is a record, so `:wat::core::Error <:
-        // :wat::core::Record`. Without this edge a record accessor (param `:wat::core::Record`)
-        // rejects a surface-typed value — e.g. `(:wat::core::Fault/message
-        // (:wat::kernel::Failure/error f))`, where `Failure/error` yields `:wat::core::Error`.
-        // Restricted to Nature::Record ONLY: a `:nature :HolonRecord` surface must NOT gain a
-        // `<: :wat::holon::Record` edge — that would let `is_subtype` short-circuit the holon
-        // NATURE LADDER (a non-holon foreign type could then satisfy a holon-floor surface;
-        // see probe_arc293_holder_ladder_foreign). Struct/Peer surfaces are unaffected.
-        if let TypeDef::Surface(surf) = &def {
-            if surf.nature == Some(Nature::Record) {
-                let root = Nature::Record.root_keyword();
-                if name != root {
-                    self.types.insert(name.clone(), def);
-                    return self.register_subtype(&name, root, span);
+            // Arc 278 the string-wrap annihilation — a `:nature :wat::core::Record` surface
+            // IS a subtype of `:wat::core::Record`, exactly like a concrete Record aggregate:
+            // every value satisfying the surface is a record, so `:wat::core::Error <:
+            // :wat::core::Record`. Without this edge a record accessor (param `:wat::core::Record`)
+            // rejects a surface-typed value — e.g. `(:wat::core::Fault/message
+            // (:wat::kernel::Failure/error f))`, where `Failure/error` yields `:wat::core::Error`.
+            // Restricted to Nature::Record ONLY: a `:nature :HolonRecord` surface must NOT gain a
+            // `<: :wat::holon::Record` edge — that would let `is_subtype` short-circuit the holon
+            // NATURE LADDER (a non-holon foreign type could then satisfy a holon-floor surface;
+            // see probe_arc293_holder_ladder_foreign). Struct/Peer surfaces are unaffected.
+            if let TypeDef::Surface(surf) = &def {
+                if surf.nature == Some(Nature::Record) {
+                    let root = Nature::Record.root_keyword();
+                    if name != root {
+                        self.types.insert(name.clone(), def);
+                        return self.register_subtype(&name, root, span.clone());
+                    }
                 }
             }
-        }
-        self.types.insert(name, def);
+            self.types.insert(name.clone(), def);
+            Ok(())
+        })?;
         Ok(())
     }
 

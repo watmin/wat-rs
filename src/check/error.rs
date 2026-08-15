@@ -26,6 +26,37 @@ pub struct CheckError {
     pub kind: CheckErrorKind,
 }
 
+/// Arc 296 stone I — the taxonomy conversion `resolve::register`'s `?` performs at every
+/// check-side call site. `Rejection::verdict` is never `Insert`/`NoOp` (see its doc), so
+/// those two arms are unreachable by construction.
+impl From<crate::resolve::Rejection> for CheckError {
+    fn from(r: crate::resolve::Rejection) -> Self {
+        use crate::resolve::Registration;
+        let kind = match r.verdict {
+            Registration::Duplicate => CheckErrorKind::DuplicateScheme { name: r.name },
+            Registration::Reserved => CheckErrorKind::ReservedPrefix { name: r.name },
+            Registration::Unnamespaced => CheckErrorKind::UnnamespacedName { name: r.name },
+            Registration::DottedName => CheckErrorKind::DottedName { name: r.name },
+            Registration::Insert | Registration::NoOp => {
+                unreachable!("resolve::register never rejects with Insert/NoOp")
+            }
+        };
+        CheckError { span: r.span, kind }
+    }
+}
+
+/// `CheckErrorKind` (168 bytes, unboxed — unlike `RuntimeErrorKind`/`TypeErrorKind`/
+/// `MacroErrorKind`, which box their kind specifically to duck this) trips
+/// clippy's `result_large_err` the moment a bare `Result<_, CheckError>` appears in a
+/// signature, which a couple of `resolve::register` call sites now do. Boxing AT THOSE
+/// TWO SITES (not restructuring `CheckError` itself — out of this stone's blast radius)
+/// is what this impl is for.
+impl From<crate::resolve::Rejection> for Box<CheckError> {
+    fn from(r: crate::resolve::Rejection) -> Self {
+        Box::new(CheckError::from(r))
+    }
+}
+
 /// Variant data for [`CheckError`]. Spans live in the outer struct; variants
 /// carry ONLY data unique to each failure kind.
 ///
@@ -238,6 +269,15 @@ pub enum CheckErrorKind {
     /// Reserved because a dotted NAME is the wire discriminator for a tagged-enum
     /// variant (`#ns/Enum.Variant`); a record whose name contained a dot could forge it.
     DottedName { name: String },
+    /// Arc 296 stone I — a name landed on `CheckEnv`'s overlay scheme table
+    /// ([`crate::check::env::CheckEnv::register_overlay`]) DIVERGENT from what is already
+    /// registered there: the same FQDN meaning two different signatures. Sixth taxonomy
+    /// entry for `Registration::Duplicate` (`TypeErrorKind::DuplicateType`,
+    /// `RuntimeErrorKind::DuplicateDefine`, `MacroErrorKind::DuplicateMacro` already had
+    /// theirs) — the overlay table is the one registry `resolve::gate`'s `Duplicate`
+    /// verdict was previously observed but never actually surfaced as more than a bare
+    /// `eprintln!` (see `from_symbols`'s `GATE-REJECT` swallow, closed by this stone).
+    DuplicateScheme { name: String },
     /// Arc 170 slice 1e — `:user::main` with non-canonical signature.
     ///
     /// D1: primary span was `:location`; normalized to `:span`.
@@ -643,6 +683,12 @@ impl CheckErrorKind {
                  NAME half means \"this is an enum variant\" (`#ns/Enum.Variant`), so a \
                  registered name may not contain one, or it could forge that tag; rename \
                  without the dot",
+                prefix, name
+            ),
+            CheckErrorKind::DuplicateScheme { name } => write!(
+                f,
+                "{}'{}' is already registered with a different signature — the overlay \
+                 scheme table does not allow a name to mean two different things",
                 prefix, name
             ),
             CheckErrorKind::BareLegacyMainSignature => write!(

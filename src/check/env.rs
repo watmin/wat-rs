@@ -15,6 +15,7 @@
 //! - All other 7 fields — OWNED (derived, incremental, or mid-pass-mutable)
 
 use crate::ast::WatAST;
+use crate::check::error::CheckError;
 use crate::runtime::SymbolTable;
 use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
@@ -144,7 +145,7 @@ impl<'a> CheckEnv<'a> {
     /// Stone 243.3.1 — `types` is now borrowed (`&'a TypeEnv`), not
     /// deep-cloned into `Arc<TypeEnv>`. `binding_metadata` is borrowed
     /// directly from `sym` — no `Arc::new(sym.binding_metadata.clone())`.
-    pub fn from_symbols(sym: &'a SymbolTable, types: &'a TypeEnv) -> CheckEnv<'a> {
+    pub fn from_symbols(sym: &'a SymbolTable, types: &'a TypeEnv) -> Result<CheckEnv<'a>, Box<CheckError>> {
         let mut env = Self::with_builtins_and_types(types);
         for (path, func) in sym.functions_iter() {
             if let Some(scheme) = super::derive_scheme_from_function(func) {
@@ -154,15 +155,13 @@ impl<'a> CheckEnv<'a> {
                 // define-registration, upstream of the freeze, so re-asserting it here
                 // would reject the stdlib's own `:wat::` functions. What this call is
                 // for is the Divergent arm — a name meaning two different things.
-                if let Err(verdict) =
-                    env.register_overlay(path.clone(), scheme, crate::resolve::Privilege::Stdlib)
-                {
-                    // Loud on purpose while we learn what the corpus holds. A divergent
-                    // scheme reaching here is exactly the class the gate exists to name.
-                    eprintln!(
-                        "GATE-REJECT\t{path}\t{verdict:?}"
-                    );
-                }
+                //
+                // Arc 296 stone I — this used to be `eprintln!("GATE-REJECT...")` and
+                // keep going ("Loud on purpose while we learn what the corpus holds").
+                // It is now a real, located error: a divergent scheme reaching here was
+                // being silently accepted. `?` performs the `Rejection` -> `CheckError`
+                // taxonomy conversion.
+                env.register_overlay(path.clone(), scheme, crate::resolve::Privilege::Stdlib)?;
             }
         }
         // Stone 237.8b — also load defclauses from runtime_def_values so the checker
@@ -232,7 +231,7 @@ impl<'a> CheckEnv<'a> {
         // Read-only after freeze time — binding_metadata is populated before
         // check_program runs; safe to borrow for the pass duration.
         env.binding_metadata = Some(&sym.binding_metadata);
-        env
+        Ok(env)
     }
 
     /// Build an env with built-in schemes + the given `TypeEnv` borrow.
@@ -313,20 +312,21 @@ impl<'a> CheckEnv<'a> {
         name: String,
         scheme: TypeScheme,
         privilege: crate::resolve::Privilege,
-    ) -> Result<(), crate::resolve::Registration> {
+    ) -> Result<(), crate::resolve::Rejection> {
         let existing = match self.schemes.get(&name) {
             None => crate::resolve::Existing::Absent,
             Some(prev) if prev == &scheme => crate::resolve::Existing::Equivalent,
             Some(_) => crate::resolve::Existing::Divergent,
         };
-        match crate::resolve::gate(&name, privilege, existing) {
-            crate::resolve::Registration::NoOp => Ok(()),
-            crate::resolve::Registration::Insert => {
-                self.schemes.insert(name, scheme);
-                Ok(())
-            }
-            verdict => Err(verdict),
-        }
+        // Arc 296 stone I — no form span at this call site (`from_symbols` replays an
+        // already-frozen SymbolTable, not source forms); `rust_caller_span!()` is the
+        // honest answer.
+        let span = crate::rust_caller_span!();
+        crate::resolve::register(&name, privilege, existing, &span, || -> Result<(), crate::resolve::Rejection> {
+            self.schemes.insert(name.clone(), scheme);
+            Ok(())
+        })?;
+        Ok(())
     }
 
     /// Look up a function or builtin scheme by FQDN. For `def`-bound value types
@@ -500,7 +500,7 @@ mod tests {
         sym.register_def_value(":my::op".into(), Value::wat__core__clauses(cs));
 
         let types = TypeEnv::default();
-        let env = CheckEnv::from_symbols(&sym, &types);
+        let env = CheckEnv::from_symbols(&sym, &types).expect("from_symbols ok");
 
         // The defclause must be in the check env's registration table.
         let clauses = env.get_defclause_clauses(":my::op")

@@ -97,7 +97,7 @@ fn checkenv_from_symbols_borrows() {
 
     // Both inputs passed BY REFERENCE. Pre-stone this is a type error (types
     // expected as Arc<TypeEnv>). Post-stone it compiles — the borrow path.
-    let env: CheckEnv<'_> = CheckEnv::from_symbols(&sym, &types);
+    let env: CheckEnv<'_> = CheckEnv::from_symbols(&sym, &types).expect("from_symbols ok");
 
     // **The COMPILATION is the assertion** — pre-stone, `from_symbols` expected an
     // `Arc<TypeEnv>`, so passing both inputs by reference was a type error. That it

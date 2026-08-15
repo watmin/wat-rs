@@ -10,6 +10,25 @@ pub struct MacroError {
     pub kind: MacroErrorKind,
 }
 
+/// Arc 296 stone I — the taxonomy conversion `resolve::register`'s `?` performs at every
+/// macro-registration call site. `Rejection::verdict` is never `Insert`/`NoOp` (see its
+/// doc), so those two arms are unreachable by construction.
+impl From<crate::resolve::Rejection> for MacroError {
+    fn from(r: crate::resolve::Rejection) -> Self {
+        use crate::resolve::Registration;
+        let kind = match r.verdict {
+            Registration::Duplicate => MacroErrorKind::DuplicateMacro(r.name),
+            Registration::Reserved => MacroErrorKind::ReservedPrefix(r.name),
+            Registration::Unnamespaced => MacroErrorKind::UnnamespacedName(r.name),
+            Registration::DottedName => MacroErrorKind::DottedName(r.name),
+            Registration::Insert | Registration::NoOp => {
+                unreachable!("resolve::register never rejects with Insert/NoOp")
+            }
+        };
+        MacroError { span: r.span, kind }
+    }
+}
+
 /// Variant data for [`MacroError`]. Spans live in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
 ///

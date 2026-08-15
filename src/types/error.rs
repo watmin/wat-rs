@@ -42,6 +42,25 @@ impl TypeError {
     }
 }
 
+/// Arc 296 stone I — the taxonomy conversion `resolve::register`'s `?` performs at every
+/// type-registration call site. `Rejection::verdict` is never `Insert`/`NoOp` (see its
+/// doc), so those two arms are unreachable by construction.
+impl From<crate::resolve::Rejection> for TypeError {
+    fn from(r: crate::resolve::Rejection) -> Self {
+        use crate::resolve::Registration;
+        let kind = match r.verdict {
+            Registration::Duplicate => TypeErrorKind::DuplicateType { name: r.name },
+            Registration::Reserved => TypeErrorKind::ReservedPrefix { name: r.name },
+            Registration::Unnamespaced => TypeErrorKind::UnnamespacedName { name: r.name },
+            Registration::DottedName => TypeErrorKind::DottedName { name: r.name },
+            Registration::Insert | Registration::NoOp => {
+                unreachable!("resolve::register never rejects with Insert/NoOp")
+            }
+        };
+        TypeError::new(r.span, kind)
+    }
+}
+
 /// Variant data for [`TypeError`]. Spans live in the outer struct; variants
 /// carry ONLY data unique to each failure kind.
 ///

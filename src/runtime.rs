@@ -942,21 +942,10 @@ pub fn register_defines(
             } else {
                 crate::resolve::Existing::Absent
             };
-            match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
-                crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(path)));
-                }
-                crate::resolve::Registration::Unnamespaced => {
-                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
-                }
-                crate::resolve::Registration::DottedName => {
-                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::DottedName(path)));
-                }
-                crate::resolve::Registration::Insert => {
-                    sym.register_function(path.clone(), func);
-                }
-                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-            }
+            crate::resolve::register(&path, crate::resolve::Privilege::User, existing, &form_span, || -> Result<(), RuntimeError> {
+                sym.register_function(path.clone(), func);
+                Ok(())
+            })?;
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
             }
@@ -981,21 +970,10 @@ pub fn register_defines(
             } else {
                 crate::resolve::Existing::Absent
             };
-            match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
-                crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(path)));
-                }
-                crate::resolve::Registration::Unnamespaced => {
-                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(path)));
-                }
-                crate::resolve::Registration::DottedName => {
-                    return Err(RuntimeError::new(form_span, RuntimeErrorKind::DottedName(path)));
-                }
-                crate::resolve::Registration::Insert => {
-                    sym.register_function(path, func);
-                }
-                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-            }
+            crate::resolve::register(&path, crate::resolve::Privilege::User, existing, &form_span, || -> Result<(), RuntimeError> {
+                sym.register_function(path.clone(), func);
+                Ok(())
+            })?;
             rest.push(form);
         } else if let WatAST::List(ref do_items, _) = form {
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
@@ -1717,24 +1695,10 @@ pub fn register_aggregate_methods(
             } else {
                 crate::resolve::Existing::Absent
             };
-            match crate::resolve::gate(&accessor_path, crate::resolve::Privilege::Stdlib, acc_existing) {
-                crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::ReservedPrefix(accessor_path)));
-                }
-                crate::resolve::Registration::Unnamespaced => {
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UnnamespacedName(accessor_path)));
-                }
-                crate::resolve::Registration::DottedName => {
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DottedName(accessor_path)));
-                }
-                crate::resolve::Registration::Insert => {
-                    sym.function_entry(accessor_path).or_insert_with(|| Arc::new(accessor_func));
-                }
-                // Same collision policy as the ctor mint above — silent-skip on a
-                // same-aggregate re-walk (e.g. a forked bracket worker re-registering
-                // its shipped surface-forms).
-                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-            }
+            crate::resolve::register(&accessor_path, crate::resolve::Privilege::Stdlib, acc_existing, &crate::rust_caller_span!(), || -> Result<(), RuntimeError> {
+                sym.function_entry(accessor_path.clone()).or_insert_with(|| Arc::new(accessor_func));
+                Ok(())
+            })?;
         }
     }
     Ok(())
@@ -2616,91 +2580,80 @@ fn register_defalias(
     } else {
         crate::resolve::Existing::Absent
     };
-    match crate::resolve::gate(alias, privilege, existing) {
-        crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => return Ok(()),
-        crate::resolve::Registration::Reserved => {
-            return Err(RuntimeError::new(span, RuntimeErrorKind::ReservedPrefix(alias.to_string())));
+    crate::resolve::register(alias, privilege, existing, &span, || -> Result<(), RuntimeError> {
+        // Case 1: target is a user-defined function already in sym.functions.
+        if let Some(target_fn) = sym.get(target) {
+            // Create a delegating Function whose body calls `(target params...)`.
+            // This mirrors what the old define-alias macro produced: a new define whose
+            // signature copies the target's params and return type, and whose body calls
+            // `(target p0 p1 ...)`.
+            let target_fn = Arc::clone(target_fn);
+            let body = build_delegate_body(target, &target_fn.params, target_fn.rest_param.as_deref(), span.clone());
+            let alias_fn = Arc::new(Function {
+                name: Some(alias.to_string()),
+                params: target_fn.params.clone(),
+                type_params: target_fn.type_params.clone(),
+                param_types: target_fn.param_types.clone(),
+                ret_type: target_fn.ret_type.clone(),
+                rest_param: target_fn.rest_param.clone(),
+                rest_param_type: target_fn.rest_param_type.clone(),
+                body: FunctionBody::Wat(Arc::new(body)),
+                closed_env: None,
+                rete: None,
+            });
+            sym.register_function(alias.to_string(), alias_fn);
+            return Ok(());
         }
-        crate::resolve::Registration::Unnamespaced => {
-            return Err(RuntimeError::new(span, RuntimeErrorKind::UnnamespacedName(alias.to_string())));
-        }
-        crate::resolve::Registration::DottedName => {
-            return Err(RuntimeError::new(span, RuntimeErrorKind::DottedName(alias.to_string())));
-        }
-        crate::resolve::Registration::Insert => {}
-    }
 
-    // Case 1: target is a user-defined function already in sym.functions.
-    if let Some(target_fn) = sym.get(target) {
-        // Create a delegating Function whose body calls `(target params...)`.
-        // This mirrors what the old define-alias macro produced: a new define whose
-        // signature copies the target's params and return type, and whose body calls
-        // `(target p0 p1 ...)`.
-        let target_fn = Arc::clone(target_fn);
-        let body = build_delegate_body(target, &target_fn.params, target_fn.rest_param.as_deref(), span.clone());
-        let alias_fn = Arc::new(Function {
+        // Case 2: target is a substrate primitive (in CheckEnv::with_builtins_and_types).
+        // Stone 243.3.1 — with_builtins() removed; caller binds TypeEnv first.
+        let _builtin_types = crate::types::TypeEnv::with_builtins();
+        let builtin_env = crate::check::CheckEnv::with_builtins_and_types(&_builtin_types);
+        if let Some(scheme) = builtin_env.get(target) {
+            // Synthesize param names _p0, _p1, ... from scheme.params.
+            let param_names: Vec<crate::scope::Identifier> = scheme.params
+                .iter()
+                .enumerate()
+                .map(|(i, _)| crate::scope::Identifier::bare(format!("_p{}", i)))
+                .collect();
+            let rest_param = scheme.rest_param_type.as_ref().map(|_| "_rest".to_string());
+            let body = build_delegate_body(target, &param_names, rest_param.as_deref(), span.clone());
+            let alias_fn = Arc::new(Function {
+                name: Some(alias.to_string()),
+                params: param_names,
+                type_params: scheme.type_params.clone(),
+                param_types: scheme.params.clone(),
+                ret_type: scheme.ret.clone(),
+                rest_param,
+                rest_param_type: scheme.rest_param_type.clone(),
+                body: FunctionBody::Wat(Arc::new(body)),
+                closed_env: None,
+                rete: None,
+            });
+            sym.register_function(alias.to_string(), alias_fn);
+            return Ok(());
+        }
+
+        // Case 3: unknown target — register a minimal stub so the alias name is
+        // "known" at check time, but the UnresolvedReference will surface at the
+        // first actual call-site. The target itself will also surface as an error.
+        // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
+        let stub_body = WatAST::NilLit(span.clone());
+        let stub_fn = Arc::new(Function {
             name: Some(alias.to_string()),
-            params: target_fn.params.clone(),
-            type_params: target_fn.type_params.clone(),
-            param_types: target_fn.param_types.clone(),
-            ret_type: target_fn.ret_type.clone(),
-            rest_param: target_fn.rest_param.clone(),
-            rest_param_type: target_fn.rest_param_type.clone(),
-            body: FunctionBody::Wat(Arc::new(body)),
+            params: vec![],
+            type_params: vec![],
+            param_types: vec![],
+            ret_type: crate::types::TypeExpr::Tuple(vec![]),
+            rest_param: None,
+            rest_param_type: None,
+            body: FunctionBody::Wat(Arc::new(stub_body)),
             closed_env: None,
             rete: None,
         });
-        sym.register_function(alias.to_string(), alias_fn);
-        return Ok(());
-    }
-
-    // Case 2: target is a substrate primitive (in CheckEnv::with_builtins_and_types).
-    // Stone 243.3.1 — with_builtins() removed; caller binds TypeEnv first.
-    let _builtin_types = crate::types::TypeEnv::with_builtins();
-    let builtin_env = crate::check::CheckEnv::with_builtins_and_types(&_builtin_types);
-    if let Some(scheme) = builtin_env.get(target) {
-        // Synthesize param names _p0, _p1, ... from scheme.params.
-        let param_names: Vec<crate::scope::Identifier> = scheme.params
-            .iter()
-            .enumerate()
-            .map(|(i, _)| crate::scope::Identifier::bare(format!("_p{}", i)))
-            .collect();
-        let rest_param = scheme.rest_param_type.as_ref().map(|_| "_rest".to_string());
-        let body = build_delegate_body(target, &param_names, rest_param.as_deref(), span.clone());
-        let alias_fn = Arc::new(Function {
-            name: Some(alias.to_string()),
-            params: param_names,
-            type_params: scheme.type_params.clone(),
-            param_types: scheme.params.clone(),
-            ret_type: scheme.ret.clone(),
-            rest_param,
-            rest_param_type: scheme.rest_param_type.clone(),
-            body: FunctionBody::Wat(Arc::new(body)),
-            closed_env: None,
-            rete: None,
-        });
-        sym.register_function(alias.to_string(), alias_fn);
-        return Ok(());
-    }
-
-    // Case 3: unknown target — register a minimal stub so the alias name is
-    // "known" at check time, but the UnresolvedReference will surface at the
-    // first actual call-site. The target itself will also surface as an error.
-    // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
-    let stub_body = WatAST::NilLit(span.clone());
-    let stub_fn = Arc::new(Function {
-        name: Some(alias.to_string()),
-        params: vec![],
-        type_params: vec![],
-        param_types: vec![],
-        ret_type: crate::types::TypeExpr::Tuple(vec![]),
-        rest_param: None,
-        rest_param_type: None,
-        body: FunctionBody::Wat(Arc::new(stub_body)),
-        closed_env: None,
-        rete: None,
-    });
-    sym.register_function(alias.to_string(), stub_fn);
+        sym.register_function(alias.to_string(), stub_fn);
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -2811,35 +2764,24 @@ fn preregister_struct_accessors_from_form(
     } else {
         crate::resolve::Existing::Absent
     };
-    match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
-        crate::resolve::Registration::Reserved => {
-            return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::ReservedPrefix(constructor_path)));
-        }
-        crate::resolve::Registration::Unnamespaced => {
-            return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
-        }
-        crate::resolve::Registration::DottedName => {
-            return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::DottedName(constructor_path)));
-        }
-        crate::resolve::Registration::Insert => {
-            sym.register_function(
-                constructor_path,
-                Arc::new(Function {
-                    name: None,
-                    params: Vec::new(),
-                    type_params: Vec::new(),
-                    param_types: Vec::new(),
-                    ret_type: unit_type.clone(),
-                    rest_param: None,
-                    rest_param_type: None,
-                    body: FunctionBody::Wat(stub_body.clone()),
-                    closed_env: None,
-                    rete: None,
-                }),
-            );
-        }
-        crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-    }
+    crate::resolve::register(&constructor_path, privilege, cons_existing, &form.span().clone(), || -> Result<(), RuntimeError> {
+        sym.register_function(
+            constructor_path.clone(),
+            Arc::new(Function {
+                name: None,
+                params: Vec::new(),
+                type_params: Vec::new(),
+                param_types: Vec::new(),
+                ret_type: unit_type.clone(),
+                rest_param: None,
+                rest_param_type: None,
+                body: FunctionBody::Wat(stub_body.clone()),
+                closed_env: None,
+                rete: None,
+            }),
+        );
+        Ok(())
+    })?;
 
     // Stone 241.8 — defstruct field-vector shape:
     //   items[0] = `:wat::core::defstruct`
@@ -2879,35 +2821,24 @@ fn preregister_struct_accessors_from_form(
             } else {
                 crate::resolve::Existing::Absent
             };
-            match crate::resolve::gate(&accessor_path, privilege, acc_existing) {
-                crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::ReservedPrefix(accessor_path)));
-                }
-                crate::resolve::Registration::Unnamespaced => {
-                    return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(accessor_path)));
-                }
-                crate::resolve::Registration::DottedName => {
-                    return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::DottedName(accessor_path)));
-                }
-                crate::resolve::Registration::Insert => {
-                    sym.register_function(
-                        accessor_path,
-                        Arc::new(Function {
-                            name: None,
-                            params: Vec::new(),
-                            type_params: Vec::new(),
-                            param_types: Vec::new(),
-                            ret_type: unit_type.clone(),
-                            rest_param: None,
-                            rest_param_type: None,
-                            body: FunctionBody::Wat(stub_body.clone()),
-                            closed_env: None,
-                            rete: None,
-                        }),
-                    );
-                }
-                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-            }
+            crate::resolve::register(&accessor_path, privilege, acc_existing, &form.span().clone(), || -> Result<(), RuntimeError> {
+                sym.register_function(
+                    accessor_path.clone(),
+                    Arc::new(Function {
+                        name: None,
+                        params: Vec::new(),
+                        type_params: Vec::new(),
+                        param_types: Vec::new(),
+                        ret_type: unit_type.clone(),
+                        rest_param: None,
+                        rest_param_type: None,
+                        body: FunctionBody::Wat(stub_body.clone()),
+                        closed_env: None,
+                        rete: None,
+                    }),
+                );
+                Ok(())
+            })?;
             idx += 3;
         }
     }
@@ -2999,35 +2930,24 @@ fn preregister_enum_constructors_from_form(
         } else {
             crate::resolve::Existing::Absent
         };
-        match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
-            crate::resolve::Registration::Reserved => {
-                return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::ReservedPrefix(constructor_path)));
-            }
-            crate::resolve::Registration::Unnamespaced => {
-                return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::UnnamespacedName(constructor_path)));
-            }
-            crate::resolve::Registration::DottedName => {
-                return Err(RuntimeError::new(form.span().clone(), RuntimeErrorKind::DottedName(constructor_path)));
-            }
-            crate::resolve::Registration::Insert => {
-                sym.register_function(
-                    constructor_path,
-                    Arc::new(Function {
-                        name: None,
-                        params: Vec::new(),
-                        type_params: Vec::new(),
-                        param_types: Vec::new(),
-                        ret_type: unit_type.clone(),
-                        rest_param: None,
-                        rest_param_type: None,
-                        body: FunctionBody::Wat(stub_body.clone()),
-                        closed_env: None,
-                        rete: None,
-                    }),
-                );
-            }
-            crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-        }
+        crate::resolve::register(&constructor_path, privilege, cons_existing, &form.span().clone(), || -> Result<(), RuntimeError> {
+            sym.register_function(
+                constructor_path.clone(),
+                Arc::new(Function {
+                    name: None,
+                    params: Vec::new(),
+                    type_params: Vec::new(),
+                    param_types: Vec::new(),
+                    ret_type: unit_type.clone(),
+                    rest_param: None,
+                    rest_param_type: None,
+                    body: FunctionBody::Wat(stub_body.clone()),
+                    closed_env: None,
+                    rete: None,
+                }),
+            );
+            Ok(())
+        })?;
 
         // Advance: consume keyword + optional Vector.
         vi += if is_tagged { 2 } else { 1 };
@@ -3536,21 +3456,10 @@ fn preregister_fn_defs_in_do(
             } else {
                 crate::resolve::Existing::Absent
             };
-            match crate::resolve::gate(&path, privilege, existing) {
-                crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::ReservedPrefix(path)));
-                }
-                crate::resolve::Registration::Unnamespaced => {
-                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
-                }
-                crate::resolve::Registration::DottedName => {
-                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::DottedName(path)));
-                }
-                crate::resolve::Registration::Insert => {
-                    sym.register_function(path.clone(), func);
-                }
-                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-            }
+            crate::resolve::register(&path, privilege, existing, &child.span().clone(), || -> Result<(), RuntimeError> {
+                sym.register_function(path.clone(), func);
+                Ok(())
+            })?;
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
             }
@@ -3616,21 +3525,10 @@ fn preregister_fn_defs_in_let(
             } else {
                 crate::resolve::Existing::Absent
             };
-            match crate::resolve::gate(&path, privilege, existing) {
-                crate::resolve::Registration::Reserved => {
-                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::ReservedPrefix(path)));
-                }
-                crate::resolve::Registration::Unnamespaced => {
-                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::UnnamespacedName(path)));
-                }
-                crate::resolve::Registration::DottedName => {
-                    return Err(RuntimeError::new(child.span().clone(), RuntimeErrorKind::DottedName(path)));
-                }
-                crate::resolve::Registration::Insert => {
-                    sym.register_function(path.clone(), func);
-                }
-                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
-            }
+            crate::resolve::register(&path, privilege, existing, &child.span().clone(), || -> Result<(), RuntimeError> {
+                sym.register_function(path.clone(), func);
+                Ok(())
+            })?;
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
             }
@@ -6944,18 +6842,10 @@ pub fn parse_defclause_form(
     // folded into the `_` wildcard below) so a dotted defclause name is refused the
     // same as everywhere else the gate is consulted — the wildcard would otherwise have
     // silently treated it as Insert.
-    match crate::resolve::gate(&name, privilege, crate::resolve::Existing::Absent) {
-        crate::resolve::Registration::Unnamespaced => {
-            return Err(RuntimeError::new(form_span, RuntimeErrorKind::UnnamespacedName(name)));
-        }
-        crate::resolve::Registration::DottedName => {
-            return Err(RuntimeError::new(form_span, RuntimeErrorKind::DottedName(name)));
-        }
-        crate::resolve::Registration::Reserved => {
-            return Err(RuntimeError::new(form_span, RuntimeErrorKind::ReservedPrefix(name)));
-        }
-        _ => {}
-    }
+    // The name-legality check happens here; the actual defclause-table insert happens
+    // downstream in `register_defclause` (Stub/Runtime phase, keyed off its own presence
+    // check) — this door has nothing of its own to insert, so the closure is a no-op.
+    crate::resolve::register(&name, privilege, crate::resolve::Existing::Absent, &form_span, || -> Result<(), RuntimeError> { Ok(()) })?;
 
     // Optional metadata-map, mirroring def/defn: `(:wat::core::defclause :name
     // {meta} [-> :T] clause ...)`. Detected structurally via `is_metadata_map`
