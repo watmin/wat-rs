@@ -36,22 +36,14 @@ fn round_trip(v: &Value) -> Value {
 fn option_none_serializes_as_tagged_none() {
     let v = Value::Option(Arc::new(None));
     let s = write_value(&v);
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc298_1_option_result_tagged__option_none.edn"),
-        "Option None must serialize as the tagged none form"
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc298_1_option_result_tagged__option_none.edn", "Option None must serialize as the tagged none form");
 }
 
 #[test]
 fn option_some_serializes_as_tagged_some() {
     let v = Value::Option(Arc::new(Some(Value::String(Arc::new("x".into())))));
     let s = write_value(&v);
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc298_1_option_result_tagged__option_some.edn"),
-        "Option Some must serialize as the tagged some form"
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc298_1_option_result_tagged__option_some.edn", "Option Some must serialize as the tagged some form");
 }
 
 // ── Write form: Result ────────────────────────────────────────────────────────
@@ -60,22 +52,14 @@ fn option_some_serializes_as_tagged_some() {
 fn result_ok_serializes_as_tagged_ok() {
     let v = Value::Result(Arc::new(Ok(Value::i64(42))));
     let s = write_value(&v);
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc298_1_option_result_tagged__result_ok.edn"),
-        "Result Ok must serialize as the tagged ok form"
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc298_1_option_result_tagged__result_ok.edn", "Result Ok must serialize as the tagged ok form");
 }
 
 #[test]
 fn result_err_serializes_as_tagged_err() {
     let v = Value::Result(Arc::new(Err(Value::String(Arc::new("e".into())))));
     let s = write_value(&v);
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc298_1_option_result_tagged__result_err.edn"),
-        "Result Err must serialize as the tagged err form"
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc298_1_option_result_tagged__result_err.edn", "Result Err must serialize as the tagged err form");
 }
 
 // ── Round-trips (edn::write → edn::read == id) ───────────────────────────────

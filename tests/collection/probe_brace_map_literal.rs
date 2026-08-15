@@ -137,9 +137,8 @@ fn probe_8_old_struct_pattern_now_errors() {
         "tests/collection/probe_brace_map_literal_p8.wat.bad",
     )
     .expect_err("arc 257.2: old bare-symbol brace-form must now be rejected");
-    let golden = include_str!("probe_brace_map_literal__old_struct_pattern.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_8: old struct-pattern form rejected golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_8: old struct-pattern form rejected golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_brace_map_literal__old_struct_pattern.edn", "probe_8: old struct-pattern form rejected golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_brace_map_literal__old_struct_pattern.edn", "probe_8: old struct-pattern form rejected golden (Debug)");
 }
 
 // ─── Probe 9: Keyword in binding position ────────────────────────────────────
@@ -150,7 +149,6 @@ fn probe_9_keyword_in_binding_position_rejected() {
         "tests/collection/probe_brace_map_literal_p9.wat.bad",
     )
     .expect_err("keyword in binding position must be rejected");
-    let golden = include_str!("probe_brace_map_literal__keyword_in_binding.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_9: keyword-in-binding-position rejected golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_9: keyword-in-binding-position rejected golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_brace_map_literal__keyword_in_binding.edn", "probe_9: keyword-in-binding-position rejected golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_brace_map_literal__keyword_in_binding.edn", "probe_9: keyword-in-binding-position rejected golden (Debug)");
 }

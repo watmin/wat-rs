@@ -70,11 +70,7 @@ fn t1_program_to_edn_is_plain_edn() {
 
     // Exact golden covers all property checks: no holon tags, native set/map
     // syntax present, :wat.core/ keywords emitted — all verified implicitly.
-    wat::assert_edn_eq!(
-        frame.clone(),
-        include_str!("probe_arc213_program_edn_roundtrip__program_frame.edn"),
-        "t1_frame: program_to_edn golden"
-    );
+    wat::assert_edn_matches_file!(frame.clone(), "probe_arc213_program_edn_roundtrip__program_frame.edn", "t1_frame: program_to_edn golden");
 
     eprintln!("T1 PASS — sample EDN frame:\n{}", &frame[..frame.len().min(800)]);
 }

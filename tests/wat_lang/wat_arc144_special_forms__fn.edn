@@ -1,1 +1,3 @@
-#wat.core.Option/Some [(:wat.core/fn <params> <body>+)]
+#wat.core.Option/Some [
+  (:wat.core/fn <params> <body>+)
+]

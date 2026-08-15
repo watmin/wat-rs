@@ -1,1 +1,3 @@
-#user/MyEnv {:token 42}
+#user/MyEnv {
+  :token 42
+}

@@ -1,1 +1,4 @@
-#t/Plain {:x 1 :y 2}
+#t/Plain {
+  :x 1
+  :y 2
+}

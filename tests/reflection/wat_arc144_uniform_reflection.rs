@@ -86,11 +86,7 @@ fn run_i64(fixture_path: &str) -> i64 {
 fn user_function_lookup_define_emits_defn_head() {
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_defn_head.wat");
     // Stone 241.16 — reflection emits :wat::core::defn (not :wat::core::define)
-    wat::assert_edn_eq!(
-        line,
-        include_str!("wat_arc144_uniform_reflection__user_function_defn_head.edn"),
-        "user-function lookup-define must emit :wat::core::defn head with greet body"
-    );
+    wat::assert_edn_matches_file!(line, "wat_arc144_uniform_reflection__user_function_defn_head.edn", "user-function lookup-define must emit :wat::core::defn head with greet body");
 }
 
 #[test]

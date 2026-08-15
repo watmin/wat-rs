@@ -1,1 +1,3 @@
-#wat.core.Option/Some [(:wat.core/let <bindings> <body>+)]
+#wat.core.Option/Some [
+  (:wat.core/let <bindings> <body>+)
+]

@@ -192,9 +192,8 @@ fn probe_10_check_fails_for_non_atomizable_t() {
         "tests/collection/probe_arc216_stone2_vector_roundtrip_p10.wat.bad",
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
-    let golden = include_str!("probe_arc216_stone2_vector_roundtrip__non_atomizable_fn.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_10: non-atomizable Fn type check-error golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_10: non-atomizable Fn type check-error golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone2_vector_roundtrip__non_atomizable_fn.edn", "probe_10: non-atomizable Fn type check-error golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone2_vector_roundtrip__non_atomizable_fn.edn", "probe_10: non-atomizable Fn type check-error golden (Debug)");
 }
 
 // ─── Probe 11 — HolonRepresentable cascade (compile-time + runtime) ──────────

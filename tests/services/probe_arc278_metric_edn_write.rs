@@ -29,9 +29,5 @@ fn a_metric_record_serializes_to_tagged_edn_via_edn_write() {
     // compares structurally — so this also proves the render is well-formed EDN (a malformed
     // "dangling nil" would fail parse_owned with STOP-1). The trailing `#…/Count nil` is the
     // fieldless enum variant's valid tagged-nil payload, not a dangling map element.
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc278_metric_edn_write__metric.edn"),
-        "Metric serializes to valid, deterministic tagged EDN"
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc278_metric_edn_write__metric.edn", "Metric serializes to valid, deterministic tagged EDN");
 }

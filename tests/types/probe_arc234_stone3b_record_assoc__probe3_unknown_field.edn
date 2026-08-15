@@ -1,13 +1,18 @@
 #wat.runtime/UnknownField {
-  :message      "unknown field 'nonexistent' on record myapp::Triple; available: [a, b, c]"
-  :location     #wat.core/Span {
-                  :file "tests/types/probe_arc234_stone3b_record_assoc.wat"
-                  :line 24
-                  :col  5
-                  :end  #wat.core.Option/Some [#wat.core/Pos {:line 24 :col 49}]
-                }
-  :causes       []
+  :message "unknown field 'nonexistent' on record myapp::Triple; available: [a, b, c]"
+  :location #wat.core/Span {
+    :file "tests/types/probe_arc234_stone3b_record_assoc.wat"
+    :line 24
+    :col 5
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 24
+        :col 49
+      }
+    ]
+  }
+  :causes []
   :record-class "myapp::Triple"
-  :field        "nonexistent"
-  :available    ["a" "b" "c"]
+  :field "nonexistent"
+  :available ["a" "b" "c"]
 }

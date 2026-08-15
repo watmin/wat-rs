@@ -56,11 +56,7 @@ fn probe_duplicate_type_known_span() {
         known_span(),
         TypeErrorKind::DuplicateType { name: ":user::Foo".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__duplicate_type.edn"),
-        "DuplicateType with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__duplicate_type.edn", "DuplicateType with known span");
 }
 
 // ─── 2. ReservedPrefix ───────────────────────────────────────────────────────
@@ -72,11 +68,7 @@ fn probe_reserved_prefix_known_span() {
         known_span(),
         TypeErrorKind::ReservedPrefix { name: ":wat::reserved".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__reserved_prefix.edn"),
-        "ReservedPrefix with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__reserved_prefix.edn", "ReservedPrefix with known span");
 }
 
 // ─── 3. MalformedDecl ────────────────────────────────────────────────────────
@@ -91,11 +83,7 @@ fn probe_malformed_decl_known_span() {
             reason: "bad form".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_decl.edn"),
-        "MalformedDecl with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__malformed_decl.edn", "MalformedDecl with known span");
 }
 
 // ─── 4. MalformedName ────────────────────────────────────────────────────────
@@ -110,11 +98,7 @@ fn probe_malformed_name_known_span() {
             reason: "missing prefix".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_name.edn"),
-        "MalformedName with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__malformed_name.edn", "MalformedName with known span");
 }
 
 // ─── 5. MalformedField ───────────────────────────────────────────────────────
@@ -126,11 +110,7 @@ fn probe_malformed_field_known_span() {
         known_span(),
         TypeErrorKind::MalformedField { reason: "bad field".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_field.edn"),
-        "MalformedField with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__malformed_field.edn", "MalformedField with known span");
 }
 
 // ─── 6. MalformedVariant ─────────────────────────────────────────────────────
@@ -151,11 +131,7 @@ fn probe_malformed_variant_known_span() {
             remedies: vec![],
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_variant.edn"),
-        "MalformedVariant with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__malformed_variant.edn", "MalformedVariant with known span");
 }
 
 // ─── 7. MalformedTypeExpr ────────────────────────────────────────────────────
@@ -170,11 +146,7 @@ fn probe_malformed_type_expr_known_span() {
             reason: "unknown type".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_type_expr.edn"),
-        "MalformedTypeExpr with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__malformed_type_expr.edn", "MalformedTypeExpr with known span");
 }
 
 // ─── 8. AnyBanned ────────────────────────────────────────────────────────────
@@ -186,11 +158,7 @@ fn probe_any_banned_known_span() {
         known_span(),
         TypeErrorKind::AnyBanned { raw: ":Any".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__any_banned.edn"),
-        "AnyBanned with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__any_banned.edn", "AnyBanned with known span");
 }
 
 // ─── 9. CyclicAlias ──────────────────────────────────────────────────────────
@@ -202,11 +170,7 @@ fn probe_cyclic_alias_known_span() {
         known_span(),
         TypeErrorKind::CyclicAlias { name: ":A".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__cyclic_alias.edn"),
-        "CyclicAlias with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__cyclic_alias.edn", "CyclicAlias with known span");
 }
 
 // ─── 10. AliasArityMismatch ──────────────────────────────────────────────────
@@ -225,11 +189,7 @@ fn probe_alias_arity_mismatch_known_span() {
             got: 1,
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__alias_arity_mismatch.edn"),
-        "AliasArityMismatch with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__alias_arity_mismatch.edn", "AliasArityMismatch with known span");
 }
 
 // ─── 11. InnerColonInCompoundArg ─────────────────────────────────────────────
@@ -244,11 +204,7 @@ fn probe_inner_colon_in_compound_arg_known_span() {
             offending: ":String".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__inner_colon_in_compound_arg.edn"),
-        "InnerColonInCompoundArg with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__inner_colon_in_compound_arg.edn", "InnerColonInCompoundArg with known span");
 }
 
 // ─── 12. CyclicUnion ─────────────────────────────────────────────────────────
@@ -260,11 +216,7 @@ fn probe_cyclic_union_known_span() {
         known_span(),
         TypeErrorKind::CyclicUnion { name: ":MyUnion".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__cyclic_union.edn"),
-        "CyclicUnion with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__cyclic_union.edn", "CyclicUnion with known span");
 }
 
 // ─── 13. EmptyUnion ──────────────────────────────────────────────────────────
@@ -276,11 +228,7 @@ fn probe_empty_union_known_span() {
         known_span(),
         TypeErrorKind::EmptyUnion { name: ":Empty".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__empty_union.edn"),
-        "EmptyUnion with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__empty_union.edn", "EmptyUnion with known span");
 }
 
 // ─── 14. SingleMemberUnion ───────────────────────────────────────────────────
@@ -292,11 +240,7 @@ fn probe_single_member_union_known_span() {
         known_span(),
         TypeErrorKind::SingleMemberUnion { name: ":Single".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__single_member_union.edn"),
-        "SingleMemberUnion with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__single_member_union.edn", "SingleMemberUnion with known span");
 }
 
 // ─── 15. InvalidUnionMember ──────────────────────────────────────────────────
@@ -312,11 +256,7 @@ fn probe_invalid_union_member_known_span() {
             reason: "fn not allowed".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__invalid_union_member.edn"),
-        "InvalidUnionMember with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__invalid_union_member.edn", "InvalidUnionMember with known span");
 }
 
 // ─── 16. CyclicSubtype ───────────────────────────────────────────────────────
@@ -331,11 +271,7 @@ fn probe_cyclic_subtype_known_span() {
             parent: ":B".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__cyclic_subtype.edn"),
-        "CyclicSubtype with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__cyclic_subtype.edn", "CyclicSubtype with known span");
 }
 
 // ─── 17. ImpureFieldInPureAggregate ──────────────────────────────────────────
@@ -351,11 +287,7 @@ fn probe_impure_field_in_pure_aggregate_known_span() {
             field_ty: ":user::HandleStruct".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__impure_field_in_pure_aggregate.edn"),
-        "ImpureFieldInPureAggregate with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__impure_field_in_pure_aggregate.edn", "ImpureFieldInPureAggregate with known span");
 }
 
 // ─── 18. ImpureVariantFieldInPureEnum ────────────────────────────────────────
@@ -372,10 +304,6 @@ fn probe_impure_variant_field_in_pure_enum_known_span() {
             field_ty: ":user::HandleStruct".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3a_typeerror_derive_identical__impure_variant_field_in_pure_enum.edn"),
-        "ImpureVariantFieldInPureEnum with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3a_typeerror_derive_identical__impure_variant_field_in_pure_enum.edn", "ImpureVariantFieldInPureEnum with known span");
 }
 

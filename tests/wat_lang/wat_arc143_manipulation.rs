@@ -63,11 +63,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
 #[test]
 fn rename_callable_name_no_type_params() {
     let line = unwrap_string(run_expr(":t::test2-rename-no-type-params"), "test2");
-    wat::assert_edn_eq!(
-        line,
-        include_str!("wat_arc143_manipulation__no_type_params.edn"),
-        "renamed head must be :t::my-triple with no type params"
-    );
+    wat::assert_edn_matches_file!(line, "wat_arc143_manipulation__no_type_params.edn", "renamed head must be :t::my-triple with no type params");
 }
 
 #[test]
@@ -85,11 +81,7 @@ fn extract_arg_names_foldl_returns_three_names() {
     // TYPE-reflection HolonAST eviction: extract-arg-names now returns
     // plain keywords, not HolonAST Symbol nodes.
     let line = unwrap_string(run_expr(":t::test4-extract-foldl-names"), "test4");
-    wat::assert_edn_eq!(
-        line,
-        include_str!("wat_arc143_manipulation__extract_arg_names.edn"),
-        "extracted foldl arg names must be exactly _a0/_a1/_a2"
-    );
+    wat::assert_edn_matches_file!(line, "wat_arc143_manipulation__extract_arg_names.edn", "extracted foldl arg names must be exactly _a0/_a1/_a2");
 }
 
 #[test]

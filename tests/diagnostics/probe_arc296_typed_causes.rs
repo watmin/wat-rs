@@ -47,11 +47,7 @@ fn s1_macro_expansion_failed_carries_typed_cause_not_reason_string() {
     let s = wat_edn::write(&edn);
 
     // Must be exact tagged EDN in wat.runtime namespace with nested #wat.macro/ :cause.
-    wat::assert_edn_eq!(
-        s.clone(),
-        include_str!("probe_arc296_typed_causes__macro_expansion_arity_mismatch.edn"),
-        "MacroExpansionFailed must carry exact nested #wat.macro/ :cause (NOT old :reason String)"
-    );
+    wat::assert_edn_matches_file!(s.clone(), "probe_arc296_typed_causes__macro_expansion_arity_mismatch.edn", "MacroExpansionFailed must carry exact nested #wat.macro/ :cause (NOT old :reason String)");
 
     // Must be valid EDN.
     wat_edn::parse_owned(&s).expect("must be valid EDN");
@@ -76,11 +72,7 @@ fn s1_macro_expansion_failed_fixpoint_site_carries_depth_exceeded_cause() {
     let edn = runtime_err.to_edn();
     let s = wat_edn::write(&edn);
 
-    wat::assert_edn_eq!(
-        s.clone(),
-        include_str!("probe_arc296_typed_causes__macro_expansion_depth_exceeded.edn"),
-        "fixpoint MacroExpansionFailed must carry exact nested ExpansionDepthExceeded :cause"
-    );
+    wat::assert_edn_matches_file!(s.clone(), "probe_arc296_typed_causes__macro_expansion_depth_exceeded.edn", "fixpoint MacroExpansionFailed must carry exact nested ExpansionDepthExceeded :cause");
     wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
 
@@ -101,11 +93,7 @@ fn s2_runtime_error_wire_edn_is_structured_not_prose() {
     let wire_edn = wat::to_edn::to_wire_edn(&runtime_err);
 
     // Wire payload must be exact tagged EDN with floor fields (:message / :location / :causes).
-    wat::assert_edn_eq!(
-        wire_edn.clone(),
-        include_str!("probe_arc296_typed_causes__runtime_wire_unbound_symbol.edn"),
-        "process_died_error_runtime_value wire payload must be exact structured EDN (NOT prose)"
-    );
+    wat::assert_edn_matches_file!(wire_edn.clone(), "probe_arc296_typed_causes__runtime_wire_unbound_symbol.edn", "process_died_error_runtime_value wire payload must be exact structured EDN (NOT prose)");
 
     // The parsed form must be Tagged, never a bare String.
     let parsed = wat_edn::parse_owned(&wire_edn).expect("wire payload must be valid EDN");

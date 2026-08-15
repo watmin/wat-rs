@@ -117,9 +117,8 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
         "tests/collection/probe_arc215_stone2_p8.wat.bad",
     )
     .expect_err("expected startup failure for mixed-type vector");
-    let golden = include_str!("probe_arc215_stone2__mixed_type_vector.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_8: mixed-type vector TypeMismatch golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_8: mixed-type vector TypeMismatch golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc215_stone2__mixed_type_vector.edn", "probe_8: mixed-type vector TypeMismatch golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc215_stone2__mixed_type_vector.edn", "probe_8: mixed-type vector TypeMismatch golden (Debug)");
 }
 
 // ─── Probe 9: `(:wat::core::Vector :wat::core::i64 1 2 3)` explicit ──────────
@@ -180,7 +179,6 @@ fn probe_13_mixed_k_map_rejected_at_check() {
         "tests/collection/probe_arc215_stone2_p13.wat.bad",
     )
     .expect_err("expected startup failure for mixed-K map");
-    let golden = include_str!("probe_arc215_stone2__mixed_k_map.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_13: mixed-K map TypeMismatch golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_13: mixed-K map TypeMismatch golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc215_stone2__mixed_k_map.edn", "probe_13: mixed-K map TypeMismatch golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc215_stone2__mixed_k_map.edn", "probe_13: mixed-K map TypeMismatch golden (Debug)");
 }

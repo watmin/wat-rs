@@ -70,7 +70,7 @@ fn probe_3_unknown_field_on_record_errors() {
             "Probe 3 FAILED: expected error on unknown field; got Ok({:?})",
             v
         ),
-        Err(msg) => wat::assert_edn_eq!(edn_body(&msg), include_str!("probe_arc234_stone3c_keyword_accessor__probe3_unknown_field.edn")),
+        Err(msg) => wat::assert_edn_matches_file!(edn_body(&msg), "probe_arc234_stone3c_keyword_accessor__probe3_unknown_field.edn"),
     }
 }
 

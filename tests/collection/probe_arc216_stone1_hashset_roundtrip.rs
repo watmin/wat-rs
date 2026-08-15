@@ -162,9 +162,8 @@ fn probe_9_check_fails_for_non_atomizable_t() {
         "tests/collection/probe_arc216_stone1_hashset_roundtrip_p9.wat.bad",
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
-    let golden = include_str!("probe_arc216_stone1_hashset_roundtrip__non_atomizable_fn.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_9: non-atomizable Fn type check-error golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_9: non-atomizable Fn type check-error golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone1_hashset_roundtrip__non_atomizable_fn.edn", "probe_9: non-atomizable Fn type check-error golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone1_hashset_roundtrip__non_atomizable_fn.edn", "probe_9: non-atomizable Fn type check-error golden (Debug)");
 }
 
 // ─── Probe 10 — HolonRepresentable cascade (compile-time + runtime) ──────────

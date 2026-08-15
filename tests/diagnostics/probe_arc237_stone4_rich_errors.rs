@@ -135,11 +135,7 @@ fn probe_03_no_matching_clause_edn_tag_clean() {
     });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_arc237_stone4_rich_errors__no_matching_clause_tag_clean.edn"),
-        "EDN tag must be clean NoMatchingClause (no Runtime suffix)"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_arc237_stone4_rich_errors__no_matching_clause_tag_clean.edn", "EDN tag must be clean NoMatchingClause (no Runtime suffix)");
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
@@ -155,11 +151,7 @@ fn probe_04_postcondition_failed_edn_tag_clean() {
     });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_arc237_stone4_rich_errors__postcondition_failed_tag_clean.edn"),
-        "EDN tag must be clean PostconditionFailed (no Runtime suffix)"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_arc237_stone4_rich_errors__postcondition_failed_tag_clean.edn", "EDN tag must be clean PostconditionFailed (no Runtime suffix)");
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
@@ -209,11 +201,7 @@ fn probe_08_postcondition_edn_carries_ensure_and_returned() {
     });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_arc237_stone4_rich_errors__postcondition_ensure_and_returned.edn"),
-        "EDN must carry the ensure_expr_snapshot text"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_arc237_stone4_rich_errors__postcondition_ensure_and_returned.edn", "EDN must carry the ensure_expr_snapshot text");
 }
 
 // ─── Probe 9 ────────────────────────────────────────────────────────────────
@@ -228,11 +216,7 @@ fn probe_09_no_matching_clause_edn_round_trips() {
     });
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    wat::assert_edn_eq!(
-        serialized.clone(),
-        include_str!("probe_arc237_stone4_rich_errors__no_matching_clause_round_trip.edn"),
-        "round-tripped EDN must be NoMatchingClause with both clause attempts"
-    );
+    wat::assert_edn_matches_file!(serialized.clone(), "probe_arc237_stone4_rich_errors__no_matching_clause_round_trip.edn", "round-tripped EDN must be NoMatchingClause with both clause attempts");
     let parsed = wat_edn::parse_owned(&serialized).expect("EDN round-trip parse");
     assert!(
         matches!(&parsed, wat_edn::OwnedValue::Tagged(tag, _) if tag.name() == "NoMatchingClause"),
@@ -258,11 +242,7 @@ fn probe_10_attempt_list_count_preserved_through_edn() {
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     // All three failure-reason discriminants and clause indices in one golden.
-    wat::assert_edn_eq!(
-        serialized.clone(),
-        include_str!("probe_arc237_stone4_rich_errors__attempt_list_count.edn"),
-        "all three ClauseFailureReason variants present; attempt list embedded in EDN"
-    );
+    wat::assert_edn_matches_file!(serialized.clone(), "probe_arc237_stone4_rich_errors__attempt_list_count.edn", "all three ClauseFailureReason variants present; attempt list embedded in EDN");
     let parsed = wat_edn::parse_owned(&serialized).expect("EDN round-trip parse");
     assert!(
         matches!(&parsed, wat_edn::OwnedValue::Tagged(_, _)),

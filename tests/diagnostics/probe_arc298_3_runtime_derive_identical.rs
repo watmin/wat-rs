@@ -55,10 +55,7 @@ fn write(err: &RuntimeError) -> String {
 #[test]
 fn probe_unbound_symbol() {
     let err = make(RuntimeErrorKind::UnboundSymbol("my-var".into()));
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__unbound_symbol.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__unbound_symbol.edn");
 }
 
 // ─── 2. UnknownFunction ──────────────────────────────────────────────────────
@@ -67,10 +64,7 @@ fn probe_unbound_symbol() {
 #[test]
 fn probe_unknown_function() {
     let err = make(RuntimeErrorKind::UnknownFunction(":user::greet".into()));
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__unknown_function.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__unknown_function.edn");
 }
 
 // ─── 3. NotCallable ──────────────────────────────────────────────────────────
@@ -80,10 +74,7 @@ fn probe_unknown_function() {
 fn probe_not_callable() {
     let snap = ValueSnapshot::of(&Value::String(Arc::new("hello".to_string())));
     let err = make(RuntimeErrorKind::NotCallable { got: Box::new(snap) });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__not_callable.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__not_callable.edn");
 }
 
 // ─── 4. TypeMismatch ─────────────────────────────────────────────────────────
@@ -97,10 +88,7 @@ fn probe_type_mismatch() {
         expected: "i64",
         got: Box::new(snap),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__type_mismatch.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__type_mismatch.edn");
 }
 
 // ─── 5. ArityMismatch ────────────────────────────────────────────────────────
@@ -113,10 +101,7 @@ fn probe_arity_mismatch() {
         expected: 2,
         got: 3,
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__arity_mismatch.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__arity_mismatch.edn");
 }
 
 // ─── 6. BadCondition ─────────────────────────────────────────────────────────
@@ -126,10 +111,7 @@ fn probe_arity_mismatch() {
 fn probe_bad_condition() {
     let snap = ValueSnapshot::of(&Value::i64(0));
     let err = make(RuntimeErrorKind::BadCondition { got: Box::new(snap) });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__bad_condition.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__bad_condition.edn");
 }
 
 // ─── 7. MalformedForm ────────────────────────────────────────────────────────
@@ -141,10 +123,7 @@ fn probe_malformed_form() {
         head: ":wat::core::fn".into(),
         reason: "param list must be a vector".into(),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__malformed_form.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__malformed_form.edn");
 }
 
 // ─── 8. ParamShadowsBuiltin ──────────────────────────────────────────────────
@@ -153,10 +132,7 @@ fn probe_malformed_form() {
 #[test]
 fn probe_param_shadows_builtin() {
     let err = make(RuntimeErrorKind::ParamShadowsBuiltin("map".into()));
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__param_shadows_builtin.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__param_shadows_builtin.edn");
 }
 
 // ─── 9. DivisionByZero ───────────────────────────────────────────────────────
@@ -165,10 +141,7 @@ fn probe_param_shadows_builtin() {
 #[test]
 fn probe_division_by_zero() {
     let err = make(RuntimeErrorKind::DivisionByZero);
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__division_by_zero.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__division_by_zero.edn");
 }
 
 // ─── 10. DuplicateDefine ─────────────────────────────────────────────────────
@@ -177,10 +150,7 @@ fn probe_division_by_zero() {
 #[test]
 fn probe_duplicate_define() {
     let err = make(RuntimeErrorKind::DuplicateDefine(":user::counter".into()));
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__duplicate_define.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__duplicate_define.edn");
 }
 
 // ─── 11. ReservedPrefix ──────────────────────────────────────────────────────
@@ -189,10 +159,7 @@ fn probe_duplicate_define() {
 #[test]
 fn probe_reserved_prefix() {
     let err = make(RuntimeErrorKind::ReservedPrefix(":wat::my-thing".into()));
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__reserved_prefix.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__reserved_prefix.edn");
 }
 
 // ─── 12. DeclarationInExpressionPosition ─────────────────────────────────────
@@ -201,10 +168,7 @@ fn probe_reserved_prefix() {
 #[test]
 fn probe_declaration_in_expression_position() {
     let err = make(RuntimeErrorKind::DeclarationInExpressionPosition(":wat::core::define".into()));
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__declaration_in_expression_position.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__declaration_in_expression_position.edn");
 }
 
 // ─── 13. EvalForbidsMutationForm ─────────────────────────────────────────────
@@ -213,10 +177,7 @@ fn probe_declaration_in_expression_position() {
 #[test]
 fn probe_eval_forbids_mutation_form() {
     let err = make(RuntimeErrorKind::EvalForbidsMutationForm { head: ":wat::core::define".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__eval_forbids_mutation_form.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__eval_forbids_mutation_form.edn");
 }
 
 // ─── 14. UserMainMissing ─────────────────────────────────────────────────────
@@ -225,10 +186,7 @@ fn probe_eval_forbids_mutation_form() {
 #[test]
 fn probe_user_main_missing() {
     let err = make(RuntimeErrorKind::UserMainMissing);
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__user_main_missing.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__user_main_missing.edn");
 }
 
 // ─── 15. EvalVerificationFailed ──────────────────────────────────────────────
@@ -239,10 +197,7 @@ fn probe_eval_verification_failed() {
     let err = make(RuntimeErrorKind::EvalVerificationFailed {
         err: HashError::UnsupportedAlgorithm { algo: "SHA1".into() },
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__eval_verification_failed.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__eval_verification_failed.edn");
 }
 
 // ─── 16. ChannelDisconnected ─────────────────────────────────────────────────
@@ -251,10 +206,7 @@ fn probe_eval_verification_failed() {
 #[test]
 fn probe_channel_disconnected() {
     let err = make(RuntimeErrorKind::ChannelDisconnected { op: ":wat::kernel::send".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__channel_disconnected.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__channel_disconnected.edn");
 }
 
 // ─── 17. NoEncodingCtx ───────────────────────────────────────────────────────
@@ -263,10 +215,7 @@ fn probe_channel_disconnected() {
 #[test]
 fn probe_no_encoding_ctx() {
     let err = make(RuntimeErrorKind::NoEncodingCtx { op: ":wat::holon::cosine".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__no_encoding_ctx.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_encoding_ctx.edn");
 }
 
 // ─── 18. NoSourceLoader ──────────────────────────────────────────────────────
@@ -275,10 +224,7 @@ fn probe_no_encoding_ctx() {
 #[test]
 fn probe_no_source_loader() {
     let err = make(RuntimeErrorKind::NoSourceLoader { op: ":wat::eval-file!".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__no_source_loader.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_source_loader.edn");
 }
 
 // ─── 19. NoMacroRegistry ─────────────────────────────────────────────────────
@@ -287,10 +233,7 @@ fn probe_no_source_loader() {
 #[test]
 fn probe_no_macro_registry() {
     let err = make(RuntimeErrorKind::NoMacroRegistry { op: ":wat::core::macroexpand".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__no_macro_registry.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_macro_registry.edn");
 }
 
 // ─── 20. MacroExpansionFailed ────────────────────────────────────────────────
@@ -307,10 +250,7 @@ fn probe_macro_expansion_failed() {
         op: ":user::expand".into(),
         cause,
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__macro_expansion_failed.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__macro_expansion_failed.edn");
 }
 
 // ─── 21. PatternMatchFailed ──────────────────────────────────────────────────
@@ -319,10 +259,7 @@ fn probe_macro_expansion_failed() {
 #[test]
 fn probe_pattern_match_failed() {
     let err = make(RuntimeErrorKind::PatternMatchFailed { value_type: "i64" });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__pattern_match_failed.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__pattern_match_failed.edn");
 }
 
 // ─── 22. EffectfulInStep ─────────────────────────────────────────────────────
@@ -331,10 +268,7 @@ fn probe_pattern_match_failed() {
 #[test]
 fn probe_effectful_in_step() {
     let err = make(RuntimeErrorKind::EffectfulInStep { op: ":wat::kernel::println".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__effectful_in_step.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__effectful_in_step.edn");
 }
 
 // ─── 23. NoStepRule ──────────────────────────────────────────────────────────
@@ -343,10 +277,7 @@ fn probe_effectful_in_step() {
 #[test]
 fn probe_no_step_rule() {
     let err = make(RuntimeErrorKind::NoStepRule { op: ":user::custom-op".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__no_step_rule.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_step_rule.edn");
 }
 
 // ─── 24a. AssertionFailed (both Some) ────────────────────────────────────────
@@ -363,10 +294,7 @@ fn probe_assertion_failed_both_some() {
         actual: Some("42".into()),
         expected: Some("99".into()),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__assertion_failed_both_some.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__assertion_failed_both_some.edn");
 }
 
 // ─── 24b. AssertionFailed (expected None) ────────────────────────────────────
@@ -381,10 +309,7 @@ fn probe_assertion_failed_expected_none() {
         actual: Some("x".into()),
         expected: None,
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__assertion_failed_expected_none.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__assertion_failed_expected_none.edn");
 }
 
 // ─── 25. SandboxScopeLeak ────────────────────────────────────────────────────
@@ -404,10 +329,7 @@ fn probe_sandbox_scope_leak() {
         offending_name: ":user::my-helper".into(),
         outer_define_span: outer_span,
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__sandbox_scope_leak.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__sandbox_scope_leak.edn");
 }
 
 // ─── 26. ServiceNotRunning ───────────────────────────────────────────────────
@@ -416,10 +338,7 @@ fn probe_sandbox_scope_leak() {
 #[test]
 fn probe_service_not_running() {
     let err = make(RuntimeErrorKind::ServiceNotRunning { op: ":wat::kernel::println".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__service_not_running.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__service_not_running.edn");
 }
 
 // ─── 27a. EdnCoerceMismatch (non-empty path) ─────────────────────────────────
@@ -435,10 +354,7 @@ fn probe_edn_coerce_mismatch() {
         got: Box::new("Map".into()),
         path: "x.y".into(),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__edn_coerce_mismatch.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__edn_coerce_mismatch.edn");
 }
 
 // ─── 27b. EdnCoerceMismatch (empty path) ─────────────────────────────────────
@@ -452,10 +368,7 @@ fn probe_edn_coerce_mismatch_empty_path() {
         got: Box::new("Integer".into()),
         path: "".into(),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__edn_coerce_mismatch_empty_path.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__edn_coerce_mismatch_empty_path.edn");
 }
 
 // ─── 28. UnknownField ────────────────────────────────────────────────────────
@@ -468,10 +381,7 @@ fn probe_unknown_field() {
         field: "z".into(),
         available: vec!["x".into(), "y".into()],
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__unknown_field.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__unknown_field.edn");
 }
 
 // ─── 29. NoMatchingClause ────────────────────────────────────────────────────
@@ -502,10 +412,7 @@ fn probe_no_matching_clause() {
             },
         ]),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__no_matching_clause.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_matching_clause.edn");
 }
 
 // ─── 30. PostconditionFailed ─────────────────────────────────────────────────
@@ -527,10 +434,7 @@ fn probe_postcondition_failed() {
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         ensure_span: Box::new(ensure_span),
     });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__postcondition_failed.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__postcondition_failed.edn");
 }
 
 // ─── 31. MacroAbort ──────────────────────────────────────────────────────────
@@ -539,10 +443,7 @@ fn probe_postcondition_failed() {
 #[test]
 fn probe_macro_abort() {
     let err = make(RuntimeErrorKind::MacroAbort { message: "bad template".into() });
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc298_3_runtime_derive_identical__macro_abort.edn")
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__macro_abort.edn");
 }
 
 // ─── Silence unused import warnings ──────────────────────────────────────────

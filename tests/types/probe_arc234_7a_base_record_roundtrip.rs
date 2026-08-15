@@ -39,7 +39,7 @@ fn c1_named_keys_in_edn_string() {
         other => panic!("C1 FAIL: write-pt returned non-String: {:?}", other),
     };
     eprintln!("C1 written EDN: {}", s);
-    wat::assert_edn_eq!(s, include_str!("probe_arc234_7a_base_record_roundtrip__pt_write.edn"));
+    wat::assert_edn_matches_file!(s, "probe_arc234_7a_base_record_roundtrip__pt_write.edn");
 }
 
 /// C2 — round-trip: write → read → equal to original.

@@ -86,7 +86,7 @@ fn probe_p6_wrong_value_type_rejected_at_type_check() {
         "tests/collection/probe_hashmap_ctor_vector_symmetric_p6.wat.bad",
     )
     .expect_err("expected startup failure for wrong value type");
-    wat::assert_edn_eq!(format!("{err:?}"), include_str!("probe_hashmap_ctor_vector_symmetric__wrong_value_type.edn"), "probe_p6: wrong-value type check-error golden");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_hashmap_ctor_vector_symmetric__wrong_value_type.edn", "probe_p6: wrong-value type check-error golden");
 }
 
 // ─── Probe 7: Odd count rejection ────────────────────────────────────────────
@@ -97,7 +97,7 @@ fn probe_p7_odd_pair_count_rejected() {
         "tests/collection/probe_hashmap_ctor_vector_symmetric_p7.wat.bad",
     )
     .expect_err("expected startup failure for odd pair count");
-    wat::assert_edn_eq!(format!("{err:?}"), include_str!("probe_hashmap_ctor_vector_symmetric__odd_pair_count.edn"), "probe_p7: odd pair count check-error golden");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_hashmap_ctor_vector_symmetric__odd_pair_count.edn", "probe_p7: odd pair count check-error golden");
 }
 
 // ─── Probe 8: Zero type-args (arity error) ───────────────────────────────────
@@ -108,7 +108,7 @@ fn probe_p8_missing_both_type_args_rejected() {
         "tests/collection/probe_hashmap_ctor_vector_symmetric_p8.wat.bad",
     )
     .expect_err("expected startup failure for missing type args");
-    wat::assert_edn_eq!(format!("{err:?}"), include_str!("probe_hashmap_ctor_vector_symmetric__missing_both_type_args.edn"), "probe_p8: missing both type args arity-error golden");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_hashmap_ctor_vector_symmetric__missing_both_type_args.edn", "probe_p8: missing both type args arity-error golden");
 }
 
 // ─── Probe 9: Missing V type-arg ─────────────────────────────────────────────
@@ -119,5 +119,5 @@ fn probe_p9_missing_v_type_arg_rejected() {
         "tests/collection/probe_hashmap_ctor_vector_symmetric_p9.wat.bad",
     )
     .expect_err("expected startup failure for missing V type arg");
-    wat::assert_edn_eq!(format!("{err:?}"), include_str!("probe_hashmap_ctor_vector_symmetric__missing_v_type_arg.edn"), "probe_p9: missing V type arg arity-error golden");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_hashmap_ctor_vector_symmetric__missing_v_type_arg.edn", "probe_p9: missing V type arg arity-error golden");
 }

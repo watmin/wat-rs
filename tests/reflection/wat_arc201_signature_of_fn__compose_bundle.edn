@@ -1,1 +1,9 @@
-[:anonymous (peer (wat.type/Vector wat.type/String)) -> wat.type/String]
+[
+  :anonymous
+  (
+    peer
+    (wat.type/Vector wat.type/String)
+  )
+  ->
+  wat.type/String
+]

@@ -9,7 +9,12 @@
         :file "tests/collection/probe_brace_map_literal_p9.wat.bad"
         :line 5
         :col 6
-        :end #wat.core.Option/Some [#wat.core/Pos {:line 5 :col 16}]
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 16
+          }
+        ]
       }
       :causes []
       :head ":wat::core::let"

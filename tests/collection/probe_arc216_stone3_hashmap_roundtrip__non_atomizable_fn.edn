@@ -9,7 +9,12 @@
         :file "tests/collection/probe_arc216_stone3_hashmap_roundtrip_p11.wat.bad"
         :line 6
         :col 28
-        :end #wat.core.Option/Some [#wat.core/Pos {:line 6 :col 29}]
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 29
+          }
+        ]
       }
       :causes []
       :callee ":wat::holon::to-holon"
@@ -24,7 +29,12 @@
         :file "tests/collection/probe_arc216_stone3_hashmap_roundtrip_p11.wat.bad"
         :line 4
         :col 3
-        :end #wat.core.Option/Some [#wat.core/Pos {:line 6 :col 31}]
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 31
+          }
+        ]
       }
       :causes []
       :function ":user::compute"

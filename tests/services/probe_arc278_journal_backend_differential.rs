@@ -31,9 +31,5 @@ fn journal_persists_identically_across_mem_and_sqlite_backends_on_a_thread() {
         "journal' persisted DIFFERENT rows to mem-store' vs sqlite-store' — the backends diverged"
     );
     // And the agreed row is the expected, valid Metric EDN (same golden as the process tier).
-    wat::assert_edn_eq!(
-        stored,
-        include_str!("probe_arc278_journal__stored_metric.edn"),
-        "journal' persists the Metric's tagged EDN identically across mem + sqlite (config-param backend)"
-    );
+    wat::assert_edn_matches_file!(stored, "probe_arc278_journal__stored_metric.edn", "journal' persists the Metric's tagged EDN identically across mem + sqlite (config-param backend)");
 }

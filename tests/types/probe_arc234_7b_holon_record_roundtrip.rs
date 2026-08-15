@@ -63,7 +63,7 @@ fn c3_wire_is_plain_edn_not_a_serialized_hologram() {
         other => panic!("C3 FAIL: write-hpt returned non-String: {:?}", other),
     };
     eprintln!("C3 written EDN: {}", s);
-    wat::assert_edn_eq!(s, include_str!("probe_arc234_7b_holon_record_roundtrip__hpt_write.edn"));
+    wat::assert_edn_matches_file!(s, "probe_arc234_7b_holon_record_roundtrip__hpt_write.edn");
 }
 
 /// C1 — round-trip: write → read → equal to original (proves holon_form round-tripped).

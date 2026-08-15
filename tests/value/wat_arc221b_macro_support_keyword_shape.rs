@@ -63,11 +63,7 @@ fn probe_1_rename_callable_name_accepts_keyword_first_child() {
     // :wat::edn::write as canonical `wat.type/` plain EDN: `(:t/probe-1-renamed (x wat.type/i64)
     // -> wat.type/i64)`. Single-slash keywords, no `<>` type params → round-trips as plain EDN,
     // so this uses the structural assert_edn_eq (cf. the green no-type-params sibling).
-    wat::assert_edn_eq!(
-        s,
-        include_str!("wat_arc221b_macro_support_keyword_shape__probe_1_renamed.edn"),
-        "rename-callable-name must emit exact golden"
-    );
+    wat::assert_edn_matches_file!(s, "wat_arc221b_macro_support_keyword_shape__probe_1_renamed.edn", "rename-callable-name must emit exact golden");
 }
 
 // ─── Probe 2 — rename-callable-name from-mismatch errors correctly ───────────

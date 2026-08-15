@@ -105,11 +105,7 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_children_sig.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_holon_ast_accessors__children_sig.edn"),
-        "Bundle/children on add-two signature must yield head + arg-pair Bundles + arrow + ret"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_holon_ast_accessors__children_sig.edn", "Bundle/children on add-two signature must yield head + arg-pair Bundles + arrow + ret");
 }
 
 // ─── Bundle/children: parametric type slot recursion ───────────────────────
@@ -133,11 +129,7 @@ fn bundle_children_walks_parametric_type_slot() {
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // The parametric type appears as a structured Bundle (not a fused flat keyword).
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_holon_ast_accessors__children_parametric.edn"),
-        "Bundle/children on sum-list signature must show :Vector standalone in nested Bundle"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_holon_ast_accessors__children_parametric.edn", "Bundle/children on sum-list signature must show :Vector standalone in nested Bundle");
 }
 
 // ─── Bundle/children: error on non-Bundle input ────────────────────────────
@@ -169,11 +161,7 @@ fn bundle_first_returns_head_keyword_of_signature() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_first_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_holon_ast_accessors__first_head.edn"),
-        "Bundle/first on add-two signature must return the head Keyword Symbol"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_holon_ast_accessors__first_head.edn", "Bundle/first on add-two signature must return the head Keyword Symbol");
 }
 
 // ─── Bundle/first: composes with from-holon to extract the head name ───────

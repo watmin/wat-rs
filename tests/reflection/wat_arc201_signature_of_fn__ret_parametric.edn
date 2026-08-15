@@ -1,1 +1,5 @@
-(:anonymous -> (wat.type/Vector wat.type/i64))
+(
+  :anonymous
+  ->
+  (wat.type/Vector wat.type/i64)
+)

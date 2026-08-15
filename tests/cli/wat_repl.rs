@@ -80,7 +80,7 @@ fn a_bad_line_does_not_end_the_session() {
     // STRUCTURALLY against a captured golden, never by substring: a `.contains` here would
     // pass on a different failure, or on the right failure at the wrong location.
     let reported = lines.next().expect("the failing line must be reported, not silently skipped");
-    wat::assert_edn_eq!(reported.to_string(), include_str!("wat_repl__bad_then_good_fault.edn"));
+    wat::assert_edn_matches_file!(reported.to_string(), "wat_repl__bad_then_good_fault.edn");
     // …and the session CONTINUED: the next line still evaluated.
     assert_eq!(lines.next(), Some("7"), "the session must survive and evaluate the next line");
     assert_eq!(lines.next(), None, "nothing else may be printed");

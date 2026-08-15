@@ -110,11 +110,7 @@ fn signature_of_fn_emits_anonymous_head() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_anon_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__anon_head.edn"),
-        "signature-of-fn must emit :anonymous head for an anonymous fn value"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__anon_head.edn", "signature-of-fn must emit :anonymous head for an anonymous fn value");
 }
 
 // ─── Monomorphic args: Path types emit as atomic Symbols ───────────────────
@@ -127,11 +123,7 @@ fn signature_of_fn_extracts_monomorphic_arg_types() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_monomorphic_args.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__monomorphic_args.edn"),
-        "signature-of-fn must emit atomic Symbols for i64/String monomorphic arg types"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__monomorphic_args.edn", "signature-of-fn must emit atomic Symbols for i64/String monomorphic arg types");
 }
 
 // ─── Parametric args: ThreadPeer-shaped types emit as Bundles ──────────────
@@ -147,11 +139,7 @@ fn signature_of_fn_extracts_parametric_arg_types() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_parametric_args.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__parametric_args.edn"),
-        "signature-of-fn must emit structured Bundle for Vector<i64> parametric arg type"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__parametric_args.edn", "signature-of-fn must emit structured Bundle for Vector<i64> parametric arg type");
 }
 
 // ─── Return type: Path stays atomic; Parametric structures as Bundle ───────
@@ -165,11 +153,7 @@ fn signature_of_fn_extracts_return_type_path() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_ret_path.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__ret_path.edn"),
-        "signature-of-fn must emit :anonymous head and -> arrow with i64 return type"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__ret_path.edn", "signature-of-fn must emit :anonymous head and -> arrow with i64 return type");
 }
 
 #[test]
@@ -180,11 +164,7 @@ fn signature_of_fn_extracts_return_type_parametric() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_ret_parametric.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__ret_parametric.edn"),
-        "signature-of-fn must emit structured Bundle for Vector<i64> parametric return type"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__ret_parametric.edn", "signature-of-fn must emit structured Bundle for Vector<i64> parametric return type");
 }
 
 // ─── Composition with slice 2 accessors + arc 143 extract-arg-names ────────
@@ -202,11 +182,7 @@ fn signature_of_fn_composes_with_extract_arg_names() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_names.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__compose_names.edn"),
-        "signature-of-fn output must compose with extract-arg-names to yield [logger, counter]"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__compose_names.edn", "signature-of-fn output must compose with extract-arg-names to yield [logger, counter]");
 }
 
 #[test]
@@ -219,11 +195,7 @@ fn signature_of_fn_composes_with_bundle_children() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_bundle.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_signature_of_fn__compose_bundle.edn"),
-        "signature-of-fn output must compose with bundle-children to yield children vector"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_signature_of_fn__compose_bundle.edn", "signature-of-fn output must compose with bundle-children to yield children vector");
 }
 
 // ─── Errors cleanly on non-fn input ────────────────────────────────────────

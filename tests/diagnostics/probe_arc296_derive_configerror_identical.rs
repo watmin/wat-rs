@@ -57,11 +57,7 @@ fn probe_setter_after_non_setter_known_span() {
             setter_head: "set-dims!".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__setter_after_non_setter.edn"),
-        "SetterAfterNonSetter with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__setter_after_non_setter.edn", "SetterAfterNonSetter with known span");
 }
 
 // ─── 2. DuplicateField ───────────────────────────────────────────────────────
@@ -75,11 +71,7 @@ fn probe_duplicate_field_known_span() {
             field: "dims".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__duplicate_field.edn"),
-        "DuplicateField with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__duplicate_field.edn", "DuplicateField with known span");
 }
 
 // ─── 3. RequiredFieldMissing ──────────────────────────────────────────────────
@@ -93,11 +85,7 @@ fn probe_required_field_missing_known_span() {
             field: "dims".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__required_field_missing.edn"),
-        "RequiredFieldMissing with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__required_field_missing.edn", "RequiredFieldMissing with known span");
 }
 
 // ─── 4. UnknownSetter ────────────────────────────────────────────────────────
@@ -111,11 +99,7 @@ fn probe_unknown_setter_known_span() {
             head: ":wat::config::set-foo!".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__unknown_setter.edn"),
-        "UnknownSetter with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__unknown_setter.edn", "UnknownSetter with known span");
 }
 
 // ─── 5. BadArity ─────────────────────────────────────────────────────────────
@@ -131,11 +115,7 @@ fn probe_bad_arity_known_span() {
             got: 2,
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__bad_arity.edn"),
-        "BadArity with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__bad_arity.edn", "BadArity with known span");
 }
 
 // ─── 6. BadType ──────────────────────────────────────────────────────────────
@@ -151,11 +131,7 @@ fn probe_bad_type_known_span() {
             got: "string",
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__bad_type.edn"),
-        "BadType with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__bad_type.edn", "BadType with known span");
 }
 
 // ─── 7. BadValue ─────────────────────────────────────────────────────────────
@@ -170,11 +146,7 @@ fn probe_bad_value_known_span() {
             reason: "must be positive".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__bad_value.edn"),
-        "BadValue with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__bad_value.edn", "BadValue with known span");
 }
 
 // ─── 8. MalformedSetter ──────────────────────────────────────────────────────
@@ -183,10 +155,6 @@ fn probe_bad_value_known_span() {
 #[test]
 fn probe_malformed_setter_known_span() {
     let err = make(known_span(), ConfigErrorKind::MalformedSetter);
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_derive_configerror_identical__malformed_setter.edn"),
-        "MalformedSetter with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_derive_configerror_identical__malformed_setter.edn", "MalformedSetter with known span");
 }
 

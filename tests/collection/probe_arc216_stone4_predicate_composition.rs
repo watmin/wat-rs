@@ -91,9 +91,8 @@ fn probe_5_negative_non_atomizable_element() {
         "tests/collection/probe_arc216_stone4_predicate_composition_p5.wat.bad",
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
-    let golden = include_str!("probe_arc216_stone4_predicate_composition__non_atomizable_element.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_5: non-atomizable element check-error golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_5: non-atomizable element check-error golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone4_predicate_composition__non_atomizable_element.edn", "probe_5: non-atomizable element check-error golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone4_predicate_composition__non_atomizable_element.edn", "probe_5: non-atomizable element check-error golden (Debug)");
 }
 
 // ─── Probe 6 — Negative: non-atomizable argument via nested function ──────────
@@ -106,7 +105,6 @@ fn probe_6_negative_non_atomizable_nested_fn() {
         "tests/collection/probe_arc216_stone4_predicate_composition_p6.wat.bad",
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
-    let golden = include_str!("probe_arc216_stone4_predicate_composition__non_atomizable_nested_fn.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_6: non-atomizable Fn type check-error golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_6: non-atomizable Fn type check-error golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone4_predicate_composition__non_atomizable_nested_fn.edn", "probe_6: non-atomizable Fn type check-error golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone4_predicate_composition__non_atomizable_nested_fn.edn", "probe_6: non-atomizable Fn type check-error golden (Debug)");
 }

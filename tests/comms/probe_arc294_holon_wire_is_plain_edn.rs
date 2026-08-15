@@ -64,10 +64,7 @@ fn cosine(target: &str) -> f64 {
 
 #[test]
 fn control_plain_record_wire_is_the_class_tag_and_its_fields() {
-    wat::assert_edn_eq!(
-        wire(":t::wire-plain"),
-        include_str!("probe_arc294_holon_wire_is_plain_edn__plain_wire.edn")
-    );
+    wat::assert_edn_matches_file!(wire(":t::wire-plain"), "probe_arc294_holon_wire_is_plain_edn__plain_wire.edn");
 }
 
 // ─── THE RED ────────────────────────────────────────────────────────────────
@@ -77,10 +74,7 @@ fn holon_record_wire_is_plain_edn_not_the_serialized_hologram() {
     // At HEAD this is a ~250-byte `#wat-edn.holon/Bind […]` tree. A holon record differs from a
     // plain one in HOLDER POLICY, not in what it IS, so the wire form must be identical modulo
     // the class name — compare against the control directly above.
-    wat::assert_edn_eq!(
-        wire(":t::wire-holon"),
-        include_str!("probe_arc294_holon_wire_is_plain_edn__holon_wire.edn")
-    );
+    wat::assert_edn_matches_file!(wire(":t::wire-holon"), "probe_arc294_holon_wire_is_plain_edn__holon_wire.edn");
 }
 
 // ─── NON-VACUITY — green at HEAD, and they MUST stay green ──────────────────

@@ -102,11 +102,7 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     let out = run_file("tests/reflection/wat_arc201_structured_signature_types_parametric_fn.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_structured_signature_types__parametric_fn.edn"),
-        "signature-of-defn must emit structured parametric Bundle for sum-list fn"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_structured_signature_types__parametric_fn.edn", "signature-of-defn must emit structured parametric Bundle for sum-list fn");
 }
 
 // ─── Path-only signature: still atomic, unchanged from arc 143 ────────────
@@ -120,11 +116,7 @@ fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_atomic_plus.wat",
     );
-    wat::assert_edn_eq!(
-        line,
-        include_str!("wat_arc201_structured_signature_types__atomic_plus.edn"),
-        "signature-of-defn must emit atomic Symbols for i64::+ monomorphic signature"
-    );
+    wat::assert_edn_matches_file!(line, "wat_arc201_structured_signature_types__atomic_plus.edn", "signature-of-defn must emit atomic Symbols for i64::+ monomorphic signature");
 }
 
 // ─── Substrate primitive with Parametric + Fn shapes (foldl) ───────────────
@@ -163,11 +155,7 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     let out = run_file("tests/reflection/wat_arc201_structured_signature_types_tuple.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    wat::assert_edn_eq!(
-        line.clone(),
-        include_str!("wat_arc201_structured_signature_types__tuple.edn"),
-        "signature-of-defn must emit structured Tuple Bundle for make-pair return type"
-    );
+    wat::assert_edn_matches_file!(line.clone(), "wat_arc201_structured_signature_types__tuple.edn", "signature-of-defn must emit structured Tuple Bundle for make-pair return type");
 }
 
 // ─── Consumer regression: defalias works on parametric fn (Stone 241.12) ───

@@ -50,11 +50,7 @@ fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
 
     // Must be a tagged form in the wat.parse namespace (delegates to
     // ParseError::to_edn → #wat.parse/<ParseErrorVariant>); NO :detail blob.
-    wat::assert_edn_eq!(
-        edn_str.clone(),
-        include_str!("probe_arc296_3_holdout_edn__parse_unclosed_paren.edn"),
-        "Parse startup error must produce exact structured #wat.parse/ EDN"
-    );
+    wat::assert_edn_matches_file!(edn_str.clone(), "probe_arc296_3_holdout_edn__parse_unclosed_paren.edn", "Parse startup error must produce exact structured #wat.parse/ EDN");
 
     // Must differ from the Display string.
     assert_ne!(
@@ -79,11 +75,7 @@ fn probe_2_sigmafn_startup_error_keeps_honest_detail() {
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
     // SigmaFn's :detail is the honest, deliberate exception (bare message).
-    wat::assert_edn_eq!(
-        edn_str.clone(),
-        include_str!("probe_arc296_3_holdout_edn__sigmafn_detail.edn"),
-        "SigmaFn must produce exact #wat.macro/SigmaFnError tagged EDN with :detail"
-    );
+    wat::assert_edn_matches_file!(edn_str.clone(), "probe_arc296_3_holdout_edn__sigmafn_detail.edn", "SigmaFn must produce exact #wat.macro/SigmaFnError tagged EDN with :detail");
     assert_ne!(edn_str, display_str, "to_edn() must differ from Display string");
     wat_edn::parse_owned(&edn_str).expect("must be valid EDN");
 }
@@ -134,11 +126,7 @@ fn probe_4_check_startup_error_emits_structured_vector_not_detail() {
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
     // Must be the structured collection envelope with navigable inner CheckErrors; NO :detail.
-    wat::assert_edn_eq!(
-        edn_str.clone(),
-        include_str!("probe_arc296_3_holdout_edn__check_errors_structured.edn"),
-        "Check startup error must produce exact structured #wat.check/CheckErrors EDN"
-    );
+    wat::assert_edn_matches_file!(edn_str.clone(), "probe_arc296_3_holdout_edn__check_errors_structured.edn", "Check startup error must produce exact structured #wat.check/CheckErrors EDN");
     // Must differ from Display.
     assert_ne!(edn_str, display_str, "to_edn() must produce structured EDN, not Display");
     wat_edn::parse_owned(&edn_str).expect("Check startup error must produce valid EDN");

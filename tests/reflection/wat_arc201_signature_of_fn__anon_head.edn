@@ -1,1 +1,7 @@
-(:anonymous (a wat.type/i64) (b wat.type/i64) -> wat.type/i64)
+(
+  :anonymous
+  (a wat.type/i64)
+  (b wat.type/i64)
+  ->
+  wat.type/i64
+)

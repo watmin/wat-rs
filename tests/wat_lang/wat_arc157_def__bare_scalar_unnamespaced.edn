@@ -1,13 +1,23 @@
-#wat.check/CheckErrors
-{:message "1 type-check error"
- :location nil
- :causes []
- :errors [#wat.check/UnnamespacedName
-          {:message "top-level name ':pi' is not namespaced — only fn arguments and let-bindings may be bare; give it a namespace, e.g. ':my::pi'"
-           :location #wat.core/Span
-                     {:file "tests/wat_lang/wat_arc157_def_bare_scalar_unnamespaced.wat.bad"
-                      :line 10
-                      :col 2
-                      :end #wat.core.Option/Some [#wat.core/Pos {:line 10 :col 17}]}
-           :causes []
-           :name ":pi"}]}
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/UnnamespacedName {
+      :message "top-level name ':pi' is not namespaced — only fn arguments and let-bindings may be bare; give it a namespace, e.g. ':my::pi'"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc157_def_bare_scalar_unnamespaced.wat.bad"
+        :line 10
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 10
+            :col 17
+          }
+        ]
+      }
+      :causes []
+      :name ":pi"
+    }
+  ]
+}

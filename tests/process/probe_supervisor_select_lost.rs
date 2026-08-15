@@ -125,11 +125,7 @@ fn select_prime_yields_lost_when_process_child_crashes() {
                             match s.fields.first() {
                                 Some(Value::Aggregate(err)) => match err.fields.first() {
                                     Some(Value::String(msg)) => {
-                                        wat::assert_edn_eq!(
-                                            msg.as_str().to_string(),
-                                            include_str!("probe_supervisor_select_lost__process_panics.edn"),
-                                            "Failure.error.message must match the process crash sentinel golden"
-                                        );
+                                        wat::assert_edn_matches_file!(msg.as_str().to_string(), "probe_supervisor_select_lost__process_panics.edn", "Failure.error.message must match the process crash sentinel golden");
                                     }
                                     other => panic!(
                                         "Failure.error.message must be String; got {:?}",

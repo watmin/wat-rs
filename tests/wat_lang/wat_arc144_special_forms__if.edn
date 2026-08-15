@@ -1,1 +1,3 @@
-#wat.core.Option/Some [(:wat.core/if <cond> <then> <else>)]
+#wat.core.Option/Some [
+  (:wat.core/if <cond> <then> <else>)
+]

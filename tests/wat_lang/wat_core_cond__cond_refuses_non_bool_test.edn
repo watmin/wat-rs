@@ -9,10 +9,12 @@
         :file "tests/wat_lang/wat_core_cond_non_bool.wat.bad"
         :line 6
         :col 6
-        :end #wat.core.Option/Some [#wat.core/Pos {
-          :line 6
-          :col 8
-        }]
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 8
+          }
+        ]
       }
       :causes []
       :callee ":wat::core::if"

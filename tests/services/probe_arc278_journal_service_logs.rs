@@ -61,11 +61,7 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
     // :message is OPAQUE (Stone B) — the producer `edn::write`s a PriceEvent record. Exact,
     // structural compare against a co-located golden (never an inlined EDN-esque literal).
     let message = map_get(fields, "message").as_str().expect(":message is a String");
-    wat::assert_edn_eq!(
-        message.to_string(),
-        include_str!("probe_arc278_journal_service_logs__message.edn"),
-        "opaque :message payload (Stone B, producer edn::write)"
-    );
+    wat::assert_edn_matches_file!(message.to_string(), "probe_arc278_journal_service_logs__message.edn", "opaque :message payload (Stone B, producer edn::write)");
 
     let (level_tag, _) = map_get(fields, "level").as_tagged().expect("level is tagged");
     assert_eq!(level_tag.namespace(), "wat.telemetry.Level", "level tag namespace: {level_tag:?}");

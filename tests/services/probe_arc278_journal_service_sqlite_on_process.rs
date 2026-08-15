@@ -25,9 +25,5 @@ fn journal_writes_a_metric_through_a_held_sqlite_store_peer_on_a_process() {
              did not open its own Connection + journal' :init did not ensure the schema in the child."
         ),
     };
-    wat::assert_edn_eq!(
-        stored,
-        include_str!("probe_arc278_journal__stored_metric.edn"),
-        "journal' persisted the Metric's tagged EDN through a sqlite backend across a process fork (U3)"
-    );
+    wat::assert_edn_matches_file!(stored, "probe_arc278_journal__stored_metric.edn", "journal' persisted the Metric's tagged EDN through a sqlite backend across a process fork (U3)");
 }

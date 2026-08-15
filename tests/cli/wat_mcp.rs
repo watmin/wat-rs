@@ -155,7 +155,7 @@ fn the_payload_is_edn_not_json() {
     // Compared STRUCTURALLY against a captured golden, not by prefix: the claim is that the
     // payload is an EDN VALUE, and only parsing both sides proves that. A `starts_with` here
     // would pass on a truncated or malformed tail.
-    wat::assert_edn_eq!(text, include_str!("wat_mcp__record.edn"));
+    wat::assert_edn_matches_file!(text, "wat_mcp__record.edn");
     // Arc 296 G-2 — the golden USED TO record a defect, deliberately and visibly: the field
     // names came back as `:field-0`/`:field-1`, not the declared `:x`/`:y`, because the
     // renderer recovered names via a registry lookup that this session's symbol table (never

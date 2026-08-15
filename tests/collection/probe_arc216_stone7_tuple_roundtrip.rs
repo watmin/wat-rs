@@ -225,9 +225,8 @@ fn probe_7_is_atomizable_tuple() {
         "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad",
     )
     .expect_err("expected startup failure for Tuple containing Fn");
-    let golden = include_str!("probe_arc216_stone7_tuple_roundtrip__tuple_with_fn.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_7: Tuple-with-Fn non-atomizable check-error golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_7: Tuple-with-Fn non-atomizable check-error golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone7_tuple_roundtrip__tuple_with_fn.edn", "probe_7: Tuple-with-Fn non-atomizable check-error golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone7_tuple_roundtrip__tuple_with_fn.edn", "probe_7: Tuple-with-Fn non-atomizable check-error golden (Debug)");
 }
 
 // ─── Probe 8 — HolonAST shape verification: keys are 0..n-1 ─────────────────

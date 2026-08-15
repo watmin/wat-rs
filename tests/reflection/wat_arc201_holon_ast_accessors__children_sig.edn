@@ -1,1 +1,7 @@
-[:user/add-two (a wat.type/i64) (b wat.type/i64) -> wat.type/i64]
+[
+  :user/add-two
+  (a wat.type/i64)
+  (b wat.type/i64)
+  ->
+  wat.type/i64
+]

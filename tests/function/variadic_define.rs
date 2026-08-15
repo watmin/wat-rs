@@ -132,11 +132,7 @@ fn signature_of_defn_variadic_define_returns_rest_shape() {
     // their own Symbol entry inside a Bundle: `Symbol ":wat::core::Vector"`
     // and `Symbol ":wat::core::i64"`. Asserting both confirms the
     // structured emission reached the variadic rest slot.
-    wat::assert_edn_eq!(
-        rendered,
-        include_str!("variadic_define__signature.edn"),
-        "vd_sig: variadic defn signature golden"
-    );
+    wat::assert_edn_matches_file!(rendered, "variadic_define__signature.edn", "vd_sig: variadic defn signature golden");
 }
 
 // ─── Canonical pattern: variadic + reduce over rest (arc 148 slice 4 shape) ───

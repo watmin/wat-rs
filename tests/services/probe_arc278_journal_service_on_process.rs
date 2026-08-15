@@ -24,9 +24,5 @@ fn journal_writes_a_metric_through_a_held_store_peer_on_a_process() {
              grant-before-dial ordering (journal's pid -> mem-store's gate) failed."
         ),
     };
-    wat::assert_edn_eq!(
-        stored,
-        include_str!("probe_arc278_journal__stored_metric.edn"),
-        "journal' stored the Metric's tagged EDN across a process fork (loci parity with the thread tier)"
-    );
+    wat::assert_edn_matches_file!(stored, "probe_arc278_journal__stored_metric.edn", "journal' stored the Metric's tagged EDN across a process fork (loci parity with the thread tier)");
 }

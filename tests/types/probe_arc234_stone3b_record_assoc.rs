@@ -63,7 +63,7 @@ fn probe_2_multi_field_update_one() {
 fn probe_3_unknown_field_errors() {
     match run(":user::probe-3") {
         Ok(v) => panic!("Probe 3 FAILED: expected UnknownField error; got Ok({:?})", v),
-        Err(msg) => wat::assert_edn_eq!(edn_body(&msg), include_str!("probe_arc234_stone3b_record_assoc__probe3_unknown_field.edn")),
+        Err(msg) => wat::assert_edn_matches_file!(edn_body(&msg), "probe_arc234_stone3b_record_assoc__probe3_unknown_field.edn"),
     }
 }
 
@@ -77,7 +77,7 @@ fn probe_4_type_mismatch_errors() {
             "Probe 4 FAILED: expected TypeMismatch (f64 vs i64); got Ok({:?})",
             v
         ),
-        Err(msg) => wat::assert_edn_eq!(edn_body(&msg), include_str!("probe_arc234_stone3b_record_assoc__probe4_type_mismatch.edn")),
+        Err(msg) => wat::assert_edn_matches_file!(edn_body(&msg), "probe_arc234_stone3b_record_assoc__probe4_type_mismatch.edn"),
     }
 }
 

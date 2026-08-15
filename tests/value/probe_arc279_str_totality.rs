@@ -93,8 +93,5 @@ fn str_keeps_nested_strings_quoted() {
 /// STRUCTURAL and a byte-exact compare would pin the key order of a two-key map.
 #[test]
 fn str_renders_a_record_by_name_not_positionally() {
-    wat::assert_edn_eq!(
-        rendered(":t::probe-record-named-fields"),
-        include_str!("probe_arc279_str_totality__record_named_fields.edn")
-    );
+    wat::assert_edn_matches_file!(rendered(":t::probe-record-named-fields"), "probe_arc279_str_totality__record_named_fields.edn");
 }

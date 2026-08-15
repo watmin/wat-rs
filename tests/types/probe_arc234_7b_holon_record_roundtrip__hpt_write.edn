@@ -1,1 +1,4 @@
-#test.rd/HPt {:x 7 :y 8}
+#test.rd/HPt {
+  :x 7
+  :y 8
+}

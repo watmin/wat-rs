@@ -50,7 +50,7 @@ fn run_string(world: &wat::freeze::FrozenWorld, fn_name: &str) -> String {
 fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, ":t::probe-1");
-    wat::assert_edn_eq!(s, include_str!("wat_arc221b_keyword_dispatcher_completeness__keyword_foo.edn"), "watast_to_holon Keyword must emit exact golden");
+    wat::assert_edn_matches_file!(s, "wat_arc221b_keyword_dispatcher_completeness__keyword_foo.edn", "watast_to_holon Keyword must emit exact golden");
 }
 
 // ─── Probe 2 — `:wat::holon::leaf` Keyword arm (runtime.rs:20938) ───────────
@@ -100,7 +100,7 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
 fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, ":t::probe-4");
-    wat::assert_edn_eq!(s, include_str!("wat_arc221b_keyword_dispatcher_completeness__keyword_bar.edn"), "edn::write Keyword must emit exact golden");
+    wat::assert_edn_matches_file!(s, "wat_arc221b_keyword_dispatcher_completeness__keyword_bar.edn", "edn::write Keyword must emit exact golden");
 }
 
 // ─── Probe 5 — Value::Unit consistency — `:wat::holon::leaf` nil (arc 230) ──────
@@ -114,7 +114,7 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, ":t::probe-5");
     // Arc 230: nil = Bind(Atom("Symbol"), Atom("nil")) → serializes as #wat-edn.holon/Symbol "nil".
-    wat::assert_edn_eq!(s, include_str!("wat_arc221b_keyword_dispatcher_completeness__symbol_nil.edn"), "holon_leaf unit must emit exact golden");
+    wat::assert_edn_matches_file!(s, "wat_arc221b_keyword_dispatcher_completeness__symbol_nil.edn", "holon_leaf unit must emit exact golden");
 }
 
 // ─── Probe 6 — `watast_to_holon` Keyword round-trip distinctness ─────────────

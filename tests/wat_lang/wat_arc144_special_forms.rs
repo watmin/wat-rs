@@ -83,33 +83,21 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
 fn lookup_form_if_returns_special_form() {
     assert_special_form("if", ":wat::core::if", ":wat.core/if");
     let signature_line = sig_str("if");
-    wat::assert_edn_eq!(
-        signature_line,
-        include_str!("wat_arc144_special_forms__if.edn"),
-        "if signature must carry <cond>/<then>/<else> slots"
-    );
+    wat::assert_edn_matches_file!(signature_line, "wat_arc144_special_forms__if.edn", "if signature must carry <cond>/<then>/<else> slots");
 }
 
 #[test]
 fn lookup_form_let_returns_special_form() {
     assert_special_form("let", ":wat::core::let", ":wat.core/let");
     let signature_line = sig_str("let");
-    wat::assert_edn_eq!(
-        signature_line,
-        include_str!("wat_arc144_special_forms__let.edn"),
-        "let signature must carry <bindings>/<body>+ slots"
-    );
+    wat::assert_edn_matches_file!(signature_line, "wat_arc144_special_forms__let.edn", "let signature must carry <bindings>/<body>+ slots");
 }
 
 #[test]
 fn lookup_form_fn_returns_special_form() {
     assert_special_form("fn", ":wat::core::fn", ":wat.core/fn");
     let sig = sig_str("fn");
-    wat::assert_edn_eq!(
-        sig,
-        include_str!("wat_arc144_special_forms__fn.edn"),
-        "fn signature must carry <params>/<body>+ slots"
-    );
+    wat::assert_edn_matches_file!(sig, "wat_arc144_special_forms__fn.edn", "fn signature must carry <params>/<body>+ slots");
 }
 
 #[test]
@@ -127,22 +115,14 @@ fn lookup_form_define_is_absent_from_registry() {
 fn lookup_form_match_returns_special_form() {
     assert_special_form("match", ":wat::core::match", ":wat.core/match");
     let sig = sig_str("match");
-    wat::assert_edn_eq!(
-        sig,
-        include_str!("wat_arc144_special_forms__match.edn"),
-        "match signature must carry <scrutinee>/<arm>+ slots"
-    );
+    wat::assert_edn_matches_file!(sig, "wat_arc144_special_forms__match.edn", "match signature must carry <scrutinee>/<arm>+ slots");
 }
 
 #[test]
 fn lookup_form_quasiquote_returns_special_form() {
     assert_special_form("quasiquote", ":wat::core::quasiquote", ":wat.core/quasiquote");
     let sig = sig_str("quasiquote");
-    wat::assert_edn_eq!(
-        sig,
-        include_str!("wat_arc144_special_forms__quasiquote.edn"),
-        "quasiquote signature must carry <template> slot"
-    );
+    wat::assert_edn_matches_file!(sig, "wat_arc144_special_forms__quasiquote.edn", "quasiquote signature must carry <template> slot");
 }
 
 /// Does this WatAST carry `kw` as a keyword node, at any depth? A structural walk over

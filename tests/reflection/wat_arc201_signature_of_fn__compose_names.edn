@@ -1,4 +1,1 @@
-[
-  :logger
-  :counter
-]
+[:logger :counter]

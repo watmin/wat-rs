@@ -62,11 +62,7 @@ fn probe_malformed_load_form_known_span() {
         known_span(),
         LoadErrorKind::MalformedLoadForm { reason: "bad form".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__malformed_load_form.edn"),
-        "MalformedLoadForm with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__malformed_load_form.edn", "MalformedLoadForm with known span");
 }
 
 // ─── 2. SetterInLoadedFile ────────────────────────────────────────────────────
@@ -81,11 +77,7 @@ fn probe_setter_in_loaded_file_known_span() {
             setter_head: "set-dims!".to_string(),
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__setter_in_loaded_file.edn"),
-        "SetterInLoadedFile with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__setter_in_loaded_file.edn", "SetterInLoadedFile with known span");
 }
 
 // ─── 3. DuplicateLoad ────────────────────────────────────────────────────────
@@ -97,11 +89,7 @@ fn probe_duplicate_load_known_span() {
         known_span(),
         LoadErrorKind::DuplicateLoad { path: "foo.wat".to_string() },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__duplicate_load.edn"),
-        "DuplicateLoad with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__duplicate_load.edn", "DuplicateLoad with known span");
 }
 
 // ─── 4. CycleDetected ────────────────────────────────────────────────────────
@@ -115,11 +103,7 @@ fn probe_cycle_detected_known_span() {
             cycle: vec!["a.wat".to_string(), "b.wat".to_string()],
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__cycle_detected.edn"),
-        "CycleDetected with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__cycle_detected.edn", "CycleDetected with known span");
 }
 
 // ─── 5. Fetch — the new single-field tuple-variant rule ──────────────────────
@@ -131,11 +115,7 @@ fn probe_fetch_known_span() {
         known_span(),
         LoadErrorKind::Fetch(LoadFetchError::NotFound("missing.wat".to_string())),
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__fetch.edn"),
-        "Fetch with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__fetch.edn", "Fetch with known span");
 }
 
 // ─── 6. Parse — recursive floor (error_edn_of, NOT raw to_edn) ───────────────
@@ -155,11 +135,7 @@ fn probe_parse_known_span() {
             },
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__parse.edn"),
-        "Parse with known outer + inner span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__parse.edn", "Parse with known outer + inner span");
 }
 
 // ─── 7. VerificationFailed ───────────────────────────────────────────────────
@@ -174,9 +150,5 @@ fn probe_verification_failed_known_span() {
             err: HashError::UnsupportedAlgorithm { algo: "SHA1".to_string() },
         },
     );
-    wat::assert_edn_eq!(
-        write(&err),
-        include_str!("probe_arc296_3b_loaderror_derive_identical__verification_failed.edn"),
-        "VerificationFailed with known span"
-    );
+    wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__verification_failed.edn", "VerificationFailed with known span");
 }

@@ -46,11 +46,7 @@ fn constant_width_inst_sk_sorts_chronologically() {
     // Put was out-of-order (late, early, mid). assert_edn_eq! parses both sides as EDN and compares
     // the ORDERED vectors — proving chronological order (early < mid < late) AND that a
     // constant-width #inst sk sorts a second-boundary instant correctly against a sub-second one.
-    wat::assert_edn_eq!(
-        scanned,
-        include_str!("probe_arc278_tagged_keys_store__scan_order.edn"),
-        "constant-width #inst sk sorts chronologically"
-    );
+    wat::assert_edn_matches_file!(scanned, "probe_arc278_tagged_keys_store__scan_order.edn", "constant-width #inst sk sorts chronologically");
 }
 
 #[test]

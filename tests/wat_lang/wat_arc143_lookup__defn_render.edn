@@ -1,5 +1,12 @@
-#wat.core.Option/Some [(
-  :wat.core/defn
-  (:t/my-square (x wat.type/i64) -> wat.type/i64)
-  (:wat.core/* x x)
-)]
+#wat.core.Option/Some [
+  (
+    :wat.core/defn
+    (
+      :t/my-square
+      (x wat.type/i64)
+      ->
+      wat.type/i64
+    )
+    (:wat.core/* x x)
+  )
+]

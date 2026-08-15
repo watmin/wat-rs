@@ -130,9 +130,5 @@ fn signature_of_defn_foldl_renders_synthesised_shape() {
 #[test]
 fn lookup_define_user_function_contains_defn_keyword() {
     let line = unwrap_string(run_expr(":t::test11-def-render"), "def-render");
-    wat::assert_edn_eq!(
-        line,
-        include_str!("wat_arc143_lookup__defn_render.edn"),
-        "rendered define-ast must show defn head and my-square name"
-    );
+    wat::assert_edn_matches_file!(line, "wat_arc143_lookup__defn_render.edn", "rendered define-ast must show defn head and my-square name");
 }

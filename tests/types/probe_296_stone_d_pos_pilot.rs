@@ -53,5 +53,5 @@ fn c3_pos_to_edn_write() {
     let edn_value = pos.to_edn();
     let s = wat_edn::write(&edn_value);
     eprintln!("C3 written EDN: {}", s);
-    wat::assert_edn_eq!(s, include_str!("probe_296_stone_d_pos_pilot__pos_write.edn"), "C3 FAIL: write output mismatch");
+    wat::assert_edn_matches_file!(s, "probe_296_stone_d_pos_pilot__pos_write.edn", "C3 FAIL: write output mismatch");
 }

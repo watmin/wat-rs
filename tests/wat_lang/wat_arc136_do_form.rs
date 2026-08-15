@@ -104,11 +104,7 @@ fn do_non_final_type_is_unconstrained() {
 #[test]
 fn do_reflection_round_trip_emits_variadic_sketch() {
     let rendered = unwrap_string(run_expr(":t::test7-signature"));
-    wat::assert_edn_eq!(
-        rendered,
-        include_str!("wat_arc136_do_form__do_signature.edn"),
-        "expected do keyword as signature head with variadic <form>+ slot"
-    );
+    wat::assert_edn_matches_file!(rendered, "wat_arc136_do_form__do_signature.edn", "expected do keyword as signature head with variadic <form>+ slot");
 }
 
 // ─── 8. Tail-call sanity: do in tail position preserves TCO ─────────────

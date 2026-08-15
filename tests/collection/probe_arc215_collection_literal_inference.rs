@@ -101,11 +101,7 @@ fn probe_5_mixed_value_types_rejected_at_check() {
     // Arc 296 stone C: the error's face is EDN (stone B). Assert DATA equality
     // against a co-located pretty-printed `.edn` reference — parse both, compare
     // the values. Display == Debug (both to_wire_edn), so one face is checked.
-    wat::assert_edn_eq!(
-        format!("{}", err),
-        include_str!("probe_arc215_collection_literal_inference__p5_mixed_value.edn"),
-        "probe_5: mixed-value-type map TypeMismatch golden"
-    );
+    wat::assert_edn_matches_file!(format!("{}", err), "probe_arc215_collection_literal_inference__p5_mixed_value.edn", "probe_5: mixed-value-type map TypeMismatch golden");
 }
 
 // ─── Probe 6: Empty `{}` ─────────────────────────────────────────────────────
@@ -176,9 +172,8 @@ fn probe_11_mixed_element_types_rejected_at_check() {
         "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad",
     )
     .expect_err("expected startup failure for mixed-element-type set");
-    let golden = include_str!("probe_arc215_collection_literal_inference__mixed_element_types.edn");
-    wat::assert_edn_eq!(format!("{err}"), golden, "probe_11: mixed-element-type set TypeMismatch golden (Display)");
-    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_11: mixed-element-type set TypeMismatch golden (Debug)");
+    wat::assert_edn_matches_file!(format!("{err}"), "probe_arc215_collection_literal_inference__mixed_element_types.edn", "probe_11: mixed-element-type set TypeMismatch golden (Display)");
+    wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc215_collection_literal_inference__mixed_element_types.edn", "probe_11: mixed-element-type set TypeMismatch golden (Debug)");
 }
 
 // ─── Probe 12: Map of sets ────────────────────────────────────────────────────

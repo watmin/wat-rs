@@ -35,10 +35,7 @@ fn type_mismatch_to_edn_is_byte_identical() {
         10,
         5,
     );
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc296_4_check_error_to_edn__type_mismatch.edn")
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc296_4_check_error_to_edn__type_mismatch.edn");
 }
 
 // ─── ArityMismatch — carries expected/got integers ───────────────────────────
@@ -56,10 +53,7 @@ fn arity_mismatch_to_edn_is_byte_identical() {
         5,
         1,
     );
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc296_4_check_error_to_edn__arity_mismatch.edn")
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc296_4_check_error_to_edn__arity_mismatch.edn");
 }
 
 // ─── UnknownCallee — carries callee field ────────────────────────────────────
@@ -75,10 +69,7 @@ fn unknown_callee_to_edn_is_byte_identical() {
         3,
         7,
     );
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc296_4_check_error_to_edn__unknown_callee.edn")
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc296_4_check_error_to_edn__unknown_callee.edn");
 }
 
 // ─── CommCallOutOfPosition — the CLI test case ───────────────────────────────
@@ -94,8 +85,5 @@ fn comm_call_out_of_position_to_edn_is_byte_identical() {
         8,
         3,
     );
-    wat::assert_edn_eq!(
-        s,
-        include_str!("probe_arc296_4_check_error_to_edn__comm_call_out_of_position.edn")
-    );
+    wat::assert_edn_matches_file!(s, "probe_arc296_4_check_error_to_edn__comm_call_out_of_position.edn");
 }

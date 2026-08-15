@@ -1,1 +1,6 @@
-(:t/my-triple (x wat.type/i64) -> wat.type/i64)
+(
+  :t/my-triple
+  (x wat.type/i64)
+  ->
+  wat.type/i64
+)

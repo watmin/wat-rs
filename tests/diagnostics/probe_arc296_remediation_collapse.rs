@@ -65,21 +65,13 @@ fn probe_1_type_mismatch_retired_callee_emits_remedies_not_hint() {
     let s = wat_edn::write(&edn);
 
     // Must be exact EDN: :remedies Vector with retirement entry; no :hint.
-    wat::assert_edn_eq!(
-        s.clone(),
-        include_str!("probe_arc296_remediation_collapse__type_mismatch_vec.edn"),
-        "TypeMismatch on retired callee must emit structured :remedies Vector (NO :hint)"
-    );
+    wat::assert_edn_matches_file!(s.clone(), "probe_arc296_remediation_collapse__type_mismatch_vec.edn", "TypeMismatch on retired callee must emit structured :remedies Vector (NO :hint)");
 
     let items = assert_remedies_vector(&edn);
     assert!(!items.is_empty(), ":remedies must be non-empty for retired callee :wat::core::vec");
 
     let first_str = wat_edn::write(&items[0]);
-    wat::assert_edn_eq!(
-        first_str,
-        include_str!("probe_arc296_remediation_collapse__vec_remedy.edn"),
-        "first remedy must be exact #wat.kernel/Remedy with :kind :retirement"
-    );
+    wat::assert_edn_matches_file!(first_str, "probe_arc296_remediation_collapse__vec_remedy.edn", "first remedy must be exact #wat.kernel/Remedy with :kind :retirement");
 
     wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
@@ -104,21 +96,13 @@ fn probe_2_type_mismatch_arc114_shape_emits_spawn_thread_remedy_not_hint() {
     let s = wat_edn::write(&edn);
 
     // Must be exact EDN: :remedies with arc 114 spawn-thread retirement remedy; no :hint.
-    wat::assert_edn_eq!(
-        s.clone(),
-        include_str!("probe_arc296_remediation_collapse__type_mismatch_arc114.edn"),
-        "TypeMismatch arc114 shape must emit exact structured :remedies Vector (NO :hint)"
-    );
+    wat::assert_edn_matches_file!(s.clone(), "probe_arc296_remediation_collapse__type_mismatch_arc114.edn", "TypeMismatch arc114 shape must emit exact structured :remedies Vector (NO :hint)");
 
     let items = assert_remedies_vector(&edn);
     assert!(!items.is_empty(), ":remedies must be non-empty for arc 114 shape mismatch");
 
     let first_str = wat_edn::write(&items[0]);
-    wat::assert_edn_eq!(
-        first_str,
-        include_str!("probe_arc296_remediation_collapse__arc114_remedy.edn"),
-        "arc 114 remedy must be exact #wat.kernel/Remedy with spawn-thread :form"
-    );
+    wat::assert_edn_matches_file!(first_str, "probe_arc296_remediation_collapse__arc114_remedy.edn", "arc 114 remedy must be exact #wat.kernel/Remedy with spawn-thread :form");
 
     wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
@@ -148,21 +132,13 @@ fn probe_3_return_type_mismatch_retired_callee_emits_remedies_not_hint() {
     let s = wat_edn::write(&edn);
 
     // Must be exact EDN: :remedies with retirement entry for :wat::core::list; no :hint.
-    wat::assert_edn_eq!(
-        s.clone(),
-        include_str!("probe_arc296_remediation_collapse__return_type_mismatch_list.edn"),
-        "ReturnTypeMismatch on retired list must emit structured :remedies (NO :hint)"
-    );
+    wat::assert_edn_matches_file!(s.clone(), "probe_arc296_remediation_collapse__return_type_mismatch_list.edn", "ReturnTypeMismatch on retired list must emit structured :remedies (NO :hint)");
 
     let items = assert_remedies_vector(&edn);
     assert!(!items.is_empty(), ":remedies must be non-empty for retired function :wat::core::list");
 
     let first_str = wat_edn::write(&items[0]);
-    wat::assert_edn_eq!(
-        first_str,
-        include_str!("probe_arc296_remediation_collapse__list_remedy.edn"),
-        "list retirement remedy must be exact #wat.kernel/Remedy with :kind :retirement"
-    );
+    wat::assert_edn_matches_file!(first_str, "probe_arc296_remediation_collapse__list_remedy.edn", "list retirement remedy must be exact #wat.kernel/Remedy with :kind :retirement");
 
     wat_edn::parse_owned(&s).expect("must be valid EDN");
 }

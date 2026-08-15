@@ -40,11 +40,7 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
 
     // Round-trip via wat-edn writer + parser.
     let serialized = wat_edn::write(&edn);
-    wat::assert_edn_eq!(
-        serialized.clone(),
-        include_str!("probe_stone_233_3_runtime_error_edn__not_callable.edn"),
-        "Stone 233.3: NotCallable RuntimeError must serialize to exact tagged EDN"
-    );
+    wat::assert_edn_matches_file!(serialized.clone(), "probe_stone_233_3_runtime_error_edn__not_callable.edn", "Stone 233.3: NotCallable RuntimeError must serialize to exact tagged EDN");
     let parsed = wat_edn::parse_owned(&serialized).expect("parse round-trip");
     assert!(
         matches!(&parsed, wat_edn::OwnedValue::Tagged(tag, _) if tag.name() == "NotCallable"),
@@ -70,11 +66,7 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
     let serialized = wat_edn::write(&edn);
 
     // All 4 struct fields (op, expected, got, span) must surface in exact EDN.
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_stone_233_3_runtime_error_edn__type_mismatch.edn"),
-        "TypeMismatch serialization must include all fields: op, expected, got, span"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__type_mismatch.edn", "TypeMismatch serialization must include all fields: op, expected, got, span");
 }
 
 // ─── Probe 3 — AssertionFailed Option<String> fields render Nil/String ──────
@@ -92,11 +84,7 @@ fn probe_3_assertion_failed_with_optional_fields() {
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_stone_233_3_runtime_error_edn__assertion_failed.edn"),
-        "AssertionFailed must surface message, actual (Some), and expected (None/nil)"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__assertion_failed.edn", "AssertionFailed must surface message, actual (Some), and expected (None/nil)");
 }
 
 // ─── Probe 4 — Tuple variant (ParamShadowsBuiltin: String + Span) ───────────
@@ -110,11 +98,7 @@ fn probe_4_tuple_variant_serializes() {
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_stone_233_3_runtime_error_edn__param_shadows_builtin.edn"),
-        "ParamShadowsBuiltin must serialize to exact tagged EDN with :name and :span"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__param_shadows_builtin.edn", "ParamShadowsBuiltin must serialize to exact tagged EDN with :name and :span");
 }
 
 // ─── Probe 5 — Provenance variants render with per-variant tags ─────────────
@@ -133,11 +117,7 @@ fn probe_5_provenance_variants_render_with_tags() {
     let edn = wat::runtime_error_edn::provenance_to_edn(&prov);
     let serialized = wat_edn::write(&edn);
 
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_stone_233_3_runtime_error_edn__provenance_symbol_bound.edn"),
-        "Provenance::SymbolBound must surface exact binding-span + head-span in EDN"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__provenance_symbol_bound.edn", "Provenance::SymbolBound must surface exact binding-span + head-span in EDN");
 
     // Also test RuntimeBuilt — populated by 5 producers
     let prov_rb = Provenance::RuntimeBuilt {
@@ -147,11 +127,7 @@ fn probe_5_provenance_variants_render_with_tags() {
     let edn_rb = wat::runtime_error_edn::provenance_to_edn(&prov_rb);
     let serialized_rb = wat_edn::write(&edn_rb);
 
-    wat::assert_edn_eq!(
-        serialized_rb,
-        include_str!("probe_stone_233_3_runtime_error_edn__provenance_runtime_built.edn"),
-        "Provenance::RuntimeBuilt must surface exact producer + call-span in EDN"
-    );
+    wat::assert_edn_matches_file!(serialized_rb, "probe_stone_233_3_runtime_error_edn__provenance_runtime_built.edn", "Provenance::RuntimeBuilt must surface exact producer + call-span in EDN");
 }
 
 // ─── helper — silence unused import warnings ────────────────────────────────

@@ -49,11 +49,7 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
     let line = unwrap_string(run_expr(":t::test1-lookup-macro-render"), "test1");
-    wat::assert_edn_eq!(
-        line,
-        include_str!("wat_arc144_lookup_form__macro_head.edn"),
-        "rendered macro define-ast must carry defmacro head and my::ident name"
-    );
+    wat::assert_edn_matches_file!(line, "wat_arc144_lookup_form__macro_head.edn", "rendered macro define-ast must carry defmacro head and my::ident name");
 }
 
 #[test]

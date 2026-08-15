@@ -92,11 +92,7 @@ fn injected_user_program_flows_to_main() {
         1,
         "expected main to read + emit the INJECTED user-data (user::MyEnv), not EmptyEnv"
     );
-    wat::assert_edn_eq!(
-        lines[0].clone(),
-        include_str!("probe_arc209_c0b3bd_user_program_foundation__injected_user_program_flows_to_main.edn"),
-        "expected main to read + emit the INJECTED user-data (user::MyEnv), not EmptyEnv"
-    );
+    wat::assert_edn_matches_file!(lines[0].clone(), "probe_arc209_c0b3bd_user_program_foundation__injected_user_program_flows_to_main.edn", "expected main to read + emit the INJECTED user-data (user::MyEnv), not EmptyEnv");
 }
 
 #[test]
@@ -112,9 +108,5 @@ fn default_user_program_is_empty_env() {
         1,
         "expected the default user-data to be EmptyEnv when none is injected"
     );
-    wat::assert_edn_eq!(
-        lines[0].clone(),
-        include_str!("probe_arc209_c0b3bd_user_program_foundation__default_user_program_is_empty_env.edn"),
-        "expected the default user-data to be EmptyEnv when none is injected"
-    );
+    wat::assert_edn_matches_file!(lines[0].clone(), "probe_arc209_c0b3bd_user_program_foundation__default_user_program_is_empty_env.edn", "expected the default user-data to be EmptyEnv when none is injected");
 }

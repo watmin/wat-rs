@@ -68,11 +68,7 @@ fn probe_1_startup_error_to_edn_is_tagged() {
     let serialized = wat_edn::write(&edn);
 
     // Must carry the full nested chain: ProgramBodyEvalFailed → MacroEvalRuntimeFailed → UnboundSymbol.
-    wat::assert_edn_eq!(
-        serialized.clone(),
-        include_str!("probe_arc296_macro_error_is_structured_edn__startup_macro_chain.edn"),
-        "startup_error_to_edn for Macro(..) must produce exact nested structured EDN"
-    );
+    wat::assert_edn_matches_file!(serialized.clone(), "probe_arc296_macro_error_is_structured_edn__startup_macro_chain.edn", "startup_error_to_edn for Macro(..) must produce exact nested structured EDN");
 
     // Must NOT be a bare String (the old prose-collapse behavior).
     assert!(
@@ -113,11 +109,7 @@ fn probe_2_macro_error_to_edn_leaf_cause_is_not_string() {
     let serialized = wat_edn::write(&edn);
 
     // Must be exact nested structured EDN: ProgramBodyEvalFailed → MacroEvalRuntimeFailed → UnboundSymbol.
-    wat::assert_edn_eq!(
-        serialized,
-        include_str!("probe_arc296_macro_error_is_structured_edn__macro_error_chain.edn"),
-        "macro_error_to_edn must produce exact nested structured EDN (NOT a bare String)"
-    );
+    wat::assert_edn_matches_file!(serialized, "probe_arc296_macro_error_is_structured_edn__macro_error_chain.edn", "macro_error_to_edn must produce exact nested structured EDN (NOT a bare String)");
 }
 
 // ─── Probe 3 — MacroEvalRuntimeFailed variant carries the cause ──────────────

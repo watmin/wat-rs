@@ -1,1 +1,6 @@
-(:t/probe-1-renamed (x wat.type/i64) -> wat.type/i64)
+(
+  :t/probe-1-renamed
+  (x wat.type/i64)
+  ->
+  wat.type/i64
+)
