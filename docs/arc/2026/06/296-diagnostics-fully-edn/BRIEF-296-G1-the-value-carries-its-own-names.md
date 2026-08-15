@@ -135,14 +135,16 @@ to read; the 16th is STOP-1 below.
 | `:wat::spawn::Bound` | `wat/spawn.wat:278` | **parametric — see the note below** |
 | `:wat::kernel::ThreadPeer` | **none** | **STOP-1** |
 
-> **The parametric spelling — pass the declared keyword verbatim.** `wat/spawn.wat:278` declares
-> `:wat::spawn::Bound<S,R>`, and `field_names_of` matches the type path **exactly**
-> (`crates/wat-source-derive/src/lib.rs`, `if tp != want { continue }`). So the invocation is
-> `wat_field_names_from!(BOUND_FIELDS, "wat/spawn.wat", ":wat::spawn::Bound<S,R>")` — the full
-> declared spelling, even though the runtime `class` string at `src/runtime.rs:22091` / `:22130` is
-> the bare `"wat::spawn::Bound"`. Exact-match is the *safe* direction: a wrong path fails loudly at
-> compile time with the macro's own message rather than silently matching a neighbour. Leave the
-> matching logic as it is.
+> **Name the type as it is DECLARED — type parameters included.** Structs and records in this
+> language are parametric; that is ordinary, not a special case (builder's ruling, 2026-08-15). The
+> reader matches the declared type path exactly (`crates/wat-source-derive/src/lib.rs`,
+> `if tp != want { continue }`), so the invocation carries the declared spelling verbatim:
+> `wat_field_names_from!(BOUND_FIELDS, "wat/spawn.wat", ":wat::spawn::Bound<S,R>")` — even though the
+> runtime `class` string at `src/runtime.rs:22091` / `:22130` is the bare `"wat::spawn::Bound"`
+> (`class` is type-erased at the value layer; the type arguments live in the checker's `TypeEnv`).
+> This is the same rule for every type: write what the `.wat` file writes. **Leave the matching logic
+> as it is** — exact-match fails loudly with the macro's own message rather than silently matching a
+> neighbouring type, which is the direction that keeps a generic from being torn apart.
 
 ---
 

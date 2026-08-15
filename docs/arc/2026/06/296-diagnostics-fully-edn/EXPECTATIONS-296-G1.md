@@ -50,13 +50,13 @@ whether the brief's classification held.
 
 ## Trap-doors named in advance
 
-1. **`:wat::spawn::Bound<S,R>` is parametric** and the reader matches type paths exactly. If the
-   rider passes the bare `":wat::spawn::Bound"` the macro errors out loudly — correct behaviour, and
-   the brief pins the fix (pass the declared spelling verbatim). **The failure mode to watch for is
-   the rider "fixing" `field_names_of` to do a prefix match instead.** That would be the fourth
-   instance on this crusade of a name comparison with one side normalized and the other not — the
-   exact class that tore `State<K,V>` into `State<K` + `V>`. Exact-match is the safe direction and
-   stays.
+1. **Parametric declarations are ORDINARY** (builder's ruling, 2026-08-15 — *"structs and records are
+   parametric, should not be an issue"*). The rule is simply *name the type as it is declared*. If a
+   bare path is passed for a parametric type the macro errors out loudly, which is correct. **The
+   failure mode to watch for is the rider "fixing" `field_names_of` into a prefix match.** That would
+   be the fourth instance on this crusade of a name comparison with one side normalized and the other
+   not — the class that tore `State<K,V>` into `State<K` + `V>`. Exact-match is the safe direction
+   and stays.
 2. **`:wat::kernel::ThreadPeer` (STOP-1)** is the one site with no honest source. The tempting moves
    are an empty `names` vector (silently wrong, arity mismatch waiting) or a two-element literal
    (the exact thing the builder stopped). Either one scores row 11 red even if the floor is green.
