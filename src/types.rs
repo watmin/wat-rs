@@ -738,15 +738,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // budget). The two fields are honest: cost is what the Bundle was
     // asked to hold; budget is what the substrate could hold. Both
     // i64 because wat integer literals are i64.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
-        name: ":wat::holon::CapacityExceeded".into(),
-        type_params: vec![],
-        fields: vec![
-            ("cost".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("budget".into(), TypeExpr::Path(":wat::core::i64".into())),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::holon::CapacityExceeded …)`
+    // in `wat/holon.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
+    // Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/holon.wat", ":wat::holon::CapacityExceeded");
 
     // :wat::holon::BundleResult — arc 032. Typealias for the
     // canonical Result shape Bundle (and every downstream caller
@@ -823,15 +819,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Plus the constructor :wat::core::EvalError/new for cases where
     // user code wants to synthesize one (rare — normally produced by
     // the runtime).
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
-        name: ":wat::core::EvalError".into(),
-        type_params: vec![],
-        fields: vec![
-            ("kind".into(), TypeExpr::Path(":wat::core::String".into())),
-            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::core::EvalError …)`
+    // in `wat/core.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
+    // Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::EvalError");
 
     // :wat::core::Bytes — substrate-general byte buffer. Alias for
     // :Vec<u8>. Per arc 062 + /gaze: the universal name "Bytes" wins
@@ -1481,16 +1473,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // LIVE construction has a real file/line span and a real symbol (a named
     // fn's path, the `<anonymous>` marker for an anon fn, or the macro name
     // for a macro-call-site). Arc 109 — concrete, non-`Option` fields.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::Frame".into(),
-        type_params: vec![],
-        fields: vec![
-            ("file".into(), TypeExpr::Path(":wat::core::String".into())),
-            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("symbol".into(), TypeExpr::Path(":wat::core::String".into())),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Frame …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Frame");
 
     // :wat::core::Span — the leaf source location an error's `:location` floor
     // key carries (arc 278 "errors first-class EDN"). `Span` write-side is the
@@ -1502,23 +1489,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:message` (String), `:location` (this Span), `:causes` (Vector<Error>).
     // `:end` is `Option<:wat::core::Pos>` (Pos is registered via the EdnSchema
     // drain below); `None` for the `rust_caller_span!()` point-spans.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::core::Span".into(),
-        type_params: vec![],
-        fields: vec![
-            ("file".into(), TypeExpr::Path(":wat::core::String".into())),
-            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
-            (
-                "end".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::Pos".into())],
-                },
-            ),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::core::Span …)`
+    // in `wat/core.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
+    // Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::Span");
 
     // :wat::kernel::Failure — structured panic / assertion payload
     // populated when a sandboxed `:user::main` fails. Slice 2b fills
@@ -1538,35 +1513,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `error` field is pure: `:wat::core::Error` is a `:nature :wat::core::Record` surface
     // (core.wat), and `is_pure_type` reads a surface's declared nature — post-load containment
     // (`validate_aggregate_containment`, freeze/env.rs) sees Error registered and passes.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::Failure".into(),
-        type_params: vec![],
-        fields: vec![
-            ("error".into(), TypeExpr::Path(":wat::core::Error".into())),
-            (
-                "frames".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::Frame".into())],
-                },
-            ),
-            (
-                "actual".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-            (
-                "expected".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Failure …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Failure");
 
     // :wat::kernel::AssertionFailure — arc 278 (DESIGN-loci-died-error.md): the
     // registered record that the panic-hook `#wat.kernel/AssertionFailure {…}`
@@ -1577,50 +1528,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `Vector<LociDiedError>` (was heterogeneous Thread|Process). Every field
     // type (Frame, Location, Failure, LociDiedError) is registered above/below
     // — the record is EDN all the way down.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::AssertionFailure".into(),
-        type_params: vec![],
-        fields: vec![
-            ("thread".into(), TypeExpr::Path(":wat::core::String".into())),
-            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
-            (
-                "location".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
-                },
-            ),
-            (
-                "actual".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-            (
-                "expected".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-            (
-                "frames".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::Frame".into())],
-                },
-            ),
-            (
-                "upstream-chain".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
-                },
-            ),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::AssertionFailure …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::AssertionFailure");
 
     // :wat::kernel::StopAccepted — arc 170 "stopping is a protocol" Phase 2. The shutdown worker's
     // one notice, emitted exactly once on STDOUT (via the primed StdOut service, never a raw fd-1
@@ -1629,20 +1541,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // asked (its held stdio Handles that were still live at the moment of the ask — an already-gone
     // Handle is silently omitted, never listed). Pure — crosses no live resource, pure EDN data,
     // rendering as `#wat.kernel/StopAccepted {:services [...]}`.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::StopAccepted".into(),
-        type_params: vec![],
-        fields: vec![
-            (
-                "services".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopAccepted …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopAccepted");
 
     // :wat::kernel::StopFailure — one service's failed stop, inside a `StopFailed`. `cause` carries
     // the STRUCTURED `:wat::core::Error` the failure already is (see `runtime.rs`'s
@@ -1650,15 +1553,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // record that structurally satisfies the `:wat::core::Error` surface, `wat/core.wat`) — never a
     // stringly message, never a bespoke `StopFailureCause` enum. Registered BEFORE `StopFailed` (which
     // holds `Vector<StopFailure>`), matching the Frame/Location-before-AssertionFailure ordering above.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::StopFailure".into(),
-        type_params: vec![],
-        fields: vec![
-            ("service".into(), TypeExpr::Path(":wat::core::String".into())),
-            ("cause".into(), TypeExpr::Path(":wat::core::Error".into())),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopFailure …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailure");
 
     // :wat::kernel::StopFailed — arc 170 "stopping is a protocol", the builder's silent-drop-annihilation
     // ruling. The shutdown worker no longer discards an ask's (or the `StopAccepted` announce's) error —
@@ -1667,20 +1566,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // stop that failed is no longer graceful) immediately before a non-zero exit
     // (`src/distribution/mod.rs`, beside the existing `emit_structured_exit` call). An empty collection
     // means nothing changes — exit as it always did.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::StopFailed".into(),
-        type_params: vec![],
-        fields: vec![
-            (
-                "services".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::StopFailure".into())],
-                },
-            ),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopFailed …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailed");
 
     // :wat::kernel::RecvOutcome<O> — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
@@ -2421,12 +2311,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Auto-generated `StartupError/new` + `StartupError/message`
     // accessor land in the symbol table at freeze time via
     // register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
-        name: ":wat::kernel::StartupError".into(),
-        type_params: vec![],
-        fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::kernel::StartupError …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StartupError");
 
     // :wat::holon::CoincidentExplanation — arc 069 diagnostic record
     // returned by `:wat::holon::coincident-explain`. Bundles the raw
@@ -2438,22 +2327,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `CoincidentExplanation/new` + per-field accessors
     // land in the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
-        name: ":wat::holon::CoincidentExplanation".into(),
-        type_params: vec![],
-        fields: vec![
-            ("cosine".into(), TypeExpr::Path(":wat::core::f64".into())),
-            ("floor".into(), TypeExpr::Path(":wat::core::f64".into())),
-            ("dim".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("sigma".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("coincident".into(), TypeExpr::Path(":wat::core::bool".into())),
-            (
-                "min-sigma-to-pass".into(),
-                TypeExpr::Path(":wat::core::i64".into()),
-            ),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::holon::CoincidentExplanation …)`
+    // in `wat/holon.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
+    // Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/holon.wat", ":wat::holon::CoincidentExplanation");
 
     // :wat::holon::Match — the result of `:wat::holon::Hologram/find`. A Hologram
     // matches by SIMILARITY, so the key `find` hands back is not necessarily the
@@ -2467,15 +2345,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // the type name carries the semantics, so `matched-key` here would be
     // redundant. Auto-generated `Match/key` / `Match/value` accessors land in
     // the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::holon::Match".into(),
-        type_params: vec![],
-        fields: vec![
-            ("key".into(), TypeExpr::Path(":wat::holon::HolonAST".into())),
-            ("value".into(), TypeExpr::Path(":wat::holon::HolonAST".into())),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::holon::Match …)`
+    // in `wat/holon.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
+    // Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/holon.wat", ":wat::holon::Match");
 
     // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
