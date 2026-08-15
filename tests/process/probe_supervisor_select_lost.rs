@@ -27,11 +27,15 @@ use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
 
+/// The child program's own file tag, as passed to `parse_all_with_file` below.
+/// Named once so the standing span-carriage assertion (stone J, arc 296) and
+/// the parse call that establishes it cannot drift apart.
+const CHILD_PROGRAM_FILE: &str = "<spawn-process-program>";
+
 /// Build `(:wat::kernel::spawn-program (:wat::spawn::process) (:wat::core::forms <forms>...))`
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {
-    let child_forms =
-        wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
-            .expect("child program parse");
+    let child_forms = wat::parser::parse_all_with_file(child_program_src, CHILD_PROGRAM_FILE)
+        .expect("child program parse");
     let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
     forms_items.extend(child_forms);
     let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
@@ -46,6 +50,69 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
         ],
         wat::rust_caller_span!(),
     )
+}
+
+/// Recursively collect the `:file` value of every `#wat.kernel/Location {…}`
+/// node found anywhere in `v` — structural, never a substring/`.contains()`
+/// scan of the rendered text (`no_loose_string_assert` is armed and has fired
+/// on this arc twice).
+fn find_location_files(v: &wat_edn::OwnedValue, out: &mut Vec<String>) {
+    use wat_edn::Value::*;
+    if let Tagged(t, body) = v {
+        if t.namespace() == "wat.kernel" && t.name() == "Location" {
+            if let Map(fields) = body.as_ref() {
+                for (k, fv) in fields {
+                    if let (Keyword(kw), String(s)) = (k, fv) {
+                        if kw.namespace().is_none() && kw.name() == "file" {
+                            out.push(s.as_ref().to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    match v {
+        Tagged(_, body) => find_location_files(body, out),
+        List(xs) | Vector(xs) | Set(xs) => xs.iter().for_each(|x| find_location_files(x, out)),
+        Map(kvs) => kvs.iter().for_each(|(k, v)| {
+            find_location_files(k, out);
+            find_location_files(v, out);
+        }),
+        _ => {}
+    }
+}
+
+/// STANDING ASSERTION (independent of the golden below) — stone J/296's whole
+/// claim for this probe: the crashed child's `:location` must name the
+/// CHILD's own source, never this decoder's Rust line. Unlike the golden,
+/// recapturing this file cannot silently erase the property: it is a fixed
+/// structural check, not a byte-for-byte oracle that a blind `UPDATE_EDN=1`
+/// would happily re-stamp over a regression.
+fn assert_location_names_the_child_not_the_decoder(msg: &str) {
+    let parsed = wat_edn::parse_owned(msg)
+        .unwrap_or_else(|e| panic!("crash message must itself be valid EDN: {e} — msg: {msg}"));
+    let mut files = Vec::new();
+    find_location_files(&parsed, &mut files);
+    assert_eq!(
+        files.len(),
+        1,
+        "expected exactly one #wat.kernel/Location in the crash chain — msg: {msg}"
+    );
+    assert_eq!(
+        files[0], CHILD_PROGRAM_FILE,
+        "STANDING (stone J): :location's :file must be the CRASHED CHILD's own \
+         source file, not this decoder's. If this regresses, span carriage broke \
+         and every diagnostic from a spawned child will point at wat-rs's own \
+         Rust source instead of the user's — msg: {msg}"
+    );
+    let is_src_rs_path = files[0].starts_with("src/") && files[0].ends_with(".rs");
+    assert!(
+        !is_src_rs_path,
+        "STANDING (stone J): :location's :file must NEVER be a `src/*.rs` path \
+         — got {:?}, which means the span carriage dropped the child's real \
+         span and fell back to the decoder's own `rust_caller_span!()` — msg: {msg}",
+        files[0]
+    );
 }
 
 /// The process child immediately panics with "boom" via `Option/expect` on `None`.
@@ -124,6 +191,12 @@ fn select_prime_yields_lost_when_process_child_crashes() {
                             match s.fields.first() {
                                 Some(Value::Aggregate(err)) => match err.fields.first() {
                                     Some(Value::String(msg)) => {
+                                        // STANDING, independent of the golden below (stone J,
+                                        // arc 296): the crash's :location must name the child's
+                                        // own source, never this decoder's Rust file. A wholesale
+                                        // golden recapture cannot silently erase this — it is
+                                        // asserted structurally on the parsed EDN, separately.
+                                        assert_location_names_the_child_not_the_decoder(msg.as_str());
                                         wat::assert_edn_matches_file!(msg.as_str().to_string(), "probe_supervisor_select_lost__process_panics.edn", "Failure.error.message must match the process crash sentinel golden");
                                     }
                                     other => panic!(

@@ -1,53 +1,522 @@
-[
-  (:wat.config/set-capacity-mode! :error)
-  (
-    :wat.core/defstruct
-    :myapp/Pt
-    [x <- :wat.core/i64 y <- :wat.core/i64]
-  )
-  (
-    :wat.core/defn
-    :myapp/sum
-    [p <- :myapp/Pt]
-    ->
-    :wat.core/i64
-    (
-      :wat.core/let
-      [
-        {
-          :keys [x y]
+#wat.ast/Program {
+  :origins ["probe_arc213.wat"]
+  :forms [
+    #wat.ast/Spanned {
+      :node (
+        #wat.ast/Spanned {
+          :node :wat.config/set-capacity-mode!
+          :origin 0
+          :line 9
+          :col 2
+          :end-line 9
+          :end-col 34
         }
-        p
-      ]
-      (:wat.core.i64/+ x y)
-    )
-  )
-  (
-    :wat.core/defn
-    :myapp/tags
-    []
-    ->
-    :wat.core/i64
-    (
-      :wat.core/let
-      [
-        m
-        {
-          :a 1
-          :b 2
+        #wat.ast/Spanned {
+          :node :error
+          :origin 0
+          :line 9
+          :col 35
+          :end-line 9
+          :end-col 41
         }
-        s
-        #{:x :y :z}
-      ]
-      42
-    )
-  )
-  (
-    :wat.core/defn
-    :user/main
-    []
-    ->
-    :wat.core/nil
-    nil
-  )
-]
+      )
+      :origin 0
+      :line 9
+      :col 1
+      :end-line 9
+      :end-col 42
+    }
+    #wat.ast/Spanned {
+      :node (
+        #wat.ast/Spanned {
+          :node :wat.core/defstruct
+          :origin 0
+          :line 10
+          :col 2
+          :end-line 10
+          :end-col 23
+        }
+        #wat.ast/Spanned {
+          :node :myapp/Pt
+          :origin 0
+          :line 10
+          :col 24
+          :end-line 10
+          :end-col 34
+        }
+        #wat.ast/Spanned {
+          :node [
+            #wat.ast/Spanned {
+              :node x
+              :origin 0
+              :line 10
+              :col 36
+              :end-line 10
+              :end-col 37
+            }
+            #wat.ast/Spanned {
+              :node <-
+              :origin 0
+              :line 10
+              :col 38
+              :end-line 10
+              :end-col 40
+            }
+            #wat.ast/Spanned {
+              :node :wat.core/i64
+              :origin 0
+              :line 10
+              :col 41
+              :end-line 10
+              :end-col 56
+            }
+            #wat.ast/Spanned {
+              :node y
+              :origin 0
+              :line 10
+              :col 58
+              :end-line 10
+              :end-col 59
+            }
+            #wat.ast/Spanned {
+              :node <-
+              :origin 0
+              :line 10
+              :col 60
+              :end-line 10
+              :end-col 62
+            }
+            #wat.ast/Spanned {
+              :node :wat.core/i64
+              :origin 0
+              :line 10
+              :col 63
+              :end-line 10
+              :end-col 78
+            }
+          ]
+          :origin 0
+          :line 10
+          :col 35
+          :end-line 10
+          :end-col 79
+        }
+      )
+      :origin 0
+      :line 10
+      :col 1
+      :end-line 10
+      :end-col 80
+    }
+    #wat.ast/Spanned {
+      :node (
+        #wat.ast/Spanned {
+          :node :wat.core/defn
+          :origin 0
+          :line 11
+          :col 2
+          :end-line 11
+          :end-col 18
+        }
+        #wat.ast/Spanned {
+          :node :myapp/sum
+          :origin 0
+          :line 11
+          :col 19
+          :end-line 11
+          :end-col 30
+        }
+        #wat.ast/Spanned {
+          :node [
+            #wat.ast/Spanned {
+              :node p
+              :origin 0
+              :line 11
+              :col 32
+              :end-line 11
+              :end-col 33
+            }
+            #wat.ast/Spanned {
+              :node <-
+              :origin 0
+              :line 11
+              :col 34
+              :end-line 11
+              :end-col 36
+            }
+            #wat.ast/Spanned {
+              :node :myapp/Pt
+              :origin 0
+              :line 11
+              :col 37
+              :end-line 11
+              :end-col 47
+            }
+          ]
+          :origin 0
+          :line 11
+          :col 31
+          :end-line 11
+          :end-col 48
+        }
+        #wat.ast/Spanned {
+          :node ->
+          :origin 0
+          :line 11
+          :col 49
+          :end-line 11
+          :end-col 51
+        }
+        #wat.ast/Spanned {
+          :node :wat.core/i64
+          :origin 0
+          :line 11
+          :col 52
+          :end-line 11
+          :end-col 67
+        }
+        #wat.ast/Spanned {
+          :node (
+            #wat.ast/Spanned {
+              :node :wat.core/let
+              :origin 0
+              :line 12
+              :col 6
+              :end-line 12
+              :end-col 21
+            }
+            #wat.ast/Spanned {
+              :node [
+                #wat.ast/Spanned {
+                  :node {
+                    #wat.ast/Spanned {
+                      :node :keys
+                      :origin 0
+                      :line 12
+                      :col 24
+                      :end-line 12
+                      :end-col 29
+                    } #wat.ast/Spanned {
+                      :node [
+                        #wat.ast/Spanned {
+                          :node x
+                          :origin 0
+                          :line 12
+                          :col 31
+                          :end-line 12
+                          :end-col 32
+                        }
+                        #wat.ast/Spanned {
+                          :node y
+                          :origin 0
+                          :line 12
+                          :col 33
+                          :end-line 12
+                          :end-col 34
+                        }
+                      ]
+                      :origin 0
+                      :line 12
+                      :col 30
+                      :end-line 12
+                      :end-col 35
+                    }
+                  }
+                  :origin 0
+                  :line 12
+                  :col 23
+                  :end-line 12
+                  :end-col 36
+                }
+                #wat.ast/Spanned {
+                  :node p
+                  :origin 0
+                  :line 12
+                  :col 37
+                  :end-line 12
+                  :end-col 38
+                }
+              ]
+              :origin 0
+              :line 12
+              :col 22
+              :end-line 12
+              :end-col 39
+            }
+            #wat.ast/Spanned {
+              :node (
+                #wat.ast/Spanned {
+                  :node :wat.core.i64/+
+                  :origin 0
+                  :line 12
+                  :col 41
+                  :end-line 12
+                  :end-col 59
+                }
+                #wat.ast/Spanned {
+                  :node x
+                  :origin 0
+                  :line 12
+                  :col 60
+                  :end-line 12
+                  :end-col 61
+                }
+                #wat.ast/Spanned {
+                  :node y
+                  :origin 0
+                  :line 12
+                  :col 62
+                  :end-line 12
+                  :end-col 63
+                }
+              )
+              :origin 0
+              :line 12
+              :col 40
+              :end-line 12
+              :end-col 64
+            }
+          )
+          :origin 0
+          :line 12
+          :col 5
+          :end-line 12
+          :end-col 65
+        }
+      )
+      :origin 0
+      :line 11
+      :col 1
+      :end-line 12
+      :end-col 66
+    }
+    #wat.ast/Spanned {
+      :node (
+        #wat.ast/Spanned {
+          :node :wat.core/defn
+          :origin 0
+          :line 13
+          :col 2
+          :end-line 13
+          :end-col 18
+        }
+        #wat.ast/Spanned {
+          :node :myapp/tags
+          :origin 0
+          :line 13
+          :col 19
+          :end-line 13
+          :end-col 31
+        }
+        #wat.ast/Spanned {
+          :node []
+          :origin 0
+          :line 13
+          :col 32
+          :end-line 13
+          :end-col 34
+        }
+        #wat.ast/Spanned {
+          :node ->
+          :origin 0
+          :line 13
+          :col 35
+          :end-line 13
+          :end-col 37
+        }
+        #wat.ast/Spanned {
+          :node :wat.core/i64
+          :origin 0
+          :line 13
+          :col 38
+          :end-line 13
+          :end-col 53
+        }
+        #wat.ast/Spanned {
+          :node (
+            #wat.ast/Spanned {
+              :node :wat.core/let
+              :origin 0
+              :line 14
+              :col 6
+              :end-line 14
+              :end-col 21
+            }
+            #wat.ast/Spanned {
+              :node [
+                #wat.ast/Spanned {
+                  :node m
+                  :origin 0
+                  :line 14
+                  :col 23
+                  :end-line 14
+                  :end-col 24
+                }
+                #wat.ast/Spanned {
+                  :node {
+                    #wat.ast/Spanned {
+                      :node :a
+                      :origin 0
+                      :line 14
+                      :col 26
+                      :end-line 14
+                      :end-col 28
+                    } #wat.ast/Spanned {
+                      :node 1
+                      :origin 0
+                      :line 14
+                      :col 29
+                      :end-line 14
+                      :end-col 30
+                    }
+                    #wat.ast/Spanned {
+                      :node :b
+                      :origin 0
+                      :line 14
+                      :col 31
+                      :end-line 14
+                      :end-col 33
+                    } #wat.ast/Spanned {
+                      :node 2
+                      :origin 0
+                      :line 14
+                      :col 34
+                      :end-line 14
+                      :end-col 35
+                    }
+                  }
+                  :origin 0
+                  :line 14
+                  :col 25
+                  :end-line 14
+                  :end-col 36
+                }
+                #wat.ast/Spanned {
+                  :node s
+                  :origin 0
+                  :line 14
+                  :col 38
+                  :end-line 14
+                  :end-col 39
+                }
+                #wat.ast/Spanned {
+                  :node #{
+                    #wat.ast/Spanned {
+                      :node :x
+                      :origin 0
+                      :line 14
+                      :col 42
+                      :end-line 14
+                      :end-col 44
+                    }
+                    #wat.ast/Spanned {
+                      :node :y
+                      :origin 0
+                      :line 14
+                      :col 45
+                      :end-line 14
+                      :end-col 47
+                    }
+                    #wat.ast/Spanned {
+                      :node :z
+                      :origin 0
+                      :line 14
+                      :col 48
+                      :end-line 14
+                      :end-col 50
+                    }
+                  }
+                  :origin 0
+                  :line 14
+                  :col 40
+                  :end-line 14
+                  :end-col 51
+                }
+              ]
+              :origin 0
+              :line 14
+              :col 22
+              :end-line 14
+              :end-col 52
+            }
+            #wat.ast/Spanned {
+              :node 42
+              :origin 0
+              :line 15
+              :col 9
+              :end-line 15
+              :end-col 11
+            }
+          )
+          :origin 0
+          :line 14
+          :col 5
+          :end-line 15
+          :end-col 12
+        }
+      )
+      :origin 0
+      :line 13
+      :col 1
+      :end-line 15
+      :end-col 13
+    }
+    #wat.ast/Spanned {
+      :node (
+        #wat.ast/Spanned {
+          :node :wat.core/defn
+          :origin 0
+          :line 16
+          :col 2
+          :end-line 16
+          :end-col 18
+        }
+        #wat.ast/Spanned {
+          :node :user/main
+          :origin 0
+          :line 16
+          :col 19
+          :end-line 16
+          :end-col 30
+        }
+        #wat.ast/Spanned {
+          :node []
+          :origin 0
+          :line 16
+          :col 31
+          :end-line 16
+          :end-col 33
+        }
+        #wat.ast/Spanned {
+          :node ->
+          :origin 0
+          :line 16
+          :col 34
+          :end-line 16
+          :end-col 36
+        }
+        #wat.ast/Spanned {
+          :node :wat.core/nil
+          :origin 0
+          :line 16
+          :col 37
+          :end-line 16
+          :end-col 52
+        }
+        #wat.ast/Spanned {
+          :node nil
+          :origin 0
+          :line 16
+          :col 53
+          :end-line 16
+          :end-col 56
+        }
+      )
+      :origin 0
+      :line 16
+      :col 1
+      :end-line 16
+      :end-col 57
+    }
+  ]
+}

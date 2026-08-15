@@ -60,12 +60,24 @@ fn c01_every_unspellable_lexeme_crosses_intact() {
     );
 }
 
-/// C02 — the CONTROL: an ordinary program crosses as PLAIN EDN, unwrapped.
+/// C02 — the CONTROL: an ordinary program crosses as PLAIN EDN, unwrapped —
+/// modulo the two DECLARED carriage tags (span carriage, stone J/296).
 ///
 /// Without this, "wrap everything" would satisfy C01 while making every frame
 /// unreadable and churning every golden. Asserted STRUCTURALLY — the frame is
 /// parsed and walked for tagged nodes, never `.contains()` on the text
 /// (`no_loose_string_assert`; a wat frame is EDN, so assert the structure).
+///
+/// Verbatim carriage (what C01/C03 pin) exists for wat lexemes EDN cannot
+/// spell at all — a keyword path, a generic method head. Span carriage
+/// (`#wat.ast/Spanned`, `#wat.ast/Program`, stone J) is a SEPARATE, declared
+/// vocabulary: it wraps forms EDN spells just fine, to carry a `Span` that EDN
+/// has no native slot for. Neither licenses the other — an unspellable lexeme
+/// wrapper does not excuse a gratuitous span wrap elsewhere, and the span
+/// carriage does not excuse wrapping some other lexeme "while we're at it".
+/// So this control exempts EXACTLY those two known, declared tags — by exact
+/// name, never a prefix or a namespace-wide skip — and keeps firing on
+/// anything else, which is still the whole reason it exists.
 #[test]
 fn c02_control_ordinary_forms_stay_plain_edn() {
     let path = concat!(
@@ -94,11 +106,20 @@ fn c02_control_ordinary_forms_stay_plain_edn() {
     }
     let mut found = Vec::new();
     tags(&parsed, &mut found);
+    // The two declared span-carriage tags (stone J, arc 296) — exact names
+    // only. Anything else surviving this filter is a DIFFERENT wrapper this
+    // control must still catch (STOP-1: widening this beyond two exact names
+    // would be silencing the alarm, not satisfying it).
+    const SPAN_CARRIAGE_TAGS: [&str; 2] = ["wat.ast/Spanned", "wat.ast/Program"];
+    found.retain(|t| !SPAN_CARRIAGE_TAGS.contains(&t.as_str()));
     assert_eq!(
         found,
         Vec::<String>::new(),
-        "an ordinary program must cross as PLAIN EDN — verbatim carriage is for \
-         what EDN cannot spell, NOT a blanket wrapper. Frame: {frame}"
+        "an ordinary program must cross as PLAIN EDN, modulo the two declared \
+         span-carriage tags ({SPAN_CARRIAGE_TAGS:?}) — verbatim carriage is for \
+         what EDN cannot spell, span carriage is a separate declared \
+         vocabulary for what EDN CAN spell but has no slot for a Span on, and \
+         neither licenses wrapping anything else. Frame: {frame}"
     );
 
     let bad = crosses(&src, path).expect("decode");

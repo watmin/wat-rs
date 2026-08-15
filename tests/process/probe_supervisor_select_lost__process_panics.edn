@@ -1,22 +1,27 @@
-#wat.kernel/ProcessPanics [
-  #wat.kernel.ProcessDiedError/Panic [
+[
+  #wat.kernel.LociDiedError/Panic [
     "boom"
-    #wat.core.Option/Some [#wat.kernel/Failure {
-      :message "boom"
-      :location #wat.core.Option/Some [#wat.kernel/Location {
-        :file "<spawn-process-program>"
-        :line 3
-        :col 34
-      }]
-      :frames [
-        #wat.kernel/Frame {
-          :file #wat.core.Option/Some ["src/freeze.rs"]
-          :line #wat.core.Option/Some [1014]
-          :symbol #wat.core.Option/Some [":user::main"]
+    #wat.core.Option/Some [
+      #wat.kernel/Failure {
+        :error #wat.core/Fault {
+          :message "boom"
+          :location #wat.kernel/Location {
+            :file "<spawn-process-program>"
+            :line 3
+            :col 34
+          }
+          :causes []
         }
-      ]
-      :actual #wat.core.Option/None []
-      :expected #wat.core.Option/None []
-    }]
+        :frames [
+          #wat.kernel/Frame {
+            :file "src/freeze.rs"
+            :line 1441
+            :symbol ":user::main"
+          }
+        ]
+        :actual #wat.core.Option/None []
+        :expected #wat.core.Option/None []
+      }
+    ]
   ]
 ]

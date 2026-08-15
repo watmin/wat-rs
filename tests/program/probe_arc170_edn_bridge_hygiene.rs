@@ -156,19 +156,89 @@ fn c03_scope_structure_is_preserved_and_discriminated() {
 /// Pins the builder's ruling: `["name" [ids]]` is a vector of non-uniform types
 /// and reads as a two-field enum variant; a record body keeps the arc's one
 /// rule intact — **record → `{field-map}`, variant → `[field-vec]`**.
+///
+/// The subject — a scoped symbol crosses as a `Tagged` whose body is a record,
+/// not a tuple — is untouched by stone J's span carriage. Only the frame's
+/// REACH changed, and on TWO levels (the second one deeper than the brief that
+/// prompted this update described): `program_to_edn` now wraps the whole
+/// program in `#wat.ast/Program {:origins […] :forms […]}` rather than handing
+/// back a bare `Vector`, AND — because a delivered program is executed and any
+/// node may end up in a `Fault`'s location — `program_to_edn` ALWAYS wraps
+/// every individual node (`Carriage::Transport`, unconditionally, not only for
+/// call forms) in `#wat.ast/Spanned {:node … :origin N :line N :col N …}`. So
+/// this destructures `Program`, takes `:forms`, unwraps that per-node `Spanned`
+/// carriage, and applies the SAME assertions to the `:node` it carries — it
+/// still fails if the frame stops being the `Program` record, or the form
+/// stops being `Spanned`, or the node stops being the ruled `ScopedSymbol`
+/// record (none of that is weakened to "any Tagged").
 #[test]
 fn c05_the_wire_form_is_a_record_not_a_tuple() {
     let forms = vec![sym(Identifier::bare("kwargs").add_scope(fresh_scope()))];
     let frame = program_to_edn(&forms);
     let parsed = wat_edn::parse_owned(&frame).expect("the frame must be valid EDN");
 
-    let items = match &parsed {
-        wat_edn::Value::Vector(items) => items,
-        other => panic!("program frame must be a Vector, got {}", other.type_name()),
+    let (tag, body) = match &parsed {
+        wat_edn::Value::Tagged(t, b) => (t, b.as_ref()),
+        other => panic!(
+            "program frame must be #wat.ast/Program {{:origins […] :forms […]}}, got {}",
+            other.type_name()
+        ),
     };
+    assert_eq!(
+        (tag.namespace(), tag.name()),
+        ("wat.ast", "Program"),
+        "C05: the program frame's own wrapper must be the ruled Program record"
+    );
+    let program_fields = match body {
+        wat_edn::Value::Map(fields) => fields,
+        other => panic!(
+            "C05: #wat.ast/Program's body must be a RECORD map, not a {}",
+            other.type_name()
+        ),
+    };
+    let items = program_fields
+        .iter()
+        .find_map(|(k, v)| match k {
+            wat_edn::Value::Keyword(kw) if kw.namespace().is_none() && kw.name() == "forms" => {
+                Some(v)
+            }
+            _ => None,
+        })
+        .and_then(|v| match v {
+            wat_edn::Value::Vector(items) => Some(items),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("C05: #wat.ast/Program must have a :forms Vector — frame: {frame}"));
     assert_eq!(items.len(), 1, "one form in, one form out");
 
-    let (tag, body) = match &items[0] {
+    // Unwrap the per-node span carriage (stone J) — a SEPARATE declared
+    // wrapper from the subject under test here, but always present, since
+    // `program_to_edn` spans every node unconditionally.
+    let (span_tag, span_body) = match &items[0] {
+        wat_edn::Value::Tagged(t, b) => (t, b.as_ref()),
+        other => panic!(
+            "every form must cross Spanned-wrapped (stone J), got {} — frame: {frame}",
+            other.type_name()
+        ),
+    };
+    assert_eq!(
+        (span_tag.namespace(), span_tag.name()),
+        ("wat.ast", "Spanned"),
+        "C05: the per-node span wrapper must be the ruled Spanned record"
+    );
+    let span_fields = match span_body {
+        wat_edn::Value::Map(fields) => fields,
+        other => panic!("C05: #wat.ast/Spanned's body must be a RECORD map, not a {}", other.type_name()),
+    };
+    let node = span_fields
+        .iter()
+        .find_map(|(k, v)| match k {
+            wat_edn::Value::Keyword(kw) if kw.namespace().is_none() && kw.name() == "node" => Some(v),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("C05: #wat.ast/Spanned must have a :node field — frame: {frame}"));
+
+    let (tag, body) = match node {
         wat_edn::Value::Tagged(t, b) => (t, b.as_ref()),
         other => panic!(
             "a scoped symbol must cross as a TAGGED literal, got {} — frame: {frame}",
