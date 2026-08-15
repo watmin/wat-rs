@@ -2,5 +2,10 @@
   :aggregate ":user::MyRecord"
   :field "handle"
   :field-ty ":user::HandleStruct"
-  :span {:file "test.wat" :line 1 :col 0}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 0
+    :end #wat.core.Option/None []
+  }
 }

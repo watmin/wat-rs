@@ -1,5 +1,6 @@
-{
+#wat.core/Span {
   :file "src/lib.wat"
   :line 10
   :col 3
+  :end #wat.core.Option/None []
 }

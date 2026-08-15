@@ -43,7 +43,6 @@ fn write(err: &MacroError) -> String {
 
 // ─── 1. DuplicateMacro ───────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_duplicate_macro() {
     let err = make(MacroErrorKind::DuplicateMacro("my-macro".into()));
@@ -52,7 +51,6 @@ fn probe_duplicate_macro() {
 
 // ─── 2. ReservedPrefix ───────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_reserved_prefix() {
     let err = make(MacroErrorKind::ReservedPrefix(":wat::my-thing".into()));
@@ -61,7 +59,6 @@ fn probe_reserved_prefix() {
 
 // ─── 3. MalformedDefmacro ────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_defmacro() {
     let err = make(MacroErrorKind::MalformedDefmacro { reason: "missing name".into() });
@@ -70,7 +67,6 @@ fn probe_malformed_defmacro() {
 
 // ─── 4. ArityMismatch ────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_arity_mismatch() {
     let err = make(MacroErrorKind::ArityMismatch {
@@ -83,7 +79,6 @@ fn probe_arity_mismatch() {
 
 // ─── 5. ArityTooFew ──────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_arity_too_few() {
     let err = make(MacroErrorKind::ArityTooFew {
@@ -96,7 +91,6 @@ fn probe_arity_too_few() {
 
 // ─── 6. UnboundMacroParam ────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_unbound_macro_param() {
     let err = make(MacroErrorKind::UnboundMacroParam { name: "x".into() });
@@ -105,7 +99,6 @@ fn probe_unbound_macro_param() {
 
 // ─── 7. SpliceNotSequence ────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_splice_not_sequence() {
     let err = make(MacroErrorKind::SpliceNotSequence {
@@ -117,7 +110,6 @@ fn probe_splice_not_sequence() {
 
 // ─── 8. ExpansionDepthExceeded ───────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_expansion_depth_exceeded() {
     let err = make(MacroErrorKind::ExpansionDepthExceeded { limit: 64 });
@@ -126,7 +118,6 @@ fn probe_expansion_depth_exceeded() {
 
 // ─── 9. MalformedTemplate ────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_template() {
     let err = make(MacroErrorKind::MalformedTemplate { reason: "unexpected form".into() });
@@ -135,7 +126,6 @@ fn probe_malformed_template() {
 
 // ─── 10. RefusedInMacro ──────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_refused_in_macro() {
     let err = make(MacroErrorKind::RefusedInMacro { head: ":wat::kernel::println".into() });
@@ -144,7 +134,6 @@ fn probe_refused_in_macro() {
 
 // ─── 11. ProgramBodyIntroducesName ───────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_program_body_introduces_name() {
     let err = make(MacroErrorKind::ProgramBodyIntroducesName {
@@ -160,7 +149,6 @@ fn probe_program_body_introduces_name() {
 // + inner variant fields (:reason "bad form").
 // Arc 298.3 wire change: `:span` now LAST (was in middle in hand-written).
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_program_body_eval_failed() {
     let inner_span = Span::new(Arc::new("inner.wat".to_string()), 3, 1);
@@ -180,7 +168,6 @@ fn probe_program_body_eval_failed() {
 // `cause` uses `error_edn_of_boxed` → RuntimeError floor form.
 // Arc 298.3 wire change: `:span` now LAST (was first in hand-written).
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_macro_eval_runtime_failed() {
     let rt_span = Span::new(Arc::new("rt.wat".to_string()), 7, 3);

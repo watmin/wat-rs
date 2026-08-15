@@ -1,5 +1,10 @@
 #wat.load/SetterInLoadedFile {
   :loaded-path "foo.wat"
   :setter-head "set-dims!"
-  :span {:file "test.wat" :line 1 :col 0}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 0
+    :end #wat.core.Option/None []
+  }
 }

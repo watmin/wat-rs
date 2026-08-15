@@ -1,4 +1,11 @@
 #wat.load/Fetch {
-  :cause #wat.kernel/NotFound {:path "/no/such.wat"}
-  :span {:file "test.wat" :line 1 :col 1}
+  :cause #wat.kernel/NotFound {
+    :path "/no/such.wat"
+  }
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 1
+    :end #wat.core.Option/None []
+  }
 }

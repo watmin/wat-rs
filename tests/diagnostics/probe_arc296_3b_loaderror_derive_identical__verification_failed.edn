@@ -1,5 +1,12 @@
 #wat.load/VerificationFailed {
   :path "foo.wat"
-  :cause #wat.kernel/UnsupportedAlgorithm {:algo "SHA1"}
-  :span {:file "test.wat" :line 1 :col 0}
+  :cause #wat.kernel/UnsupportedAlgorithm {
+    :algo "SHA1"
+  }
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 0
+    :end #wat.core.Option/None []
+  }
 }

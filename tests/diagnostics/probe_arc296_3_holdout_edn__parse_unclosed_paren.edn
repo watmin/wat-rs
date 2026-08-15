@@ -1,3 +1,13 @@
 #wat.parse/UnclosedParen {
-  :span {:file "test.wat" :line 1 :col 22}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 22
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 1
+        :col 23
+      }
+    ]
+  }
 }

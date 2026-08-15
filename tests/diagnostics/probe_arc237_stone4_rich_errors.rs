@@ -124,7 +124,6 @@ fn probe_02_postcondition_failed_constructs_with_ensure_snapshot_and_dual_spans(
 }
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_03_no_matching_clause_edn_tag_clean() {
     let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {
@@ -139,7 +138,6 @@ fn probe_03_no_matching_clause_edn_tag_clean() {
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_04_postcondition_failed_edn_tag_clean() {
     let err = RuntimeError::new(test_span(), RuntimeErrorKind::PostconditionFailed {
@@ -189,7 +187,6 @@ fn probe_07_clause_attempt_guard_false() {
 }
 
 // ─── Probe 8 ────────────────────────────────────────────────────────────────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_08_postcondition_edn_carries_ensure_and_returned() {
     let err = RuntimeError::new(test_span(), RuntimeErrorKind::PostconditionFailed {
@@ -205,7 +202,6 @@ fn probe_08_postcondition_edn_carries_ensure_and_returned() {
 }
 
 // ─── Probe 9 ────────────────────────────────────────────────────────────────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_09_no_matching_clause_edn_round_trips() {
     let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {
@@ -226,7 +222,6 @@ fn probe_09_no_matching_clause_edn_round_trips() {
 }
 
 // ─── Probe 10 ───────────────────────────────────────────────────────────────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_10_attempt_list_count_preserved_through_edn() {
     let err = RuntimeError::new(test_span(), RuntimeErrorKind::NoMatchingClause {

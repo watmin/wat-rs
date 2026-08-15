@@ -26,7 +26,6 @@ use wat::to_edn::ToEdn;
 
 // ─── Probe 1 — NotCallable serializes to #wat.kernel/NotCallable ────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_not_callable_serializes_to_tagged_edn() {
     let span = Span::new(Arc::new("test.wat".to_string()), 3, 7);
@@ -51,7 +50,6 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
 
 // ─── Probe 2 — TypeMismatch carries op + expected + got + span keys ─────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_2_type_mismatch_carries_all_struct_fields() {
     let span = Span::new(Arc::new("test.wat".to_string()), 5, 12);
@@ -71,7 +69,6 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
 
 // ─── Probe 3 — AssertionFailed Option<String> fields render Nil/String ──────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_3_assertion_failed_with_optional_fields() {
     let span = Span::new(Arc::new("test.wat".to_string()), 1, 1);
@@ -89,7 +86,6 @@ fn probe_3_assertion_failed_with_optional_fields() {
 
 // ─── Probe 4 — Tuple variant (ParamShadowsBuiltin: String + Span) ───────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_4_tuple_variant_serializes() {
     let span = Span::new(Arc::new("test.wat".to_string()), 9, 4);
@@ -103,7 +99,6 @@ fn probe_4_tuple_variant_serializes() {
 
 // ─── Probe 5 — Provenance variants render with per-variant tags ─────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_5_provenance_variants_render_with_tags() {
     let span = Span::new(Arc::new("test.wat".to_string()), 4, 8);

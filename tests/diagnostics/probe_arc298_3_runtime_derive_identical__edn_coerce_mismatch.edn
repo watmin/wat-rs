@@ -3,9 +3,10 @@
   :expected ":user::Point"
   :got "Map"
   :path ["x" "y"]
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

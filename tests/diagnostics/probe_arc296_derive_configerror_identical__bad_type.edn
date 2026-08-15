@@ -2,5 +2,10 @@
   :field "dims"
   :expected "integer"
   :got "string"
-  :span {:file "test.wat" :line 1 :col 0}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 0
+    :end #wat.core.Option/None []
+  }
 }

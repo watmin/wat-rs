@@ -2,8 +2,18 @@
   :path "foo.wat"
   :cause #wat.parse/UnexpectedRParen {
     :message "unexpected ')'"
-    :location {:file "inner.wat" :line 7 :col 3}
+    :location #wat.core/Span {
+      :file "inner.wat"
+      :line 7
+      :col 3
+      :end #wat.core.Option/None []
+    }
     :causes []
   }
-  :span {:file "test.wat" :line 1 :col 0}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 0
+    :end #wat.core.Option/None []
+  }
 }

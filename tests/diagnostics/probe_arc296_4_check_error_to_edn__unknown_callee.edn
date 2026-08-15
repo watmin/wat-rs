@@ -1,4 +1,9 @@
 #wat.check/UnknownCallee {
   :callee ":user::do-thing"
-  :span {:file "lib.wat" :line 3 :col 7}
+  :span #wat.core/Span {
+    :file "lib.wat"
+    :line 3
+    :col 7
+    :end #wat.core.Option/None []
+  }
 }

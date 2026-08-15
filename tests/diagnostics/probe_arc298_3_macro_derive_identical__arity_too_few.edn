@@ -2,9 +2,10 @@
   :name "my-macro"
   :minimum 1
   :got 0
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

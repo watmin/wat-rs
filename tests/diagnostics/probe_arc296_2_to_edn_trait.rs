@@ -24,7 +24,6 @@ use wat::to_edn::ToEdn;
 
 // ─── Probe 2 — Span.to_edn() produces structured {:file :line :col} map ──────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_2_span_to_edn_is_structured_map() {
     let span = Span::new(Arc::new("src/lib.wat".to_string()), 10, 3);
@@ -34,9 +33,13 @@ fn probe_2_span_to_edn_is_structured_map() {
 
     // Arc 298.3: upgraded from contains-checks to byte-identical assert_eq!
     wat::assert_edn_matches_file!(s, "probe_arc296_2_to_edn_trait__span_structured_map.edn", "Span.to_edn() must produce exact structured map");
+    // Stone B (arc 296): Span is now a #[derive(ToEdn)] tagged record, so
+    // to_edn() produces a Tagged(#wat.core/Span, Map{...}) rather than a
+    // bare Map. The subject this assertion protects is unchanged: the span
+    // must render as structured data, not as a string.
     assert!(
-        matches!(&edn, wat_edn::OwnedValue::Map(_)),
-        "Span.to_edn() must produce a Map OwnedValue; got {:?}",
+        matches!(&edn, wat_edn::OwnedValue::Tagged(_, body) if matches!(**body, wat_edn::OwnedValue::Map(_))),
+        "Span.to_edn() must produce a Tagged(..., Map) OwnedValue; got {:?}",
         edn
     );
 }

@@ -1,4 +1,13 @@
 #wat.runtime/NotCallable {
-  :got {:type "wat::core::String" :rendered "\"not-fn\"" :provenance nil}
-  :span {:file "test.wat" :line 3 :col 7}
+  :got {
+    :type "wat::core::String"
+    :rendered "\"not-fn\""
+    :provenance nil
+  }
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 3
+    :col 7
+    :end #wat.core.Option/None []
+  }
 }

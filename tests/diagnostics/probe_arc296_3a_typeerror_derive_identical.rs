@@ -49,7 +49,6 @@ fn make(span: Span, kind: TypeErrorKind) -> TypeError {
 
 // ─── 1. DuplicateType ────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_duplicate_type_known_span() {
     let err = make(
@@ -61,7 +60,6 @@ fn probe_duplicate_type_known_span() {
 
 // ─── 2. ReservedPrefix ───────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_reserved_prefix_known_span() {
     let err = make(
@@ -73,7 +71,6 @@ fn probe_reserved_prefix_known_span() {
 
 // ─── 3. MalformedDecl ────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_decl_known_span() {
     let err = make(
@@ -88,7 +85,6 @@ fn probe_malformed_decl_known_span() {
 
 // ─── 4. MalformedName ────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_name_known_span() {
     let err = make(
@@ -103,7 +99,6 @@ fn probe_malformed_name_known_span() {
 
 // ─── 5. MalformedField ───────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_field_known_span() {
     let err = make(
@@ -119,7 +114,6 @@ fn probe_malformed_field_known_span() {
 // via `impl<T: ToEdn> ToEdn for Vec<T>`, producing `OwnedValue::Vector(vec![])`
 // which serializes as `[]` — identical to the deleted `remedies_to_edn(&[])`.
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_variant_known_span() {
     let err = make(
@@ -136,7 +130,6 @@ fn probe_malformed_variant_known_span() {
 
 // ─── 7. MalformedTypeExpr ────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_type_expr_known_span() {
     let err = make(
@@ -151,7 +144,6 @@ fn probe_malformed_type_expr_known_span() {
 
 // ─── 8. AnyBanned ────────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_any_banned_known_span() {
     let err = make(
@@ -163,7 +155,6 @@ fn probe_any_banned_known_span() {
 
 // ─── 9. CyclicAlias ──────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_cyclic_alias_known_span() {
     let err = make(
@@ -178,7 +169,6 @@ fn probe_cyclic_alias_known_span() {
 // `expected: usize` and `got: usize` — derive calls `usize::to_edn()` which
 // returns `OwnedValue::Integer(*self as i64)`, matching the deleted `edn_int(*n as i64)`.
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_alias_arity_mismatch_known_span() {
     let err = make(
@@ -194,7 +184,6 @@ fn probe_alias_arity_mismatch_known_span() {
 
 // ─── 11. InnerColonInCompoundArg ─────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_inner_colon_in_compound_arg_known_span() {
     let err = make(
@@ -209,7 +198,6 @@ fn probe_inner_colon_in_compound_arg_known_span() {
 
 // ─── 12. CyclicUnion ─────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_cyclic_union_known_span() {
     let err = make(
@@ -221,7 +209,6 @@ fn probe_cyclic_union_known_span() {
 
 // ─── 13. EmptyUnion ──────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_empty_union_known_span() {
     let err = make(
@@ -233,7 +220,6 @@ fn probe_empty_union_known_span() {
 
 // ─── 14. SingleMemberUnion ───────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_single_member_union_known_span() {
     let err = make(
@@ -245,7 +231,6 @@ fn probe_single_member_union_known_span() {
 
 // ─── 15. InvalidUnionMember ──────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_invalid_union_member_known_span() {
     let err = make(
@@ -261,7 +246,6 @@ fn probe_invalid_union_member_known_span() {
 
 // ─── 16. CyclicSubtype ───────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_cyclic_subtype_known_span() {
     let err = make(
@@ -276,7 +260,6 @@ fn probe_cyclic_subtype_known_span() {
 
 // ─── 17. ImpureFieldInPureAggregate ──────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_impure_field_in_pure_aggregate_known_span() {
     let err = make(
@@ -292,7 +275,6 @@ fn probe_impure_field_in_pure_aggregate_known_span() {
 
 // ─── 18. ImpureVariantFieldInPureEnum ────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_impure_variant_field_in_pure_enum_known_span() {
     let err = make(

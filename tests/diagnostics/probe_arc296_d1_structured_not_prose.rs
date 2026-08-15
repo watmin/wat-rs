@@ -35,7 +35,6 @@ fn make_span() -> Span {
 // case lives in src/remedy/mod.rs #[cfg(test)]. This probe covers the
 // structural contract: the field is always a Vector, never a String or absent.
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_return_type_mismatch_remedies_field_is_vector_not_prose() {
     // Empty remedies: before the fix, :remedies is NOT emitted at all;
@@ -141,7 +140,6 @@ fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
 // Before fix: :called-arg-types is comma-joined String; :attempted-clauses dropped.
 // After fix:  :called-arg-types is a Vector; :attempted-clauses is a Vector.
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_3_no_matching_clause_at_call_site_is_structured() {
     let err = CheckError {

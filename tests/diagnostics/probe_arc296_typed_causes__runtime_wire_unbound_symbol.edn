@@ -1,6 +1,11 @@
 #wat.runtime/UnboundSymbol {
   :message "unbound symbol: some-var"
-  :location {:file "probe.wat" :line 1 :col 1}
+  :location #wat.core/Span {
+    :file "probe.wat"
+    :line 1
+    :col 1
+    :end #wat.core.Option/None []
+  }
   :causes []
   :name "some-var"
 }

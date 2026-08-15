@@ -3,5 +3,10 @@
   :expected ":wat::core::nil"
   :got ":wat::core::String"
   :remedies []
-  :span {:file "test.wat" :line 1 :col 1}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 1
+    :end #wat.core.Option/None []
+  }
 }

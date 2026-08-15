@@ -1,4 +1,9 @@
 #wat.runtime/UnboundSymbol {
   :name "x"
-  :span {:file "test.wat" :line 1 :col 1}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 1
+    :end #wat.core.Option/None []
+  }
 }

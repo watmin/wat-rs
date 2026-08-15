@@ -2,9 +2,10 @@
   :message "values differ"
   :actual #wat.core.Option/Some ["42"]
   :expected #wat.core.Option/Some ["99"]
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

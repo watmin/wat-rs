@@ -230,7 +230,6 @@ fn checkerror_display_elides_unknown_span() {
 /// (a) UNKNOWN outer span — the serialized EDN must not contain `"<runtime>"`.
 /// (b) KNOWN outer span — the serialized EDN must contain `:location` and
 ///     the file:line:col data.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn edn_elides_unknown_span() {
     use wat::to_edn::ToEdn;

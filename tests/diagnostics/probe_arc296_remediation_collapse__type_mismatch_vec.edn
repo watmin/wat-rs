@@ -8,8 +8,13 @@
       :form ":wat::core::Vector"
       :kind :retirement
       :score 0
-      :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"
+      :note "as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead"
     }
   ]
-  :span {:file "test.wat" :line 1 :col 1}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 1
+    :end #wat.core.Option/None []
+  }
 }

@@ -48,7 +48,6 @@ fn make(span: Span, kind: ConfigErrorKind) -> ConfigError {
 
 // ─── 1. SetterAfterNonSetter ──────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_setter_after_non_setter_known_span() {
     let err = make(
@@ -62,7 +61,6 @@ fn probe_setter_after_non_setter_known_span() {
 
 // ─── 2. DuplicateField ───────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_duplicate_field_known_span() {
     let err = make(
@@ -76,7 +74,6 @@ fn probe_duplicate_field_known_span() {
 
 // ─── 3. RequiredFieldMissing ──────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_required_field_missing_known_span() {
     let err = make(
@@ -90,7 +87,6 @@ fn probe_required_field_missing_known_span() {
 
 // ─── 4. UnknownSetter ────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_unknown_setter_known_span() {
     let err = make(
@@ -104,7 +100,6 @@ fn probe_unknown_setter_known_span() {
 
 // ─── 5. BadArity ─────────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_bad_arity_known_span() {
     let err = make(
@@ -120,7 +115,6 @@ fn probe_bad_arity_known_span() {
 
 // ─── 6. BadType ──────────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_bad_type_known_span() {
     let err = make(
@@ -136,7 +130,6 @@ fn probe_bad_type_known_span() {
 
 // ─── 7. BadValue ─────────────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_bad_value_known_span() {
     let err = make(
@@ -151,7 +144,6 @@ fn probe_bad_value_known_span() {
 
 // ─── 8. MalformedSetter ──────────────────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_malformed_setter_known_span() {
     let err = make(known_span(), ConfigErrorKind::MalformedSetter);

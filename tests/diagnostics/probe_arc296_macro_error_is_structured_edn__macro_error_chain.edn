@@ -2,14 +2,29 @@
   :macro-name "expand-call"
   :cause #wat.macro/MacroEvalRuntimeFailed {
     :message "macro_eval: runtime::eval failed"
-    :location {:file "src/my-lib.wat" :line 18 :col 3}
+    :location #wat.core/Span {
+      :file "src/my-lib.wat"
+      :line 18
+      :col 3
+      :end #wat.core.Option/None []
+    }
     :causes []
     :cause #wat.runtime/UnboundSymbol {
       :message "unbound symbol: str"
-      :location {:file "src/my-lib.wat" :line 18 :col 3}
+      :location #wat.core/Span {
+        :file "src/my-lib.wat"
+        :line 18
+        :col 3
+        :end #wat.core.Option/None []
+      }
       :causes []
       :name "str"
     }
   }
-  :span {:file "src/my-lib.wat" :line 10 :col 1}
+  :span #wat.core/Span {
+    :file "src/my-lib.wat"
+    :line 10
+    :col 1
+    :end #wat.core.Option/None []
+  }
 }

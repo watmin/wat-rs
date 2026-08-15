@@ -4,9 +4,10 @@
     :rendered "0"
     :provenance nil
   }
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

@@ -2,17 +2,19 @@
   :op ":user::expand"
   :cause #wat.macro/DuplicateMacro {
     :message "duplicate macro registration: my-macro"
-    :location {
+    :location #wat.core/Span {
       :file "macro.wat"
       :line 5
       :col 2
+      :end #wat.core.Option/None []
     }
     :causes []
     :name "my-macro"
   }
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

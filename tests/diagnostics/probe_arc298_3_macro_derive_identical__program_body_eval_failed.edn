@@ -2,17 +2,19 @@
   :macro-name "my-macro"
   :cause #wat.macro/MalformedTemplate {
     :message "malformed template: bad form"
-    :location {
+    :location #wat.core/Span {
       :file "inner.wat"
       :line 3
       :col 1
+      :end #wat.core.Option/None []
     }
     :causes []
     :reason "bad form"
   }
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

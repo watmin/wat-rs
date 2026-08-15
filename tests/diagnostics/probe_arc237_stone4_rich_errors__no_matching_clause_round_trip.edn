@@ -2,21 +2,37 @@
   :name ":my::process"
   :called-arity 1
   :called-args [
-    {:type "wat::core::i64" :rendered "42" :provenance nil}
+    {
+      :type "wat::core::i64"
+      :rendered "42"
+      :provenance nil
+    }
   ]
   :attempted-clauses [
     #wat.kernel/ClauseAttempt {
       :clause-index 0
       :declared-arity 2
       :declared-arg-types [":wat::core::i64" ":wat::core::i64"]
-      :failure-reason #wat.kernel/ArityMismatch {:expected 2 :got 1}
+      :failure-reason #wat.kernel/ArityMismatch {
+        :expected 2
+        :got 1
+      }
     }
     #wat.kernel/ClauseAttempt {
       :clause-index 1
       :declared-arity 1
       :declared-arg-types [":wat::core::i64"]
-      :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected ":wat::core::i64" :got ":wat::core::String"}
+      :failure-reason #wat.kernel/ArgTypeMismatch {
+        :position 0
+        :expected ":wat::core::i64"
+        :got ":wat::core::String"
+      }
     }
   ]
-  :span {:file "test.wat" :line 5 :col 3}
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 5
+    :col 3
+    :end #wat.core.Option/None []
+  }
 }

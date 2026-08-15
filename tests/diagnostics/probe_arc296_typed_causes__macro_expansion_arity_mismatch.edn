@@ -2,11 +2,21 @@
   :op ":wat::core::macroexpand-1"
   :cause #wat.macro/ArityMismatch {
     :message "macro :user::my-macro expects 1 arguments; got 2"
-    :location {:file "probe.wat" :line 1 :col 1}
+    :location #wat.core/Span {
+      :file "probe.wat"
+      :line 1
+      :col 1
+      :end #wat.core.Option/None []
+    }
     :causes []
     :name ":user::my-macro"
     :expected 1
     :got 2
   }
-  :span {:file "probe.wat" :line 1 :col 1}
+  :span #wat.core/Span {
+    :file "probe.wat"
+    :line 1
+    :col 1
+    :end #wat.core.Option/None []
+  }
 }

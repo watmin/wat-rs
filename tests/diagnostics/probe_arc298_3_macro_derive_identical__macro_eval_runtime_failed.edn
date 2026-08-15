@@ -1,17 +1,19 @@
 #wat.macro/MacroEvalRuntimeFailed {
   :cause #wat.runtime/UnboundSymbol {
     :message "unbound symbol: foo"
-    :location {
+    :location #wat.core/Span {
       :file "rt.wat"
       :line 7
       :col 3
+      :end #wat.core.Option/None []
     }
     :causes []
     :name "foo"
   }
-  :span {
+  :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
+    :end #wat.core.Option/None []
   }
 }

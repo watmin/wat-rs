@@ -33,7 +33,6 @@ use wat::types::error::{TypeError, TypeErrorKind};
 
 // ─── Probe 1 — Parse error: structured tagged EDN, NOT a :detail blob ────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
     // Construct a StartupError::Parse the same way a child process would see one.
@@ -97,7 +96,6 @@ fn probe_3_span_to_edn_round_trip_stable() {
 
 // ─── Probe 4 — Check: the worst offender, now a navigable vector of errors ───
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_4_check_startup_error_emits_structured_vector_not_detail() {
     // A Check failure is a COLLECTION of CheckErrors. Before the 296.5

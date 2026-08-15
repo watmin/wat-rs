@@ -1,4 +1,9 @@
 #wat.kernel/RuntimeBuilt {
   :producer ":wat::core::keyword/from-string"
-  :call-span {:file "test.wat" :line 4 :col 8}
+  :call-span #wat.core/Span {
+    :file "test.wat"
+    :line 4
+    :col 8
+    :end #wat.core.Option/None []
+  }
 }

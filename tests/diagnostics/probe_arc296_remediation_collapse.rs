@@ -48,7 +48,6 @@ fn assert_remedies_vector(edn: &OwnedValue) -> &[OwnedValue] {
 
 // ─── Probe 1 — TypeMismatch on retired callee: :remedies + no :hint ──────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_type_mismatch_retired_callee_emits_remedies_not_hint() {
     let err = CheckError {
@@ -76,40 +75,31 @@ fn probe_1_type_mismatch_retired_callee_emits_remedies_not_hint() {
     wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
 
-// ─── Probe 2 — TypeMismatch with ProgramHandle↔Thread shape mismatch ─────────
-
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
-#[test]
-fn probe_2_type_mismatch_arc114_shape_emits_spawn_thread_remedy_not_hint() {
-    let err = CheckError {
-        span: make_span(),
-        kind: CheckErrorKind::TypeMismatch {
-            callee: ":some::fn".into(),
-            param: "handle".into(),
-            // expected contains ProgramHandle<, got contains Thread< — arc 114 shape trigger
-            expected: ":wat::kernel::ProgramHandle<:wat::core::String>".into(),
-            got: ":wat::kernel::Thread<:wat::core::nil,:wat::core::String>".into(),
-        },
-    };
-
-    let edn = err.to_edn();
-    let s = wat_edn::write(&edn);
-
-    // Must be exact EDN: :remedies with arc 114 spawn-thread retirement remedy; no :hint.
-    wat::assert_edn_matches_file!(s.clone(), "probe_arc296_remediation_collapse__type_mismatch_arc114.edn", "TypeMismatch arc114 shape must emit exact structured :remedies Vector (NO :hint)");
-
-    let items = assert_remedies_vector(&edn);
-    assert!(!items.is_empty(), ":remedies must be non-empty for arc 114 shape mismatch");
-
-    let first_str = wat_edn::write(&items[0]);
-    wat::assert_edn_matches_file!(first_str, "probe_arc296_remediation_collapse__arc114_remedy.edn", "arc 114 remedy must be exact #wat.kernel/Remedy with spawn-thread :form");
-
-    wat_edn::parse_owned(&s).expect("must be valid EDN");
-}
+// ─── Probe 2 — RETIRED 2026-08-15 (arc 296, Wave A of the recapture cascade) ──
+//
+// It asserted that a `ProgramHandle<T>` ↔ `Thread<R,S>` parameter mismatch emits an arc-114
+// spawn-thread migration remedy. Both halves of that premise are gone:
+//
+//   1. The capability was DELIBERATELY DELETED — `shape_remedies` survives only as its own
+//      tombstone at `src/check.rs:94` ("arc 114's shape_remedies died with the spawn/join/
+//      join-result tombstones"). `retirement_lookup` matches on the erroring CALLEE's name and
+//      structurally cannot express a shape-pair match.
+//   2. `:wat::kernel::ProgramHandle` DOES NOT EXIST. It is not registered anywhere and appears
+//      in `src/types.rs:2302` only inside a comment. The shape looked reachable — a live
+//      `--check` on a `ProgramHandle<String>`-annotated parameter exits 0 — but only because an
+//      annotation naming a nonexistent type is silently accepted. That silence is the DOCUMENTED,
+//      RULED, PARKED flaw in `docs/arc/2026/04/109-kill-std/NOTE-type-annotation-names-unchecked.md`
+//      ("a type name that does not exist is an error when it is a callee, and silence when it is
+//      an annotation"), whose 2026-07-28 addendum names this exact parametric case.
+//
+// So the probe measured a deleted remedy for a mismatch between a nonexistent type and a live
+// one. Same disposition as `probe_arc258_dotted_record_field` earlier in this arc: a test
+// pinning something the substrate removed retires with it.
+//
+// Its two goldens (`__type_mismatch_arc114.edn`, `__arc114_remedy.edn`) are deleted with it.
 
 // ─── Probe 3 — ReturnTypeMismatch on retired callee: :remedies + no :hint ────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_3_return_type_mismatch_retired_callee_emits_remedies_not_hint() {
     // ReturnTypeMismatch with no stored remedies; the retirement lookup fires
