@@ -127,3 +127,70 @@ reflection ×6, checker rejection of undefined builtins ×2, and one banked leni
   — the brief whose load-bearing half this note blocks. **It instructs the rider to "ask the registry
   whether the key is live"; there is no registry to ask.** That defect is recorded here rather than
   silently patched.
+
+---
+
+## ADDENDUM 2026-08-15 — THE CENSUS RAN. **5 of 9 capability declarations are unverifiable.**
+
+The census this note prescribed was run the same day (probe built a stdlib-only `FrozenWorld` via
+`startup_from_source`, iterated `sym.binding_metadata` for every key carrying `:restricted-to`, and
+tested each against every EXISTING SymbolTable mechanism — **no new resolution path was added**; the
+probe was deleted after use, tree clean).
+
+```
+=== CENSUS: 9 keys carry :restricted-to ===
+KEY :wat::io::IOReader/from-fd       has_function=false type=false unit_variant=false def_value=false
+KEY :wat::io::IOWriter/from-fd       has_function=false type=false unit_variant=false def_value=false
+KEY :wat::kernel::close              has_function=false type=false unit_variant=false def_value=false
+KEY :wat::kernel::flood-stdout-raw   has_function=true  type=false unit_variant=false def_value=false
+KEY :wat::kernel::spawn-process      has_function=false type=false unit_variant=false def_value=false
+KEY :wat::kernel::spawn-program      has_function=false type=false unit_variant=false def_value=true
+KEY :wat::kernel::spawn-thread       has_function=false type=false unit_variant=false def_value=false
+KEY :wat::kernel::str-double         has_function=true  type=false unit_variant=false def_value=false
+KEY :wat::kernel::write-fd-raw       has_function=true  type=false unit_variant=false def_value=false
+```
+
+| kind | keys | resolves? | mechanism |
+|---|---|---|---|
+| wat-side `defn` (`stdio.wat`) | `write-fd-raw`, `flood-stdout-raw`, `str-double` | **YES** | `sym.has_function` |
+| wat-side `defclause` (`spawn.wat:329`, the IPC wall) | `spawn-program` | **YES** | `sym.has_def_value` |
+| Rust `#[restricted_to]` builtins | `IOWriter/from-fd`, `IOReader/from-fd`, `spawn-thread`, `spawn-process`, `close` | ⛔ **UNCHECKABLE-TODAY** | **none of four** |
+
+**The five that cannot be verified are exactly the five this note predicted** — the hand-typed
+`&'static str` channel. They ARE real, dispatched intrinsics (`src/runtime.rs:5532`, `:5541`, `:5807`,
+`:5810`, `:5843`, `:27000`); they are simply backed by a hand-written match arm rather than anything
+queryable. **56% of the substrate's capability declarations rest on a name nothing can confirm.**
+
+### ★ A FIFTH RESOLUTION KIND the body of this note did not name
+
+`spawn-program` — the IPC wall, task #13's whole stone — is a **`defclause` dispatcher**. It lands in
+`runtime_def_values`, **not** `sym.functions`, and resolves only via `sym.has_def_value`. Any
+eventual wall must count it, or it false-orphans the IPC wall itself. Add it to the "what a fix must
+carry" list above.
+
+### ⛔ A TIMING GAP the wall design must account for
+
+The W1 brief pinned the wall's checkpoint at *after the inventory drain, before `check_program`*.
+`spawn-program` survives that checkpoint only because `defclause` forms are included in
+`stdlib_runtime_def_forms` and registered at step 7.6 (`register_stdlib_runtime_defs`, inside
+`build_env`) — **pre-checkpoint**. A **user-namespace** restricted `def`/`defclause` would get its
+runtime value at freeze **step 9, AFTER `check_program`**, and would be a **false orphan** at that
+checkpoint. **None exist in the corpus today.** Nobody has hit this; it is recorded so the wall is not
+designed blind to it.
+
+### A correction to this note's own numbers
+
+The W1 brief said *"7 wat-side `:restricted-to` declarations"*. That was a raw string count. Measured:
+**4** are declarations (`spawn.wat:329`, `stdio.wat:362/376/384`); the other **3 are `;;` prose**
+(`stdio.wat:355`, `core.wat:1177-1178`). The true universe is **9 keys (5 Rust + 4 wat)**, not 5+7.
+
+The brief that carried the wrong number **also carried the instruction to re-verify it**, and the
+rider did. `[[feedback_a_file_count_is_not_an_item_count]]` — third instance in one day, this time
+counting **comments as code** on a number its own author had flagged as needing a check.
+
+### What this sharpens for 255
+
+The membership half is not a nice-to-have for reflection. **It is the only thing standing between the
+substrate and a majority of its capability declarations being unverifiable assertions.** The five
+unverifiable keys include the arbitrary-fd seal (`write-fd-raw` is verifiable; `close` and both
+`from-fd` constructors are not) and both spawn primitives.
