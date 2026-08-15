@@ -214,3 +214,91 @@ else is a finding.* A blanket `UPDATE_EDN=1` would have captured `Ok` and painte
 
 **That is the campaign's stated thesis, paid in full on its first real wave:** *a regression found here
 is worth more than a hundred tests turning green.*
+
+---
+
+# ⚖ RULING — A1 + B2 (builder, 2026-08-15): *"B2 and A1 - they have been reasoned"*
+
+## What the first strike measured
+
+The walker change landed (mention rule, `List`/`first()` guard deleted) and the floor was run:
+
+```
+Summary [ 193.457s] 4531 tests run: 4528 passed (2 slow), 3 failed, 154 skipped
+```
+
+**Three tests, one family, zero corpus impact.** An in-flight report characterised this as *"breaks
+arc-203 restricted-struct construction entirely… the runtime's own ctor and predicate companions live
+in the bare type namespace"* — **both halves are wrong and the correction matters:**
+
+- **Scale:** 3 tests, not "entirely". Consistent with the measured fact that **no `defstruct`/
+  `defrecord` outside `tests/` declares a ctor `:restricted-to`.**
+- **"Bare type namespace" is not a thing.** The two companions are `:my::Token'` and
+  `:my::is-Token?` — both in `:my::`, the type's **own** namespace.
+
+All three failures are identical: exactly two errors, from exactly two sites.
+
+| enclosing fn | mint site | names |
+|---|---|---|
+| `:my::Token'` (positional prime ctor) | `src/runtime.rs:1557` | `:my::Token` |
+| `:my::is-Token?` (membership predicate, arc 237.6) | `src/runtime.rs:2006` | `:my::Token` |
+
+**The accessors are INNOCENT — measured, not assumed.** `:my::Token/id`'s body uses
+`Record/field-at` plus a *string* `class_no_colon`; it never names the type as a keyword. The
+companion set that trips is **two**.
+
+`contract_03_defstruct_with_field_metadata` declares `:restricted-to []` — the empty whitelist that by
+design matches nothing — and trips too. **The propagation must be unconditional**, not "when the
+whitelist is non-empty".
+
+## The two decisions, four-questioned
+
+### Direction (a) — do companions inherit T's restriction?
+
+| | option | Obvious | Simple | Honest | UX |
+|---|---|---|---|---|---|
+| **A1 ✅** | `T'` and `is-T?` inherit T's whitelist | YES | YES | YES | YES¹ |
+| A2 | leave `T'` unguarded (status quo) | YES | YES | **NO** | — |
+
+A2 fails Honest outright: the type declares itself restricted while a public alias constructs it
+freely — and `runtime.rs:15835` **advertises that alias** in its own remedy text.
+
+¹ A1's UX holds only if the remedy message ships with it. *"or use the positional prime `:ns::P'`"*
+becomes a wall the user walks into. **Fixing the message is part of A1, not a follow-up.**
+
+### Direction (b) — how may a companion name its own restricted type?
+
+| | option | Obvious | Simple | Honest | UX |
+|---|---|---|---|---|---|
+| B1 | append companion FQDNs into T's `:restricted-to` list at mint | **NO** | YES | **NO** | — |
+| **B2 ✅** | record `synthesized_for: Some(T)` on the `Function`; walker exempts owner-type mentions | YES | YES | YES | YES |
+| B3 | exempt by name pattern at check time (`ends_with("'")`, `is-…?`, `T/…`) | **NO** | **NO** | **NO** | — |
+| B4 | don't walk synthesized bodies at all | YES | YES | **NO** | — |
+| B5 | make the body not *name* the type; carry it structurally | **NO** | **NO** | YES | — |
+
+- **B1 fails Obvious + Honest.** `DefRestrictedCallerNotAllowed` **prints the whitelist back to the
+  user**. B1 would quote entries they never wrote and attribute them to their binding site.
+- **B3 fails all three, and one failure is a FORGERY.** It infers provenance from spelling: a
+  user-authored fn named `:my::Token'` would inherit the exemption — a capability earned by choosing a
+  name. Same class as 251.8a-ii's `$bound/x`, and the recurring string-comparison failure this repo
+  has a standing note about.
+- **B4 IS THE TRAP.** It reads simplest of all — one flag, one early return — and fails the only axis
+  that matters: it exempts generated code from **every** restriction, not just its own type's. A
+  future companion naming `:wat::kernel::write-fd-raw` would pass unchecked. A blanket hole where a
+  narrow exemption is needed, and it would never look wrong in review.
+- **B5 is the deepest rung and correctly loses.** Extirpare's *never construct the situation that needs
+  the patch* says remove the mention rather than authorize it. But a constructor naming the type it
+  constructs is **correct and legible** — stripping it makes a dumped AST stop saying what it builds
+  and forces `aggregate-new` to source its type from a new side channel. Recorded because it is the
+  option that would otherwise be missed.
+
+**B2 is the only clean sweep**: one sentence a reader can hold — *a generated companion may name the
+type it was generated for* — provenance stated as fact rather than inferred, the declared list quoted
+back untouched.
+
+## The wall arrives free
+
+A third companion minted later without propagation will **name its own restricted type from a
+non-whitelisted FQDN**, trip the mention rule, and fail startup loudly on the first restricted type in
+the corpus. **The mention rule is its own drift detector.** Nobody can add a companion and quietly
+forget — which is precisely how this class was born.
