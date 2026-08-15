@@ -648,7 +648,7 @@ pub fn check_program(
     for (name, func) in sym.functions_iter() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
-            walk_for_restricted_call(body, name, &env, &mut errors);
+            walk_for_restricted_call(body, name, func.synthesized_for.as_deref(), &env, &mut errors);
         }
     }
 
@@ -1397,26 +1397,48 @@ fn extract_prefix_list_from_metadata(meta: &HashMap<String, WatAST>) -> Option<V
 ///
 /// Subsumes arc 170 Stone B's deleted `walk_for_join_result_call` — Stone
 /// B's rule was one hard-coded restriction; the metadata-map mechanism lets
-/// any binding declare its own whitelist at the binding site. The walker
-/// recurses through every `List` and `Vector` child so a call buried inside
-/// a let body, match arm, or fn-literal argument is still caught.
+/// any binding declare its own whitelist at the binding site.
+///
+/// Arc 198 DESIGN-STONE-a-restriction-governs-mention-not-head-position —
+/// a restriction governs MENTION, not head position. The previous shape
+/// checked only `List` nodes whose *first* element was the restricted
+/// keyword (a call head), so a restricted FQDN bound in value position
+/// (`(:wat::core::let [f :wat::kernel::str-double] (f ...))`) was a bare
+/// `WatAST::Keyword` the head-only guard never inspected — the walk
+/// recursed past it in silence and the alias ran unrestricted. To call a
+/// thing you must first name it, so this walker fires on every
+/// `WatAST::Keyword` node the walk encounters, not only ones sitting in
+/// call-head position. Same registry, same `DefRestrictedCallerNotAllowed`
+/// variant, same span source — no new storage, nothing added to any
+/// builtin.
+///
+/// Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2, ruling B2) —
+/// `owner_type` is `enclosing_fn`'s `Function::synthesized_for`: `Some(T)`
+/// iff this body was RUNTIME-SYNTHESIZED as T's positional prime ctor
+/// (`T'`) or membership predicate (`is-T?`), never set for a user/macro-
+/// authored fn. Such a body necessarily names T (the ctor passes it to
+/// `aggregate-new`; the predicate passes it to `conforms?`) as part of
+/// implementing the machinery T's own declaration asked for — that mention
+/// is owner-scoped, so it is exempt from T's OWN whitelist here. It is
+/// NOT a blanket exemption: a mention of any OTHER restricted binding
+/// inside a synthesized body (e.g. a future companion naming
+/// `:wat::kernel::write-fd-raw`) is still walked and still refused, because
+/// the exemption only fires when the mentioned keyword equals `owner_type`
+/// exactly.
 fn walk_for_restricted_call(
     node: &WatAST,
     enclosing_fn: &str,
+    owner_type: Option<&str>,
     env: &CheckEnv,
     errors: &mut Vec<CheckError>,
 ) {
-    // Walker-specific List-head logic — fire DefRestrictedCallerNotAllowed
-    // when a call head names a binding whose `:restricted-to` metadata
-    // excludes the enclosing fn FQDN. Call heads always appear in List
-    // position; this guard preserves the pre-arc-212 check.
-    if let WatAST::List(items, _) = node {
-        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-            if let Some(meta) = env.get_binding_metadata(head) {
+    if let WatAST::Keyword(name, name_span) = node {
+        if owner_type != Some(name.as_str()) {
+            if let Some(meta) = env.get_binding_metadata(name) {
                 if let Some(prefixes) = extract_prefix_list_from_metadata(meta) {
                     if !caller_matches_prefix_list(enclosing_fn, &prefixes) {
-                        errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::DefRestrictedCallerNotAllowed {
-                            callee: head.clone(),
+                        errors.push(CheckError { span: name_span.clone(), kind: CheckErrorKind::DefRestrictedCallerNotAllowed {
+                            callee: name.clone(),
                             enclosing_fn: enclosing_fn.into(),
                             prefixes,
                         } });
@@ -1426,12 +1448,10 @@ fn walk_for_restricted_call(
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector,
-    // Map, and Set uniformly. Pre-arc-212 this walker had explicit
-    // List + Vector arms but no Map/Set — call sites buried inside
-    // bracketed shapes slipped past restriction enforcement. children()
-    // returns &[] for leaf nodes (no-op).
+    // Map, and Set uniformly. children() returns &[] for leaf nodes
+    // (Keyword included, so this is a no-op once the node above fires).
     for child in node.children().iter() {
-        walk_for_restricted_call(child, enclosing_fn, env, errors);
+        walk_for_restricted_call(child, enclosing_fn, owner_type, env, errors);
     }
 }
 
@@ -12058,15 +12078,35 @@ fn infer_kwargs_construct_check(
         for arg in rest.iter() {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
+        // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — check-time TWIN of the
+        // eval-time message fixed in `eval_kwargs_construct` (`src/runtime.rs`): A1 gates
+        // `T'` behind T's own `:restricted-to` whitelist, so unconditionally offering "or use
+        // the positional prime `T'`" would walk a non-whitelisted caller into that wall. This
+        // is the site that actually FIRES for a restricted type — `--check`/eval both reach
+        // `:wat::core::kwargs-construct`, but the check-time `MalformedForm` here wins the
+        // race, so the runtime.rs fix alone left this message stale. Drop the offer when the
+        // type is restricted, mirroring the runtime.rs logic exactly.
+        let is_restricted = matches!(env.types().get(&type_key), Some(crate::types::TypeDef::Aggregate(a)) if a.restrictions.is_some());
+        let reason = if is_restricted {
+            format!(
+                "bare-positional construction of {} is retired (the bare name is the kwargs \
+                 macro); write kwargs `({} :field value …)` from a caller in its `:restricted-to` \
+                 whitelist — the positional prime `{}'` is gated to that SAME whitelist (arc 198 \
+                 strike 2), not an unrestricted alternative",
+                type_key, type_key, type_key
+            )
+        } else {
+            format!(
+                "bare-positional construction of {} is retired (the bare name is the kwargs \
+                 macro); write kwargs `({} :field value …)` or use the positional prime `{}'`",
+                type_key, type_key, type_key
+            )
+        };
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
-                reason: format!(
-                    "bare-positional construction of {} is retired (the bare name is the kwargs \
-                     macro); write kwargs `({} :field value …)` or use the positional prime `{}'`",
-                    type_key, type_key, type_key
-                ),
+                reason,
                 remedies: vec![],
             },
         });

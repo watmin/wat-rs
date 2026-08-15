@@ -1,0 +1,9 @@
+;; struct_restricted_prime_ctor_denied.wat.bad — Arc 198 strike 2 (A1). The positional prime
+;; `:my::Token'` is a directly-callable constructor in its own right, independent of the kwargs
+;; form `(:my::Token :id v)`. A caller outside the ctor whitelist must be refused through EITHER
+;; route — this exercises the prime. Must FAIL.
+(:wat::core::defstruct :my::Token
+  {:restricted-to [:my::issuer::]}
+  [id <- :wat::core::i64])
+(:wat::core::defn :user::bad-mint-via-prime [] -> :my::Token
+  (:my::Token' 7))

@@ -107,6 +107,24 @@ pub struct Function {
     /// regardless of how clean its body happens to be — the declaration IS the contract now, not
     /// an accident of what the body contains.
     pub rete: Option<ReteContract>,
+    /// Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — `Some(T)` iff this fn is a
+    /// RUNTIME-SYNTHESIZED companion minted for aggregate type `T` (the positional prime ctor
+    /// `T'` at `register_struct_methods`'s ctor mint, or the membership predicate `is-T?` at its
+    /// mint site), where `T` is the type's FQDN exactly as it appears in `binding_metadata`
+    /// (e.g. `":my::Token"`). `None` for every ordinary user/macro-authored fn.
+    ///
+    /// Consulted ONLY by `walk_for_restricted_call` (`src/check.rs`) — B2's exemption: a
+    /// synthesized companion may MENTION the type it was generated for (its body necessarily
+    /// does — `T'` passes `T` to `aggregate-new`; `is-T?` passes `T` to `conforms?`) without
+    /// tripping `T`'s own `:restricted-to` whitelist. This is an OWNER-SCOPED exemption, not a
+    /// blanket one: a mention of any OTHER restricted binding inside a synthesized body is still
+    /// walked and still refused — `walk_for_restricted_call` only skips the emission when the
+    /// mentioned keyword equals `synthesized_for`. Ruled out: B1 (append the companion's own FQDN
+    /// into T's `:restricted-to` — fails Honest, the diagnostic would quote entries the author
+    /// never wrote); B3 (exempt by name pattern — a FORGERY, a user fn literally named `:my::Token'`
+    /// would inherit it); B4 (skip synthesized bodies entirely — exempts generated code from EVERY
+    /// restriction, not just its own type's).
+    pub synthesized_for: Option<String>,
 }
 
 impl fmt::Debug for Function {
@@ -267,6 +285,7 @@ mod tests {
             body: nil_body(),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         };
         let dbg = format!("{:?}", f);
         assert_eq!(
@@ -293,6 +312,7 @@ mod tests {
             body: nil_body(),
             closed_env: Some(env),
             rete: None,
+            synthesized_for: None,
         };
         let dbg = format!("{:?}", f);
         assert_eq!(

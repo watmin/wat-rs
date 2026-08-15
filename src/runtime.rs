@@ -869,6 +869,7 @@ pub fn register_defclause(
                     body: FunctionBody::Wat(Arc::new(stub_body)),
                     closed_env: None,
                     rete: None,
+                    synthesized_for: None,
                 });
                 sym.register_function(name.clone(), stub_fn);
             }
@@ -1159,6 +1160,7 @@ pub(crate) fn register_extend_type_surface_impls(
             body: FunctionBody::Wat(clause.body.clone()),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         });
         sym.register_function(method_key, func);
     }
@@ -1570,6 +1572,13 @@ pub fn register_aggregate_methods(
                 body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
                 closed_env: None,
                 rete: None,
+                // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — B2. `T'`'s body
+                // NAMES `agg.name` (arg to `aggregate-new` above) by construction — that
+                // mention is this fn's whole reason to exist, not a caller reaching for T.
+                // Owner-scoped so `walk_for_restricted_call` exempts ONLY a mention of this
+                // exact FQDN; a mention of any other restricted binding inside a future
+                // companion is still walked and still refused.
+                synthesized_for: Some(agg.name.clone()),
             };
             // Arc 294 item 9a follow-up — conform to `register_defines`' collision
             // policy (lines 530-549 above): silent-skip on re-walk. A forked bracket
@@ -1580,6 +1589,23 @@ pub fn register_aggregate_methods(
             // check for aggregate *types*; this loop only mints derived functions
             // from already-registered types, so re-minting the identical ctor is safe.
             sym.function_entry(ctor_name).or_insert_with(|| Arc::new(ctor_func));
+
+            // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — A1: `T'` inherits
+            // T's own `:restricted-to` whitelist. `(:T' v1 v2 …)` is a directly-callable
+            // constructor in its own right (the kwargs macro `(:T :field v …)` is the OTHER
+            // ctor route, and it names `T` itself so the mention rule already enforces it) —
+            // without this, a `:user::` caller reaches a restricted type's constructor
+            // through the prime name with NO gate at all. Registered unconditionally
+            // whenever `agg.restrictions` is `Some` — `contract_03_defstruct_with_field_metadata`
+            // proved this must not be gated on "the whitelist is non-empty": `[]` means
+            // "nobody", and `T'` must be exactly as unconstructable as `T` itself.
+            if let Some(restrictions) = &agg.restrictions {
+                let ctor_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
+                sym.binding_metadata
+                    .entry(format!("{}'", agg.name))
+                    .or_default()
+                    .insert(":restricted-to".to_string(), ctor_ast);
+            }
         }
 
         // Emit ONE accessor per OWN field with the correct absolute index.
@@ -1675,6 +1701,7 @@ pub fn register_aggregate_methods(
                 body: FunctionBody::Wat(Arc::new(accessor_body)),
                 closed_env: None,
                 rete: None,
+                synthesized_for: None,
             };
             // Arc 296 stone H-1c — route through THE ONE gate before minting.
             // This loop is the actual accessor registration site for every
@@ -1813,6 +1840,7 @@ pub fn register_enum_methods(
                         body: FunctionBody::Wat(Arc::new(WatAST::List(body_items, crate::rust_caller_span!()))),
                         closed_env: None,
                         rete: None,
+                        synthesized_for: None,
                     };
                     if sym.has_function(&constructor_path)
                         || sym.has_unit_variant(&constructor_path)
@@ -1888,6 +1916,7 @@ pub fn register_newtype_methods(
             body: FunctionBody::Wat(Arc::new(new_body)),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         };
         if sym.has_function(&constructor_path) {
             // arc 138: no span — synthesized newtype constructor.
@@ -1918,6 +1947,7 @@ pub fn register_newtype_methods(
             body: FunctionBody::Wat(Arc::new(accessor_body)),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         };
         if sym.has_function(&accessor_path) {
             // arc 138: no span — synthesized newtype accessor.
@@ -1965,14 +1995,17 @@ pub fn register_type_predicates(
 
     for (_name, def) in types.iter() {
         // Skip Alias — it names a type, not introduces one; no predicate.
-        let fqdn = match def {
+        // `agg_restrictions` is `Some` only for the Aggregate arm (arc 203's
+        // `StructRestrictions` is Aggregate-specific) — carried alongside `fqdn` for A1's
+        // predicate-whitelist propagation below.
+        let (fqdn, agg_restrictions) = match def {
             // Arc 293.2b — Struct + Record collapsed into Aggregate.
-            TypeDef::Aggregate(a) => &a.name,
-            TypeDef::Enum(e) => &e.name,
-            TypeDef::Newtype(n) => &n.name,
-            TypeDef::Union(u) => &u.name,
+            TypeDef::Aggregate(a) => (&a.name, a.restrictions.as_ref()),
+            TypeDef::Enum(e) => (&e.name, None),
+            TypeDef::Newtype(n) => (&n.name, None),
+            TypeDef::Union(u) => (&u.name, None),
             // Arc 293.3-core — surface gets an is-<Name>? predicate (structural conformance).
-            TypeDef::Surface(s) => &s.name,
+            TypeDef::Surface(s) => (&s.name, None),
             TypeDef::Alias(_) => continue,
         };
 
@@ -2003,7 +2036,7 @@ pub fn register_type_predicates(
             vec![
                 WatAST::Keyword(":wat::core::conforms?".into(), crate::rust_caller_span!()),
                 WatAST::Symbol(Identifier::bare("v"), crate::rust_caller_span!()),
-                WatAST::Keyword(fqdn_kw, crate::rust_caller_span!()),
+                WatAST::Keyword(fqdn_kw.clone(), crate::rust_caller_span!()),
             ],
             crate::rust_caller_span!(),
         );
@@ -2021,12 +2054,31 @@ pub fn register_type_predicates(
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
             rete: None,
+            // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — B2. `is-T?`'s body
+            // NAMES `fqdn_kw` (arg to `conforms?` above) by construction — that mention is
+            // this fn's whole reason to exist, not a caller reaching for T. Owner-scoped so
+            // `walk_for_restricted_call` exempts ONLY a mention of this exact FQDN; a mention
+            // of any other restricted binding inside a future companion is still walked.
+            synthesized_for: Some(fqdn_kw),
         };
 
         if sym.has_function(&predicate_name) {
             // Collision: a user-defined function already occupies this name.
             return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::DuplicateDefine(predicate_name)));
         }
+
+        // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — A1: `is-T?` inherits
+        // T's own `:restricted-to` whitelist, same reasoning as the `T'` ctor above.
+        // Unconditional whenever the type carries restrictions (an empty whitelist
+        // propagates too).
+        if let Some(restrictions) = agg_restrictions {
+            let pred_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
+            sym.binding_metadata
+                .entry(predicate_name.clone())
+                .or_default()
+                .insert(":restricted-to".to_string(), pred_ast);
+        }
+
         sym.register_function(predicate_name, Arc::new(pred_func));
     }
     Ok(())
@@ -2382,6 +2434,7 @@ fn register_runtime_defs_form(
                         body: func.body.clone(),
                         closed_env: func.closed_env.clone(),
                         rete: None,
+                        synthesized_for: None,
                     })
                 } else {
                     func.clone()
@@ -2600,6 +2653,7 @@ fn register_defalias(
                 body: FunctionBody::Wat(Arc::new(body)),
                 closed_env: None,
                 rete: None,
+                synthesized_for: None,
             });
             sym.register_function(alias.to_string(), alias_fn);
             return Ok(());
@@ -2629,6 +2683,7 @@ fn register_defalias(
                 body: FunctionBody::Wat(Arc::new(body)),
                 closed_env: None,
                 rete: None,
+                synthesized_for: None,
             });
             sym.register_function(alias.to_string(), alias_fn);
             return Ok(());
@@ -2650,6 +2705,7 @@ fn register_defalias(
             body: FunctionBody::Wat(Arc::new(stub_body)),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         });
         sym.register_function(alias.to_string(), stub_fn);
         Ok(())
@@ -2778,6 +2834,7 @@ fn preregister_struct_accessors_from_form(
                 body: FunctionBody::Wat(stub_body.clone()),
                 closed_env: None,
                 rete: None,
+                synthesized_for: None,
             }),
         );
         Ok(())
@@ -2835,6 +2892,7 @@ fn preregister_struct_accessors_from_form(
                         body: FunctionBody::Wat(stub_body.clone()),
                         closed_env: None,
                         rete: None,
+                        synthesized_for: None,
                     }),
                 );
                 Ok(())
@@ -2944,6 +3002,7 @@ fn preregister_enum_constructors_from_form(
                     body: FunctionBody::Wat(stub_body.clone()),
                     closed_env: None,
                     rete: None,
+                    synthesized_for: None,
                 }),
             );
             Ok(())
@@ -3150,6 +3209,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         }),
         metadata_opt,
     ))
@@ -3257,6 +3317,7 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         }),
     ))
 }
@@ -3417,6 +3478,7 @@ fn try_parse_user_variadic_def_fn_form(
             body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
             rete: None,
+            synthesized_for: None,
         }),
     )))
 }
@@ -10675,6 +10737,7 @@ fn eval_lazy_seq(
         body: crate::value::FunctionBody::Wat(Arc::new(args[0].clone())),
         closed_env: Some(env.clone()),
         rete: None,
+        synthesized_for: None,
     });
     Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Thunk(
         crate::stream::LazyCell { thunk },
@@ -15828,13 +15891,35 @@ fn eval_kwargs_construct(
         // through `aggregate-new` directly, NOT through this form). Reaching here means a
         // user wrote `(:T v1 v2 …)` at the bare name — a LOCATED rejection, preserving the
         // flip doctrine (kwargs everywhere a human writes; the prime for generated code).
-        Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!(
+        //
+        // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — A1 gates `T'` behind
+        // T's own `:restricted-to` whitelist (it no longer bypasses it), so unconditionally
+        // offering "or use the positional prime `T'`" would walk a non-whitelisted caller
+        // straight into that wall. Look the type up and drop the offer when it is restricted.
+        let bare_name: &str = if let Some(pos) = type_name.find('<') { &type_name[..pos] } else { &type_name };
+        let class = bare_name.trim_start_matches(':').to_string();
+        let type_key = format!(":{}", class);
+        let is_restricted = sym.types()
+            .and_then(|types| types.get(&type_key))
+            .is_some_and(|def| matches!(def, crate::types::TypeDef::Aggregate(a) if a.restrictions.is_some()));
+        let reason = if is_restricted {
+            format!(
+                "bare-positional construction of {} is retired (the bare name is the kwargs \
+                 macro); write kwargs `({} :field value …)` from a caller in its `:restricted-to` \
+                 whitelist — the positional prime `{}'` is gated to that SAME whitelist (arc 198 \
+                 strike 2), not an unrestricted alternative",
+                type_name, type_name, type_name
+            )
+        } else {
+            format!(
                 "bare-positional construction of {} is retired (the bare name is the kwargs \
                  macro); write kwargs `({} :field value …)` or use the positional prime `{}'`",
                 type_name, type_name, type_name
-            ),
+            )
+        };
+        Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason,
         }).into())
     }
 }
@@ -34464,6 +34549,7 @@ mod tests {
                 body: FunctionBody::Wat(Arc::new(helper_body)),
                 closed_env: None,
                 rete: None,
+                synthesized_for: None,
             }),
         );
 

@@ -71,6 +71,7 @@ pub(crate) fn eval_fn(
         body: crate::value::FunctionBody::Wat(Arc::new(body)),
         closed_env: Some(env.clone()),
         rete: None,
+        synthesized_for: None,
     })))
 }
 

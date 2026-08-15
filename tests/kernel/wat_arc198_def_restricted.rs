@@ -135,3 +135,23 @@ fn defn_metadata_restricted_enforces_for_caller_outside_whitelist() {
         &[":my::kernel::"],
     );
 }
+
+// ─── Test 6 — a restriction governs MENTION, not head position ────────────
+
+#[test]
+fn def_restricted_value_position_alias_denied() {
+    // DESIGN-STONE-a-restriction-governs-mention-not-head-position (arc 198,
+    // filed 2026-08-15). Before this stone, `walk_for_restricted_call` only
+    // checked the List-head position of a call site — a restricted FQDN
+    // bound via `let` in VALUE position (never a call head) was a bare
+    // `WatAST::Keyword` the walker recursed past in silence, so this exact
+    // shape type-checked and RAN. The walker now fires on every
+    // `WatAST::Keyword` mention, so the alias route is refused identically
+    // to a direct call.
+    assert_restricted_call_rejected(
+        "tests/kernel/wat_arc198_def_restricted_bad_value_position_alias.wat",
+        ":my::kernel::restricted-fn",
+        ":user::sneaky",
+        &[":my::kernel::"],
+    );
+}

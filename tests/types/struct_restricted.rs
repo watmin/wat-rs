@@ -15,7 +15,8 @@
 //! - Whitelist entry ending in `::` → caller FQDN must START WITH the prefix.
 //! - Whitelist entry NOT ending in `::` → caller FQDN must EQUAL the entry exactly.
 
-use wat::freeze::startup_from_file;
+use wat::check::error::CheckErrorKind;
+use wat::freeze::{startup_from_file, StartupError};
 
 /// Returns the Debug-formatted error bundle from a startup that MUST fail.
 fn startup_err(path: &str) -> String {
@@ -112,4 +113,52 @@ fn struct_restricted_malformed_shapes_rejected() {
     // Case B: legacy :wat::core::struct-restricted HARD CUT — rejected.
     let err = startup_err("tests/types/struct_restricted_legacy.wat.bad");
     assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/struct_restricted_legacy.wat.bad", line: 2, col: 2, end_line: 2, end_col: 31 }, kind: MalformedForm { head: ":wat::core::struct-restricted", reason: "':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding", remedies: [Remedy { form: ":wat::core::defstruct", kind: Retirement, note: Some("re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding") }] } }]))"#);
+}
+
+// ─── Test 7 — Arc 198 strike 2 (A1): the positional prime is not a bare-alias escape ────────
+
+// Match the TYPED error, not a rendering — same rationale as
+// `wat_arc198_def_restricted.rs::assert_restricted_call_rejected`: a test of the restriction
+// walker/registration should depend on the walker + A1's registration, not on how a diagnostic
+// happens to print today (the sibling tests above already show what a Debug-string golden costs
+// when the rendering changes out from under it).
+fn assert_prime_ctor_rejected(path: &str, expected_callee: &str, expected_enclosing_fn: &str, expected_prefixes: &[&str]) {
+    let err = startup_from_file(path).expect_err("expected startup failure; got Ok");
+    let errors = match &err {
+        StartupError::Check(errs) => errs,
+        other => panic!("expected StartupError::Check for {path}; got {other:?}"),
+    };
+    assert_eq!(errors.0.len(), 1, "expected exactly one check error for {path}; got {errors:?}");
+    match &errors.0[0].kind {
+        CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes } => {
+            assert_eq!(callee, expected_callee, "callee mismatch for {path}");
+            assert_eq!(enclosing_fn, expected_enclosing_fn, "enclosing fn mismatch for {path}");
+            assert_eq!(prefixes.as_slice(), expected_prefixes, "whitelist mismatch for {path}");
+        }
+        other => panic!("expected DefRestrictedCallerNotAllowed for {path}; got {other:?}"),
+    }
+}
+
+#[test]
+fn struct_restricted_prime_ctor_denied_for_non_whitelisted_caller() {
+    // A1 (BRIEF-198-companion-propagation-A1-B2): the positional prime `:my::Token'` is a
+    // directly-callable constructor in its own right — before A1 it carried NO whitelist at
+    // all, so `(:my::Token' 7)` from `:user::` constructed a restricted type with no gate.
+    // A1 makes `T'` inherit T's own `:restricted-to`, so this route is refused identically to
+    // the kwargs form.
+    assert_prime_ctor_rejected(
+        "tests/types/struct_restricted_prime_ctor_denied.wat.bad",
+        ":my::Token'",
+        ":user::bad-mint-via-prime",
+        &[":my::issuer::"],
+    );
+}
+
+#[test]
+fn struct_restricted_whitelisted_caller_constructs_via_both_routes() {
+    // Gate 3: without this, A1 would be indistinguishable from a total construction ban. A
+    // caller INSIDE the whitelist (`:my::issuer::`) constructs via both the kwargs form
+    // `(:my::Token :id v)` and the positional prime `(:my::Token' v)`.
+    startup_from_file("tests/types/struct_restricted_whitelisted_caller_both_routes.wat")
+        .expect("expected startup success for a whitelisted caller via both ctor routes");
 }
