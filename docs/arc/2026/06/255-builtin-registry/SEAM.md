@@ -46,6 +46,33 @@ stretch.
 | `437edde1` | **H-2a** — the recapture wall reaches the corpus: 208 sites, 58 goldens proven DATA-EQUAL |
 | `800bf6db` | **Wave A** — 109 dark tests un-ignored, 105 recaptured, 2 real bugs surfaced ⚠ *(committed red, see above)* |
 
+## ⛔⛔ SECURITY — THIS TAKES PRECEDENCE OVER EVERYTHING BELOW (2026-08-15)
+
+**Every `:restricted-to` in the substrate is bypassable in one line.** Measured, executing:
+
+```clojure
+(:wat::core::let [f :wat::kernel::str-double]   ; name it in VALUE position
+  (f "AB" 3))                                    ; call the local — EXIT=0, no error
+```
+
+`walk_for_restricted_call` (`src/check.rs:1403`) checks only `items.first()` of a `List`. A restricted
+FQDN in ANY other position is a bare `Keyword`, and the walk passes over it in silence. Confirmed
+reaching `:wat::kernel::write-fd-raw` (the arbitrary-fd seal) and `wat/spawn.wat:329` (the IPC wall,
+task #13). The `defstruct` ctor whitelist is a second instance — its companion macro routes
+construction through `kwargs-construct`, so the real callee sits at `items[1]`.
+
+**THE STONE IS DRAWN, NOT BUILT:**
+`docs/arc/2026/05/198-defn-restricted/DESIGN-STONE-a-restriction-governs-mention-not-head-position.md`
+
+The rule, derived from the builder's sentence (*"the whitelist restricts who can call the thing being
+defined"*): **a restricted FQDN may not be NAMED outside its whitelist, in any position.** NOT a
+special case for `kwargs-construct`/`aggregate-new` — that was proposed, and the builder cut it:
+*"this is a hack... we need it to be general."*
+
+⚠ **`wat/kernel/services/stdio.wat:358` carries a written safety argument that this refutes.** It
+reasons about the *authoring* surface (you cannot forge a `:wat::` caller — true) and is silent on the
+*reference* surface. Sweep for other "X is safe because Y cannot be authored" claims.
+
 ## THE ROAD FROM HERE
 
 1. **H (variants are maps)** — `DESIGN-STONE-H-variants-are-maps.md`. Drawn, ruled, **not built**.
