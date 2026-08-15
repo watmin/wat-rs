@@ -28,6 +28,12 @@ use crate::span::Span;
 use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::value::value::AggregateValue;
 
+::wat_source_derive::wat_field_names_from!(EXAMPLE_FIELDS, "wat/doctest.wat", ":wat::intrinsic::Example");
+fn example_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(EXAMPLE_FIELDS)).clone()
+}
+
 /// Walk the intrinsic registry and return every registered intrinsic's
 /// carried `@example`s as a `Vector` of `:wat::intrinsic::Example` records —
 /// the iv-b2-a reflection seam. The wat verifier (`verify-examples`, iv-b2-b)
@@ -115,6 +121,7 @@ pub(crate) fn eval_intrinsic_examples(
             // NO leading colon (matches the RecordDef class identity).
             let record = Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::intrinsic::Example".to_string(),
+                example_names(),
                 Arc::new(vec![
                     fqdn_kw.clone(),
                     expr_q,

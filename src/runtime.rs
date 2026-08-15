@@ -550,6 +550,28 @@ pub fn trigger_shutdown() {
 // threaded through `invoke_user_main`'s signature — dozens of test callers
 // use that signature directly and don't care about this).
 
+::wat_source_derive::wat_field_names_from!(FAULT_FIELDS, "wat/core.wat", ":wat::core::Fault");
+::wat_source_derive::wat_field_names_from!(
+    STOP_FAILURE_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailure"
+);
+::wat_source_derive::wat_field_names_from!(
+    STOP_FAILED_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailed"
+);
+
+/// `OnceLock` so a hot error path allocates the name vector once, not per raised fault.
+pub(crate) fn fault_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(FAULT_FIELDS)).clone()
+}
+fn stop_failure_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_FAILURE_FIELDS)).clone()
+}
+fn stop_failed_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_FAILED_FIELDS)).clone()
+}
+
 /// Convert a `RuntimeError` into a `:wat::core::Fault` (`wat/core.wat`) — the canonical minimal
 /// record that structurally satisfies the `:wat::core::Error` surface: `message`, `location` (a
 /// `:wat::kernel::Location`, via [`value_from_span`]), `causes` (empty — a Fault is a leaf).
@@ -560,6 +582,7 @@ pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
     use crate::to_edn::WatError;
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::core::Fault".to_string(),
+        fault_names(),
         Arc::new(vec![
             Value::String(Arc::new(err.message())),
             value_from_span(err.span().clone()),
@@ -572,6 +595,7 @@ pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
 pub(crate) fn stop_failure_value(service: &str, err: &RuntimeError) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::StopFailure".to_string(),
+        stop_failure_names(),
         Arc::new(vec![
             Value::String(Arc::new(service.to_string())),
             fault_from_runtime_error(err),
@@ -596,6 +620,7 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
         let span = p.location.clone().unwrap_or_else(|| crate::rust_caller_span!());
         Value::Aggregate(Arc::new(AggregateValue::record(
             "wat::core::Fault".to_string(),
+            fault_names(),
             Arc::new(vec![
                 Value::String(Arc::new(p.message.clone())),
                 value_from_span(span),
@@ -612,6 +637,7 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
         };
         Value::Aggregate(Arc::new(AggregateValue::record(
             "wat::core::Fault".to_string(),
+            fault_names(),
             Arc::new(vec![
                 Value::String(Arc::new(message)),
                 value_from_span(crate::rust_caller_span!()),
@@ -625,6 +651,7 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
 pub(crate) fn stop_failure_from_panic(service: &str, payload: &(dyn std::any::Any + Send)) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::StopFailure".to_string(),
+        stop_failure_names(),
         Arc::new(vec![
             Value::String(Arc::new(service.to_string())),
             fault_from_panic_payload(payload),
@@ -638,6 +665,7 @@ pub(crate) fn stop_failure_from_panic(service: &str, payload: &(dyn std::any::An
 pub(crate) fn stop_failed_value(failures: Vec<Value>) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::StopFailed".to_string(),
+        stop_failed_names(),
         Arc::new(vec![Value::Vec(Arc::new(failures))]),
     )))
 }
@@ -4744,8 +4772,9 @@ fn dispatch_keyword_head_value(
         //   Record      → AggregateValue::record(class, fields)
         //   HolonRecord → AggregateValue::holon_record(class, fields, hologram)
         // For HolonRecord, the hologram is derived internally by `build_holon_hologram`
-        // (no precomputed arg). struct-new / Record::of / holon::Record::of all route
-        // through this; their of-func registrations stay until 294.c.2b.
+        // (no precomputed arg). struct-new / defrecord / holon::defrecord all route
+        // through this; arc 296 G-1b deleted the `Record::of` primitives that used to
+        // sit alongside it (finish the kill, arc 294.c.2a).
         ":wat::core::aggregate-new" => eval_aggregate_new(args, list_span, env, sym),
         // Arc 294 item (C) — `:wat::core::kwargs-construct` is the LIVE kwargs form the
         // defrecord/defstruct companion emits: it resolves `:T`'s (splice-merged) field
@@ -4763,13 +4792,11 @@ fn dispatch_keyword_head_value(
         // down; `$struct` is the impure tier; you already have the struct in locus.
         ":wat::core::to-record" => eval_to_core_record(args, list_span, env, sym),
         ":wat::holon::to-record" => eval_to_holon_record(args, list_span, env, sym),
-        // Arc 234 Stone 234.2a — `:wat::core::Record::of` constructor + `:wat::core::Record/field-at` accessor.
-        // Constructor: (class fields) -> :wat::core::Record (BASE, no hologram)
-        // Accessor:    (record index) -> field-value at fields[index]
-        // These are the substrate primitives consumed by the Stone 234.2b defrecord macro.
-        // Stone S-C.3 — `:wat::holon::Record::of` is the holonic constructor (3-arg: class + fields + hologram).
-        ":wat::core::Record::of" => eval_record_of(args, list_span, env, sym),
-        ":wat::holon::Record::of" => eval_holon_record_of(args, list_span, env, sym),
+        // Arc 234 Stone 234.2a — `:wat::core::Record/field-at` accessor.
+        // Accessor: (record index) -> field-value at fields[index]
+        // Arc 296 G-1b — `:wat::core::Record::of` / `:wat::holon::Record::of` DELETED (finish
+        // the kill, arc 294.c.2a): both retired constructors, zero/one live callers, superseded
+        // by `aggregate-new` (the one nature-dispatched ctor).
         ":wat::core::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
         // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord nature)
@@ -13813,9 +13840,10 @@ fn eval_struct_new(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::struct-new";
     if args.is_empty() {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::struct-new".into(),
+            op: OP.into(),
             expected: 1,
             got: 0
         }).into());
@@ -13824,7 +13852,7 @@ fn eval_struct_new(
         WatAST::Keyword(k, _) => k.clone(),
         other => {
             return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::struct-new".into(),
+                head: OP.into(),
                 reason: format!(
                     "first argument must be a keyword literal (the struct's type name); got {}",
                     other.variant_name()
@@ -13837,8 +13865,29 @@ fn eval_struct_new(
         fields.push(eval_inner(arg, env, sym)?.value_owned());
     }
     // Arc 293.R2.1 — AggregateValue::struct_ strips leading ':' from type_name.
+    let class = type_name.trim_start_matches(':').to_string();
+    // Arc 296 G-1 — `struct-new` is a SECOND generic constructor (`eval_aggregate_new`,
+    // ~:15772, is the primary one that already guards against an unregistered class). It can
+    // reach either a `TypeDef::Aggregate(Nature::Struct)` — registered, so its declared
+    // `names_arc()` is available — or a `TypeDef::Newtype`, which declares no field name at
+    // all (arc 049: exactly one inner value, referred to positionally, `<Type>/0`, the SAME
+    // convention `register_newtype_methods` bakes into the accessor path a few hundred lines
+    // above). An unregistered class raises rather than falling back to a positional guess —
+    // mirrors `eval_aggregate_new`'s `:15812` guard.
+    let type_key = format!(":{}", class);
+    let names: Arc<Vec<String>> = match sym.types().and_then(|types| types.get(&type_key)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
+        Some(crate::types::TypeDef::Newtype(_)) => Arc::new(vec!["0".to_string()]),
+        _ => {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("type {} is not a registered struct or newtype", type_key),
+            }).into());
+        }
+    };
     Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
-        type_name.trim_start_matches(':').to_string(),
+        class,
+        names,
         fields,
     ))))
 }
@@ -15534,140 +15583,6 @@ fn eval_subtype(
 
 // ─── end Stone S-A ───────────────────────────────────────────────────────────
 
-/// `(:wat::core::Record::of <class: :wat::core::keyword> <fields: Vector<T>>)`
-/// → `:wat::core::Record` — arc 237 Stone S-C.3 (BASE constructor; no hologram).
-///
-/// Substrate constructor for `Value::Aggregate(nature=Record)`. Takes two args:
-/// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Pt`); the keyword's stored
-///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
-///   `class` field (e.g. `"myapp::Pt"`).
-/// - `fields`: `Vector<T>` of field values in declaration order.
-///
-/// Returns `Value::Aggregate { class, fields, nature: Record, holon: Empty }`.
-/// Consumed by the Stone S-C.3 `:wat::core::defrecord` (BASE) macro.
-fn eval_record_of(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Record::of";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let class_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let struct_val = eval_inner(&args[1], env, sym)?.value_owned();
-
-    let class_arc = match class_val {
-        Value::wat__core__keyword(arc_s) => arc_s,
-        other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::keyword (class FQDN)",
-                got: Box::new(ValueSnapshot::of(&other))
-            }).into());
-        }
-    };
-    // Keywords store the leading ':' in their Arc<String>; strip it for class_fqdn.
-    let class_fqdn_str = class_arc.strip_prefix(':').unwrap_or(&class_arc).to_string();
-    let class_fqdn = Arc::new(class_fqdn_str);
-
-    let fields = match struct_val {
-        Value::Vec(arc_vec) => arc_vec,
-        other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vector<T> (field values in declaration order)",
-                got: Box::new(ValueSnapshot::of(&other))
-            }).into());
-        }
-    };
-
-    // Arc 293.R2.1 — AggregateValue::record.
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(
-        (*class_fqdn).clone(),
-        fields,
-    ))))
-}
-
-/// `(:wat::holon::Record::of <class: :wat::core::keyword> <fields: Vector<T>> <hologram: HolonAST>)`
-/// → `:wat::holon::Record` — arc 234 Stone 234.2a (renamed from `:wat::core::Record::of` at Stone S-C.3).
-///
-/// Substrate constructor for `Value::Aggregate(nature=HolonRecord)`. Takes three args:
-/// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Voltage`); the keyword's stored
-///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
-///   `class` field (e.g. `"myapp::Voltage"`).
-/// - `fields`: `Vector<T>` of field values in declaration order.
-/// - `hologram`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
-///
-/// Returns `Value::Aggregate { class, fields, nature: HolonRecord, holon: Hologram(hologram) }`.
-/// Consumed by the Stone S-C.3 `:wat::holon::defrecord` (HOLONIC) macro.
-fn eval_holon_record_of(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Record::of";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 3,
-            got: args.len()
-        }).into());
-    }
-    let class_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let struct_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let holon_val = eval_inner(&args[2], env, sym)?.value_owned();
-
-    let class_arc = match class_val {
-        Value::wat__core__keyword(arc_s) => arc_s,
-        other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::keyword (class FQDN)",
-                got: Box::new(ValueSnapshot::of(&other))
-            }).into());
-        }
-    };
-    // Keywords store the leading ':' in their Arc<String>; strip it for class_fqdn.
-    let class_fqdn_str = class_arc.strip_prefix(':').unwrap_or(&class_arc).to_string();
-    let class_fqdn = Arc::new(class_fqdn_str);
-
-    let fields = match struct_val {
-        Value::Vec(arc_vec) => arc_vec,
-        other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vector<T> (field values in declaration order)",
-                got: Box::new(ValueSnapshot::of(&other))
-            }).into());
-        }
-    };
-
-    let hologram = match holon_val {
-        Value::holon__HolonAST(arc_h) => arc_h,
-        other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::holon::HolonAST (hologram classifier-wrap)",
-                got: Box::new(ValueSnapshot::of(&other))
-            }).into());
-        }
-    };
-
-    // Arc 293.R2.1 — AggregateValue::holon_record.
-    Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
-        (*class_fqdn).clone(),
-        fields,
-        hologram,
-    ))))
-}
-
 // ─── Arc 294.c.2a — aggregate-new + build_holon_hologram ─────────────────────
 
 /// Build the hologram for a HolonRecord from scratch.
@@ -15737,10 +15652,11 @@ pub(crate) fn build_holon_hologram(
 ///                  where `hologram` is derived by `build_holon_hologram` (internal,
 ///                  no precomputed arg).
 ///
-/// The three legacy ctors (`struct-new`, `Record::of`, `holon::Record::of`) stay
-/// registered until 294.c.2b. This is intentional runtime-only dispatch — no
-/// check-side scheme registered (mirrors `:wat::core::struct-new`; the checker's
-/// fresh-TypeVar fallthrough handles callers silently).
+/// `struct-new` stays registered as a legacy ctor. `Record::of` / `holon::Record::of`
+/// were the other two legacy ctors this comment used to name; arc 296 G-1b deleted both
+/// (finish the kill, arc 294.c.2a — zero/one live callers, both superseded by this fn).
+/// This is intentional runtime-only dispatch — no check-side scheme registered (mirrors
+/// `:wat::core::struct-new`; the checker's fresh-TypeVar fallthrough handles callers silently).
 fn eval_aggregate_new(
     args: &[WatAST],
     list_span: &Span,
@@ -15831,10 +15747,10 @@ fn construct_aggregate(
 
     match agg.nature {
         crate::types::Nature::Struct => {
-            Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(class, fields))))
+            Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(class, agg.names_arc(), fields))))
         }
         crate::types::Nature::Record => {
-            Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
+            Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, agg.names_arc(), Arc::new(fields)))))
         }
         crate::types::Nature::HolonRecord => {
             let field_names: Vec<String> = agg.field_names().map(|s| s.to_string()).collect();
@@ -15842,6 +15758,7 @@ fn construct_aggregate(
             let hologram = build_holon_hologram(&class, &field_names, &fields, ctx, list_span)?;
             Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
                 class,
+                agg.names_arc(),
                 Arc::new(fields),
                 hologram,
             ))))
@@ -15972,23 +15889,26 @@ fn eval_kwargs_construct(
 
 // ─── Arc 293 K3 — three projection verbs ──────────────────────────────────────
 
-/// Extract surface S's Field-member attributes off `x_val`, returning one `Value` per
-/// field in declaration order. Reuses the surface-accessor routing (5282 pattern):
-/// derives `x_val`'s concrete FQDN, then looks up `:<T>/<field>` in `sym` and calls it.
-/// Works for any satisfier whose field accessors are registered (Struct, Record,
+/// Extract surface S's Field-member attributes off `x_val`, returning the field NAMES
+/// (declaration order, from the surface itself — class A: the `SurfaceDef` is already in
+/// hand) alongside one `Value` per field, built in the SAME loop so the two can never
+/// disagree in length (arc 296 G-1 STOP-3). Reuses the surface-accessor routing (5282
+/// pattern): derives `x_val`'s concrete FQDN, then looks up `:<T>/<field>` in `sym` and
+/// calls it. Works for any satisfier whose field accessors are registered (Struct, Record,
 /// HolonRecord, or a foreign type with extend-type).
 fn project_surface_attrs(
     x_val: &Value,
     surface: &crate::types::SurfaceDef,
     sym: &SymbolTable,
     list_span: &Span,
-) -> Result<Vec<Value>, EvalBreak> {
+) -> Result<(Arc<Vec<String>>, Vec<Value>), EvalBreak> {
     // Mirror of 5282's concrete_type_fqdn derivation.
     let concrete_type_fqdn: String = match x_val {
         Value::Aggregate(a) => format!(":{}", a.class),
         Value::RustOpaque(inner) => inner.type_path.to_string(),
         other_val => format!(":{}", other_val.type_name()),
     };
+    let mut field_names = Vec::new();
     let mut field_values = Vec::new();
     for member in &surface.members {
         if let crate::types::SurfaceMember::Field { name: fname, .. } = member {
@@ -16002,10 +15922,11 @@ fn project_surface_attrs(
             };
             let v = apply_function(func, vec![x_val.clone()], sym, list_span.clone())
                 .map_err(EvalBreak::from)?;
+            field_names.push(fname.clone());
             field_values.push(v);
         }
     }
-    Ok(field_values)
+    Ok((Arc::new(field_names), field_values))
 }
 
 /// Parse the two-arg form `(verb x :S)` for the three projection verbs.
@@ -16062,9 +15983,9 @@ fn eval_to_core_record(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::to-record";
     let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
-    let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
+    let (field_names, field_values) = project_surface_attrs(&x_val, &surf, sym, list_span)?;
     let class = format!("{}$core-record", surface_kw.trim_start_matches(':'));
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(field_values)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, field_names, Arc::new(field_values)))))
 }
 
 /// Arc 293 K3 — `(:wat::holon::to-record x :S)` → `:S$holon-record` (HolonRecord nature;
@@ -16077,16 +15998,13 @@ fn eval_to_holon_record(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::to-record";
     let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
-    let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
+    let (field_names, field_values) = project_surface_attrs(&x_val, &surf, sym, list_span)?;
     let class = format!("{}$holon-record", surface_kw.trim_start_matches(':'));
-    // Field names in surface Field-member order (the same order project_surface_attrs used).
-    let field_names: Vec<String> = surf.members.iter()
-        .filter_map(|m| if let crate::types::SurfaceMember::Field { name, .. } = m { Some(name.clone()) } else { None })
-        .collect();
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let hologram = build_holon_hologram(&class, &field_names, &field_values, ctx, list_span)?;
     Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class,
+        field_names,
         Arc::new(field_values),
         hologram,
     ))))
@@ -16472,6 +16390,7 @@ fn record_assoc_inner(
 
     Ok(Value::Aggregate(Arc::new(AggregateValue {
         class: agg.class.clone(),
+        names: agg.names.clone(),
         fields: new_fields_arc,
         nature: agg.nature,
         holon: new_holon,
@@ -17875,6 +17794,7 @@ fn eval_hologram_find(
         Some((k, v)) => Ok(Value::Option(Arc::new(Some(Value::Aggregate(Arc::new(
             AggregateValue::record(
                 "wat::holon::Match".into(),
+                match_names(),
                 Arc::new(vec![
                     Value::holon__HolonAST(Arc::new(k)),
                     Value::holon__HolonAST(Arc::new(v)),
@@ -17883,6 +17803,12 @@ fn eval_hologram_find(
         )))))),
         None => Ok(Value::Option(Arc::new(None))),
     }
+}
+
+::wat_source_derive::wat_field_names_from!(MATCH_FIELDS, "wat/holon.wat", ":wat::holon::Match");
+fn match_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(MATCH_FIELDS)).clone()
 }
 
 /// `(:wat::holon::Hologram/remove store key)` ->
@@ -18292,6 +18218,7 @@ fn eval_algebra_bundle(
             crate::config::CapacityMode::Error => {
                 let err = Value::Aggregate(Arc::new(AggregateValue::struct_(
                     "wat::holon::CapacityExceeded".into(),
+                    capacity_exceeded_names(),
                     vec![Value::i64(cost_i), Value::i64(budget_i)],
                 )));
                 return Ok(Value::Result(Arc::new(Err(err))));
@@ -18307,6 +18234,14 @@ fn eval_algebra_bundle(
 
     let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
     Ok(Value::Result(Arc::new(Ok(ok))))
+}
+
+::wat_source_derive::wat_field_names_from!(
+    CAPACITY_EXCEEDED_FIELDS, "wat/holon.wat", ":wat::holon::CapacityExceeded"
+);
+fn capacity_exceeded_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(CAPACITY_EXCEEDED_FIELDS)).clone()
 }
 
 fn eval_algebra_permute(
@@ -19379,6 +19314,7 @@ fn eval_algebra_coincident_explain(
     let min_sigma_to_pass = min_sigma_raw.max(1);
     Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
         "wat::holon::CoincidentExplanation".into(),
+        coincident_explanation_names(),
         vec![
             Value::f64(cosine),
             Value::f64(floor),
@@ -19388,6 +19324,14 @@ fn eval_algebra_coincident_explain(
             Value::i64(min_sigma_to_pass),
         ],
     ))))
+}
+
+::wat_source_derive::wat_field_names_from!(
+    COINCIDENT_EXPLANATION_FIELDS, "wat/holon.wat", ":wat::holon::CoincidentExplanation"
+);
+fn coincident_explanation_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(COINCIDENT_EXPLANATION_FIELDS)).clone()
 }
 
 /// `(:wat::holon::eval-coincident? form-a form-b)` —
@@ -22089,6 +22033,7 @@ fn eval_listener_prime(
             let minter_pid = unsafe { libc::getpid() };
             return Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
                 "wat::spawn::Bound".into(),
+                bound_names(),
                 vec![
                     make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(ul, max_frame_bytes)),
                     make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name_bytes(name_bytes, minter_pid)),
@@ -22128,12 +22073,19 @@ fn eval_listener_prime(
         use crate::rust_deps::marshal::make_rust_opaque;
         Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
             "wat::spawn::Bound".into(),
+            bound_names(),
             vec![
                 make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_crossbeam(rx)),
                 make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx)),
             ],
         ))))
     }
+}
+
+::wat_source_derive::wat_field_names_from!(BOUND_FIELDS, "wat/spawn.wat", ":wat::spawn::Bound<S,R>");
+fn bound_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(BOUND_FIELDS)).clone()
 }
 
 /// `(:wat::kernel::connect addr)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2e-iii.
@@ -22970,6 +22922,7 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
     };
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
+        failure_names(),
         Arc::new(vec![
             error_field,
             frames_field,
@@ -22977,6 +22930,14 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
             expected_field,
         ]),
     )))
+}
+
+::wat_source_derive::wat_field_names_from!(
+    FAILURE_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::Failure"
+);
+pub(crate) fn failure_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(FAILURE_FIELDS)).clone()
 }
 
 /// Arc 278 — build a `:wat::core::Fault` `Value::Aggregate(Record)` from a
@@ -22998,6 +22959,7 @@ fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
     };
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::core::Fault".into(),
+        fault_names(),
         Arc::new(vec![
             Value::String(Arc::new(message)),
             location_value,
@@ -23036,12 +22998,19 @@ fn record_field_by_name(
 pub(crate) fn value_from_span(span: crate::span::Span) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Location".into(),
+        location_names(),
         Arc::new(vec![
             Value::String(Arc::new((*span.file).clone())),
             Value::i64(span.line),
             Value::i64(span.col),
         ]),
     )))
+}
+
+::wat_source_derive::wat_field_names_from!(LOCATION_FIELDS, "wat/core.wat", ":wat::kernel::Location");
+pub(crate) fn location_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(LOCATION_FIELDS)).clone()
 }
 
 /// Convert a `FrameInfo` (wat call-stack frame from the trampoline)
@@ -23055,12 +23024,19 @@ fn value_from_frame_info(frame: FrameInfo) -> Value {
     let FrameInfo { callee_path, call_span } = frame;
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Frame".into(),
+        frame_names(),
         Arc::new(vec![
             Value::String(Arc::new((*call_span.file).clone())),
             Value::i64(call_span.line),
             Value::String(Arc::new(callee_path)),
         ]),
     )))
+}
+
+::wat_source_derive::wat_field_names_from!(FRAME_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::Frame");
+fn frame_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(FRAME_FIELDS)).clone()
 }
 
 /// Build a `:wat::kernel::ThreadDiedError::RuntimeError(message)`
@@ -23548,6 +23524,7 @@ fn eval_died_error_to_failure(
 fn message_only_failure(message: String) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
+        failure_names(),
         Arc::new(vec![
             fault_value(message, None),          // error (synthesized Fault)
             Value::Vec(Arc::new(Vec::new())),    // frames
@@ -24061,11 +24038,18 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
     };
     Value::Aggregate(Arc::new(AggregateValue::struct_(
         "wat::core::EvalError".into(),
+        eval_error_names(),
         vec![
             Value::String(Arc::new(kind.into())),
             Value::String(Arc::new(message)),
         ],
     )))
+}
+
+::wat_source_derive::wat_field_names_from!(EVAL_ERROR_FIELDS, "wat/core.wat", ":wat::core::EvalError");
+fn eval_error_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(EVAL_ERROR_FIELDS)).clone()
 }
 
 /// Wrap an inner evaluation's `Result<Value, EvalBreak>` as the
@@ -24217,6 +24201,7 @@ fn form_outcome_check_failed(e: &crate::freeze::StartupError, sym: &SymbolTable)
 fn fault_with_cause(message: String, cause: Value) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::core::Fault".into(),
+        fault_names(),
         Arc::new(vec![
             Value::String(Arc::new(message)),
             value_from_span(crate::span::Span::new(
@@ -34892,6 +34877,10 @@ mod tests {
     fn to_holon_inner_base_record_returns_err_with_teaching_message() {
         let base = Value::Aggregate(Arc::new(AggregateValue::record(
             "my::Pt".to_string(),
+            // `my::Pt` is a synthetic, never-registered test class (the contract under
+            // test is `to_holon_inner`'s error message, not field naming) — positional
+            // labels, not an invented semantic name.
+            Arc::new(vec!["0".to_string(), "1".to_string()]),
             Arc::new(vec![Value::f64(1.0), Value::f64(2.0)]),
         )));
         let span = crate::rust_caller_span!();

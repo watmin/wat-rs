@@ -254,6 +254,7 @@ fn read_json_outcome_malformed(
             Value::Aggregate(std::sync::Arc::new(
                 crate::value::value::AggregateValue::record(
                     "wat::core::Fault".into(),
+                    crate::runtime::fault_names(),
                     std::sync::Arc::new(vec![
                         Value::String(std::sync::Arc::new(message.to_string())),
                         crate::runtime::value_from_span(list_span.clone()),
@@ -554,6 +555,7 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
             Value::Aggregate(std::sync::Arc::new(
                 crate::value::value::AggregateValue::record(
                     "wat::core::Fault".into(),
+                    crate::runtime::fault_names(),
                     std::sync::Arc::new(vec![
                         Value::String(std::sync::Arc::new(e.message())),
                         crate::runtime::value_from_span(e.span.clone()),
@@ -2524,8 +2526,8 @@ fn coerce_struct_path(
     // reconstructed value must carry the same nature `reconstruct_record` gives it.
     let class = type_path.trim_start_matches(':').to_string();
     Ok(Value::Aggregate(Arc::new(match def.nature {
-        crate::types::Nature::Record => AggregateValue::record(class, Arc::new(fields)),
-        _ => AggregateValue::struct_(class, fields),
+        crate::types::Nature::Record => AggregateValue::record(class, def.names_arc(), Arc::new(fields)),
+        _ => AggregateValue::struct_(class, def.names_arc(), fields),
     })))
 }
 
@@ -3120,6 +3122,7 @@ fn reconstruct_struct(
     }
     Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
         path.trim_start_matches(':').to_string(),
+        def.names_arc(),
         fields,
     ))))
 }
@@ -3184,7 +3187,7 @@ fn reconstruct_record(
     }
     // class stored without leading ':'; path has it — strip.
     let class = path.strip_prefix(':').unwrap_or(&path).to_string();
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, def.names_arc(), Arc::new(fields)))))
 }
 
 /// Arc 234 Stone 234.7b (REWRITTEN by Arc 294.g) — Decode a holon-record tagged-MAP back to
@@ -3282,6 +3285,7 @@ fn reconstruct_holon_record(
 
     Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class,
+        Arc::new(field_names),
         Arc::new(fields),
         hologram,
     ))))

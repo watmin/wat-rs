@@ -30,6 +30,9 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> std::sync::Arc
 
 /// Construct a holon_record fixture for tests (was wat__holon__Record).
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
+    // Names come from the SAME `fields` the caller already supplies per-field (the same
+    // binding the holon-form pairs and struct_form values are built from) — not hand-typed.
+    let names: Arc<Vec<String>> = Arc::new(fields.iter().map(|(name, _, _)| name.to_string()).collect());
     let struct_form: Arc<Vec<Value>> =
         Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
     let holon_field_pairs: Vec<(&str, HolonAST)> = fields
@@ -39,6 +42,7 @@ fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let holon_form = make_holon_form(class, holon_field_pairs);
     Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names,
         struct_form,
         holon_form,
     )))

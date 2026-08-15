@@ -4,9 +4,7 @@
 
 use crate::channel::inner::{ReceiverInner, SenderInner};
 use crate::span::Span;
-use crate::value::value::AggregateValue;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 /// Outcome of a typed-channel send. Mirrors crossbeam's
 /// `Send::send` shape but carries enough info for the wat-level
@@ -313,55 +311,4 @@ pub fn try_as_comms_receiver(
         ReceiverInner::Comms(rx) => Some(rx),
         ReceiverInner::PipeFd(_) => None,
     }
-}
-
-/// Arc 170 Stone C1 — substrate-internal test fixture. Constructs two
-/// cross-wired `:wat::kernel::ThreadPeer` struct Values backed by two
-/// crossbeam channel pairs.
-///
-/// The wiring (returned as `(peer_a, peer_b)`):
-///   pipe_AB: A writes → B reads     (carries direction A→B)
-///   pipe_BA: B writes → A reads     (carries direction B→A)
-///
-///   peer_a.rx = pipe_BA.receiver   (A pulls what B wrote)
-///   peer_a.tx = pipe_AB.sender     (A pushes toward B)
-///   peer_b.rx = pipe_AB.receiver   (B pulls what A wrote)
-///   peer_b.tx = pipe_BA.sender     (B pushes toward A)
-///
-/// For a logical `(X, Y)` exchange where A writes X and B writes Y,
-/// peer A's type parameters are `<Y, X>` (reads Y, writes X) and peer
-/// B's are `<X, Y>` (reads X, writes Y). The substrate construction
-/// is type-erased at this layer — the type parameters live in the
-/// checker's `TypeEnv` only; the runtime ferries `Value`s.
-///
-/// This helper is intentionally NOT exposed to wat user code — the
-/// user-facing path that builds peer pairs is `:wat::kernel::spawn-thread` +
-/// the arc-259 bracket (with the type-parameter mirror baked into the
-/// expansion). Stone D's original `run-threads` bracket macro filled this
-/// role and has since been retired (dead code, superseded). Stone C1
-/// only needs in-Rust peer construction for the substrate-layer tests;
-/// the `_for_test` suffix preserves that boundary on every grep.
-pub fn make_thread_peer_pair_for_test()
-    -> (crate::runtime::Value, crate::runtime::Value)
-{
-    use crate::channel::inner::{receiver_from_comms, sender_from_comms};
-    // Arc 214 Stone 5.1 — use comms::thread::pair() (depth-1) instead of
-    // bare crossbeam::unbounded. Depth-1 is sufficient for test fixtures.
-    let (tx_ab, rx_ab) = crate::comms::thread::pair::<crate::runtime::Value>();
-    let (tx_ba, rx_ba) = crate::comms::thread::pair::<crate::runtime::Value>();
-    let peer_a = crate::runtime::Value::Aggregate(Arc::new(AggregateValue::struct_(
-        "wat::kernel::ThreadPeer".into(),
-        vec![
-            receiver_from_comms(rx_ba),
-            sender_from_comms(tx_ab),
-        ],
-    )));
-    let peer_b = crate::runtime::Value::Aggregate(Arc::new(AggregateValue::struct_(
-        "wat::kernel::ThreadPeer".into(),
-        vec![
-            receiver_from_comms(rx_ab),
-            sender_from_comms(tx_ba),
-        ],
-    )));
-    (peer_a, peer_b)
 }

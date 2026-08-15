@@ -73,6 +73,9 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> Arc<HolonAST> 
 /// Construct a holon_record (Aggregate) fixture for tests.
 /// Arc 293.R2.1: wat__holon__Record collapsed to Value::Aggregate(AggregateValue{nature:HolonRecord}).
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
+    // Names come from the SAME `fields` the caller already supplies per-field — not a
+    // second, independently hand-typed guess.
+    let names: Arc<Vec<String>> = Arc::new(fields.iter().map(|(name, _, _)| name.to_string()).collect());
     let struct_form: Arc<Vec<Value>> = Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
     let holon_field_pairs: Vec<(&str, HolonAST)> = fields
         .iter()
@@ -81,6 +84,7 @@ fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let holon_form = make_holon_form(class, holon_field_pairs);
     Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names,
         struct_form,
         holon_form,
     )))
@@ -207,7 +211,10 @@ fn probe_6_debug_contains_class() {
     println!("Probe 6 Debug: {}", rendered);
     assert_eq!(
         rendered,
-        r#"Aggregate(AggregateValue { class: "myapp::Voltage", fields: [f64(5.0)], nature: HolonRecord, holon: Hologram(Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))]))) })"#,
+        // Arc 296 G-1 — AggregateValue gained `names` (between `class` and `fields`); the
+        // golden was updated to include it, the assertion's intent (Debug renders the
+        // variant with its class + fields + hologram visible) is otherwise unchanged.
+        r#"Aggregate(AggregateValue { class: "myapp::Voltage", names: ["magnitude"], fields: [f64(5.0)], nature: HolonRecord, holon: Hologram(Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))]))) })"#,
         "Probe 6: Debug output must match golden"
     );
 }

@@ -52,16 +52,22 @@ fn hash_value(v: &Value) -> u64 {
 /// (marker 1 vs marker 999). The data is the same; only the derived index diverges.
 fn divergent_pair() -> (Value, Value) {
     let class = "myapp::Voltage";
+    // The SAME field name already passed to `holon_form_with` below — not a second,
+    // independently hand-typed guess.
+    let field_name = "magnitude";
+    let names: Arc<Vec<String>> = Arc::new(vec![field_name.to_string()]);
     let fields: Arc<Vec<Value>> = Arc::new(vec![Value::i64(42)]);
     let a = Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names.clone(),
         fields.clone(),
-        holon_form_with(class, "magnitude", 1),
+        holon_form_with(class, field_name, 1),
     )));
     let b = Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names,
         fields.clone(),
-        holon_form_with(class, "magnitude", 999),
+        holon_form_with(class, field_name, 999),
     )));
     (a, b)
 }
@@ -94,15 +100,19 @@ fn divergent_holograms_over_identical_data_hash_equal() {
 #[test]
 fn different_fields_still_unequal() {
     let class = "myapp::Voltage";
+    let field_name = "magnitude";
+    let names: Arc<Vec<String>> = Arc::new(vec![field_name.to_string()]);
     let a = Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names.clone(),
         Arc::new(vec![Value::i64(42)]),
-        holon_form_with(class, "magnitude", 42),
+        holon_form_with(class, field_name, 42),
     )));
     let b = Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names,
         Arc::new(vec![Value::i64(43)]),
-        holon_form_with(class, "magnitude", 43),
+        holon_form_with(class, field_name, 43),
     )));
     assert_ne!(a, b, "294.c.1: different field values must remain unequal");
 }
@@ -111,12 +121,15 @@ fn different_fields_still_unequal() {
 fn different_nature_still_unequal() {
     // Same class + fields, different nature (Record vs HolonRecord) → unequal.
     let class = "myapp::Voltage";
+    let field_name = "magnitude";
+    let names: Arc<Vec<String>> = Arc::new(vec![field_name.to_string()]);
     let fields: Arc<Vec<Value>> = Arc::new(vec![Value::i64(42)]);
-    let base = Value::Aggregate(Arc::new(AggregateValue::record(class.to_string(), fields.clone())));
+    let base = Value::Aggregate(Arc::new(AggregateValue::record(class.to_string(), names.clone(), fields.clone())));
     let holon = Value::Aggregate(Arc::new(AggregateValue::holon_record(
         class.to_string(),
+        names,
         fields.clone(),
-        holon_form_with(class, "magnitude", 42),
+        holon_form_with(class, field_name, 42),
     )));
     assert_ne!(base, holon, "294.c.1: nature is part of identity — Record != HolonRecord");
 }

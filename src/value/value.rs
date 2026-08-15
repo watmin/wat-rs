@@ -978,6 +978,10 @@ pub struct AggregateValue {
     /// Was `StructValue.type_name` (stripped of leading `:`) /
     /// `wat__core__Record.class_fqdn` / `wat__holon__Record.class_fqdn`.
     pub class: String,
+    /// Field names in declaration order. **Same length as `fields`, always.**
+    /// Arc 296 G: carried, never looked up — see the sibling `Value::ForeignRecord`,
+    /// which self-carries its keys and has never had the `field-N` bug.
+    pub names: Arc<Vec<String>>,
     /// Positional field values in declaration order.
     /// Was `StructValue.fields` (wrapped in Arc) / the old `struct_form` local name.
     pub fields: Arc<Vec<Value>>,
@@ -990,17 +994,25 @@ pub struct AggregateValue {
 impl AggregateValue {
     /// Construct a Struct-nature aggregate (no hologram).
     /// `class` must be WITHOUT the leading colon.
-    pub fn struct_(class: String, fields: Vec<Value>) -> Self {
-        AggregateValue { class, fields: Arc::new(fields), nature: Nature::Struct, holon: HolonForm::Empty }
+    pub fn struct_(class: String, names: Arc<Vec<String>>, fields: Vec<Value>) -> Self {
+        AggregateValue { class, names, fields: Arc::new(fields), nature: Nature::Struct, holon: HolonForm::Empty }
     }
     /// Construct a base-Record aggregate (no hologram).
-    pub fn record(class: String, fields: Arc<Vec<Value>>) -> Self {
-        AggregateValue { class, fields, nature: Nature::Record, holon: HolonForm::Empty }
+    pub fn record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>) -> Self {
+        AggregateValue { class, names, fields, nature: Nature::Record, holon: HolonForm::Empty }
     }
     /// Construct a HolonRecord aggregate (with hologram).
-    pub fn holon_record(class: String, fields: Arc<Vec<Value>>, hologram: Arc<HolonAST>) -> Self {
-        AggregateValue { class, fields, nature: Nature::HolonRecord, holon: HolonForm::Hologram(hologram) }
+    pub fn holon_record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>, hologram: Arc<HolonAST>) -> Self {
+        AggregateValue { class, names, fields, nature: Nature::HolonRecord, holon: HolonForm::Hologram(hologram) }
     }
+}
+
+/// Arc 296 G — shared by every class-C construction site (a statically-known wat-declared
+/// type, no registry in scope): turns a `&'static [&'static str]` const emitted by
+/// `wat_field_names_from!` into an `Arc<Vec<String>>`. Callers cache the result behind their
+/// own `OnceLock` so a hot path (e.g. raising a `Fault`) allocates the vec once, not per call.
+pub(crate) fn names_arc_from_static(fields: &'static [&'static str]) -> Arc<Vec<String>> {
+    Arc::new(fields.iter().map(|s| (*s).to_string()).collect())
 }
 
 // Arc 293.R2.1: StructValue ANNIHILATED — replaced by AggregateValue.

@@ -106,8 +106,19 @@ fn socket_address_wire_to_record(minter_pid: i32, name_bytes: Vec<u8>) -> Value 
     ));
     Value::Aggregate(std::sync::Arc::new(AggregateValue::record(
         SOCKET_ADDRESS_WIRE_CLASS.into(),
+        socket_address_wire_names(),
         std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
     )))
+}
+
+// Arc 296 G-1 — class C, missing from the brief's table (which enumerated 16 hardcoded
+// classes; `SocketAddressWire` is a 17th, declared at `wat/spawn.wat:33`).
+::wat_source_derive::wat_field_names_from!(
+    SOCKET_ADDRESS_WIRE_FIELDS, "wat/spawn.wat", ":wat::kernel::SocketAddressWire"
+);
+fn socket_address_wire_names() -> std::sync::Arc<Vec<String>> {
+    static N: std::sync::OnceLock<std::sync::Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(SOCKET_ADDRESS_WIRE_FIELDS)).clone()
 }
 
 /// Extract `(minter_pid, name_bytes)` from a decoded `SocketAddressWire` `Value`.
@@ -358,6 +369,7 @@ mod waist_proof {
     fn make_address_body(minter_pid: i32, name: Value, types: &crate::types::TypeEnv) -> wat_edn::OwnedValue {
         let record = Value::Aggregate(std::sync::Arc::new(AggregateValue::record(
             SOCKET_ADDRESS_WIRE_CLASS.into(),
+            socket_address_wire_names(),
             std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name]),
         )));
         crate::edn_shim::value_to_edn_with(&record, Some(types))

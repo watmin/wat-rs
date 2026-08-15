@@ -1,5 +1,11 @@
-//! Diagnostic probe — `:wat::holon::Record::of` + `:wat::core::Record/field-at`
-//! substrate primitives (arc 234 Stone 234.2a).
+//! Diagnostic probe — construction shape / `:wat::core::type` / `Record/field-at` /
+//! hologram equality over a `:wat::holon::defrecord`-declared HolonRecord (arc 234 Stone 234.2a).
+//!
+//! Arc 296 G-1b — re-expressed: the fixture used to hand-build holograms through the
+//! `:wat::holon::Record::of` primitive, which was deleted ("finish the kill", arc 294.c.2a
+//! superseded it with `aggregate-new`). It now declares `:myapp::Voltage` / `:myapp::Point`
+//! with `:wat::holon::defrecord` and constructs through the generated ctor — the assertions
+//! below are unchanged; only how the fixture builds its input changed.
 //!
 //! Wat source: tests/types/probe_arc234_stone2a_record_primitives.wat (loaded via startup_beside).
 

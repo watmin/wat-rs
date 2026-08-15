@@ -1033,14 +1033,14 @@ mod arc116_diagnostic_tests {
         // Location when the caller supplies none.
         let (loc_file, loc_line, loc_col) = location.unwrap_or(("<runtime>", 0, 0));
         let location_value = Value::Aggregate(Arc::new(
-            AggregateValue::record("wat::kernel::Location".into(), Arc::new(vec![
+            AggregateValue::record("wat::kernel::Location".into(), crate::runtime::location_names(), Arc::new(vec![
                 Value::String(Arc::new(loc_file.to_string())),
                 Value::i64(loc_line),
                 Value::i64(loc_col),
             ])),
         ));
         let error_field = Value::Aggregate(Arc::new(
-            AggregateValue::record("wat::core::Fault".into(), Arc::new(vec![
+            AggregateValue::record("wat::core::Fault".into(), crate::runtime::fault_names(), Arc::new(vec![
                 Value::String(Arc::new(message.to_string())),
                 location_value,
                 Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
@@ -1056,7 +1056,7 @@ mod arc116_diagnostic_tests {
         };
         // Arc 293.W.2b — Failure is now Nature::Record (pure EDN data)
         // Arc 278 — fields [error, frames, actual, expected].
-        Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), Arc::new(vec![
+        Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), crate::runtime::failure_names(), Arc::new(vec![
             error_field,
             Value::Vec(Arc::new(Vec::new())), // no frames
             actual_field,

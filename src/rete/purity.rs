@@ -1734,6 +1734,12 @@ pub(crate) fn eval_rete_primitive_predicate(
     eval_axis_predicate(":wat::rete::primitive?", is_rete_primitive_expr, args, list_span, env, sym)
 }
 
+::wat_source_derive::wat_field_names_from!(AXIS_VIOLATION_FIELDS, "wat/rete.wat", ":wat::rete::AxisViolation");
+fn axis_violation_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(AXIS_VIOLATION_FIELDS)).clone()
+}
+
 /// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
 /// :wat::core::Option<wat::rete::AxisViolation>`
 ///
@@ -1804,6 +1810,7 @@ pub(crate) fn eval_axis_violation(
             let axis_variant = v.axis.variant_name();
             let record = Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::rete::AxisViolation".to_string(),
+                axis_violation_names(),
                 Arc::new(vec![
                     Value::String(Arc::new(v.head)),
                     Value::Enum(Arc::new(EnumValue {
@@ -1921,7 +1928,6 @@ mod completeness_gate {
     ":wat::core::Record/assoc",
     ":wat::core::Record/field-at",
     ":wat::core::Record/same-data?",
-    ":wat::core::Record::of",
     ":wat::core::Result/expect",
     ":wat::core::Result/try",
     ":wat::core::Tuple",
@@ -2009,7 +2015,6 @@ mod completeness_gate {
     ":wat::holon::Reckoner/observe",
     ":wat::holon::Reckoner/predict",
     ":wat::holon::Reckoner/resolve",
-    ":wat::holon::Record::of",
     ":wat::holon::Set",
     ":wat::holon::Thermometer",
     ":wat::holon::Tuple",

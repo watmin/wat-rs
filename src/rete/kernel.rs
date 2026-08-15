@@ -256,6 +256,7 @@ fn native_token_to_value(tok: Token) -> Value {
     }
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*token_class_fqdn()).clone(),
+        token_names(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches_pv),
             // Boundary encode: Token.bindings IS a `PMap` now — the value at this field directly.
@@ -363,6 +364,7 @@ fn native_element_to_value(el: Element) -> Value {
     );
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
+        element_names(),
         Arc::new(vec![el.fact, Value::wat__core__PersistentMap(pm)]),
     )))
 }
@@ -510,6 +512,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
 
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::rete::Session".into(),
+        session_names(),
         Arc::new(vec![
             wm.network,
             wm.rules,
@@ -520,6 +523,12 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
             Value::i64(wm.next_id),
         ]),
     )))
+}
+
+::wat_source_derive::wat_field_names_from!(SESSION_FIELDS, "wat/rete.wat", ":wat::rete::Session");
+fn session_names() -> Arc<Vec<String>> {
+    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(SESSION_FIELDS)).clone()
 }
 
 // ─── Fire kernel (P2) — four-pass native fire-once ───────────────────────────
@@ -622,7 +631,7 @@ fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -
     let mut new_fields = sf.to_vec();
     new_fields[child_idx] = Value::wat__core__PersistentVector(new_pv);
     match node {
-        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record(a.class.clone(), Arc::new(new_fields)))),
+        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record(a.class.clone(), a.names.clone(), Arc::new(new_fields)))),
         other => other.clone(),
     }
 }
@@ -677,6 +686,32 @@ fn explained_class_fqdn() -> Arc<String> {
     EXPLAINED_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Explained".to_string())).clone()
 }
 
+// Arc 296 G-1 — class C: field names read from the same `wat/rete.wat` declarations that
+// register these types, not the brief's class-C table (which named only `Session` and
+// `AxisViolation` from this file; `Token`/`Element`/`Support`/`Explained` are declared here
+// too and construct via these same helpers).
+::wat_source_derive::wat_field_names_from!(TOKEN_FIELDS, "wat/rete.wat", ":wat::rete::Token");
+::wat_source_derive::wat_field_names_from!(ELEMENT_FIELDS, "wat/rete.wat", ":wat::rete::Element");
+::wat_source_derive::wat_field_names_from!(SUPPORT_FIELDS, "wat/rete.wat", ":wat::rete::Support");
+::wat_source_derive::wat_field_names_from!(EXPLAINED_FIELDS, "wat/rete.wat", ":wat::rete::Explained");
+
+fn token_names() -> Arc<Vec<String>> {
+    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(TOKEN_FIELDS)).clone()
+}
+fn element_names() -> Arc<Vec<String>> {
+    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(ELEMENT_FIELDS)).clone()
+}
+fn support_names() -> Arc<Vec<String>> {
+    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(SUPPORT_FIELDS)).clone()
+}
+fn explained_names() -> Arc<Vec<String>> {
+    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(EXPLAINED_FIELDS)).clone()
+}
+
 /// Build a native `Element` — a fact paired with the bindings its alpha match produced.
 /// (Pre-nativise, this built the `wat::rete::Element` Value record directly; that body now
 /// lives in `native_element_to_value`, the encoder called at the one boundary — `to_persistent`
@@ -695,6 +730,7 @@ fn make_token(
 ) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*token_class_fqdn()).clone(),
+        token_names(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches),
             Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(bindings)),
@@ -1285,6 +1321,7 @@ fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
             let sf = a.fields.as_slice();
             Value::Aggregate(Arc::new(AggregateValue::record(
                 a.class.clone(),
+                a.names.clone(),
                 Arc::new(vec![
                     sf[0].clone(), // network
                     sf[1].clone(), // rules
@@ -3304,10 +3341,10 @@ fn fire_rules_stratified(
     let input_facts = session_facts(session);
 
     // The already-compiled network + next-id, shared verbatim across every stratum below.
-    let (network, next_id, class) = match session {
+    let (network, next_id, class, names) = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
-            (sf[0].clone(), sf[6].clone(), a.class.clone())
+            (sf[0].clone(), sf[6].clone(), a.class.clone(), a.names.clone())
         }
         _ => (
             Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
@@ -3315,6 +3352,7 @@ fn fire_rules_stratified(
             // Unreachable in practice — callers only ever pass a compiled Session — but keep
             // a harmless placeholder class rather than panicking on a malformed input.
             "wat::rete::Session".to_string(),
+            session_names(),
         ),
     };
 
@@ -3451,6 +3489,7 @@ fn fire_rules_stratified(
         // lower strata.
         let sub_sess = Value::Aggregate(Arc::new(AggregateValue::record(
             class.clone(),
+            names.clone(),
             Arc::new(vec![
                 sliced_network,
                 stratum_rules,
@@ -3505,6 +3544,7 @@ fn fire_rules_stratified(
             let sf = a.fields.as_slice();
             Ok(Value::Aggregate(Arc::new(AggregateValue::record(
                 a.class.clone(),
+                a.names.clone(),
                 Arc::new(vec![
                     sf[0].clone(),                                             // network (original)
                     sf[1].clone(),                                             // rules (original)
@@ -3690,7 +3730,7 @@ pub(crate) fn eval_insert_native(
     let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
     new_fields[facts_idx] = new_facts;
 
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), Arc::new(new_fields)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), agg.names.clone(), Arc::new(new_fields)))))
 }
 
 // ── Public entry: native insert-all' ───────────────────────────────────────────
@@ -3777,7 +3817,7 @@ pub(crate) fn eval_insert_all_native(
     let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
     new_fields[facts_idx] = new_facts;
 
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), Arc::new(new_fields)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), agg.names.clone(), Arc::new(new_fields)))))
 }
 
 // ── Public entry: native fire-rules-explain' ─────────────────────────────────
@@ -3819,6 +3859,7 @@ pub(crate) fn eval_fire_rules_explain(
         let token_value = native_token_to_value(tok);
         let support_value = Value::Aggregate(Arc::new(AggregateValue::record(
             (*support_class_fqdn()).clone(),
+            support_names(),
             Arc::new(vec![
                 Value::String(Arc::new(rule_name)),
                 token_value,
@@ -3830,6 +3871,7 @@ pub(crate) fn eval_fire_rules_explain(
     // Build Explained { session, support }.
     let explained = Value::Aggregate(Arc::new(AggregateValue::record(
         (*explained_class_fqdn()).clone(),
+        explained_names(),
         Arc::new(vec![
             session_out,
             // Never wrap a built trie directly — choose the arm by size.
@@ -3929,6 +3971,9 @@ mod tests {
     fn wrong_record_class_type_mismatch() {
         let wrong = Value::Aggregate(Arc::new(AggregateValue::record(
             "weather::Temperature".into(),
+            // Field CONTENT is irrelevant here — the assertion only checks that a non-Session
+            // record class errors — so positional labels, not a hand-typed name guess.
+            Arc::new(vec!["0".to_string(), "1".to_string()]),
             Arc::new(vec![Value::i64(15), Value::String(Arc::new("Oslo".into()))]),
         )));
         let result = to_transient(&wrong);

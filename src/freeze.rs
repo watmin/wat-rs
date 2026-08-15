@@ -133,6 +133,14 @@ pub struct ProcessRuntime {
     stop_targets: Vec<StopTarget>,
 }
 
+::wat_source_derive::wat_field_names_from!(
+    STOP_ACCEPTED_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::StopAccepted"
+);
+fn stop_accepted_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_ACCEPTED_FIELDS)).clone()
+}
+
 impl ProcessRuntime {
     /// Arc 170 "stopping is a protocol", builder ruling: MAIN creates the stdio services
     /// (`bootstrap_wat_vm_process` → `start-primed-stdio` runs on whichever thread calls it), so
@@ -164,6 +172,7 @@ impl ProcessRuntime {
             .collect();
         let stop_accepted = Value::Aggregate(Arc::new(crate::runtime::AggregateValue::record(
             "wat::kernel::StopAccepted".to_string(),
+            stop_accepted_names(),
             Arc::new(vec![Value::Vec(Arc::new(service_names))]),
         )));
         let edn = crate::edn_shim::value_to_edn_with(&stop_accepted, self.sym.types().map(|t| t.as_ref()));

@@ -29,10 +29,18 @@ use holon::HolonAST;
 use wat::runtime::Value;
 use wat::AggregateValue;
 
+// `my::Pt` is a synthetic, never-registered test class — these fixtures test structural
+// Eq/Hash over (class, fields[, holon]), not field naming, so `names` carries positional
+// labels rather than a hand-typed guess at "x"/"y".
+fn positional_names(n: usize) -> Arc<Vec<String>> {
+    Arc::new((0..n).map(|i| i.to_string()).collect())
+}
+
 /// A base record `:my::Pt [x y]` with the given two f64 field values.
 fn base_pt(x: f64, y: f64) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "my::Pt".to_string(),
+        positional_names(2),
         Arc::new(vec![Value::f64(x), Value::f64(y)]),
     )))
 }
@@ -41,6 +49,7 @@ fn base_pt(x: f64, y: f64) -> Value {
 fn base_named(class: &str, x: f64, y: f64) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         class.to_string(),
+        positional_names(2),
         Arc::new(vec![Value::f64(x), Value::f64(y)]),
     )))
 }
@@ -49,6 +58,7 @@ fn base_named(class: &str, x: f64, y: f64) -> Value {
 fn holonic_pt(x: f64, y: f64) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::holon_record(
         "my::Pt".to_string(),
+        positional_names(2),
         Arc::new(vec![Value::f64(x), Value::f64(y)]),
         Arc::new(HolonAST::i64(0)),
     )))

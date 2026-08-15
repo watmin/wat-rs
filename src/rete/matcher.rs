@@ -710,13 +710,10 @@ pub(crate) fn build_insert_fact(
     // disambiguates at FIRE time. The freeze-time wat fence (`then-item-fence`, wired into
     // `compile-rule`) already proved this item legal before this ever runs — this check only
     // picks which of the two (already-proven-safe) execution shapes to take.
-    let is_known_aggregate = matches!(
-        sym.types().and_then(|t| t.get(type_keyword)),
-        Some(crate::types::TypeDef::Aggregate(_))
-    );
-    if !is_known_aggregate {
-        return build_insert_fact_call(fact_form, type_keyword, &fact_items[1..], bindings, sym);
-    }
+    let names = match sym.types().and_then(|t| t.get(type_keyword)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
+        _ => return build_insert_fact_call(fact_form, type_keyword, &fact_items[1..], bindings, sym),
+    };
 
     // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
     // A String allocated per derived fact for a class name fixed at compile time — NOT counted by
@@ -765,7 +762,7 @@ pub(crate) fn build_insert_fact(
     crate::rete::kernel::phase_end("  ├ prod:resolve", __pr);
     let __pc = crate::rete::kernel::phase_start();
     crate::rete::kernel::census_count_n("prod:record-alloc", 2); // AggregateValue + the fields Arc
-    let out = Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields))));
+    let out = Value::Aggregate(Arc::new(AggregateValue::record(class, names, Arc::new(fields))));
     crate::rete::kernel::phase_end("  ├ prod:construct", __pc);
     Ok(out)
 }
@@ -1254,6 +1251,7 @@ pub(crate) fn eval_step_payload(
 
     Ok(Value::Aggregate(Arc::new(AggregateValue::record(
         (*step_class).clone(),
+        derivation_step_names(),
         Arc::new(vec![
             supporting,                                              // supporting: DerivationNode
             Value::String(Arc::new(pattern)),                       // pattern: String (FQDN)
@@ -1261,6 +1259,14 @@ pub(crate) fn eval_step_payload(
             Value::wat__core__PersistentVector(constraints_pv),     // constraints: PV<WatAST>
         ]),
     ))))
+}
+
+// Arc 296 G-1 — class C, missing from the brief's table: `DerivationStep` declared at
+// `wat/rete.wat:233`.
+::wat_source_derive::wat_field_names_from!(DERIVATION_STEP_FIELDS, "wat/rete.wat", ":wat::rete::DerivationStep");
+fn derivation_step_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(DERIVATION_STEP_FIELDS)).clone()
 }
 
 // ─── Arc 278 Stone 6b-i: eval-test ────────────────────────────────────────────

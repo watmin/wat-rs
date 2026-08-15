@@ -92,6 +92,10 @@ pub(crate) enum RhsOp {
 pub(crate) struct CompiledRhs {
     /// The record's class name, stripped of the leading `':'` ONCE, at compile time.
     class: String,
+    /// Arc 296 G-1 — class A: the field names off the SAME `AggregateDef` `compile_rhs`
+    /// already resolves (`is_known_aggregate`) to prove this is a real aggregate type,
+    /// captured once here rather than looked up again per fact.
+    names: Arc<Vec<String>>,
     /// One op per field, in written (declaration) order — kwargs already unwrapped to values.
     ops: Vec<RhsOp>,
 }
@@ -126,13 +130,10 @@ pub(crate) fn compile_rhs(fact_form: &WatAST, sym: &SymbolTable) -> Option<Compi
         _ => return None,
     };
     // See this fn's doc — a non-aggregate head is a Stone B fn-call item; defer it whole.
-    let is_known_aggregate = matches!(
-        sym.types().and_then(|t| t.get(type_keyword)),
-        Some(crate::types::TypeDef::Aggregate(_))
-    );
-    if !is_known_aggregate {
-        return None;
-    }
+    let names = match sym.types().and_then(|t| t.get(type_keyword)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
+        _ => return None,
+    };
     let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
 
     // Arc 294 item 9a — kwargs `(:Type :field1 v1 :field2 v2)` vs legacy positional
@@ -173,7 +174,7 @@ pub(crate) fn compile_rhs(fact_form: &WatAST, sym: &SymbolTable) -> Option<Compi
         ops.push(op);
     }
 
-    Some(CompiledRhs { class, ops })
+    Some(CompiledRhs { class, names, ops })
 }
 
 /// Execute a compiled RHS form against one token's bindings. Returns exactly what
@@ -219,7 +220,7 @@ pub(crate) fn exec_compiled_rhs(
         };
         fields.push(v);
     }
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(c.class.clone(), Arc::new(fields)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(c.class.clone(), c.names.clone(), Arc::new(fields)))))
 }
 
 #[cfg(test)]

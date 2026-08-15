@@ -3881,8 +3881,9 @@ fn infer_list(
             // Arc 234 Stone 234.5 — Bind and Bundle accept :wat::core::Record in HolonAST
             // positions. Custom handlers supersede the TypeScheme registrations at
             // lines 14311 and 14328 (retained as documentation; dead code at these
-            // call sites). The handlers mirror infer_record_of's pattern (Stone
-            // 234.2a-CORRECTION): inference without cross-element unification.
+            // call sites). The handlers follow the heterogeneous-vec inference pattern
+            // (Stone 234.2a-CORRECTION; formerly `infer_record_of`, deleted at arc 296
+            // G-1b): inference without cross-element unification.
             ":wat::holon::Bind" => {
                 let (val, mut errs) = infer_holon_bind(head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4510,28 +4511,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 234 Stone 234.2a forward-correction — heterogeneous struct_form.
-            // Custom handler takes precedence over the TypeScheme registration
-            // (which was removed per T2 investigation: custom arms return early BEFORE
-            // the generic TypeScheme fallback at the bottom of `infer_list`).
-            // Stone S-C.3: `:wat::core::Record::of` is now BASE (2-arg); `:wat::holon::Record::of`
-            // is HOLONIC (3-arg, returns :wat::holon::Record).
-            ":wat::core::Record::of" => {
-                let (val, mut errs) = infer_record_of(head_span, args, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            ":wat::holon::Record::of" => {
-                let (val, mut errs) = infer_holon_record_of(head_span, args, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
+            // Arc 296 G-1b — `:wat::core::Record::of` / `:wat::holon::Record::of` custom
+            // inference arms DELETED (finish the kill, arc 294.c.2a): both retired
+            // constructors, zero/one live callers, superseded by `aggregate-new` below.
             // Arc 294.c.2a — nature-dispatched ctor. Returns the SPECIFIC type
             // named by args[0] (a direct keyword literal, e.g. `:test::an::HR`)
             // so downstream checks (cosine, accessor param) see the concrete type
@@ -11726,160 +11708,6 @@ fn infer_ordering(
     if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
 }
 
-/// Arc 237 Stone S-C.3 — BASE record constructor inference.
-///
-/// `:wat::core::Record::of` takes two arguments:
-///   #1  class-FQDN   — must be `:wat::core::keyword`
-///   #2  struct-form  — must be a Vector literal `[...]` or `:wat::core::Vector` call;
-///                      elements are type-checked independently; NO uniform-T unification
-///                      (struct_form is Arc<Vec<Value>> by design — heterogeneous)
-///
-/// Returns `:wat::core::Record`.
-///
-/// The umbrella DESIGN (arc 234 line 19) specifies `struct_form: Arc<Vec<Value>>` which
-/// is heterogeneous by construction. The original TypeScheme registration used
-/// `Vector<T>` (uniform-T), creating an inconsistency with both the DESIGN intent and the
-/// runtime's `eval_record_of` (which accepts any Vec without element-type enforcement).
-/// This custom handler corrects that inconsistency.
-///
-/// Modeled after `infer_arithmetic` (arc 148 slice 4) — same custom-handler pattern.
-fn infer_record_of(
-    head_span: &Span,
-    args: &[WatAST],
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    const CALLEE: &str = ":wat::core::Record::of";
-    // Arity check: exactly 2 args (class, struct_form).
-    if args.len() != 2 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: CALLEE.into(),
-            expected: 2,
-            got: args.len()
-        } });
-        for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        }
-        // HARVEST (236.2): existing diagnostic; partial — return Record placeholder.
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::Record".into()), local_errors);
-    }
-
-    // Arg #1: class-FQDN — must infer to :wat::core::keyword.
-    let class_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(ct) = class_ty {
-        let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
-        if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: CALLEE.into(),
-                param: "#1".into(),
-                expected: ":wat::core::keyword".into(),
-                got: format_type(&apply_subst(&ct, subst))
-            } });
-        }
-    }
-
-    // Arg #2: struct-form — must be a Vector literal or :wat::core::Vector call.
-    // Each element is type-checked independently; no uniform-T unification.
-    match &args[1] {
-        WatAST::Vector(elems, _) => {
-            // `[e0 e1 ...]` vector literal — infer each element independently.
-            for elem in elems.iter() {
-                let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            }
-        }
-        WatAST::List(items, _) => {
-            // Could be (:wat::core::Vector :T e0 e1 ...) or a call that returns a Vector.
-            // Check if head is :wat::core::Vector keyword; if so, infer elements (skip
-            // the type-arg at position 0). Otherwise fall through to generic infer.
-            let is_vector_head = matches!(
-                items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::Vector"
-            );
-            if is_vector_head && items.len() > 1 {
-                // items[0] is :wat::core::Vector, items[1] is the type-arg — skip it.
-                // items[2..] are the elements; infer each independently.
-                for elem in items[2..].iter() {
-                    let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-            } else {
-                // A general expression in struct-form position (e.g., a variable bound
-                // to a Vector). Infer it normally; no shape validation at check time.
-                let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            }
-        }
-        _ => {
-            // Not a recognized Vec shape. Infer and emit a shape error.
-            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: CALLEE.into(),
-                reason: "struct_form (arg #2) must be a Vector literal `[...]` \
-                         or a :wat::core::Vector expression"
-                    .into(),
-                remedies: vec![],
-            } });
-        }
-    }
-
-    // The construction's type is the SPECIFIC record its class names — NOT the generic
-    // :wat::core::Record. Arc 258: records were collapsed to :wat::core::Record because this returned the
-    // root, which made the whole subtype hierarchy (register_subtype/is_subtype) unreachable —
-    // no value could ever be typed as a specific record. The Record::def macro +
-    // register_record_methods build arg[0] as `(:wat::core::keyword/from-string "user::MyEnv")`,
-    // so the class FQDN is the static StringLit prefixed with ':'. If it names a recordtype,
-    // the construction IS that record. (Falls back to :wat::core::Record for a non-static/non-record class.)
-    let ty = record_of_specific_type(&args[0], env)
-        .unwrap_or_else(|| TypeExpr::Path(":wat::core::Record".into()));
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
-
-/// Recover the SPECIFIC record type a `Record::of` constructs, from its statically-known class
-/// argument `(:wat::core::keyword/from-string "<fqdn-without-leading-colon>")`. Returns `None`
-/// when the class is not a static, registered recordtype (caller falls back to `:wat::core::Record`).
-///
-/// Arc 293.R2.2 — after `parse_recordtype` was fixed to store the BARE name (`:t::R` not `:t::R<T>`),
-/// the class string in the macro is `"t::R<T>"` but the TypeEnv key is `":t::R"`. Strip the type
-/// params from the class string before lookup; reconstruct the parametric TypeExpr using the
-/// AggregateDef's declared `type_params` so `Record::of` correctly infers `:r2::CR<T>` for generic
-/// records (fixing the ReturnTypeMismatch for generic record ctors).
-fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExpr> {
-    let WatAST::List(items, _) = class_arg else { return None };
-    if items.len() != 2 { return None; }
-    let from_string = matches!(
-        items.first(),
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::keyword/from-string"
-    );
-    if !from_string { return None; }
-    let WatAST::StringLit(s, _) = items.get(1)? else { return None };
-    // Strip any type-params suffix (`<T>`, `<K,V>`) before the TypeEnv lookup.
-    // Before the R2.2 parse_recordtype fix, the TypeEnv key carried the full `<T>`;
-    // after the fix, the key is the bare name. The class string in the macro is still
-    // derived from `keyword/to-string` of the original keyword (e.g., `"r2::CR<T>"`)
-    // so we must strip here.
-    let bare_str = s.split('<').next().unwrap_or(s.as_str());
-    let class_name = format!(":{}", bare_str);
-    // Arc 293.2b — record aggregates (kind != Struct) are the records.
-    let agg = match env.types().get(&class_name) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
-        _ => return None,
-    };
-    // For non-generic records: return the bare path (existing behaviour).
-    // For generic records: reconstruct the parametric type using the declared type_params
-    // so the checker's return-type unification works for `:r2::CR<T>`.
-    if agg.type_params.is_empty() {
-        Some(TypeExpr::Path(class_name))
-    } else {
-        Some(TypeExpr::Parametric {
-            head: bare_str.to_string(),
-            args: agg.type_params.iter()
-                .map(|p| TypeExpr::Path(format!(":{}", p)))
-                .collect(),
-        })
-    }
-}
-
 /// Arc 294 item 9a — canonicalize a call-site callee name for user-facing
 /// CheckErrors (`:callee` field + the `Display`-rendered `:message`, which is
 /// derived from `:callee`; see `check/error.rs` `ArityMismatch`/`TypeMismatch`
@@ -11981,8 +11809,9 @@ fn alarm_op_internal_check(type_key: &str, field_values: &[WatAST], env: &CheckE
 /// values. Returns the SPECIFIC aggregate type so downstream checks (cosine,
 /// accessor param unification) see the concrete type instead of a TypeVar.
 ///
-/// Unlike `record_of_specific_type` (which parses `(:wat::core::keyword/from-string "...")`)
-/// the class here is a bare keyword literal — no sub-form to unwrap.
+/// Unlike the `Record::of` family's now-deleted `record_of_specific_type` helper (arc 296
+/// G-1b; it parsed `(:wat::core::keyword/from-string "...")`), the class here is a bare
+/// keyword literal — no sub-form to unwrap.
 /// BRIEF-construction-inside-a-fn.md, gap (a) — validates the supplied field VALUES
 /// against the ctor scheme's OWN declared parameter types (arity + per-field), closing
 /// the hole where a wrong field count/type used to pass `--check` clean and only raise
@@ -12352,105 +12181,6 @@ fn infer_projection_verb_check(
     // Return the specific backing-type path.
     let backing_type = TypeExpr::Path(format!("{}{}", surface_kw, suffix));
     if local_errors.is_empty() { CheckResult::ok(backing_type) } else { CheckResult::partial_with(backing_type, local_errors) }
-}
-
-/// Arc 237 Stone S-C.3 — HOLONIC record constructor inference.
-///
-/// `:wat::holon::Record::of` takes three arguments:
-///   #1  class-FQDN   — must be `:wat::core::keyword`
-///   #2  struct-form  — must be a Vector literal `[...]` or `:wat::core::Vector` call;
-///                      elements are type-checked independently; NO uniform-T unification
-///   #3  holon-form   — must be `:wat::holon::HolonAST`
-///
-/// Returns `:wat::holon::Record`.
-fn infer_holon_record_of(
-    head_span: &Span,
-    args: &[WatAST],
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    const CALLEE: &str = ":wat::holon::Record::of";
-    // Arity check: exactly 3 args (class, struct_form, holon_form).
-    if args.len() != 3 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: CALLEE.into(),
-            expected: 3,
-            got: args.len()
-        } });
-        for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        }
-        return CheckResult::partial_with(TypeExpr::Path(":wat::holon::Record".into()), local_errors);
-    }
-
-    // Arg #1: class-FQDN — must infer to :wat::core::keyword.
-    let class_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(ct) = class_ty {
-        let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
-        if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: CALLEE.into(),
-                param: "#1".into(),
-                expected: ":wat::core::keyword".into(),
-                got: format_type(&apply_subst(&ct, subst))
-            } });
-        }
-    }
-
-    // Arg #2: struct-form — must be a Vector literal or :wat::core::Vector call.
-    match &args[1] {
-        WatAST::Vector(elems, _) => {
-            for elem in elems.iter() {
-                let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            }
-        }
-        WatAST::List(items, _) => {
-            let is_vector_head = matches!(
-                items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::Vector"
-            );
-            if is_vector_head && items.len() > 1 {
-                for elem in items[2..].iter() {
-                    let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-            } else {
-                let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            }
-        }
-        _ => {
-            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: CALLEE.into(),
-                reason: "struct_form (arg #2) must be a Vector literal `[...]` \
-                         or a :wat::core::Vector expression"
-                    .into(),
-                remedies: vec![],
-            } });
-        }
-    }
-
-    // Arg #3: holon-form — must infer to :wat::holon::HolonAST.
-    let holon_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(ht) = holon_ty {
-        let expected_holon_ty = TypeExpr::Path(":wat::holon::HolonAST".into());
-        if unify(&ht, &expected_holon_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: CALLEE.into(),
-                param: "#3".into(),
-                expected: ":wat::holon::HolonAST".into(),
-                got: format_type(&apply_subst(&ht, subst))
-            } });
-        }
-    }
-
-    // Specific holon-record type from the static class (arc 258) — falls back to the
-    // generic :wat::holon::Record when the class isn't a statically-known recordtype.
-    let ty = record_of_specific_type(&args[0], env)
-        .unwrap_or_else(|| TypeExpr::Path(":wat::holon::Record".into()));
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 /// Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
@@ -12844,7 +12574,8 @@ fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
 /// both positions) to also accept `:wat::core::Record`. The runtime auto-dispatches
 /// via `coerce_to_holon_ast`; the check layer mirrors this polymorphism.
 ///
-/// Pattern: per `infer_record_of` (Stone 234.2a-CORRECTION) and
+/// Pattern: per the heterogeneous-vec inference pattern (Stone 234.2a-CORRECTION;
+/// formerly `infer_record_of`, deleted at arc 296 G-1b) and
 /// `infer_polymorphic_holon_pair_to_path` (arc 052; arc 278 the cosine
 /// outcome wall retired the f64-returning sibling this comment used to
 /// name — cosine/dot route through `_to_path` now, same as
@@ -13169,9 +12900,9 @@ pub(crate) fn validate_aggregate_containment(
 /// declared `Vector<HolonAST>` and is retained as documentation; this
 /// dispatch arm supersedes it.
 ///
-/// The element-level check mirrors `infer_record_of`'s heterogeneous-vec
-/// pattern (Stone 234.2a-CORRECTION): each element is inferred independently
-/// without cross-element unification, then validated against `is_holon_or_record`.
+/// The element-level check mirrors the heterogeneous-vec pattern (Stone 234.2a-CORRECTION;
+/// formerly `infer_record_of`, deleted at arc 296 G-1b): each element is inferred
+/// independently without cross-element unification, then validated against `is_holon_or_record`.
 fn infer_holon_bundle(
     head_span: &Span,
     args: &[WatAST],
@@ -13202,7 +12933,8 @@ fn infer_holon_bundle(
     }
     // Inspect the single arg — expect a Vector literal or :wat::core::vec call.
     // Elements can be HolonAST or wat::core::Record (Stone 234.5 extension).
-    // Mirror infer_record_of's element-level independent inference.
+    // Mirror the heterogeneous-vec element-level independent inference pattern
+    // (formerly `infer_record_of`, deleted at arc 296 G-1b).
     match &args[0] {
         WatAST::Vector(elems, _) => {
             for elem in elems {
@@ -19688,16 +19420,11 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 234 Stone 234.2a — :wat::core::Record::of + :wat::core::Record/field-at substrate primitives.
-    //
-    // :wat::core::Record::of — TypeScheme registration REMOVED (Stone 234.2a forward-correction).
-    // The constructor uses a custom inference handler `infer_record_of` in the primary
-    // dispatcher (`infer_list`). The TypeScheme path is bypassed because custom dispatch arms
-    // return early BEFORE the generic `env.get` fallback runs. The TypeScheme was removed to
-    // avoid dead code and honest confusion: it specified `Vector<T>` (uniform-T), which
-    // contradicted the umbrella DESIGN intent (`struct_form: Arc<Vec<Value>>` — heterogeneous)
-    // and the runtime (`eval_record_of` accepts any Vec without element-type enforcement).
-    // The custom handler correctly accepts heterogeneous elements.
+    // Arc 234 Stone 234.2a — :wat::core::Record/field-at substrate primitive.
+    // (Its sibling `:wat::core::Record::of` constructor — and `:wat::holon::Record::of` —
+    // were deleted at arc 296 G-1b, "finish the kill": both retired by arc 294.c.2a in
+    // favor of the nature-dispatched `aggregate-new`, zero/one live callers, and their
+    // custom inference handlers/TypeScheme discussion no longer apply.)
     //
     // :wat::core::Record/field-at :: ∀T. :wat::core::Record × :wat::core::i64 -> :T
     // Positional accessor: takes a record + i64 index; returns the field value.

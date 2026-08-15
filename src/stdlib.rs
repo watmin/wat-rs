@@ -121,8 +121,10 @@ const STDLIB_FILES: &[WatSource] = &[
     // Arc 234 Stone 234.2b — :wat::core::defrecord macro. Mints user-defined
     // record-types as dual-form holograms (Value::wat__holon__Record): struct_form
     // (Rust-fast) + holon_form (VSA-aligned), both addressable, both canonical.
-    // Generates constructor + per-field accessors + predicate. Consumes Stone
-    // 234.2a substrate primitives (:wat::core::Record::of + :wat::core::Record/field-at).
+    // Generates constructor + per-field accessors + predicate. Consumes the
+    // `:wat::core::Record/field-at` substrate primitive (its Stone 234.2a sibling
+    // `:wat::core::Record::of` was deleted at arc 296 G-1b — routes through
+    // `aggregate-new` now, per arc 294.c.2a).
     // Arc 293.2-rename — :wat::holon::defrecord RECLAIMED (was retired at Stone 234.6;
     // now the canonical holonic record macro head, peer to :wat::core::defrecord).
     WatSource {
