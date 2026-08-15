@@ -1816,6 +1816,27 @@
        (:wat::core::extend-type ~core-kw  ~surf ~@methods)
        (:wat::core::extend-type ~holon-kw ~surf ~@methods))))
 
+;; ─── Arc 296: :wat::kernel::Location — moving the source of truth to wat ──
+;;
+;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
+;; Arc 296 moves the source of truth for wat's own aggregate types from the
+;; hand-written Rust literal to a wat declaration; the Rust side is meant to
+;; become generated FROM this form rather than hand-maintained alongside it.
+;;
+;; A point in a source file: populated by `:wat::kernel::run-sandboxed` when
+;; a panic carries a PanicInfo location, and by assertion primitives whose
+;; failure-payload needs to cite file:line:col.
+;;
+;; Placed here, near the top of core.wat and before :wat::core::Error below:
+;; the :wat::core::Error surface's `location` feature is typed
+;; :wat::kernel::Location, so core.wat genuinely depends on this type — that
+;; measured dependency edge is why Location lives here rather than alongside
+;; its seven kernel-diagnostics siblings in wat/kernel/diagnostics.wat.
+(:wat::core::defrecord :wat::kernel::Location
+  [file <- :wat::core::String
+   line <- :wat::core::i64
+   col  <- :wat::core::i64])
+
 ;; ─── Arc 296 S3: :wat::core::Error stdlib surface ────────────────────────────
 ;;
 ;; The canonical contract for error records: a message (human-readable String),

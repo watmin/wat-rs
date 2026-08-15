@@ -40,6 +40,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
+    // Arc 296 step 1b — the kernel diagnostics aggregates, declared in wat (wat is the
+    // source of truth). Loads immediately after core.wat because `Failure`/`StopFailure`
+    // reference the `:wat::core::Error` surface declared there.
+    WatSource {
+        path: "wat/kernel/diagnostics.wat",
+        source: include_str!("../wat/kernel/diagnostics.wat"),
+    },
     // Arc 278 stone S1 — :wat::sqlite::* — the RAW sqlite interop surface over the fresh
     // `:rust::sqlite` shim (src/rust_deps/sqlite.rs, core's FIRST default :rust:: shim).
     // Below the backend-agnostic :wat::query::Store contract (wat/query.wat, S2 satisfies it
