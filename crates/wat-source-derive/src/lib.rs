@@ -224,3 +224,186 @@ fn expand_wat_enum_from(args: &WatEnumFromArgs) -> syn::Result<TokenStream> {
     }
     .into())
 }
+
+// ─── wat_record_from! ────────────────────────────────────────────────────────
+//
+// Arc 296. The record sibling of `wat_enum_from!`, and the second half of "wat is the
+// source of truth for Rust". `b2136b02` gave the ENUMS a wat source; the aggregate
+// declarations kept living in `register_builtin_types` as hand-written `AggregateDef`
+// literals — the pre-b2136b02 state, one shape over.
+//
+// ## What it emits, and why NOT a Rust struct
+//
+// `wat_enum_from!` emits a Rust `enum` because Rust code MATCHES on those variants.
+// Nothing in Rust matches on `:wat::kernel::Failure`'s shape; what Rust needs is for the
+// TypeEnv to contain the declaration before any wat loads. So this macro emits the
+// REGISTRATION — one `env.register_builtin(...)` statement — not a type.
+//
+// ## The one design decision, pinned
+//
+// It emits the field TYPE KEYWORDS AS STRINGS and lets the substrate's own
+// `parse_type_expr` turn them into `TypeExpr` at registration time. A proc-macro crate
+// cannot depend on the main crate (cycle), so the alternative was to REIMPLEMENT
+// TypeExpr parsing here — a second parser for the same grammar, which is the exact
+// duplication this macro exists to remove. Writing a second wat parser inside the macro
+// that removes duplication would be self-refuting (the same reasoning `wat_enum_from!`
+// records for using `wat-reader` rather than a hand-rolled scan).
+//
+// So: THIS macro reads the wat FORM; the EXISTING parser reads the wat TYPES. Neither
+// job is done twice.
+//
+// ## Splices are refused, not handled
+//
+// `parse_aggregate_fields_with_splices` (the runtime's field walker) resolves
+// `[~@:SomeSurface …]` against a live `TypeEnv`, which does not exist at compile time.
+// The 13 builtin aggregates carry no splices. A splice therefore STOPS the build with a
+// named error rather than being silently dropped — an emitted registration missing
+// spliced fields would diverge from its own declaration and fail arc 054's
+// `Existing::Equivalent` gate at load, which is a confusing place to learn about it.
+
+#[proc_macro]
+pub fn wat_record_from(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as WatRecordFromArgs);
+    match expand_wat_record_from(&args) {
+        Ok(ts) => ts,
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+struct WatRecordFromArgs {
+    env: syn::Ident,
+    path: syn::LitStr,
+    type_path: syn::LitStr,
+}
+
+impl syn::parse::Parse for WatRecordFromArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let env: syn::Ident = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let path: syn::LitStr = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let type_path: syn::LitStr = input.parse()?;
+        Ok(WatRecordFromArgs { env, path, type_path })
+    }
+}
+
+fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> {
+    let rel = args.path.value();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+        syn::Error::new_spanned(&args.path, "CARGO_MANIFEST_DIR unset — cannot resolve the wat file")
+    })?;
+    let abs: PathBuf = PathBuf::from(&manifest).join(&rel);
+    let src = std::fs::read_to_string(&abs).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("cannot read `{}`: {e}", abs.display()))
+    })?;
+
+    let want = args.type_path.value();
+
+    // THE REAL PARSER, never a hand-rolled scan — same rule as `wat_enum_from!`.
+    let forms = wat_reader::parse_all_with_file(&src, &abs.to_string_lossy()).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("wat parse error in `{}`: {e:?}", abs.display()))
+    })?;
+
+    let mut nature: Option<&'static str> = None;
+    let mut fields: Vec<(String, String)> = Vec::new();
+    let mut found = false;
+
+    for form in &forms {
+        let wat_reader::WatAST::List(items, _) = form else { continue };
+        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let this_nature = match head.as_str() {
+            ":wat::core::defrecord" => "Record",
+            ":wat::core::defstruct" => "Struct",
+            _ => continue,
+        };
+        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
+        if tp != &want { continue }
+
+        let Some(wat_reader::WatAST::Vector(items3, _)) = items.get(2) else {
+            return Err(syn::Error::new_spanned(
+                &args.type_path,
+                format!("`{want}` in `{}`: expected a `[name <- :Type …]` field VECTOR as the third form", abs.display()),
+            ));
+        };
+
+        // Triples: Symbol(name) Symbol(<-|:-) Keyword(:Type). No splices (see header).
+        let mut i = 0usize;
+        while i < items3.len() {
+            match &items3[i] {
+                wat_reader::WatAST::Symbol(id, _) if id.as_str() == "~@" => {
+                    return Err(syn::Error::new_spanned(
+                        &args.type_path,
+                        format!("`{want}` uses a SURFACE SPLICE — splices resolve against a live TypeEnv, which does not exist at compile time. Declare the fields flat, or register this type by hand."),
+                    ));
+                }
+                wat_reader::WatAST::Symbol(name, _) => {
+                    let arrow = items3.get(i + 1);
+                    let ty = items3.get(i + 2);
+                    let (Some(wat_reader::WatAST::Symbol(a, _)), Some(wat_reader::WatAST::Keyword(t, _))) = (arrow, ty) else {
+                        return Err(syn::Error::new_spanned(
+                            &args.type_path,
+                            format!("`{want}`: field `{}` is not a `name <- :Type` triple", name.as_str()),
+                        ));
+                    };
+                    if a.as_str() != "<-" && a.as_str() != ":-" {
+                        return Err(syn::Error::new_spanned(
+                            &args.type_path,
+                            format!("`{want}`: field `{}` uses arrow `{}` — expected `<-` or `:-`", name.as_str(), a.as_str()),
+                        ));
+                    }
+                    fields.push((name.as_str().to_string(), t.clone()));
+                    i += 3;
+                }
+                other => {
+                    return Err(syn::Error::new_spanned(
+                        &args.type_path,
+                        format!("`{want}`: unexpected item in the field vector: {other:?}"),
+                    ));
+                }
+            }
+        }
+        nature = Some(this_nature);
+        found = true;
+        break;
+    }
+
+    if !found {
+        return Err(syn::Error::new_spanned(
+            &args.type_path,
+            format!("no `(:wat::core::defrecord {want} …)` or `(:wat::core::defstruct {want} …)` in `{}` — wat is the source of truth, so the registration cannot be generated without it", abs.display()),
+        ));
+    }
+
+    let env = &args.env;
+    let type_path = &args.type_path;
+    let nature_ident = syn::Ident::new(nature.unwrap(), proc_macro2::Span::call_site());
+    let fnames: Vec<&String> = fields.iter().map(|(n, _)| n).collect();
+    let ftypes: Vec<&String> = fields.iter().map(|(_, t)| t).collect();
+
+    Ok(quote! {
+        {
+            // Rebuild when the wat file changes — without this the generated registration
+            // goes stale against its own source, the very class this exists to remove.
+            const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
+            #env.register_builtin(crate::types::TypeDef::Aggregate(crate::types::AggregateDef {
+                name: #type_path.into(),
+                type_params: ::std::vec::Vec::new(),
+                nature: crate::types::Nature::#nature_ident,
+                restrictions: ::core::option::Option::None,
+                fields: ::std::vec![
+                    #(
+                        (
+                            #fnames.into(),
+                            // The SUBSTRATE's own type parser — not a second one written here.
+                            crate::types::parse_type_expr(#ftypes).unwrap_or_else(|e| panic!(
+                                "wat_record_from!({}): field `{}` has type `{}` which the type parser rejects: {e:?}",
+                                #type_path, #fnames, #ftypes,
+                            )),
+                        ),
+                    )*
+                ],
+            }));
+        }
+    }
+    .into())
+}

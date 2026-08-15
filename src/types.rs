@@ -1461,16 +1461,16 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
     // location, and by future assertion primitives whose failure-payload
     // needs to cite file:line:col.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
-        name: ":wat::kernel::Location".into(),
-        type_params: vec![],
-        fields: vec![
-            ("file".into(), TypeExpr::Path(":wat::core::String".into())),
-            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
-        ],
-        restrictions: None,
-    }));
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Location …)`
+    // in `wat/core.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
+    // Rust consumes it. Change the field list in the `.wat` and this registration follows —
+    // there is no second copy to drift, and `include_str!` makes rustc rebuild when it moves.
+    //
+    // This is the first row converted, and it is the PROOF for the other twelve: if the emitted
+    // registration were not identical to the literal it replaced, the corpus's own re-declaration
+    // would stop hitting arc 054's `Existing::Equivalent` arm and the stdlib would fail to load.
+    ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::kernel::Location");
 
     // :wat::kernel::Frame — one entry on the wat call stack, captured by
     // `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline
