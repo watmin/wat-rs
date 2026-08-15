@@ -1,2 +1,2 @@
-#usr/Point {:field-0 3
-            :field-1 4}
+#usr/Point {:x 3
+            :y 4}

@@ -2685,26 +2685,15 @@ pub fn value_to_json_natural(
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
         Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
-            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-            let type_key = format!(":{}", sv.class);
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
-                    a.fields.iter().map(|(name, _)| name.clone()).collect()
-                }
-                _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
-            };
+            // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
             // Use String keys (plain strings — JSON-friendly).
             let entries: Vec<(OwnedValue, OwnedValue)> = sv
-                .fields
+                .names
                 .iter()
-                .enumerate()
-                .map(|(i, fv)| {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
+                .zip(sv.fields.iter())
+                .map(|(name, fv)| {
                     (
-                        OwnedValue::String(Cow::Owned(key)),
+                        OwnedValue::String(Cow::Owned(name.clone())),
                         value_to_json_natural(fv, types),
                     )
                 })
@@ -3672,24 +3661,14 @@ pub fn value_to_edn_with(
         Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             let type_key = format!(":{}", sv.class);
             let tag = tag_from_type_path(&type_key);
-            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
-                    a.fields.iter().map(|(name, _ty)| name.clone()).collect()
-                }
-                _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
-            };
+            // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
             let entries: Vec<(OwnedValue, OwnedValue)> = sv
-                .fields
+                .names
                 .iter()
-                .enumerate()
-                .map(|(i, fv)| {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
+                .zip(sv.fields.iter())
+                .map(|(name, fv)| {
                     (
-                        OwnedValue::Keyword(Keyword::new(key)),
+                        OwnedValue::Keyword(Keyword::new(name.clone())),
                         value_to_edn_with(fv, types),
                     )
                 })
@@ -3831,26 +3810,14 @@ pub fn value_to_edn_with(
         Value::Aggregate(a) => {
             let type_key = format!(":{}", a.class);
             let tag = tag_from_type_path(&type_key);
-            // class has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
-            // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
-            // Fallback to field-{i} when no def is found (no-types or unregistered class).
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(def)) if def.nature != crate::types::Nature::Struct => {
-                    def.field_names().map(|s| s.to_string()).collect()
-                }
-                _ => (0..a.fields.len()).map(|i| format!("field-{}", i)).collect(),
-            };
+            // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
             let entries: Vec<(OwnedValue, OwnedValue)> = a
-                .fields
+                .names
                 .iter()
-                .enumerate()
-                .map(|(i, fv)| {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
+                .zip(a.fields.iter())
+                .map(|(name, fv)| {
                     (
-                        OwnedValue::Keyword(Keyword::new(key)),
+                        OwnedValue::Keyword(Keyword::new(name.clone())),
                         value_to_edn_with(fv, types),
                     )
                 })

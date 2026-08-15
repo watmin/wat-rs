@@ -156,13 +156,13 @@ fn the_payload_is_edn_not_json() {
     // payload is an EDN VALUE, and only parsing both sides proves that. A `starts_with` here
     // would pass on a truncated or malformed tail.
     wat::assert_edn_eq!(text, include_str!("wat_mcp__record.edn"));
-    // ⚠ THE GOLDEN RECORDS A DEFECT, deliberately and visibly: the field names come back as
-    // `:field-0`/`:field-1`, not the declared `:x`/`:y`. The value escapes its per-turn frozen
-    // world and is rendered against a symbol table that never saw the `defrecord`. MEASURED to
-    // be INHERITED, not introduced — `wat --repl` renders the same record identically, so
-    // `--mcp` matches its oracle exactly. Capturing it rather than prefix-matching around it
-    // means the day someone fixes the session-render path, this goes red and the correction is
-    // deliberate instead of silent.
+    // Arc 296 G-2 — the golden USED TO record a defect, deliberately and visibly: the field
+    // names came back as `:field-0`/`:field-1`, not the declared `:x`/`:y`, because the
+    // renderer recovered names via a registry lookup that this session's symbol table (never
+    // having seen the `defrecord`) could not satisfy. `AggregateValue` now carries its own
+    // `names` at construction, so the value no longer depends on that lookup — the golden is
+    // updated to the real declared names (`:x`/`:y`), and this comparison now checks what the
+    // test's docstring always claimed: EDN in, EDN out, faithfully.
     assert_eq!(code, Some(0));
 }
 
