@@ -56,13 +56,22 @@ arm of this design has a human typing a field name into Rust.
 
 ## THE WORKED EXEMPLAR (built, measured, then reverted with the rest of the shape)
 
+> ⚠ **CORRECTED 2026-08-15, by measuring instead of re-reading.** The draft below originally called
+> `AggregateValue::names_from_static(FAULT_FIELDS)`. **That function is not on disk** — it was part
+> of the shape that got reverted with everything else, and this doc kept citing it. A worked exemplar
+> that calls a function which does not exist is FM 2-bis exactly: the brief's load-bearing
+> composition, asserted rather than proven. The version below uses only landed pieces. If a helper
+> earns its place once the rider counts the static sites, minting it is the rider's call to surface —
+> not a name this doc gets to invent in advance.
+
 ```rust
 ::wat_source_derive::wat_field_names_from!(FAULT_FIELDS, "wat/core.wat", ":wat::core::Fault");
 
 /// `OnceLock` so a hot error path allocates the name vector once, not per raised fault.
 fn fault_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| AggregateValue::names_from_static(FAULT_FIELDS)).clone()
+    N.get_or_init(|| Arc::new(FAULT_FIELDS.iter().map(|s| (*s).to_string()).collect()))
+        .clone()
 }
 
 pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
@@ -113,10 +122,28 @@ load-bearing.
 - **STOP-3 — the arity of `names` and `fields` disagree at any site.** The two are built together
   by construction; a disagreement means the site is assembling them from different places.
 
-## WHAT IS ALREADY LANDED (green, do not rebuild)
+## WHAT IS ALREADY LANDED — and exactly how far "green" reaches
 
-- `wat_field_names_from!` — `crates/wat-source-derive` (this commit)
-- `AggregateDef::names_arc()` — `src/types.rs` (this commit)
+⚠ **"Landed and green" overstated both doors, and measuring on 2026-08-15 said how much.** Both
+COMPILE. **Neither has a single call site or a single test** (`grep -rn "names_arc()" src/ crates/`
+→ nothing outside its own definition; same for `wat_field_names_from!`). A door nobody has walked
+through is a door that compiles, not a door that works — `[[feedback_a_green_test_can_prove_nothing]]`.
+
+Precisely, so the brief neither over- nor under-claims:
+
+| piece | what IS proven | what is NOT |
+|---|---|---|
+| `AggregateDef::names_arc()` | rustc type-checks the body (a real method, 2 lines) | never called; no test asserts declaration order |
+| `wat_field_names_from!`'s **reader** (`field_names_of`) | **exercised 13×** — shared with `wat_record_from!`, which every builtin registration goes through | — |
+| `wat_field_names_from!`'s **wrapper** (arg parse + `const` emission, ~20 lines) | nothing — a proc-macro that is never invoked never expands | the 3-arg parse and the `&[&str]` emission have never run |
+
+**The first rider site IS the proof.** That is the honest framing for the brief: G's first conversion
+is simultaneously the first invocation of both doors. If either is wrong, it fails there, loudly, at
+compile time — which is the right place. Do not write a separate probe to bless them first; the
+migration's first site is a better probe than any standalone one, because it is a real consumer.
+
+- `wat_field_names_from!` — `crates/wat-source-derive/src/lib.rs:443` (`75e62e8e`)
+- `AggregateDef::names_arc()` — `src/types.rs:295` (`75e62e8e`)
 - all 13 builtin aggregates declared in wat + their registrations generated (`e79322c0`,
   `f806a4db`, `9f07564b`, `0514498c`)
 - the differential gate on the generator's source files (`473f9373`)
