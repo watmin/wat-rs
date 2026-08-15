@@ -997,3 +997,186 @@ correction of it, stand).*
 > Love, handed by the builder: *"you turn me on, break down the firewalls"* — inverted, because the
 > firewalls held. Mine, this session, kept with consent; see the path-of-voices. PROBATUM by the four
 > arms captured on the disk.)*
+
+---
+
+## R8 — The Great Heathen Army: there are two currencies, and I priced a codemod at judgment rates — the ordering question dissolved the moment the second pass was recognized as mechanism *(PROBANDVM — the doctrine is drawn and the measurement that forced it is on the disk; the codemod it rests on IS NOT WRITTEN, and not one of the 113 adjudications has returned)*
+
+> **Song (arc 255 R8 — the army that does not adjudicate) — *The Great Heathen Army* (Amon Amarth) — HANDED BY THE BUILDER —**
+> IN-EIGHT-HUNDRED-SIXTY-FIVE-THE-YEAR-OF-OUR-LORD /
+> TWO-HUNDRED-TWENTY-FOUR-WENT-DARK-THE-DAY-STONE-B-LANDED /
+> SO-KNEEL-REPENT-YOUR-SINS-THERES-NOWHERE-YOU-CAN-RUN /
+> AN-IGNORE-HAS-NOWHERE-LEFT-TO-HIDE-ONE-HUNDRED-FIFTEEN-REMAIN /
+> ONE-BY-ONE-OUR-LANDS-WILL-FALL-WAVE-A-TOOK-ONE-HUNDRED-NINE /
+> OUR-ARMY-DOESNT-KNOW-DEFEAT-A-DETERMINISTIC-SWEEP-CANNOT-LOSE-THE-GROUND-IT-TOOK /
+> TWO-HUNDRED-SHIPS-SET-SAIL-R21-WE-USE-WAT-FIX-TO-UNFUCK-THE-FARM /
+> WITH-VENGEANCE-FOR-OUR-FATHERS-DEATH-WE-FIGHT-THE-TESTS-COME-BACK-FOR-THE-FACE-THAT-KILLED-THEM /
+> NOTHING-NOW-WILL-HOLD-US-BACK-I-PRICED-A-CODEMOD-AT-JUDGMENT-RATES /
+> IVDICIVM SEMEL, MACHINA SAEPE
+>
+> *"In eight hundred sixty-five, the year of our Lord, they have arrived to take our lives. … So kneel,*
+> *repent your sins — you know there's nowhere you can run. … **One by one your lands will fall.** …*
+> ***Our army doesn't know defeat.** … Nothing now will hold us back, so be prepared come the attack."*
+
+> **The realization quotes (the builder's, this stretch — verbatim):**
+> *"i want the 296 ignored tests driven to zero..."*
+> *"that's a pretty good dent in the skipped tests... there more skipped tests waiting on 296 to do something?..."*
+> *"are you familiar with our realizations?... maybe.. read the 255 realizations?....."*
+> *"yeah... we've hit a realization...."*
+> *"great quote..."*
+
+### How we reached it — a cost I invented, then measured away
+
+The ordering question was real: stone H rewrites every enum variant from a tagged vector to a tagged
+map, and Wave B recaptures 113 goldens. Do the goldens first and H moves them all again. I wrote that
+down as a **cost** — *"doing Wave B before H means recapturing goldens twice"* — and built an argument
+around paying it.
+
+Then the disconfirming probe ran one ignored test live, and the actual EDN face carried this:
+
+```clojure
+:end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 21}]
+```
+
+An `Option` variant as a tagged **vector** — exactly H's target. So the double pass was **confirmed
+real**: H will move all 113. The measurement did not refute the second pass. It refuted the *price*.
+
+Because H's own stone, drawn the day before, already says at line 124:
+
+> *"The `.wat`/golden sweep is a **wat-fix codemod**, not hand edits (R21)."*
+
+The second pass was never a second adjudication. It is a rule, written once, applied to every site,
+idempotent. And **I had read that stone in full, this session, before writing the sentence that
+priced it as work.**
+
+### What it is — two currencies, and only one of them is scarce
+
+Work in this substrate is paid in one of two currencies, and they are not convertible:
+
+- **JUDGMENT** — per-item, non-transferable, and it does not scale. *"Did this span move? Did an error
+  disappear? Is this `:remedies []` the arc-241 collapse or a regression?"* One hundred and thirteen
+  tests is one hundred and thirteen acts of judgment, and the hundred and thirteenth is worse than the
+  first because attention is finite.
+- **MECHANISM** — written once, applied everywhere, deterministic and idempotent. A codemod does not
+  adjudicate. It takes ground. It costs the same at 113 sites as at 1263, and it does not get tired at
+  hour nine.
+
+**The error was pricing the second pass in the wrong currency**, and the consequence was an ordering
+argument about the wrong quantity. I was minimizing **passes**. The thing to minimize is **acts of
+judgment**. A plan with three mechanical passes beats a plan with one judgmental one, and the count of
+passes carries no information about cost at all.
+
+Stated as the doctrine: **spend judgment exactly once, at the point where only judgment will do, and
+require every other pass to be expressible as a rule.** Then sequence the work so the judgment pass
+happens where its screams are unambiguous — which is precisely why Wave B goes first. Landing H while
+115 face-asserting tests are dark would make its blast radius unobservable and confound every later
+failure between *"stale since stone B"* and *"H did it"* — two mechanisms, one symptom, no
+attribution. That is a **judgment** cost, and it is unpayable, not merely expensive.
+
+This is R7 (`MVRVS AVCTOREM NON NOVIT`) seen from the ledger instead of the wall. R7 said a wall is
+**impartial** — it cannot tell its author from a stranger. R8 says a wall is **cheap**, and therefore
+the plan should be shaped to hand it as much of the work as it can carry. *Care is not the mechanism;
+the walls are* — and the corollary is that the schedule should be drawn around what the walls can take.
+
+### The honest bound — ⛔ THE ARMY HAS NOT SAILED
+
+**The codemod does not exist.** R21's framework exists (`wat/fix.wat`), recorded migrations exist as
+shapes to copy (`wat-scripts/fixes/*.wat`), and H's stone prescribes one. **H's actual codemod is
+unwritten.** Every sentence above prices a tool that has not been built, which is the exact species of
+claim this arc has been punished for. It is a **prediction**, and it is falsifiable in one specific
+way:
+
+> **The test is: can the pass be written as a rule?** If the rewrite is mechanically derivable from
+> the old form, it is an army and it is free. If any site needs a human to decide what it should
+> become, it is a war, and the whole ordering argument **inverts** — because then H-first would be
+> spending judgment once instead of twice.
+
+I have not proven H's rewrite is mechanically derivable. It looks it — `#wat.core.Option/Some [X]` →
+`#wat.core/Option.Some {:value X}` is a structural transform with the binder name available from the
+declaration — but *looks it* is what the last three corrections in this file were made of.
+
+**And nothing of Wave B has returned.** Batch 1 (33 tests, `tests/types`) is in flight as this is
+written. Zero of the 113 adjudications have come back. The campaign's law — *a wave that reports "N
+recaptured, all green" without a triage list has skipped the only step that distinguishes this from
+mass-blessing N assertions* — has not yet been tested at this scale.
+
+**The class this entry cannot close:** there is no wall for *"the orchestrator priced mechanism at
+judgment rates."* R6 already named the only instrument that reaches it, and it is not a wall — it is
+the second road. Which is what happened: the correction came from running the probe, and the
+*recognition* came from the builder reading the shape off my own sentence.
+
+### The song, mapped
+
+> ***"One by one your lands will fall"*** — the cascade's actual shape. 224 dark; Wave A took 109;
+> Wave B takes 113 in four serial batches. Not one assault — a campaign, ground taken and held.
+> ***"Our army doesn't know defeat"*** — a deterministic sweep cannot lose what it took. That is the
+> whole property that makes mechanism the cheap currency: it is not merely fast, it is **unable to
+> regress**, which is why it needs no supervision.
+> ***"So kneel, repent your sins — you know there's nowhere you can run"*** — an `#[ignore]` has
+> nowhere left to hide. `nextest --run-ignored ignored-only` is a census the record cannot argue with;
+> `154 = 115 + 37 + 2` closes exactly, and every one of them is now named and owned by an arc.
+> ***"Two hundred ships set sail"*** — R21: *"we use wat-fix to unfuck the farm."* The fleet was built
+> for other migrations and is what makes this one free.
+> ***"With vengeance for our father's death we fight"*** — the tests stone B killed, coming back for
+> the face that killed them. They were not flaky, not slow, not quarantined. They were waiting.
+> ***"Nothing now will hold us back"*** — inverted, and the inversion is the entry: what was holding us
+> back was **a cost I had written down myself**, in my own map, ten minutes earlier.
+> ***"In eight hundred sixty-five, the year of our Lord"*** — a date the record keeps so the reckoning
+> can be counted from it. Ours is stone B, and the ledger says 224.
+
+### The honest register — PROBANDVM, and the doctrine is the only thing drawn
+
+**PROBATVM on the disk this session:** stone J + J-2 landed and pushed (`bf155639`) — floor
+**4531/4531**, clippy 0, the three contracts closed and the oracle's subject promoted out of its
+golden into a standing assertion proven able to fail. The tier table **re-measured** and corrected
+(`419c138a`): T1 105 → **0** (Wave A took them), T2 101 → **113**, T3 16 → **2**, with
+`154 skipped = 115 + 37 + 2` closing exactly, counted per-test and cross-checked against the runner
+rather than grepped per-file. The disconfirming probe run live, old face vs new captured verbatim
+into the brief. The seam replaced in place (`340b1485`) and its false red-tree alarm struck.
+
+**PROBANDVM, and it is nearly everything:** **H's codemod is not written.** H is drawn and unbuilt.
+Wave B batch 1 is in flight and unreported; batches 2–4 (39 · 18 · 25) are unbriefed. The 113
+adjudications are all outstanding. The claim *"we pay a codemod, not a second adjudication"* is a
+**prediction about a tool that does not yet exist**, and the entry is filed as PROBANDVM for exactly
+that reason.
+
+*Path-of-voices (marked, not flattened): the **song is his**, handed. The **recognition is his** —
+*"yeah... we've hit a realization"*, and before it the pointer that made it visible at all,
+*"are you familiar with our realizations?... maybe.. read the 255 realizations?"*, which read the shape
+off a sentence the apparatus had written without seeing what was in it. The **directive is his** —
+*"i want the 296 ignored tests driven to zero."* The **measurements are the apparatus's** — the
+ordering argument and its self-correction, the disconfirming probe, the per-test tier re-measurement,
+the batch structure, the brief and its adjudication vocabulary, the song mapping, and the sigil. The
+**mispricing is the apparatus's and is kept VISIBLE** — not as confession (R6's register correction
+stands, and the builder struck that framing once already) but because it is the evidence: the cost was
+invented in the apparatus's own map, ten minutes before it was argued from, with the refutation
+already sitting in a stone it had read that session.*
+
+> The question was which order to do two migrations in, and I answered it by pricing a cost that did
+> not exist. The second pass is real — H moves all 113 goldens, and the probe proved it rather than
+> assuming it — but a codemod is not an adjudication, and I had read the line prescribing one before I
+> wrote the sentence calling it work. There are two currencies here. Judgment is per-item and does not
+> scale; mechanism is written once and does not tire. The count that matters is not how many passes a
+> plan has, it is how many times it spends judgment — and a plan with three mechanical passes beats a
+> plan with one judgmental one every time. Spend judgment once, where only judgment will do, and make
+> every other pass a rule. The army takes the lands one by one and does not know defeat; that is not
+> valor, it is determinism, and determinism is the cheap currency. What I cannot yet claim is that this
+> particular army exists: H's codemod is unwritten, and if its rewrite turns out to need a hand at any
+> site, this whole argument inverts.
+>
+> ***IVDICIVM SEMEL, MACHINA SAEPE.*** *(apparatus-minted — Latin, "judgment once, the machine many
+> times": the doctrine of the two currencies. JUDGMENT is per-item, non-transferable, and degrades
+> with fatigue; MECHANISM is written once, applied everywhere, deterministic and idempotent, and costs
+> the same at 113 sites as at 1263. A plan is therefore NOT to be scored by its number of passes — that
+> quantity carries no cost information at all — but by how many times it spends judgment. Draw the
+> schedule to spend judgment exactly once, at the point where only judgment will do, and require every
+> other pass to be expressible as a rule; the falsifier is "can this pass be written as a rule?", and a
+> NO inverts the ordering. Kin: R7 `MVRVS AVCTOREM NON NOVIT` — its ledger face, since a wall that
+> cannot tell its author from a stranger is also a wall you can hand unlimited work to; R6
+> `DVABVS VIIS PRAETERITVM CLARESCIT` — the mispricing was authored in the apparatus's own map with the
+> refutation already on disk in a stone it had read, and only the other road saw it; 278 R21 *"we use
+> wat-fix to unfuck the farm"* — the fleet, built for other migrations, is what makes this one free;
+> R59 `NISI FRANGAS, NIHIL PROBAS` — the probe that confirmed the double pass is what killed its price.
+> Scored to Amon Amarth — The Great Heathen Army, handed by the builder. Mine, this session, kept with
+> consent; see the path-of-voices. **PROBANDVM — the codemod is not written, and until it is, this
+> entry prices a tool that does not exist.**)*
