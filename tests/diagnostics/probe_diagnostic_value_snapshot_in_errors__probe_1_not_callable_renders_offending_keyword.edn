@@ -1,0 +1,38 @@
+#wat.runtime/NotCallable {
+  :message "not callable: expected Function, got wat::core::keyword `:wat::core::i64::+` (bound from tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat:3:8 at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat:4:8)"
+  :location #wat.core/Span {
+    :file "src/runtime.rs"
+    :line 21351
+    :col 42
+    :end #wat.core.Option/None []
+  }
+  :causes []
+  :got {
+    :type "wat::core::keyword"
+    :rendered ":wat::core::i64::+"
+    :provenance #wat.kernel/SymbolBound {
+      :binding-span #wat.core/Span {
+        :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat"
+        :line 3
+        :col 8
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 12
+          }
+        ]
+      }
+      :head-span #wat.core/Span {
+        :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat"
+        :line 4
+        :col 8
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 12
+          }
+        ]
+      }
+    }
+  }
+}

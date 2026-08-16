@@ -1,0 +1,22 @@
+#wat.runtime/TypeMismatch {
+  :message ":wat::core::apply: expected wat::core::Vector, got wat::core::i64 `42`"
+  :location #wat.core/Span {
+    :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p4.wat"
+    :line 1
+    :col 130
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 1
+        :col 132
+      }
+    ]
+  }
+  :causes []
+  :op ":wat::core::apply"
+  :expected "wat::core::Vector"
+  :got {
+    :type "wat::core::i64"
+    :rendered "42"
+    :provenance nil
+  }
+}

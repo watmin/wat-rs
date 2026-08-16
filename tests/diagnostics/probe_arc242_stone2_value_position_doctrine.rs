@@ -56,7 +56,6 @@ fn contract_02_bare_nil_in_body_passes() {
 
 // ─── C03: :wat::core::i64 in body REJECTED with remedy ────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_keyword_type_in_body_rejected_with_remedy() {
     // (:wat::core::defn :f [] -> :wat::core::i64 :wat::core::i64) — ILLEGAL.
@@ -65,11 +64,13 @@ fn contract_03_keyword_type_in_body_rejected_with_remedy() {
         Ok(_) => String::from("<startup succeeded — no error to display>"),
         Err(e) => format!("{}", e),
     };
-    // The error must contain a structured remedy per Stone 241.10's apparatus.
-    // Specific phrasing: doctrine guidance pointing at value-position correctness.
-    assert_eq!(
+    // 296 recapture: staleness — EDN face (Stone B), same message/span/head/reason as the
+    // pre-stone-B prose face; :remedies [] matches (the old expectation carried no remedy
+    // phrasing either — this test's own doc comment about "structured remedy" describes the
+    // 241.10 apparatus in general, not a remedy this specific MalformedForm ever emitted).
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad:1:50: malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position\n",
+        "probe_arc242_stone2_value_position_doctrine__contract_03_keyword_type_in_body_rejected_with_remedy.edn",
         ":wat::core::i64 in value position must be REJECTED with Doctrine 1 structured guidance"
     );
 }

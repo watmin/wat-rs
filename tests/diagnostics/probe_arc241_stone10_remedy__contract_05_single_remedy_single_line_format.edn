@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::struct form: ':wat::core::struct' is retired (Stone 241.8)"
+      :location #wat.core/Span {
+        :file "tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad"
+        :line 1
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 1
+            :col 20
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::struct"
+      :reason "':wat::core::struct' is retired (Stone 241.8)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::defstruct"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+  ]
+}

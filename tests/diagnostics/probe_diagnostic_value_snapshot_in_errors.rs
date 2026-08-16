@@ -55,7 +55,6 @@ fn run_compute(path: &str) -> Result<Value, String> {
 //
 // Error message should include ":wat::core::i64::+" (the rendered
 // keyword content), not just "wat::core::keyword" (the type name).
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_not_callable_renders_offending_keyword() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p1.wat
@@ -63,9 +62,14 @@ fn probe_1_not_callable_renders_offending_keyword() {
         Ok(v) => panic!("Probe 1: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 1 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":wat::core::i64::+\", provenance: SymbolBound { binding_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 3, col: 8, end_line: 3, end_col: 12 }, head_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 4, col: 8, end_line: 4, end_col: 12 } } } } }",
+            // 296 recapture: staleness — EDN face (Stone B), same type_name/rendered/
+            // provenance/binding-span/head-span values as the pre-stone-B Debug face;
+            // additive :message/:causes. The outer src/runtime.rs span moved internally
+            // (line 18900→21351) — an internal src/*.rs span move is staleness, recaptured
+            // and kept pinned.
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_1_not_callable_renders_offending_keyword.edn",
                 "Probe 1: NotCallable must surface type name + rendered keyword content"
             );
         }
@@ -80,7 +84,6 @@ fn probe_1_not_callable_renders_offending_keyword() {
 //
 // This is the canonical "the source can't reveal the value; need inline
 // render" case from INVENTORY § O's three-case table.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_2_not_callable_renders_runtime_built_keyword() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat
@@ -88,9 +91,11 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
         Ok(v) => panic!("Probe 2: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 2 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
+            // 296 recapture: staleness, same reasoning as Probe 1 (internal src/*.rs span
+            // moved; all wat-source-facing values identical).
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_2_not_callable_renders_runtime_built_keyword.edn",
                 "Probe 2: NotCallable must surface type name + rendered runtime-built keyword"
             );
         }
@@ -106,7 +111,6 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
 // value and checks at runtime).
 //
 // Error should include the rendered String content `"not-a-keyword"`.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_3_type_mismatch_renders_non_keyword_head() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p3.wat
@@ -114,9 +118,17 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
         Ok(v) => panic!("Probe 3: expected TypeMismatch; got {:?}", v),
         Err(e) => {
             println!("Probe 3 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p3.wat\", line: 1, col: 94, end_line: 1, end_col: 109 }, kind: TypeMismatch { op: \":wat::core::apply\", expected: \"wat::core::keyword\", got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-keyword\\\"\", provenance: Unknown } } }",
+            // 296 recapture: staleness of the "fix that looks like a regression" sub-class
+            // (per SCORE-296-WaveB2's ★ Findings 1/8) — NOT a plain face-only diff. The
+            // fixture line is 98 chars long; the OLD pinned span (col 94, end_col 109) is
+            // past the end of the line (98 < 109) — it named GARBAGE, not the string
+            // literal. The NEW span (col 76, end_col 91) is byte-exact: `line[75:90]` (0-idx)
+            // == `"not-a-keyword"` (the 15-char string literal, quotes included), verified
+            // this session with a column-arithmetic script against the actual fixture text.
+            // The old golden pinned a wrong value; the new value is the correct one.
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_3_type_mismatch_renders_non_keyword_head.edn",
                 "Probe 3: TypeMismatch must surface rendered String content"
             );
         }
@@ -130,7 +142,6 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
 // value rendered in the error.
 //
 // Error should include the rendered i64 content.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_4_type_mismatch_renders_non_vector_spread() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p4.wat
@@ -138,9 +149,14 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
         Ok(v) => panic!("Probe 4: expected TypeMismatch; got {:?}", v),
         Err(e) => {
             println!("Probe 4 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p4.wat\", line: 1, col: 148, end_line: 1, end_col: 150 }, kind: TypeMismatch { op: \":wat::core::apply\", expected: \"wat::core::Vector\", got: ValueSnapshot { type_name: \"wat::core::i64\", rendered: \"42\", provenance: Unknown } } }",
+            // 296 recapture: staleness, same "fix that looks like a regression" sub-class as
+            // Probe 3. The fixture line is 133 chars long; the OLD pinned span (col 148, end
+            // 150) is past the end of the line — garbage. The NEW span (col 130, end 132) is
+            // byte-exact: `line[129:131]` (0-idx) == `"42"`, the i64 literal, verified this
+            // session against the actual fixture text.
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_4_type_mismatch_renders_non_vector_spread.edn",
                 "Probe 4: TypeMismatch must surface rendered i64 content"
             );
         }
@@ -162,7 +178,6 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // Currently FAILS (Provenance always Unknown even from keyword/from-string).
 // After 233.2.b ships, PASSES — closes the load-bearing runtime-built case
 // from INVENTORY § O three-case table.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat (same WAT as probe_2)
@@ -170,9 +185,11 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
         Ok(v) => panic!("Probe 6: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 6 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
+            // 296 recapture: staleness — identical wat-facing values to Probe 2 (same p2.wat
+            // fixture); only the internal src/runtime.rs span moved.
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_6_runtime_built_keyword_renders_producer_info.edn",
                 "Probe 6: must surface rendered keyword content + producer info (Stone 233.1+233.2.b)"
             );
         }
@@ -191,7 +208,6 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
 //
 // Currently FAILS — from-holon emits bare Values; error has no producer info.
 // After 233.2.c ships, PASSES — error shows from-holon as the producer.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_7_from_holon_produces_tagged_value() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p7.wat
@@ -199,9 +215,11 @@ fn probe_7_from_holon_produces_tagged_value() {
         Ok(v) => panic!("Probe 7: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 7 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable-string\\\"\", provenance: RuntimeBuilt { producer: \":wat::holon::from-holon\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat\", line: 5, col: 12, end_line: 5, end_col: 47 } } } } }",
+            // 296 recapture: staleness — call_span into p7.wat (line 5, col 12-47) is
+            // unchanged from the old golden; only the internal src/runtime.rs span moved.
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_7_from_holon_produces_tagged_value.edn",
                 "Probe 7: error must mention from-holon producer (Stone 233.2.c)"
             );
         }
@@ -219,7 +237,6 @@ fn probe_7_from_holon_produces_tagged_value() {
 //
 // Currently FAILS — edn::read emits bare Values.
 // After 233.2.c ships, PASSES — error shows edn::read as the producer.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_8_edn_read_produces_tagged_value() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p8.wat
@@ -227,9 +244,11 @@ fn probe_8_edn_read_produces_tagged_value() {
         Ok(v) => panic!("Probe 8: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 8 error: {}", e);
-            assert_eq!(
-                e,
-                "eval: RuntimeError { span: Span { file: \"src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable\\\"\", provenance: RuntimeBuilt { producer: \":wat::edn::read\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat\", line: 3, col: 10, end_line: 3, end_col: 48 } } } } }",
+            // 296 recapture: staleness — call_span into p8.wat (line 3, col 10-48) is
+            // unchanged from the old golden; only the internal src/runtime.rs span moved.
+            wat::assert_edn_matches_file!(
+                e.trim_start_matches("eval: ").to_string(),
+                "probe_diagnostic_value_snapshot_in_errors__probe_8_edn_read_produces_tagged_value.edn",
                 "Probe 8: error must mention edn::read producer (Stone 233.2.c)"
             );
         }

@@ -58,16 +58,46 @@ fn runtimeerror_span_access_is_single_path() {
     }
 }
 
-/// Contract 4: the freeze pair (no source span) elides an unknown outer span —
-/// `UserMainMissing` carries `wat::rust_caller_span!()` and must not emit "<runtime>".
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
+/// Contract 4 (SUPERSEDED 2026-08-16, arc 298 Stone 298.2 — rewritten, not recaptured):
+/// this used to assert that the freeze pair's Display *elides* its outer span entirely
+/// (no source location — the constructor's only option was `wat::rust_caller_span!()`,
+/// treated as "unknown"). Arc 298.2 (`DESIGN-298.2-annihilate-span-unknown.md`)
+/// deliberately annihilated `Span::unknown()` / `is_unknown()`: *"every span is real, so
+/// the elide/skip logic that existed to hide `<runtime>:0:0` noise retires too"*
+/// (`src/to_edn.rs:214-216`). The freeze pair still constructs with the honest
+/// Rust-caller fallback span (no wat source location is available at this call site),
+/// but Display now surfaces it rather than hiding it — that is the whole point of 298.2's
+/// "no sentinel, no elision" cure. Rewritten to pin the NEW honest-location contract
+/// rather than the sentinel-elision contract 298.2 killed. (Note, out of this brief's
+/// `src/` blast radius: `src/value/signal.rs`'s doc comments at the `RuntimeError` struct
+/// and `UserMainMissing` variant still say "honestly elided by Display" — that prose is
+/// now stale and should be corrected in a future `src/` strike, not here.)
 #[test]
-fn runtimeerror_freeze_pair_elides_unknown_span() {
+fn runtimeerror_freeze_pair_carries_real_rust_caller_location() {
     let err = RuntimeError::new(wat::rust_caller_span!(), RuntimeErrorKind::UserMainMissing);
     let rendered = err.to_string();
-    assert_eq!(
-        rendered,
-        ":user::main not defined — a wat program needs an entry point",
-        "unknown span must be elided in Display output"
+    // rune:lint(loose-assert) — the message is a fixed string but sits inside an EDN blob
+    // whose :location embeds rust_caller_span!()'s absolute host filesystem path to THIS
+    // test file (varies by host/checkout, and a golden captured with it would be
+    // non-portable — unlike every other .edn golden in this dir, which pins a relative
+    // wat-source or src/*.rs path). Targeted presence of the message is the real contract.
+    assert!(
+        rendered.contains(":user::main not defined — a wat program needs an entry point"),
+        "298.2: message text must be preserved verbatim; got: {rendered}"
+    );
+    // rune:lint(loose-assert) — same as above: rendered embeds the absolute host
+    // filesystem path via rust_caller_span!(); `file!()` alone (this file's own relative
+    // path, always a substring of that absolute path) is host-portable. The presence of a
+    // REAL, non-elided span naming this file is the real contract.
+    assert!(
+        rendered.contains(file!()),
+        "298.2: the freeze pair's span is now a REAL rust-caller location (never elided); \
+         got: {rendered}"
+    );
+    // rune:lint(loose-assert) — same as above: targeted absence of the <runtime> sentinel
+    // (which 298.2 deleted entirely) is the real contract; the full string is host-specific.
+    assert!(
+        !rendered.contains("<runtime>"),
+        "298.2 deleted the <runtime> sentinel entirely — it must never appear; got: {rendered}"
     );
 }

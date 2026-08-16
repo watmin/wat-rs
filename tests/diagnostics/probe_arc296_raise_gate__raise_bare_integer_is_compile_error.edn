@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::kernel::raise!: parameter #1 expects :wat::core::Error; got :wat::core::i64"
+      :location #wat.core/Span {
+        :file "tests/diagnostics/probe_arc296_raise_gate.wat.bad"
+        :line 12
+        :col 25
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 12
+            :col 27
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::kernel::raise!"
+      :param "#1"
+      :expected ":wat::core::Error"
+      :got ":wat::core::i64"
+      :remedies []
+    }
+  ]
+}

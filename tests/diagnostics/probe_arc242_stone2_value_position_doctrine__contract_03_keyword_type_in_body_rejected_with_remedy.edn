@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position"
+      :location #wat.core/Span {
+        :file "tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad"
+        :line 1
+        :col 50
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 1
+            :col 65
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::i64"
+      :reason "Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position"
+      :remedies []
+    }
+  ]
+}

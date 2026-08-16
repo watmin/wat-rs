@@ -119,7 +119,6 @@ fn checkerror_span_access_is_single_path() {
 /// and an UNKNOWN secondary `stdin_sender_span`.  The pre-fix code interpolated
 /// `stdin_sender_span` unconditionally; the fix gates it so the phrase reads
 /// naturally without a location.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn checkerror_display_elides_unknown_secondary_span() {
     let known_outer = Span::new(Arc::new("src/bar.wat".to_string()), 5, 1);
@@ -151,9 +150,12 @@ fn checkerror_display_elides_unknown_secondary_span() {
         },
     };
     let rendered_known = err_known_secondary.to_string();
-    assert_eq!(
+    // 296 recapture: staleness — EDN face (Stone B); message text, :location (src/bar.wat
+    // 5:1), and :bind-location (src/bar.wat 2:7) are byte-identical to the pre-stone-B
+    // prose face's embedded values; additive :message/:causes/:location/:process-identifier.
+    wat::assert_edn_matches_file!(
         rendered_known,
-        "process-join-holds-stdin-sender at src/bar.wat:5:1: `:wat::kernel::Process/join-result worker` blocks until the forked child exits, but `:wat::kernel::Process/stdin worker` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via the Process handle bound at src/bar.wat:2:7. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin worker` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let.",
+        "probe_arc243_stone6_checkerror_pattern_a__checkerror_display_elides_unknown_secondary_span.edn",
         "known secondary span must appear in Display output"
     );
 }
@@ -177,7 +179,6 @@ fn checkerror_display_elides_unknown_secondary_span() {
 /// detected is now structurally unrepresentable); that variant no longer
 /// exists on `CheckErrorKind`, so this probe changes specimen rather than
 /// dying with the walker.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn checkerror_display_elides_unknown_span() {
     // --- (a) UNKNOWN span: mid-prose location must be suppressed ---
@@ -213,9 +214,12 @@ fn checkerror_display_elides_unknown_span() {
         },
     };
     let rendered_known = err_known.to_string();
-    assert_eq!(
+    // 296 recapture: staleness — EDN face (Stone B); message text and :location
+    // (src/foo.wat 10:3) are byte-identical to the pre-stone-B prose face; additive
+    // :message/:causes/:location/:head/:fqdn.
+    wat::assert_edn_matches_file!(
         rendered_known,
-        "bare container type 'HashMap' at src/foo.wat:10:3 is retired (arc 109 slice 1e); canonical FQDN form is 'wat::core::HashMap'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename 'HashMap' → 'wat::core::HashMap' at the offending site (works in both outer position like ':HashMap' → ':wat::core::HashMap' and inner position like 'Vec<HashMap>' → 'Vec<wat::core::HashMap>').",
+        "probe_arc243_stone6_checkerror_pattern_a__checkerror_display_elides_unknown_span.edn",
         "known span must appear in Display output"
     );
 }

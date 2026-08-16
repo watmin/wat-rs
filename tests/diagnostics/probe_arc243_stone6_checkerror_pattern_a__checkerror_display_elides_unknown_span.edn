@@ -1,0 +1,12 @@
+#wat.check/BareLegacyContainerHead {
+  :message "bare container type 'HashMap' is retired (arc 109 slice 1e); canonical FQDN form is 'wat::core::HashMap'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename 'HashMap' → 'wat::core::HashMap' at the offending site (works in both outer position like ':HashMap' → ':wat::core::HashMap' and inner position like 'Vec<HashMap>' → 'Vec<wat::core::HashMap>')."
+  :location #wat.core/Span {
+    :file "src/foo.wat"
+    :line 10
+    :col 3
+    :end #wat.core.Option/None []
+  }
+  :causes []
+  :head "HashMap"
+  :fqdn "wat::core::HashMap"
+}

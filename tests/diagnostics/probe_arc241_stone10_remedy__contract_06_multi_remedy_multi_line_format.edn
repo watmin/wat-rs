@@ -1,0 +1,45 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/ReturnTypeMismatch {
+      :message ":test::pick: body produces :wat::core::keyword; signature declares :my::Status"
+      :location #wat.core/Span {
+        :file "tests/diagnostics/probe_arc241_stone10_remedy_c03.wat.bad"
+        :line 2
+        :col 49
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 2
+            :col 65
+          }
+        ]
+      }
+      :causes []
+      :function ":test::pick"
+      :expected ":my::Status"
+      :got ":wat::core::keyword"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":my::Status::Ok"
+          :kind :typo
+          :score 1
+          :note nil
+        }
+        #wat.kernel/Remedy {
+          :form ":my::Status::Oke"
+          :kind :typo
+          :score 1
+          :note nil
+        }
+        #wat.kernel/Remedy {
+          :form ":my::Status::Err"
+          :kind :typo
+          :score 3
+          :note nil
+        }
+      ]
+    }
+  ]
+}

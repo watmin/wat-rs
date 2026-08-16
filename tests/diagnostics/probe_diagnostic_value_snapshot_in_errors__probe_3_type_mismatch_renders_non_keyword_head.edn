@@ -1,0 +1,22 @@
+#wat.runtime/TypeMismatch {
+  :message ":wat::core::apply: expected wat::core::keyword, got wat::core::String `\"not-a-keyword\"`"
+  :location #wat.core/Span {
+    :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p3.wat"
+    :line 1
+    :col 76
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 1
+        :col 91
+      }
+    ]
+  }
+  :causes []
+  :op ":wat::core::apply"
+  :expected "wat::core::keyword"
+  :got {
+    :type "wat::core::String"
+    :rendered "\"not-a-keyword\""
+    :provenance nil
+  }
+}

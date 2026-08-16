@@ -49,7 +49,6 @@ fn display_err(path: &str) -> String {
 // type) and HARD-CUT retirement arms (struct, struct-restricted, enum).
 
 // rune:complectens(assertion-sequence) — three properties of one rendered error msg; "did you mean"/form/annotation are the structured-remedy contract
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_01_typo_remedy_on_variant_constructor() {
     // User declares :my::Status with variants; then typos the constructor
@@ -60,15 +59,18 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     // Uses :test::pick (non-main) — main signature retirement doesn't apply.
     // Fixture: probe_arc241_stone10_remedy_c01.wat.bad
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c01.wat.bad");
-    assert_eq!(
+    // 296 recapture: staleness — EDN face (Stone B); :remedies is POPULATED with both
+    // typo candidates (":my::Status::Ok" score 1, ":my::Status::Error" score 5), matching
+    // the old prose "did you mean" candidates exactly in form + distance. NOT a collapse
+    // to `[]` (this file was flagged as a hazard for exactly that check).
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c01.wat.bad:2:49: :test::pick: body produces :wat::core::keyword; signature declares :my::Status\n  did you mean:\n    :my::Status::Ok  [typo, distance 1]\n    :my::Status::Error  [typo, distance 5]\n",
+        "probe_arc241_stone10_remedy__contract_01_typo_remedy_on_variant_constructor.edn",
         "variant-typo case: 'did you mean' with distance annotation"
     );
 }
 
 // rune:complectens(assertion-sequence) — three properties of one rendered error msg; "did you mean"/form/annotation are the structured-remedy contract
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_retirement_remedy_for_hard_cut_form() {
     // Legacy `:wat::core::struct` retired at Stone 241.8. The 241.8 hand-written
@@ -77,25 +79,33 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
     // is the 241.10 shape.
     // Fixture: probe_arc241_stone10_remedy_c02.wat.bad
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad");
-    assert_eq!(
+    // 296 recapture: staleness — EDN face (Stone B); :remedies is POPULATED with the
+    // retirement remedy (":wat::core::defstruct", :kind :retirement), matching the old
+    // prose "did you mean: :wat::core::defstruct [replaces a retired form]" exactly.
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad:1:2: malformed :wat::core::struct form: ':wat::core::struct' is retired (Stone 241.8)\n  did you mean: :wat::core::defstruct [replaces a retired form]\n",
+        "probe_arc241_stone10_remedy__contract_02_retirement_remedy_for_hard_cut_form.edn",
         "retirement case: 'did you mean: :wat::core::defstruct [replaces a retired form]'"
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_ranked_multi_candidate_variant_typo() {
     // Declare enum with two variants close in spelling; typo a constructor
     // close to both. Post-stone: ranked output names multiple candidates.
     // Fixture: probe_arc241_stone10_remedy_c03.wat.bad
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03.wat.bad");
-    let typo_annotation_count = msg.matches("[typo, distance").count();
-    assert!(
-        typo_annotation_count >= 2,
-        "multi-candidate case should produce ≥2 '[typo, distance' annotations; got {}:\n{}",
-        typo_annotation_count, msg
+    // 296 recapture: staleness + mechanism swap (permitted per THE LAW — a small mechanism
+    // change beyond a straight assert swap). The EDN face has no "[typo, distance" prose
+    // substring to count; :remedies is now a structured Vector. The old loose count-check
+    // (`>= 2`) is STRENGTHENED to an exact golden pin — :remedies holds 3 typo candidates
+    // (":my::Status::Ok" score 1, ":my::Status::Oke" score 1, ":my::Status::Err" score 3),
+    // which the reviewer can see directly in the captured .edn (satisfies and exceeds the
+    // original "≥2 candidates" contract).
+    wat::assert_edn_matches_file!(
+        msg,
+        "probe_arc241_stone10_remedy__contract_03_ranked_multi_candidate_variant_typo.edn",
+        "multi-candidate case should produce ≥2 ranked typo remedies"
     );
 }
 
@@ -117,50 +127,56 @@ fn contract_04_no_remedy_for_distant_unknown() {
 // ─── Contracts 5-7: Display formatting ────────────────────────────────────────
 
 // rune:complectens(assertion-sequence) — two properties of one extracted line; probe startup cost-of-split exceeds value
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_05_single_remedy_single_line_format() {
     // Single remedy → inline single-line "did you mean: <form> [annotation]".
     // Uses retirement path (always produces error post-241.8).
     // Fixture: probe_arc241_stone10_remedy_c02.wat.bad (same as C02)
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad");
-    let line = msg.lines().find(|l| l.contains("did you mean"))
-        .unwrap_or_else(|| panic!("expected 'did you mean' line; got:\n{}", msg));
-    assert_eq!(
-        line,
-        "  did you mean: :wat::core::defstruct [replaces a retired form]",
-        "single-remedy line: exact format with form and annotation"
+    // 296 recapture: staleness + mechanism swap. The EDN face is one structured value, not
+    // multiple prose lines — "find the 'did you mean' line" has no EDN analogue. The
+    // contract ("single remedy" case renders exactly one remedy) is preserved by pinning
+    // the whole EDN value; the golden is byte-identical to contract_02's (same fixture) —
+    // its :remedies Vector has exactly one #wat.kernel/Remedy entry, which is the
+    // "single-remedy" shape this contract exists to prove.
+    wat::assert_edn_matches_file!(
+        msg,
+        "probe_arc241_stone10_remedy__contract_05_single_remedy_single_line_format.edn",
+        "single-remedy case: exactly one #wat.kernel/Remedy in :remedies"
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_06_multi_remedy_multi_line_format() {
     // Multiple remedies → "did you mean:" header on its own line; ranked candidates
     // each on their own subsequent line. Uses variant-constructor typo path.
     // Fixture: probe_arc241_stone10_remedy_c03.wat.bad (same as C03)
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03.wat.bad");
-    let lines: Vec<&str> = msg.lines().collect();
-    let header_idx = lines.iter().position(|l| {
-        l.trim_end().ends_with("did you mean:") || (l.contains("did you mean:") && !l.contains("[typo"))
-    });
-    assert!(
-        header_idx.is_some(),
-        "multi-remedy should have 'did you mean:' header on its own line; got:\n{}",
-        msg
+    // 296 recapture: staleness + mechanism swap. There is no "did you mean:" header line
+    // in the EDN face — the multi-remedy shape is now a :remedies Vector with >1 entries,
+    // not a header line + indented candidates. The golden is byte-identical to
+    // contract_03's (same fixture) — its :remedies Vector holds 3 entries, which is the
+    // "multi-remedy" shape this contract exists to prove.
+    wat::assert_edn_matches_file!(
+        msg,
+        "probe_arc241_stone10_remedy__contract_06_multi_remedy_multi_line_format.edn",
+        "multi-remedy case: :remedies Vector holds more than one #wat.kernel/Remedy"
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_07_retirement_kind_annotation_canonical() {
     // The retirement kind annotation is the LITERAL string `[retirement replacement]`.
     // No abbreviations; no variants. Exact phrase per D7.
     // Fixture: probe_arc241_stone10_remedy_c07.wat.bad
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c07.wat.bad");
-    assert_eq!(
+    // 296 recapture: staleness — EDN face (Stone B); :remedies is POPULATED with the
+    // retirement remedy, whose :note carries the full migration guidance verbatim
+    // (byte-identical to the old prose's em-dash-appended text), matching the old
+    // expectation exactly.
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c07.wat.bad:1:2: malformed :wat::core::struct-restricted form: ':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n  did you mean: :wat::core::defstruct [replaces a retired form] — re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n",
+        "probe_arc241_stone10_remedy__contract_07_retirement_kind_annotation_canonical.edn",
         "retirement annotation must be exact '[replaces a retired form]'"
     );
 }

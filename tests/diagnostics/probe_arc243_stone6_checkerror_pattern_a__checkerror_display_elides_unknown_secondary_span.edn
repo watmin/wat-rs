@@ -1,0 +1,17 @@
+#wat.check/ProcessJoinHoldsStdinSender {
+  :message "`:wat::kernel::Process/join-result worker` blocks until the forked child exits, but `:wat::kernel::Process/stdin worker` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via the Process handle bound at src/bar.wat:2:7. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin worker` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let."
+  :location #wat.core/Span {
+    :file "src/bar.wat"
+    :line 5
+    :col 1
+    :end #wat.core.Option/None []
+  }
+  :causes []
+  :process-identifier "worker"
+  :bind-location #wat.core/Span {
+    :file "src/bar.wat"
+    :line 2
+    :col 7
+    :end #wat.core.Option/None []
+  }
+}

@@ -22,7 +22,6 @@ use wat::freeze::{call_beside_value, startup_from_file};
 
 /// Wall proof: (raise! 42) is rejected at compile time.
 /// The type checker requires :wat::core::Error; i64 does not satisfy it.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn raise_bare_integer_is_compile_error() {
     let result = startup_from_file(
@@ -34,10 +33,12 @@ fn raise_bare_integer_is_compile_error() {
          startup unexpectedly succeeded"
     );
     let msg = format!("{}", result.unwrap_err());
-    // The error must be the exact type-mismatch message from the checker.
-    assert_eq!(
+    // The error must be the exact type-mismatch diagnostic from the checker (EDN face,
+    // Stone B). 296 recapture: staleness — same message/span/callee/param/expected/got as
+    // the pre-stone-B prose face, additive :message/:causes/:location.
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc296_raise_gate.wat.bad:12:25: :wat::kernel::raise!: parameter #1 expects :wat::core::Error; got :wat::core::i64\n",
+        "probe_arc296_raise_gate__raise_bare_integer_is_compile_error.edn",
         "compile error must be exact type-mismatch diagnostic"
     );
 }

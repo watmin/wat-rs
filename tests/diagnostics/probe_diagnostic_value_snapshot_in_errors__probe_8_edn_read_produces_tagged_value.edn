@@ -1,0 +1,28 @@
+#wat.runtime/NotCallable {
+  :message "not callable: expected Function, got wat::core::String `\"not-a-callable\"` (built by :wat::edn::read at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat:3:10)"
+  :location #wat.core/Span {
+    :file "src/runtime.rs"
+    :line 21351
+    :col 42
+    :end #wat.core.Option/None []
+  }
+  :causes []
+  :got {
+    :type "wat::core::String"
+    :rendered "\"not-a-callable\""
+    :provenance #wat.kernel/RuntimeBuilt {
+      :producer ":wat::edn::read"
+      :call-span #wat.core/Span {
+        :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat"
+        :line 3
+        :col 10
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 48
+          }
+        ]
+      }
+    }
+  }
+}
