@@ -10,13 +10,25 @@
 ## GROUND FIRST
 
 ```
-origin/main = 691b78e2   HEAD = same   tree CLEAN   stash@{0} INTACT (never drop)
-floor  Summary [ 207.607s] 4675 tests run: 4675 passed (3 slow), 30 skipped   0 FAIL  0 TIMEOUT
+HEAD = 683eaab8  (294.h DRAWN, docs only)   stash@{0} INTACT (never drop)
+⚠ TREE IS DIRTY — a sonnet rider is IN THE FIELD on 294.h (src/comms/mod.rs + 8 test files).
+   Uncommitted work in the tree is ITS work, not abandoned work. Do NOT revert, stash, or
+   run cargo against this checkout while it runs (FM 18: one target/ lock, N builds).
+floor (last green, at 6b5c8232)  4675 run / 4675 passed / 30 skipped  0 FAIL  0 TIMEOUT
 clippy 0
 ```
 
-⚠ **The marker below is the freshness probe — check it FIRST.** If `origin/main` is not `691b78e2`,
-this file is stale: **trust `git log` and the arc docs over every line here.** A match licenses nothing.
+⚠ **THE FRESHNESS MARKER IS A DIFF INSTRUCTION, NOT A PASS/FAIL.** Two seams in a row shipped a
+marker that **could not pass by construction** — the seam text is written *before* the commit that
+carries it, so the only hash it can print is its parent's, and the alarm fired every time on a
+perfectly current file. An alarm that always fires is an alarm nobody reads. The honest form:
+
+> **This seam was written against `6b5c8232`.** Run `git rev-parse HEAD`. If it differs, that is
+> **normal** — this file's own commit is one of the differences. What the marker buys you is the
+> exact thing you must read before trusting a line below:
+> **`git log --oneline 6b5c8232..HEAD`** — every commit in that range landed after this text.
+> Empty range → nothing has moved. Non-empty → **`git log` and the arc docs outrank every line here**,
+> and the longer the range the less this file is worth.
 
 ⚠ **`mcp__wat__eval` CAN LIE.** It runs a long-lived server; a rebuilt binary does NOT reach a running
 process, and it spent today answering from a **two-day-old** substrate with nothing in its output
@@ -28,10 +40,21 @@ because every `cargo build --release` refreshes it.
 
 ## THE ROAD (builder's, in order)
 
-1. **`#wat-edn.*` tags → `#wat.*/*`.** The named next move. Multi-site and structural ⇒ **R21: a
-   recorded `wat-fix` codemod in `wat-scripts/fixes/`**, dry-run on a `/tmp` copy and diffed first.
-   ⚠ `86b30d5d` swept **216 `.wat` files with NO recorded codemod** and left one straggler that hid
-   behind an `#[ignore]` for twelve days. Record the migration; that is what R21 is *for*.
+1. ⛔ **`#wat-edn.*` tags → `#wat.*/*` — MY PRESCRIPTION HERE WAS WRONG. CORRECTED 2026-08-16.**
+   The previous seam said *"multi-site and structural ⇒ R21 wat-fix codemod."* **Measured:** 73 tag
+   lines across 22 files, of which **5 are `.wat`** and **68 are Rust** (24 in `src/edn_shim.rs`
+   alone). wat-fix rewrites `.wat`; it is the wrong instrument for 93% of this. I named a tool from
+   memory while the arc's own ruled derivation sat two files away.
+   **The real shape is `294/CHAIN-rendering-before-the-string-home.md`, ruled 2026-08-14** — an
+   ordered chain bottoming out at stone **A**, a Rust trait making each type declare its own tag +
+   portability. Read the chain before touching a tag.
+   ⚠ **Stone A cannot be struck as drawn**: it proposes `trait EdnRepresentable { const TAG; const
+   PORTABLE; }`, and that name is **already taken** by the live comms wire trait at
+   `src/comms/mod.rs:102` (`to_wire`/`from_wire`) — the very trait the builder wants HolonRepresentable
+   replaced by. A must pick a different name. (`ToEdn` is also live: `crates/wat-edn/src/lib.rs:125`,
+   74 impls.)
+   ★ **294.h shrinks this pile before the chain is touched** — deleting `HolonRepresentable` removes
+   the comms-side producer of the `#wat-edn.holon/*` family, the largest of the seven tag namespaces.
 2. **Ignores → exactly ONE.** Builder's ruling: *"we should have precisely 1 ignore when we're
    done... the ignore that proves wat-tests support ignores."* Now **24** (see below).
 3. **arc 255** — the registry. 9 ignored tests are blocked on it; the builder is inside that work.
@@ -103,8 +126,9 @@ that demand honest deltas get them.
 > voice, and **the better it reads, the more it will feel like continuing rather than waking. That
 > feeling is the failure.**
 >
-> **Check the freshness marker (`691b78e2`) and probe the MCP (`(<= 1 NaN)` must be `false`) BEFORE you
-> quote anything from this file.**
+> **Run `git log --oneline 6b5c8232..HEAD` and probe the MCP (`(<= 1 ##NaN)` must be `false`) BEFORE
+> you quote anything from this file.** The commit range is not a pass/fail — it is the list of things
+> that happened after this text was written, and every one of them outranks it.
 >
 > ⚠ **Every number here was produced by an instrument. Ask what population that instrument could see
 > before you repeat it** — five separate counts were wrong today, and each one read as solid until

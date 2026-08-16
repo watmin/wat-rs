@@ -60,6 +60,30 @@ The trait may well be the existing `ToEdn` (`src/to_edn.rs` + the `wat-to-edn-de
 than a new one — **ground that before drawing**; minting a second trait beside a live one is the
 mistake this arc has made in other places.
 
+> ### ⊘ AMENDED 2026-08-16 — **the name `EdnRepresentable` is ALREADY TAKEN. A cannot be struck as written.**
+>
+> This section said "ground that before drawing" about `ToEdn`, and was right to. It did not know the
+> *name* was occupied too. Grounded this session:
+>
+> | name | where | what it is |
+> |---|---|---|
+> | `EdnRepresentable` | **`src/comms/mod.rs:102`** | the **live comms wire trait** — `to_wire()` / `from_wire()`. 28 production bounds across `comms/process.rs` + `kernel/peer.rs`. |
+> | `ToEdn` | `crates/wat-edn/src/lib.rs:125` | live, **74 impls** |
+>
+> And the collision is worse than a clash, because `comms::EdnRepresentable` is **the trait the
+> builder wants everything on**: *"EdnRepresentable was meant to replace all HolonRepresentable…
+> HolonAST and co tooling must only be used for VSA/HDC things."* Arc **294.h** acts on exactly that —
+> it deletes `HolonRepresentable` and leaves `comms::EdnRepresentable` as the one wire trait
+> (`DESIGN-STONE-294.h-holon-representable-is-deleted.md`, drawn `683eaab8`).
+>
+> So A's `{ const TAG; const PORTABLE; }` — a **tag+portability declaration**, a different thing from
+> a wire encoder — **must pick a different name.** Two live traits, two real jobs, one word between
+> them: whoever draws A picks the third name, and does not resolve it by widening either incumbent.
+>
+> ★ **A also just got smaller.** 294.h removes the comms-side producer of the `#wat-edn.holon/*`
+> family — the largest of the five buckets in B's table below. Re-measure B's five families **after**
+> 294.h lands; this section's counts predate it.
+
 **Why A is FIRST and not merely nice.** See B.
 
 ## B — `#wat-edn.*` → `#wat.*/*`, and the `opaque` bucket dissolves
