@@ -10,12 +10,30 @@
 //!
 //! ```text
 //! in:  {"jsonrpc":"2.0","id":1,"method":"tools/call",
-//!       "params":{"name":"eval","arguments":{"edn":"(:wat::core::+ 2 2)"}}}
+//!       "params":{"name":"eval","arguments":{"edn":"(:wat::core::+ 2 2)","ticket":0}}}
 //! out: {"jsonrpc":"2.0","id":1,
-//!       "result":{"content":[{"type":"text","text":"4"}],"isError":false}}
+//!       "result":{"content":[{"type":"text",
+//!         "text":"#wat.mcp/Turn {:gen 1 :defs 0 :ticket 881 :value 4}"}],"isError":false}}
 //! ```
 //!
-//! The envelope is a constant with two holes — the echoed `id`, and that `text`.
+//! The JSON envelope is a constant. The `text` is always `#wat.mcp/Turn` —
+//! gen, def-count, ticket, and the EDN value. Grok (and friends) forward
+//! only that string to the model; an epoch that lives only on the JSON
+//! object is invisible, and a replaced process looks like a working
+//! server. The Turn makes a silent respawn unrepresentable.
+//!
+//! `isError` is always false on a Turn. A failed evaluation is a value
+//! (`:value` is `#wat.core/Fault`); Grok prefixes `Failed to call eval:`
+//! when `isError` is true, which would turn a navigable Fault into a
+//! transport failure. Envelope faults (no `edn`, unknown tool) stay
+//! JSON-RPC errors. They never become a Turn.
+//!
+//! `ticket` is the rendezvous that makes "two evals before reading" a
+//! value instead of a hope. The next `eval`/`reset` must present the
+//! last Turn's `:ticket` (or `0` if none has been read). A second call
+//! with the same ticket is `#wat.mcp/Fault {:kind :stale-ticket}` and
+//! is not evaluated. The server cannot see a "model turn"; it can see
+//! a ticket that was already consumed. That is the violation.
 //!
 //! # Why the loop is HERE and not in a `wat/mcp.wat`
 //!
@@ -55,10 +73,69 @@ const PROTOCOL_VERSION: &str = "2024-11-05";
 /// The session. `defs` is the accumulated definition set — the exact `Vector<WatAST>`
 /// `wat --repl` threads through its tail call, and it grows on precisely one outcome
 /// (`Declared`), which is the property the gate has to prove.
+///
+/// `gen` is this process's session epoch. Minted once at `serve` start, never
+/// persisted, never bumped on `reset`. One stdio, one process, one gen. A
+/// harness that *replaces* a dead child starts a new process on a new pipe and
+/// mints a new number — that is the only way gen changes. The model can then
+/// see the world flipped instead of treating a virgin session as the old one.
+///
+/// `ticket` is the next-turn rendezvous. Starts at 0 (bootstrap: no Turn
+/// has been issued). A matching `eval`/`reset` consumes it and mints a
+/// new one; a mismatch is a protocol Fault and leaves the world and the
+/// ticket alone. `ticket_seq` is only entropy for the mint.
 struct Session {
     defs: Vec<WatAST>,
     env: Environment,
     sym: SymbolTable,
+    gen: i64,
+    ticket: i64,
+    ticket_seq: u64,
+}
+
+/// One epoch per process lifetime. Not a shared counter — there is no second
+/// process on this stdin. pid is mixed in so two sequential boots (a respawn)
+/// cannot collide if the clock has not ticked.
+fn mint_gen() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    // Millis, not nanos: JSON numbers stay inside 2^53, so the epoch is an
+    // integer on the wire (nanos came back as a string and hid the field).
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    millis
+        .wrapping_add(std::process::id() as i64)
+        .saturating_abs()
+        .max(1)
+}
+
+/// JSON numbers are only exact integers inside 2^53 (the same wall that
+/// forced `mint_gen` off nanos). A ticket outside that range arrives as
+/// a float or as `nil`, and every subsequent call looks stale.
+const JSON_SAFE_INT: u64 = (1u64 << 53) - 1;
+
+/// A fresh ticket. Never 0 (0 is only the unread-session bootstrap) and
+/// never the ticket just consumed. RandomState keys are process-secret,
+/// so the next ticket cannot be computed from the Turn the model already
+/// holds — predicting it is how a client would dual-fire without reading.
+fn next_ticket(session: &mut Session) -> i64 {
+    use std::hash::{BuildHasher, Hasher, RandomState};
+    session.ticket_seq = session.ticket_seq.saturating_add(1);
+    let mut hasher = RandomState::new().build_hasher();
+    hasher.write_u64(session.ticket_seq);
+    hasher.write_i64(session.gen);
+    hasher.write_u32(std::process::id());
+    let t = ((hasher.finish() & JSON_SAFE_INT) as i64).max(1);
+    if t == session.ticket {
+        (t % (JSON_SAFE_INT as i64 - 1)).saturating_add(1).max(1)
+    } else {
+        t
+    }
+}
+
+fn consume_ticket(session: &mut Session) {
+    session.ticket = next_ticket(session);
 }
 
 pub(super) fn serve() -> ExitCode {
@@ -79,6 +156,9 @@ pub(super) fn serve() -> ExitCode {
         defs: Vec::new(),
         env: Environment::new(),
         sym: base.symbols,
+        gen: mint_gen(),
+        ticket: 0,
+        ticket_seq: 0,
     };
 
     let stdin = std::io::stdin();
@@ -111,35 +191,55 @@ fn handle_line(line: &str, session: &mut Session) -> Option<String> {
         // Malformed JSON has no `id` to answer against, so the error is id-less. It must not
         // be fatal: one bad byte from a remote harness ending the session is the exact
         // failure `read-string` and `read-json` were both made total to prevent.
-        Err(e) => return Some(error_frame(OwnedValue::Nil, -32700, &format!("parse error: {e}"))),
+        Err(e) => {
+            return Some(error_frame(
+                OwnedValue::Nil,
+                -32700,
+                &format!("parse error: {e}"),
+                session.gen,
+            ));
+        }
     };
 
     let id = get(&req, "id").cloned().unwrap_or(OwnedValue::Nil);
     let method = match get(&req, "method").and_then(as_str) {
         Some(m) => m.to_string(),
-        None => return Some(error_frame(id, -32600, "invalid request: no method")),
+        None => {
+            return Some(error_frame(
+                id,
+                -32600,
+                "invalid request: no method",
+                session.gen,
+            ))
+        }
     };
 
     // Notifications carry no id and expect no reply.
     let is_notification = matches!(id, OwnedValue::Nil);
 
     match method.as_str() {
-        "initialize" => Some(result_frame(id, initialize_result())),
-        "tools/list" => Some(result_frame(id, tools_list_result())),
+        "initialize" => Some(result_frame(id, initialize_result(), session.gen)),
+        "tools/list" => Some(result_frame(id, tools_list_result(), session.gen)),
         "tools/call" => Some(handle_tools_call(id, &req, session)),
         _ if is_notification => None,
-        other => Some(error_frame(id, -32601, &format!("unknown method: {other}"))),
+        other => Some(error_frame(
+            id,
+            -32601,
+            &format!("unknown method: {other}"),
+            session.gen,
+        )),
     }
 }
 
 fn handle_tools_call(id: OwnedValue, req: &OwnedValue, session: &mut Session) -> String {
+    let gen = session.gen;
     let params = match get(req, "params") {
         Some(p) => p,
-        None => return error_frame(id, -32602, "tools/call: no params"),
+        None => return error_frame(id, -32602, "tools/call: no params", gen),
     };
     let name = match get(params, "name").and_then(as_str) {
         Some(n) => n.to_string(),
-        None => return error_frame(id, -32602, "tools/call: no tool name"),
+        None => return error_frame(id, -32602, "tools/call: no tool name", gen),
     };
     let arguments = get(params, "arguments");
 
@@ -148,30 +248,91 @@ fn handle_tools_call(id: OwnedValue, req: &OwnedValue, session: &mut Session) ->
             // THE PAYLOAD. Already a string; it stays one.
             let src = match arguments.and_then(|a| get(a, "edn")).and_then(as_str) {
                 Some(s) => s.to_string(),
-                None => return error_frame(id, -32602, "eval: no `edn` argument"),
+                None => return error_frame(id, -32602, "eval: no `edn` argument", gen),
             };
-            let (text, is_error) = eval_turn(&src, session);
-            result_frame(id, tool_result(&text, is_error))
+            if let Some(fault) = reject_stale_ticket(arguments, session) {
+                return result_frame(id, tool_result(&fault), gen);
+            }
+            // A panic in the turn must become a reply, not a dead process. The
+            // REPL already claims survive-a-bad-line; `--mcp` was exiting 0 on
+            // unwind and the next client saw a virgin world. `AssertUnwindSafe`
+            // is the honest cost: we do not persist a half-mutated `defs` across
+            // the catch (eval_turn only pushes on Declared after the eval returns).
+            let text = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                eval_turn(&src, session)
+            })) {
+                Ok(text) => text,
+                Err(payload) => {
+                    let msg = panic_text(&payload);
+                    format!("#wat.core/Fault {{:message \"session survived a panic: {msg}\"}}")
+                }
+            };
+            consume_ticket(session);
+            result_frame(
+                id,
+                tool_result(&render_turn(gen, session.defs.len(), session.ticket, &text)),
+                gen,
+            )
         }
         // `reset` is the definition set inverted — the same field the `Declared` arm grows,
-        // emptied. Nothing else in the session is touched.
+        // emptied. `gen` is NOT bumped: the process is the same, the model asked for this.
         "reset" => {
+            if let Some(fault) = reject_stale_ticket(arguments, session) {
+                return result_frame(id, tool_result(&fault), gen);
+            }
             session.defs.clear();
-            result_frame(id, tool_result("nil", false))
+            consume_ticket(session);
+            result_frame(
+                id,
+                tool_result(&render_turn(gen, 0, session.ticket, "nil")),
+                gen,
+            )
         }
-        other => error_frame(id, -32602, &format!("unknown tool: {other}")),
+        other => error_frame(id, -32602, &format!("unknown tool: {other}"), gen),
+    }
+}
+
+/// `None` = the presented ticket matches; caller may run the turn.
+/// `Some(turn_text)` = stale or missing; world and ticket unchanged.
+fn reject_stale_ticket(arguments: Option<&OwnedValue>, session: &Session) -> Option<String> {
+    let presented = arguments.and_then(|a| get(a, "ticket")).and_then(as_i64);
+    if presented == Some(session.ticket) {
+        return None;
+    }
+    Some(render_turn(
+        session.gen,
+        session.defs.len(),
+        session.ticket,
+        &stale_ticket_value(session.ticket, presented),
+    ))
+}
+
+fn stale_ticket_value(expected: i64, got: Option<i64>) -> String {
+    match got {
+        Some(g) => format!("#wat.mcp/Fault {{:kind :stale-ticket :expected {expected} :got {g}}}"),
+        None => format!("#wat.mcp/Fault {{:kind :stale-ticket :expected {expected} :got nil}}"),
+    }
+}
+
+fn panic_text(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_string()
     }
 }
 
 /// The turn: parse the payload, evaluate EVERY form in it against the session, render the
-/// last answer as EDN. Returns `(edn_text, is_error)`.
+/// last answer as EDN.
 ///
 /// ⚠ THE BUG THIS SHAPE FIXES, kept visible because it is the class this arc exists to kill.
 /// The first version took `forms.into_iter().next()` — the FIRST form — and silently discarded
-/// the rest. A payload of two `defn`s answered `nil` with `isError: false`, i.e. SUCCESS, while
-/// the second definition never existed. A caller could not tell. Found by driving the live
-/// tool, not by the gate: all five tests sent one form per payload, so nothing in the suite
-/// ever depended on the mechanism — R59's third face, in the module that cites R59.
+/// the rest. A payload of two `defn`s answered `nil` while the second definition never
+/// existed. A caller could not tell. Found by driving the live tool, not by the gate: all
+/// five tests sent one form per payload, so nothing in the suite ever depended on the
+/// mechanism — R59's third face, in the module that cites R59.
 ///
 /// Forms run IN ORDER against a definition set that grows as they go, so a `defrecord` in the
 /// first form is in scope for the second. The LAST form's value is the answer, mirroring an
@@ -179,16 +340,18 @@ fn handle_tools_call(id: OwnedValue, req: &OwnedValue, session: &mut Session) ->
 ///
 /// A failure STOPS the sequence and is returned. Continuing past one would run later forms
 /// against a world that is not the one they were written for, and report a success built on it.
-fn eval_turn(src: &str, session: &mut Session) -> (String, bool) {
+/// The failure is still a Turn value, not an MCP `isError`.
+fn eval_turn(src: &str, session: &mut Session) -> String {
     let forms = match crate::parser::parse_all_with_file(src, "<mcp>") {
         Ok(f) => f,
-        Err(e) => return (format!("{e}"), true),
+        Err(e) => return format!("{e}"),
     };
     // An empty payload is not a failure; it is a turn that said nothing.
-    let mut answer = ("nil".to_string(), false);
+    let mut answer = "nil".to_string();
     for form in forms {
-        answer = eval_one_form(form, session);
-        if answer.1 {
+        let (text, halt) = eval_one_form(form, session);
+        answer = text;
+        if halt {
             return answer;
         }
     }
@@ -196,6 +359,7 @@ fn eval_turn(src: &str, session: &mut Session) -> (String, bool) {
 }
 
 /// One form against the session — the whole of a turn when the payload holds a single form.
+/// The bool is "stop the remaining forms", not MCP `isError`.
 fn eval_one_form(form: WatAST, session: &mut Session) -> (String, bool) {
     let outcome = match crate::runtime::eval_form_against_defs(
         &form,
@@ -221,9 +385,9 @@ fn eval_one_form(form: WatAST, session: &mut Session) -> (String, bool) {
                 let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
                 (render_edn(&v, types), false)
             }
-            // CheckFailed / Raised are SUCCESSFUL tool calls reporting a failed evaluation:
-            // the session survives them, which is the whole reason a REPL's failures have to
-            // be values. `isError` marks the evaluation, not the transport.
+            // CheckFailed / Raised are values. The session survives them. The
+            // sequence stops so later forms do not run against a world they
+            // were not written for. MCP `isError` is not involved.
             _ => {
                 let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
                 (render_edn(&v, types), true)
@@ -237,20 +401,29 @@ fn render_edn(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
     wat_edn::write(&crate::edn_shim::value_to_edn_with(v, types))
 }
 
+/// The text the model actually reads. Harnesses (Grok measured 2026-08-16)
+/// forward `content[0].text` and drop envelope `gen`. A Turn that omits
+/// `:gen` or `:ticket` cannot be constructed from this function — the
+/// epoch and the rendezvous are mandatory.
+fn render_turn(gen: i64, defs: usize, ticket: i64, value_edn: &str) -> String {
+    format!("#wat.mcp/Turn {{:gen {gen} :defs {defs} :ticket {ticket} :value {value_edn}}}")
+}
+
 // ─── the envelope ────────────────────────────────────────────────────────────────────────
 // Built as `OwnedValue` and serialized once, rather than spliced as text: the EDN payload
 // routinely contains double quotes (`#some.ns/Rec {:field "val"}`), so hand-interpolating it
 // into a JSON skeleton would be one escaping mistake away from a corrupt frame.
 
-fn result_frame(id: OwnedValue, result: OwnedValue) -> String {
+fn result_frame(id: OwnedValue, result: OwnedValue, gen: i64) -> String {
     wat_edn::to_json_string(&map(vec![
         ("jsonrpc", OwnedValue::String("2.0".into())),
         ("id", id),
-        ("result", result),
+        ("result", with_gen(result, gen)),
+        ("gen", OwnedValue::Integer(gen)),
     ]))
 }
 
-fn error_frame(id: OwnedValue, code: i64, message: &str) -> String {
+fn error_frame(id: OwnedValue, code: i64, message: &str, gen: i64) -> String {
     wat_edn::to_json_string(&map(vec![
         ("jsonrpc", OwnedValue::String("2.0".into())),
         ("id", id),
@@ -261,10 +434,26 @@ fn error_frame(id: OwnedValue, code: i64, message: &str) -> String {
                 ("message", OwnedValue::String(message.to_string().into())),
             ]),
         ),
+        ("gen", OwnedValue::Integer(gen)),
     ]))
 }
 
-fn tool_result(text: &str, is_error: bool) -> OwnedValue {
+/// Stamp `gen` onto a result map so a client that only forwards `result` still
+/// sees the epoch. The envelope also carries a top-level `gen` for the same reason.
+fn with_gen(result: OwnedValue, gen: i64) -> OwnedValue {
+    match result {
+        OwnedValue::Map(mut entries) => {
+            entries.push((OwnedValue::String("gen".into()), OwnedValue::Integer(gen)));
+            OwnedValue::Map(entries)
+        }
+        other => map(vec![("value", other), ("gen", OwnedValue::Integer(gen))]),
+    }
+}
+
+/// A Turn is a successful tool result. `isError: true` is unrepresentable
+/// here: Grok (measured 2026-08-16) prefixes `Failed to call eval:` and
+/// the Fault stops being a value.
+fn tool_result(text: &str) -> OwnedValue {
     map(vec![
         (
             "content",
@@ -273,7 +462,7 @@ fn tool_result(text: &str, is_error: bool) -> OwnedValue {
                 ("text", OwnedValue::String(text.to_string().into())),
             ])]),
         ),
-        ("isError", OwnedValue::Bool(is_error)),
+        ("isError", OwnedValue::Bool(false)),
     ])
 }
 
@@ -305,7 +494,16 @@ fn tools_list_result() -> OwnedValue {
             OwnedValue::String(
                 "Evaluate one wat/EDN form against this session. Definitions accumulate: a \
                  form declared in one call is in scope for every later one. The result is \
-                 returned as EDN text."
+                 always `#wat.mcp/Turn {:gen N :defs N :ticket T :value <edn>}` with \
+                 isError false. `:gen` is this process's epoch — if it changes, the \
+                 process was replaced and every prior definition is gone; re-declare; \
+                 do not diagnose unresolved names as rete bugs. `:defs` is how many \
+                 declarations the session holds. `:ticket` is the rendezvous for the \
+                 next eval/reset: pass it as `ticket` (0 if you have read no Turn). \
+                 A second call with the same ticket is not evaluated — `:value` is \
+                 `#wat.mcp/Fault {:kind :stale-ticket :expected T :got G}`. `:value` \
+                 is otherwise the form's EDN (nil for a declaration, #wat.core/Fault \
+                 for a failed evaluation). That Fault is a value, not a failed tool call."
                     .into(),
             ),
         ),
@@ -315,20 +513,40 @@ fn tools_list_result() -> OwnedValue {
                 ("type", OwnedValue::String("object".into())),
                 (
                     "properties",
-                    map(vec![(
-                        "edn",
-                        map(vec![
-                            ("type", OwnedValue::String("string".into())),
-                            (
-                                "description",
-                                OwnedValue::String("The form to evaluate, as EDN.".into()),
-                            ),
-                        ]),
-                    )]),
+                    map(vec![
+                        (
+                            "edn",
+                            map(vec![
+                                ("type", OwnedValue::String("string".into())),
+                                (
+                                    "description",
+                                    OwnedValue::String("The form to evaluate, as EDN.".into()),
+                                ),
+                            ]),
+                        ),
+                        (
+                            "ticket",
+                            map(vec![
+                                ("type", OwnedValue::String("integer".into())),
+                                (
+                                    "description",
+                                    OwnedValue::String(
+                                        "The :ticket of the last Turn you read, or 0 \
+                                         if you have read none. Reusing a ticket is a \
+                                         protocol Fault; the form is not evaluated."
+                                            .into(),
+                                    ),
+                                ),
+                            ]),
+                        ),
+                    ]),
                 ),
                 (
                     "required",
-                    OwnedValue::Vector(vec![OwnedValue::String("edn".into())]),
+                    OwnedValue::Vector(vec![
+                        OwnedValue::String("edn".into()),
+                        OwnedValue::String("ticket".into()),
+                    ]),
                 ),
             ]),
         ),
@@ -339,7 +557,11 @@ fn tools_list_result() -> OwnedValue {
         (
             "description",
             OwnedValue::String(
-                "Discard every definition made in this session. The process keeps running."
+                "Discard every definition made in this session. The process keeps running. \
+                 Requires the last Turn's `:ticket` (or 0 if none). Replies \
+                 `#wat.mcp/Turn {:gen N :defs 0 :ticket T :value nil}` — same gen, \
+                 new ticket, empty defs. A stale ticket is `#wat.mcp/Fault` and \
+                 does not clear the session."
                     .into(),
             ),
         ),
@@ -347,7 +569,27 @@ fn tools_list_result() -> OwnedValue {
             "inputSchema",
             map(vec![
                 ("type", OwnedValue::String("object".into())),
-                ("properties", map(vec![])),
+                (
+                    "properties",
+                    map(vec![(
+                        "ticket",
+                        map(vec![
+                            ("type", OwnedValue::String("integer".into())),
+                            (
+                                "description",
+                                OwnedValue::String(
+                                    "The :ticket of the last Turn you read, or 0 \
+                                     if you have read none."
+                                        .into(),
+                                ),
+                            ),
+                        ]),
+                    )]),
+                ),
+                (
+                    "required",
+                    OwnedValue::Vector(vec![OwnedValue::String("ticket".into())]),
+                ),
             ]),
         ),
     ]);
@@ -382,6 +624,17 @@ fn get<'a>(v: &'a OwnedValue, key: &str) -> Option<&'a OwnedValue> {
 fn as_str(v: &OwnedValue) -> Option<&str> {
     match v {
         OwnedValue::String(s) => Some(s.as_ref()),
+        _ => None,
+    }
+}
+
+fn as_i64(v: &OwnedValue) -> Option<i64> {
+    match v {
+        OwnedValue::Integer(n) => Some(*n),
+        // JSON hosts sometimes deliver whole numbers as floats.
+        OwnedValue::Float(f) if f.fract() == 0.0 && *f >= 0.0 && *f <= JSON_SAFE_INT as f64 => {
+            Some(*f as i64)
+        }
         _ => None,
     }
 }
