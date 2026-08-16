@@ -28,7 +28,8 @@ fn try_eval(path: &str) -> Result<Value, String> {
 // C — first/rest over a VECTOR form (#[ignore] diagnostic)
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "249.4 diagnostic — run with --ignored to read the gap"]
+#[ignore = "ON-DEMAND (not debt) — arc 249.4 DIAGNOSTIC. Its job is to be READ, not to gate. \
+            Run: cargo nextest run --run-ignored only -E 'binary(macros)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn diag_first_over_vector_form() {
     let result = try_eval("tests/macros/probe_arc249_4_rehome_in_wat_vec_first.wat");
     println!("\n=== diag_first_over_vector_form ===\nexpect Ok(10):\n{:#?}\n", result);
@@ -53,7 +54,8 @@ fn canonical_comprehension_replaces_for() {
 // A — keyword-form → text (#[ignore] diagnostic)
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "249.4 diagnostic — run with --ignored to read the gap"]
+#[ignore = "ON-DEMAND (not debt) — arc 249.4 DIAGNOSTIC. Its job is to be READ, not to gate. \
+            Run: cargo nextest run --run-ignored only -E 'binary(macros)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn diag_keyword_to_string_over_form() {
     let result = try_eval("tests/macros/probe_arc249_4_rehome_in_wat_kw_to_str.wat");
     println!("\n=== diag_keyword_to_string_over_form ===\n{:#?}\n", result);

@@ -35279,7 +35279,9 @@ mod tests {
     // both used and checked — the optimiser cannot delete it without
     // producing a wrong answer.
     #[test]
-    #[ignore = "manual perf harness — run explicitly; see 255.1c-guard"]
+    #[ignore = "ON-DEMAND (not debt) — manual PERF harness (see 255.1c-guard). Measures, does not \
+            gate. Run: cargo nextest run --release --run-ignored only \
+            -E 'test(dispatch_keyword_head_value_perf)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
     fn dispatch_keyword_head_value_perf() {
         let (stdlib_sym, _stdlib_macros, _stdlib_types) = stdlib_loaded();
         let env = Environment::new();

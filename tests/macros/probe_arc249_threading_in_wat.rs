@@ -73,7 +73,9 @@ fn diag_is_list_over_form() {
 // first-over-form (#[ignore] — 249.3 diagnostic)
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
+#[ignore = "ON-DEMAND (not debt) — arc 249.3 DIAGNOSTIC. Its job is to be READ, not to gate: \
+            run it to see the current threading gap. Run: cargo nextest run --run-ignored only \
+            -E 'test(diag_first_over_form)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn diag_first_over_form() {
     let result = try_compute_from_file("tests/macros/probe_arc249_threading_in_wat_head_first.wat");
     println!("\n=== diag_first_over_form ===\n{:#?}\n", result);

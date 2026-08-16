@@ -48,7 +48,9 @@ fn run(compute_fn: &str) -> Value {
 
 // ─── Self-recursion via if ────────────────────────────────────────────
 
-#[ignore = "boundary-slow: million-depth recursion; not a golden"]
+#[ignore = "ON-DEMAND (not debt) — BOUNDARY PROBE: million-depth self-recursion. Deliberately \
+            outside the floor on RUNTIME, not on brokenness; it passes. Run: cargo nextest run \
+            --release --run-ignored only -E 'test(self_recursion_via_if_at_million_depth)'. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 #[test]
 fn self_recursion_via_if_at_million_depth() {
     // The canonical TCO benchmark from the arc 003 design doc. Without

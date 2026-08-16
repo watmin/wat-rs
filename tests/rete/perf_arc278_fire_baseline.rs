@@ -74,7 +74,9 @@ fn run_for(n: usize) {
 }
 
 #[test]
-#[ignore = "perf baseline — run on demand: cargo test ... -- --ignored --nocapture"]
+#[ignore = "ON-DEMAND (not debt) — PERF BASELINE, deliberately outside the floor: it measures, it \
+            does not gate. Run: cargo nextest run --release --run-ignored only \
+            -E 'test(fire_throughput_baseline)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn fire_throughput_baseline() {
     eprintln!("--- wat-eval fire-rules throughput (re-run-from-scratch reference engine) ---");
     for &n in &[25usize, 50, 100, 200, 400] {
@@ -122,7 +124,9 @@ fn run_native(n: usize) {
 }
 
 #[test]
-#[ignore = "perf — native fire-once' join scaling (P2 cross = O(N²); P3 keyed = O(N)). Run on demand."]
+#[ignore = "ON-DEMAND (not debt) — PERF: native fire-once join scaling (P2 cross = O(N^2); \
+            P3 keyed = O(N)). Measures, does not gate. Run: cargo nextest run --release \
+            --run-ignored only -E 'test(native_fire_once_join_scaling)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn native_fire_once_join_scaling() {
     eprintln!("--- native fire-once' join scaling (N distinct locs: N joins of N×N candidate pairs) ---");
     for &n in &[100usize, 200, 400, 800, 1600] {
