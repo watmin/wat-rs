@@ -359,16 +359,15 @@ fn is_stale_ticket(text: &str) -> bool {
                 OwnedValue::Map(entries) => entries,
                 _ => return false,
             };
-            map.iter().any(|(k, val)| match (k, val) {
-                (OwnedValue::Keyword(kw), OwnedValue::Keyword(kind))
-                    if kw.namespace().is_none()
-                        && kw.name() == "kind"
-                        && kind.namespace().is_none()
-                        && kind.name() == "stale-ticket" =>
-                {
-                    true
-                }
-                _ => false,
+            map.iter().any(|(k, val)| {
+                matches!(
+                    (k, val),
+                    (OwnedValue::Keyword(kw), OwnedValue::Keyword(kind))
+                        if kw.namespace().is_none()
+                            && kw.name() == "kind"
+                            && kind.namespace().is_none()
+                            && kind.name() == "stale-ticket"
+                )
             })
         }
         _ => false,

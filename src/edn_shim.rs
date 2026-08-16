@@ -3466,7 +3466,7 @@ pub(crate) fn value_to_edn_string_with(
 /// Decode a compact EDN `String` back to a `Value` — the inverse of
 /// [`value_to_edn_string`]. Used by the process-tier apply-loop to
 /// deserialize the parent's encoded messages in the child, and by
-/// `HolonRepresentable for Value` for completeness.
+/// `EdnRepresentable::from_wire for Value` (`comms/mod.rs`).
 ///
 /// Passes `None` for the type registry — reconstructs only primitive
 /// Values (i64, f64, bool, nil, String, keyword, Vec, HashMap). User-
