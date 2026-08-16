@@ -9930,17 +9930,29 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     let a_span = args[0].span().clone();
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
-    let order = match values_compare(&a, &b) {
-        Some(o) => o,
-        None => {
-            return Err(RuntimeError::new(a_span, RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "matching comparable pair",
-                got: Box::new(ValueSnapshot::of(&a))
-            }).into());
-        }
+    // Arc 300 stone C5c — consult the exact ordering door FIRST. IEEE 754: every
+    // ordered comparison involving NaN is false, for ALL FOUR of `< > <= >=` — so
+    // `Incomparable` short-circuits to `false` regardless of which predicate `pred`
+    // is (a `!= Greater` spelling of `<=` would otherwise read NaN's collapsed
+    // `Equal` as true). Non-numeric pairs (`NotNumeric`) fall through to the
+    // existing `values_compare` path, byte-identical to before this stone.
+    // `values_compare` itself is NOT changed — its own NaN->`Equal` posture is the
+    // collection-totality seam this stone deliberately leaves (see the design stone).
+    let result = match crate::value::numeric_order::numeric_order(&a, &b) {
+        crate::value::numeric_order::NumOrd::Ord(o) => pred(o),
+        crate::value::numeric_order::NumOrd::Incomparable => false,
+        crate::value::numeric_order::NumOrd::NotNumeric => match values_compare(&a, &b) {
+            Some(o) => pred(o),
+            None => {
+                return Err(RuntimeError::new(a_span, RuntimeErrorKind::TypeMismatch {
+                    op: head.into(),
+                    expected: "matching comparable pair",
+                    got: Box::new(ValueSnapshot::of(&a))
+                }).into());
+            }
+        },
     };
-    Ok(Value::bool(pred(order)))
+    Ok(Value::bool(result))
 }
 
 /// Stone 237.8b — NaN-correct f64 ordering primitive.

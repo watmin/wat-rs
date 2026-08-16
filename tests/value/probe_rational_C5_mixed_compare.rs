@@ -68,14 +68,14 @@ fn c5b_exact_mixed_numeric_order_gate() {
         // row 11 — +/-inf survives the exact path (regression guard, must not move).
         (":probe::c5b-row11-inf", true),
         (":probe::c5b-row11-neg-inf", true),
-        // row 12 — NaN policy PRESERVED byte-for-byte, wart and all: `values_compare` maps NaN -> Equal,
-        // so `<=` (order != Greater) reads Equal as true. This is a SEPARATELY FLAGGED, known defect
-        // (see NOTE-C5-mixed-compare-loses-precision-above-2-53.md's "FLAGGED, NOT FOLDED" section /
-        // the design stone) — IEEE 754 says every NaN comparison should be false. C5b does NOT fix it;
-        // this row pins the wart so it stays falsifiable when its own stone is drawn. NOT a bug in
-        // this stone's scope — do not "fix" this row without re-reading the flag.
+        // row 12 — SUPERSEDED by DESIGN-STONE-C5c-no-warts-NaN-is-unordered.md: this row used to pin
+        // the wart (`<=` reading NaN-collapsed-to-Equal as true) deliberately, as its own falsifiable
+        // marker for when the NaN stone landed. C5c is that stone: `eval_compare` now consults
+        // `numeric_order` first and returns `false` for ALL FOUR of `< > <= >=` on `Incomparable`
+        // (IEEE 754). `values_compare` itself is untouched — this row is about `eval_compare`'s
+        // policy, which is what actually changed.
         (":probe::c5b-row12-nan-lt", false),
-        (":probe::c5b-row12-nan-le", true), // the wart, pinned deliberately
+        (":probe::c5b-row12-nan-le", false), // C5c: was the wart (true); now IEEE-correct
         // row 13 — ordinary small mixed numerics, regression guard.
         (":probe::c5b-row13a", true),
         (":probe::c5b-row13b", false),
