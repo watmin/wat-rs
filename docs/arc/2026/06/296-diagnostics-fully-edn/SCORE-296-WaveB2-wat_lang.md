@@ -134,3 +134,85 @@ Only `#[ignore]` attribute deletions — 40 lines across 19 files (18 in `tests/
 
 None. All 40 tests named in the ground-truth diff (`git diff HEAD --name-only -- tests/`, 19 files) have a
 recovered disposition above, cross-checked one-for-one against the file/fn list.
+
+---
+
+# ★ ADJUDICATION OF THE 9 FINDINGS — 2026-08-15, orchestrator
+
+STOP-2 fired on "9 findings > the ~6 ceiling" and the batch correctly captured nothing. This section is the
+**re-plan STOP-2 demands.** It is appended, not merged into the table above: the recovered verdicts are what
+was judged at the time and they stay as they are. These are the dispositions.
+
+**Result: ZERO real defects. 8 STALENESS, 1 SUPERSEDED. The batch is clear to capture — all 40.**
+
+## Findings 2–7 — ONE named, deliberate cause
+
+`72a1ac3d — wall(278): arm the namespacing gate + migrate the corpus by codemod`, verified with
+`git diff-tree -r`, touched **10** arc157 fixtures including every fixture behind these six.
+
+The wall requires top-level names to be namespaced; the corpus was migrated by the sanctioned wat-fix
+codemod (R21). Names grew; spans and `:name` payloads moved by exactly that growth:
+
+| finding | fixture edit | golden delta | accounted for |
+|---|---|---|---|
+| 2 `def_type_mismatch_via_registered_type` | `:pi` → `:t::pi` (**+3**) | `end_col 74 → 77` (**+3**, start unmoved) | ✓ exact |
+| 3 `def_type_error_in_expr` | `:bad` → `:t::bad` (**+3**) | `col 35→38, end 47→50` (**+3 both**) | ✓ exact |
+| 4–7 the four `def_redef_*` | decl name namespaced | `:name` `":a"` → `":wat-arc157-def-redef-*::a"` | ✓ same cause |
+
+Findings 2 and 3 are the load-bearing rows: the span deltas equal the name-length deltas **arithmetically**,
+so the movement is fully explained by the edit and nothing is left over for a carriage defect to hide in.
+
+→ **STALENESS.** The goldens predate a recorded migration.
+
+## Finding 9 — SUPERSEDED
+
+`wat_not_eq :: not_eq_f64_cross_numeric_coerce` asserts arc **237.8a** (cross-numeric coercion DELETED).
+Arc **300 Stone C5** deliberately reversed it. Stone **C5b** (today, `1f1873e1`) rebuilt that same path
+exactly and green. → **retire or rewrite against C5**, never recapture. See
+`[[feedback_a_superseded_design_looks_exactly_like_a_broken_check]]`.
+
+## ★ Findings 1 and 8 — a sub-class the vocabulary did not have
+
+Both are STALENESS, but neither fits "the face changed." **The golden pinned a WRONG value, and the fix
+looks like a regression.** These carry a heavier evidence burden than ordinary staleness: you must prove
+the OLD value was wrong. Both do.
+
+**Finding 8 — `wat_idempotent_redeclare :: define_divergent_body_errors`.** Old expectation:
+
+```rust
+span:              Span { file: "wat/core.wat", line: 512, col: 9, end_col: 24 },
+original_def_span: Span { file: "wat/core.wat", line: 512, col: 9, end_col: 24 }
+```
+
+Wrong three independent ways: (a) it points into **stdlib** for a name the user's fixture declares;
+(b) `wat/core.wat` contains no `add-one` at 512 or anywhere (`grep`, this session); (c) the error span and
+`original_def_span` are **byte-identical** — a redeclaration diagnostic whose "original" and "duplicate"
+are the same span never tracked the original at all. New behaviour: fixture line 4 and line 5, two distinct
+correct locations. `72a1ac3d` did NOT touch this fixture; its only history is a `.bad` rename (`91e1f652`).
+
+**Finding 1 — `probe_arc293_holder_bound :: core_record_rejected_by_holon_nature_bound`.** Timeline:
+expectation written at `4b9a6d7f` → **`3cd00fbb` (2026-07-10) hollowed the fixture** (deleted its `main`;
+the test loaded clean and proved nothing) → `a5225fe2` restored the driver **today**. For 37 days nothing
+exercised this path, so a span improvement inside that window could not be caught. Old `end_col: 36` lands
+**mid-token, on the `l` of `:slot`**; new col 42 is exactly one-past the closing paren of
+`(:env::CEnv :slot 1)` — verified char-by-char by the original rider against
+`probe_arc293_holder_bound_reject.wat:13`. A span that stops inside a token is not a defensible anchor.
+
+**Why this sub-class matters.** Ordinary staleness needs only "the face changed." This needs *proof the old
+value was wrong* — and without that proof it is **indistinguishable from a real regression**. That is the
+third disposition's trap one layer down: there, a design change wore a defect's clothes; here, a *fix* does.
+The original rider was right to refuse the call and report both — THE LAW says a span that moved in the
+user's `.wat` is a FINDING "regardless of which number looks more correct," and it held the line rather
+than talking itself into the comfortable answer. The escalation was correct; the disposition needed the record.
+
+## Disposition summary
+
+| | count | action |
+|---|---|---|
+| STALENESS (original 31) | 31 | capture |
+| STALENESS (findings 1–8) | 8 | capture |
+| SUPERSEDED (finding 9) | 1 | retire or rewrite against C5 — **do NOT recapture** |
+| real defects | **0** | — |
+
+**39 capturable + 1 to retire.** STOP-2 is resolved; the ~6-finding ceiling is not breached because there
+are zero findings left standing.
