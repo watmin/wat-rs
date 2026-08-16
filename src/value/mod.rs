@@ -29,6 +29,7 @@
 pub mod encoding_ctx;
 pub mod environment;
 pub mod frame;
+pub(crate) mod numeric_order;
 pub mod observe;
 pub mod pmap;
 pub mod signal;

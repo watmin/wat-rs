@@ -1,5 +1,10 @@
 # NOTE (arc 300) — C5's mixed-numeric ordering loses precision above 2⁵³ and gives a WRONG answer
 
+> **DISPOSITION 2026-08-15 — SETTLED. See `DESIGN-STONE-C5b-exact-mixed-numeric-order.md`.**
+> The fork this NOTE refused to pick is ruled **EXACT**. This NOTE's grounding was correct and its demand
+> for a census paid off — but **three of its statements were wrong**, and the corrections are below, at the
+> bottom. Read the stone for the settled shape; read this for how it was found.
+
 **Filed 2026-08-16. RULED: FIX IT** (builder, this session: *"we fix the bug"*). Surfaced while
 adjudicating a 296-recapture test that turned out to assert C5's *superseded predecessor*; the
 supersession was correct, and this is the separate, real defect the detour uncovered.
@@ -75,8 +80,53 @@ them passes under the buggy implementation:
 
 Also sweep `>` and `>=` — the family is six ops and the census above covers five.
 
+## ⛔ CORRECTIONS 2026-08-15 — three things above are wrong
+
+Written when the census this NOTE demanded had not yet been run. The census ran; it disagreed with the NOTE
+on three counts. Recorded here rather than edited away, because **the pattern of the errors is the lesson**:
+every one of them is a scope estimate made by reading rather than measuring.
+
+**1. "the family is six ops and the census above covers five" — it is FOUR ops.**
+`=` and `not=` route through `values_equal`, which is **category-aware** per C4: an i64 and an f64 are
+different numeric categories, so it returns `Some(false)` *without ever coercing*. No coercion, no rounding,
+no defect. `=`/`not=` were never in this family. The affected ops are **`< > <= >=`**.
+
+**2. "The fix's shape … `values_compare` is the arm" — there are THREE tables, not one.**
+The NOTE's own instruction (*"census the mixed-numeric compare arms first; do not assume there is one"*)
+was right and was worth more than it knew:
+
+| site | tower | mixed i64↔f64 | not-comparable |
+|---|---|---|---|
+| `src/runtime.rs:9793` `values_compare` | i64·u8·f64·BigInt·Rational | lossy | `None` → `TypeMismatch` |
+| `src/runtime.rs:13020` `walk_match_clause` | i64·u8·f64 | lossy | **silent `false`** |
+| `src/rete/matcher.rs:954` `compare_values` | i64·u8·f64 | lossy | `None` |
+
+Table 3's doc comment names its own duplication and points at `runtime.rs ~:10615` — a line that has since
+moved to `:13020`. **A comment that tracks a clone by line number is a clone that will drift, and it did.**
+
+**3. "the census above covers five [ops]" understated the LOSSY PAIRS too — there are six, not two.**
+`values_compare` coerces down to f64 for `i64↔f64`, `BigInt↔f64`, **and** `Rational↔f64`, both directions.
+`(< 1N 2.0)` and `(> 3.0 1/2)` are the identical defect one type over. The NOTE grounded only the i64 pair
+and generalised from it.
+
+### What the NOTE got right, and it was the load-bearing part
+
+- The bug, grounded, **in both directions** — including that the reverse direction is right *by accident*.
+  That instinct is what made the gate table demand both directions, and row 3 of it now pins the accident.
+- The refusal to settle EXACT-vs-clj-faithful by reading. It was genuinely undecidable from the stone's
+  text, and it was the builder's to rule. He ruled: *"we fix the bug."*
+- The demand for a census. It was the only reason tables 2 and 3 were ever found.
+
+### One claim still unverified
+
+*"clj coerces here too"* was reasoned, not run — no JVM in this loop by standing direction. It is carried as
+**unverified** in the C5 stone's amendment. If it turns out Clojure agrees with wat, the documented
+divergence disappears.
+
 ## Kin
 
+- `DESIGN-STONE-C5b-exact-mixed-numeric-order.md` — **the settled disposition.** One exact door, three
+  callers, each keeping its own policy for the non-`Ordering` outcomes.
 - `docs/arc/2026/07/300-wat-source-is-edn/DESIGN-STONE-rational-C5-mixed-compare.md` — the contract
   this violates, and the correct supersession of 237.8a.
 - `tests/wat_lang/wat_not_eq.rs::not_eq_f64_cross_numeric_coerce` — the 296-cohort test that asserts

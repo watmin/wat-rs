@@ -9796,14 +9796,27 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         (Value::i64(x), Value::i64(y)) => Some(x.cmp(y)),
         (Value::u8(x), Value::u8(y)) => Some(x.cmp(y)),
         (Value::f64(x), Value::f64(y)) => Some(x.partial_cmp(y).unwrap_or(Ordering::Equal)),
-        // Arc 050 — numeric cross-type ord. Promote i64 to f64 before
-        // comparison. Reachable when the polymorphic `:wat::core::<` (etc.)
-        // gets mixed-numeric args.
-        (Value::i64(x), Value::f64(y)) => {
-            Some((*x as f64).partial_cmp(y).unwrap_or(Ordering::Equal))
-        }
-        (Value::f64(x), Value::i64(y)) => {
-            Some(x.partial_cmp(&(*y as f64)).unwrap_or(Ordering::Equal))
+        // Arc 300 stone C5b — the 6 lossy f64-cross arms (i64/BigInt/Rational vs f64,
+        // both directions) all route through the one exact ordering door instead of
+        // coercing the exact operand down to f64 (arc 050's original coerce-down
+        // arms lost precision above 2^53: `(< 9007199254740992.0 9007199254740993)`
+        // was `false`; the door promotes the f64 UP to an exact `BigRational` via
+        // `from_f64`, never approximates). Policy here: NaN preserved as `Equal`
+        // (this caller's existing posture, unwrap_or(Equal), byte-identical to
+        // before). NotNumeric cannot occur for these type-guaranteed pairs.
+        (Value::i64(_), Value::f64(_))
+        | (Value::f64(_), Value::i64(_))
+        | (Value::wat__core__BigInt(_), Value::f64(_))
+        | (Value::f64(_), Value::wat__core__BigInt(_))
+        | (Value::wat__core__Rational(_), Value::f64(_))
+        | (Value::f64(_), Value::wat__core__Rational(_)) => {
+            match crate::value::numeric_order::numeric_order(a, b) {
+                crate::value::numeric_order::NumOrd::Ord(o) => Some(o),
+                crate::value::numeric_order::NumOrd::Incomparable => Some(Ordering::Equal),
+                crate::value::numeric_order::NumOrd::NotNumeric => {
+                    unreachable!("numeric_order given a pair the match pattern already proved numeric")
+                }
+            }
         }
         // Arc 300 stone C1 — bigint total order. Same-type: `BigInt`
         // implements `Ord`. Cross-type with i64: promote i64 to bigint
@@ -9813,23 +9826,15 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref().cmp(&BigInt::from(*y))),
         (Value::i64(x), Value::wat__core__BigInt(y)) => Some(BigInt::from(*x).cmp(y.as_ref())),
         // Arc 300 stone C4 — bigint↔f64 total order (was missing; grounding
-        // showed `(< 1N 2.0)` had no arm). Convert the bigint down to f64
-        // before comparing — lossy beyond f64's mantissa, same posture as
-        // `bigint::to-f64` / the rational↔f64 arms below.
-        (Value::wat__core__BigInt(x), Value::f64(y)) => {
-            Some(x.to_f64().unwrap_or(f64::NAN).partial_cmp(y).unwrap_or(Ordering::Equal))
-        }
-        (Value::f64(x), Value::wat__core__BigInt(y)) => {
-            Some(x.partial_cmp(&y.to_f64().unwrap_or(f64::NAN)).unwrap_or(Ordering::Equal))
-        }
+        // showed `(< 1N 2.0)` had no arm). The bigint↔f64 and rational↔f64 mixed
+        // arms both route through the C5b door above (combined with the
+        // i64↔f64 arm) — see the `numeric_order` match arm just above `Value::f64`.
         // Arc 300 stone C2 — rational total order. Same-type: `BigRational`
         // implements `Ord` (cross-multiplication, exact — no float rounding).
         // Cross-type with i64/bigint: promote the integer side to a
         // `BigRational` before comparing (mirrors the i64↔bigint promotion
-        // pattern immediately above, one type over). Cross-type with f64:
-        // convert the rational to f64 before comparing (mirrors the i64↔f64
-        // promotion pattern above) — lossy beyond f64's mantissa, same
-        // posture as `bigint::to-f64`.
+        // pattern immediately above, one type over). Cross-type with f64: see
+        // the C5b door above — no longer coerced down to f64.
         (Value::wat__core__Rational(x), Value::wat__core__Rational(y)) => Some(x.cmp(y)),
         (Value::wat__core__Rational(x), Value::i64(y)) => {
             Some(x.as_ref().cmp(&BigRational::from_integer(BigInt::from(*y))))
@@ -9842,12 +9847,6 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         }
         (Value::wat__core__BigInt(x), Value::wat__core__Rational(y)) => {
             Some(BigRational::from_integer((**x).clone()).cmp(y.as_ref()))
-        }
-        (Value::wat__core__Rational(x), Value::f64(y)) => {
-            Some(x.to_f64().unwrap_or(f64::NAN).partial_cmp(y).unwrap_or(Ordering::Equal))
-        }
-        (Value::f64(x), Value::wat__core__Rational(y)) => {
-            Some(x.partial_cmp(&y.to_f64().unwrap_or(f64::NAN)).unwrap_or(Ordering::Equal))
         }
         (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
         (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
@@ -13017,18 +13016,32 @@ fn walk_match_clause(
                     Ok((!eq, env))
                 }
                 _ => {
+                    // Arc 300 stone C5b — the i64<->f64 cross arms route through the
+                    // one exact ordering door instead of coercing i64 down to f64
+                    // (lossy above 2^53). Policy for this caller (Clara no-error
+                    // semantics): Incomparable (NaN) -> Equal, preserving today's
+                    // behaviour byte-for-byte; NotNumeric can't occur for these two
+                    // type-guaranteed arms but falls to the `_ => Ok((false, env))`
+                    // silent-false below if it ever did. No BigInt/Rational arms are
+                    // added here — this table only ever knew i64/u8/f64, and adding
+                    // them is a widening this stone does not ask for.
                     let order = match (&a, &b) {
                         (Value::i64(x), Value::i64(y)) => x.cmp(y),
                         (Value::u8(x), Value::u8(y)) => x.cmp(y),
                         (Value::f64(x), Value::f64(y)) => {
                             x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
                         }
-                        (Value::i64(x), Value::f64(y)) => (*x as f64)
-                            .partial_cmp(y)
-                            .unwrap_or(std::cmp::Ordering::Equal),
-                        (Value::f64(x), Value::i64(y)) => x
-                            .partial_cmp(&(*y as f64))
-                            .unwrap_or(std::cmp::Ordering::Equal),
+                        (Value::i64(_), Value::f64(_)) | (Value::f64(_), Value::i64(_)) => {
+                            match crate::value::numeric_order::numeric_order(&a, &b) {
+                                crate::value::numeric_order::NumOrd::Ord(o) => o,
+                                crate::value::numeric_order::NumOrd::Incomparable => {
+                                    std::cmp::Ordering::Equal
+                                }
+                                crate::value::numeric_order::NumOrd::NotNumeric => {
+                                    return Ok((false, env));
+                                }
+                            }
+                        }
                         (Value::String(x), Value::String(y)) => x.cmp(y),
                         (Value::bool(x), Value::bool(y)) => x.cmp(y),
                         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => x.cmp(y),
@@ -35066,4 +35079,62 @@ mod tests {
         );
     }
 
+    /// Arc 300 stone C5b — `walk_match_clause`'s `RawClause::Compare` arm is unreachable
+    /// with mixed-numeric operands through the checked rete `:wat::form::matches?` path
+    /// (`check_comparison` unifies operand types first; see the design stone's
+    /// reachability ruling). It has no wat-surface entry point, so it is driven directly
+    /// here — this is its only executable regression coverage for the fix.
+    fn walk_compare_bool(src: &str) -> bool {
+        let clause = crate::parse_one!(src).expect("parse");
+        let sym = SymbolTable::new();
+        let (passed, _env) =
+            walk_match_clause(&clause, &[], &[], Environment::new(), &sym).expect("walk_match_clause");
+        passed
+    }
+
+    #[test]
+    fn c5b_walk_match_clause_i64_f64_boundary_is_exact() {
+        // RED at HEAD: coercing 2^53+1 down to f64 rounded it onto 2^53, comparing Equal.
+        assert!(
+            walk_compare_bool("(< 9007199254740992.0 9007199254740993)"),
+            "(< 2^53.0 2^53+1) must be true"
+        );
+        assert!(
+            !walk_compare_bool("(< 9007199254740993 9007199254740992.0)"),
+            "(< 2^53+1 2^53.0) must stay false — pins the pre-fix accident"
+        );
+        assert!(
+            walk_compare_bool("(> 9007199254740993 9007199254740992.0)"),
+            "(> 2^53+1 2^53.0) must be true"
+        );
+        assert!(
+            !walk_compare_bool("(>= 9007199254740992.0 9007199254740993)"),
+            "(>= 2^53.0 2^53+1) must be false"
+        );
+    }
+
+    /// This caller's NaN policy is `Equal` (preserved byte-for-byte, wart and all — the
+    /// same posture `values_compare` has, and deliberately different from
+    /// `compare_values`' `None`). Losing this would be STOP-2.
+    #[test]
+    fn c5b_walk_match_clause_nan_preserved_as_equal() {
+        assert!(
+            !walk_compare_bool("(< 1 (:wat::core::f64::/ 0.0 0.0))"),
+            "(< 1 NaN) must stay false"
+        );
+        assert!(
+            walk_compare_bool("(<= 1 (:wat::core::f64::/ 0.0 0.0))"),
+            "(<= 1 NaN) must stay true — the separately-flagged, deliberately-preserved wart"
+        );
+    }
+
+    /// STOP-1 regression guard: an unknown-type pair (not in this table's vocabulary of
+    /// i64/u8/f64/String/bool/keyword) stays the silent-false Clara no-error result.
+    #[test]
+    fn c5b_walk_match_clause_not_numeric_stays_silent_false() {
+        assert!(
+            !walk_compare_bool(r#"(< "a" 1)"#),
+            "an incomparable pair must stay silent-false, not error"
+        );
+    }
 }

@@ -948,16 +948,30 @@ pub(crate) fn read_fact_field(
 /// Pure ordering comparison for the numeric/string/bool types that the rete DSL's
 /// `<`, `>`, `<=`, `>=` operators support.
 ///
-/// Mirrors the Compare arm in `walk_match_clause` (`runtime.rs` ~:10615) but as a
-/// pure value-level function: no `Environment`, no `EvalBreak`. Returns `None` for
-/// incompatible types (Clara no-error: type mismatch = constraint fails = `None`).
+/// Routes the numeric arms through the one exact ordering door, `crate::value::
+/// numeric_order` — arc 300 stone C5b — instead of the i64<->f64 coerce-to-f64 this
+/// used to hand-roll (lossy above 2^53). Policy here DIFFERS from `walk_match_clause`'s
+/// `RawClause::Compare` deliberately: NaN (`Incomparable`) maps to `None`, not `Equal`
+/// — that disagreement between the two tables is real and preserved, per the stone.
+/// Still no `Environment`, no `EvalBreak`, and still returns `None` for incompatible
+/// types (Clara no-error: type mismatch = constraint fails = `None`). This table only
+/// ever knew i64/u8/f64; no BigInt/Rational arms are added — see
+/// `docs/arc/2026/07/300-wat-source-is-edn/DESIGN-STONE-C5b-exact-mixed-numeric-order.md`
+/// for why that widening does not apply here (`check_comparison` already rejects
+/// mixed-numeric rete clauses before they can reach this function).
 pub(crate) fn compare_values(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
+    use crate::value::numeric_order::{numeric_order, NumOrd};
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => Some(x.cmp(y)),
         (Value::u8(x), Value::u8(y)) => Some(x.cmp(y)),
         (Value::f64(x), Value::f64(y)) => x.partial_cmp(y),
-        (Value::i64(x), Value::f64(y)) => (*x as f64).partial_cmp(y),
-        (Value::f64(x), Value::i64(y)) => x.partial_cmp(&(*y as f64)),
+        (Value::i64(_), Value::f64(_)) | (Value::f64(_), Value::i64(_)) => {
+            match numeric_order(a, b) {
+                NumOrd::Ord(o) => Some(o),
+                NumOrd::Incomparable => None,
+                NumOrd::NotNumeric => None,
+            }
+        }
         (Value::String(x), Value::String(y)) => Some(x.as_ref().cmp(y.as_ref())),
         (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.as_ref().cmp(y.as_ref())),
@@ -1518,5 +1532,46 @@ mod one_core_vocabulary_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod c5b_compare_values_gate_tests {
+    use super::*;
+
+    /// Arc 300 stone C5b — `compare_values` is unreachable with mixed-numeric operands
+    /// through the checked rete path (`check_comparison` unifies operand types before
+    /// either rete comparison table is reached; see the design stone's reachability
+    /// ruling). It has no wat-surface entry point, so it is exercised directly here —
+    /// this is its only executable regression coverage for the fix.
+    #[test]
+    fn i64_f64_boundary_is_exact_not_lossy() {
+        let above = Value::i64(9007199254740993); // 2^53 + 1
+        let at_limit = Value::f64(9007199254740992.0); // 2^53, last exact f64 integer
+        // RED at HEAD: coercing 2^53+1 down to f64 rounded it onto 2^53, comparing Equal.
+        assert_eq!(compare_values(&at_limit, &above), Some(std::cmp::Ordering::Less));
+        assert_eq!(compare_values(&above, &at_limit), Some(std::cmp::Ordering::Greater));
+    }
+
+    /// This caller's NaN policy DIFFERS from `values_compare`'s and `walk_match_clause`'s
+    /// deliberately (table 3 disagreed before the collapse and must keep disagreeing):
+    /// NaN maps to `None` here, not `Some(Equal)`. Losing this divergence would be STOP-2.
+    #[test]
+    fn nan_is_none_not_equal() {
+        assert_eq!(compare_values(&Value::i64(1), &Value::f64(f64::NAN)), None);
+        assert_eq!(compare_values(&Value::f64(f64::NAN), &Value::i64(1)), None);
+    }
+
+    /// Same-type fast paths are untouched (STOP-1 regression guard).
+    #[test]
+    fn same_type_fast_paths_unaffected() {
+        assert_eq!(compare_values(&Value::i64(3), &Value::i64(5)), Some(std::cmp::Ordering::Less));
+        assert_eq!(compare_values(&Value::u8(5), &Value::u8(3)), Some(std::cmp::Ordering::Greater));
+    }
+
+    /// Incompatible types stay `None` (Clara no-error), unaffected by the numeric fix.
+    #[test]
+    fn incompatible_types_stay_none() {
+        assert_eq!(compare_values(&Value::i64(1), &Value::bool(true)), None);
     }
 }

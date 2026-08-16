@@ -64,3 +64,48 @@ wat's eval already computes it; only the check-side gate (237.8a's `cross-numeri
 
 `tests/value/probe_rational_C5_mixed_compare.rs` + a co-located fixture: `startup_from_file` a `.wat` doing
 `(< 1 2.0)` / `(= 1 1.0)` / `(<= 1 2N)` → **Ok** (RED at HEAD: Err); and eval those → `true`/`false`/`true`.
+
+---
+
+## ⚠ AMENDMENT 2026-08-15 — "the numeric-value comparison" was not true as implemented
+
+**This stone is not superseded and its thesis is not in question.** Accepting mixed-numeric comparison at
+the checker was the right reversal, and it correctly superseded arc 237.8a. The amendment is narrower: one
+line of the pinned contract described something the implementation did not do.
+
+The contract above pins:
+
+> *"**Ordering `< > <= >=`** on mixed numerics → **the numeric-value comparison** (`(< 1 2.0)` → `true`)."*
+
+From the day this stone landed until stone **C5b**, the implementation performed a **coerce-to-`f64`**
+comparison instead — which agrees with a numeric-value comparison only below 2⁵³. Above it:
+
+```clojure
+(:wat::core::< 9007199254740992.0 9007199254740993)   ⇒ false      ; TRUE is correct
+```
+
+2⁵³+1 is not f64-representable and rounds to 2⁵³, so the operands compared equal. The reverse direction
+returned `false` too — correct **by accident**, not by a second correct answer.
+
+`DESIGN-STONE-C5b-exact-mixed-numeric-order.md` makes the implementation match this contract, by promoting
+to the narrowest **exact** common representation instead of down to `f64`. **The wording above stands as
+written; C5b is what made it true.**
+
+### The divergence this creates from Clojure — deliberate, and stated here so it is never a surprise
+
+This stone justified itself two ways: *"matching eval and clj"* **and** *"the numeric-value comparison."*
+**Those two part company at exactly 2⁵³**, and this stone did not say which one wins. C5b settles it:
+**the numeric-value comparison wins.** Above 2⁵³, wat's mixed-numeric ordering is expected to give the
+mathematically correct answer even where Clojure's would not.
+
+⚠ **The claim that Clojure returns `false` here is UNVERIFIED.** It was recorded from reasoning about
+Clojure's `Numbers.lt` double/long promotion, not from a run — there is no JVM in this loop by standing
+direction (*"i do not wish to have the jvm requirement in our CI tooling — so this remains local one
+offs"*). Anyone who runs it should record the result here. If Clojure turns out to agree with wat, the
+divergence disappears and only this paragraph needs deleting.
+
+### Two things this stone's own scope note got right, and one the follow-up NOTE got wrong
+
+- Right: `=` **stays category-aware** and is therefore structurally immune to the precision defect — it
+  never coerces, so it never rounds. `=`/`not=` were never affected.
+- The follow-up NOTE said *"the family is six ops"*. It is **four** — `< > <= >=`. See C5b.
