@@ -44,7 +44,6 @@ fn define_alias_length_to_user_size_delegates_correctly() {
 
 // ─── Test 3: retired form :wat::runtime::define-alias is HARD-CUT-rejected ───
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn define_alias_retired_form_rejected_at_startup() {
     let result = startup_from_file("tests/wat_lang/wat_arc143_define_alias_retired.wat.bad");
@@ -54,9 +53,9 @@ fn define_alias_retired_form_rejected_at_startup() {
     );
     // Verify the error message names the retired form and the remedy.
     let err_msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err_msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc143_define_alias_retired.wat.bad:4:2: malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead\n  did you mean: :wat::core::defalias [replaces a retired form]\n",
+        "wat_arc143_define_alias__define_alias_retired_form_rejected_at_startup.edn",
         "error message should name the retired form and the :wat::core::defalias replacement"
     );
 }

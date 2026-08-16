@@ -41,37 +41,34 @@ fn contract_02_legacy_define_hard_cut_rejected() {
 
 // ─── C03: error contains "did you mean: :wat::core::defn" ──────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_retirement_remedy_names_defn() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "probe_arc241_stone11_define_hard_cut__contract_03_retirement_remedy_names_defn.edn",
         "retirement remedy must name :wat::core::defn"
     );
 }
 
 // ─── C04: error carries [replaces a retired form] annotation ────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_04_retirement_kind_annotation_present() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "probe_arc241_stone11_define_hard_cut__contract_04_retirement_kind_annotation_present.edn",
         "retirement remedy must carry '[replaces a retired form]' annotation"
     );
 }
 
 // ─── C05: retirement table has 4 entries (structural proof) ────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_05_retirement_table_includes_define_entry() {
     // Indirect: :wat::core::defn appears in remedy text + [replaces a retired form]
@@ -79,9 +76,9 @@ fn contract_05_retirement_table_includes_define_entry() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "probe_arc241_stone11_define_hard_cut__contract_05_retirement_table_includes_define_entry.edn",
         "retirement table must include :wat::core::define -> :wat::core::defn entry"
     );
 }

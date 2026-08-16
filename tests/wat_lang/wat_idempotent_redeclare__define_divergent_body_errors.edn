@@ -1,0 +1,34 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/DefRedefForbidden {
+      :message "`:wat::core::def` redef of `:my::add-one`: name already bound at tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad:4:1. Redef is forbidden by default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different name, or enable redef explicitly."
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad"
+        :line 5
+        :col 1
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 94
+          }
+        ]
+      }
+      :causes []
+      :name ":my::add-one"
+      :prior-loc #wat.core/Span {
+        :file "tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad"
+        :line 4
+        :col 1
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 94
+          }
+        ]
+      }
+    }
+  ]
+}

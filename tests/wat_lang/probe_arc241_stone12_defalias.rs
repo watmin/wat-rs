@@ -54,14 +54,13 @@ fn contract_04_runtime_define_alias_hard_cut_rejected() {
 
 // ─── C05: rejection carries structured retirement remedy naming defalias ───────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_05_rejection_remedy_names_defalias() {
     let result = startup_from_file("tests/wat_lang/probe_arc241_stone12_defalias.wat.bad");
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone12_defalias.wat.bad:5:2: malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead\n  did you mean: :wat::core::defalias [replaces a retired form]\n",
+        "probe_arc241_stone12_defalias__contract_05_rejection_remedy_names_defalias.edn",
         "retirement remedy must name :wat::core::defalias with [replaces a retired form]"
     );
 }

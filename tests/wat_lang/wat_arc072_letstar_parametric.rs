@@ -59,7 +59,6 @@ fn letstar_result_no_whitespace_tuple_payload() {
 /// instead of silently truncating into a downstream type-check
 /// failure. This is the diagnostic improvement that makes proof-018-
 /// shape debugging tractable.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
     let result = startup_from_file(
@@ -69,9 +68,9 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
         .map(|_| panic!("expected lex error on `:HashMap<String, i64>`"))
         .unwrap_err();
     let err_msg = format!("{}", err);
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err_msg,
-        "parse: crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 236: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace",
+        "wat_arc072_letstar_parametric__whitespace_inside_angle_brackets_raises_clean_lex_error.edn",
         "expected exact lex-layer diagnostic for whitespace inside unclosed bracket"
     );
 }

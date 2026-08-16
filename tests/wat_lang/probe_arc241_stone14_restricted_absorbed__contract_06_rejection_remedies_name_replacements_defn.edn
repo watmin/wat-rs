@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::defn-restricted form: ':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted.wat.bad"
+        :line 4
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 29
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::defn-restricted"
+      :reason "':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::defn"
+          :kind :retirement
+          :score 0
+          :note "re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding"
+        }
+      ]
+    }
+  ]
+}

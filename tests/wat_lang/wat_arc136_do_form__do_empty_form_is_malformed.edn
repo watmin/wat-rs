@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::do form: do form requires at least one form; got zero"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc136_do_form_empty.wat.bad"
+        :line 4
+        :col 54
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 68
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::do"
+      :reason "do form requires at least one form; got zero"
+      :remedies []
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+#wat.type/DuplicateType {
+  :message "duplicate type declaration: :my::Amount"
+  :location #wat.core/Span {
+    :file "tests/wat_lang/wat_idempotent_redeclare_typealias_div.wat.bad"
+    :line 5
+    :col 1
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 5
+        :col 52
+      }
+    ]
+  }
+  :causes []
+  :name ":my::Amount"
+}

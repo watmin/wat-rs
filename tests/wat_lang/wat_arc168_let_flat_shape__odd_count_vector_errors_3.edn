@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::let form: let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc168_let_flat_shape_odd3.wat.bad"
+        :line 5
+        :col 20
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 27
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::let"
+      :reason "let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3"
+      :remedies []
+    }
+  ]
+}

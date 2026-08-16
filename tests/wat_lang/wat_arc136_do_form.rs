@@ -47,13 +47,12 @@ fn run_err_file(rel_path: &str) -> String {
 
 // ─── 1. Empty: (:wat::core::do) → MalformedForm parse error ─────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn do_empty_form_is_malformed() {
     let err = run_err_file("tests/wat_lang/wat_arc136_do_form_empty.wat.bad");
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_empty.wat.bad", line: 4, col: 54, end_line: 4, end_col: 68 }, kind: MalformedForm { head: ":wat::core::do", reason: "do form requires at least one form; got zero", remedies: [] } }]))"#,
+        "wat_arc136_do_form__do_empty_form_is_malformed.edn",
         "expected MalformedForm naming the do form"
     );
 }
@@ -81,13 +80,12 @@ fn do_recipient_unifies_with_final_form_type() {
 
 // ─── 5. Recipient mismatch fires TypeMismatch ───────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn do_recipient_mismatch_fires_type_mismatch() {
     let err = run_err_file("tests/wat_lang/wat_arc136_do_form_mismatch.wat.bad");
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_mismatch.wat.bad", line: 5, col: 3, end_line: 7, end_col: 8 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::String", got: ":wat::core::i64", remedies: [] } }]))"#,
+        "wat_arc136_do_form__do_recipient_mismatch_fires_type_mismatch.edn",
         "expected TypeMismatch at probe's body"
     );
 }

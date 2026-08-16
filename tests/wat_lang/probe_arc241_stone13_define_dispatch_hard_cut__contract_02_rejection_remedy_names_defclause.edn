@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::define-dispatch form: ':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad"
+        :line 6
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 29
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::define-dispatch"
+      :reason "':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::defclause"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+  ]
+}

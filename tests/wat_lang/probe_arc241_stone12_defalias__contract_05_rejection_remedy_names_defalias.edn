@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/probe_arc241_stone12_defalias.wat.bad"
+        :line 5
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 29
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::runtime::define-alias"
+      :reason "':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::defalias"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+  ]
+}

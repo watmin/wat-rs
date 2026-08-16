@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::i64::+: parameter #2 expects :wat::core::i64; got :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc168_let_flat_shape_typecheck.wat.bad"
+        :line 6
+        :col 27
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 39
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::core::i64::+"
+      :param "#2"
+      :expected ":wat::core::i64"
+      :got ":wat::core::String"
+      :remedies []
+    }
+  ]
+}

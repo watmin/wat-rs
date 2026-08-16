@@ -25,15 +25,14 @@ fn typealias_byte_equivalent_is_noop() {
     startup_beside(file!()).expect("startup should succeed for byte-equivalent typealias");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn typealias_divergent_errors() {
     let err = startup_err_file(
         "tests/wat_lang/wat_idempotent_redeclare_typealias_div.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Type(TypeError { span: Span { file: "tests/wat_lang/wat_idempotent_redeclare_typealias_div.wat.bad", line: 5, col: 1, end_line: 5, end_col: 52 }, kind: DuplicateType { name: ":my::Amount" } })"#,
+        "wat_idempotent_redeclare__typealias_divergent_errors.edn",
         "expected DuplicateType error for divergent typealias re-registration"
     );
 }
@@ -45,16 +44,15 @@ fn define_byte_equivalent_is_noop() {
     startup_beside(file!()).expect("startup should succeed for byte-equivalent defn");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn define_divergent_body_errors() {
     let err = startup_err_file(
         "tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "wat/core.wat", line: 512, col: 9, end_line: 512, end_col: 24 }, kind: DefRedefForbidden { name: ":my::add-one", original_def_span: Span { file: "wat/core.wat", line: 512, col: 9, end_line: 512, end_col: 24 } } }]))"#,
-        "expected DefRedefForbidden for divergent define re-registration"
+        "wat_idempotent_redeclare__define_divergent_body_errors.edn",
+        "expected DefRedefForbidden for divergent define re-registration (both spans inside the fixture, which defines :my::add-one twice)"
     );
 }
 

@@ -1,0 +1,41 @@
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/BareLegacyLetStar {
+      :message "':wat::core::let*' is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site."
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad"
+        :line 5
+        :col 4
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 20
+          }
+        ]
+      }
+      :causes []
+      :retired ":wat::core::let*"
+      :fqdn ":wat::core::let"
+    }
+    #wat.check/BareLegacyLetStar {
+      :message "':wat::core::let*' is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site."
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad"
+        :line 7
+        :col 4
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 7
+            :col 20
+          }
+        ]
+      }
+      :causes []
+      :retired ":wat::core::let*"
+      :fqdn ":wat::core::let"
+    }
+  ]
+}

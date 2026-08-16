@@ -16,30 +16,28 @@ use wat::freeze::startup_from_file;
 
 // ─── C01: define rejection error mentions "Stone 241.16" marker ────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_01_define_rejection_carries_stone_241_16_marker() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad");
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "probe_arc241_stone16_define_eval_residue__contract_01_define_rejection_carries_stone_241_16_marker.edn",
         ":wat::core::define rejection must carry Stone 241.16 marker (eval-time residue completion)"
     );
 }
 
 // ─── C02: retirement remedy STILL names :wat::core::defn (preservation) ────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_retirement_remedy_preserves_defn_replacement() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad");
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "probe_arc241_stone16_define_eval_residue__contract_02_retirement_remedy_preserves_defn_replacement.edn",
         "define retirement remedy must continue to name :wat::core::defn with [replaces a retired form]"
     );
 }

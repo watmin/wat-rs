@@ -46,32 +46,30 @@ fn let_accepts_sequential_bindings() {
 
 // --- 2. :wat::core::let* fires migration error -------------------------
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn let_star_post_retirement_silently_aliases_to_let() {
     // Arc 163 follow-up — walker re-armed; bare `:wat::core::let*` fires fatal.
     let err = startup_err_file(
         "tests/wat_lang/wat_arc154_kill_let_star_letstar.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_letstar.wat.bad", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
+        "wat_arc154_kill_let_star__let_star_post_retirement_silently_aliases_to_let.edn",
         "expected BareLegacyLetStar walker to fire on bare :wat::core::let*"
     );
 }
 
 // --- 3. Type-mismatch in let body still surfaces -----------------------
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn let_body_type_mismatch_surfaces() {
     // Sequential `let` body type must unify with declared return type.
     let err = startup_err_file(
         "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch.wat.bad", line: 5, col: 3, end_line: 5, end_col: 28 }, kind: ReturnTypeMismatch { function: ":t::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#,
+        "wat_arc154_kill_let_star__let_body_type_mismatch_surfaces.edn",
         "expected ReturnTypeMismatch on body type vs declared return"
     );
 }
@@ -118,16 +116,15 @@ fn walker_narrowness_other_keywords_unaffected() {
 
 // --- 9. Multiple let* sites post-retirement — silent fall-through ---
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn multiple_let_star_sites_post_retirement_silently_alias() {
     // Arc 163 follow-up — multiple let* sites all fire BareLegacyLetStar.
     let err = startup_err_file(
         "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }, CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad", line: 7, col: 4, end_line: 7, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
+        "wat_arc154_kill_let_star__multiple_let_star_sites_post_retirement_silently_alias.edn",
         "expected two BareLegacyLetStar errors for two let* sites"
     );
 }

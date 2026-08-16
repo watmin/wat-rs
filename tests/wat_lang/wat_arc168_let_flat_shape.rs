@@ -18,11 +18,9 @@ fn run_expr(name: &str) -> Value {
 }
 
 fn startup_err_file(rel_path: &str) -> String {
-    let src = format!("{}\n---\n{:?}", "", "");
-    let _ = src; // hint: we format both Display and Debug
     match startup_from_file(rel_path) {
         Ok(_) => panic!("expected startup failure; got Ok"),
-        Err(e) => format!("{}\n---\n{:?}", e, e),
+        Err(e) => format!("{:?}", e),
     }
 }
 
@@ -90,20 +88,19 @@ fn destructure_binding() {
 
 // ─── Test 9 — odd_count_vector_errors ────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn odd_count_vector_errors() {
     let err = startup_err_file("tests/wat_lang/wat_arc168_let_flat_shape_odd.wat.bad");
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc168_let_flat_shape_odd.wat.bad:5:20: malformed :wat::core::let form: let bindings vector must have an even number of elements (alternating name expr name expr ...); got 1\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/wat_lang/wat_arc168_let_flat_shape_odd.wat.bad\", line: 5, col: 20, end_line: 5, end_col: 23 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let bindings vector must have an even number of elements (alternating name expr name expr ...); got 1\", remedies: [] } }]))",
+        "wat_arc168_let_flat_shape__odd_count_vector_errors_1.edn",
         "expected MalformedForm for odd-count [x]"
     );
 
     let err3 = startup_err_file("tests/wat_lang/wat_arc168_let_flat_shape_odd3.wat.bad");
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err3,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc168_let_flat_shape_odd3.wat.bad:5:20: malformed :wat::core::let form: let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/wat_lang/wat_arc168_let_flat_shape_odd3.wat.bad\", line: 5, col: 20, end_line: 5, end_col: 27 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3\", remedies: [] } }]))",
+        "wat_arc168_let_flat_shape__odd_count_vector_errors_3.edn",
         "expected MalformedForm for odd-count [x 1 y]"
     );
 }
@@ -120,15 +117,14 @@ fn multi_form_let_body() {
 
 // ─── Test 11 — multi_form_let_body_typecheck ─────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn multi_form_let_body_typecheck() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc168_let_flat_shape_typecheck.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc168_let_flat_shape_typecheck.wat.bad:6:27: :wat::core::i64::+: parameter #2 expects :wat::core::i64; got :wat::core::String\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/wat_lang/wat_arc168_let_flat_shape_typecheck.wat.bad\", line: 6, col: 27, end_line: 6, end_col: 39 }, kind: TypeMismatch { callee: \":wat::core::i64::+\", param: \"#2\", expected: \":wat::core::i64\", got: \":wat::core::String\" } }]))",
+        "wat_arc168_let_flat_shape__multi_form_let_body_typecheck.edn",
         "expected TypeMismatch on non-final body form"
     );
 }

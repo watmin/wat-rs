@@ -32,16 +32,15 @@ fn contract_01_define_dispatch_hard_cut_rejected() {
 
 // ─── C02: rejection carries structured retirement remedy naming defclause ──────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_rejection_remedy_names_defclause() {
     let result = startup_from_file(
         "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad",
     );
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad:6:2: malformed :wat::core::define-dispatch form: ':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead\n  did you mean: :wat::core::defclause [replaces a retired form]\n",
+        "probe_arc241_stone13_define_dispatch_hard_cut__contract_02_rejection_remedy_names_defclause.edn",
         "retirement remedy must name :wat::core::defclause with [replaces a retired form]"
     );
 }

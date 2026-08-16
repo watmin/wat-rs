@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":env::wants-holon: parameter #1 expects :env::Holon; got :env::CEnv"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc293_holder_bound_reject.wat"
+        :line 13
+        :col 22
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 13
+            :col 42
+          }
+        ]
+      }
+      :causes []
+      :callee ":env::wants-holon"
+      :param "#1"
+      :expected ":env::Holon"
+      :got ":env::CEnv"
+      :remedies []
+    }
+  ]
+}

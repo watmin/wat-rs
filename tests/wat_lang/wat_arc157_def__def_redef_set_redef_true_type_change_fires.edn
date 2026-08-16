@@ -1,0 +1,36 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/DefRedefTypeChange {
+      :message "`:wat::core::def` redef of `:wat-arc157-def-redef-type-change::a` changes type from `:wat::core::i64` to `:wat::core::String` (prior binding at tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad:3:2). Type-stability is mandatory on redef — the signature downstream callers depend on must stay intact. Only the expression's value may change; the type must not."
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad"
+        :line 4
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 17
+          }
+        ]
+      }
+      :causes []
+      :name ":wat-arc157-def-redef-type-change::a"
+      :prior-type ":wat::core::i64"
+      :new-type ":wat::core::String"
+      :prior-loc #wat.core/Span {
+        :file "tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad"
+        :line 3
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 17
+          }
+        ]
+      }
+    }
+  ]
+}

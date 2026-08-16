@@ -72,7 +72,6 @@ fn startup_err_file(rel_path: &str) -> String {
 
 // --- 1. Type-position retired: :wat::core::unit now unknown FQDN -------
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn type_position_unit_post_retirement_is_unknown_fqdn() {
     // Arc 153 slice 2 — substrate retirement closed the
@@ -81,9 +80,9 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        "wat_arc153_nil_rename__type_position_unit_post_retirement_is_unknown_fqdn.edn",
         "expected BareLegacyUnitName walker to fire on retired :wat::core::unit"
     );
 }
@@ -106,16 +105,15 @@ fn value_position_nil_keyword_type_checks_and_evaluates() {
 
 // --- 4. Type mismatch: declaring i64 but body is :wat::core::nil -------
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     // nil body vs i64 sig → ReturnTypeMismatch.
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_nil_i64.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_nil_i64.wat.bad", line: 4, col: 51, end_line: 4, end_col: 54 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::i64", got: ":wat::core::nil", remedies: [] } }]))"#,
+        "wat_arc153_nil_rename__value_position_nil_against_i64_recipient_fires_type_mismatch.edn",
         "expected ReturnTypeMismatch when nil body meets i64 sig"
     );
 }
@@ -138,16 +136,15 @@ fn mixed_empty_list_body_with_nil_sig_now_rejected() {
 
 // --- 6. Reverse mixed: :wat::core::nil body, retired :unit sig --------
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
     // Arc 163 follow-up — walker re-armed; unit sig fires BareLegacyUnitName.
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_unit_sig.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_sig.wat.bad", line: 4, col: 35, end_line: 4, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        "wat_arc153_nil_rename__reverse_mixed_nil_body_with_retired_unit_sig_post_retirement.edn",
         "expected BareLegacyUnitName walker to fire on retired :wat::core::unit sig"
     );
 }
@@ -186,16 +183,15 @@ fn other_keywords_still_type_as_keyword() {
 
 // --- 10. Walker scaffold retired: BareLegacyUnitName no longer fires --
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn bare_legacy_unit_name_walker_retired() {
     // Arc 163 follow-up — walker RE-ARMED; bare :wat::core::unit fires fatal.
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad",
     );
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        "wat_arc153_nil_rename__bare_legacy_unit_name_walker_retired.edn",
         "expected BareLegacyUnitName walker to fire on bare :wat::core::unit"
     );
 }

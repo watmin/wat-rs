@@ -47,7 +47,6 @@ fn holon_record_satisfies_nature_bound_surface() {
 /// `:env::CEnv` has `slot` (structural match passes) but its nature is `Record`, not
 /// `HolonRecord`, so the `:nature :wat::holon::Record` bound must reject it. The rejection must CITE
 /// the surface (a nature mismatch), NOT be the incidental MalformedDecl parse error of HEAD.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn core_record_rejected_by_holon_nature_bound() {
     // GREEN TARGET: startup FAILS for the NATURE mismatch — CEnv's fields match but it is a core
@@ -55,8 +54,11 @@ fn core_record_rejected_by_holon_nature_bound() {
     // RED AT HEAD: the error is a MalformedDecl on the `:nature` clause, which does NOT cite the
     // surface — so this assertion fails at HEAD (disconfirms on exactly the gap, not the parse).
     let world = startup_from_file("tests/types/probe_arc293_holder_bound_reject.wat");
-    // `world.err()` is `None` for an Ok world ⇒ formats as "None" ⇒ fails the cite check (an Ok
-    // is wrong). A built nature-rejection cites `:env::Holon`; HEAD's MalformedDecl does not.
-    let err = format!("{:?}", world.err());
-    assert_eq!(err, r##"Some(Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc293_holder_bound_reject.wat", line: 13, col: 22, end_line: 13, end_col: 36 }, kind: TypeMismatch { callee: ":env::wants-holon", param: "#1", expected: ":env::Holon", got: ":env::CEnv" } }])))"##);
+    // A built nature-rejection cites `:env::Holon`; HEAD's MalformedDecl does not.
+    let err = format!("{:?}", world.expect_err("expected a NATURE-mismatch rejection, not Ok"));
+    wat::assert_edn_matches_file!(
+        err,
+        "probe_arc293_holder_bound__core_record_rejected_by_holon_nature_bound.edn",
+        "nature-mismatch rejection cites :env::Holon (surface) vs :env::CEnv (got)"
+    );
 }

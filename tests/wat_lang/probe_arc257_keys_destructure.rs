@@ -33,7 +33,6 @@ fn probe_2_keys_destructure_multi_field() {
 }
 
 // ─── Probe 3 — negative: {x y z} in binder position is now a clear error ────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_3_bare_symbol_brace_form_rejected() {
     // `{x y}` parses as a Map with pair (Symbol(x), Symbol(y)) which is
@@ -45,9 +44,9 @@ fn probe_3_bare_symbol_brace_form_rejected() {
         Ok(_) => panic!("Probe 3: expected error for bare-symbol brace-form in binder; got Ok"),
         Err(e) => {
             let msg = format!("{}", e);
-            assert_eq!(
+            wat::assert_edn_matches_file!(
                 msg,
-                "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc257_keys_destructure.wat.bad:10:8: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\n",
+                "probe_arc257_keys_destructure__probe_3_bare_symbol_brace_form_rejected.edn",
                 "Probe 3: expected exact rejection message for bare-symbol brace-form in binder"
             );
         }

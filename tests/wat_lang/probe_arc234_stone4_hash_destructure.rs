@@ -57,7 +57,6 @@ fn probe_4_hashmap_destructure_none() {
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_5_unknown_field_errors() {
     // The unknown-field error fires at eval time (checker permits the form, runtime rejects).
@@ -73,9 +72,9 @@ fn probe_5_unknown_field_errors() {
         Ok(v) => panic!("Probe 5 FAILED: expected error; got Ok({:?})", v),
         Err(e) => {
             let msg = format!("{:?}", e);
-            assert_eq!(
+            wat::assert_edn_matches_file!(
                 msg,
-                r#"RuntimeError { span: Span { file: "tests/wat_lang/probe_arc234_stone4_hash_destructure.wat.bad", line: 8, col: 25, end_line: 8, end_col: 46 }, kind: UnknownField { record_class: "myapp::Voltage", field: "nonexistent", available: ["magnitude"] } }"#,
+                "probe_arc234_stone4_hash_destructure__probe_5_unknown_field_errors.edn",
                 "Probe 5: expected exact UnknownField error"
             );
         }

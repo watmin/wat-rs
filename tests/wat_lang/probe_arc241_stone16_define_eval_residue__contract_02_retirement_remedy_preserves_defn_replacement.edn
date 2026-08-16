@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad"
+        :line 4
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 20
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::define"
+      :reason "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::defn"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+  ]
+}

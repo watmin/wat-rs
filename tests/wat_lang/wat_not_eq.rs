@@ -5,7 +5,7 @@
 //! prior gap where `=` couldn't compare two `Value::Enum` values
 //! (added an Enum arm to `values_equal`).
 
-use wat::freeze::{call_beside_value, startup_from_file};
+use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 fn run_expr(name: &str) -> Value {
@@ -29,22 +29,24 @@ fn not_eq_i64_false_when_same() {
     assert!(!unwrap_bool(run_expr(":t::test2-not-eq-false")));
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
-fn not_eq_f64_cross_numeric_coerce() {
-    // Arc-237 Stone 237.8a: cross-numeric coercion for equality DELETED.
-    // `(:wat::core::not= 3 3.0)` is now a TypeMismatch (same-type-only
-    // relational intrinsic). Startup must fail with a type check error.
-    let result = startup_from_file("tests/wat_lang/wat_not_eq_cross_numeric.wat.bad");
+fn not_eq_f64_cross_numeric_is_category_aware() {
+    // SUPERSEDED (296 Wave B2, finding 9): this test used to assert arc-237
+    // Stone 237.8a — cross-numeric coercion for equality DELETED, so
+    // `(:wat::core::not= 3 3.0)` was a TypeMismatch (same-type-only relational
+    // intrinsic). Arc 300 Stone C5 deliberately REVERSED 237.8a to match
+    // eval/clj semantics (category-aware numeric comparison); Stone C5b
+    // (`1f1873e1`) rebuilt the same path. Ground truth measured live:
+    // `(:wat::core::not= 3 3.0)` => true, `(:wat::core::= 3 3.0)` => false.
+    // Mixed-numeric `not=`/`=` now type-check (Ok, not a CheckError) and
+    // evaluate category-aware — the opposite contract of the retired test.
     assert!(
-        result.is_err(),
-        "expected cross-numeric not= to produce a type error; got Ok"
+        unwrap_bool(run_expr(":t::test3-not-eq-cross-numeric")),
+        "expected (:wat::core::not= 3 3.0) => true (category-aware, C5)"
     );
-    let msg = format!("{:?}", result.unwrap_err());
-    assert_eq!(
-        msg,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_not_eq_cross_numeric.wat.bad", line: 4, col: 23, end_line: 4, end_col: 26 }, kind: TypeMismatch { callee: ":wat::core::not=", param: "#2", expected: ":wat::core::i64", got: ":wat::core::f64" } }]))"##,
-        "expected TypeMismatch on cross-numeric not= call"
+    assert!(
+        !unwrap_bool(run_expr(":t::test3b-eq-cross-numeric")),
+        "expected (:wat::core::= 3 3.0) => false (different numeric categories)"
     );
 }
 

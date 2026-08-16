@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::try form: ':wat::core::try' is retired (Stone 241.15); use ':wat::core::Result/try' instead"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/probe_arc241_stone15_zombie_purge_try.wat.bad"
+        :line 5
+        :col 20
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 35
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::try"
+      :reason "':wat::core::try' is retired (Stone 241.15); use ':wat::core::Result/try' instead"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::Result/try"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+  ]
+}

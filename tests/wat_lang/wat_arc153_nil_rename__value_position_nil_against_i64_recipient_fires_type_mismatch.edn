@@ -1,0 +1,26 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/ReturnTypeMismatch {
+      :message ":t::probe: body produces :wat::core::nil; signature declares :wat::core::i64"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc153_nil_rename_nil_i64.wat.bad"
+        :line 4
+        :col 51
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 54
+          }
+        ]
+      }
+      :causes []
+      :function ":t::probe"
+      :expected ":wat::core::i64"
+      :got ":wat::core::nil"
+      :remedies []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/probe_arc257_keys_destructure.wat.bad"
+        :line 10
+        :col 8
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 10
+            :col 29
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::let"
+      :reason "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position"
+      :remedies []
+    }
+  ]
+}
