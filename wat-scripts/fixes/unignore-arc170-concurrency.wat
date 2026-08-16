@@ -23,6 +23,11 @@
 ;;
 ;; ⚠ REASON-GATED, not head-gated. The 30th marker is unrelated —
 ;; "296-recapture-pending: lint-stdlib times out (>5s) after stone B" — and MUST survive.
+;; ⊘ 2026-08-16: I briefly retired that 30th marker on an isolation measurement (1.826s) and
+;;   the floor went RED — it exceeds the harness's 5000ms per-deftest limit under real floor
+;;   contention, and its leaked thread took a second test down with it. The marker is BACK,
+;;   with its reason restated to name the limit and to require any future unlock be measured
+;;   UNDER CONTENTION. So this exclusion is still LIVE and still load-bearing: keep it.
 ;; So the rule fires only when the ignore's string argument contains the arc-170 phrase.
 ;; A head-only rule would silently lift a suppression this arc has no claim on.
 ;;

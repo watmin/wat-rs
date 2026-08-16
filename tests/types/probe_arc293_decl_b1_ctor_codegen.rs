@@ -36,9 +36,17 @@ fn raw_recordtype_holon_has_codegen_ctor() {
 /// A holon record built via the RAW primitive must carry a hologram (cosine(h,h)==1.0).
 /// RED at HEAD: the fallback uses `:wat::core::Record::of` (base ctor) → no hologram. GREEN after
 /// decl-b.1 routes the fallback through `aggregate-new` (gated on decl-b.1.0 — `aggregate-new`
-/// must first handle inherited fields). #[ignore]'d STRIKE-READY until then.
+/// must first handle inherited fields).
+///
+/// ⚠ UN-IGNORED 2026-08-16 — AND ITS STATED UNLOCK NEVER LANDED. `decl-b.1.0` (aggregate-new
+/// inheritance) was **ANNIHILATED**, not built: `19ace45e` — *"inheritance ANNIHILATION is next
+/// (decl-b.1.0 deleted)"*. So this is green by a DIFFERENT route than the one the old reason
+/// named, and the doc paragraph above it is history, not a live prediction. The test itself is
+/// sound and non-vacuous: it evaluates `:user::db-hr-cos` and asserts `cosine(h,h) == 1.0` on a
+/// real `CosineOutcome::Similarity`, which a record without a hologram cannot produce. Only the
+/// ignore's REASON was stale — a superseded unlock, the third disposition
+/// (staleness / finding / SUPERSEDED).
 #[test]
-#[ignore = "RED until decl-b.1.0 (aggregate-new inheritance) + decl-b.1 (fallback→aggregate-new) land"]
 fn raw_recordtype_holon_has_a_hologram() {
     // Arc 278 the cosine outcome wall — cosine now returns
     // :wat::holon::CosineOutcome, not a bare f64; extract the Similarity

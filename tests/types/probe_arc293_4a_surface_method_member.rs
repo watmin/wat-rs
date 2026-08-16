@@ -14,9 +14,12 @@
 
 use wat::freeze::startup_beside;
 
+// UN-IGNORED 2026-08-16 — 293.4a is BUILT, and this passes NON-VACUOUSLY. Its `is_ok()` is
+// the mirror of the weak `is_err()` shape: it requires EVERYTHING to work, so it cannot be
+// satisfied by an unrelated failure. The co-located fixture carries a real `defsurface`
+// METHOD member `(size [self <- :geo::Sized] -> :wat::core::i64)`; if 4a regressed,
+// `parse_defsurface` (field-only before 4a) would reject that member and startup would Err.
 #[test]
-#[ignore = "RED at HEAD: arc-293.4a (method members in defsurface) not built; un-ignore when it lands — \
-            the strike's disconfirming probe, kept #[ignore]'d so the floor=0 gate stays green"]
 fn defsurface_method_member_satisfied_by_record_defn() {
     let world = startup_beside(file!());
     assert!(

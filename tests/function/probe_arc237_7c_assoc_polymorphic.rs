@@ -84,7 +84,8 @@ fn assoc_non_collection_arg0_rejected() {
 // ─── Record arm — disconfirming AT HEAD; un-ignore in Stone 237.7c ─────────────────
 
 #[test]
-#[ignore = "record arms of assoc not yet implemented (Stone 237.7c); un-ignore when shipped"]
+// UN-IGNORED 2026-08-16: Stone 237.7c SHIPPED `a9961421` (2026-05-27) — eval_record_assoc
+// is live at src/runtime.rs:4834 with both base and holonic arms. 81 days stale.
 fn assoc_base_record_returns_base_record_struct_only() {
     // POST-7c contract: assoc rebuilds the base record with the field updated.
     match compute_from_file("tests/function/probe_arc237_7c_assoc_base_record.wat") {
@@ -94,7 +95,7 @@ fn assoc_base_record_returns_base_record_struct_only() {
 }
 
 #[test]
-#[ignore = "holonic record arm of assoc not yet implemented (Stone 237.7c); un-ignore when shipped"]
+// UN-IGNORED 2026-08-16: see the sibling above — 237.7c shipped `a9961421`.
 fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
     // POST-7c contract: assoc rebuilds BOTH struct_form AND holon_form in parity.
     match compute_from_file("tests/function/probe_arc237_7c_assoc_holonic_record.wat") {

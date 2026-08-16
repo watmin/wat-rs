@@ -69,9 +69,34 @@
 
 ;; ─── Case 4: lint-stdlib runs + rule-zero present ────────────────────
 
-(:wat::test::ignore "296-recapture-pending: lint-stdlib times out (>5s) after stone B; unlock: 296 recapture or perf fix")
+;; ⛔ UN-IGNORE ATTEMPTED 2026-08-16 AND REVERTED THE SAME HOUR. THE IGNORE IS CORRECT.
+;;
+;; I lifted this on a measurement of **1.826s**, taken with `--run-ignored ignored-only` —
+;; 25 tests on a near-idle box. The full floor then went RED, and the arm named the real limit:
+;;
+;;     deftest_wat_tests_lint_lint_stdlib_runs: exceeded time-limit of 5000ms —
+;;     deftest :wat-tests::lint::lint-stdlib-runs (test thread leaked — process exit will reap)
+;;
+;; The 5000ms cap is the wat harness's own per-deftest limit (`tests/kernel/test.rs:17`), NOT
+;; the nextest 15s/30s profile deadline I checked against. Under the real floor — 12-14
+;; concurrent test processes — this blows it. THE MEASUREMENT'S CONDITION DID NOT MATCH THE
+;; CLAIM'S CONDITION: isolation is not the regime the ignore was describing, and "it's fast
+;; when nothing else runs" is not the same statement as "it is fast".
+;;
+;; It also took a SECOND test down with it: the leaked thread keeps doing lint work for the
+;; rest of the run, and `every_wat_scripts_file_loads_on_the_current_runtime` (normally
+;; ~90-120s) hit its 240s TIMEOUT in the same floor. One lifted ignore, two reds.
+;;
+;; ⚠ SEPARATELY, AND STILL TRUE: this test's assertion is TAUTOLOGICAL. `(length findings) >= 0`
+;; holds for every Vector, so the only thing it can catch is `lint-stdlib` raising. Measured:
+;; it returns **136** findings, so the "0 violations" comment below is about rule-zero
+;; specifically, not about `findings`. And the half of this case's own title that says
+;; "rule-zero present" is asserted nowhere. Fixing that needs a ruling on what it SHOULD say.
+;;
+;; UNLOCK, restated honestly: a PERF fix, measured UNDER FLOOR CONTENTION — not in isolation.
+(:wat::test::ignore "296-recapture-pending: lint-stdlib exceeds the harness's 5000ms per-deftest limit under floor contention (measured RED 2026-08-16); unlock: a perf fix verified under a full floor, never in isolation")
 (:wat::test::deftest :wat-tests::lint::lint-stdlib-runs
-  
+
   ;; (:wat::lint::lint-stdlib) must evaluate without error and return a Vector.
   ;; Currently 0 rule-zero violations (arc 275 fixed them all); length >= 0.
   (:wat::core::let
