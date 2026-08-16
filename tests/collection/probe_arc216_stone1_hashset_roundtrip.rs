@@ -28,11 +28,10 @@
 //!  8. `(:wat::holon::to-holonmy-hashset)` for atomizable T type-checks cleanly
 //!  9. `(:wat::holon::to-holonfn-value)` where T is Fn — fails at check (TypeMismatch)
 //!
-//! HolonRepresentable Rust-side:
-//! 10. `HashSet<String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
+//! Arc 294.h: probe 10 (a Rust-side `HolonRepresentable` cascade) is removed —
+//! `HolonRepresentable` had zero production consumers and is deleted. Probes
+//! 1-9 above are the wat-surface VSA coverage and are untouched by that stone.
 
-use std::collections::HashSet;
-use wat::comms::HolonRepresentable;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -164,41 +163,4 @@ fn probe_9_check_fails_for_non_atomizable_t() {
     .expect_err("expected startup failure for non-atomizable Fn type");
     wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone1_hashset_roundtrip__non_atomizable_fn.edn", "probe_9: non-atomizable Fn type check-error golden (Display)");
     wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone1_hashset_roundtrip__non_atomizable_fn.edn", "probe_9: non-atomizable Fn type check-error golden (Debug)");
-}
-
-// ─── Probe 10 — HolonRepresentable cascade (compile-time + runtime) ──────────
-
-fn assert_holon_representable<T: HolonRepresentable>() {}
-
-#[test]
-fn probe_10_holon_representable_cascade() {
-    // Compile-time: if this function call compiles, HashSet<String>: HolonRepresentable.
-    assert_holon_representable::<HashSet<String>>();
-
-    // Runtime roundtrip: {hello, world}.
-    let set: HashSet<String> = vec!["hello".into(), "world".into()].into_iter().collect();
-    let ast = set.to_holon_ast();
-
-    // to_holon_ast produces a Bundle of String leaves.
-    match &ast {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 2, "Bundle must have 2 children");
-            for item in items.iter() {
-                assert!(
-                    matches!(item, holon::HolonAST::String(_)),
-                    "each child must be HolonAST::String leaf"
-                );
-            }
-        }
-        other => panic!("expected HolonAST::Bundle, got {:?}", other),
-    }
-
-    // from_holon_ast reconstructs the set exactly.
-    let reconstructed: HashSet<String> =
-        HolonRepresentable::from_holon_ast(&ast).expect("roundtrip");
-    assert_eq!(
-        reconstructed,
-        set,
-        "roundtrip must reproduce original HashSet<String>"
-    );
 }

@@ -1,48 +1,50 @@
 //! Arc 214 Slice 1 smoke probe — verify foundation primitives compile + a
-//! sample HolonRepresentable impl roundtrips + error types behave honestly.
+//! sample EdnRepresentable impl roundtrips + error types behave honestly.
+//!
+//! Arc 294.h: `HolonRepresentable` (the holographic supertrait) is deleted —
+//! it had zero production consumers. `EdnRepresentable` is, and always was,
+//! the wire contract; `ToyType` is re-pointed directly at it with a plain-EDN
+//! `to_wire` (no HolonAST IR).
 
-use wat::comms::{EdnRepresentable, HolonRepresentable, WireError};
+use wat::comms::{EdnRepresentable, WireError};
 
 // Sample impl — verifies the shape is usable. ToyType wraps an i64;
-// roundtrips via HolonAST::I64 (I64 is a leaf variant — no nested structure).
+// roundtrips via a plain EDN integer literal — the honest minimum the wire
+// needs, mirroring how `String` and `Value` are the only production
+// `EdnRepresentable` impls.
+#[derive(Debug)]
 struct ToyType(i64);
 
-// Stone C0b.2e-i-0: EdnRepresentable is now a required supertrait of
-// HolonRepresentable. ToyType's wire uses the tagged form (same as the
-// former HolonRepresentable default) so behavior is unchanged.
 impl EdnRepresentable for ToyType {
     fn to_wire(&self) -> String {
-        wat::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+        self.0.to_string()
     }
     fn from_wire(s: &str) -> Result<Self, WireError> {
-        let ast = wat::edn_shim::read_holon_ast_tagged(s)
-            .map_err(|e| WireError::new(format!("ToyType from_wire: {e}")))?;
-        Self::from_holon_ast(&ast)
-    }
-}
-
-impl HolonRepresentable for ToyType {
-    fn to_holon_ast(&self) -> holon::HolonAST {
-        holon::HolonAST::I64(self.0)
-    }
-
-    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError> {
-        match ast {
-            holon::HolonAST::I64(n) => Ok(ToyType(*n)),
-            other => Err(WireError::new(format!(
-                "ToyType::from_holon_ast: expected I64 variant, got {:?}",
-                other
-            ))),
-        }
+        s.trim()
+            .parse::<i64>()
+            .map(ToyType)
+            .map_err(|e| WireError::new(format!("ToyType from_wire: expected an EDN i64, got {:?} ({e})", s)))
     }
 }
 
 #[test]
-fn probe_slice1_holon_representable_compiles() {
+fn probe_slice1_edn_representable_compiles() {
     let t = ToyType(42);
-    let ast = t.to_holon_ast();
-    let t2 = ToyType::from_holon_ast(&ast).expect("roundtrip");
+    let wire = t.to_wire();
+    let t2 = ToyType::from_wire(&wire).expect("roundtrip");
     assert_eq!(t.0, t2.0);
+}
+
+#[test]
+fn probe_slice1_edn_representable_from_wire_is_honest_on_garbage() {
+    // Error-honesty property: a malformed wire string produces a WireError
+    // naming what was expected, not a panic or a silently wrong value.
+    let err = ToyType::from_wire("not-an-i64").expect_err("garbage should fail, not decode");
+    assert_eq!(
+        err.message(),
+        "ToyType from_wire: expected an EDN i64, got \"not-an-i64\" (invalid digit found in string)",
+        "error message should name the failing conversion exactly"
+    );
 }
 
 #[test]

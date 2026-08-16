@@ -2,7 +2,7 @@
 //!
 //! Tests organized by stone (prefix tracks the stone that owns the contract):
 //!
-//! `probe_slice3c_*` (6 tests; Stone C — HolonRepresentable wire chain):
+//! `probe_slice3c_*` (6 tests; Stone C — EdnRepresentable wire chain):
 //!   1. pair() constructs successfully
 //!   2. single-string round-trip preserves the string
 //!   3. FIFO ordering across multiple sends

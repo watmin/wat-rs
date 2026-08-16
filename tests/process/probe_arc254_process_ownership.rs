@@ -13,9 +13,9 @@
 //! fan-in is served by `select` over N distinct single-owner channels, not by
 //! cloning one receiver. (The thread tier stays Arc/crossbeam-shareable.)
 //!
-//! Stand-in payload: `String` (its `HolonRepresentable` impl already exists).
-//! `Value: HolonRepresentable` lands in 254.1; the ownership facts this probe
-//! establishes are payload-independent, so String is sufficient here.
+//! Stand-in payload: `String` (its `EdnRepresentable` impl already exists).
+//! The ownership facts this probe establishes are payload-independent, so
+//! String is sufficient here.
 
 use wat::comms::process::{pair, Receiver, Sender};
 

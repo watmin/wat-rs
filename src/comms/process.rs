@@ -6,13 +6,12 @@
 //! using `libc::pipe2(O_CLOEXEC)` for the transport and `io_uring` for the wake
 //! mechanism.
 //!
-//! Wire chain (Stone C onward): `T → HolonAST → tagged-EDN string →
-//! newline-framed bytes → libc::write → io_uring Read → bytes → EDN →
-//! HolonAST → T`. The HolonAST ↔ EDN-text conversion uses
-//! `crate::edn_shim::write_holon_ast_tagged` (encode) and
-//! `crate::edn_shim::read_holon_ast_tagged` (decode); both wrap
-//! `wat_edn::write` / `wat_edn::parse_owned` over the
-//! `holon::HolonAST` schema.
+//! Wire chain (Stone C0b.2e-i-0 onward): `T → EDN string (T::to_wire) →
+//! newline-framed bytes → libc::write → io_uring Read → bytes → EDN string
+//! → T (T::from_wire)`. `EdnRepresentable::to_wire` / `from_wire` do the
+//! EDN-text conversion directly — no intermediate HolonAST IR (arc 294.h
+//! deleted the holographic wire trait; see
+//! `docs/arc/2026/06/294-holon-returns-to-vsa/`).
 //!
 //! ## Current scope (through Stone E-2)
 //!
@@ -43,14 +42,13 @@
 //!
 //! ## Framing
 //!
-//! Each `send` encodes `T` as a tagged-EDN single-line string via
-//! `write_holon_ast_tagged`, appends `'\n'`, and writes atomically
-//! (writes ≤ PIPE_BUF = 4096 are atomic per POSIX). The receiver
-//! reads bytes into an internal accumulator and splits on `'\n'`;
-//! the trailing newline does not appear in EDN output because
-//! wat-edn produces single-line text (embedded newlines escape as
-//! `\n` literal). Frames are decoded back via
-//! `read_holon_ast_tagged` + `T::from_holon_ast`.
+//! Each `send` encodes `T` as an EDN single-line string via `T::to_wire`,
+//! appends `'\n'`, and writes atomically (writes ≤ PIPE_BUF = 4096 are
+//! atomic per POSIX). The receiver reads bytes into an internal
+//! accumulator and splits on `'\n'`; the trailing newline does not appear
+//! in EDN output because wat-edn produces single-line text (embedded
+//! newlines escape as `\n` literal). Frames are decoded back via
+//! `T::from_wire`.
 //!
 //! ## Cascade contract (Stone B)
 //!
@@ -318,8 +316,7 @@ pub struct Sender<T: EdnRepresentable> {
 
 impl<T: EdnRepresentable> Sender<T> {
     /// Send `value` to the channel. Encodes via
-    /// `T::to_holon_ast` → `edn_shim::write_holon_ast_tagged` →
-    /// newline-framed bytes → `libc::write` retry loop.
+    /// `T::to_wire` → newline-framed bytes → `libc::write` retry loop.
     ///
     /// Returns `Err(SendError::Disconnected(value))` when the peer's
     /// read-end is closed (EPIPE), `Err(SendError::Shutdown(value))`
@@ -707,14 +704,14 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// accumulator first; if no complete frame is buffered, drives
     /// the cascade-aware io_uring multi-arm POLL_ADD + Read loop
     /// until a `'\n'` is observed; then decodes the frame via
-    /// `read_holon_ast_tagged` + `T::from_holon_ast`.
+    /// `T::from_wire`.
     ///
     /// Returns `Err(RecvError::Disconnected)` on a genuine clean peer-close
     /// (EOF; read returns 0) or substrate shutdown (cascade-arm fires;
     /// Stone B — that's `Err(RecvError::Shutdown)`). Returns
     /// `Err(RecvError::Failed(reason))` on io_uring submission/completion
     /// failure, on UTF-8 decode failure, on EDN parse failure, or on
-    /// `T::from_holon_ast` failure — arc 278 no-hidden-failures: a raw
+    /// `T::from_wire` failure — arc 278 no-hidden-failures: a raw
     /// transport error carries its reason instead of collapsing into a
     /// mute `Disconnected`.
     pub fn recv(&self) -> Result<T, RecvError> {
@@ -1118,11 +1115,11 @@ fn wait_for_data_or_cascade(
     }
 }
 
-/// Decode a newline-framed payload to `T` via the Stone C wire chain:
-/// UTF-8 bytes → tagged-EDN string → HolonAST → T.
+/// Decode a newline-framed payload to `T` via the wire chain:
+/// UTF-8 bytes → EDN string → T (via `T::from_wire`).
 ///
 /// Returns `Err(RecvError::Failed(reason))` on any layer's failure (utf8,
-/// EDN parse, or `T::from_holon_ast`) — arc 278 no-hidden-failures: the
+/// EDN parse, or `T::from_wire`) — arc 278 no-hidden-failures: the
 /// channel is in an honest but unrecoverable state per this call, and the
 /// reason travels with it instead of collapsing into a mute `Disconnected`
 /// (this function never produces `Disconnected` — a decode failure is never

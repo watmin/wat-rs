@@ -29,13 +29,11 @@
 //!  9. `(:wat::holon::to-holon [1 2 3])` for atomizable T type-checks cleanly
 //! 10. `(:wat::holon::to-holonvec-of-fns)` fails at check (non-atomizable T)
 //!
-//! HolonRepresentable Rust-side:
-//! 11. `Vec<String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
-//!
-//! Reverse-shape validation:
-//! 12. Bundle with non-sequential i64 keys → `from_holon_ast` error (positional invariant)
+//! Arc 294.h: probes 11-12 (a Rust-side `HolonRepresentable` cascade + a
+//! reverse-shape validation exercised only through that trait) are removed —
+//! `HolonRepresentable` had zero production consumers and is deleted. Probes
+//! 1-10 above are the wat-surface VSA coverage and are untouched by that stone.
 
-use wat::comms::HolonRepresentable;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -194,106 +192,4 @@ fn probe_10_check_fails_for_non_atomizable_t() {
     .expect_err("expected startup failure for non-atomizable Fn type");
     wat::assert_edn_matches_file!(format!("{err}"), "probe_arc216_stone2_vector_roundtrip__non_atomizable_fn.edn", "probe_10: non-atomizable Fn type check-error golden (Display)");
     wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone2_vector_roundtrip__non_atomizable_fn.edn", "probe_10: non-atomizable Fn type check-error golden (Debug)");
-}
-
-// ─── Probe 11 — HolonRepresentable cascade (compile-time + runtime) ──────────
-
-fn assert_holon_representable<T: HolonRepresentable>() {}
-
-#[test]
-fn probe_11_holon_representable_cascade() {
-    // Compile-time: if this call compiles, Vec<String>: HolonRepresentable.
-    assert_holon_representable::<Vec<String>>();
-
-    // Runtime roundtrip: ["hello", "world", "foo"].
-    let v: Vec<String> = vec!["hello".into(), "world".into(), "foo".into()];
-    let ast = v.to_holon_ast();
-
-    // to_holon_ast produces a Bundle of 3 Bind children.
-    match &ast {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 3, "Bundle must have 3 children");
-            for (i, item) in items.iter().enumerate() {
-                match item {
-                    holon::HolonAST::Bind(k, val_ast) => {
-                        assert!(
-                            matches!(k.as_ref(), holon::HolonAST::I64(n) if *n == i as i64),
-                            "Bind key at position {} must be I64({})",
-                            i,
-                            i
-                        );
-                        assert!(
-                            matches!(val_ast.as_ref(), holon::HolonAST::String(_)),
-                            "Bind value at position {} must be HolonAST::String leaf",
-                            i
-                        );
-                    }
-                    other => panic!(
-                        "element {} must be HolonAST::Bind, got {:?}",
-                        i, other
-                    ),
-                }
-            }
-        }
-        other => panic!("expected HolonAST::Bundle, got {:?}", other),
-    }
-
-    // from_holon_ast reconstructs the vec in original order.
-    let reconstructed: Vec<String> =
-        HolonRepresentable::from_holon_ast(&ast).expect("roundtrip");
-    assert_eq!(
-        reconstructed,
-        v,
-        "roundtrip must reproduce original Vec<String> in original order"
-    );
-
-    // Nested: Vec<Vec<String>> — bounds compose.
-    assert_holon_representable::<Vec<Vec<String>>>();
-    let nested: Vec<Vec<String>> = vec![
-        vec!["a".into(), "b".into()],
-        vec!["c".into()],
-    ];
-    let nested_ast = nested.to_holon_ast();
-    let nested_back: Vec<Vec<String>> =
-        HolonRepresentable::from_holon_ast(&nested_ast).expect("nested roundtrip");
-    assert_eq!(nested_back, nested, "nested Vec<Vec<String>> roundtrip");
-}
-
-// ─── Probe 12 — Reverse-shape validation ─────────────────────────────────────
-
-#[test]
-fn probe_12_reverse_shape_validation_non_sequential_keys() {
-    // Construct a malformed Bundle: Bind(0, String("a")), Bind(2, String("b")) — key 1 missing.
-    let bind0 =
-        holon::HolonAST::bind(holon::HolonAST::i64(0), holon::HolonAST::string("a"));
-    let bind2 =
-        holon::HolonAST::bind(holon::HolonAST::i64(2), holon::HolonAST::string("b"));
-    let malformed_bundle = holon::HolonAST::bundle(vec![bind0, bind2]);
-
-    // from_holon_ast must return Err (positional invariant violated).
-    let result = <Vec<String> as HolonRepresentable>::from_holon_ast(&malformed_bundle);
-    assert!(
-        result.is_err(),
-        "from_holon_ast on non-sequential Bundle must return Err; got Ok({:?})",
-        result.ok()
-    );
-    let err_msg = result.unwrap_err();
-    assert_eq!(
-        err_msg.message(),
-        "Vec positional invariant violated: expected key 1 at position 1, got 2",
-        "probe_12: non-sequential Bundle error golden"
-    );
-
-    // Bundle with reversed keys [Bind(1, "second"), Bind(0, "first")] should succeed.
-    let bind1 = holon::HolonAST::bind(holon::HolonAST::i64(1), holon::HolonAST::string("second"));
-    let bind0_str =
-        holon::HolonAST::bind(holon::HolonAST::i64(0), holon::HolonAST::string("first"));
-    let reordered_bundle = holon::HolonAST::bundle(vec![bind1, bind0_str]);
-    let reordered: Vec<String> =
-        HolonRepresentable::from_holon_ast(&reordered_bundle).expect("reordered bundle ok");
-    assert_eq!(
-        reordered,
-        vec!["first".to_string(), "second".to_string()],
-        "reversed-key Bundle must sort by key and reconstruct in key order"
-    );
 }

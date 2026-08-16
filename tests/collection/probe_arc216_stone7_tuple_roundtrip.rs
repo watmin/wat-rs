@@ -1,7 +1,8 @@
 //! Arc 216 Stone 7 — `Tuple` round-trip through `HolonAST::Bundle` of positional-Binds.
 //!
 //! Proves bidirectional round-trip: `value_to_atom` (forward, `Value::Tuple → HolonAST`)
-//! and the Rust-level `HolonRepresentable` impls for Rust tuples.
+//! on the wat-surface VSA path (arc 294.h removed the Rust-level tuple cascade;
+//! see the note below).
 //!
 //! Per encoding doctrine (Stone 216.7): Tuple is collection-category — positional-Bind Bundle,
 //! identical shape to Vec<T>. `Bundle([Bind(I64(0), t0_holon), Bind(I64(1), t1_holon), ...])`.
@@ -29,23 +30,16 @@
 //! is_atomizable predicate:
 //!  7. Tuple<i64, String> admits; Tuple containing Fn rejects
 //!
-//! HolonAST shape verification:
-//!  8. Positional Bind keys are 0..n-1 — verified directly on the Bundle structure
-//!
-//! HolonRepresentable Rust-side:
-//!  9. `(String, i64)` compile-time check + runtime round-trip
-//!
-//! Process-tier IPC:
-//! 10. `pair::<(String, i64)>()` send + recv round-trips over process pipe
-//!
-//! Nested Rust tuple HolonRepresentable:
-//! 11. `(String, i64, bool)` 3-tuple round-trips at Rust level
-//!
-//! Arity mismatch error:
-//! 12. `from_holon_ast` on wrong-arity Bundle returns WireError naming mismatch
+//! Arc 294.h: probes 8-12 are removed — every one is a Rust-side probe whose
+//! body calls `.to_holon_ast()` / `::from_holon_ast(` directly, or (probe 10)
+//! instantiates `pair::<(T1,T2)>()` for a tuple whose `EdnRepresentable` was
+//! also only a `HolonRepresentable` delegating shim. `HolonRepresentable` had
+//! zero production consumers and is deleted; probes 1-7 above are the
+//! wat-surface VSA coverage and are untouched by that stone.
+//! (Note: this stone's own disposition table names only 9-12 for removal;
+//! measured against the body rule, probe 8 also calls `.to_holon_ast()` and
+//! must go too — see the rider's report.)
 
-use wat::comms::HolonRepresentable;
-use wat::comms::process::pair;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -65,8 +59,6 @@ fn tuple_element_i64(v: Value, index: usize, probe: &str) -> i64 {
         other => panic!("{}: expected Tuple; got {:?}", probe, other),
     }
 }
-
-fn assert_holon_representable<T: HolonRepresentable>() {}
 
 // ─── Probe 1 — Forward: 2-tuple → classifier-wrapped HolonAST ───────────────
 
@@ -229,148 +221,3 @@ fn probe_7_is_atomizable_tuple() {
     wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone7_tuple_roundtrip__tuple_with_fn.edn", "probe_7: Tuple-with-Fn non-atomizable check-error golden (Debug)");
 }
 
-// ─── Probe 8 — HolonAST shape verification: keys are 0..n-1 ─────────────────
-
-/// Positional Bind keys in the Tuple Bundle are 0..n-1.
-/// Verified at the Rust level via to_holon_ast on a 3-tuple.
-/// Note: only `String` has a primitive `HolonRepresentable` impl (Delta 1 — same as Vec Stone 2
-/// Delta 4). Using `(String, String, String)` — strictly equivalent for the shape check.
-#[test]
-fn probe_8_holon_ast_shape_keys_sequential() {
-    // (String, String, String) 3-tuple; to_holon_ast should produce Bundle([Bind(0,_), Bind(1,_), Bind(2,_)]).
-    let tup: (String, String, String) = ("hello".to_string(), "world".to_string(), "foo".to_string());
-    let ast = tup.to_holon_ast();
-
-    match &ast {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 3, "3-tuple Bundle must have 3 children");
-            for (i, item) in items.iter().enumerate() {
-                match item {
-                    holon::HolonAST::Bind(k, _) => {
-                        assert!(
-                            matches!(k.as_ref(), holon::HolonAST::I64(n) if *n == i as i64),
-                            "Bind key at position {} must be I64({}); encoding doctrine: keys 0..n-1",
-                            i, i
-                        );
-                    }
-                    other => panic!(
-                        "element {} must be HolonAST::Bind; got {:?}",
-                        i, other
-                    ),
-                }
-            }
-        }
-        other => panic!("expected HolonAST::Bundle; got {:?}", other),
-    }
-}
-
-// ─── Probe 9 — HolonRepresentable cascade: Rust-level round-trip ─────────────
-
-/// `(String, String)` satisfies `HolonRepresentable` at compile time.
-/// Runtime round-trip: to_holon_ast → from_holon_ast reconstructs the pair.
-///
-/// Note: only `String` has a primitive `HolonRepresentable` impl (Delta 1 — mirrors
-/// Vec Stone 2 Delta 4). `(String, String)` is strictly equivalent for testing the
-/// encoding shape — the positional-Bind Bundle + per-position decode is exercised fully.
-/// i64 and bool impls are a future stone (substrate parity).
-#[test]
-fn probe_9_holon_representable_2tuple_cascade() {
-    // Compile-time: if this call compiles, (String, String): HolonRepresentable.
-    assert_holon_representable::<(String, String)>();
-
-    // Runtime round-trip.
-    let original: (String, String) = ("world".to_string(), "hello".to_string());
-    let ast = original.to_holon_ast();
-
-    // to_holon_ast produces Bundle of 2 Bind children.
-    match &ast {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 2, "2-tuple Bundle must have 2 children");
-        }
-        other => panic!("expected HolonAST::Bundle; got {:?}", other),
-    }
-
-    // from_holon_ast reconstructs the pair.
-    let reconstructed: (String, String) =
-        HolonRepresentable::from_holon_ast(&ast).expect("round-trip");
-    assert_eq!(
-        reconstructed,
-        original,
-        "round-trip must reproduce original (String, String)"
-    );
-}
-
-// ─── Probe 10 — Process-tier IPC: pair::<(String, i64)>() ────────────────────
-
-/// `pair::<(String, String)>()` send + recv round-trips through the full process-tier
-/// wire chain: HolonAST → tagged EDN → newline-framed bytes → pipe → bytes → EDN →
-/// HolonAST → (String, String).
-///
-/// Note: Delta 1 applies — only `String` has `HolonRepresentable`. Using `(String, String)`.
-#[test]
-fn probe_10_process_tier_ipc_tuple_roundtrip() {
-    let (tx, rx) = pair::<(String, String)>().expect("pair must succeed");
-
-    let original: (String, String) = ("arc216".to_string(), "stone7".to_string());
-    tx.send(original.clone()).expect("send must succeed on live channel");
-    let got = rx.recv().expect("recv must return the sent tuple");
-
-    assert_eq!(got, original, "process-tier IPC must round-trip (String, String) faithfully");
-}
-
-// ─── Probe 11 — 3-tuple HolonRepresentable round-trip ────────────────────────
-
-/// `(String, String, String)` 3-tuple round-trips at the Rust HolonRepresentable level.
-/// Proves heterogeneous-position decode (each Bind decoded by position) works correctly.
-/// Note: Delta 1 — only `String` has `HolonRepresentable`. 3 String elements exercise
-/// the positional dispatch fully (element 0, 1, 2 each decoded independently by position).
-#[test]
-fn probe_11_three_tuple_holon_representable_roundtrip() {
-    assert_holon_representable::<(String, String, String)>();
-
-    let original: (String, String, String) = ("stone".to_string(), "216".to_string(), "tuple".to_string());
-    let ast = original.to_holon_ast();
-
-    // Bundle of 3 children.
-    match &ast {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 3, "3-tuple Bundle must have 3 children");
-        }
-        other => panic!("expected HolonAST::Bundle; got {:?}", other),
-    }
-
-    let reconstructed: (String, String, String) =
-        HolonRepresentable::from_holon_ast(&ast).expect("3-tuple round-trip");
-    assert_eq!(
-        reconstructed,
-        original,
-        "round-trip must reproduce original (String, String, String)"
-    );
-}
-
-// ─── Probe 12 — Arity mismatch: from_holon_ast on wrong-arity Bundle ─────────
-
-/// `from_holon_ast` on a Bundle with 3 children when the impl expects 2 → WireError
-/// naming the arity mismatch. Validates the guard in `extract_positional_binds`.
-#[test]
-fn probe_12_from_holon_ast_arity_mismatch_error() {
-    // Construct a Bundle with 3 Bind(I64, String) children.
-    let bind0 = holon::HolonAST::bind(holon::HolonAST::i64(0), holon::HolonAST::string("a"));
-    let bind1 = holon::HolonAST::bind(holon::HolonAST::i64(1), holon::HolonAST::string("b"));
-    let bind2 = holon::HolonAST::bind(holon::HolonAST::i64(2), holon::HolonAST::string("c"));
-    let bundle_3 = holon::HolonAST::bundle(vec![bind0, bind1, bind2]);
-
-    // Decoding as a 2-tuple (String, String) must fail — arity mismatch.
-    let result = <(String, String) as HolonRepresentable>::from_holon_ast(&bundle_3);
-    assert!(
-        result.is_err(),
-        "from_holon_ast on 3-child Bundle as 2-tuple must return Err; got Ok({:?})",
-        result.ok()
-    );
-    let err_msg = result.unwrap_err();
-    assert_eq!(
-        err_msg.message(),
-        "2-tuple: arity mismatch — expected 2 Bind children, got 3",
-        "probe_12: arity mismatch error golden"
-    );
-}

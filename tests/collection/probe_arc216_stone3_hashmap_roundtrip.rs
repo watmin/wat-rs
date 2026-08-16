@@ -33,17 +33,18 @@
 //! 10. `(:wat::holon::to-holon m)` for atomizable K+V type-checks cleanly
 //! 11. `(:wat::holon::to-holon fn-value)` — non-atomizable type fails at check (TypeMismatch)
 //!
-//! HolonRepresentable Rust-side:
-//! 12. `HashMap<String, String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
+//! Arc 294.h: probe 12 (a Rust-side `HolonRepresentable` cascade) is removed
+//! wholesale — `HolonRepresentable` had zero production consumers and is
+//! deleted. Probe 13 loses only its Rust-side steps 1-2 (which asserted
+//! against the deleted trait directly); its wat-surface step 3 survives
+//! below as the whole probe body.
 //!
 //! Shape disambiguation:
-//! 13. Bundle with non-sequential i64 keys [Bind(0,v), Bind(5,v)] → HashMap (not Vec)
+//! 13. Bundle with non-sequential i64 keys [Bind(0,v), Bind(5,v)] → HashMap (not Vec) — wat-surface only
 //!
 //! Empty Bundle disambiguation via consumer-declared HashMap type:
 //! 14. `(atom-value empty-bundle -> :wat::core::HashMap<K,V>)` → empty HashMap
 
-use std::collections::HashMap;
-use wat::comms::HolonRepresentable;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -241,97 +242,16 @@ fn probe_11_check_fails_non_atomizable() {
     wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc216_stone3_hashmap_roundtrip__non_atomizable_fn.edn", "probe_11: non-atomizable type check-error golden (Debug)");
 }
 
-// ─── Probe 12 — HolonRepresentable cascade (compile-time + runtime) ──────────
-
-fn assert_holon_representable<T: HolonRepresentable>() {}
-
-#[test]
-fn probe_12_holon_representable_cascade() {
-    // Compile-time: if this call compiles, HashMap<String, String>: HolonRepresentable.
-    assert_holon_representable::<HashMap<String, String>>();
-
-    // Runtime roundtrip: {"foo" -> "bar", "baz" -> "qux"}.
-    let mut original: HashMap<String, String> = HashMap::new();
-    original.insert("foo".into(), "bar".into());
-    original.insert("baz".into(), "qux".into());
-    let ast = original.to_holon_ast();
-
-    // to_holon_ast produces a Bundle of 2 Bind children.
-    match &ast {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 2, "Bundle must have 2 children");
-            for item in items.iter() {
-                assert!(
-                    matches!(item, holon::HolonAST::Bind(_, _)),
-                    "each child must be HolonAST::Bind; got {:?}",
-                    item
-                );
-            }
-        }
-        other => panic!("expected HolonAST::Bundle, got {:?}", other),
-    }
-
-    // from_holon_ast reconstructs the HashMap with same entries.
-    let reconstructed: HashMap<String, String> =
-        HolonRepresentable::from_holon_ast(&ast).expect("roundtrip");
-    assert_eq!(reconstructed.len(), 2, "roundtrip must preserve entry count");
-    assert_eq!(
-        reconstructed.get("foo").map(String::as_str),
-        Some("bar"),
-        "roundtrip must preserve foo -> bar"
-    );
-    assert_eq!(
-        reconstructed.get("baz").map(String::as_str),
-        Some("qux"),
-        "roundtrip must preserve baz -> qux"
-    );
-
-    // Nested: HashMap<String, Vec<String>> — bounds compose.
-    assert_holon_representable::<HashMap<String, Vec<String>>>();
-    let mut nested: HashMap<String, Vec<String>> = HashMap::new();
-    nested.insert("first".into(), vec!["a".into(), "b".into()]);
-    nested.insert("second".into(), vec!["c".into()]);
-    let nested_ast = nested.to_holon_ast();
-    let nested_back: HashMap<String, Vec<String>> =
-        HolonRepresentable::from_holon_ast(&nested_ast).expect("nested roundtrip");
-    assert_eq!(nested_back.len(), 2, "nested roundtrip must preserve entry count");
-    assert_eq!(
-        nested_back.get("first").map(|v| v.len()),
-        Some(2),
-        "nested roundtrip must preserve first -> [a, b]"
-    );
-}
-
 // ─── Probe 13 — Shape disambiguation: non-sequential i64 keys → HashMap ──────
+//
+// Arc 294.h: this probe's original steps 1-2 asserted directly against
+// `HolonRepresentable::from_holon_ast` (deleted). Its step 3 — the
+// wat-surface assertion — is untouched by that stone and is this probe's
+// entire body now.
 
 #[test]
 fn probe_13_shape_disambiguation_non_sequential_i64() {
-    // Step 1: Verify Vec<String>::from_holon_ast rejects non-sequential bundle.
-    let bind0 = holon::HolonAST::bind(holon::HolonAST::i64(0), holon::HolonAST::string("a"));
-    let bind5 = holon::HolonAST::bind(holon::HolonAST::i64(5), holon::HolonAST::string("b"));
-    let non_seq_bundle = holon::HolonAST::bundle(vec![bind0, bind5]);
-
-    let vec_result = <Vec<String> as HolonRepresentable>::from_holon_ast(&non_seq_bundle);
-    assert!(
-        vec_result.is_err(),
-        "Vec<String>::from_holon_ast on non-sequential i64-keyed Bundle must return Err"
-    );
-
-    // Step 2: Verify the Bundle has exactly 2 Bind children (shape is all-Bind).
-    match &non_seq_bundle {
-        holon::HolonAST::Bundle(items) => {
-            assert_eq!(items.len(), 2, "Bundle must have 2 Bind children");
-            for item in items.iter() {
-                assert!(
-                    matches!(item, holon::HolonAST::Bind(_, _)),
-                    "each child must be Bind"
-                );
-            }
-        }
-        other => panic!("expected Bundle; got {:?}", other),
-    }
-
-    // Step 3: Via WAT surface — HashMap<i64, String> with keys 0+5 round-trips as HashMap.
+    // Via WAT surface — HashMap<i64, String> with keys 0+5 round-trips as HashMap.
     match call_beside_value(file!(), ":t::p13-non-seq-i64-keys").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<i64,String> with keys 0+5 must round-trip as HashMap (not Vec)"),
         other => panic!("expected i64; got {:?}", other),
