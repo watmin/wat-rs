@@ -113,9 +113,10 @@ impl ExecPlan {
     /// user surface for an internal mechanism: typeable at a shell and visible
     /// in `ps`, and it would be a CLAIM where this is a WITNESS"*) is the same
     /// reasoning applied to a flag; a label is the identical trap in a
-    /// friendlier costume. fd 3 ([`LIFELINE_FD`]) stays the SOLE gate for "was
-    /// I spawned" — `spawned_runtime::was_spawned()` reads only that fd, and
-    /// `run_with_args` checks it BEFORE argv is ever parsed for a Mode.
+    /// friendlier costume. fd 3 ([`LIFELINE_FD`]) is where a parent writes
+    /// `#wat.boot/Here` — `spawned_runtime::was_spawned()` requires that
+    /// frame, not mere openness, and `run_with_args` checks it BEFORE argv
+    /// is ever parsed for a Mode.
     /// Nothing may ever parse argv\[1\] to decide behavior: a shell invocation
     /// with a forged `#ns/Thing {}` argument and no fd 3 must be
     /// indistinguishable from any other bogus argv\[1\] (it falls through to

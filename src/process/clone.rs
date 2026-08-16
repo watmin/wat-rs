@@ -356,6 +356,13 @@ fn spawn_lifelined_inner(child_body: Box<dyn FnOnce(i32)>) -> std::io::Result<(P
         make_pipe(":wat::process::spawn_lifelined").map_err(|e| {
             std::io::Error::other(format!("{}", e))
         })?;
+    // Witness, not presence: write #wat.boot/Here BEFORE clone so the child
+    // finds it waiting on fd 3. An inherited harness pipe has no such frame.
+    crate::process::boot::write_boot_line(
+        lifeline_w.as_raw_fd(),
+        &crate::process::boot::BootFrame::Here.to_wire(),
+    )
+    .map_err(|e| std::io::Error::other(format!("{e}")))?;
     let lifeline_r_raw = lifeline_r.as_raw_fd();
     let lifeline_w_raw = lifeline_w.as_raw_fd();
 

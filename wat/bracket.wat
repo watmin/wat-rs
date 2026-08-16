@@ -171,33 +171,77 @@
 ;; Both return :wat::kernel::Peer<(i64,I),(i64,O)> so collect-loop drains a
 ;; uniform Vector<Peer<…>> (select' accepts Peer as of S3a).
 
-;; Arc 170 M1-pool — the thread self-peer now recv's PoolMsg<Address,(i64,I)> (the
-;; universal pool wire), so runner-loop stays the general recv→work-fn→send server
-;; (untouched — its two direct tests send raw items) while the index-wrapper UNWRAPS
-;; PoolMsg::Work here. A thread pool never dials (dials empty ⇒ no :Setup ever crosses),
-;; so the :Setup arm is unreachable-by-construction — it raises rather than fabricate a
-;; result. `work-fn` is the raw 1-param Fn(I)->O (thread applies it in-memory).
-;; Arc 170 gap J — D-generic (was a fixed bare `Address`): the surface's `spawn-runner<D,…>`
-;; now names D freely, so this impl's own annotations follow suit — proven to compile with
-;; D free (probed this session). D is still ALWAYS `nil` in practice for a thread pool (kwargs
-;; is process-only by the design doc; nothing ever routes a `::Coords` carrier through here),
-;; so the :Setup arm below stays a hard invariant, not a tolerant no-op: `map-worker` never
-;; SENDS a Setup at all for a plain (nil-carrier) pool (its provisioning fold is over an EMPTY
-;; `Vector<D>`), so this arm is unreachable-by-construction exactly as before — it raises
-;; rather than silently fabricate a result if that invariant is ever violated.
+;; Thread spawn-runner — TWO mouths, same split as Locus/launch.
+;;
+;; Thread launch (spawn.wat): companions already live in this universe;
+;; apply init/serve by keyword; service-forms is ignored.
+;; Process launch: ship forms; the child re-freezes.
+;;
+;; Thread kwargs is the same cell. `<base>::assemble` (Coords→Kwargs) and
+;; `<base>$impl` were minted next to the work-fn. Setup applies assemble
+;; and holds the peer bundle; Work applies $impl. A thread worker can
+;; reach a process service (same pid as the owner).
+;;
+;; Process kwargs still ships a generated dial-runner (separate memory).
+;;
+;; Dispatch is the same first-match-wins keyword-vs-W defclause as
+;; process-work-forms: a kwargs work-fn arrives as a bare keyword; a
+;; plain work-fn is a Fn(I)->O. Plain: Setup stays a raise.
+(:wat::core::defn :wat::bracket::thread-kwargs-runner<D,K,I,O>
+  [self    <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>
+   work-fn <- :wat::core::keyword
+   ctx     <- (:wat::core::Option :K)]
+  -> :wat::core::nil
+  (:wat::core::let
+    [base-str     (:wat::core::keyword/to-string work-fn)
+     assemble-kw  (:wat::core::keyword/from-string
+                    (:wat::core::string::concat base-str "::assemble"))
+     impl-kw      (:wat::core::keyword/from-string
+                    (:wat::core::string::concat base-str "$impl"))]
+    (:wat::core::match (:wat::kernel::recv self)
+      ((:wat::kernel::RecvOutcome::Message m)
+        (:wat::core::match m
+          ((:wat::bracket::PoolMsg::Setup deps)
+            (:wat::bracket::thread-kwargs-runner self work-fn
+              (:wat::core::Some
+                (:wat::core::apply assemble-kw deps (:wat::core::Vector :wat::core::nil)))))
+          ((:wat::bracket::PoolMsg::Work pair)
+            (:wat::core::let
+              [k   (:wat::core::Option/expect ctx "bracket thread-kwargs-runner: Work before Setup")
+               out (:wat::core::Tuple (:wat::core::first pair)
+                     (:wat::core::apply impl-kw (:wat::core::second pair)
+                       (:wat::core::Vector :K k)))]
+              (:wat::core::match (:wat::kernel::send self out)
+                (:wat::kernel::SendOutcome::Sent   (:wat::bracket::thread-kwargs-runner self work-fn ctx))
+                (:wat::kernel::SendOutcome::Stopped nil)
+                (:wat::kernel::SendOutcome::Closed (:wat::bracket::thread-kwargs-runner self work-fn ctx))
+                ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::thread-kwargs-runner self work-fn ctx)))))))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped nil)
+      (:wat::kernel::RecvOutcome::Closed nil))))
+
+(:wat::core::defclause :wat::bracket::thread-enter
+  ([self    <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>
+    work-fn <- :wat::core::keyword] -> :wat::core::nil
+   (:wat::bracket::thread-kwargs-runner self work-fn :wat::core::None))
+  ([self    <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>
+    work-fn <- :W] -> :wat::core::nil
+   (:wat::bracket::runner-loop self
+     (:wat::core::fn [m <- :wat::bracket::PoolMsg<D,I>] -> :(wat::core::i64,O)
+       (:wat::core::match m
+         ((:wat::bracket::PoolMsg::Work pair)
+           (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair))))
+         ((:wat::bracket::PoolMsg::Setup _deps)
+           (:wat::kernel::assertion-failed!
+             "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)"
+             :wat::core::None :wat::core::None)))))))
+
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self
       (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>] -> :wat::core::nil
-        (:wat::bracket::runner-loop sp
-          (:wat::core::fn [m <- :wat::bracket::PoolMsg<D,I>] -> :(wat::core::i64,O)
-            (:wat::core::match m  
-              ((:wat::bracket::PoolMsg::Work pair)
-                (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair))))
-              ((:wat::bracket::PoolMsg::Setup _deps)
-                (:wat::kernel::assertion-failed!
-                  "bracket thread runner: unexpected PoolMsg::Setup (thread pools never dial)"
-                  :wat::core::None :wat::core::None)))))))))
+        (:wat::bracket::thread-enter sp work-fn)))))
 
 ;; The PROCESS arm (not-shared) — bakes the runner, ships only the user's code
 ;; (259 S3c; supersedes the S3b shipped-runner shape).

@@ -202,17 +202,14 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
 
     // ── Arc 170 step 4 — am I a SPAWNED RUNTIME? ─────────────────────────────
     //
-    // A wat parent hands its child the lifeline read-end at a known fd number,
-    // and nothing else does. So the fd's mere EXISTENCE answers the question —
-    // no `--forms-server` flag in the public grammar (that would be user surface
-    // for an internal mechanism: typeable at a shell, visible in `ps`, and a
-    // CLAIM where this is a WITNESS). Reusing the lifeline rather than minting a
-    // marker keeps it one object: the thing that routes you is the thing that
-    // proves a parent holds the other end.
+    // A wat parent writes `#wat.boot/Here` onto the lifeline (fd 3) before
+    // clone. Presence of the fd is not enough — a harness pipe is also
+    // "open." The frame is the witness: no `--forms-server` flag, nothing
+    // in `ps`. Reusing the lifeline keeps it one object: the thing that
+    // routes you is the thing that proves a parent holds the other end.
     //
-    // Note this is ROUTING only. It grants nothing. The boot handshake on fd 0
-    // is the real gate — a process that was not spawned cannot complete it, and
-    // fails by name when it tries.
+    // Note this is ROUTING only. It grants nothing. The boot handshake on
+    // fd 0 is the real program gate.
     if spawned_runtime::was_spawned() {
         return spawned_runtime::serve();
     }

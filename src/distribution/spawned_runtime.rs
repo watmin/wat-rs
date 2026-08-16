@@ -12,16 +12,16 @@ use crate::process::exec_plan::LIFELINE_FD;
 
 /// Was this process spawned by a wat parent?
 ///
-/// Answered by asking the kernel whether [`LIFELINE_FD`] is open. A shell
-/// invocation has no such fd, so the question is self-answering and needs no
-/// flag, no environment variable, and nothing in `ps`.
-///
-/// Deliberately NOT "is my stdin a pipe" — `wat < file` satisfies that too. The
-/// signal has to be an fd nobody gets by accident.
+/// Not "is fd 3 open" — a harness control pipe is also open. The parent
+/// writes [`crate::process::boot::BootFrame::Here`] onto the lifeline
+/// before clone. We ask: is that frame waiting? No flag, no env, nothing
+/// in `ps`. `wat < file` is still not a child (stdin is the wrong wire).
 pub(crate) fn was_spawned() -> bool {
-    // SAFETY: F_GETFD only interrogates the descriptor table; it neither reads
-    // nor mutates anything, and a closed fd simply returns -1/EBADF.
-    unsafe { libc::fcntl(LIFELINE_FD, libc::F_GETFD) >= 0 }
+    // SAFETY: F_GETFD only interrogates the descriptor table.
+    if unsafe { libc::fcntl(LIFELINE_FD, libc::F_GETFD) } < 0 {
+        return false;
+    }
+    crate::process::boot::lifeline_has_here(LIFELINE_FD)
 }
 
 /// Boot as a spawned runtime: take the substrate and the program off fd 0, then

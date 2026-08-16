@@ -90,6 +90,10 @@ pub(crate) enum BootFrame {
     /// The program section is complete. The next thing on this wire belongs to
     /// the program.
     ProgramDone,
+    /// The parent is holding the other end of this lifeline. Written once onto
+    /// the lifeline pipe BEFORE clone, consumed by `was_spawned`. Presence of
+    /// fd 3 is not enough — an inherited harness pipe is also "open."
+    Here,
 }
 
 /// The child's reply to one frame.
@@ -118,6 +122,7 @@ pub(crate) const BOOT_NS: &str = "wat.boot";
 const TAG_CHUNK: &str = "Chunk";
 const TAG_SUBSTRATE_DONE: &str = "SubstrateDone";
 const TAG_PROGRAM_DONE: &str = "ProgramDone";
+const TAG_HERE: &str = "Here";
 const TAG_ACK: &str = "Ack";
 
 fn boot_err(reason: String) -> RuntimeError {
@@ -176,6 +181,7 @@ impl BootFrame {
             }
             TAG_SUBSTRATE_DONE => Ok(BootFrame::SubstrateDone),
             TAG_PROGRAM_DONE => Ok(BootFrame::ProgramDone),
+            TAG_HERE => Ok(BootFrame::Here),
             other => Err(boot_err(format!(
                 "unknown boot frame tag #{BOOT_NS}/{other} — the child refuses to guess"
             ))),
@@ -422,6 +428,45 @@ impl BootReader {
     }
 }
 
+/// Did a wat parent announce itself on this fd?
+///
+/// The routing question is not "is fd 3 open" — a harness control pipe is
+/// also open. It is "did the other end write [`BootFrame::Here`] before we
+/// started?" The parent writes that frame onto the lifeline BEFORE clone,
+/// so a real child always finds it ready. An inherited pipe is empty, or
+/// carries something that is not `#wat.boot/Here`. Either way we are a CLI.
+///
+/// Never blocks: `poll` timeout 0, then one `read`. Failures are "not a
+/// parent," not a boot error — a false child is worse than a missed one
+/// at this gate (a missed child fails the later handshake by name).
+pub(crate) fn lifeline_has_here(fd: i32) -> bool {
+    let mut pfd = libc::pollfd {
+        fd,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    // SAFETY: poll interrogates readiness; timeout 0 never sleeps.
+    let n = unsafe { libc::poll(&mut pfd, 1, 0) };
+    if n <= 0 || pfd.revents & libc::POLLIN == 0 {
+        return false;
+    }
+    let mut buf = [0u8; 256];
+    // SAFETY: `fd` is open; we read into a stack buffer we own.
+    let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
+    if n <= 0 {
+        return false;
+    }
+    let bytes = &buf[..n as usize];
+    let line = match bytes.iter().position(|&b| b == b'\n') {
+        Some(i) => &bytes[..i],
+        None => bytes,
+    };
+    let Ok(text) = std::str::from_utf8(line) else {
+        return false;
+    };
+    matches!(BootFrame::from_wire(text), Ok(BootFrame::Here))
+}
+
 /// Write one newline-terminated line to a raw fd, retrying short writes.
 pub(crate) fn write_boot_line(fd: i32, line: &str) -> Result<(), RuntimeError> {
     let mut bytes = line.as_bytes().to_vec();
@@ -568,6 +613,7 @@ fn _every_boot_frame_variant_is_covered(f: &BootFrame) {
         BootFrame::Chunk { .. } => {}
         BootFrame::SubstrateDone => {}
         BootFrame::ProgramDone => {}
+        BootFrame::Here => {}
     }
 }
 
@@ -775,6 +821,7 @@ mod tests {
             BootFrame::Chunk { text: "with \"quotes\" and\nnewlines".into() },
             BootFrame::SubstrateDone,
             BootFrame::ProgramDone,
+            BootFrame::Here,
         ] {
             let wire = f.to_wire();
             assert!(
@@ -807,6 +854,32 @@ mod tests {
         // And a tag from another namespace is refused too, so `Chunk` alone is not
         // a password.
         assert!(BootFrame::from_wire("#other.ns/Chunk {:text \"x\"}").is_err());
+    }
+
+    #[test]
+    fn an_empty_or_foreign_pipe_is_not_a_parent() {
+        use std::os::fd::AsRawFd;
+        let (r, w) = super::super::clone::make_pipe(":test").expect("pipe");
+        assert!(
+            !lifeline_has_here(r.as_raw_fd()),
+            "an inherited empty pipe must not route us into the child path"
+        );
+        write_boot_line(w.as_raw_fd(), "watmin").expect("write prose");
+        assert!(
+            !lifeline_has_here(r.as_raw_fd()),
+            "prose on fd 3 is a harness, not a wat parent"
+        );
+    }
+
+    #[test]
+    fn here_on_the_lifeline_is_a_parent() {
+        use std::os::fd::AsRawFd;
+        let (r, w) = super::super::clone::make_pipe(":test").expect("pipe");
+        write_boot_line(w.as_raw_fd(), &BootFrame::Here.to_wire()).expect("write Here");
+        assert!(
+            lifeline_has_here(r.as_raw_fd()),
+            "only #wat.boot/Here on the lifeline answers \"a wat parent spawned me\""
+        );
     }
 
     #[test]

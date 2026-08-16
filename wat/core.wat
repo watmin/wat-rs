@@ -1131,7 +1131,56 @@
          revoke-worker-def (:wat::core::if mint-coords?
                               `(:wat::core::defn ~revoke-worker-kw [~gw-handles-sym <- ~grant-handles-kw ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
                                  (:wat::core::do ~@revoke-calls))
-                              `(:wat::core::do nil))]
+                              `(:wat::core::do nil))
+         ;; ── <fqdn>::assemble — typed Coords → Kwargs (thread bracket Setup).
+         ;; Same field fold as process-work-forms' generated dial-runner: Peer
+         ;; fields connect', data fields copy. Minted HERE so the thread locus
+         ;; can apply a companion that already lives in this universe (service
+         ;; thread launch applies init/serve the same way). Process still
+         ;; generates its own assemble into shipped source — separate memory.
+         assemble-name-str (:wat::core::string::concat name-base "::assemble")
+         assemble-kw       (:wat::core::keyword-node
+                             (:wat::core::string::concat ":" assemble-name-str))
+         assemble-deps-sym (:wat::core::symbol-node "deps")
+         assemble-p-sym    (:wat::core::symbol-node "p")
+         assemble-c-sym    (:wat::core::symbol-node "c")
+         kwargs-prime-kw   (:wat::core::keyword-node
+                             (:wat::core::string::concat kwargs-ty-colon-str "'"))
+         assemble-ctor-args
+         (:wat::core::foldl
+           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64]
+             -> :wat::core::Vector<wat::WatAST>
+             (:wat::core::let
+               [fname-node (:wat::core::Option/expect
+                             (:wat::core::get fname-nodes i) "assemble-ctor-args: fname index")
+                orig-ty    (:wat::core::Option/expect
+                             (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                             "assemble-ctor-args: type index")
+                is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
+                fname-str  (:wat::core::ast-name fname-node)
+                acc-kw     (:wat::core::keyword-node
+                             (:wat::core::string::concat ":"
+                               (:wat::core::string::concat coords-ty-str
+                                 (:wat::core::string::concat "/" fname-str))))
+                read-form  `(~acc-kw ~assemble-deps-sym)
+                form       (:wat::core::if is-peer
+                             `(:wat::core::match (:wat::kernel::connect ~read-form)
+                                ((:wat::kernel::ConnectOutcome::Connected ~assemble-p-sym) ~assemble-p-sym)
+                                ((:wat::kernel::ConnectOutcome::Refused ~assemble-c-sym)
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None))
+                                ((:wat::kernel::ConnectOutcome::Rejected ~assemble-c-sym)
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None))
+                                ((:wat::kernel::ConnectOutcome::Failed ~assemble-c-sym)
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)))
+                             read-form)]
+               (:wat::core::conj acc form)))
+           (:wat::core::Vector :wat::WatAST)
+           (:wat::core::range 0 n-kw-fields))
+         assemble-def (:wat::core::if mint-coords?
+                        `(:wat::core::defn ~assemble-kw
+                           [~assemble-deps-sym <- ~coords-kw] -> ~kwargs-ty-node
+                           (~kwargs-prime-kw ~@assemble-ctor-args))
+                        `(:wat::core::do nil))]
         ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
         ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
         ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
@@ -1170,7 +1219,8 @@
            ~grant-handles-def           ;; ← C2 D: <fqdn>::GrantHandles (before the checker refs it).
            ~kwargs-check-def            ;; ← W2a/C2 D. Order-independent (refs only literal Coords/GrantHandles types).
            ~grant-worker-def            ;; ← C2 D: <fqdn>::grant-worker.
-           ~revoke-worker-def))         ;; ← C2 D: <fqdn>::revoke-worker.
+           ~revoke-worker-def           ;; ← C2 D: <fqdn>::revoke-worker.
+           ~assemble-def))              ;; ← Coords → Kwargs (thread Setup).
       ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
       `(:wat::core::def ~name (:wat::core::fn ~@rest)))))
 
