@@ -1749,6 +1749,42 @@
       (:wat::rete::fire-production node-id network beta-mem rules prod-mem)
       prod-mem)))
 
+;; walk-sorted-ids — TCO over a Vector of node-ids. Vector-foldl instantiates
+;; PersistentMap as PersistentMap<K,V> and then rejects the existing pass fns
+;; (typed bare PersistentMap). Walking by index keeps Acc unparameterized.
+;; phase: 0 alpha, 1 root-join, 2 populate-then-emit, 3 production.
+(:wat::core::defn :wat::rete::walk-sorted-ids
+  [phase   <- :wat::core::i64
+   facts   <- :wat::core::PersistentVector
+   network <- :wat::core::PersistentMap
+   rules   <- :wat::core::PersistentVector<wat::rete::Rule>
+   amem    <- :wat::core::PersistentMap
+   bmem    <- :wat::core::PersistentMap
+   ids     <- :wat::core::Vector<wat::core::i64>
+   i       <- :wat::core::i64
+   acc     <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentMap
+  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+    acc
+    (:wat::core::let [node-id (:wat::core::Option/expect
+                                 (:wat::core::get ids i)
+                                 "walk-sorted-ids: id")
+                      acc1    (:wat::core::cond
+                                ((:wat::core::= phase 0)
+                                 (:wat::rete::activate-alpha facts network acc node-id))
+                                ((:wat::core::= phase 1)
+                                 (:wat::rete::root-join-pass amem network acc node-id))
+                                ((:wat::core::= phase 2)
+                                 (:wat::rete::hash-join-pass amem network
+                                   (:wat::rete::filter-pass network amem
+                                     (:wat::rete::accumulate-pass network amem acc node-id)
+                                     node-id)
+                                   node-id))
+                                (:else
+                                 (:wat::rete::production-pass network bmem rules acc node-id)))]
+      (:wat::rete::walk-sorted-ids phase facts network rules amem bmem ids
+        (:wat::core::i64::+ i 1) acc1))))
+
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
 ;; Recomputes all memories from Session.facts each call (re-run-from-scratch); derived facts
@@ -1760,49 +1796,22 @@
   (:wat::core::let [network  (:wat::rete::Session/network session)
                     rules    (:wat::rete::Session/rules   session)
                     facts    (:wat::rete::Session/facts   session)
-                    node-ids (:wat::core::PersistentMap/keys network)
-                    ;; alpha pass (2b) — populate alpha-memory
-                    new-amem (:wat::core::foldl
-                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                 node-id <- :wat::core::i64]
-                                  -> :wat::core::PersistentMap
-                                  (:wat::rete::activate-alpha facts network acc node-id))
-                                (:wat::core::PersistentMap)
-                                node-ids)
-                    ;; root-join pass (3a) — seed RootJoinNode beta-memory from alpha Elements
-                    new-bmem (:wat::core::foldl
-                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                 node-id <- :wat::core::i64]
-                                  -> :wat::core::PersistentMap
-                                  (:wat::rete::root-join-pass new-amem network acc node-id))
-                                (:wat::core::PersistentMap)
-                                node-ids)
-                    ;; beta walk (3b+7+8) — ONE topological fold: populate this node, then emit
-                    ;; to its HashJoin children. Populate = accumulate-pass (no-op unless Accum)
-                    ;; then filter-pass (no-op unless Test/Neg/Exists). Emit = hash-join-pass
-                    ;; (now accepts Test/Neg/Exists/Accum as left parents). Compile IDs are
-                    ;; left-to-right, so a mid-chain :where's TestNode is filled before the
-                    ;; next HashJoin reads it. The old split (all joins, then all filters)
-                    ;; starved Join→Test→Join — Clara left-activates; so do we.
-                    filtered-bmem (:wat::core::foldl
-                                    (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                     node-id <- :wat::core::i64]
-                                      -> :wat::core::PersistentMap
-                                      (:wat::rete::hash-join-pass new-amem network
-                                        (:wat::rete::filter-pass network new-amem
-                                          (:wat::rete::accumulate-pass network new-amem acc node-id)
-                                          node-id)
-                                        node-id))
-                                    new-bmem
-                                    node-ids)
-                    ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
-                    new-pmem (:wat::core::foldl
-                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                 node-id <- :wat::core::i64]
-                                  -> :wat::core::PersistentMap
-                                  (:wat::rete::production-pass network filtered-bmem rules acc node-id))
-                                (:wat::core::PersistentMap)
-                                node-ids)]
+                    ;; WHY sort: compile mints ids left-to-right, so ascending id IS
+                    ;; topological. PersistentMap/keys is HAMT order — not that. The old
+                    ;; split (all joins, then all filters) was commute-tolerant. The
+                    ;; unified populate-then-emit walk is not: a TestNode visited before
+                    ;; its parent HashJoin sees an empty beta and stays empty. node-share
+                    ;; (N TestNodes fanning off one shared join) made that flicker:
+                    ;; oracle-derived changed every run, sometimes []. Native sorts
+                    ;; (sorted_node_ids); the spec must too.
+                    node-ids (:wat::core::sort
+                                (:wat::core::into (:wat::core::Vector :wat::core::i64)
+                                  (:wat::core::PersistentMap/keys network)))
+                    empty    (:wat::core::PersistentMap)
+                    new-amem (:wat::rete::walk-sorted-ids 0 facts network rules empty empty node-ids 0 empty)
+                    new-bmem (:wat::rete::walk-sorted-ids 1 facts network rules new-amem empty node-ids 0 empty)
+                    filtered-bmem (:wat::rete::walk-sorted-ids 2 facts network rules new-amem new-bmem node-ids 0 new-bmem)
+                    new-pmem (:wat::rete::walk-sorted-ids 3 facts network rules new-amem filtered-bmem node-ids 0 empty)]
     (:wat::rete::Session
       :network (:wat::rete::Session/network session)
       :rules (:wat::rete::Session/rules   session)
