@@ -4110,6 +4110,11 @@ mod tests {
     // Session carries an empty beta-memory. The join-correctness invariants are preserved HERE:
     // we run the passes directly and inspect the NATIVE wm.beta before it would be cleared.
     //
+    // ⚠ THOSE TWO PROBE FILES ARE DELETED (2026-08-16). Every one of their 7 tests was `#[ignore]`d
+    // and named its replacement below; the files held no live test. The `tests/probe_arc278_3*.rs`
+    // paths cited in the doc comments are HISTORICAL PROVENANCE — what this coverage replaced — not
+    // pointers to files on disk. Do not grep for them expecting a hit.
+    //
     // These tests are the authority for:
     //   3a: RootJoinNode seeds exactly 1 Token per matching Element (bindings + support carried).
     //   3b: HashJoinNode yields the exact compatible-cross cardinality (1, 0, or 2 for 2×2).
