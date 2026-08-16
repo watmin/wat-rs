@@ -63,7 +63,15 @@ use wat::runtime::Value;
 #[test]
 fn select_prime_flood_no_deadlock() {
     // Arm the watchdog: deadlock → _exit(124) → test FAIL.
-    arm_watchdog(Duration::from_secs(10));
+    //
+    // LIVENESS BOUND — only a hang may trip this. Measured typical: 0.40-0.45s
+    // wall clock for the whole select'()-over-flood-child call (isolated, 3
+    // runs, 2026-08-15). 20s is ~44-50x that, so a red here means STUCK,
+    // never "the box was busy". Capped below nextest's own per-test kill
+    // wall (`.config/nextest.toml` default profile: 15s warn x
+    // terminate-after 2 = 30s SIGTERM) so this watchdog's own diagnostic
+    // exit(124) fires before nextest silently SIGTERMs the process instead.
+    arm_watchdog(Duration::from_secs(20));
 
     // Spawns the flooding child and runs `select'` over it — the blocking call that
     // deadlocks at HEAD, returns fast after the fix (co-located fixture, `:user::compute`).

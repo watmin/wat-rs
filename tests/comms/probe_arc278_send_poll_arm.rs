@@ -224,14 +224,20 @@ fn probe_sender_send_wakes_on_shutdown_broadcast() {
         })
         .expect("report-reader thread spawn");
 
-    let report_line = report_rx.recv_timeout(Duration::from_secs(3)).unwrap_or_else(|_| {
+    // LIVENESS BOUND — only a hang may trip this. Measured typical:
+    // 107-142us (isolated, 3 runs, 2026-08-15). 20s is ~140,000-190,000x
+    // that, so a red here means STUCK, never "the box was busy". Capped
+    // below nextest's own per-test kill wall (`.config/nextest.toml` default
+    // profile: 15s warn x terminate-after 2 = 30s SIGTERM) so this bound's
+    // diagnostic message fires before nextest silently kills the process.
+    let report_line = report_rx.recv_timeout(Duration::from_secs(20)).unwrap_or_else(|_| {
         // The read-thread above leaks (its blocking read may never return) —
         // Rust threads cannot be killed safely; honest about that here, as
         // `wat/test.wat`'s `:time-limit` doc already is for the same reason.
         let _ = child.kill();
         let _ = child.wait();
         panic!(
-            "the child did not report within 3s of the shutdown broadcast firing — the write \
+            "the child did not report within 20s of the shutdown broadcast firing — the write \
              is blocked in the kernel with no way to observe the shutdown broadcast. This is \
              the RED state when the poll arm is missing/broken (src/comms/process.rs \
              Sender::send)."
@@ -240,7 +246,14 @@ fn probe_sender_send_wakes_on_shutdown_broadcast() {
     let elapsed = t0.elapsed();
 
     // Bounded wait for the child's exit — never a raw `.wait()`.
-    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    //
+    // LIVENESS BOUND — only a hang may trip this. Measured typical: ~10.08ms
+    // (isolated, 3 runs, 2026-08-15) — this floor is mostly the loop's own
+    // 10ms poll granularity (child exits almost immediately after reporting;
+    // no fixed window like the sibling probe's :182 sleep). 20s is ~2000x
+    // that; capped below nextest's 30s per-test kill wall for the same
+    // reason as above.
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
     let status = loop {
         match child.try_wait().expect("try_wait") {
             Some(s) => break Some(s),
@@ -256,7 +269,7 @@ fn probe_sender_send_wakes_on_shutdown_broadcast() {
         let _ = child.kill();
         let _ = child.wait();
         panic!(
-            "the child reported {:?} but did not exit within 3s afterward\nstdout:\n{}",
+            "the child reported {:?} but did not exit within 20s afterward\nstdout:\n{}",
             report_line, stdout_text
         );
     }

@@ -281,11 +281,21 @@ fn probe_sender_send_leaves_headless_partial_frame_on_shutdown() {
             }
         })
         .expect("report-reader thread spawn");
-    let report_line = report_rx.recv_timeout(Duration::from_secs(3)).unwrap_or_else(|_| {
+    // LIVENESS BOUND — only a hang may trip this. Measured typical: 9.236ms
+    // (builder, isolated, 5 runs, 2026-08-15), reconfirmed here at 11.6-15.8ms
+    // (isolated, 3 runs, 2026-08-15). 20s is ~1300-2200x that, so a red here
+    // means STUCK, never "the box was busy". Capped below nextest's own
+    // per-test kill wall (`.config/nextest.toml` default profile: 15s warn x
+    // terminate-after 2 = 30s SIGTERM) so this bound's diagnostic message
+    // fires before nextest silently kills the process out from under it.
+    // This is the bound that produced the arc-278 red on a 45-binary parallel
+    // floor: a 3s wall-clock bound on another OS process's scheduling cannot
+    // tell its own subject from CPU contention.
+    let report_line = report_rx.recv_timeout(Duration::from_secs(20)).unwrap_or_else(|_| {
         let _ = child.kill();
         let _ = child.wait();
         panic!(
-            "the child did not report within 3s of SIGTERM — the blocked send never woke; this \
+            "the child did not report within 20s of SIGTERM — the blocked send never woke; this \
              is the poll-arm-missing RED state probe_arc278_send_poll_arm.rs already covers, not \
              this probe's subject."
         );
@@ -370,7 +380,16 @@ fn probe_sender_send_leaves_headless_partial_frame_on_shutdown() {
 
     // Now let the writer's fd actually close: wait (bounded) for the child
     // to finish its sleep and exit.
-    let deadline = Instant::now() + Duration::from_secs(6);
+    //
+    // LIVENESS BOUND — only a hang may trip this. Measured typical: 1.508s
+    // (isolated, 3 runs, 2026-08-15) — this is mostly the fixed remainder of
+    // the child's :182 3s sleep WINDOW after the ~10ms report round trip and
+    // the coupled 1.5s case-(a) wait already elapsed, not scheduler noise.
+    // 20s is ~13x that, and is capped below nextest's own per-test kill wall
+    // (`.config/nextest.toml` default profile: 15s warn x terminate-after 2
+    // = 30s SIGTERM) so THIS bound's diagnostic message fires before nextest
+    // silently kills the process out from under it.
+    let deadline = Instant::now() + Duration::from_secs(20);
     let status = loop {
         match child.try_wait().expect("try_wait") {
             Some(s) => break Some(s),
@@ -383,20 +402,25 @@ fn probe_sender_send_leaves_headless_partial_frame_on_shutdown() {
         None => {
             let _ = child.kill();
             let _ = child.wait();
-            println!("MEASURED child did not exit within 6s of SIGTERM — forcibly killed for cleanup.");
+            println!("MEASURED child did not exit within 20s of SIGTERM — forcibly killed for cleanup.");
         }
     }
 
     // (b) writer's fd now dropped (child process gone) — a real EOF should
     // be observable on the pipe's read end. Bounded final wait.
-    match recv_rx.recv_timeout(Duration::from_secs(2)) {
+    //
+    // LIVENESS BOUND — only a hang may trip this. Measured typical: ~2.5us
+    // (isolated, 3 runs, 2026-08-15) — EOF is observed essentially
+    // instantly once the writer's fd is gone. 20s is ~8,000,000x that; capped
+    // below nextest's 30s per-test kill wall for the same reason as above.
+    match recv_rx.recv_timeout(Duration::from_secs(20)) {
         Ok(outcome) => {
             println!("MEASURED case (b) writer-fd-DROPPED: recv() returned: {outcome:?}");
         }
         Err(_) => {
             println!(
                 "MEASURED case (b) writer-fd-DROPPED: recv() STILL did not return within a \
-                 further 2s even after the writer process exited."
+                 further 20s even after the writer process exited."
             );
         }
     }
