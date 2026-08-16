@@ -46,11 +46,34 @@ fail-fast = false
 # The wat-scripts load gate freezes EVERY .wat under wat-scripts/ in ONE test
 # — legitimately CPU-heavy and it GROWS WITH THE CORPUS every time a probe lands.
 #
-# ⚠ MEASURED 2026-07-25: this test took **88.085s** on a full-floor run, against a
-# 90s kill. TWO SECONDS of margin — and several probes landed that same day. The
-# old 45s/90s was already breaching in practice, so it is raised generously:
-# warn at 120s, kill at 240s. A genuine hang still dies; corpus growth no longer
-# walks us into a SIGTERM mid-freeze.
+# ⚠ THIS DEADLINE HAS NOW BEEN RAISED TWICE, AND THAT IS THE REAL SIGNAL.
+#   2026-07-25:  45s/90s  ->  120s/240s.  Measured 88.085s on a full floor: 2s of margin.
+#   2026-08-16:  120s/240s -> 300s/600s.  It TIMED OUT at the 240s kill.
+#
+# MEASURED 2026-08-16, and the numbers say the budget stopped covering the work:
+#   the gate ALONE (no contention) ............  62.8s
+#   the gate under a full floor ...............  219.097s   ← against the old 240s kill
+#   margin at the old deadline ................  20.9s = 8.7%   ← why it flipped run to run
+#   .wat files under wat-scripts/ .............  327
+#   .wat ADDED to wat-scripts/ since 2026-07-25   158   — the corpus roughly DOUBLED
+#
+# The 3.5x contention factor is expected (a CPU-bound parse+typecheck of 327 files sharing
+# the box with 12-14 concurrent test processes); what changed is the corpus. It passed AND
+# timed out on the IDENTICAL corpus the same day — 8.7% of margin is a coin flip, not a
+# budget, which is why this is a real failure and not a flake.
+#
+# ★ AND NOTE THE SHAPE, because it reframes the whole thing: that run's TOTAL was 223.094s.
+# THE GATE IS 98% OF THE FLOOR'S WALL-CLOCK. It is not "a slow test" — it IS the floor, and
+# every other test overlaps inside it (which is exactly what `priority = 100` arranges). Any
+# future attempt to make the suite faster that does not touch this test is rounding error.
+#
+# ⛔ RAISING A NUMBER IS NOT A FIX, AND THIS ONE IS EXPLICITLY A STOPGAP. Builder,
+# 2026-08-16: "raise the timeout ... making our parser faster is medium term.. not now."
+# The durable fixes, in the order I'd draw them: SPLIT the gate per-directory
+# (fixes/ · scratch-pad/ · probes/ · perf/), so each fits its budget and a failure names
+# which directory broke — the `binary_id`/filter machinery below already does this shape;
+# or make the freeze itself cheaper, which needs a per-file cost measurement nobody has
+# taken. At the current growth rate (+158 files in 3 weeks) 600s buys months, not years.
 #
 # `priority` (higher runs earlier) starts it in the FIRST wave rather than letting
 # it become the long pole at the end — it then overlaps the other ~4100 tests
@@ -58,7 +81,7 @@ fail-fast = false
 # gate from looking like a hang under end-of-run contention.
 [[profile.default.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
+slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100                                            # schedule first
 
 # The REST of the lint binary, immediately behind the scripts gate.
@@ -73,7 +96,7 @@ priority = 100                                            # schedule first
 # ⚠ ORDER IS LOAD-BEARING. Overrides are matched top-down, so this MUST stay
 # BELOW the `every_wat_scripts_file_loads_on_the_current_runtime` rule — that
 # test lives INSIDE this very binary (tests/lint/wat_scripts_fixes_load.rs).
-# Above it, this broader filter would swallow the gate and strip its 120s/240s
+# Above it, this broader filter would swallow the gate and strip its 300s/600s
 # timeout, walking the 88s freeze back into a SIGTERM. Only `priority` is set
 # here; every other setting falls through to the profile default.
 [[profile.default.overrides]]
@@ -82,7 +105,9 @@ priority = 99                                             # just below the scrip
 
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "120s", terminate-after = 2 }
+# raised with [profile.default] 2026-08-16 — CI and --profile slow hit the same 327-file
+# corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
+slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100
 
 [[profile.ci.overrides]]
@@ -107,7 +132,9 @@ default-filter = 'all() - test(diag_first_over_form) - test(diag_first_over_vect
 
 [[profile.slow.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "120s", terminate-after = 2 }
+# raised with [profile.default] 2026-08-16 — CI and --profile slow hit the same 327-file
+# corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
+slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100
 
 [[profile.slow.overrides]]

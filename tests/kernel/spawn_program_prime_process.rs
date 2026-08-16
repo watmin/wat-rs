@@ -320,38 +320,25 @@ fn spawn_program_prime_process_helper_round_trip() {
     drop(peer_val);
 }
 
-/// circumspicere F3 (Stone 6.w) regression: a `:process` peer forms-server child
-/// that hits a runtime error must NOT die silently — it emits a structured
-/// `#wat.kernel/ProcessPanics` envelope on fd 2 (the err channel).
-///
-/// Arc 214 β migration: the server is now a forms-server. When malformed EDN
-/// is sent, `readln -> :i64` fails to parse the line → RuntimeError → panic →
-/// catch_unwind → finish_forked_child → emit_structured_exit writes the
-/// ProcessPanics envelope to fd 2 (the err channel). The parent reads it via
-/// bundle.recv() → Crashed(reason).
-///
-/// Run via:
-///   cargo test --test kernel spawn_program_prime_process_error_emits_diagnostic -- --ignored
-#[test]
-#[ignore = "UNWRITTEN (arc 214 1b-ii-α): the body is unimplemented!() — running this out-of-band panics, it does not measure. Not a concurrency quarantine. Unlock: assert the exact process crash diagnostic EDN."]
-fn spawn_program_prime_process_error_emits_diagnostic() {
-    unimplemented!("arc 214 1b-ii-α: on unlock assert_eq! the exact process crash diagnostic EDN");
-}
-
-/// circumspicere F2 (Stone 6.w) — runtime-error arm coverage.
-///
-/// The forms-server child that hits a DivisionByZero error must emit a structured
-/// `#wat.kernel/ProcessPanics` envelope on fd 2. Uses a forms-server that reads
-/// one i64 and writes (100 / n): sending n=0 triggers DivisionByZero.
-///
-/// Arc 214 β migration: spawn_process_peer now takes forms. The crash mechanism
-/// is the same: panic → catch_unwind in run_user_main_in_child → finish_forked_child
-/// → emit_structured_exit → fd 2 (err channel) → parent reads via bundle.recv().
-///
-/// Run via:
-///   cargo test --test kernel spawn_program_prime_process_runtime_error_emits_diagnostic -- --ignored
-#[test]
-#[ignore = "UNWRITTEN (arc 214 1b-ii-α): the body is unimplemented!() — running this out-of-band panics, it does not measure. Not a concurrency quarantine. Unlock: assert the exact runtime-error crash diagnostic EDN."]
-fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
-    unimplemented!("arc 214 1b-ii-α: on unlock assert_eq! the exact runtime-error crash diagnostic EDN");
-}
+// ⊘ 2026-08-16 — TWO UNWRITTEN TESTS WERE DELETED FROM HERE, and a third with them
+// (`tests/kernel/probe_arc214_alpha_crash_autoraise.rs`, the whole file).
+//
+//   spawn_program_prime_process_error_emits_diagnostic
+//   spawn_program_prime_process_runtime_error_emits_diagnostic
+//
+// Both bodies were `unimplemented!()`. Their own `#[ignore]` reasons said so: "the body is
+// unimplemented!() — running this out-of-band panics, it does not measure." They were
+// placeholders wearing a test's clothes, and no arc closing could ever turn them green
+// because there was nothing to turn green.
+//
+// The crash path they were written against is real and still open — child runtime error →
+// panic → catch_unwind → finish_forked_child → emit_structured_exit → `#wat.kernel/ProcessPanics`
+// on fd 2 → parent via bundle.recv() → Crashed(reason). The design content, the io_uring
+// `1b-ii-α` gap it depends on, and what closing arc 214 must RULE on are preserved in:
+//
+//   docs/arc/2026/05/214-concurrency-toolkit/
+//     NOTE-three-unwritten-crash-diagnostic-tests-were-deleted.md
+//
+// ⚠ Do NOT resurrect them from git. Write what the ruling calls for — the deleted file
+// asserted, in its own header, that one of these two was "already green", and it had never
+// run at all.

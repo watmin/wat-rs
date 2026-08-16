@@ -91,23 +91,34 @@ fn user_form_carries_guaranteed_baseline() {
 
 // ─── Arc 255.1b-iii — the intrinsic branch, proven on core::Bytes ────────────
 //
-// metadata-of now answers for a registered Rust intrinsic with the SAME
-// `Some(HashMap<keyword, HolonAST>)` shape the user path uses, carrying the
-// auto-derived baseline (:name/:kind/:defined-in/:layer/:arity/:pure/
-// :deterministic/:doc). ZERO eval behavior change: the Bytes ops still produce
-// identical results; this only adds the reflection answer.
-
-#[test]
-#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
-fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
-    unimplemented!("arc 255: metadata-of for Rust intrinsics; on unlock assert the exact :doc for Bytes::to-hex");
-}
-
-#[test]
-#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
-fn metadata_of_answers_for_bytes_from_hex_intrinsic() {
-    unimplemented!("arc 255: metadata-of for Rust intrinsics; on unlock assert the exact :doc for Bytes::from-hex");
-}
+// ⊘ 2026-08-16 — TWO UNWRITTEN TESTS WERE DELETED FROM HERE:
+//
+//   metadata_of_answers_for_bytes_to_hex_intrinsic
+//   metadata_of_answers_for_bytes_from_hex_intrinsic
+//
+// Both bodies were `unimplemented!()`. Their `#[ignore]` said "arc-255 metadata-of
+// reflection not yet built" — wrong twice over. They were not "not yet built", they were
+// not yet WRITTEN; and the capability they waited on HAS ANSWERED SINCE `7b99d123`
+// (2026-06-21). Verified live this session:
+//
+//   (:wat::runtime::metadata-of :wat::core::Bytes::to-hex)
+//   ⇒ Some [{:name :wat.core.Bytes/to-hex :arity 1 :kind Intrinsic :defined-in Rust
+//            :layer Substrate :purity Pure :determinism Deterministic
+//            :doc "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`. …" …}]
+//
+// which is exactly what they were meant to assert. The capability shipped two months
+// before the tests that were to prove it, and the tests were never written.
+//
+// ⚠ Do NOT resurrect them from git. `metadata-of` currently has TWO tables (the intrinsic
+// registry vs `sym.binding_metadata`) and 255's DESIGN rules "the registry IS `sym`" —
+// writing a :doc assertion now would pin the June path as correct and pre-empt the
+// entry-shape decision the arc reserves as DAY ONE. See:
+//
+//   docs/arc/2026/06/255-builtin-registry/NOTE-two-unwritten-bytes-metadata-tests-were-deleted.md
+//   docs/arc/2026/06/255-builtin-registry/NOTE-arc-255-IS-HALF-BUILT-the-june-registry.md
+//
+// The two tests ABOVE (metadata_of_answers_for_a_rust_builtin, user_form_carries_
+// guaranteed_baseline) are REAL — they assert — and remain `#[ignore]`d on 255.
 
 /// Diagnostic: emit the EXACT metadata-of(Bytes/to-hex) map the builder wants
 /// to see (keys + values). Run with `--nocapture`.

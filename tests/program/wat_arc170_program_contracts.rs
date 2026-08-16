@@ -64,11 +64,19 @@ fn t1_canonical_nil_main_freezes() {
     );
 }
 
-#[test]
-#[ignore = "ARC-170 WIP: BareLegacyMainSignature walker no longer fires for a non-canonical :user::main (freeze succeeds where it should reject — likely walker-disconnect); investigate + fix/retire before arc 170 closes."]
-fn t1_legacy_3arg_main_fires_walker() {
-    unimplemented!("arc 170: BareLegacyMainSignature walker reconnect; on unlock assert the legacy-3arg-main diagnostic exactly");
-}
+// ⊘ T1 DELETED 2026-08-16 — `t1_legacy_3arg_main_fires_walker`, an UNWRITTEN test
+// (`unimplemented!()`) whose `#[ignore]` asserted a substrate defect that does not exist:
+// "BareLegacyMainSignature walker no longer fires ... likely walker-disconnect".
+//
+// MEASURED — a 3-arg `:user::main` through `wat --check`:
+//   #wat.macro/MainSignatureError ":user::main must take exactly 0 parameters; got 3.
+//    ... The canonical signature is `[] -> :wat::core::nil`."
+// The guard is live at src/check.rs:906-914 and fires on ANY non-canonical shape (both the
+// params arm and the return-type arm were observed firing the same day). See
+// docs/arc/2026/05/170-program-entry-points/NOTE-the-walker-disconnect-suspicion-was-false.md
+//
+// A suspicion was typed into an ignore-reason instead of a test, and sat on disk as the only
+// account of a check that had been working the whole time. Nobody asked the binary.
 
 // ─── T2. :user::main [] -> :wat::core::nil invokes cleanly ─────────────
 
@@ -179,13 +187,11 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     }
 }
 
-// ─── T11. 3-arg :user::main fires walker (BareLegacyMainSignature) ────
-
-#[test]
-#[ignore = "ARC-170 WIP: BareLegacyMainSignature walker no longer fires for a non-canonical :user::main (freeze succeeds where it should reject — likely walker-disconnect); investigate + fix/retire before arc 170 closes."]
-fn t11_legacy_main_signature_fires_walker_diagnostic() {
-    unimplemented!("arc 170: BareLegacyMainSignature walker reconnect; on unlock assert the legacy-4arg-main diagnostic exactly");
-}
+// ⊘ T11 DELETED 2026-08-16 — `t11_legacy_main_signature_fires_walker_diagnostic`, the sibling
+// of the deleted T1 above and unwritten for the same reason. Same disproven suspicion, same
+// NOTE. The rejection path is not uncovered: `validate_user_main_signature` /
+// `expected_user_main_signature` are asserted in this file, and the return-type arm has live
+// incidental coverage from `tests/wat_lang/probe_undefined_builtin_resolves_*.wat.bad`.
 
 // ─── T17. hermetic run — happy path over the primed peer wire (arc 278 IPC de-prime)
 //
