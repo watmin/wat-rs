@@ -91,30 +91,26 @@ fn match_mixes_unit_and_tagged_arms() {
 
 // ─── Type errors — checker rejects bad patterns ───────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn missing_variant_arm_reports_non_exhaustive() {
     let err = run_expecting_check_error("tests/types/enums_missing_variant.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/enums_missing_variant.wat.bad", line: 4, col: 4, end_line: 4, end_col: 21 }, kind: MalformedForm { head: ":wat::core::match", reason: "non-exhaustive: enum :my::Color missing arm(s) for variant(s): Blue (or include `_` wildcard)", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_missing_variant.wat.bad", line: 4, col: 3, end_line: 6, end_col: 27 }, kind: ReturnTypeMismatch { function: ":user::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#);
+    wat::assert_edn_matches_file!(err, "enums__missing_variant_arm_reports_non_exhaustive.edn", "non-exhaustive match + return-type-mismatch fallout");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn cross_enum_variant_pattern_rejected() {
     let err = run_expecting_check_error("tests/types/enums_cross_enum.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/enums_cross_enum.wat.bad", line: 5, col: 22, end_line: 5, end_col: 37 }, kind: TypeMismatch { callee: ":wat::core::match", param: "scrutinee", expected: ":my::Side", got: ":my::Color" } }, CheckError { span: Span { file: "tests/types/enums_cross_enum.wat.bad", line: 7, col: 6, end_line: 7, end_col: 21 }, kind: MalformedForm { head: ":wat::core::match", reason: "variant pattern :my::Color::Red doesn't belong to scrutinee enum :my::Side", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_cross_enum.wat.bad", line: 8, col: 6, end_line: 8, end_col: 23 }, kind: MalformedForm { head: ":wat::core::match", reason: "variant pattern :my::Color::Green doesn't belong to scrutinee enum :my::Side", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_cross_enum.wat.bad", line: 5, col: 4, end_line: 5, end_col: 21 }, kind: MalformedForm { head: ":wat::core::match", reason: "non-exhaustive: enum :my::Side missing arm(s) for variant(s): Sell (or include `_` wildcard)", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_cross_enum.wat.bad", line: 5, col: 3, end_line: 8, end_col: 27 }, kind: ReturnTypeMismatch { function: ":user::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#);
+    wat::assert_edn_matches_file!(err, "enums__cross_enum_variant_pattern_rejected.edn", "scrutinee mismatch + two off-enum variant patterns + non-exhaustive + return-type fallout");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn tagged_variant_arity_mismatch_reported() {
     let err = run_expecting_check_error("tests/types/enums_tagged_arity_mismatch.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/enums_tagged_arity_mismatch.wat.bad", line: 6, col: 6, end_line: 6, end_col: 33 }, kind: MalformedForm { head: ":wat::core::match", reason: "(:my::Event::Pair ...) takes 2 field(s), got 1 binder(s)", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_tagged_arity_mismatch.wat.bad", line: 5, col: 4, end_line: 5, end_col: 21 }, kind: MalformedForm { head: ":wat::core::match", reason: "non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_tagged_arity_mismatch.wat.bad", line: 5, col: 3, end_line: 6, end_col: 44 }, kind: ReturnTypeMismatch { function: ":user::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#);
+    wat::assert_edn_matches_file!(err, "enums__tagged_variant_arity_mismatch_reported.edn", "wrong binder count + non-exhaustive + return-type fallout");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn unit_variant_pattern_on_tagged_variant_rejected() {
     let err = run_expecting_check_error("tests/types/enums_unit_pattern_on_tagged.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/enums_unit_pattern_on_tagged.wat.bad", line: 6, col: 6, end_line: 6, end_col: 22 }, kind: MalformedForm { head: ":wat::core::match", reason: ":my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_unit_pattern_on_tagged.wat.bad", line: 5, col: 4, end_line: 5, end_col: 21 }, kind: MalformedForm { head: ":wat::core::match", reason: "non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)", remedies: [] } }, CheckError { span: Span { file: "tests/types/enums_unit_pattern_on_tagged.wat.bad", line: 5, col: 3, end_line: 6, end_col: 26 }, kind: ReturnTypeMismatch { function: ":user::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#);
+    wat::assert_edn_matches_file!(err, "enums__unit_variant_pattern_on_tagged_variant_rejected.edn", "unit pattern on a tagged variant + non-exhaustive + return-type fallout");
 }

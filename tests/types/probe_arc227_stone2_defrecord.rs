@@ -125,11 +125,10 @@ fn probe_defrecord_polymorphic_is_bare_basename_negative() {
 
 // Test 6: Constructor type-checked
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_defrecord_constructor_typed_rejects_wrong_type() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_typed.wat.bad");
-    assert_eq!(err, "check:\n2 type-check error(s):\n  - tests/types/probe_arc227_stone2_defrecord_typed.wat.bad:3:78: :test::Voltage: parameter #1 expects :wat::core::f64; got :wat::core::String\n  - tests/types/probe_arc227_stone2_defrecord_typed.wat.bad:3:62: :user::compute: body produces :test::Voltage; signature declares :wat::holon::HolonAST\n");
+    wat::assert_edn_matches_file!(err, "probe_arc227_stone2_defrecord__probe_defrecord_constructor_typed_rejects_wrong_type.edn", "constructor field type mismatch + return-type fallout");
 }
 
 // Test 7: Multi-segment namespace
@@ -252,11 +251,10 @@ fn probe_defrecord_cross_namespace_tags_distinct() {
 
 // Test 18: Field type enforcement -- wrong type rejected (NEW v2)
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_defrecord_field_type_check_bool_rejected() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_bool.wat.bad");
-    assert_eq!(err, "check:\n2 type-check error(s):\n  - tests/types/probe_arc227_stone2_defrecord_bool.wat.bad:3:79: :test::Measured: parameter #1 expects :wat::core::f64; got :wat::core::bool\n  - tests/types/probe_arc227_stone2_defrecord_bool.wat.bad:3:62: :user::compute: body produces :test::Measured; signature declares :wat::holon::HolonAST\n");
+    wat::assert_edn_matches_file!(err, "probe_arc227_stone2_defrecord__probe_defrecord_field_type_check_bool_rejected.edn", "field type check bool rejected + return-type fallout");
 }
 
 // Test 19: Multi-segment namespace with field (NEW v2)
@@ -273,11 +271,10 @@ fn probe_defrecord_multi_segment_with_field() {
 
 // EXPECTATIONS row 1: single-arg form errors at expand time (HARD CUT preserved)
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_two_arg_form_only_one_arg_errors() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_onearg.wat.bad");
-    assert_eq!(err, "macro: tests/types/probe_arc227_stone2_defrecord_onearg.wat.bad:2:1: macro :wat::core::defrecord expects 2 arguments; got 1");
+    wat::assert_edn_matches_file!(err, "probe_arc227_stone2_defrecord__probe_two_arg_form_only_one_arg_errors.edn", "one-arg defrecord form: macro ArityMismatch");
 }
 
 // EXPECTATIONS row 3: N=0 canonical instance shape uses Bundle (not Atom(nil))

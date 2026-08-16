@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::let: parameter struct-destructure (outcome) expects a struct type; got :wat::core::i64"
+      :location #wat.core/Span {
+        :file "tests/types/struct_destructure_non_struct_subject.wat.bad"
+        :line 7
+        :col 24
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 7
+            :col 26
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::core::let"
+      :param "struct-destructure (outcome)"
+      :expected "a struct type"
+      :got ":wat::core::i64"
+      :remedies []
+    }
+  ]
+}

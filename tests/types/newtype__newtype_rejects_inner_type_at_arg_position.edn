@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":my::trading::pretty: parameter #1 expects :my::trading::Price; got :wat::core::f64"
+      :location #wat.core/Span {
+        :file "tests/types/newtype_rejects_inner_type.wat.bad"
+        :line 4
+        :col 77
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 82
+          }
+        ]
+      }
+      :causes []
+      :callee ":my::trading::pretty"
+      :param "#1"
+      :expected ":my::trading::Price"
+      :got ":wat::core::f64"
+      :remedies []
+    }
+  ]
+}

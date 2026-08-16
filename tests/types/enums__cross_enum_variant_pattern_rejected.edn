@@ -1,0 +1,100 @@
+#wat.check/CheckErrors {
+  :message "5 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::match: parameter scrutinee expects :my::Side; got :my::Color"
+      :location #wat.core/Span {
+        :file "tests/types/enums_cross_enum.wat.bad"
+        :line 5
+        :col 22
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 37
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::core::match"
+      :param "scrutinee"
+      :expected ":my::Side"
+      :got ":my::Color"
+      :remedies []
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::match form: variant pattern :my::Color::Red doesn't belong to scrutinee enum :my::Side"
+      :location #wat.core/Span {
+        :file "tests/types/enums_cross_enum.wat.bad"
+        :line 7
+        :col 6
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 7
+            :col 21
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::match"
+      :reason "variant pattern :my::Color::Red doesn't belong to scrutinee enum :my::Side"
+      :remedies []
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::match form: variant pattern :my::Color::Green doesn't belong to scrutinee enum :my::Side"
+      :location #wat.core/Span {
+        :file "tests/types/enums_cross_enum.wat.bad"
+        :line 8
+        :col 6
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 8
+            :col 23
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::match"
+      :reason "variant pattern :my::Color::Green doesn't belong to scrutinee enum :my::Side"
+      :remedies []
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::match form: non-exhaustive: enum :my::Side missing arm(s) for variant(s): Sell (or include `_` wildcard)"
+      :location #wat.core/Span {
+        :file "tests/types/enums_cross_enum.wat.bad"
+        :line 5
+        :col 4
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 5
+            :col 21
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::match"
+      :reason "non-exhaustive: enum :my::Side missing arm(s) for variant(s): Sell (or include `_` wildcard)"
+      :remedies []
+    }
+    #wat.check/ReturnTypeMismatch {
+      :message ":user::main: body produces :wat::core::i64; signature declares :()"
+      :location #wat.core/Span {
+        :file "tests/types/enums_cross_enum.wat.bad"
+        :line 5
+        :col 3
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 8
+            :col 27
+          }
+        ]
+      }
+      :causes []
+      :function ":user::main"
+      :expected ":()"
+      :got ":wat::core::i64"
+      :remedies []
+    }
+  ]
+}

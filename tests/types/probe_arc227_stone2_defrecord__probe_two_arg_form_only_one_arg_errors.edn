@@ -1,0 +1,18 @@
+#wat.macro/ArityMismatch {
+  :message "macro :wat::core::defrecord expects 2 arguments; got 1"
+  :location #wat.core/Span {
+    :file "tests/types/probe_arc227_stone2_defrecord_onearg.wat.bad"
+    :line 2
+    :col 1
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 2
+        :col 38
+      }
+    ]
+  }
+  :causes []
+  :name ":wat::core::defrecord"
+  :expected 2
+  :got 1
+}

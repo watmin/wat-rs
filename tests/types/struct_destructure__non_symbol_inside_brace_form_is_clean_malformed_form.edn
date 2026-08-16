@@ -1,0 +1,16 @@
+#wat.parse/MalformedBraceLiteral {
+  :message "malformed brace-literal: map-literal body must alternate key + value pairs; got 1 forms"
+  :location #wat.core/Span {
+    :file "tests/types/struct_destructure_non_symbol.wat.bad"
+    :line 8
+    :col 6
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 8
+        :col 10
+      }
+    ]
+  }
+  :causes []
+  :reason "map-literal body must alternate key + value pairs; got 1 forms"
+}

@@ -61,11 +61,10 @@ fn tuple_pascal_canonical_works() {
 
 // --- 2. Legacy lowercase triggers Pattern 2 poison ----------------------
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn legacy_tuple_lowercase_redirects_via_pattern2_poison() {
     let err = startup_err("tests/types/tuple_legacy_lowercase.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/tuple_legacy_lowercase.wat.bad", line: 2, col: 85, end_line: 2, end_col: 102 }, kind: TypeMismatch { callee: ":wat::core::tuple", param: "(retired verb)", expected: ":wat::core::Tuple", got: ":wat::core::tuple" } }]))"#);
+    wat::assert_edn_matches_file!(err, "tuple__legacy_tuple_lowercase_redirects_via_pattern2_poison.edn", "legacy lowercase tuple redirects via Pattern 2 poison: TypeMismatch + Retirement remedy");
 }
 
 // --- 3. Tuple in function return position type-checks clean -------------

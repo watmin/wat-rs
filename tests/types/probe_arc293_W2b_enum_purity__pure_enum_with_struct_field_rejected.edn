@@ -1,0 +1,14 @@
+#wat.type/ImpureVariantFieldInPureEnum {
+  :message "containment rule (arc 293.W.2b): :wat::enum::Pure enum \":w2b::BadEvt\" may only hold pure variant fields — variant \"Live\" field \"c\" has impure type \":w2b::Conn\", which cannot be reconstructed from EDN bytes across an address-space boundary. Declare the enum :wat::enum::Impure if it must hold a live resource (it then stays in shared memory and never crosses)."
+  :location #wat.core/Span {
+    :file "src/check.rs"
+    :line 12919
+    :col 37
+    :end #wat.core.Option/None []
+  }
+  :causes []
+  :enum-name ":w2b::BadEvt"
+  :variant "Live"
+  :field "c"
+  :field-ty ":w2b::Conn"
+}

@@ -1,0 +1,23 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/UnknownCallee {
+      :message "unknown callee: :bogus"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc234_stone3c_fix_narrow_fallthrough_p1.wat.bad"
+        :line 3
+        :col 28
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 34
+          }
+        ]
+      }
+      :causes []
+      :callee ":bogus"
+    }
+  ]
+}

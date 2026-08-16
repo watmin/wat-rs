@@ -124,11 +124,14 @@ fn unknown_field_name_is_clean_malformed_form() {
 
 /// `[{:keys [outcome]} 42]` — rhs is an i64, not a struct. Type-check time
 /// surfaces a clean TypeMismatch.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn non_struct_subject_is_clean_type_mismatch() {
     let err = startup_err("tests/types/struct_destructure_non_struct_subject.wat.bad");
-    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_non_struct_subject.wat.bad:7:24: :wat::core::let: parameter struct-destructure (outcome) expects a struct type; got :wat::core::i64\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_non_struct_subject.wat.bad\", line: 7, col: 24, end_line: 7, end_col: 26 }, kind: TypeMismatch { callee: \":wat::core::let\", param: \"struct-destructure (outcome)\", expected: \"a struct type\", got: \":wat::core::i64\" } }]))");
+    // Post-stone-B, Display and Debug both render the same EDN body (`startup_err` joins
+    // them with a `\n---\n` separator so both faces stay honest against each other); take
+    // the first half as the golden's data — the macro parses it as EDN.
+    let (edn, _) = err.split_once("\n---\n").expect("startup_err always joins with \\n---\\n");
+    wat::assert_edn_matches_file!(edn.to_string(), "struct_destructure__non_struct_subject_is_clean_type_mismatch.edn", "rhs not a struct: TypeMismatch");
 }
 
 // ─── Test 8 — empty_brace_form_is_clean_malformed_form ──────────────────
@@ -145,11 +148,13 @@ fn empty_brace_form_is_clean_malformed_form() {
 // ─── Test 9 — non_symbol_inside_brace_form_is_clean_malformed_form ──────
 
 /// `[{42} p]` — odd-arity map body (1 item); parse-time MalformedBraceLiteral.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn non_symbol_inside_brace_form_is_clean_malformed_form() {
     let err = startup_err("tests/types/struct_destructure_non_symbol.wat.bad");
-    assert_eq!(err, "parse: tests/types/struct_destructure_non_symbol.wat.bad:8:6: malformed brace-literal: map-literal body must alternate key + value pairs; got 1 forms\n---\nParse(ParseError { span: Span { file: \"tests/types/struct_destructure_non_symbol.wat.bad\", line: 8, col: 6, end_line: 8, end_col: 10 }, kind: MalformedBraceLiteral { reason: \"map-literal body must alternate key + value pairs; got 1 forms\" } })");
+    // Same rationale as `non_struct_subject_is_clean_type_mismatch` above: Display and
+    // Debug are now the same EDN body; take the half before the `\n---\n` separator.
+    let (edn, _) = err.split_once("\n---\n").expect("startup_err always joins with \\n---\\n");
+    wat::assert_edn_matches_file!(edn.to_string(), "struct_destructure__non_symbol_inside_brace_form_is_clean_malformed_form.edn", "odd-arity map body in binder position: parse-time MalformedBraceLiteral");
 }
 
 // ─── Test 10 — multi_form_body_with_destructure ─────────────────────────

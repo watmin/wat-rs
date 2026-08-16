@@ -19,7 +19,6 @@ use wat::freeze::startup_beside;
 /// Case 1 — a `:Pure` enum declaring a struct variant field is REJECTED.
 /// The containment rule: a `:Pure` enum may hold only pure variant fields.
 /// A struct is impure (categorically — it permits resources and never crosses).
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn pure_enum_with_struct_field_rejected() {
     match startup_beside(file!()) {
@@ -29,7 +28,20 @@ fn pure_enum_with_struct_field_rejected() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "src/check.rs", line: 13659, col: 43, end_line: 13659, end_col: 43 }, kind: ImpureVariantFieldInPureEnum { enum_name: ":w2b::BadEvt", variant: "Live", field: "c", field_ty: ":w2b::Conn" } })"#);
+            // CLASS-C RULING (296 Wave B1, builder overrule 2026-08-15): this golden pins an
+            // INTERNAL `src/check.rs` `rust_caller_span!()` — the Rust source line:col of the
+            // `TypeError::new` call site that raised `ImpureVariantFieldInPureEnum`, not a user
+            // `.wat` span. The orchestrator proposed normalizing/dropping it because any edit
+            // above that line in check.rs re-churns the pinned line. The builder overruled:
+            // (1) the churn cost is trivial — exactly one other `.edn` golden in the tree pins a
+            // `src/*.rs` span; (2) a pinned line that gets updated when it moves is in a constant
+            // state of correctness, while a DROPPED field is permanently blind; (3) the span
+            // DISCRIMINATES THE EMITTER — `ImpureVariantFieldInPureEnum` can be raised from more
+            // than one call site in check.rs, and `rust_caller_span!()` says which. Drop it and
+            // this test goes green the moment a *different* code path starts raising the same
+            // error kind — that silent pass is exactly the coverage this pin buys. KEEP PINNING
+            // THE SPAN. Do not re-propose dropping it.
+            wat::assert_edn_matches_file!(msg, "probe_arc293_W2b_enum_purity__pure_enum_with_struct_field_rejected.edn", "Pure enum declaring a struct variant field: ImpureVariantFieldInPureEnum (internal check.rs span pinned — see comment above)");
         }
     }
 }

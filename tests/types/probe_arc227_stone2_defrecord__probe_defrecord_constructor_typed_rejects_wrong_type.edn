@@ -1,0 +1,46 @@
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":test::Voltage: parameter #1 expects :wat::core::f64; got :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc227_stone2_defrecord_typed.wat.bad"
+        :line 3
+        :col 78
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 91
+          }
+        ]
+      }
+      :causes []
+      :callee ":test::Voltage"
+      :param "#1"
+      :expected ":wat::core::f64"
+      :got ":wat::core::String"
+      :remedies []
+    }
+    #wat.check/ReturnTypeMismatch {
+      :message ":user::compute: body produces :test::Voltage; signature declares :wat::holon::HolonAST"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc227_stone2_defrecord_typed.wat.bad"
+        :line 3
+        :col 62
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 92
+          }
+        ]
+      }
+      :causes []
+      :function ":user::compute"
+      :expected ":wat::holon::HolonAST"
+      :got ":test::Voltage"
+      :remedies []
+    }
+  ]
+}

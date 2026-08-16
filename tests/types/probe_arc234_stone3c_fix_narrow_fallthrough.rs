@@ -9,7 +9,6 @@ use wat::freeze::{startup_beside, startup_from_file};
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 //
 // (:bogus x) where x: i64 must fail at CHECK TIME with UnknownFunction.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_concrete_receiver_fails_at_check_time() {
     let result = startup_from_file(
@@ -19,7 +18,7 @@ fn probe_1_concrete_receiver_fails_at_check_time() {
         Ok(_) => panic!("Probe 1 FAILED: expected check-time UnknownFunction error; got Ok"),
         Err(e) => {
             let msg = format!("{:?}", e);
-            assert_eq!(msg, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc234_stone3c_fix_narrow_fallthrough_p1.wat.bad", line: 3, col: 28, end_line: 3, end_col: 34 }, kind: UnknownCallee { callee: ":bogus" } }]))"#);
+            wat::assert_edn_matches_file!(msg, "probe_arc234_stone3c_fix_narrow_fallthrough__probe_1_concrete_receiver_fails_at_check_time.edn", "concrete receiver, unknown callee: UnknownCallee");
         }
     }
 }

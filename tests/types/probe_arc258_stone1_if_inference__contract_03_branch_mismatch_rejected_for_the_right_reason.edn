@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::if: parameter else-branch expects :wat::core::i64; got :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc258_stone1_if_inference_c03.wat.bad"
+        :line 4
+        :col 79
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 82
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::core::if"
+      :param "else-branch"
+      :expected ":wat::core::i64"
+      :got ":wat::core::String"
+      :remedies []
+    }
+  ]
+}

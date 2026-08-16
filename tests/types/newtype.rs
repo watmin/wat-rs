@@ -34,20 +34,18 @@ fn newtype_construct_and_accessor_roundtrip() {
 
 // ─── Nominal distinction in argument position ─────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn newtype_rejects_inner_type_at_arg_position() {
     let err = run_expecting_check_error("tests/types/newtype_rejects_inner_type.wat.bad");
-    assert_eq!(err, r##"Check(CheckErrors([CheckError { span: Span { file: "tests/types/newtype_rejects_inner_type.wat.bad", line: 4, col: 77, end_line: 4, end_col: 82 }, kind: TypeMismatch { callee: ":my::trading::pretty", param: "#1", expected: ":my::trading::Price", got: ":wat::core::f64" } }]))"##);
+    wat::assert_edn_matches_file!(err, "newtype__newtype_rejects_inner_type_at_arg_position.edn", "newtype rejected in arg position: TypeMismatch");
 }
 
 // ─── Inverse: newtype rejected where inner expected ───────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn newtype_rejected_where_inner_expected() {
     let err = run_expecting_check_error("tests/types/newtype_rejected_where_inner_expected.wat.bad");
-    assert_eq!(err, r##"Check(CheckErrors([CheckError { span: Span { file: "tests/types/newtype_rejected_where_inner_expected.wat.bad", line: 6, col: 32, end_line: 6, end_col: 33 }, kind: TypeMismatch { callee: ":wat::core::f64::+", param: "#1", expected: ":wat::core::f64", got: ":my::trading::Price" } }]))"##);
+    wat::assert_edn_matches_file!(err, "newtype__newtype_rejected_where_inner_expected.edn", "inverse: newtype rejected where inner type expected");
 }
 
 // ─── Newtype as struct field round-trip ────────────────────────────────
@@ -62,9 +60,8 @@ fn newtype_as_struct_field_roundtrip() {
 
 // ─── Two distinct newtypes over the same inner stay distinct ──────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn distinct_newtypes_over_same_inner_are_distinct_types() {
     let err = run_expecting_check_error("tests/types/newtype_distinct_newtypes.wat.bad");
-    assert_eq!(err, r##"Check(CheckErrors([CheckError { span: Span { file: "tests/types/newtype_distinct_newtypes.wat.bad", line: 8, col: 33, end_line: 8, end_col: 34 }, kind: TypeMismatch { callee: ":my::trading::price-pretty", param: "#1", expected: ":my::trading::Price", got: ":my::trading::Amount" } }]))"##);
+    wat::assert_edn_matches_file!(err, "newtype__distinct_newtypes_over_same_inner_are_distinct_types.edn", "two distinct newtypes over the same inner stay distinct: TypeMismatch");
 }

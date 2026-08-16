@@ -1,0 +1,11 @@
+#wat.parse/Lex {
+  :message "lex error: lex error at byte 177: whitespace inside unclosed bracket in keyword — keywords cannot contain whitespace"
+  :location #wat.core/Span {
+    :file "crates/wat-reader/src/parser.rs"
+    :line 201
+    :col 28
+    :end #wat.core.Option/None []
+  }
+  :causes []
+  :cause "lex error at byte 177: whitespace inside unclosed bracket in keyword — keywords cannot contain whitespace"
+}

@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::<: parameter #1 expects an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>); got :wat::core::HashMap<wat::core::String,wat::core::i64>"
+      :location #wat.core/Span {
+        :file "tests/types/ord_hashmap.wat.bad"
+        :line 6
+        :col 6
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 19
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::core::<"
+      :param "#1"
+      :expected "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)"
+      :got ":wat::core::HashMap<wat::core::String,wat::core::i64>"
+      :remedies []
+    }
+  ]
+}
