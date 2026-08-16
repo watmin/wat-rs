@@ -5,20 +5,22 @@
 //! choice, NOT Clojure's persistent lazy-seq: consumed once, no rewind (see `LazyCell`).
 //!
 //! `LazyCell` is the deferred tail: a 0-arg wat closure, forced on demand. SINGLE-PASS —
-//! **no memoization** (builder, 2026-06-27: *"you cannot walk back a stream … core does not
-//! ship it"*). A stream is consumed once; re-forcing is a consumer error. Want rewind? Build
-//! the buffer yourself — core ships the honest, O(1)-memory primitive.
+//! you cannot rewind the *stream* (builder, 2026-06-27: *"you cannot walk back a stream"*).
+//! The *cell*'s WHNF is cached: `empty?` / `first` / `rest` on the same thunk share one
+//! force. That is not rewind — `mapv`/`into`/`stream->pvec` walk those three on every
+//! cell, and without the cache `f` ran three times per element (the live MCP
+//! increment-vs-item anomaly). Want the whole prefix again? Build the buffer yourself.
 //!
 //! `realize` drives a `Stream` to WHNF (Weak Head Normal Form): Empty or Cons. A Thunk
 //! is forced by calling `apply_function` on the captured closure, then recursing until
 //! the result is Empty|Cons. The SymbolTable is required because `apply_function`
 //! needs it (the closure may call registered substrate functions).
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::span::Span;
-use crate::value::{Function, RuntimeError, RuntimeErrorKind, EvalBreak};
 use crate::value::Value;
+use crate::value::{EvalBreak, Function, RuntimeError, RuntimeErrorKind};
 
 /// A lazy sequence value — Empty terminator, strict-head Cons cell, or deferred Thunk.
 ///
@@ -40,7 +42,7 @@ pub enum Stream {
         tail: Arc<Stream>,
     },
     /// Deferred cell — the body of `(:wat::stream::lazy <body>)` has not been forced yet.
-    /// `realize` calls the thunk closure and returns the result; nothing is cached (single-pass).
+    /// `realize` forces once and caches WHNF on the cell (`empty?`/`first`/`rest` share it).
     Thunk(LazyCell),
     /// Arc 118.2a — a Rust-native deferred cell (see [`NativeLazyCell`]). Forced identically
     /// to `Thunk` (via `realize`'s loop) but the thunk is a plain Rust closure, not a wat
@@ -53,19 +55,31 @@ pub enum Stream {
 ///
 /// `thunk` is a 0-arg wat closure `() -> Stream<T>` constructed by `(:wat::stream::lazy <body>)`.
 ///
-/// SINGLE-PASS — **no memoization** (builder, 2026-06-27: *"you cannot walk back a stream — if
-/// you want this you gotta write it … core does not ship it"*). `realize` forces the thunk and
-/// returns; nothing is cached. Re-forcing is a consumer error (walk linearly). Holding the head
-/// pins NOTHING, so streaming is unconditionally O(1) memory — terabytes through a few GB.
+/// SINGLE-PASS stream, WHNF-cached cell. You cannot rewind the stream (drop the
+/// Cons and the head is gone). You CAN ask `empty?` then `first` then `rest` on
+/// the same cell — `realize` caches Empty|Cons so that is one force, not three.
 pub struct LazyCell {
     /// The captured 0-arg wat closure whose body is the `lazy-seq` body. Contains a
     /// `closed_env` carrying the environment at `lazy-seq` construction time.
     pub thunk: Arc<Function>,
+    /// First `realize` wins. Shared across `LazyCell` clones (same cell).
+    pub forced: Arc<OnceLock<Arc<Stream>>>,
+}
+
+impl LazyCell {
+    pub fn new(thunk: Arc<Function>) -> Self {
+        Self {
+            thunk,
+            forced: Arc::new(OnceLock::new()),
+        }
+    }
 }
 
 impl std::fmt::Debug for LazyCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LazyCell").field("thunk", &"<closure>").finish()
+        f.debug_struct("LazyCell")
+            .field("thunk", &"<closure>")
+            .finish()
     }
 }
 
@@ -99,29 +113,41 @@ impl std::fmt::Debug for LazyCell {
 /// call-site `Span` as PARAMETERS (not captured) purely so it can invoke `apply_function` on a
 /// captured user `Function` (the `f`/`pred` argument to map/filter) — the SymbolTable itself
 /// is never stashed inside the closure.
+/// Deferred body of a [`NativeLazyCell`]: SymbolTable + span in, WHNF Stream out.
+type NativeThunk = Arc<
+    dyn Fn(&crate::value::SymbolTable, &Span) -> Result<Arc<Stream>, EvalBreak> + Send + Sync,
+>;
+
 #[derive(Clone)]
 pub struct NativeLazyCell {
-    #[allow(clippy::type_complexity)]
-    pub thunk: Arc<
-        dyn Fn(&crate::value::SymbolTable, &Span) -> Result<Arc<Stream>, EvalBreak> + Send + Sync,
-    >,
+    pub thunk: NativeThunk,
+    pub forced: Arc<OnceLock<Arc<Stream>>>,
+}
+
+impl NativeLazyCell {
+    pub fn new(thunk: NativeThunk) -> Self {
+        Self {
+            thunk,
+            forced: Arc::new(OnceLock::new()),
+        }
+    }
 }
 
 impl std::fmt::Debug for NativeLazyCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NativeLazyCell").field("thunk", &"<native closure>").finish()
+        f.debug_struct("NativeLazyCell")
+            .field("thunk", &"<native closure>")
+            .finish()
     }
 }
 
 /// Force a `Stream` to Weak Head Normal Form (WHNF): `Empty` or `Cons`.
 ///
 /// - `Empty` / `Cons` → returned as-is (already in WHNF).
-/// - `Thunk` → call the 0-arg closure via `apply_function`, expect `Value::wat__stream__Stream`
-///   result, recurse (the forced result may itself be a Thunk). NOT cached.
-///
-/// SINGLE-PASS — no memoization (builder, 2026-06-27). The thunk runs each time it is
-/// reached; a stream is walked once and can't be rewound. Re-forcing the same cell is a
-/// consumer error, not a supported operation — want rewind, build the buffer yourself.
+/// - `Thunk` / `NativeThunk` → force the closure, cache WHNF on the cell, recurse
+///   if the result is still a thunk. `empty?`/`first`/`rest` on the same cell
+///   share that cache. Dropping the Cons and trying to recover the head is still
+///   impossible — that is the single-pass rule.
 ///
 /// Error handling: if the thunk body returns a non-Stream value or errors through
 /// `apply_function`, the error propagates as an `EvalBreak`.
@@ -139,28 +165,39 @@ pub fn realize(
         match current.as_ref() {
             Stream::Empty | Stream::Cons { .. } => return Ok(current),
             Stream::Thunk(cell) => {
-                // SINGLE-PASS: force the thunk, NO caching. A stream can't be walked back;
-                // re-forcing is a consumer error (walk linearly). The result may itself be a
-                // Thunk — the loop drives it to WHNF.
+                if let Some(s) = cell.forced.get() {
+                    current = Arc::clone(s);
+                    continue;
+                }
                 let result = crate::runtime::apply_function(
                     Arc::clone(&cell.thunk),
                     vec![],
                     sym,
                     span.clone(),
-                ).map_err(EvalBreak::from)?;
-                current = match result {
+                )
+                .map_err(EvalBreak::from)?;
+                let next = match result {
                     Value::wat__stream__Stream(s) => s,
-                    other => return Err(EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::stream::lazy (thunk force)".into(),
-                            expected: "wat::stream::Stream",
-                            got: Box::new(crate::value::ValueSnapshot::of(&other)),
-                        }))),
+                    other => {
+                        return Err(EvalBreak::from(RuntimeError::new(
+                            span.clone(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: ":wat::stream::lazy (thunk force)".into(),
+                                expected: "wat::stream::Stream",
+                                got: Box::new(crate::value::ValueSnapshot::of(&other)),
+                            },
+                        )))
+                    }
                 };
+                current = Arc::clone(cell.forced.get_or_init(|| next));
             }
             Stream::NativeThunk(cell) => {
-                // Arc 118.2a — same single-pass discipline as `Thunk`, but the closure is a
-                // plain Rust `Fn`, called directly (no `apply_function`/wat AST involved).
-                current = (cell.thunk)(sym, span)?;
+                if let Some(s) = cell.forced.get() {
+                    current = Arc::clone(s);
+                    continue;
+                }
+                let next = (cell.thunk)(sym, span)?;
+                current = Arc::clone(cell.forced.get_or_init(|| next));
             }
         }
     }
@@ -174,10 +211,15 @@ pub fn realize(
 /// containers. Returns `None` if `v` is not one of the three eager containers — callers that
 /// also want to accept an existing `Stream` should try [`value_as_stream`] instead.
 pub(crate) fn eager_container_to_stream(v: &Value) -> Option<Arc<Stream>> {
-    fn chain_from_slice<'a>(xs: impl DoubleEndedIterator<Item = &'a Value> + ExactSizeIterator) -> Arc<Stream> {
+    fn chain_from_slice<'a>(
+        xs: impl DoubleEndedIterator<Item = &'a Value> + ExactSizeIterator,
+    ) -> Arc<Stream> {
         let mut tail = Arc::new(Stream::Empty);
         for x in xs.rev() {
-            tail = Arc::new(Stream::Cons { head: x.clone(), tail });
+            tail = Arc::new(Stream::Cons {
+                head: x.clone(),
+                tail,
+            });
         }
         tail
     }

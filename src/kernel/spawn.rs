@@ -80,12 +80,12 @@ use wat_macros::restricted_to;
 
 use crate::ast::WatAST;
 use crate::kernel::peer::{Peer, Process, Thread};
-use crate::rust_deps::custodia::ThreadOwnedCell;
-use crate::rust_deps::marshal::make_rust_opaque;
 use crate::runtime::{
     apply_function, eval_inner, Environment, EvalBreak, RuntimeError, RuntimeErrorKind,
     SymbolTable, Value,
 };
+use crate::rust_deps::custodia::ThreadOwnedCell;
+use crate::rust_deps::marshal::make_rust_opaque;
 use crate::span::Span;
 use crate::value::Function;
 
@@ -458,11 +458,14 @@ pub fn eval_kernel_spawn_thread_prime(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-thread";
     if args.len() != 3 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
                 expected: 3,
                 got: args.len(),
-            })
+            },
+        )
         .into());
     }
 
@@ -470,11 +473,14 @@ pub fn eval_kernel_spawn_thread_prime(
     let program_fn = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "fn value (program body) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
@@ -483,11 +489,15 @@ pub fn eval_kernel_spawn_thread_prime(
     let init_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "fn value (0-arg init-fn returning :wat::core::Record) for thread tier",
+                    expected:
+                        "fn value (0-arg init-fn returning :wat::core::Record) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
@@ -496,11 +506,15 @@ pub fn eval_kernel_spawn_thread_prime(
     let post_spawn_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[2].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "fn value (1-arg post-spawn-fn receiving ThreadLaunch) for thread tier",
+                    expected:
+                        "fn value (1-arg post-spawn-fn receiving ThreadLaunch) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
@@ -530,11 +544,14 @@ pub fn eval_kernel_spawn_process_prime(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-process";
     if args.len() != 5 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
                 expected: 5,
                 got: args.len(),
-            })
+            },
+        )
         .into());
     }
 
@@ -543,17 +560,22 @@ pub fn eval_kernel_spawn_process_prime(
         OP,
         eval_inner(&args[0], env, sym)?,
         args[0].span().clone(),
-    ).map_err(EvalBreak::from)?;
+    )
+    .map_err(EvalBreak::from)?;
 
     // arg 1: post-spawn-fn value (1-arg fn receiving ProcessLaunch, returning nil).
     let post_spawn_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "fn value (1-arg post-spawn-fn receiving ProcessLaunch) for process tier",
+                    expected:
+                        "fn value (1-arg post-spawn-fn receiving ProcessLaunch) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
@@ -562,11 +584,14 @@ pub fn eval_kernel_spawn_process_prime(
     let env_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[2].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String value (env-fn source string) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
@@ -575,11 +600,14 @@ pub fn eval_kernel_spawn_process_prime(
     let max_frame_bytes = match eval_inner(&args[3], env, sym)?.value_owned() {
         Value::i64(n) => n as usize,
         other => {
-            return Err(RuntimeError::new(args[3].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[3].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "i64 value (max-message-bytes budget) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
@@ -591,17 +619,29 @@ pub fn eval_kernel_spawn_process_prime(
     let identity = match eval_inner(&args[4], env, sym)?.value_owned() {
         Value::Option(opt) => (*opt).clone(),
         other => {
-            return Err(RuntimeError::new(args[4].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                args[4].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Option<Record> value (identity label) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                })
+                },
+            )
             .into());
         }
     };
 
     // Delegate to the shared process-tier spawn logic.
-    spawn_process_peer(forms, post_spawn_fn, env_fn, max_frame_bytes, identity, sym, list_span).map_err(Into::into)
+    spawn_process_peer(
+        forms,
+        post_spawn_fn,
+        env_fn,
+        max_frame_bytes,
+        identity,
+        sym,
+        list_span,
+    )
+    .map_err(Into::into)
 }
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
@@ -658,7 +698,9 @@ pub fn spawn_thread_peer(
             // THIS thread's tid; peer-kind = :thread (shares the address space);
             // peer-started-at = now (the thread's start). Held across apply_function via the
             // RAII guard, uninstalled when the closure ends.
-            let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
+            let boot_nanos = crate::time::process_boot_instant()
+                .timestamp_nanos_opt()
+                .unwrap_or(0);
             let pid = std::process::id() as i64;
             let tid = unsafe { libc::gettid() } as i64;
             // cpu_count = available_parallelism() via host_cpu_count(), same host → same value as
@@ -667,19 +709,15 @@ pub fn spawn_thread_peer(
 
             // Run the init-fn at peer-start to get the user-data value (it
             // builds the user's record — `(thread)`'s default returns EmptyEnv).
-            let user_program = match apply_function(
-                init_fn.clone(),
-                vec![],
-                &thread_sym,
-                span.clone(),
-            ) {
-                Ok(record) => record,
-                // The init-fn is USER code; if it errors the peer cannot build an
-                // honest env. Exit the thread — `output_tx` (moved here) drops, the
-                // parent's cascade-aware `recv'` raises (the peer died). NEVER smuggle
-                // a non-record fallback into the `:wat::core::Record` user-data slot.
-                Err(_) => return,
-            };
+            let user_program =
+                match apply_function(init_fn.clone(), vec![], &thread_sym, span.clone()) {
+                    Ok(record) => record,
+                    // The init-fn is USER code; if it errors the peer cannot build an
+                    // honest env. Exit the thread — `output_tx` (moved here) drops, the
+                    // parent's cascade-aware `recv'` raises (the peer died). NEVER smuggle
+                    // a non-record fallback into the `:wat::core::Record` user-data slot.
+                    Err(_) => return,
+                };
 
             // Build the env with the user_program bound as a local that the
             // constructor references by name.
@@ -696,11 +734,9 @@ pub fn spawn_thread_peer(
             );
             let peer_env_ast = crate::parse_one!(&peer_env_src)
                 .expect("arc 259: peer env constructor form parses");
-            let peer_env_val = crate::runtime::eval(
-                &peer_env_ast, &ctor_env, &thread_sym,
-            )
-            .expect("arc 259: peer env constructor evals")
-            .value_owned();
+            let peer_env_val = crate::runtime::eval(&peer_env_ast, &ctor_env, &thread_sym)
+                .expect("arc 259: peer env constructor evals")
+                .value_owned();
             let _peer_env_guard = crate::services::install_program_env(peer_env_val);
 
             // Arc 259 S2c-ii-a — self-peer handoff model (only model).
@@ -712,7 +748,9 @@ pub fn spawn_thread_peer(
             // Worker is Peer'<O,I>: tx=output_tx (worker→parent), rx=input_rx (parent→worker).
             let self_peer = make_rust_opaque(
                 PEER_TYPE_PATH,
-                Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(output_tx, input_rx)))),
+                Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(
+                    output_tx, input_rx,
+                )))),
             );
             // Hand the prog its self-peer ONCE — no apply-loop.
             // The prog owns its own recv'/send' loop if it wants one.
@@ -727,7 +765,12 @@ pub fn spawn_thread_peer(
             // genuine Diagnostic. A clean exit (Ok(Ok)) sends nothing → crash_tx drops →
             // the parent sees Closed (not Lost).
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                apply_function(program_fn.clone(), vec![self_peer], &thread_sym, span.clone())
+                apply_function(
+                    program_fn.clone(),
+                    vec![self_peer],
+                    &thread_sym,
+                    span.clone(),
+                )
             }));
             // output_tx (inside self_peer via the Peer) is dropped here → output channel EOFs.
             // Arc 278 no-hidden-failures — the crash channel carries a STRUCTURED
@@ -747,11 +790,8 @@ pub fn spawn_thread_peer(
                 // Panic.failure as a Failure record; a plain panic has failure: None.
                 Err(payload) => {
                     let (message, assertion) = crate::runtime::extract_panic_payload(payload);
-                    let reason = crate::runtime::thread_crash_panic_edn(
-                        message,
-                        assertion,
-                        crash_types,
-                    );
+                    let reason =
+                        crate::runtime::thread_crash_panic_edn(message, assertion, crash_types);
                     let _ = crash_tx.send(reason);
                 }
                 // wat RuntimeError out of the body — a genuine death; carry its reason
@@ -760,10 +800,7 @@ pub fn spawn_thread_peer(
                 // the process tier). apply_function already unwraps EvalSignals
                 // (TailCall/try/option), so the Err here is a bare RuntimeError.
                 Ok(Err(re)) => {
-                    let reason = crate::runtime::thread_crash_runtime_edn(
-                        &re,
-                        crash_types,
-                    );
+                    let reason = crate::runtime::thread_crash_runtime_edn(&re, crash_types);
                     let _ = crash_tx.send(reason);
                 }
                 // Clean exit — no crash reason to carry.
@@ -771,10 +808,15 @@ pub fn spawn_thread_peer(
             }
             // crash_tx dropped here → crash channel EOFs (reason buffered if it was sent).
         })
-        .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("std::thread::Builder::spawn failed: {}", e),
-            }))?;
+        .map_err(|e| {
+            RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("std::thread::Builder::spawn failed: {}", e),
+                },
+            )
+        })?;
 
     // Build the parent-side Thread peer (input_tx + output_rx + crash_rx + JoinHandle).
     // input and join are Option so RAII Drop can drain_and_join idempotently
@@ -789,13 +831,18 @@ pub fn spawn_thread_peer(
     // Arc 209 C0b.3b-c — owner-side post-spawn hook (mirror of init_fn, owner side).
     // Build the empty ThreadLaunch record and apply the hook for effects before returning.
     // Uses the same format→parse_one!→eval pattern as the peer-env build above (:448).
-    let launch_ast = crate::parse_one!("(:wat::spawn::ThreadLaunch')")  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
+    let launch_ast = crate::parse_one!("(:wat::spawn::ThreadLaunch')") // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
         .expect("arc 209 C0b.3b-c: ThreadLaunch ctor form parses");
     let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
-        .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("arc 209 C0b.3b-c: ThreadLaunch ctor eval failed: {e:?}"),
-            }))?
+        .map_err(|e| {
+            RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("arc 209 C0b.3b-c: ThreadLaunch ctor eval failed: {e:?}"),
+                },
+            )
+        })?
         .value_owned();
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
@@ -847,18 +894,28 @@ pub fn spawn_process_peer(
     // input:  parent → child  (input_tx stays; input_rx goes to child)
     // output: child  → parent (output_tx goes to child; output_rx stays)
     let (input_tx, input_rx) = crate::comms::process::pair::<String>().map_err(|io_err| {
-        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("comms::process::pair (input) failed: {}", io_err),
-            })
+            },
+        )
     })?;
 
-    let (output_tx, output_rx) = crate::comms::process::pair_with_budget::<String>(max_frame_bytes).map_err(|io_err| {
-        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("comms::process::pair_with_budget (output) failed: {}", io_err),
-            })
-    })?;
+    let (output_tx, output_rx) = crate::comms::process::pair_with_budget::<String>(max_frame_bytes)
+        .map_err(|io_err| {
+            RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "comms::process::pair_with_budget (output) failed: {}",
+                        io_err
+                    ),
+                },
+            )
+        })?;
 
     // ── Err channel pair (Stone 214 1b-ii-α — the 3rd comms::process channel) ──
     // Mirrors the in/Ok pairs above. The child `dup2`s err_tx's write fd onto
@@ -867,10 +924,13 @@ pub fn spawn_process_peer(
     // holds `err_rx` on the bundle and selects over it (together with peer.output)
     // in `ProcessPeerBundle::recv()` — the 3rd arm of the cap-4 io_uring ring.
     let (err_tx, err_rx) = crate::comms::process::pair::<String>().map_err(|io_err| {
-        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("comms::process::pair (err) failed: {}", io_err),
-            })
+            },
+        )
     })?;
 
     // ── Fork via spawn_lifelined_any ─────────────────────────────────────────
@@ -890,7 +950,8 @@ pub fn spawn_process_peer(
     // startup_from_forms_with_inherit pre-seeds every config field, so program forms can
     // OMIT setters and still freeze; when None, the program forms must carry their own
     // setters (the "wat program" entry-file discipline).
-    let inherit_config: Option<crate::config::Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
+    let inherit_config: Option<crate::config::Config> =
+        sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
     // Arc 170 execve step 2d — render the program as the EDN it already is,
     // BEFORE the fork, so the parent holds the exact bytes it will stream and
@@ -921,51 +982,74 @@ pub fn spawn_process_peer(
     // the child needs is allocated before the clone, so the window between
     // `clone3` and `execve` can touch nothing but raw syscalls. See
     // `process::exec_plan`'s module doc for why that rule is absolute.
-    let exec_plan = crate::process::exec_plan::ExecPlan::build(label.as_deref()).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("could not build the exec plan: {e}"),
-        }))?;
+    let exec_plan = crate::process::exec_plan::ExecPlan::build(label.as_deref()).map_err(|e| {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("could not build the exec plan: {e}"),
+            },
+        )
+    })?;
     let child_stdio = [
         input_rx.raw_fds()[0],
         output_tx.raw_fds()[0],
         err_tx.raw_fds()[0],
     ];
 
-    let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
-        // ── CHILD BRANCH — ALLOCATION-FREE, and it never returns ────────────
-        //
-        // This is the whole child now. It places the wire on 0/1/2, the
-        // lifeline on its known fd, sweeps the rest, and execs. Everything the
-        // old COW child did — receiving the program, decoding the substrate,
-        // installing handlers, running the server — happens on the far side of
-        // the exec, in `distribution::spawned_runtime`, where allocation is
-        // safe again.
-        //
-        // The 2c/2d ORACLES ARE GONE, and their absence is the point: they
-        // compared what arrived over the wire against what COW had inherited,
-        // and after the exec there is nothing inherited to compare with. They
-        // did their job while both halves existed — the wire is now the sole
-        // path, which is exactly what it was verified for.
-        //
-        // SAFETY: every pointer `exec_in_child` dereferences was built above in
-        // the parent and is owned by `exec_plan`, which is moved into this
-        // closure and outlives the call (the call ends the process).
-        unsafe { exec_plan.exec_in_child(child_stdio, lifeline_r_raw) }
-    })
-    .map_err(|io_err| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("spawn_lifelined_any failed: {}", io_err),
-        }))?;
+    let (pidfd, lifeline_writer) =
+        crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
+            // ── CHILD BRANCH — ALLOCATION-FREE, and it never returns ────────────
+            //
+            // This is the whole child now. It places the wire on 0/1/2, the
+            // lifeline on its known fd, sweeps the rest, and execs. Everything the
+            // old COW child did — receiving the program, decoding the substrate,
+            // installing handlers, running the server — happens on the far side of
+            // the exec, in `distribution::spawned_runtime`, where allocation is
+            // safe again.
+            //
+            // The 2c/2d ORACLES ARE GONE, and their absence is the point: they
+            // compared what arrived over the wire against what COW had inherited,
+            // and after the exec there is nothing inherited to compare with. They
+            // did their job while both halves existed — the wire is now the sole
+            // path, which is exactly what it was verified for.
+            //
+            // SAFETY: every pointer `exec_in_child` dereferences was built above in
+            // the parent and is owned by `exec_plan`, which is moved into this
+            // closure and outlives the call (the call ends the process).
+            unsafe { exec_plan.exec_in_child(child_stdio, lifeline_r_raw) }
+        })
+        .map_err(|io_err| {
+            RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("spawn_lifelined_any failed: {}", io_err),
+                },
+            )
+        })?;
 
     // ── PARENT BRANCH ─────────────────────────────────────────────────────────
+
+    // The child inherited copies of every pipe end. After dup2 + close_range it
+    // only keeps 0/1/2/3. The parent MUST drop ITS copies of the child's ends
+    // before waiting on the boot ack: `output_tx` is the write end of the ack
+    // pipe. Holding it means a dead child cannot EOF the handshake —
+    // `send_frame_and_await_ack` blocks forever, and a `wat --mcp` eval of
+    // `spawn-program` never returns a Turn. The previous comment claimed the
+    // opposite. `err_tx` is the same class on the death channel.
+    drop(input_rx);
+    drop(output_tx);
+    drop(err_tx);
 
     // Arc 170 execve step 2 — deliver the program, blocking on each frame's ack.
     //
     // This makes `spawn-program` WAIT for the child to accept its program, which
     // is a behaviour change and an improvement: a startup failure now surfaces at
     // the call site instead of arriving later as a mute death. It cannot hang on a
-    // dead child — the child holds the ack pipe's write end, so its death closes
-    // that end and the wait ends in a NAMED failure (see `send_frame_and_await_ack`).
+    // dead child — after the drops above, only the child holds the ack pipe's
+    // write end, so its death closes that end and the wait ends in a NAMED
+    // failure (see `send_frame_and_await_ack`).
     crate::process::boot::deliver_to_child(
         boot_write_fd,
         boot_ack_fd,
@@ -987,10 +1071,10 @@ pub fn spawn_process_peer(
     };
 
     // Stone 214 1b-ii-α: err_rx is the Err half of the Result<T,E> response —
-    // the death-time channel ProcessPeerBundle::recv() reads on Ok-EOF. err_tx was
-    // moved into the child closure; RAII closes it when the child exits (all fds
-    // close via _exit). The parent retains only err_rx. Drop order invariant: peer
-    // before err before _lifeline_w.
+    // the death-time channel ProcessPeerBundle::recv() reads on Ok-EOF. The
+    // parent's err_tx was dropped before the handshake (see above); the child's
+    // inherited write end is fd 2. The parent retains only err_rx. Drop order
+    // invariant: peer before err before _lifeline_w.
     let bundle = ProcessPeerBundle {
         peer,
         err: err_rx,
@@ -1003,21 +1087,28 @@ pub fn spawn_process_peer(
     // `ProcessLaunch'` (PRIMED) is deliberate: arc 294 9a flipped aggregates so the BARE
     // name is the kwargs macro and the PRIME is the generated-only POSITIONAL ctor. This
     // is a positional one-arg construction, so the prime is the correct callee.
-    let launch_src = format!("(:wat::spawn::ProcessLaunch' {child_pid})");  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
-    let launch_ast = crate::parse_one!(&launch_src)
-        .expect("arc 209 C0b.3b-c: ProcessLaunch ctor form parses");
+    let launch_src = format!("(:wat::spawn::ProcessLaunch' {child_pid})"); // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
+    let launch_ast =
+        crate::parse_one!(&launch_src).expect("arc 209 C0b.3b-c: ProcessLaunch ctor form parses");
     let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
-        .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("arc 209 C0b.3b-c: ProcessLaunch ctor eval failed: {e:?}"),
-            }))?
+        .map_err(|e| {
+            RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("arc 209 C0b.3b-c: ProcessLaunch ctor eval failed: {e:?}"),
+                },
+            )
+        })?
         .value_owned();
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
     // Wrapped in Option so close' can `.take()` the bundle (consuming it for
     // `close()+wait`) while send'/recv' detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
-    let wrapped = Arc::new(ThreadOwnedCell::new(Some(ProcessSelectable::Spawned(Box::new(bundle)))));
+    let wrapped = Arc::new(ThreadOwnedCell::new(Some(ProcessSelectable::Spawned(
+        Box::new(bundle),
+    ))));
     Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, wrapped))
 }
 
@@ -1105,8 +1196,14 @@ mod tests {
 
         // Spawn a thread peer.
         let dummy_span = crate::rust_caller_span!();
-        let peer_val = spawn_thread_peer(echo_arc, default_init_fn, noop_post_spawn_fn, &world.symbols, &dummy_span)
-            .expect("spawn_thread_peer must succeed");
+        let peer_val = spawn_thread_peer(
+            echo_arc,
+            default_init_fn,
+            noop_post_spawn_fn,
+            &world.symbols,
+            &dummy_span,
+        )
+        .expect("spawn_thread_peer must succeed");
 
         // Must be RustOpaque with the thread-peer type-path.
         let opaque_arc = crate::rust_deps::marshal::rust_opaque_arc(
@@ -1132,13 +1229,21 @@ mod tests {
         // Send via peer.send (Thread<Value,Value>.input Sender), recv via
         // peer.output Receiver, using 4.4 methods exposed through with_ref.
         cell.with_ref("test:send", |opt_peer| {
-            opt_peer.as_ref().expect("peer must not be closed").send(Value::i64(42)).expect("peer.send must succeed");
+            opt_peer
+                .as_ref()
+                .expect("peer must not be closed")
+                .send(Value::i64(42))
+                .expect("peer.send must succeed");
         })
         .expect("with_ref (send) must not cross thread boundary");
 
         let got = cell
             .with_ref("test:recv", |opt_peer| {
-                opt_peer.as_ref().expect("peer must not be closed").recv().expect("peer.recv must return the echo")
+                opt_peer
+                    .as_ref()
+                    .expect("peer must not be closed")
+                    .recv()
+                    .expect("peer.recv must return the echo")
             })
             .expect("with_ref (recv) must not cross thread boundary");
 
@@ -1153,10 +1258,14 @@ mod tests {
         // Take the Thread out of the Option (drain_and_join → drain input_tx so
         // the worker sees disconnect, then join the JoinHandle).
         let mut peer = cell
-            .with_mut("test:close", crate::rust_caller_span!(), |opt_peer| opt_peer.take())
+            .with_mut("test:close", crate::rust_caller_span!(), |opt_peer| {
+                opt_peer.take()
+            })
             .expect("with_mut must not cross thread boundary")
             .expect("peer must not already be closed");
-        peer.drain_and_join().expect("drain_and_join must return Some").expect("thread join must succeed");
+        peer.drain_and_join()
+            .expect("drain_and_join must return Some")
+            .expect("thread join must succeed");
         drop(peer_val);
     }
 
@@ -1224,8 +1333,14 @@ mod tests {
             .clone();
 
         let baseline = Arc::strong_count(&prog);
-        let peer_val = spawn_thread_peer(prog.clone(), default_init_fn, noop_post_spawn_fn, &world.symbols, &crate::rust_caller_span!())
-            .expect("spawn_thread_peer must succeed");
+        let peer_val = spawn_thread_peer(
+            prog.clone(),
+            default_init_fn,
+            noop_post_spawn_fn,
+            &world.symbols,
+            &crate::rust_caller_span!(),
+        )
+        .expect("spawn_thread_peer must succeed");
 
         // The worker is now blocked on `recv'`. Drop the peer WITHOUT close'.
         drop(peer_val);

@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::kernel::assertion-failed! \"MCP-PANIC-SENTINEL-99\" :wat::core::None :wat::core::None)"}}}

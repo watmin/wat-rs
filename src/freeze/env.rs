@@ -19,17 +19,20 @@
 use std::collections::HashMap;
 
 use crate::ast::WatAST;
-use crate::check::{validate_aggregate_containment, validate_arc170_legacy_callsites, validate_bare_legacy_primitives, CheckError, CheckErrors};
+use crate::check::{
+    validate_aggregate_containment, validate_arc170_legacy_callsites,
+    validate_bare_legacy_primitives, CheckError, CheckErrors,
+};
 use crate::macros::{
     expand_all, register_aggregate_kwargs_companions, register_defmacros,
     register_stdlib_defmacros, MacroRegistry,
 };
 use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
 use crate::runtime::{
-    preregister_acronyms, preregister_stdlib_defclause_stub,
-    register_aggregate_methods, register_defines, register_enum_methods, register_newtype_methods,
-    register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
-    register_type_predicates, EvalBreak, Environment, SymbolTable,
+    preregister_acronyms, preregister_stdlib_defclause_stub, register_aggregate_methods,
+    register_defines, register_enum_methods, register_newtype_methods, register_stdlib_defines,
+    register_stdlib_runtime_defs, register_struct_methods, register_type_predicates, Environment,
+    EvalBreak, SymbolTable,
 };
 use crate::stdlib::stdlib_forms;
 use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
@@ -142,13 +145,12 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // expand_all so defservice's pascal->kebab-in call at expand time can
     // consult the registry.
     let mut macro_sym = SymbolTable::default();
-    preregister_acronyms(&post_macro_reg, &mut macro_sym)
-        .map_err(|e| match e {
-            EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
-            EvalBreak::Signal(_) => unreachable!(
-                "interpreter bug: eval-loop control signal escaped to freeze layer"
-            ),
-        })?;
+    preregister_acronyms(&post_macro_reg, &mut macro_sym).map_err(|e| match e {
+        EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
+        EvalBreak::Signal(_) => {
+            unreachable!("interpreter bug: eval-loop control signal escaped to freeze layer")
+        }
+    })?;
     // Expansion-born stdlib defmacros (e.g. a `defservice`'s `…/start` companion,
     // emitted by a macro-generating-macro) register through the ONE gate with an
     // EXPLICIT `Privilege::Stdlib` (threaded, no ambient flag) — the stdlib bypass. The
@@ -256,8 +258,10 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // rune:sequi(ambient-context) — inventory::iter is link-time static state.
     for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
         let name = entry.wat_name.to_string();
-        let mut prefix_items =
-            vec![WatAST::Keyword(":wat::core::Vector".into(), crate::rust_caller_span!())];
+        let mut prefix_items = vec![WatAST::Keyword(
+            ":wat::core::Vector".into(),
+            crate::rust_caller_span!(),
+        )];
         for p in entry.prefixes {
             prefix_items.push(WatAST::Keyword(p.to_string(), crate::rust_caller_span!()));
         }
@@ -274,13 +278,12 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // 6.96. Arc 265 — pre-register declare-acronyms forms into the
     //       runtime SymbolTable (macro_sym covered expand-time; this
     //       covers eval-time).
-    preregister_acronyms(&residue, &mut symbols)
-        .map_err(|e| match e {
-            EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
-            EvalBreak::Signal(_) => unreachable!(
-                "interpreter bug: eval-loop control signal escaped to freeze layer"
-            ),
-        })?;
+    preregister_acronyms(&residue, &mut symbols).map_err(|e| match e {
+        EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
+        EvalBreak::Signal(_) => {
+            unreachable!("interpreter bug: eval-loop control signal escaped to freeze layer")
+        }
+    })?;
 
     // 6.97. Arc 293.4b — pre-attach the TypeEnv to the SymbolTable BEFORE the
     //       resolve pass so `is_resolvable_call_head` can distinguish a
@@ -382,8 +385,12 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
 fn extract_rete_defn_names(forms: &[WatAST]) -> std::collections::HashSet<String> {
     let mut declared = std::collections::HashSet::new();
     for form in forms {
-        let WatAST::List(items, _) = form else { continue };
-        let Some(WatAST::Keyword(k, _)) = items.first() else { continue };
+        let WatAST::List(items, _) = form else {
+            continue;
+        };
+        let Some(WatAST::Keyword(k, _)) = items.first() else {
+            continue;
+        };
         if k != ":wat::rete::core::defn" {
             continue;
         }
@@ -531,7 +538,10 @@ mod rete_wall_probe {
         // (1)+(2): reach the make-rule + its quoted :when, un-mangled by resolve.
         let mr = find_make_rule(&env.residue).expect("make-rule reachable in residue");
         let when = quote_vec(&mr[2]); // child[2] = (:wat::core::quote [conds])
-        assert!(!when.is_empty(), "the :when quote survives resolve as a non-empty vector");
+        assert!(
+            !when.is_empty(),
+            "the :when quote survives resolve as a non-empty vector"
+        );
         let cond_items = match &when[0] {
             WatAST::List(i, _) => i,
             other => panic!("cond0 is a List; got {other:?}"),
@@ -540,7 +550,10 @@ mod rete_wall_probe {
             WatAST::Keyword(k, _) => k.as_str(),
             other => panic!("cond head is a Keyword; got {other:?}"),
         };
-        assert_eq!(head, ":weather::Temperature", "cond head keyword intact through resolve");
+        assert_eq!(
+            head, ":weather::Temperature",
+            "cond head keyword intact through resolve"
+        );
 
         // (3): the head type's field ORDER reads from the registry — the validate + reorder core.
         // The registry key carries the leading colon (matcher.rs:126: format!(":{}", class_fqdn)).
@@ -552,14 +565,19 @@ mod rete_wall_probe {
             crate::types::TypeDef::Aggregate(a) => a.field_names().collect(),
             other => panic!("Temperature is an Aggregate; got {other:?}"),
         };
-        assert_eq!(fields, vec!["celsius", "location"], "field names in declaration order");
+        assert_eq!(
+            fields,
+            vec!["celsius", "location"],
+            "field names in declaration order"
+        );
 
         // The clause itself is a well-formed bind — `(?loc <- :location)`, a List, not a bare
         // keyword (the shape the 9a corruption injected; see `src/rete/validate.rs`'s
         // `corrupt_when_clause_is_a_located_error` for that case).
         assert!(
             matches!(&cond_items[1], WatAST::List(_, _)),
-            "a well-formed bind clause is a List; got {:?}", cond_items[1]
+            "a well-formed bind clause is a List; got {:?}",
+            cond_items[1]
         );
     }
 }

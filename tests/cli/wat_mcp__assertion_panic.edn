@@ -1,0 +1,6 @@
+#wat.mcp/Turn {
+  :gen 0
+  :defs 0
+  :ticket 0
+  :value #wat.core/Fault {:message "session survived a panic: MCP-PANIC-SENTINEL-99"}
+}

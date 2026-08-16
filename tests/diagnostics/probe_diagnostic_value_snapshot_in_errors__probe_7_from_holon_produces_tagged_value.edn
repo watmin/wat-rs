@@ -2,8 +2,8 @@
   :message "not callable: expected Function, got wat::core::String `\"not-a-callable-string\"` (built by :wat::holon::from-holon at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat:5:12)"
   :location #wat.core/Span {
     :file "src/runtime.rs"
-    :line 21520
-    :col 42
+    :line 24760
+    :col 17
     :end #wat.core.Option/None []
   }
   :causes []

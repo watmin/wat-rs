@@ -1,0 +1,5 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::def :usr::id (:wat::core::Uuid/v4))"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::do :usr::id)"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::do :usr::id)"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"reset","arguments":{}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::do :usr::id)"}}}

@@ -47,6 +47,11 @@ const TOPLEVEL_EXPR_IN: &str = include_str!("wat_mcp__toplevel_expr.jsonl");
 const RESET_IN: &str = include_str!("wat_mcp__reset.jsonl");
 const BAD_THEN_GOOD_IN: &str = include_str!("wat_mcp__bad_then_good.jsonl");
 const STALE_TICKET_IN: &str = include_str!("wat_mcp__stale_ticket.jsonl");
+const PERSIST_DEF_VALUE_IN: &str = include_str!("wat_mcp__persist_def_value.jsonl");
+const COUNTER_ACROSS_TURNS_IN: &str = include_str!("wat_mcp__counter_across_turns.jsonl");
+const THREAD_COUNTER_ACROSS_TURNS_IN: &str =
+    include_str!("wat_mcp__thread_counter_across_turns.jsonl");
+const ASSERTION_PANIC_IN: &str = include_str!("wat_mcp__assertion_panic.jsonl");
 
 /// One live `--mcp` child. Turns are request/reply: the next frame is
 /// written only after the previous Turn is read, because that Turn
@@ -390,6 +395,123 @@ fn definitions_persist_across_turns() {
         pair(&r[1]),
         ("42", false),
         "a definition from an earlier call must be live in a later one"
+    );
+}
+
+#[test]
+fn a_counter_increments_across_turns() {
+    // THE product gate. defservice lands as a session declaration;
+    // /start is bound in a `def`; increment on turn N and turn N+1
+    // talk to the same actor. 5 then 3 → 8.
+    let mut live = Live::start();
+    let r = live.play(COUNTER_ACROSS_TURNS_IN);
+    assert_eq!(r.len(), 6);
+    assert_eq!(pair(&r[0]), ("nil", false), "defsurface");
+    assert_eq!(
+        pair(&r[1]),
+        ("nil", false),
+        "defservice must declare: {}",
+        r[1].value
+    );
+    assert!(
+        r[1].turn.defs >= 2,
+        "defservice must grow the session; defs={}",
+        r[1].turn.defs
+    );
+    assert_eq!(
+        pair(&r[2]),
+        ("nil", false),
+        "def of the live handle: {}",
+        r[2].value
+    );
+    assert_eq!(pair(&r[3]), ("nil", false), "defn incr: {}", r[3].value);
+    assert_eq!(pair(&r[4]), ("5", false), "first incr: {}", r[4].value);
+    assert_eq!(
+        pair(&r[5]),
+        ("8", false),
+        "second incr on the same actor: {}",
+        r[5].value
+    );
+}
+
+#[test]
+fn a_thread_counter_increments_across_turns() {
+    // Twin of a_counter_increments_across_turns on the thread locus.
+    // The live MCP later-connect to a thread handle panicked after a
+    // kwargs grant had killed the service via allow'. This gate is the
+    // /start + incr-across-turns half: the handle in a `def` must still
+    // answer on the next turn.
+    let mut live = Live::start();
+    let r = live.play(THREAD_COUNTER_ACROSS_TURNS_IN);
+    assert_eq!(r.len(), 6);
+    assert_eq!(pair(&r[0]), ("nil", false), "defsurface");
+    assert_eq!(
+        pair(&r[1]),
+        ("nil", false),
+        "defservice must declare: {}",
+        r[1].value
+    );
+    assert_eq!(
+        pair(&r[2]),
+        ("nil", false),
+        "def of the live thread handle: {}",
+        r[2].value
+    );
+    assert_eq!(pair(&r[3]), ("nil", false), "defn incr: {}", r[3].value);
+    assert_eq!(
+        pair(&r[4]),
+        ("5", false),
+        "first incr on the thread actor: {}",
+        r[4].value
+    );
+    assert_eq!(
+        pair(&r[5]),
+        ("8", false),
+        "second incr on the same thread actor: {}",
+        r[5].value
+    );
+}
+
+#[test]
+fn a_panic_turn_names_the_assertion() {
+    // MCP used to downcast only &str/String, so AssertionPayload
+    // (every assertion-failed!) rendered as "unknown panic".
+    let mut live = Live::start();
+    let r = live.play(ASSERTION_PANIC_IN);
+    assert_eq!(r.len(), 1);
+    assert!(
+        !r[0].is_error,
+        "a survived panic is still a Turn, not isError"
+    );
+    wat::assert_edn_matches_file!(
+        zero_epoch_fields(&r[0].text),
+        "wat_mcp__assertion_panic.edn"
+    );
+}
+
+#[test]
+fn a_def_value_survives_until_reset() {
+    // THE live-value TCO. `def` evaluates the rhs once and parks the Value
+    // on the symbol table. Uuid/v4 is nondeterministic: if the next turn
+    // re-ran the rhs, the two reads would disagree. They must be the same
+    // value. `reset` drops the table.
+    let mut live = Live::start();
+    let r = live.play(PERSIST_DEF_VALUE_IN);
+    assert_eq!(r.len(), 5);
+    assert_eq!(pair(&r[0]), ("nil", false), "def answers nil");
+    assert!(!r[1].is_error, "first read must resolve: {}", r[1].value);
+    assert_eq!(
+        r[1].value, r[2].value,
+        "re-freeze must not remint the uuid — the session TCO's runtime_def_values"
+    );
+    assert_eq!(pair(&r[3]), ("nil", false), "reset answers nil");
+    assert_ne!(
+        r[1].value, ":usr/id",
+        "the bound value must be the uuid, not the keyword itself"
+    );
+    assert_eq!(
+        r[4].value, ":usr/id",
+        "reset restores the baseline table — the name is an unbound keyword again"
     );
 }
 

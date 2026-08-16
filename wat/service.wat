@@ -1902,7 +1902,12 @@
      grant-call-name   (:wat::core::keyword/from-string
                          (:wat::core::string::interpolate "{b}/grant" :b fqdn-base))
      grant-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
-     grant-method-body `(:wat::core::let
+     ;; Grant is the process-tier accept-gate. Hinge is the existing
+     ;; `peer-process` on the lineage handle (same un-erase stop/signal use).
+     ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer.
+     grant-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
+                          ((:wat::core::Some _)
+                            (:wat::core::let
                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
                           [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw pids))
@@ -1928,7 +1933,8 @@
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice grant: service peer closed during grant"
-                                :wat::core::None :wat::core::None))))
+                                :wat::core::None :wat::core::None)))))
+                          (:wat::core::None nil))
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
@@ -1947,7 +1953,11 @@
      revoke-call-name   (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{b}/revoke" :b fqdn-base))
      revoke-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
-     revoke-method-body `(:wat::core::let
+     ;; Twin of grant: process-only via `peer-process`. Shared-memory lineage
+     ;; has no pid set to revoke.
+     revoke-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
+                           ((:wat::core::Some _)
+                             (:wat::core::let
                            ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                            ;; below faces Lost/Closed; the send' just proceeds regardless.
                            [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw pids))
@@ -1973,7 +1983,8 @@
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed!
                                  "defservice revoke: service peer closed during revoke"
-                                 :wat::core::None :wat::core::None))))
+                                 :wat::core::None :wat::core::None)))))
+                           (:wat::core::None nil))
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
      methods           (:wat::core::conj methods revoke-method)

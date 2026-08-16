@@ -126,10 +126,13 @@ const TAG_HERE: &str = "Here";
 const TAG_ACK: &str = "Ack";
 
 fn boot_err(reason: String) -> RuntimeError {
-    RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
+    RuntimeError::new(
+        crate::rust_caller_span!(),
+        RuntimeErrorKind::MalformedForm {
             head: ":wat::process::boot".into(),
             reason,
-        })
+        },
+    )
 }
 
 impl BootFrame {
@@ -204,9 +207,7 @@ fn named_string_field(body: &wat_edn::OwnedValue, key: &str) -> Result<String, R
         if matches {
             return match v {
                 wat_edn::OwnedValue::String(s) => Ok(s.to_string()),
-                other => Err(boot_err(format!(
-                    ":{key} must be a String; got {other:?}"
-                ))),
+                other => Err(boot_err(format!(":{key} must be a String; got {other:?}"))),
             };
         }
     }
@@ -272,7 +273,9 @@ pub(crate) fn chunk_payload(payload: &str) -> Result<Vec<BootFrame>, RuntimeErro
             ));
         }
         let (head, tail) = rest.split_at(cut);
-        let frame = BootFrame::Chunk { text: head.to_string() };
+        let frame = BootFrame::Chunk {
+            text: head.to_string(),
+        };
         let encoded_len = frame.to_wire().len();
         if encoded_len > MAX_BOOT_FRAME_BYTES {
             return Err(boot_err(format!(
@@ -348,7 +351,10 @@ pub(crate) struct BootReader {
 
 impl BootReader {
     pub(crate) fn new(fd: i32) -> Self {
-        BootReader { fd, acc: Vec::new() }
+        BootReader {
+            fd,
+            acc: Vec::new(),
+        }
     }
 
     /// Read one newline-terminated line, or `None` at EOF.
@@ -367,9 +373,8 @@ impl BootReader {
             let mut buf = [0u8; BOOT_READ_CHUNK];
             // SAFETY: `buf` is a live stack array of exactly this length; `fd` is
             // the caller-supplied boot fd, open for the duration of the handshake.
-            let n = unsafe {
-                libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len())
-            };
+            let n =
+                unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
             if n < 0 {
                 let err = std::io::Error::last_os_error();
                 if err.kind() == std::io::ErrorKind::Interrupted {
@@ -557,7 +562,8 @@ pub(crate) fn receive_in_child(
     let substrate = reader.read_section(ack_fd, "substrate", |f| {
         matches!(f, BootFrame::SubstrateDone)
     })?;
-    let program = reader.read_section(ack_fd, "program", |f| matches!(f, BootFrame::ProgramDone))?;
+    let program =
+        reader.read_section(ack_fd, "program", |f| matches!(f, BootFrame::ProgramDone))?;
     Ok((substrate, program))
 }
 
@@ -643,15 +649,8 @@ fn _every_boot_reply_variant_is_covered(r: &BootReply) {
 /// the child is precisely the parent/child divergence this mechanism exists to
 /// prevent, and it would be invisible — the child would just quietly run under
 /// different settings. Do not reach for `..`.
-pub(crate) fn substrate_to_wire(
-    cfg: Option<&crate::config::Config>,
-    env_fn: &str,
-) -> String {
-    format!(
-        "{{:config {} :env-fn {:?}}}",
-        config_to_wire(cfg),
-        env_fn
-    )
+pub(crate) fn substrate_to_wire(cfg: Option<&crate::config::Config>, env_fn: &str) -> String {
+    format!("{{:config {} :env-fn {:?}}}", config_to_wire(cfg), env_fn)
 }
 
 /// Split the substrate section back into its parts. Both fields are REQUIRED —
@@ -674,8 +673,8 @@ pub(crate) fn wire_to_substrate(
             _ => None,
         })
     };
-    let cfg_val = get("config")
-        .ok_or_else(|| boot_err("substrate section is missing :config".to_owned()))?;
+    let cfg_val =
+        get("config").ok_or_else(|| boot_err("substrate section is missing :config".to_owned()))?;
     let env_fn = match get("env-fn") {
         Some(wat_edn::Value::String(s)) => s.as_ref().to_owned(),
         Some(other) => {
@@ -730,9 +729,7 @@ fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
 /// Every field is REQUIRED. A missing one is a located error, never a default:
 /// defaulting here would reintroduce exactly the silent parent/child divergence
 /// the exhaustive destructure exists to prevent, just on the read side.
-pub(crate) fn wire_to_config(
-    frame: &str,
-) -> Result<Option<crate::config::Config>, RuntimeError> {
+pub(crate) fn wire_to_config(frame: &str) -> Result<Option<crate::config::Config>, RuntimeError> {
     let trimmed = frame.trim();
     if trimmed == "nil" || trimmed.is_empty() {
         return Ok(None);
@@ -747,9 +744,7 @@ pub(crate) fn wire_to_config(
     };
     let get = |want: &str| {
         fields.iter().find_map(|(k, v)| match k {
-            wat_edn::Value::Keyword(kw) if kw.namespace().is_none() && kw.name() == want => {
-                Some(v)
-            }
+            wat_edn::Value::Keyword(kw) if kw.namespace().is_none() && kw.name() == want => Some(v),
             _ => None,
         })
     };
@@ -779,12 +774,13 @@ pub(crate) fn wire_to_config(
             wat_edn::Value::Nil => Ok(None),
             other => {
                 let text = wat_edn::write(other);
-                let mut forms = crate::wat_edn_bridge::edn_to_program(&text).map_err(|e| {
-                    boot_err(format!(":{want} did not decode as a form: {e}"))
-                })?;
+                let mut forms = crate::wat_edn_bridge::edn_to_program(&text)
+                    .map_err(|e| boot_err(format!(":{want} did not decode as a form: {e}")))?;
                 match forms.len() {
                     1 => Ok(Some(forms.pop().expect("len checked"))),
-                    n => Err(boot_err(format!(":{want} carried {n} forms, want exactly 1"))),
+                    n => Err(boot_err(format!(
+                        ":{want} carried {n} forms, want exactly 1"
+                    ))),
                 }
             }
         }
@@ -817,8 +813,12 @@ mod tests {
     #[test]
     fn frames_round_trip_through_the_wire() {
         for f in [
-            BootFrame::Chunk { text: "(:user::main)".into() },
-            BootFrame::Chunk { text: "with \"quotes\" and\nnewlines".into() },
+            BootFrame::Chunk {
+                text: "(:user::main)".into(),
+            },
+            BootFrame::Chunk {
+                text: "with \"quotes\" and\nnewlines".into(),
+            },
             BootFrame::SubstrateDone,
             BootFrame::ProgramDone,
             BootFrame::Here,
@@ -835,7 +835,10 @@ mod tests {
 
     #[test]
     fn ack_round_trips() {
-        assert_eq!(BootReply::from_wire(&BootReply::Ack.to_wire()).expect("decode"), BootReply::Ack);
+        assert_eq!(
+            BootReply::from_wire(&BootReply::Ack.to_wire()).expect("decode"),
+            BootReply::Ack
+        );
     }
 
     #[test]
@@ -910,7 +913,10 @@ mod tests {
                 _ => panic!("chunk_payload emits only Chunks"),
             })
             .collect();
-        assert_eq!(rejoined, payload, "concatenation must reproduce the payload exactly");
+        assert_eq!(
+            rejoined, payload,
+            "concatenation must reproduce the payload exactly"
+        );
     }
 
     /// The transport, driven end-to-end over a REAL pipe pair.
@@ -929,7 +935,10 @@ mod tests {
         // boundary can land mid-codepoint if the chunker is wrong.
         let payload: String = "λ(:demo::form 1)".repeat(80_000);
         let frames = chunk_payload(&payload).expect("chunk");
-        assert!(frames.len() > 1, "the payload must span frames for this to prove anything");
+        assert!(
+            frames.len() > 1,
+            "the payload must span frames for this to prove anything"
+        );
 
         let data_w_fd = data_w.as_raw_fd();
         let ack_r_fd = ack_r.as_raw_fd();
@@ -942,22 +951,39 @@ mod tests {
             for f in frames {
                 write_boot_line(data_w_fd, &f.to_wire()).expect("write chunk");
                 let line = acks.read_line().expect("ack read").expect("ack present");
-                assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
+                assert_eq!(
+                    BootReply::from_wire(&line).expect("ack decode"),
+                    BootReply::Ack
+                );
             }
             write_boot_line(data_w_fd, &BootFrame::ProgramDone.to_wire()).expect("write marker");
-            let line = acks.read_line().expect("final ack read").expect("final ack present");
-            assert_eq!(BootReply::from_wire(&line).expect("ack decode"), BootReply::Ack);
+            let line = acks
+                .read_line()
+                .expect("final ack read")
+                .expect("final ack present");
+            assert_eq!(
+                BootReply::from_wire(&line).expect("ack decode"),
+                BootReply::Ack
+            );
             expected_acks
         });
 
         let mut reader = BootReader::new(data_r.as_raw_fd());
         let got = reader
-            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .read_section(ack_w.as_raw_fd(), "program", |f| {
+                matches!(f, BootFrame::ProgramDone)
+            })
             .expect("read_section");
 
         let acked = writer.join().expect("writer thread");
-        assert_eq!(acked, expected_acks, "every frame AND the marker must be acked");
-        assert_eq!(got, payload, "concatenation must reproduce the payload to the byte");
+        assert_eq!(
+            acked, expected_acks,
+            "every frame AND the marker must be acked"
+        );
+        assert_eq!(
+            got, payload,
+            "concatenation must reproduce the payload to the byte"
+        );
     }
 
     /// A stream that stops before its marker is a NAMED failure, never an empty
@@ -971,22 +997,68 @@ mod tests {
 
         write_boot_line(
             data_w.as_raw_fd(),
-            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
+            &BootFrame::Chunk {
+                text: "(:demo::x 1)".into(),
+            }
+            .to_wire(),
         )
         .expect("write chunk");
         drop(data_w); // EOF before the marker — the peer vanished.
-        // ack_r stays ALIVE: the reader still acks the chunk it did receive, and
-        // dropping the read end would make that ack fail with EPIPE — surfacing a
-        // write error instead of the truncation this test is about.
+                      // ack_r stays ALIVE: the reader still acks the chunk it did receive, and
+                      // dropping the read end would make that ack fail with EPIPE — surfacing a
+                      // write error instead of the truncation this test is about.
         let _ack_r_held = ack_r;
 
         let mut reader = BootReader::new(data_r.as_raw_fd());
         assert!(
             reader
-                .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+                .read_section(ack_w.as_raw_fd(), "program", |f| matches!(
+                    f,
+                    BootFrame::ProgramDone
+                ))
                 .is_err(),
             "a section whose marker never arrives must NOT read as an empty success"
         );
+    }
+
+    /// Parent half of the handshake: the child is already gone, and the parent
+    /// does not hold a copy of the ack write end. `deliver_to_child` must name
+    /// that death. Holding the write end is the hang `spawn_process_peer`
+    /// used to have — this test is the invariant that drop is load-bearing.
+    #[test]
+    fn deliver_to_child_names_death_when_the_ack_write_end_is_gone() {
+        let (data_r, data_w) = super::super::clone::make_pipe(":test").expect("data pipe");
+        let (ack_r, ack_w) = super::super::clone::make_pipe(":test").expect("ack pipe");
+        use std::os::fd::AsRawFd;
+        // Keep the data read end open so the first frame write succeeds; the
+        // failure under test is the ack wait, not EPIPE on the write. Drop
+        // only the ack write end — that is the parent's leaked `output_tx`.
+        let _data_r_held = data_r;
+        drop(ack_w);
+
+        let err = deliver_to_child(
+            data_w.as_raw_fd(),
+            ack_r.as_raw_fd(),
+            "{:config nil :env-fn \"\"}",
+            "(:user::main)",
+        )
+        .expect_err("a dead child must not look like a successful handoff");
+        let first = chunk_payload("{:config nil :env-fn \"\"}")
+            .expect("the test's own config wire must chunk")
+            .into_iter()
+            .next()
+            .expect("a non-empty config wire yields at least one frame");
+        let expected = format!(
+            "the child closed the ack channel while {first:?} was in flight — it died \
+             during startup; its reason rides the err channel"
+        );
+        match err.kind() {
+            RuntimeErrorKind::MalformedForm { head, reason } => {
+                assert_eq!(head, ":wat::process::boot");
+                assert_eq!(reason, &expected);
+            }
+            other => panic!("dead-child handshake must be a named boot MalformedForm, got {other:?}"),
+        }
     }
 
     /// The control for the truncation test: the SAME stream, with its marker,
@@ -1000,7 +1072,10 @@ mod tests {
 
         write_boot_line(
             data_w.as_raw_fd(),
-            &BootFrame::Chunk { text: "(:demo::x 1)".into() }.to_wire(),
+            &BootFrame::Chunk {
+                text: "(:demo::x 1)".into(),
+            }
+            .to_wire(),
         )
         .expect("write chunk");
         write_boot_line(data_w.as_raw_fd(), &BootFrame::ProgramDone.to_wire())
@@ -1008,7 +1083,9 @@ mod tests {
 
         let mut reader = BootReader::new(data_r.as_raw_fd());
         let got = reader
-            .read_section(ack_w.as_raw_fd(), "program", |f| matches!(f, BootFrame::ProgramDone))
+            .read_section(ack_w.as_raw_fd(), "program", |f| {
+                matches!(f, BootFrame::ProgramDone)
+            })
             .expect("a terminated section must read clean");
         assert_eq!(got, "(:demo::x 1)");
     }

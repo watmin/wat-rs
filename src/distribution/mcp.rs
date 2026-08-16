@@ -80,34 +80,39 @@ const PROTOCOL_VERSION: &str = "2024-11-05";
 /// mints a new number — that is the only way gen changes. The model can then
 /// see the world flipped instead of treating a virgin session as the old one.
 ///
-/// `ticket` is the next-turn rendezvous. Starts at 0 (bootstrap: no Turn
-/// has been issued). A matching `eval`/`reset` consumes it and mints a
-/// new one; a mismatch is a protocol Fault and leaves the world and the
-/// ticket alone. `ticket_seq` is only entropy for the mint.
+/// `sym` is TCO'd into the next turn: `runtime_def_values` (a `def` of
+/// a handle, a minted uuid, a bound peer) are not rebuilt. `reset`
+/// restores `baseline`. `ticket` is the next-turn rendezvous (0 if no
+/// Turn has been issued). `ticket_seq` is only entropy for the mint.
 struct Session {
     defs: Vec<WatAST>,
     env: Environment,
+    /// Live world. TCO'd into the next turn so `runtime_def_values`
+    /// (handles, minted uuids, bound peers) exist until `reset`.
     sym: SymbolTable,
+    /// Virgin table. `reset` restores this; a new process mints a new gen.
+    baseline: SymbolTable,
     gen: i64,
     ticket: i64,
     ticket_seq: u64,
 }
 
 /// One epoch per process lifetime. Not a shared counter — there is no second
-/// process on this stdin. pid is mixed in so two sequential boots (a respawn)
-/// cannot collide if the clock has not ticked.
+/// process on this stdin. Hash(pid, nanos) so two boots in the same
+/// millisecond cannot collide.
 fn mint_gen() -> i64 {
+    use std::hash::{BuildHasher, Hasher, RandomState};
     use std::time::{SystemTime, UNIX_EPOCH};
-    // Millis, not nanos: JSON numbers stay inside 2^53, so the epoch is an
-    // integer on the wire (nanos came back as a string and hid the field).
-    let millis = SystemTime::now()
+    // Hash, not millis+pid: two children spawned in the same millisecond
+    // must not agree. Stay inside JSON's 2^53 exact integers.
+    let mut hasher = RandomState::new().build_hasher();
+    hasher.write_u32(std::process::id());
+    let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0);
-    millis
-        .wrapping_add(std::process::id() as i64)
-        .saturating_abs()
-        .max(1)
+        .map(|d| d.as_nanos())
+        .unwrap_or(1);
+    hasher.write_u128(nanos);
+    ((hasher.finish() & JSON_SAFE_INT) as i64).max(1)
 }
 
 /// JSON numbers are only exact integers inside 2^53 (the same wall that
@@ -155,7 +160,8 @@ pub(super) fn serve() -> ExitCode {
     let mut session = Session {
         defs: Vec::new(),
         env: Environment::new(),
-        sym: base.symbols,
+        sym: base.symbols.clone(),
+        baseline: base.symbols,
         gen: mint_gen(),
         ticket: 0,
         ticket_seq: 0,
@@ -281,6 +287,7 @@ fn handle_tools_call(id: OwnedValue, req: &OwnedValue, session: &mut Session) ->
                 return result_frame(id, tool_result(&fault), gen);
             }
             session.defs.clear();
+            session.sym = session.baseline.clone();
             consume_ticket(session);
             result_frame(
                 id,
@@ -315,13 +322,7 @@ fn stale_ticket_value(expected: i64, got: Option<i64>) -> String {
 }
 
 fn panic_text(payload: &Box<dyn std::any::Any + Send>) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        (*s).to_string()
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.clone()
-    } else {
-        "unknown panic".to_string()
-    }
+    crate::runtime::format_panic_payload(payload)
 }
 
 /// The turn: parse the payload, evaluate EVERY form in it against the session, render the
@@ -361,40 +362,47 @@ fn eval_turn(src: &str, session: &mut Session) -> String {
 /// One form against the session — the whole of a turn when the payload holds a single form.
 /// The bool is "stop the remaining forms", not MCP `isError`.
 fn eval_one_form(form: WatAST, session: &mut Session) -> (String, bool) {
-    let outcome = match crate::runtime::eval_form_against_defs(
+    let (outcome, next_sym) = match crate::runtime::eval_form_against_defs(
         &form,
         session.defs.clone(),
         &session.env,
         &session.sym,
     ) {
-        Ok(v) => v,
+        Ok(pair) => pair,
         // A signal (a process-wide stop) is not a turn outcome — it unwinds.
         Err(e) => return (format!("{e:?}"), true),
     };
 
-    let types = session.sym.types().map(|a| a.as_ref());
-    match &outcome {
-        Value::Enum(ev) => match ev.variant_name.as_str() {
-            // The ONLY arm that grows the session. Kill this line and a definition made in
-            // one call stops being visible in the next — which is what the gate must catch.
-            "Declared" => {
-                session.defs.push(form);
-                ("nil".to_string(), false)
-            }
-            "Evaluated" => {
-                let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
-                (render_edn(&v, types), false)
-            }
-            // CheckFailed / Raised are values. The session survives them. The
-            // sequence stops so later forms do not run against a world they
-            // were not written for. MCP `isError` is not involved.
-            _ => {
-                let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
-                (render_edn(&v, types), true)
-            }
-        },
-        other => (render_edn(other, types), false),
+    let (text, halt, keep) = {
+        let types = session.sym.types().map(|a| a.as_ref());
+        match &outcome {
+            Value::Enum(ev) => match ev.variant_name.as_str() {
+                // The ONLY arm that grows the AST set. The live table is TCO'd
+                // separately so a `def` of a handle is not rebuilt next turn.
+                "Declared" => {
+                    session.defs.push(form);
+                    ("nil".to_string(), false, true)
+                }
+                "Evaluated" => {
+                    let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
+                    (render_edn(&v, types), false, true)
+                }
+                // CheckFailed / Raised are values. The session survives them
+                // and is untouched (same as --repl).
+                _ => {
+                    let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
+                    (render_edn(&v, types), true, false)
+                }
+            },
+            other => (render_edn(other, types), false, true),
+        }
+    };
+    if keep {
+        if let Some(sym) = next_sym {
+            session.sym = sym;
+        }
     }
+    (text, halt)
 }
 
 fn render_edn(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {

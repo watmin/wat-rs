@@ -80,6 +80,10 @@ fail-fast = false
 # instead of running after them. Wall-clock win, and it stops a slow-but-healthy
 # gate from looking like a hang under end-of-run contention.
 [[profile.default.overrides]]
+filter = 'test(a_counter_increments_across_turns)'
+slow-timeout = { period = "120s", terminate-after = 2 }
+
+[[profile.default.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100                                            # schedule first
@@ -102,6 +106,10 @@ priority = 100                                            # schedule first
 [[profile.default.overrides]]
 filter = 'binary_id(wat::lint)'
 priority = 99                                             # just below the scripts gate
+
+[[profile.ci.overrides]]
+filter = 'test(a_counter_increments_across_turns)'
+slow-timeout = { period = "120s", terminate-after = 2 }
 
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'

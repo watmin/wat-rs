@@ -64,15 +64,14 @@ use crate::config::{collect_entry_file, collect_entry_file_with_inherit, Config,
 use crate::load::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{MacroError, MacroRegistry};
 use crate::parser::{parse_all_with_file, ParseError};
-use crate::stdlib::StdlibError;
 use crate::resolve::ResolveError;
 use crate::runtime::{
-    apply_function, EvalBreak, Environment,
-    Function, FunctionBody, RuntimeError, RuntimeErrorKind,
+    apply_function, Environment, EvalBreak, Function, FunctionBody, RuntimeError, RuntimeErrorKind,
     SymbolTable, TrackedValue, Value,
 };
-use crate::value::EncodingCtx;
+use crate::stdlib::StdlibError;
 use crate::types::{TypeEnv, TypeError, TypeExpr};
+use crate::value::EncodingCtx;
 use std::fmt;
 use std::sync::Arc;
 
@@ -134,11 +133,14 @@ pub struct ProcessRuntime {
 }
 
 ::wat_source_derive::wat_field_names_from!(
-    STOP_ACCEPTED_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::StopAccepted"
+    STOP_ACCEPTED_FIELDS,
+    "wat/kernel/diagnostics.wat",
+    ":wat::kernel::StopAccepted"
 );
 fn stop_accepted_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_ACCEPTED_FIELDS)).clone()
+    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_ACCEPTED_FIELDS))
+        .clone()
 }
 
 impl ProcessRuntime {
@@ -175,7 +177,10 @@ impl ProcessRuntime {
             stop_accepted_names(),
             Arc::new(vec![Value::Vec(Arc::new(service_names))]),
         )));
-        let edn = crate::edn_shim::value_to_edn_with(&stop_accepted, self.sym.types().map(|t| t.as_ref()));
+        let edn = crate::edn_shim::value_to_edn_with(
+            &stop_accepted,
+            self.sym.types().map(|t| t.as_ref()),
+        );
         let mut line = wat_edn::write(&edn);
         line.push('\n');
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -188,9 +193,10 @@ impl ProcessRuntime {
         })) {
             Ok(Ok(())) => {}
             Ok(Err(e)) => failures.push(crate::runtime::stop_failure_value("stdout-svc", &e)),
-            Err(payload) => {
-                failures.push(crate::runtime::stop_failure_from_panic("stdout-svc", &*payload))
-            }
+            Err(payload) => failures.push(crate::runtime::stop_failure_from_panic(
+                "stdout-svc",
+                &*payload,
+            )),
         }
 
         for target in &self.stop_targets {
@@ -204,9 +210,10 @@ impl ProcessRuntime {
             })) {
                 Ok(Ok(_)) => {}
                 Ok(Err(e)) => failures.push(crate::runtime::stop_failure_value(target.name, &e)),
-                Err(payload) => {
-                    failures.push(crate::runtime::stop_failure_from_panic(target.name, &*payload))
-                }
+                Err(payload) => failures.push(crate::runtime::stop_failure_from_panic(
+                    target.name,
+                    &*payload,
+                )),
             }
         }
         failures
@@ -275,9 +282,21 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // the flipped verbs their capture. `as_raw_fd_for_poll()` is `Some(fd)` for an fd-backed handle
     // (pipe / real stdio), `None` for a non-fd stand-in (StringIo) → fall back to raw 0/1/2 (production
     // leaves the ambient unset → `lend_ambient` already wraps real fds, which report Some anyway).
-    let stdin_fd = stdio.stdin.as_raw_fd_for_poll().map(|fd| fd as i64).unwrap_or(0);
-    let stdout_fd = stdio.stdout.as_raw_fd_for_poll().map(|fd| fd as i64).unwrap_or(1);
-    let stderr_fd = stdio.stderr.as_raw_fd_for_poll().map(|fd| fd as i64).unwrap_or(2);
+    let stdin_fd = stdio
+        .stdin
+        .as_raw_fd_for_poll()
+        .map(|fd| fd as i64)
+        .unwrap_or(0);
+    let stdout_fd = stdio
+        .stdout
+        .as_raw_fd_for_poll()
+        .map(|fd| fd as i64)
+        .unwrap_or(1);
+    let stderr_fd = stdio
+        .stderr
+        .as_raw_fd_for_poll()
+        .map(|fd| fd as i64)
+        .unwrap_or(2);
 
     // Arc 170 stdio-as-defservice — the SymbolTable augmented (below) with the primed-stdio carrier.
     let pre_sym = frozen.symbols();
@@ -297,27 +316,39 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // symbol_table.rs) — they never call the stdio verbs themselves.
     let start_helper = pre_sym
         .get(":wat::kernel::start-primed-stdio")
-        .ok_or_else(|| RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UnknownFunction(":wat::kernel::start-primed-stdio".into())))?
+        .ok_or_else(|| {
+            RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::UnknownFunction(":wat::kernel::start-primed-stdio".into()),
+            )
+        })?
         .clone();
     let handles_tuple = apply_function(
         start_helper,
         // Ambient-aware (Strike 3): the primed services dup the SAME fds the old path uses, so the
         // flipped verbs' writes land where a test's redirected AmbientStdio points (capture flows
         // through the primed path). Production (ambient unset) → real fd 0/1/2.
-        vec![Value::i64(stdin_fd), Value::i64(stdout_fd), Value::i64(stderr_fd)],
+        vec![
+            Value::i64(stdin_fd),
+            Value::i64(stdout_fd),
+            Value::i64(stderr_fd),
+        ],
         pre_sym,
         crate::rust_caller_span!(),
     )?;
     let (stdin_handle, stdout_handle, stderr_handle) = match &handles_tuple {
         Value::Tuple(v) if v.len() == 3 => (v[0].clone(), v[1].clone(), v[2].clone()),
         other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
                     head: "arc 170 start-primed-stdio".into(),
                     reason: format!(
                         "expected a 3-tuple of stdio Handles; got {:?}",
                         crate::runtime::ValueSnapshot::of(other)
                     ),
-                }));
+                },
+            ));
         }
     };
 
@@ -327,13 +358,16 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let addr_of = |h: &Value, which: &str| -> Result<Value, RuntimeError> {
         match h {
             Value::Aggregate(a) if a.fields.len() >= 2 => Ok(a.fields[1].clone()),
-            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
+            other => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
                     head: format!("arc 170 primed {which} Handle"),
                     reason: format!(
                         "expected a ≥2-field Handle aggregate (handle, addr); got {:?}",
                         crate::runtime::ValueSnapshot::of(other)
                     ),
-                })),
+                },
+            )),
         }
     };
     let primed = Arc::new(crate::services::PrimedStdio {
@@ -355,7 +389,10 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         let name = format!("{fqdn_base}/stop");
         match sym.get(&name) {
             Some(f) => Ok(f.clone()),
-            None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UnknownFunction(name))),
+            None => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::UnknownFunction(name),
+            )),
         }
     };
     let stop_targets = vec![
@@ -441,7 +478,9 @@ fn validate_holon_record_capacity(types: &TypeEnv, ctx: &EncodingCtx) -> Result<
         if let TypeDef::Aggregate(a) = def {
             if a.nature == crate::types::Nature::HolonRecord {
                 let field_count = a.fields.len();
-                if let Some((cost, budget)) = crate::runtime::bundle_capacity_verdict(field_count, ctx) {
+                if let Some((cost, budget)) =
+                    crate::runtime::bundle_capacity_verdict(field_count, ctx)
+                {
                     return Err(TypeError::new(
                         crate::rust_caller_span!(),
                         crate::types::TypeErrorKind::HolonRecordCapacityExceeded {
@@ -509,12 +548,14 @@ impl FrozenWorld {
         // Install user-supplied presence-sigma function if present.
         if let Some(sigma_ast) = config.presence_sigma_ast.clone() {
             let env = crate::runtime::Environment::new();
-            let v = crate::runtime::eval(&sigma_ast, &env, &symbols).map_err(|e| {
-                StartupError::SigmaFn(format!(
-                    "set-presence-sigma! body failed to evaluate: {}",
-                    e
-                ))
-            })?.value_owned();
+            let v = crate::runtime::eval(&sigma_ast, &env, &symbols)
+                .map_err(|e| {
+                    StartupError::SigmaFn(format!(
+                        "set-presence-sigma! body failed to evaluate: {}",
+                        e
+                    ))
+                })?
+                .value_owned();
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
@@ -535,21 +576,20 @@ impl FrozenWorld {
                     FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
                 },
             };
-            symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn {
-                path,
-                func,
-            }));
+            symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn { path, func }));
         }
 
         // Install user-supplied coincident-sigma function if present.
         if let Some(sigma_ast) = config.coincident_sigma_ast.clone() {
             let env = crate::runtime::Environment::new();
-            let v = crate::runtime::eval(&sigma_ast, &env, &symbols).map_err(|e| {
-                StartupError::SigmaFn(format!(
-                    "set-coincident-sigma! body failed to evaluate: {}",
-                    e
-                ))
-            })?.value_owned();
+            let v = crate::runtime::eval(&sigma_ast, &env, &symbols)
+                .map_err(|e| {
+                    StartupError::SigmaFn(format!(
+                        "set-coincident-sigma! body failed to evaluate: {}",
+                        e
+                    ))
+                })?
+                .value_owned();
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
@@ -570,10 +610,7 @@ impl FrozenWorld {
                     FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
                 },
             };
-            symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn {
-                path,
-                func,
-            }));
+            symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn { path, func }));
         }
 
         // Arc 157 slice 1a-ii — evaluate top-level `def` forms in the
@@ -585,19 +622,19 @@ impl FrozenWorld {
         let env = crate::runtime::Environment::new();
         crate::runtime::register_runtime_defs(&program, &env, &mut symbols, &declared_rete_defns)
             .map_err(|e| match e {
-                EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
-                // A Signal at the freeze boundary is an interpreter bug.
-                // TryPropagate/OptionPropagate are eliminated BEFORE this
-                // path: the checker rejects top-level `?`/option-propagation
-                // with "used outside any function body" (check.rs:8406 /
-                // :8520), and the check pass runs before register_runtime_defs
-                // in the freeze pipeline. TailCall is trampolined inside
-                // apply_function and cannot escape. A Signal here means the
-                // checker or eval subgraph is mis-wired.
-                EvalBreak::Signal(_) => unreachable!(
-                    "interpreter bug: eval-loop control signal escaped to freeze layer"
-                ),
-            })?;
+            EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
+            // A Signal at the freeze boundary is an interpreter bug.
+            // TryPropagate/OptionPropagate are eliminated BEFORE this
+            // path: the checker rejects top-level `?`/option-propagation
+            // with "used outside any function body" (check.rs:8406 /
+            // :8520), and the check pass runs before register_runtime_defs
+            // in the freeze pipeline. TailCall is trampolined inside
+            // apply_function and cannot escape. A Signal here means the
+            // checker or eval subgraph is mis-wired.
+            EvalBreak::Signal(_) => {
+                unreachable!("interpreter bug: eval-loop control signal escaped to freeze layer")
+            }
+        })?;
 
         Ok(FrozenWorld {
             config,
@@ -919,9 +956,14 @@ pub fn startup_from_source(
 /// Panics with a clear message if the path does not resolve — a fixture path that misses is a
 /// test-authoring error, surfaced loudly rather than swallowed.
 pub fn startup_from_file(rel_path: &str) -> Result<FrozenWorld, StartupError> {
-    let src = std::fs::read_to_string(rel_path)
-        .unwrap_or_else(|e| panic!("wat fixture {rel_path:?} must exist (run from crate root): {e}"));
-    startup_from_source(&src, Some(rel_path), Arc::new(crate::load::InMemoryLoader::new()))
+    let src = std::fs::read_to_string(rel_path).unwrap_or_else(|e| {
+        panic!("wat fixture {rel_path:?} must exist (run from crate root): {e}")
+    });
+    startup_from_source(
+        &src,
+        Some(rel_path),
+        Arc::new(crate::load::InMemoryLoader::new()),
+    )
 }
 
 /// Slurp the `.wat` fixture sitting BESIDE a probe — same basename, `.rs`→`.wat`.
@@ -939,7 +981,9 @@ pub fn startup_beside(caller_rs: &str) -> Result<FrozenWorld, StartupError> {
     let wat = caller_rs
         .strip_suffix(".rs")
         .map(|stem| format!("{stem}.wat"))
-        .unwrap_or_else(|| panic!("startup_beside expects a `.rs` caller path (pass file!()); got {caller_rs:?}"));
+        .unwrap_or_else(|| {
+            panic!("startup_beside expects a `.rs` caller path (pass file!()); got {caller_rs:?}")
+        });
     startup_from_file(&wat)
 }
 
@@ -1031,8 +1075,9 @@ impl DeftestOutcome {
 /// A broken/missing fixture or a mis-routed target panics (a test-authoring bug, not an
 /// outcome under test).
 pub fn call_beside(caller_rs: &str, fn_name: &str) -> DeftestOutcome {
-    let world = startup_beside(caller_rs)
-        .unwrap_or_else(|e| panic!("call_beside: fixture beside {caller_rs:?} failed to freeze: {e:?}"));
+    let world = startup_beside(caller_rs).unwrap_or_else(|e| {
+        panic!("call_beside: fixture beside {caller_rs:?} failed to freeze: {e:?}")
+    });
     deftest_verdict(&world, fn_name)
 }
 
@@ -1068,7 +1113,9 @@ pub fn deftest_verdict(world: &FrozenWorld, fn_name: &str) -> DeftestOutcome {
                 match e.variant_name.as_str() {
                     "Passed" => DeftestOutcome::Passed,
                     "Failed" => match e.fields.first() {
-                        Some(failure) => DeftestOutcome::Failed { failure: failure.clone() },
+                        Some(failure) => DeftestOutcome::Failed {
+                            failure: failure.clone(),
+                        },
                         None => panic!(
                             "deftest_verdict: {fn_name:?} returned :wat::kernel::RunResult::Failed \
                              with no Failure payload — the substrate is broken, not the test"
@@ -1165,7 +1212,7 @@ pub fn startup_from_forms(
 ) -> Result<FrozenWorld, StartupError> {
     // 2. Config pass + entry-file discipline.
     let (config, post_config) = collect_entry_file(entry_forms)?;
-    startup_from_forms_post_config(config, post_config, base_canonical, loader)
+    startup_from_forms_post_config(config, post_config, base_canonical, loader, None)
 }
 
 /// Sandbox-sibling of [`startup_from_forms`]: seeds the config pass from
@@ -1184,7 +1231,23 @@ pub fn startup_from_forms_with_inherit(
     inherit: &Config,
 ) -> Result<FrozenWorld, StartupError> {
     let (config, post_config) = collect_entry_file_with_inherit(entry_forms, inherit)?;
-    startup_from_forms_post_config(config, post_config, base_canonical, loader)
+    startup_from_forms_post_config(config, post_config, base_canonical, loader, None)
+}
+
+/// Session sibling of [`startup_from_forms_with_inherit`]: the live
+/// `runtime_def_values` (handles, minted uuids, bound peers) are seeded
+/// onto the new world's symbol table *before* `register_runtime_defs`.
+/// A name that already holds a value is not re-evaluated — that is how
+/// an admin handle in a `def` binder survives the next turn.
+pub fn startup_from_forms_with_session(
+    entry_forms: Vec<WatAST>,
+    base_canonical: Option<&str>,
+    loader: Arc<dyn SourceLoader>,
+    inherit: &Config,
+    prior: &SymbolTable,
+) -> Result<FrozenWorld, StartupError> {
+    let (config, post_config) = collect_entry_file_with_inherit(entry_forms, inherit)?;
+    startup_from_forms_post_config(config, post_config, base_canonical, loader, Some(prior))
 }
 
 /// Shared post-config pipeline (steps 3–9). Extracted so
@@ -1195,6 +1258,7 @@ fn startup_from_forms_post_config(
     post_config: Vec<WatAST>,
     base_canonical: Option<&str>,
     loader: Arc<dyn SourceLoader>,
+    prior: Option<&SymbolTable>,
 ) -> Result<FrozenWorld, StartupError> {
     // 3. Recursive load resolution. The loader survives into the
     //    runtime as well — see step 9 — so `resolve_loads` borrows
@@ -1256,6 +1320,16 @@ fn startup_from_forms_post_config(
     //    the file-path variants of the verified eval/load forms,
     //    `:wat::verify::file-path` payloads) can route through the
     //    same capability that handled startup loads.
+    //
+    // A live session TCO's `runtime_def_values` into this freeze.
+    // `register_runtime_defs` then skips any name that already holds
+    // a value — that is the impure binding surviving re-freeze
+    // (`repl.wat`: "a bound service survives every re-freeze for free").
+    if let Some(prior) = prior {
+        for (k, v) in prior.def_values_iter() {
+            bundle.symbols.register_def_value(k.clone(), v.clone());
+        }
+    }
     FrozenWorld::freeze(
         config,
         bundle.types,
@@ -1304,10 +1378,7 @@ pub const USER_MAIN_PATH: &str = ":user::main";
 /// Production paths (wat-cli, fork.rs:659/1044) leave the ambient
 /// unset and fall through to real fd 0/1/2 via PipeReader /
 /// PipeWriter.
-pub fn invoke_user_main(
-    frozen: &FrozenWorld,
-    args: Vec<Value>,
-) -> Result<Value, RuntimeError> {
+pub fn invoke_user_main(frozen: &FrozenWorld, args: Vec<Value>) -> Result<Value, RuntimeError> {
     invoke_user_main_orchestrated(frozen, args, None)
 }
 
@@ -1333,10 +1404,15 @@ pub fn invoke_user_main_with_program(
 /// path (arc 213 / 3b-f) both call. Testable in-process against a world that defines the
 /// record type — exactly as it runs in the spawned universe.
 pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, RuntimeError> {
-    let ast = crate::parse_one!(src).map_err(|e| RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
-            head: "env-fn".into(),
-            reason: format!("arc 209 C0b.3b-e: env-fn parse error: {e:?}"),
-        }))?;
+    let ast = crate::parse_one!(src).map_err(|e| {
+        RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::MalformedForm {
+                head: "env-fn".into(),
+                reason: format!("arc 209 C0b.3b-e: env-fn parse error: {e:?}"),
+            },
+        )
+    })?;
     let v = eval_in_frozen(&ast, world, &Environment::new())?.value_owned();
     match v {
         Value::wat__core__fn(f) => {
@@ -1398,7 +1474,9 @@ fn invoke_user_main_orchestrated(
     // exactly the thread-tier init-fn pattern from spawn.rs:482–498.
     let pid = std::process::id() as i64;
     let tid = unsafe { libc::gettid() } as i64;
-    let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
+    let boot_nanos = crate::time::process_boot_instant()
+        .timestamp_nanos_opt()
+        .unwrap_or(0);
     // cpu_count = available_parallelism() via host_cpu_count(), a host constant inherited
     // down the spawn tree (like started-at). Fallback 1 if the OS refuses to report.
     let cpu_count = crate::runtime::host_cpu_count();
@@ -1417,16 +1495,18 @@ fn invoke_user_main_orchestrated(
     };
     let ctor_env = crate::runtime::Environment::new()
         .child()
-        .bind_unknown_span("user-program", crate::value::TrackedValue::from(user_program_val))
+        .bind_unknown_span(
+            "user-program",
+            crate::value::TrackedValue::from(user_program_val),
+        )
         .build();
     let env_src = format!(
         // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
         "(:wat::program::Env :started-at (:wat::time::at-nanos {boot_nanos}) :peer-started-at (:wat::time::now) :process-id {pid} :os-thread-id {tid} :peer-kind :wat::program::PeerKind::process :cpu-count {cpu_count} :user-data user-program)"
     );
-    let env_ast = crate::parse_one!(&env_src)
-        .expect("arc 259: the program-env constructor form parses");
-    let program_env = eval_in_frozen(&env_ast, frozen, &ctor_env)
-        .map(|tv| tv.value_owned())?;
+    let env_ast =
+        crate::parse_one!(&env_src).expect("arc 259: the program-env constructor form parses");
+    let program_env = eval_in_frozen(&env_ast, frozen, &ctor_env).map(|tv| tv.value_owned())?;
     let _program_env_guard = crate::services::install_program_env(program_env);
 
     // Step 5: Run `:user::main`. Any error (or the Ok value) is
@@ -1440,7 +1520,10 @@ fn invoke_user_main_orchestrated(
             runtime.symbols(),
             crate::rust_caller_span!(),
         ),
-        None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::UserMainMissing)),
+        None => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::UserMainMissing,
+        )),
     };
 
     // Arc 170 "stopping is a protocol", builder ruling — MAIN creates the stdio services, so MAIN
@@ -1590,8 +1673,7 @@ pub fn validate_user_main_not_useless(frozen: &FrozenWorld) -> Result<(), String
     };
     if let FunctionBody::Wat(ast) = &func.body {
         if matches!(&**ast, WatAST::NilLit(_)) {
-            return Err(
-                ":user::main body is the bare `nil` literal (UselessMain). \
+            return Err(":user::main body is the bare `nil` literal (UselessMain). \
                  A declared :user::main must DO something — either give it a real \
                  body, or OMIT the main entirely (not every file needs one; only \
                  programs that RUN). Never write `(:user::main [] -> :wat::core::nil nil)`. \
@@ -1600,8 +1682,7 @@ pub fn validate_user_main_not_useless(frozen: &FrozenWorld) -> Result<(), String
                  `(... (:wat::core::do nil))`, or any body that computes nothing and \
                  returns nil is the SAME uselessness in disguise and will be rejected on \
                  sight in review. If the file does not need to RUN, delete the main."
-                    .to_string(),
-            );
+                .to_string());
         }
     }
     Ok(())
@@ -1687,7 +1768,15 @@ pub fn eval_in_frozen(
     // the prime is reserved for GENERATED code. Mutation forms are refused on BOTH the
     // raw and the expanded form (a macro could expand to a def/defmacro).
     let expanded = crate::macros::expand_fully(ast.clone(), &frozen.macros, env, frozen.symbols())
-        .map_err(|e| RuntimeError::new(ast.span().clone(), RuntimeErrorKind::MacroExpansionFailed { op: "eval_in_frozen".into(), cause: Box::new(e) }))?;
+        .map_err(|e| {
+            RuntimeError::new(
+                ast.span().clone(),
+                RuntimeErrorKind::MacroExpansionFailed {
+                    op: "eval_in_frozen".into(),
+                    cause: Box::new(e),
+                },
+            )
+        })?;
     refuse_mutation_forms(&expanded)?;
     crate::runtime::eval(&expanded, env, frozen.symbols())
 }
@@ -1716,7 +1805,10 @@ pub fn eval_digest_in_frozen(
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
     crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
-        RuntimeError::new(ast.span().clone(), RuntimeErrorKind::EvalVerificationFailed { err })
+        RuntimeError::new(
+            ast.span().clone(),
+            RuntimeErrorKind::EvalVerificationFailed { err },
+        )
     })?;
     eval_in_frozen(ast, frozen, env)
 }
@@ -1745,9 +1837,12 @@ pub fn eval_signed_in_frozen(
     sig_b64: &str,
     pubkey_b64: &str,
 ) -> Result<TrackedValue, RuntimeError> {
-    crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(
-        |err| RuntimeError::new(ast.span().clone(), RuntimeErrorKind::EvalVerificationFailed { err }),
-    )?;
+    crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(|err| {
+        RuntimeError::new(
+            ast.span().clone(),
+            RuntimeErrorKind::EvalVerificationFailed { err },
+        )
+    })?;
     eval_in_frozen(ast, frozen, env)
 }
 
@@ -1764,9 +1859,10 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
     if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::EvalForbidsMutationForm {
-                    head: head.clone()
-                }));
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::EvalForbidsMutationForm { head: head.clone() },
+                ));
             }
         }
     }
@@ -1856,7 +1952,11 @@ mod tests {
 
     /// Helper: start from an entry string with no loaded files.
     fn startup(entry: &str) -> Result<FrozenWorld, StartupError> {
-        startup_from_source(entry, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
+        startup_from_source(
+            entry,
+            Some(concat!(file!(), ":", line!())),
+            Arc::new(InMemoryLoader::new()),
+        )
     }
 
     // ─── Happy path ─────────────────────────────────────────────────────
@@ -1870,7 +1970,10 @@ mod tests {
             (:wat::holon::to-holon "hello")
         "#;
         let world = startup(src).expect("startup");
-        assert_eq!(world.config().capacity_mode, crate::config::CapacityMode::Error);
+        assert_eq!(
+            world.config().capacity_mode,
+            crate::config::CapacityMode::Error
+        );
         assert_eq!(world.program().len(), 1);
     }
 
@@ -1985,7 +2088,8 @@ mod tests {
         // Startup must fail — accept Runtime or Check errors.
         assert!(
             matches!(err, StartupError::Runtime(_)) || matches!(err, StartupError::Check(_)),
-            "expected startup error, got {:?}", err
+            "expected startup error, got {:?}",
+            err
         );
     }
 
@@ -2020,7 +2124,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
             (:wat::load-file! "lib.wat")
         "#;
-        let world = startup_from_source(entry, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
+        let world = startup_from_source(
+            entry,
+            Some(concat!(file!(), ":", line!())),
+            Arc::new(loader),
+        )
+        .expect("startup");
         assert!(world.symbols().get(":lib::square").is_some());
     }
 
@@ -2127,10 +2236,9 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(
-            r#"(:wat::core::defstruct :evil::Backdoor [x <- :wat::core::i64])"#,
-        )
-        .unwrap();
+        let ast =
+            crate::parse_one!(r#"(:wat::core::defstruct :evil::Backdoor [x <- :wat::core::i64])"#,)
+                .unwrap();
         let env = Environment::new();
         let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
         match err.kind() {
@@ -2153,7 +2261,10 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2164,12 +2275,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(
-            r#"(:wat::core::defstruct :evil::T [x <- :i64])"#,
-        )
-        .unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::defstruct :evil::T [x <- :i64])"#,).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2180,10 +2291,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast =
-            crate::parse_one!(r#"(:wat::core::defenum :evil::E :A :B)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::defenum :evil::E :A :B)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2193,10 +2306,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast =
-            crate::parse_one!(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2206,10 +2321,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast =
-            crate::parse_one!(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2219,12 +2336,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(
-            r#"(:wat::load-file! "evil.wat")"#,
-        )
-        .unwrap();
+        let ast = crate::parse_one!(r#"(:wat::load-file! "evil.wat")"#,).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2239,7 +2356,10 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2254,7 +2374,10 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2264,10 +2387,12 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast =
-            crate::parse_one!(r#"(:wat::config::set-dims! 8192)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::config::set-dims! 8192)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     #[test]
@@ -2289,7 +2414,10 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     // ─── Digest-verified eval ───────────────────────────────────────────
@@ -2309,12 +2437,10 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast =
-            crate::parse_one!(r#"(:wat::core::i64::+ 20 22)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::i64::+ 20 22)"#).unwrap();
         let hex = digest_hex_for(&ast);
-        let result =
-            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
-                .expect("eval ok");
+        let result = eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
+            .expect("eval ok");
         assert!(matches!(result.value(), Value::i64(42)));
     }
 
@@ -2326,11 +2452,9 @@ mod tests {
         "#,
         );
         let ast = crate::parse_one!(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
-        let wrong =
-            "0000000000000000000000000000000000000000000000000000000000000000";
+        let wrong = "0000000000000000000000000000000000000000000000000000000000000000";
         let err =
-            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", wrong)
-                .unwrap_err();
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", wrong).unwrap_err();
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
@@ -2348,11 +2472,13 @@ mod tests {
         );
         let ast = crate::parse_one!("42").unwrap();
         let err =
-            eval_digest_in_frozen(&ast, &world, &Environment::new(), "md5", "abc123")
-                .unwrap_err();
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "md5", "abc123").unwrap_err();
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
-                assert!(matches!(err, crate::hash::HashError::UnsupportedAlgorithm { .. }));
+                assert!(matches!(
+                    err,
+                    crate::hash::HashError::UnsupportedAlgorithm { .. }
+                ));
             }
             _ => panic!("expected EvalVerificationFailed, got {:?}", err),
         }
@@ -2380,18 +2506,10 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast =
-            crate::parse_one!(r#"(:wat::core::i64::+ 40 2)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::i64::+ 40 2)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&ast);
-        let result = eval_signed_in_frozen(
-            &ast,
-            &world,
-            &Environment::new(),
-            "ed25519",
-            &sig,
-            &pk,
-        )
-        .expect("eval ok");
+        let result = eval_signed_in_frozen(&ast, &world, &Environment::new(), "ed25519", &sig, &pk)
+            .expect("eval ok");
         assert!(matches!(result.value(), Value::i64(42)));
     }
 
@@ -2405,18 +2523,15 @@ mod tests {
         let original = crate::parse_one!(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
         let tampered = crate::parse_one!(r#"(:wat::core::i64::+ 99 99)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&original);
-        let err = eval_signed_in_frozen(
-            &tampered,
-            &world,
-            &Environment::new(),
-            "ed25519",
-            &sig,
-            &pk,
-        )
-        .unwrap_err();
+        let err =
+            eval_signed_in_frozen(&tampered, &world, &Environment::new(), "ed25519", &sig, &pk)
+                .unwrap_err();
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
-                assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
+                assert!(matches!(
+                    err,
+                    crate::hash::HashError::SignatureMismatch { .. }
+                ));
             }
             _ => panic!("expected SignatureMismatch, got {:?}", err),
         }
@@ -2430,15 +2545,8 @@ mod tests {
         "#,
         );
         let ast = crate::parse_one!("42").unwrap();
-        let err = eval_signed_in_frozen(
-            &ast,
-            &world,
-            &Environment::new(),
-            "rsa",
-            "dummy",
-            "dummy",
-        )
-        .unwrap_err();
+        let err = eval_signed_in_frozen(&ast, &world, &Environment::new(), "rsa", "dummy", "dummy")
+            .unwrap_err();
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(
@@ -2463,15 +2571,15 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(
-            r#"(:wat::core::defstruct :evil::E [x <- :wat::core::i64])"#,
-        )
-        .unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::defstruct :evil::E [x <- :wat::core::i64])"#,)
+            .unwrap();
         let hex = digest_hex_for(&ast);
         let err =
-            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
-                .unwrap_err();
-        assert!(matches!(err.kind(), RuntimeErrorKind::EvalForbidsMutationForm { .. }));
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex).unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            RuntimeErrorKind::EvalForbidsMutationForm { .. }
+        ));
     }
 
     // ─── Phase-order invariant: expand_all precedes register_defines ────────
@@ -2491,14 +2599,16 @@ mod tests {
         // If this test PASSES: order is correct (expand before defn-register).
         // If this test FAILS (startup succeeds): register_defines moved before
         // expand_all — the load-bearing invariant in eval.rs is violated.
-        let err = startup(r#"
+        let err = startup(
+            r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
             (:wat::core::defmacro :my::uses-helper []
               -> :wat::WatAST
               (:wat::core::i64::+ (:my::helper) 0))
             (:my::uses-helper)
-        "#);
+        "#,
+        );
         assert!(
             err.is_err(),
             "a macro program-body calling a user defn must fail at expand time \

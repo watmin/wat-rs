@@ -1,5 +1,5 @@
 //! Arc 170 step 4 — the exec handoff: everything allocated PARENT-side, so the
-//! window between `clone3` and `execve` can touch nothing but raw syscalls.
+//! window between `clone3` and `execveat` can touch nothing but raw syscalls.
 //!
 //! # Why this file is separate, and why it is paranoid
 //!
@@ -21,7 +21,10 @@
 //! single stray allocation reintroduces an intermittent deadlock that green
 //! tests will not catch.
 
-use std::ffi::CString;
+use std::ffi::{CString, OsStr};
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
+use std::os::unix::ffi::OsStrExt;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 /// The child's lifeline read-end, placed at a KNOWN fd number so it survives
 /// `execve` and can be found by a process that has no memory of being forked.
@@ -35,58 +38,147 @@ use std::ffi::CString;
 /// proves a parent is holding the other end.
 pub(crate) const LIFELINE_FD: i32 = 3;
 
+/// Temporary slot for the runtime image fd in the child, above the placed
+/// set (0/1/2 + lifeline 3). `dup2` here, `close_range` from 5, then
+/// `execveat` this fd with `AT_EMPTY_PATH`. CLOEXEC so a successful exec
+/// does not leak it into the new image.
+const EXEC_IMAGE_FD: i32 = LIFELINE_FD + 1;
+
 /// Which binary a spawned runtime should be.
 ///
-/// Defaults to `current_exe()` — for `wat` itself, and for any embedder whose
-/// binary carries wat's entry, re-exec'ing yourself is exactly right.
+/// The child does **not** `execve` a path. It `execveat`s a file descriptor
+/// the parent opened (or dups from the fd captured at CLI entry). Arc 213
+/// rejected `/proc/self/exe` as the exec path (a test binary becoming a
+/// server via a magic path is spooky action; `/proc` as oracle has already
+/// been purged once). `current_exe()` is `readlink("/proc/self/exe")` and
+/// becomes `"…/wat (deleted)"` after unlink — that string cannot be opened.
 ///
-/// `WAT_RUNTIME_BIN` overrides it, and TESTS need that override: a cargo test
-/// binary's `current_exe()` is the test harness, whose `main` belongs to
-/// libtest and never reaches wat's entry — so a child exec'ing it would re-run
-/// the test suite instead of serving. Arc 213 named this as the one piece of
-/// configuration the model needs ("cli/remote: themselves; tests: the built
-/// artifact"), and rejected the alternative — a pre-`main` constructor that
-/// silently turns any binary into a wat server — as spooky action.
+/// `WAT_RUNTIME_BIN` overrides the image, and TESTS need that override: a
+/// cargo test binary's image is the test harness. Arc 213 named this as the
+/// one piece of configuration the model needs ("cli/remote: themselves;
+/// tests: the built artifact").
 ///
 /// This is CONFIG (which program to become), not identity. Nothing is
 /// authorized by it; the boot handshake remains the only gate.
-fn runtime_binary() -> std::io::Result<std::path::PathBuf> {
-    if let Some(p) = std::env::var_os("WAT_RUNTIME_BIN").filter(|p| !p.is_empty()) {
-        return Ok(std::path::PathBuf::from(p));
+fn open_runtime_image() -> std::io::Result<(OwnedFd, CString)> {
+    match image_source(
+        std::env::var_os("WAT_RUNTIME_BIN"),
+        entered_wat_entry(),
+        self_image_fd(),
+    )? {
+        ImageSource::Override(path) => open_named(path.as_os_str()),
+        ImageSource::HeldSelf(raw) => dup_named(raw, display_argv0()),
+        ImageSource::BuiltArtifact => open_named(OsStr::new(env!("WAT_RUNTIME_BIN_DEFAULT"))),
     }
-    if entered_wat_entry() {
-        // This process IS a wat runtime — re-exec'ing itself is exactly right,
-        // and it is what an embedder with its own batteries needs.
-        return std::env::current_exe();
+}
+
+/// Where the image fd comes from. Pure so the deleted-exe case is a unit,
+/// not a live MCP, and so `/proc/self/exe` cannot sneak back in as a path.
+#[derive(Debug, PartialEq, Eq)]
+enum ImageSource {
+    Override(std::path::PathBuf),
+    HeldSelf(i32),
+    BuiltArtifact,
+}
+
+fn image_source(
+    override_bin: Option<std::ffi::OsString>,
+    entered_wat: bool,
+    held_fd: Option<i32>,
+) -> std::io::Result<ImageSource> {
+    if let Some(p) = override_bin.filter(|p| !p.is_empty()) {
+        return Ok(ImageSource::Override(std::path::PathBuf::from(p)));
     }
-    // We never entered wat's entry, so we cannot serve as one. Fall back to the
-    // `wat` binary cargo built beside us. This is the cargo-test case, and it
-    // is the ONE piece of configuration arc 213 said the model needs.
-    Ok(std::path::PathBuf::from(env!("WAT_RUNTIME_BIN_DEFAULT")))
+    if entered_wat {
+        return match held_fd {
+            Some(fd) => Ok(ImageSource::HeldSelf(fd)),
+            None => Err(std::io::Error::other(
+                "this process's image was not captured at entry; refusing to \
+                 execve a /proc path or a deleted current_exe() readlink",
+            )),
+        };
+    }
+    Ok(ImageSource::BuiltArtifact)
+}
+
+fn open_named(path: &OsStr) -> std::io::Result<(OwnedFd, CString)> {
+    let c = CString::new(path.as_bytes())
+        .map_err(|_| std::io::Error::other("executable path contains a NUL byte"))?;
+    // O_PATH: a handle to the inode for later execveat, not a read. Survives
+    // unlink of the directory entry. O_CLOEXEC: the parent copy must not leak
+    // across an unrelated exec.
+    let raw = unsafe { libc::open(c.as_ptr(), libc::O_PATH | libc::O_CLOEXEC) };
+    if raw < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok((unsafe { OwnedFd::from_raw_fd(raw) }, c))
+}
+
+fn dup_named(raw: i32, argv0: CString) -> std::io::Result<(OwnedFd, CString)> {
+    let duped = unsafe { libc::fcntl(raw, libc::F_DUPFD_CLOEXEC, 0) };
+    if duped < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok((unsafe { OwnedFd::from_raw_fd(duped) }, argv0))
+}
+
+fn display_argv0() -> CString {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| CString::new(p.as_os_str().as_encoded_bytes()).ok())
+        .unwrap_or_else(|| CString::new("wat").expect("'wat' is a valid CString"))
 }
 
 /// Set once, by `distribution::run_with_args`, at the top of wat's CLI entry.
-static ENTERED_WAT_ENTRY: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+static ENTERED_WAT_ENTRY: AtomicBool = AtomicBool::new(false);
+
+/// Process-lifetime `O_PATH` fd to the image we were exec'd from. Captured
+/// at entry while the directory entry still exists; later unlinks (a cargo
+/// rebuild against a live `wat --mcp`) do not revoke it. `-1` means none.
+static SELF_IMAGE_FD: AtomicI32 = AtomicI32::new(-1);
 
 /// Record that this process went through wat's CLI entry — i.e. that it can
-/// serve as a spawned runtime if it is re-exec'd.
+/// serve as a spawned runtime if it is re-exec'd. Opens the running image
+/// *now*, by its real path, and holds the fd. That is what makes a later
+/// unlink survivable without walking `/proc`.
 pub(crate) fn mark_wat_entry() {
-    ENTERED_WAT_ENTRY.store(true, std::sync::atomic::Ordering::Relaxed);
+    ENTERED_WAT_ENTRY.store(true, Ordering::Relaxed);
+    if SELF_IMAGE_FD.load(Ordering::Relaxed) >= 0 {
+        return;
+    }
+    let Ok(path) = std::env::current_exe() else {
+        return;
+    };
+    let Ok((fd, _)) = open_named(path.as_os_str()) else {
+        return;
+    };
+    let raw = fd.into_raw_fd();
+    if SELF_IMAGE_FD
+        .compare_exchange(-1, raw, Ordering::Relaxed, Ordering::Relaxed)
+        .is_err()
+    {
+        unsafe { libc::close(raw) };
+    }
 }
 
 fn entered_wat_entry() -> bool {
-    ENTERED_WAT_ENTRY.load(std::sync::atomic::Ordering::Relaxed)
+    ENTERED_WAT_ENTRY.load(Ordering::Relaxed)
 }
 
-/// Everything `execve` needs, owned and pre-built.
+fn self_image_fd() -> Option<i32> {
+    let fd = SELF_IMAGE_FD.load(Ordering::Relaxed);
+    (fd >= 0).then_some(fd)
+}
+
+/// Everything `execveat` needs, owned and pre-built.
 ///
 /// The `*_ptrs` vectors are NUL-terminated pointer arrays into the `CString`s
 /// beside them; they are built here so the child never has to walk a `Vec<CString>`
 /// (which would allocate). The struct owns the `CString`s so those pointers stay
-/// valid for its lifetime, and the child's lifetime ends at `execve`.
+/// valid for its lifetime, and the child's lifetime ends at `execveat`.
 pub(crate) struct ExecPlan {
-    exe: CString,
+    exe_fd: OwnedFd,
+    empty_path: CString,
     _argv: Vec<CString>,
     _envp: Vec<CString>,
     argv_ptrs: Vec<*const libc::c_char>,
@@ -132,11 +224,9 @@ impl ExecPlan {
     /// label and the ambient argv are disjoint by code path, gated below). The
     /// environment is inherited verbatim so config-by-env keeps working.
     pub(crate) fn build(label: Option<&str>) -> std::io::Result<Self> {
-        let exe_path = runtime_binary()?;
-        let exe = CString::new(exe_path.as_os_str().as_encoded_bytes())
-            .map_err(|_| std::io::Error::other("executable path contains a NUL byte"))?;
+        let (exe_fd, argv0) = open_runtime_image()?;
 
-        let mut argv: Vec<CString> = vec![exe.clone()];
+        let mut argv: Vec<CString> = vec![argv0];
         if let Some(l) = label {
             argv.push(
                 CString::new(l.as_bytes())
@@ -152,55 +242,121 @@ impl ExecPlan {
             })
             .collect();
 
-        let mut argv_ptrs: Vec<*const libc::c_char> =
-            argv.iter().map(|c| c.as_ptr()).collect();
+        let mut argv_ptrs: Vec<*const libc::c_char> = argv.iter().map(|c| c.as_ptr()).collect();
         argv_ptrs.push(std::ptr::null());
-        let mut envp_ptrs: Vec<*const libc::c_char> =
-            envp.iter().map(|c| c.as_ptr()).collect();
+        let mut envp_ptrs: Vec<*const libc::c_char> = envp.iter().map(|c| c.as_ptr()).collect();
         envp_ptrs.push(std::ptr::null());
 
-        Ok(ExecPlan { exe, _argv: argv, _envp: envp, argv_ptrs, envp_ptrs })
+        Ok(ExecPlan {
+            exe_fd,
+            empty_path: CString::new("").expect("empty pathname is a valid CString"),
+            _argv: argv,
+            _envp: envp,
+            argv_ptrs,
+            envp_ptrs,
+        })
     }
 
     /// THE WINDOW. Runs in the child, after `clone3`, and never returns.
     ///
     /// ⛔ ALLOCATION-FREE. See the module doc. Every call below is a raw syscall
     /// on a value that already exists; nothing is built, grown, formatted or
-    /// dropped. `execve` replaces the image on success, so no destructor here
+    /// dropped. `execveat` replaces the image on success, so no destructor here
     /// ever runs — and on failure we `_exit` immediately rather than unwind,
     /// because unwinding would run drops in a child holding inherited locks.
     ///
     /// `stdio` are the three comms fds to place on 0/1/2; `lifeline_r` is moved
     /// to [`LIFELINE_FD`], where it is both the parent-death signal and the
-    /// routing witness.
+    /// routing witness. The image fd is parked at [`EXEC_IMAGE_FD`] and
+    /// consumed by `execveat(..., AT_EMPTY_PATH)` — no path lookup, no `/proc`.
     pub(crate) unsafe fn exec_in_child(&self, stdio: [i32; 3], lifeline_r: i32) -> ! {
         libc::setpgid(0, 0);
 
+        // Park the image on a free fd ≥ 5 so placing 0/1/2/3 (or later
+        // parking it at 4) cannot overwrite a still-needed comms end.
+        // F_DUPFD_CLOEXEC is async-signal-safe; it never picks an open fd.
+        let parked = libc::fcntl(
+            self.exe_fd.as_raw_fd(),
+            libc::F_DUPFD_CLOEXEC,
+            EXEC_IMAGE_FD + 1,
+        );
+        if parked < 0 {
+            libc::_exit(crate::process::EXIT_STARTUP_ERROR);
+        }
+
         // Place the wire on 0/1/2 and the lifeline on its known number. dup2
-        // clears CLOEXEC on the NEW fd, so all four survive the exec by
-        // construction — no fcntl needed.
+        // clears CLOEXEC on the NEW fd, so those four survive the exec by
+        // construction — no further fcntl needed.
         libc::dup2(stdio[0], 0);
         libc::dup2(stdio[1], 1);
         libc::dup2(stdio[2], 2);
         libc::dup2(lifeline_r, LIFELINE_FD);
 
-        // Everything above the placed set goes. close_range is one syscall and
-        // allocates nothing; the fallback loop is bounded and equally quiet.
+        // Now the comms ends live on 0/1/2/3. Drop the image onto 4 and
+        // restore CLOEXEC (dup2 clears it) so a successful exec does not leak it.
+        libc::dup2(parked, EXEC_IMAGE_FD);
+        libc::fcntl(EXEC_IMAGE_FD, libc::F_SETFD, libc::FD_CLOEXEC);
+
+        // Everything above the placed set + the parked image goes.
         // CLOSE_RANGE_UNSHARE is deliberately NOT used — we are about to exec.
-        if libc::syscall(libc::SYS_close_range, LIFELINE_FD as u32 + 1, u32::MAX, 0) < 0 {
-            let mut fd = LIFELINE_FD + 1;
+        if libc::syscall(libc::SYS_close_range, EXEC_IMAGE_FD as u32 + 1, u32::MAX, 0) < 0 {
+            let mut fd = EXEC_IMAGE_FD + 1;
             while fd < 4096 {
                 libc::close(fd);
                 fd += 1;
             }
         }
 
-        libc::execve(self.exe.as_ptr(), self.argv_ptrs.as_ptr(), self.envp_ptrs.as_ptr());
+        // The syscall, not glibc `fexecve`: glibc's fallback is
+        // execve("/proc/self/fd/N"), the path-oracle we are not going back to.
+        libc::execveat(
+            EXEC_IMAGE_FD,
+            self.empty_path.as_ptr(),
+            self.argv_ptrs.as_ptr() as *const *mut libc::c_char,
+            self.envp_ptrs.as_ptr() as *const *mut libc::c_char,
+            libc::AT_EMPTY_PATH,
+        );
 
-        // execve returns ONLY on failure. There is no channel to explain on —
+        // execveat returns ONLY on failure. There is no channel to explain on —
         // fd 2 belongs to the parent's err pipe and writing a formatted reason
         // would allocate. The parent sees this exit code plus the boot
         // handshake never completing, which is a located failure on its side.
         libc::_exit(crate::process::EXIT_STARTUP_ERROR);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_wat_entry_uses_the_held_fd_not_a_proc_path() {
+        let src = image_source(None, true, Some(7)).expect("resolve");
+        assert_eq!(src, ImageSource::HeldSelf(7));
+    }
+
+    #[test]
+    fn a_wat_entry_without_a_held_fd_refuses_proc() {
+        let err = image_source(None, true, None).expect_err("must not invent a /proc path");
+        assert_eq!(
+            err.to_string(),
+            "this process's image was not captured at entry; refusing to \
+             execve a /proc path or a deleted current_exe() readlink"
+        );
+    }
+
+    #[test]
+    fn an_override_still_wins() {
+        let src = image_source(Some("/opt/wat".into()), true, Some(7)).expect("resolve");
+        assert_eq!(
+            src,
+            ImageSource::Override(std::path::PathBuf::from("/opt/wat"))
+        );
+    }
+
+    #[test]
+    fn a_test_harness_falls_back_to_the_built_artifact() {
+        let src = image_source(None, false, None).expect("resolve");
+        assert_eq!(src, ImageSource::BuiltArtifact);
     }
 }

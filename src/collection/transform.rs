@@ -20,8 +20,8 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{
-    apply_function, eval_inner, require_i64, require_vec, EvalBreak, Environment,
-    RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+    apply_function, eval_inner, require_i64, require_vec, Environment, EvalBreak, RuntimeError,
+    RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
 use std::sync::Arc;
@@ -33,11 +33,15 @@ pub(crate) fn eval_vec_reverse(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::reverse".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::reverse".into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
@@ -46,13 +50,17 @@ pub(crate) fn eval_vec_reverse(
     match StreamContainer::of_value(&v) {
         Some(container) if container.ordered() => match container {
             StreamContainer::Vector => {
-                let Value::Vec(xs) = v else { unreachable!("of_value⇒Vector") };
+                let Value::Vec(xs) = v else {
+                    unreachable!("of_value⇒Vector")
+                };
                 let mut out = (*xs).clone();
                 out.reverse();
                 Ok(Value::Vec(Arc::new(out)))
             }
             StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
+                let Value::wat__core__PersistentVector(pv) = v else {
+                    unreachable!("of_value⇒PersistentVector")
+                };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
                     out.push_back_mut(elem.clone());
@@ -60,19 +68,29 @@ pub(crate) fn eval_vec_reverse(
                 Ok(Value::wat__core__PersistentVector(out))
             }
             StreamContainer::List => {
-                let Value::wat__core__List(xs) = v else { unreachable!("of_value⇒List") };
+                let Value::wat__core__List(xs) = v else {
+                    unreachable!("of_value⇒List")
+                };
                 let out: std::collections::LinkedList<Value> = xs.iter().rev().cloned().collect();
                 Ok(Value::wat__core__List(Arc::new(out)))
             }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream"),
+            StreamContainer::Tuple
+            | StreamContainer::WatAstList
+            | StreamContainer::HashSet
+            | StreamContainer::Stream => {
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream")
+            }
         },
-        _ => Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::reverse".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&v))
-        }).into()),
+        _ => Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::reverse".into(),
+                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -86,14 +104,24 @@ pub(crate) fn eval_vec_range(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::range".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::range".into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
-    let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let start = require_i64(
+        ":wat::core::range",
+        eval_inner(&args[0], env, sym)?.value_owned(),
+    )?;
+    let end = require_i64(
+        ":wat::core::range",
+        eval_inner(&args[1], env, sym)?.value_owned(),
+    )?;
     let items: Vec<Value> = if start <= end {
         (start..end).map(Value::i64).collect()
     } else {
@@ -120,11 +148,15 @@ pub(crate) fn eval_vec_take(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::take";
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -144,21 +176,24 @@ fn lazy_take_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::st
     if n <= 0 {
         return Arc::new(Stream::Empty);
     }
-    Arc::new(Stream::NativeThunk(NativeLazyCell {
-        thunk: Arc::new(move |sym, span| {
+    Arc::new(Stream::NativeThunk(NativeLazyCell::new(Arc::new(
+        move |sym, span| {
             let realized = crate::stream::realize(&source, sym, span)?;
             match realized.as_ref() {
                 Stream::Empty => Ok(Arc::new(Stream::Empty)),
                 Stream::Cons { head, tail } => {
                     let rest = lazy_take_stream(Arc::clone(tail), n - 1);
-                    Ok(Arc::new(Stream::Cons { head: head.clone(), tail: rest }))
+                    Ok(Arc::new(Stream::Cons {
+                        head: head.clone(),
+                        tail: rest,
+                    }))
                 }
                 Stream::Thunk(_) | Stream::NativeThunk(_) => {
                     unreachable!("crate::stream::realize always returns Empty|Cons")
                 }
             }
-        }),
-    }))
+        },
+    ))))
 }
 
 /// `(:wat::core::drop xs n)` → `Stream<T>`. Lazily skips the first `n` elements of `xs` (any
@@ -177,11 +212,15 @@ pub(crate) fn eval_vec_drop(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::drop";
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -198,8 +237,8 @@ pub(crate) fn eval_vec_drop(
 /// or a `Cons` whose OWN tail may still be deferred — laziness continues past the drop point).
 fn lazy_drop_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::stream::Stream> {
     use crate::stream::{NativeLazyCell, Stream};
-    Arc::new(Stream::NativeThunk(NativeLazyCell {
-        thunk: Arc::new(move |sym, span| {
+    Arc::new(Stream::NativeThunk(NativeLazyCell::new(Arc::new(
+        move |sym, span| {
             let mut cur = Arc::clone(&source);
             let mut remaining = n;
             loop {
@@ -218,8 +257,8 @@ fn lazy_drop_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::st
                     }
                 }
             }
-        }),
-    }))
+        },
+    ))))
 }
 
 /// `(:wat::core::sort' less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
@@ -251,13 +290,17 @@ pub(crate) fn eval_vec_sort_by(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::sort'";  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+    const OP: &str = ":wat::core::sort'"; // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     // Arc 247: fn-first — (sort' cmp xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -265,11 +308,15 @@ pub(crate) fn eval_vec_sort_by(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     let mut sorted: Vec<Value> = (*xs).clone();
@@ -285,14 +332,19 @@ pub(crate) fn eval_vec_sort_by(
                 vec![x.clone(), y.clone()],
                 sym,
                 call_span.clone(),
-            ).map_err(EvalBreak::from)?;
+            )
+            .map_err(EvalBreak::from)?;
             match v {
                 Value::bool(b) => Ok(b),
-                other => Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                }).into()),
+                other => Err(RuntimeError::new(
+                    call_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: "bool",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into()),
             }
         };
         let ab = match call(a, b) {
@@ -350,11 +402,15 @@ pub(crate) fn eval_vec_map(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::map";
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     // Arc 247: fn-first — (map f xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -362,11 +418,15 @@ pub(crate) fn eval_vec_map(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -385,22 +445,26 @@ fn lazy_map_stream(
     source: Arc<crate::stream::Stream>,
 ) -> Arc<crate::stream::Stream> {
     use crate::stream::{NativeLazyCell, Stream};
-    Arc::new(Stream::NativeThunk(NativeLazyCell {
-        thunk: Arc::new(move |sym, span| {
+    Arc::new(Stream::NativeThunk(NativeLazyCell::new(Arc::new(
+        move |sym, span| {
             let realized = crate::stream::realize(&source, sym, span)?;
             match realized.as_ref() {
                 Stream::Empty => Ok(Arc::new(Stream::Empty)),
                 Stream::Cons { head, tail } => {
-                    let mapped_head = apply_function(func.clone(), vec![head.clone()], sym, span.clone())?;
+                    let mapped_head =
+                        apply_function(func.clone(), vec![head.clone()], sym, span.clone())?;
                     let mapped_tail = lazy_map_stream(func.clone(), Arc::clone(tail));
-                    Ok(Arc::new(Stream::Cons { head: mapped_head, tail: mapped_tail }))
+                    Ok(Arc::new(Stream::Cons {
+                        head: mapped_head,
+                        tail: mapped_tail,
+                    }))
                 }
                 Stream::Thunk(_) | Stream::NativeThunk(_) => {
                     unreachable!("crate::stream::realize always returns Empty|Cons")
                 }
             }
-        }),
-    }))
+        },
+    ))))
 }
 
 /// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
@@ -414,11 +478,15 @@ pub(crate) fn eval_vec_foldl(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::foldl".into(),
-            expected: 3,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::foldl".into(),
+                expected: 3,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     // Arc 247: fn-first — (foldl f init xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -427,11 +495,15 @@ pub(crate) fn eval_vec_foldl(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::foldl".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::core::foldl".into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
@@ -440,35 +512,52 @@ pub(crate) fn eval_vec_foldl(
     match StreamContainer::of_value(&coll) {
         Some(container) if container.mappable() => match container {
             StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
+                let Value::Vec(xs) = coll else {
+                    unreachable!("of_value⇒Vector")
+                };
                 for x in xs.iter() {
-                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
+                    acc =
+                        apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
+                let Value::wat__core__PersistentVector(pv) = coll else {
+                    unreachable!("of_value⇒PersistentVector")
+                };
                 for x in pv.iter() {
-                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
+                    acc =
+                        apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let Value::wat__core__List(xs) = coll else {
+                    unreachable!("of_value⇒List")
+                };
                 for x in xs.iter() {
-                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
+                    acc =
+                        apply_function(func.clone(), vec![acc, x.clone()], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream"),
+            StreamContainer::Tuple
+            | StreamContainer::WatAstList
+            | StreamContainer::HashSet
+            | StreamContainer::Stream => {
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream")
+            }
         },
-        _ => Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::foldl".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&coll))
-        }).into()),
+        _ => Err(RuntimeError::new(
+            args[2].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::foldl".into(),
+                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
+                got: Box::new(ValueSnapshot::of(&coll)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -483,11 +572,15 @@ pub(crate) fn eval_vec_foldr(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::foldr".into(),
-            expected: 3,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::foldr".into(),
+                expected: 3,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     // Arc 247: fn-first — (foldr f init xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
@@ -496,11 +589,15 @@ pub(crate) fn eval_vec_foldr(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::foldr".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::core::foldr".into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
@@ -509,37 +606,54 @@ pub(crate) fn eval_vec_foldr(
     match StreamContainer::of_value(&coll) {
         Some(container) if container.mappable() => match container {
             StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
+                let Value::Vec(xs) = coll else {
+                    unreachable!("of_value⇒Vector")
+                };
                 for x in xs.iter().rev() {
-                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
+                    acc =
+                        apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
+                let Value::wat__core__PersistentVector(pv) = coll else {
+                    unreachable!("of_value⇒PersistentVector")
+                };
                 let elems: Vec<&Value> = pv.iter().collect();
                 for x in elems.into_iter().rev() {
-                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
+                    acc =
+                        apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let Value::wat__core__List(xs) = coll else {
+                    unreachable!("of_value⇒List")
+                };
                 let elems: Vec<&Value> = xs.iter().collect();
                 for x in elems.into_iter().rev() {
-                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
+                    acc =
+                        apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
                 }
                 Ok(acc)
             }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream"),
+            StreamContainer::Tuple
+            | StreamContainer::WatAstList
+            | StreamContainer::HashSet
+            | StreamContainer::Stream => {
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream")
+            }
         },
-        _ => Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::foldr".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&coll))
-        }).into()),
+        _ => Err(RuntimeError::new(
+            args[2].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::foldr".into(),
+                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
+                got: Box::new(ValueSnapshot::of(&coll)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -567,14 +681,24 @@ pub(crate) fn eval_vec_zip(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::zip".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::std::list::zip".into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
-    let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let xs = require_vec(
+        ":wat::std::list::zip",
+        eval_inner(&args[0], env, sym)?.value_owned(),
+    )?;
+    let ys = require_vec(
+        ":wat::std::list::zip",
+        eval_inner(&args[1], env, sym)?.value_owned(),
+    )?;
     let n = xs.len().min(ys.len());
     let mut out = Vec::with_capacity(n);
     for (x, y) in xs.iter().zip(ys.iter()).take(n) {
@@ -599,14 +723,24 @@ pub(crate) fn eval_vec_window(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::window".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::std::list::window".into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
-    let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let xs = require_vec(
+        ":wat::std::list::window",
+        eval_inner(&args[0], env, sym)?.value_owned(),
+    )?;
+    let n = require_i64(
+        ":wat::std::list::window",
+        eval_inner(&args[1], env, sym)?.value_owned(),
+    )?;
     if n <= 0 {
         return Ok(Value::Vec(Arc::new(Vec::new())));
     }
@@ -636,14 +770,24 @@ pub(crate) fn eval_vec_remove_at(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::remove-at".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::std::list::remove-at".into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
-    let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let xs = require_vec(
+        ":wat::std::list::remove-at",
+        eval_inner(&args[0], env, sym)?.value_owned(),
+    )?;
+    let i = require_i64(
+        ":wat::std::list::remove-at",
+        eval_inner(&args[1], env, sym)?.value_owned(),
+    )?;
     if i < 0 || (i as usize) >= xs.len() {
         return Ok(Value::Vec(xs));
     }
@@ -664,13 +808,20 @@ pub(crate) fn eval_vec_last(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::last".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::last".into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
     }
-    let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let xs = require_vec(
+        ":wat::core::last",
+        eval_inner(&args[0], env, sym)?.value_owned(),
+    )?;
     Ok(Value::Option(Arc::new(xs.last().cloned())))
 }
 
@@ -687,41 +838,48 @@ pub(crate) fn eval_vec_find_last_index(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::find-last-index";
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     let mut last_idx: Option<i64> = None;
     for (i, x) in xs.iter().enumerate() {
-        let result = apply_function(
-            func.clone(),
-            vec![x.clone()],
-            sym,
-            call_span.clone(),
-        )?;
+        let result = apply_function(func.clone(), vec![x.clone()], sym, call_span.clone())?;
         match result {
             Value::bool(true) => last_idx = Some(i as i64),
             Value::bool(false) => {}
             other => {
-                return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "bool (predicate result)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                }).into());
+                return Err(RuntimeError::new(
+                    call_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: "bool (predicate result)",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into());
             }
         }
     }
@@ -743,25 +901,36 @@ pub(crate) fn eval_vec_map_with_index(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::map-with-index".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::std::list::map-with-index".into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     // NB: arg order here is (xs f) — the collection leads. This diverges from the fn-first
     // HOF family (arc 247: map/filter/foldl/foldr all take (f xs)). Do NOT copy the extraction
     // order from sibling HOFs — args[0] is the Vec, args[1] is the function.
-    let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let xs = require_vec(
+        ":wat::std::list::map-with-index",
+        eval_inner(&args[0], env, sym)?.value_owned(),
+    )?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::std::list::map-with-index".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::std::list::map-with-index".into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     let mut out = Vec::with_capacity(xs.len());
@@ -810,14 +979,22 @@ pub(crate) fn eval_seqable_to_stream(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::seqable->stream";
     if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::wat__stream__Stream(seqable_value_to_stream(coll, OP, args[0].span())?))
+    Ok(Value::wat__stream__Stream(seqable_value_to_stream(
+        coll,
+        OP,
+        args[0].span(),
+    )?))
 }
 
 /// Shared value-level seqable→stream normalizer — the exact per-container dispatch
@@ -898,11 +1075,15 @@ pub(crate) fn eval_filter(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::filter";
     if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
     // pred-first: arg[0] is the predicate, arg[1] is the collection.
     let p = eval_inner(&args[0], env, sym)?.value_owned();
@@ -910,15 +1091,21 @@ pub(crate) fn eval_filter(
     let pred = match &p {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     let source = seqable_value_to_stream(coll, OP, args[1].span())?;
-    Ok(Value::wat__stream__Stream(lazy_filter_stream(OP, pred, source)))
+    Ok(Value::wat__stream__Stream(lazy_filter_stream(
+        OP, pred, source,
+    )))
 }
 
 /// Build one deferred `filter` cell over `source`: forcing it walks `source` — via
@@ -934,8 +1121,8 @@ fn lazy_filter_stream(
     source: Arc<crate::stream::Stream>,
 ) -> Arc<crate::stream::Stream> {
     use crate::stream::{NativeLazyCell, Stream};
-    Arc::new(Stream::NativeThunk(NativeLazyCell {
-        thunk: Arc::new(move |sym, span| {
+    Arc::new(Stream::NativeThunk(NativeLazyCell::new(Arc::new(
+        move |sym, span| {
             let realized = crate::stream::realize(&source, sym, span)?;
             match realized.as_ref() {
                 Stream::Empty => Ok(Arc::new(Stream::Empty)),
@@ -943,8 +1130,12 @@ fn lazy_filter_stream(
                     let kept = apply_function(pred.clone(), vec![head.clone()], sym, span.clone())?;
                     match kept {
                         Value::bool(true) => {
-                            let filtered_tail = lazy_filter_stream(op, pred.clone(), Arc::clone(tail));
-                            Ok(Arc::new(Stream::Cons { head: head.clone(), tail: filtered_tail }))
+                            let filtered_tail =
+                                lazy_filter_stream(op, pred.clone(), Arc::clone(tail));
+                            Ok(Arc::new(Stream::Cons {
+                                head: head.clone(),
+                                tail: filtered_tail,
+                            }))
                         }
                         Value::bool(false) => {
                             // Skip the rejected element by handing back a fresh filter cell
@@ -953,19 +1144,23 @@ fn lazy_filter_stream(
                             // deferred Rust call per reject.
                             Ok(lazy_filter_stream(op, pred.clone(), Arc::clone(tail)))
                         }
-                        other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-                            op: op.into(),
-                            expected: "wat::core::bool",
-                            got: Box::new(ValueSnapshot::of(&other)),
-                        }).into()),
+                        other => Err(RuntimeError::new(
+                            span.clone(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "wat::core::bool",
+                                got: Box::new(ValueSnapshot::of(&other)),
+                            },
+                        )
+                        .into()),
                     }
                 }
                 Stream::Thunk(_) | Stream::NativeThunk(_) => {
                     unreachable!("crate::stream::realize always returns Empty|Cons")
                 }
             }
-        }),
-    }))
+        },
+    ))))
 }
 
 /// Build a lazy `Stream` stepping an already-resident `Vec<Value>` (a `Vector`, or a `List`
@@ -977,13 +1172,13 @@ fn indexed_vec_stream(xs: Arc<Vec<Value>>, index: usize) -> Arc<crate::stream::S
     if index >= xs.len() {
         return Arc::new(Stream::Empty);
     }
-    Arc::new(Stream::NativeThunk(NativeLazyCell {
-        thunk: Arc::new(move |_sym, _span| {
+    Arc::new(Stream::NativeThunk(NativeLazyCell::new(Arc::new(
+        move |_sym, _span| {
             let head = xs[index].clone();
             let tail = indexed_vec_stream(Arc::clone(&xs), index + 1);
             Ok(Arc::new(Stream::Cons { head, tail }))
-        }),
-    }))
+        },
+    ))))
 }
 
 /// Build a lazy `Stream` stepping a `PersistentVector` (`rpds::VectorSync<Value>`) by index.
@@ -995,13 +1190,16 @@ fn indexed_pv_stream(pv: rpds::VectorSync<Value>, index: usize) -> Arc<crate::st
     if index >= pv.len() {
         return Arc::new(Stream::Empty);
     }
-    Arc::new(Stream::NativeThunk(NativeLazyCell {
-        thunk: Arc::new(move |_sym, _span| {
-            let head = pv.get(index).expect("index < pv.len() checked at construction").clone();
+    Arc::new(Stream::NativeThunk(NativeLazyCell::new(Arc::new(
+        move |_sym, _span| {
+            let head = pv
+                .get(index)
+                .expect("index < pv.len() checked at construction")
+                .clone();
             let tail = indexed_pv_stream(pv.clone(), index + 1);
             Ok(Arc::new(Stream::Cons { head, tail }))
-        }),
-    }))
+        },
+    ))))
 }
 
 // ─── Arc-278 DESIGN-STONE seq-traversal-one-door — the RED gate ──────────────────────────────
@@ -1013,11 +1211,11 @@ fn indexed_pv_stream(pv: rpds::VectorSync<Value>, index: usize) -> Arc<crate::st
 // ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no machine variance crosses.
 #[cfg(test)]
 mod seqable_to_stream_tests {
-    use std::sync::Arc;
-    use std::time::{Duration, Instant};
     use crate::freeze::{eval_in_frozen, startup_from_source};
     use crate::load::InMemoryLoader;
     use crate::runtime::{Environment, Value};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
     /// `(into (Vector) (keep keep-all pv))` over a 4000-element `PersistentVector` must
     /// complete in under one second. The source is a `PersistentVector` (not a plain
@@ -1046,7 +1244,8 @@ mod seqable_to_stream_tests {
         let ast = crate::parse_one!(
             "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
               (:wat::core::keep :cx::keep-all (:cx::build-pv 4000))))"
-        ).expect("parse the keep pipeline");
+        )
+        .expect("parse the keep pipeline");
 
         let start = Instant::now();
         let result = eval_in_frozen(&ast, &world, &Environment::new())
@@ -1083,11 +1282,11 @@ mod seqable_to_stream_tests {
 // ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no machine variance crosses.
 #[cfg(test)]
 mod filter_native_tests {
-    use std::sync::Arc;
-    use std::time::{Duration, Instant};
     use crate::freeze::{eval_in_frozen, startup_from_source};
     use crate::load::InMemoryLoader;
     use crate::runtime::{Environment, Value};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
     /// `(into [] (filter pred pv))` over a 4000-element `PersistentVector` must complete in
     /// under one second. RED today (the wat `filter` defclause walks its source by repeated
@@ -1111,7 +1310,8 @@ mod filter_native_tests {
         let ast = crate::parse_one!(
             "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
               (:wat::core::filter :cx::keep-all (:cx::build-pv 4000))))"
-        ).expect("parse the filter pipeline");
+        )
+        .expect("parse the filter pipeline");
 
         let start = Instant::now();
         let result = eval_in_frozen(&ast, &world, &Environment::new())
