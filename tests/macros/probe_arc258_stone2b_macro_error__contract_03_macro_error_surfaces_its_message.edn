@@ -1,0 +1,32 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :message "macro :user::boom — program body eval failed"
+  :location #wat.core/Span {
+    :file "tests/macros/probe_arc258_stone2b_macro_error_c03.wat"
+    :line 6
+    :col 50
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 6
+        :col 63
+      }
+    ]
+  }
+  :causes []
+  :macro-name ":user::boom"
+  :cause #wat.macro/MalformedTemplate {
+    :message "malformed template: kaboom-sentinel-9173"
+    :location #wat.core/Span {
+      :file "tests/macros/probe_arc258_stone2b_macro_error_c03.wat"
+      :line 5
+      :col 3
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 5
+          :col 51
+        }
+      ]
+    }
+    :causes []
+    :reason "kaboom-sentinel-9173"
+  }
+}

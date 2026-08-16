@@ -38,7 +38,6 @@ fn format_fills_named_placeholders_unquoted() {
 //
 // Template references {y} but no :y kwarg is given. The macro must error at expand
 // time with a diagnostic naming the missing placeholder.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn format_strict_missing_kwarg_is_macro_error() {
     let r = startup_from_file("tests/macros/probe_arc279_format_missing_kwarg.wat")
@@ -46,19 +45,9 @@ fn format_strict_missing_kwarg_is_macro_error() {
         .map_err(|e| format!("{e:?}"));
     assert!(r.is_err(), "format with a missing kwarg must be a macro-error at startup");
     let msg = r.unwrap_err();
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        concat!(
-            "Macro(MacroError { span: Span { file: ",
-            "\"tests/macros/probe_arc279_format_missing_kwarg.wat\"",
-            ", line: 5, col: 3, end_line: 5, end_col: 44 }, kind: ProgramBodyEvalFailed { macro_name: ",
-            "\":wat::core::format\"",
-            ", cause: MacroError { span: Span { file: ",
-            "\"wat/core.wat\"",
-            ", line: 984, col: 40, end_line: 988, end_col: 74 }, kind: MalformedTemplate { reason: ",
-            "\"format: placeholder {y} has no matching kwarg\"",
-            " } } } })"
-        ),
+        "probe_arc279_format__format_strict_missing_kwarg_is_macro_error.edn",
         "missing kwarg must match macro-error diagnostic golden"
     );
 }
@@ -67,7 +56,6 @@ fn format_strict_missing_kwarg_is_macro_error() {
 //
 // Template uses {x} but :y kwarg is also provided (unused). The macro must error
 // at expand time with a diagnostic naming the unused kwarg.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn format_strict_unused_kwarg_is_macro_error() {
     let r = startup_from_file("tests/macros/probe_arc279_format_unused_kwarg.wat")
@@ -75,19 +63,9 @@ fn format_strict_unused_kwarg_is_macro_error() {
         .map_err(|e| format!("{e:?}"));
     assert!(r.is_err(), "format with an unused kwarg must be a macro-error at startup");
     let msg = r.unwrap_err();
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         msg,
-        concat!(
-            "Macro(MacroError { span: Span { file: ",
-            "\"tests/macros/probe_arc279_format_unused_kwarg.wat\"",
-            ", line: 5, col: 3, end_line: 5, end_col: 51 }, kind: ProgramBodyEvalFailed { macro_name: ",
-            "\":wat::core::format\"",
-            ", cause: MacroError { span: Span { file: ",
-            "\"wat/core.wat\"",
-            ", line: 1012, col: 24, end_line: 1016, end_col: 84 }, kind: MalformedTemplate { reason: ",
-            "\"format: kwarg :y is unused — no {y} in template\"",
-            " } } } })"
-        ),
+        "probe_arc279_format__format_strict_unused_kwarg_is_macro_error.edn",
         "unused kwarg must match macro-error diagnostic golden"
     );
 }

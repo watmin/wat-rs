@@ -1,0 +1,32 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :message "macro :wat::core::cond — program body eval failed"
+  :location #wat.core/Span {
+    :file "tests/macros/probe_arc258_stone2b_macro_error_c02.wat"
+    :line 5
+    :col 3
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 7
+        :col 31
+      }
+    ]
+  }
+  :causes []
+  :macro-name ":wat::core::cond"
+  :cause #wat.macro/MalformedTemplate {
+    :message "malformed template: cond: non-exhaustive — needs a terminal :else arm"
+    :location #wat.core/Span {
+      :file "wat/core.wat"
+      :line 1296
+      :col 5
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 1296
+          :col 82
+        }
+      ]
+    }
+    :causes []
+    :reason "cond: non-exhaustive — needs a terminal :else arm"
+  }
+}

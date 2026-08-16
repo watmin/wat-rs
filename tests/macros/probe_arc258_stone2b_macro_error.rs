@@ -34,30 +34,18 @@ fn contract_01_keyword_bodied_non_exhaustive_cond_rejected() {
     assert!(r.is_err(), "a non-exhaustive cond (keyword bodies, no :else) must be rejected");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_non_exhaustive_cond_names_else() {
     let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c02.wat");
     assert!(r.is_err(), "a non-exhaustive cond must be rejected");
     let err258_02 = r.unwrap_err();
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err258_02,
-        concat!(
-            "Macro(MacroError { span: Span { file: ",
-            "\"wat/core.wat\"",
-            ", line: 593, col: 15, end_line: 593, end_col: 62 }, kind: ProgramBodyEvalFailed { macro_name: ",
-            "\":wat::core::cond\"",
-            ", cause: MacroError { span: Span { file: ",
-            "\"wat/core.wat\"",
-            ", line: 583, col: 5, end_line: 583, end_col: 82 }, kind: MalformedTemplate { reason: ",
-            "\"cond: non-exhaustive — needs a terminal :else arm\"",
-            " } } } })"
-        ),
+        "probe_arc258_stone2b_macro_error__contract_02_non_exhaustive_cond_names_else.edn",
         "non-exhaustive cond must match diagnostic golden"
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_macro_error_surfaces_its_message() {
     // A trivial macro that aborts. After 258.2b the abort message reaches the diagnostic;
@@ -66,19 +54,9 @@ fn contract_03_macro_error_surfaces_its_message() {
     let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c03.wat");
     assert!(r.is_err(), "a macro calling macro-error must abort");
     let err258_03 = r.unwrap_err();
-    assert_eq!(
+    wat::assert_edn_matches_file!(
         err258_03,
-        concat!(
-            "Macro(MacroError { span: Span { file: ",
-            "\"tests/macros/probe_arc258_stone2b_macro_error_c03.wat\"",
-            ", line: 6, col: 50, end_line: 6, end_col: 63 }, kind: ProgramBodyEvalFailed { macro_name: ",
-            "\":user::boom\"",
-            ", cause: MacroError { span: Span { file: ",
-            "\"tests/macros/probe_arc258_stone2b_macro_error_c03.wat\"",
-            ", line: 5, col: 3, end_line: 5, end_col: 51 }, kind: MalformedTemplate { reason: ",
-            "\"kaboom-sentinel-9173\"",
-            " } } } })"
-        ),
+        "probe_arc258_stone2b_macro_error__contract_03_macro_error_surfaces_its_message.edn",
         "macro-error sentinel must match diagnostic golden"
     );
 }

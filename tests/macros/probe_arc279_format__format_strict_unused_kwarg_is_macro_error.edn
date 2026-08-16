@@ -1,0 +1,32 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :message "macro :wat::core::format — program body eval failed"
+  :location #wat.core/Span {
+    :file "tests/macros/probe_arc279_format_unused_kwarg.wat"
+    :line 5
+    :col 3
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 5
+        :col 51
+      }
+    ]
+  }
+  :causes []
+  :macro-name ":wat::core::format"
+  :cause #wat.macro/MalformedTemplate {
+    :message "malformed template: format: kwarg :y is unused — no {y} in template"
+    :location #wat.core/Span {
+      :file "wat/core.wat"
+      :line 1756
+      :col 24
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 1760
+          :col 84
+        }
+      ]
+    }
+    :causes []
+    :reason "format: kwarg :y is unused — no {y} in template"
+  }
+}

@@ -78,13 +78,12 @@ fn mint_bare_symbol_step() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// `(-> x ())` — empty list step raises at macro-expansion time.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn witness_thread_first_empty_step_panics_at_expansion() {
     fn attempt() -> Result<(), String> {
         startup_from_file("tests/macros/probe_arc249_threading_witness_tf_empty.wat")
             .map(|_| ())
-            .map_err(|e| format!("startup: {:?}", e))
+            .map_err(|e| format!("{:?}", e))
     }
     let result = std::panic::catch_unwind(attempt);
     match result {
@@ -92,23 +91,9 @@ fn witness_thread_first_empty_step_panics_at_expansion() {
         }
         Ok(Ok(())) => panic!("expected failure but startup succeeded"),
         Ok(Err(e)) => {
-            assert_eq!(
+            wat::assert_edn_matches_file!(
                 e,
-                concat!(
-                    "startup: Macro(MacroError { span: Span { file: ",
-                    "\"tests/macros/probe_arc249_threading_witness_tf_empty.wat\"",
-                    ", line: 2, col: 3, end_line: 2, end_col: 24 }, kind: ProgramBodyEvalFailed { macro_name: ",
-                    "\":wat::core::->\"",
-                    ", cause: MacroError { span: Span { file: ",
-                    "\"wat/core.wat\"",
-                    ", line: 531, col: 33, end_line: 531, end_col: 37 }, kind: MacroEvalRuntimeFailed { cause: RuntimeError { span: Span { file: ",
-                    "\"wat/core.wat\"",
-                    ", line: 531, col: 33, end_line: 531, end_col: 37 }, kind: MalformedForm { head: ",
-                    "\":wat::core::first\"",
-                    ", reason: ",
-                    "\":wat::core::first: WatAST List has 0 child(ren); no child at index 0\"",
-                    " } } } } } })"
-                ),
+                "probe_arc249_threading__witness_thread_first_empty_step_panics_at_expansion.edn",
                 "empty -> step must match macro-expansion failure golden"
             );
         }
@@ -117,7 +102,6 @@ fn witness_thread_first_empty_step_panics_at_expansion() {
 
 /// `(->> x ())` — empty step desugars at expansion to `(acc)` i.e. `(5)`.
 /// Startup succeeds; eval fails with MalformedForm.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn witness_thread_last_empty_step_desugars_to_call_on_acc() {
     fn attempt_startup() -> Result<wat::freeze::FrozenWorld, String> {
@@ -139,17 +123,9 @@ fn witness_thread_last_empty_step_desugars_to_call_on_acc() {
     match eval_result {
         Ok(Err(e)) => {
             let msg = format!("{:?}", e);
-            assert_eq!(
+            wat::assert_edn_matches_file!(
                 msg,
-                concat!(
-                    "RuntimeError { span: Span { file: ",
-                    "\"tests/macros/probe_arc249_threading_witness_tl_empty.wat\"",
-                    ", line: 2, col: 20, end_line: 2, end_col: 21 }, kind: MalformedForm { head: ",
-                    "\"int\"",
-                    ", reason: ",
-                    "\"call head must be a keyword, symbol, or list\"",
-                    " } }"
-                ),
+                "probe_arc249_threading__witness_thread_last_empty_step_desugars_to_call_on_acc.edn",
                 "empty ->> step must match MalformedForm eval golden"
             );
         }

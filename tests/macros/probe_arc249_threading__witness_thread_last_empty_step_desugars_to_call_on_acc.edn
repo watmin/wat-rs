@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed int form: call head must be a keyword, symbol, or list"
+  :location #wat.core/Span {
+    :file "tests/macros/probe_arc249_threading_witness_tl_empty.wat"
+    :line 2
+    :col 20
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 2
+        :col 21
+      }
+    ]
+  }
+  :causes []
+  :head "int"
+  :reason "call head must be a keyword, symbol, or list"
+}
