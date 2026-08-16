@@ -5,7 +5,7 @@
 //!   - diag_thread_last_single_step: thread-last single step.
 //!   - diag_thread_last_pipeline: thread-last two-step pipeline.
 //!   - diag_is_list_over_form: is-List? introspection over form values.
-//!   - diag_first_over_form: (#[ignore] — 249.3 diagnostic).
+//!   - diag_first_over_form: (nextest default-filter excluded — 249.3 diagnostic).
 //!   - diag_program_body_quasiquote_impure_unquote_fenced: purity fence.
 //!   - diag_thread_first: thread-first feasibility.
 //!
@@ -72,10 +72,20 @@ fn diag_is_list_over_form() {
 // ═══════════════════════════════════════════════════════════════════════════
 // first-over-form (#[ignore] — 249.3 diagnostic)
 // ═══════════════════════════════════════════════════════════════════════════
+// 296 Stone K, move 2, STOP-2: this diagnostic's fixture
+// (probe_arc249_threading_in_wat_head_first.wat) does NOT load on the current
+// runtime — `startup_from_file` raises `MacroEvalRuntimeFailed` (arity mismatch
+// in `Option/expect`) — MEASURED, not assumed. That failure to load/type-check
+// IS the gap this diagnostic exists to surface. `wat-scripts/`'s
+// `every_wat_scripts_file_loads` gate parses + type-checks EVERY file under it
+// on the current runtime, so moving this fixture there would turn that gate red
+// — a diagnostic mangled into a shape it does not fit. Falling back to move 3:
+// stays a plain `#[test]` here, excluded from the default floor by
+// `.config/nextest.toml`'s `default-filter` (not `#[ignore]`), invoked
+// explicitly to read the gap. Its job is to be READ, not to gate.
+//
+//   cargo nextest run --release --ignore-default-filter -E 'test(diag_first_over_form)' --no-capture
 #[test]
-#[ignore = "ON-DEMAND (not debt) — arc 249.3 DIAGNOSTIC. Its job is to be READ, not to gate: \
-            run it to see the current threading gap. Run: cargo nextest run --run-ignored only \
-            -E 'test(diag_first_over_form)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn diag_first_over_form() {
     let result = try_compute_from_file("tests/macros/probe_arc249_threading_in_wat_head_first.wat");
     println!("\n=== diag_first_over_form ===\n{:#?}\n", result);

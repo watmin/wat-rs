@@ -232,6 +232,21 @@ path = "tests/wat_lang/mod.rs"
 name = "cli"
 path = "tests/cli/mod.rs"
 
+# ─── Benchmarks — 296 Stone K, move 1 ─────────────────────────────────────────
+# `#[ignore]` used to mean two incompatible things: "blocked/broken" (debt) and
+# "deliberately outside the floor" (an instrument). A throughput measurement that
+# asserts nothing meaningful is the second kind, and belongs here — cargo has had
+# `benches/` + `[[bench]]` the whole time. `harness = false` because these are
+# manual-timing measuring sticks (Instant::now() + eprintln), not `#[bench]`
+# (nightly-only) or criterion; a benchmark here is structurally NOT in the test
+# binary, so it cannot inflate the `#[ignore]` count — the category is enforced by
+# cargo's target graph, not a string a future hand has to write and read correctly.
+# Run: cargo bench --bench <name>
+[[bench]]
+name = "perf_arc278_fire_baseline"
+path = "benches/perf_arc278_fire_baseline.rs"
+harness = false
+
 # Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
 # FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`
 # inside [package] parses as `package.lints` and cargo silently discards it.

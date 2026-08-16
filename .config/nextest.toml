@@ -10,6 +10,26 @@
 slow-timeout = { period = "15s", terminate-after = 2 }   # warn at 15s, kill at 30s
 retries = 0
 fail-fast = false
+# 296 Stone K — the structural exclusion mechanism `#[ignore]` used to fake with a
+# greppable "ON-DEMAND (not debt)" string. Five tests are deliberately outside the
+# default floor, for three DIFFERENT reasons — this is the DESIGNATED home, not an
+# attribute on the test:
+#   - self_recursion_via_if_at_million_depth — move 3: a genuine test (asserts, can
+#     fail), excluded on RUNTIME (it's slow, not broken). Runs + passes under
+#     `--profile slow` (see below). Stone K gate row 5.
+#   - dispatch_keyword_head_value_perf — move 1's STOP-1 fallback: a manual perf
+#     harness that belongs in `benches/` but can't get there without making a
+#     private dispatch internal `pub` (see the comment at its definition in
+#     src/runtime.rs). Included under `--profile slow`'s `all()`; it passes (a real
+#     assertion, not a timing gate).
+#   - diag_first_over_form / diag_first_over_vector_form / diag_keyword_to_string_over_form
+#     — move 2's STOP-2 fallback: each one's `.wat` fixture does not load on the
+#     current runtime (that failure IS the diagnostic), so `wat-scripts/`'s
+#     `every_wat_scripts_file_loads` gate would go red if they moved there. They stay
+#     plain `#[test]`s, invoked explicitly by name to read the gap — NOT re-admitted
+#     under `--profile slow`, because they are expected to fail/error every time, and
+#     `all()` there is meant to stay green (see `[profile.slow]` below).
+default-filter = 'not test(self_recursion_via_if_at_million_depth) and not test(dispatch_keyword_head_value_perf) and not test(diag_first_over_form) and not test(diag_first_over_vector_form) and not test(diag_keyword_to_string_over_form)'
 
 [profile.ci]
 slow-timeout = { period = "20s", terminate-after = 3 }   # a touch more headroom in CI
@@ -66,5 +86,30 @@ slow-timeout = { period = "120s", terminate-after = 2 }
 priority = 100
 
 [[profile.ci.overrides]]
+filter = 'binary_id(wat::lint)'
+priority = 99
+
+# 296 Stone K, move 3 — the slow profile. `all()` re-admits everything
+# `[profile.default]`'s `default-filter` excludes EXCEPT the three STOP-2
+# diagnostics, which are expected to fail/error every run (their failing
+# .wat fixture load IS the diagnostic) — admitting them here would make
+# `--profile slow` permanently red for a reason that has nothing to do with
+# regressions. What's left when you subtract them: the normal floor PLUS
+# the million-depth boundary probe PLUS the dispatch_keyword_head_value_perf
+# STOP-1 fallback — both genuine, assertion-bearing tests that pass. Gate
+# row 5: prove this profile runs the boundary probe and it passes, not
+# just that the config parses.
+[profile.slow]
+slow-timeout = { period = "15s", terminate-after = 2 }
+retries = 0
+fail-fast = false
+default-filter = 'all() - test(diag_first_over_form) - test(diag_first_over_vector_form) - test(diag_keyword_to_string_over_form)'
+
+[[profile.slow.overrides]]
+filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
+slow-timeout = { period = "120s", terminate-after = 2 }
+priority = 100
+
+[[profile.slow.overrides]]
 filter = 'binary_id(wat::lint)'
 priority = 99

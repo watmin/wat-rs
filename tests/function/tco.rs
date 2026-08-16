@@ -48,9 +48,14 @@ fn run(compute_fn: &str) -> Value {
 
 // ─── Self-recursion via if ────────────────────────────────────────────
 
-#[ignore = "ON-DEMAND (not debt) — BOUNDARY PROBE: million-depth self-recursion. Deliberately \
-            outside the floor on RUNTIME, not on brokenness; it passes. Run: cargo nextest run \
-            --release --run-ignored only -E 'test(self_recursion_via_if_at_million_depth)'. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
+// 296 Stone K, move 3 — BOUNDARY PROBE: million-depth self-recursion. It asserts,
+// it can fail, it belongs in the suite; it is excluded from the default floor on
+// RUNTIME (it's genuinely slow, not blocked/broken — it passes). That is a policy
+// about WHEN to run it, so it lives in the runner (`.config/nextest.toml`'s
+// `default-filter`), not hidden in an attribute on this one test. It runs — and
+// passes — under `--profile slow`.
+//
+//   cargo nextest run --release --profile slow -E 'test(self_recursion_via_if_at_million_depth)'
 #[test]
 fn self_recursion_via_if_at_million_depth() {
     // The canonical TCO benchmark from the arc 003 design doc. Without

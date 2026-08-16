@@ -1,5 +1,12 @@
 //! Arc 278 — fire-rules throughput BASELINE (kept perf measurement, run on demand).
 //!
+//! Relocated from `tests/rete/perf_arc278_fire_baseline.rs` (296 Stone K, move 1 —
+//! benchmarks live in `benches/` + `cargo bench`, not behind `#[ignore]`). Behaviour is
+//! UNCHANGED: same two measurements, same eprintln output, same panics-on-genuine-eval-
+//! error guard. Only the harness changed — `#[test]`/`#[ignore]` became a `[[bench]]`
+//! target (`harness = false`, plain `fn main()`) so the category is structural: a
+//! benchmark is not in the test binary at all, and cannot inflate the ignore count.
+//!
 //! This is the reference measuring stick for the engine perf arc: it times the current **wat-eval**
 //! `fire-rules` (the re-run-from-scratch reference engine) over a 2-condition join (cold-and-windy) at
 //! growing fact counts. When the **Rust fire kernel** (delta propagation + join-bindings-keyed joins +
@@ -7,9 +14,9 @@
 //! ratio is the speedup, and the bar is Clara-parity-or-superior.
 //!
 //! NOT a correctness gate — timings are machine-relative, so there is no hard timing assertion (only a
-//! sanity check that the engine still derives). `#[ignore]`d so it stays out of the normal suite.
+//! sanity check that the engine still derives).
 //!
-//! Run: cargo test --release -p wat --test perf_arc278_fire_baseline -- --ignored --nocapture
+//! Run: cargo bench --bench perf_arc278_fire_baseline
 //!
 //! First baseline (2026-06-19, re-run-from-scratch wat engine — QUADRATIC, the wasteful tree we replace):
 //!   N= 25  (  50 facts)   ~61ms     ~820 facts/s
@@ -24,7 +31,7 @@ use wat::runtime::Environment;
 
 // rune:lint(no-inlined-wat) — perf-sweep world generated at runtime from N (25/50/100/200/400 and
 // 100/200/400/800/1600 fact counts); the whole point is the SWEEP across growing N, so no fixed
-// .wat fixture can stand in without losing the scaling measurement itself. #[ignore]d, non-gating.
+// .wat fixture can stand in without losing the scaling measurement itself. Benchmark, non-gating.
 
 // N Temperatures + N WindSpeeds at N distinct locations → N same-loc joins → N derived ColdAndWindy.
 fn run_for(n: usize) {
@@ -73,17 +80,6 @@ fn run_for(n: usize) {
     );
 }
 
-#[test]
-#[ignore = "ON-DEMAND (not debt) — PERF BASELINE, deliberately outside the floor: it measures, it \
-            does not gate. Run: cargo nextest run --release --run-ignored only \
-            -E 'test(fire_throughput_baseline)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
-fn fire_throughput_baseline() {
-    eprintln!("--- wat-eval fire-rules throughput (re-run-from-scratch reference engine) ---");
-    for &n in &[25usize, 50, 100, 200, 400] {
-        run_for(n);
-    }
-}
-
 // ─── Native fire-once' join-scaling (the P3 curve-bend measure) ──────────────────
 // N Temps + N Winds at N DISTINCT locations → N same-loc joins out of N×N candidate pairs.
 // The native hash-join cost is the variable: P2 (cross) is O(N²); P3 (keyed) is O(N).
@@ -123,11 +119,12 @@ fn run_native(n: usize) {
     );
 }
 
-#[test]
-#[ignore = "ON-DEMAND (not debt) — PERF: native fire-once join scaling (P2 cross = O(N^2); \
-            P3 keyed = O(N)). Measures, does not gate. Run: cargo nextest run --release \
-            --run-ignored only -E 'test(native_fire_once_join_scaling)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
-fn native_fire_once_join_scaling() {
+fn main() {
+    eprintln!("--- wat-eval fire-rules throughput (re-run-from-scratch reference engine) ---");
+    for &n in &[25usize, 50, 100, 200, 400] {
+        run_for(n);
+    }
+
     eprintln!("--- native fire-once' join scaling (N distinct locs: N joins of N×N candidate pairs) ---");
     for &n in &[100usize, 200, 400, 800, 1600] {
         run_native(n);

@@ -4,7 +4,10 @@
 //! PROBE-LED, not conviction-led: attempt the natural wat encoding; let the
 //! substrate name the gap.
 //!
-//! Run: cargo nextest run --release -E 'binary(macros)' -F probe_arc249_4_rehome_in_wat -- --ignored --nocapture
+//! Run: cargo nextest run --release -E 'binary(macros)' -F probe_arc249_4_rehome_in_wat --no-capture
+//! (diag_first_over_vector_form / diag_keyword_to_string_over_form are excluded from the default
+//! floor via `.config/nextest.toml`'s `default-filter`, not `#[ignore]` — pass `--ignore-default-filter`
+//! too, or nextest intersects any `-E`/name filter with the exclusion and finds nothing to run.)
 
 use std::sync::Arc;
 use wat::freeze::startup_from_file;
@@ -27,9 +30,20 @@ fn try_eval(path: &str) -> Result<Value, String> {
 // ═══════════════════════════════════════════════════════════════════════════
 // C — first/rest over a VECTOR form (#[ignore] diagnostic)
 // ═══════════════════════════════════════════════════════════════════════════
+// 296 Stone K, move 2, STOP-2: this diagnostic's fixture
+// (probe_arc249_4_rehome_in_wat_vec_first.wat) does NOT load on the current
+// runtime — `startup_from_file` raises `MalformedDefmacro` (a macro param typed
+// `:wat::holon::HolonAST` instead of `:wat::WatAST`) — MEASURED, not assumed.
+// That failure to load/type-check IS the gap this diagnostic exists to
+// surface. `wat-scripts/`'s `every_wat_scripts_file_loads` gate parses +
+// type-checks EVERY file under it on the current runtime, so moving this
+// fixture there would turn that gate red — a diagnostic mangled into a shape
+// it does not fit. Falling back to move 3: stays a plain `#[test]` here,
+// excluded from the default floor by `.config/nextest.toml`'s
+// `default-filter` (not `#[ignore]`), invoked explicitly to read the gap.
+//
+//   cargo nextest run --release --ignore-default-filter -E 'test(diag_first_over_vector_form)' --no-capture
 #[test]
-#[ignore = "ON-DEMAND (not debt) — arc 249.4 DIAGNOSTIC. Its job is to be READ, not to gate. \
-            Run: cargo nextest run --run-ignored only -E 'binary(macros)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn diag_first_over_vector_form() {
     let result = try_eval("tests/macros/probe_arc249_4_rehome_in_wat_vec_first.wat");
     println!("\n=== diag_first_over_vector_form ===\nexpect Ok(10):\n{:#?}\n", result);
@@ -53,9 +67,21 @@ fn canonical_comprehension_replaces_for() {
 // ═══════════════════════════════════════════════════════════════════════════
 // A — keyword-form → text (#[ignore] diagnostic)
 // ═══════════════════════════════════════════════════════════════════════════
+// 296 Stone K, move 2, STOP-2: this diagnostic's fixture
+// (probe_arc249_4_rehome_in_wat_kw_to_str.wat) does NOT load on the current
+// runtime — `startup_from_file` raises the same `MalformedDefmacro` shape as
+// `diag_first_over_vector_form` above (macro param typed `:wat::holon::HolonAST`
+// instead of `:wat::WatAST`) — MEASURED, not assumed. That failure to
+// load/type-check IS the gap this diagnostic exists to surface.
+// `wat-scripts/`'s `every_wat_scripts_file_loads` gate parses + type-checks
+// EVERY file under it on the current runtime, so moving this fixture there
+// would turn that gate red — a diagnostic mangled into a shape it does not
+// fit. Falling back to move 3: stays a plain `#[test]` here, excluded from the
+// default floor by `.config/nextest.toml`'s `default-filter` (not
+// `#[ignore]`), invoked explicitly to read the gap.
+//
+//   cargo nextest run --release --ignore-default-filter -E 'test(diag_keyword_to_string_over_form)' --no-capture
 #[test]
-#[ignore = "ON-DEMAND (not debt) — arc 249.4 DIAGNOSTIC. Its job is to be READ, not to gate. \
-            Run: cargo nextest run --run-ignored only -E 'binary(macros)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
 fn diag_keyword_to_string_over_form() {
     let result = try_eval("tests/macros/probe_arc249_4_rehome_in_wat_kw_to_str.wat");
     println!("\n=== diag_keyword_to_string_over_form ===\n{:#?}\n", result);

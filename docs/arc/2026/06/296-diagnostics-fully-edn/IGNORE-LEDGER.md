@@ -1,4 +1,30 @@
-# 296 Quarantine — IGNORE LEDGER
+# 296 Quarantine — IGNORE LEDGER — RETIRED 2026-08-16 (Stone K, row 7)
+
+> **STATUS: RETIRED IN PLACE.** Not deleted — this is the record of a 241-test
+> quarantine and its drain, six waves, **115 → 0**. The GOLDEN population this
+> ledger tracks (the 240-row table below + the 1 already-fixed lint row) is
+> **measured 0** today: zero rows still assert the pre-stone-B rust-debug face,
+> zero `#[ignore = "296-recapture-pending"]` in `tests/`. What `#[ignore]` means
+> from here on — and why a *remaining* `#[ignore]` is no longer a quarantine
+> signal — is answered by
+> `docs/arc/2026/06/296-diagnostics-fully-edn/DESIGN-STONE-K-ignore-means-one-thing.md`,
+> this arc's closure stone.
+>
+> **⚠ ONE HONEST EXCEPTION, measured, not glossed over.** The GATE as originally
+> written (below, preserved unedited) also demanded zero
+> `(:wat::test::ignore "296-recapture-pending")` occurrences in `wat-tests/`.
+> That is **not** true today: `wat-tests/lint.wat:72` still carries
+> `(:wat::test::ignore "296-recapture-pending: lint-stdlib times out (>5s) after
+> stone B; unlock: 296 recapture or perf fix")` on
+> `deftest_wat_tests_lint_lint_stdlib_runs` — the side-car TIMEOUT entry
+> documented below, never actually unlocked. Stone K did not touch it: fixing
+> `lint-stdlib`'s performance (or giving this one a real exclusion mechanism,
+> the same move 3 pattern Stone K applied to the Rust-side boundary probe) is
+> out of Stone K's scope (it relocates/re-declares `#[ignore]`'s two ON-DEMAND
+> kinds; this is neither — it is exactly the debt kind, just wat-native instead
+> of Rust-native, and undercounted by any grep that only checks `.rs` files).
+> Recorded here so the next hand does not read "gate satisfied" as "everything
+> in this file resolved."
 
 **Purpose**: Tracked mute of 241 pre-existing failing tests established by the
 arc 296 stone B quarantine commit. These tests are NOT silenced as bugs — they
@@ -9,8 +35,10 @@ tagged maps), and these goldens still assert the pre-stone-B rust-debug face.
 **Clean baseline**: after this ledger's ignores are applied,
 `cargo nextest run` reports **0 failed** (only skipped + passed).
 
-**Gate**: this ledger MUST be EMPTY before arc 296 closes. Each row below is
-a debt entry that requires a recapture strike to retire.
+**Gate** (original wording, preserved): this ledger MUST be EMPTY before arc
+296 closes. Each row below is a debt entry that requires a recapture strike to
+retire. **See the retirement note above for the one row that is not actually
+empty.**
 
 ---
 

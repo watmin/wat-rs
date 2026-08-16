@@ -35264,10 +35264,22 @@ mod tests {
     // `dispatch_keyword_head_value`. Drives the arithmetic hot path
     // (`:wat::core::i64::+`) directly (not through a wat program — an
     // interpreter loop's per-iteration cost is microseconds against the
-    // dispatch call's nanoseconds, which would drown the signal). Never
-    // part of the floor: `#[ignore]`d, run explicitly.
+    // dispatch call's nanoseconds, which would drown the signal).
     //
-    //   cargo test --release dispatch_keyword_head_value_perf -- --ignored --nocapture
+    // 296 Stone K, move 1, STOP-1: this belongs in `benches/` with its two
+    // siblings (`perf_arc278_fire_baseline`), but `dispatch_keyword_head_value`
+    // (this file, `fn dispatch_keyword_head_value`) has NO `pub` — it is
+    // module-private, reachable only via `super::` from this `#[cfg(test)] mod
+    // tests`. `benches/` is a separate crate target and can only see the crate's
+    // `pub` surface, so relocating this benchmark would require making a hot
+    // dispatch internal `pub` — an API change wearing a chore's clothes. STOP-1
+    // forbids that trade, so this one stays a `#[cfg(test)]` unit test in place.
+    // It is EXCLUDED from the default floor by `.config/nextest.toml`'s
+    // `default-filter` (not `#[ignore]`) and included under `--profile slow`'s
+    // `all()`, which re-admits everything default-filter excludes.
+    //
+    //   cargo nextest run --release --ignore-default-filter -E 'test(dispatch_keyword_head_value_perf)' --no-capture
+    //   (or: cargo nextest run --release --profile slow -E 'test(dispatch_keyword_head_value_perf)')
     //
     // `std::hint::black_box` on both the args and the result stops LLVM
     // from proving the call is a pure, input-invariant function and
@@ -35279,9 +35291,6 @@ mod tests {
     // both used and checked — the optimiser cannot delete it without
     // producing a wrong answer.
     #[test]
-    #[ignore = "ON-DEMAND (not debt) — manual PERF harness (see 255.1c-guard). Measures, does not \
-            gate. Run: cargo nextest run --release --run-ignored only \
-            -E 'test(dispatch_keyword_head_value_perf)' --no-capture. HOME: needs a real mechanism (a nextest profile + default-filter in .config/nextest.toml, which already carries profiles and per-test overrides) so ON-DEMAND stops inflating the ignore count. Until then this marker makes the two populations mechanically separable."]
     fn dispatch_keyword_head_value_perf() {
         let (stdlib_sym, _stdlib_macros, _stdlib_types) = stdlib_loaded();
         let env = Environment::new();
