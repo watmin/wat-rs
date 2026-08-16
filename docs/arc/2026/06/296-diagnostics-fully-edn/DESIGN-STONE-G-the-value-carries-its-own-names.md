@@ -1,7 +1,26 @@
 # 296 · DESIGN STONE G — the value carries its own field names
 
-> **STATUS: SHAPE DESIGNED, NOT BUILT.** The two generator arms it needs are LANDED and green.
-> The ~150-site migration is rider work and has not been done. This doc is the brief.
+> ## ⛔ STATUS CORRECTED 2026-08-15 — **THIS STONE IS BUILT.**
+>
+> The line below said `SHAPE DESIGNED, NOT BUILT` and **that was false when read today.** The disk:
+> `src/value/value.rs:984` carries `pub names: Arc<Vec<String>>` on `AggregateValue`, with this
+> stone's own words in its doc comment — *"Arc 296 G: carried, never looked up."* The migration
+> landed; the status line never followed.
+>
+> **The cost of the stale line was nearly a re-run of a completed ~150-site migration.** It also
+> carried a stale COUNT: this doc says `src/edn_shim.rs` holds **7** `format!("field-{}", i)` sites.
+> Measured today: **1**. G's own landing deleted the other six. That surviving one is the ENUM arm of
+> `value_to_json_natural` — which G never covered, because G is about `AggregateValue` and mentions
+> `EnumValue` **zero** times.
+>
+> **The remaining work is G′ — the enum mirror:** `DESIGN-STONE-G-prime-the-enum-value-carries-its-own-names.md`.
+>
+> Everything below is preserved as written (the where-the-names-come-from table, the generator
+> discipline, the imposed-worklist method) because G′ mirrors it exactly. Read it as the built record
+> of how this was done, not as a to-do.
+>
+> ~~**STATUS: SHAPE DESIGNED, NOT BUILT.** The two generator arms it needs are LANDED and green.
+> The ~150-site migration is rider work and has not been done. This doc is the brief.~~
 
 ## THE DEFECT
 
