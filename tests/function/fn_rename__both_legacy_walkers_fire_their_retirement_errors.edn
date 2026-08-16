@@ -1,0 +1,41 @@
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/BareLegacyLambda {
+      :message "':wat::core::lambda' is retired (arc 155); canonical FQDN is ':wat::core::fn'. Clojure-faithful single-letform vocabulary: lowercase 'fn' for function values (matches Clojure's user-facing `fn`). Rename ':wat::core::lambda' -> ':wat::core::fn' at the offending site."
+      :location #wat.core/Span {
+        :file "tests/function/fn_rename_mixed_legacy.wat"
+        :line 3
+        :col 5
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 23
+          }
+        ]
+      }
+      :causes []
+      :retired ":wat::core::lambda"
+      :fqdn ":wat::core::fn"
+    }
+    #wat.check/BareLegacyLowercaseFn {
+      :message "bare ':fn(...)' type is retired (arc 155); canonical FQDN is ':wat::core::Fn(...)'. Cap'd type head per Clojure-faithful capitalization convention: 'Fn' = function type, 'fn' = function value (closes arc 109 slice 1e's last ungrabbed parametric type head). Rename ':fn(args)->ret' -> ':wat::core::Fn(args)->ret' at the offending site."
+      :location #wat.core/Span {
+        :file "tests/function/fn_rename_mixed_legacy.wat"
+        :line 4
+        :col 20
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 4
+            :col 55
+          }
+        ]
+      }
+      :causes []
+      :retired ":fn(...)->ret"
+      :fqdn ":wat::core::Fn(...)->ret"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/BareLegacyLambda {
+      :message "':wat::core::lambda' is retired (arc 155); canonical FQDN is ':wat::core::fn'. Clojure-faithful single-letform vocabulary: lowercase 'fn' for function values (matches Clojure's user-facing `fn`). Rename ':wat::core::lambda' -> ':wat::core::fn' at the offending site."
+      :location #wat.core/Span {
+        :file "tests/function/fn_rename_multi_lambda.wat"
+        :line 3
+        :col 5
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 23
+          }
+        ]
+      }
+      :causes []
+      :retired ":wat::core::lambda"
+      :fqdn ":wat::core::fn"
+    }
+  ]
+}

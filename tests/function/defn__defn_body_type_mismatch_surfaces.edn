@@ -1,0 +1,26 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/ReturnTypeMismatch {
+      :message ":user::bad: body produces :wat::core::i64; signature declares :()"
+      :location #wat.core/Span {
+        :file "tests/function/defn_bad_type.wat"
+        :line 6
+        :col 3
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 5
+          }
+        ]
+      }
+      :causes []
+      :function ":user::bad"
+      :expected ":()"
+      :got ":wat::core::i64"
+      :remedies []
+    }
+  ]
+}

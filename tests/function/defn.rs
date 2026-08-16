@@ -140,15 +140,10 @@ fn defn_zero_arg_function_works() {
 /// Defn declares `-> :wat::core::nil` but body returns `:wat::core::i64`.
 /// The fn form's type-checker fires `ReturnTypeMismatch` (or `TypeMismatch`)
 /// on the post-expansion form.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn defn_body_type_mismatch_surfaces() {
     let err = startup_err("tests/function/defn_bad_type.wat");
-    assert_eq!(
-        err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/function/defn_bad_type.wat", line: 6, col: 3, end_line: 6, end_col: 5 }, kind: ReturnTypeMismatch { function: ":user::bad", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"##,
-        "defn8: body-type-mismatch golden"
-    );
+    wat::assert_edn_matches_file!(err, "defn__defn_body_type_mismatch_surfaces.edn", "defn8: body-type-mismatch golden");
 }
 
 // ─── Test 9 — redef same name forbidden by default ───────────────────────────

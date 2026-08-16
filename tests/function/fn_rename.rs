@@ -64,17 +64,12 @@ fn startup_maybe_err(path: &str) -> String {
 
 // ─── 1. Operator-position retired: :wat::core::lambda fires BareLegacyLambda
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
-fn lambda_post_retirement_silently_aliases_to_fn() {
+fn lambda_post_retirement_fires_bare_legacy_lambda() {
     // Arc 155 slice 2 + arc 163 re-arm: bare :wat::core::lambda fires
     // BareLegacyLambda fatal at check time (no runtime fall-through).
     let err = startup_err("tests/function/fn_rename_legacy_lambda.wat");
-    assert_eq!(
-        err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/function/fn_rename_legacy_lambda.wat", line: 3, col: 5, end_line: 3, end_col: 23 }, kind: BareLegacyLambda }]))"#,
-        "fnr1: BareLegacyLambda golden"
-    );
+    wat::assert_edn_matches_file!(err, "fn_rename__lambda_post_retirement_fires_bare_legacy_lambda.edn", "fnr1: BareLegacyLambda golden");
 }
 
 // ─── 2. Operator-position canonical: :wat::core::fn works (positive case)
@@ -89,17 +84,12 @@ fn fn_keyword_operator_position_works() {
 
 // ─── 3. Type-position retired: bare :fn(...) fires BareLegacyLowercaseFn
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
-fn bare_fn_type_post_retirement_walker_silent() {
+fn bare_fn_type_post_retirement_fires_bare_legacy_lowercase_fn() {
     // Arc 163 follow-up — walker re-armed; bare `:fn(...)` fires
     // BareLegacyLowercaseFn fatal.
     let err = startup_err("tests/function/fn_rename_bare_fn_type.wat");
-    assert_eq!(
-        err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/function/fn_rename_bare_fn_type.wat", line: 4, col: 22, end_line: 4, end_col: 57 }, kind: BareLegacyLowercaseFn }]))"#,
-        "fnr3: BareLegacyLowercaseFn golden"
-    );
+    wat::assert_edn_matches_file!(err, "fn_rename__bare_fn_type_post_retirement_fires_bare_legacy_lowercase_fn.edn", "fnr3: BareLegacyLowercaseFn golden");
 }
 
 // ─── 4. Type-position canonical: :wat::core::Fn(...) works
@@ -136,18 +126,13 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
 
 // ─── 7. Multiple :wat::core::lambda sites — post-retirement silent fall-through
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
-fn multiple_lambda_sites_post_retirement_silently_alias() {
+fn multiple_lambda_sites_post_retirement_each_fire_bare_legacy_lambda() {
     // Post-arc-155-slice-2 + arc-163: walker re-armed; runtime dispatch
     // arm for `:wat::core::lambda` retired. Multiple legacy-spelling
     // forms in one program all fire BareLegacyLambda fatal.
     let err = startup_err("tests/function/fn_rename_multi_lambda.wat");
-    assert_eq!(
-        err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/function/fn_rename_multi_lambda.wat", line: 3, col: 5, end_line: 3, end_col: 23 }, kind: BareLegacyLambda }]))"#,
-        "fnr7: multiple-lambda BareLegacyLambda golden"
-    );
+    wat::assert_edn_matches_file!(err, "fn_rename__multiple_lambda_sites_post_retirement_each_fire_bare_legacy_lambda.edn", "fnr7: multiple-lambda BareLegacyLambda golden");
 }
 
 // ─── 8. Tail-call sanity: :wat::core::fn in body position works
@@ -188,15 +173,10 @@ fn reflection_fn_registry_entry_exists() {
 
 // ─── 12. Both walkers retired post-slice-2 — mixed-legacy program silently runs
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
-fn both_legacy_walkers_retired_silently_alias() {
+fn both_legacy_walkers_fire_their_retirement_errors() {
     // Post-arc-155-slice-2: walker re-armed for both surfaces; mixed
     // legacy program now fires BOTH BareLegacyLambda + BareLegacyLowercaseFn.
     let err = startup_err("tests/function/fn_rename_mixed_legacy.wat");
-    assert_eq!(
-        err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/function/fn_rename_mixed_legacy.wat", line: 3, col: 5, end_line: 3, end_col: 23 }, kind: BareLegacyLambda }, CheckError { span: Span { file: "tests/function/fn_rename_mixed_legacy.wat", line: 4, col: 20, end_line: 4, end_col: 55 }, kind: BareLegacyLowercaseFn }]))"#,
-        "fnr12: both legacy walkers fire golden"
-    );
+    wat::assert_edn_matches_file!(err, "fn_rename__both_legacy_walkers_fire_their_retirement_errors.edn", "fnr12: both legacy walkers fire golden");
 }

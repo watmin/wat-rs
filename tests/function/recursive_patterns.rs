@@ -105,15 +105,10 @@ fn linear_shadowing() {
 
 // ─── Slice 3: exhaustiveness — partial-coverage rule ─────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn nonexhaustive_partial_pattern_rejected() {
     let err = freeze_err("tests/function/recursive_patterns_nonexhaustive.wat");
-    assert_eq!(
-        err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/function/recursive_patterns_nonexhaustive.wat", line: 8, col: 18, end_line: 8, end_col: 35 }, kind: MalformedForm { head: ":wat::core::match", reason: "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)", remedies: [] } }]))"##,
-        "rp_nonexh: non-exhaustive match pattern golden"
-    );
+    wat::assert_edn_matches_file!(err, "recursive_patterns__nonexhaustive_partial_pattern_rejected.edn", "rp_nonexh: non-exhaustive match pattern golden");
 }
 
 #[test]
