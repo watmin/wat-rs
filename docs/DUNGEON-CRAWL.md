@@ -108,6 +108,26 @@ A stone is five artifacts, in this order:
      path* so the Shadowdancer can't wander ("`sym.types()` is the access path,
      runtime.rs:NNNN precedent — if you want a parallel registry, STOP").
    - **FM 2-bis evidence** — the committed probe + its pre-stone failure profile.
+   - **NEGATIVE CONTROLS — for each one, is it KEEPABLE? If yes, it is kept AS A
+     TEST. If no, the report says why not.** A negative control proves *this
+     assertion can still fail* — and we have been performing that proof, writing
+     the outcome in prose, and **deleting the artifact**. The claim then decays
+     exactly like every other claim stored as text (`stdio.wat:358`'s safety
+     argument, `check.rs:1400`'s walker doc, the retirement remedy — all true
+     when written, all false when read). *An instrument must outlive the number
+     it produced* (`[[feedback_an_instrument_must_outlive_the_number_it_produced]]`).
+     The split:
+     - **Expressible as a fixture or test code → KEEP IT.** The `let`-alias
+       escape and the prime-ctor escape both started as throwaway probes and are
+       now permanent tests. A hang induced in a test-spawned child is *test*
+       code, not `src/` — that is keepable too, and arc 278's liveness proofs
+       were discarded when they should have been banked as a `HANG_MODE` variant.
+     - **Requires mutating `src/` → REPORT WHY NOT.** Disabling an exemption
+       (`if true || …`) or breaking a carriage (`if false && …`) cannot be left
+       in the tree; keeping it needs mutation-testing machinery, which is a real
+       cost, not a free win. Say so explicitly rather than discarding silently.
+     Discarding must be a **declared exception with a reason**, never the default
+     — otherwise nobody notices which ones could have been banked.
    - **SCORE doc spec** + **Calibration** — target band + STOP times; **cite the
      prior comparable SCORE** for structural shape so the Shadowdancer copies it
      and ships fast (`feedback_stone_briefs_cite_prior_score`).
