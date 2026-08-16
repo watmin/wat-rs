@@ -1042,9 +1042,10 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
     out
 }
 
-/// `hash-join-pass` / `cross-join-node` — propagate tokens from Root/HashJoin nodes to
-/// their HashJoinNode children, in ascending node-id order (topological).
-/// Mirrors `wat/rete.wat:736-770` + `wat/rete.wat:704-728`.
+/// `hash-join-pass` / `cross-join-node` — propagate tokens from a left-parent to
+/// its HashJoinNode children, in ascending node-id order (topological).
+/// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
+/// Mirrors `wat/rete.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
 fn hash_join_pass(wm: &mut WorkingMemory) {
     let node_ids = sorted_node_ids(&wm.network);
 
@@ -1055,7 +1056,13 @@ fn hash_join_pass(wm: &mut WorkingMemory) {
             None => continue,
         };
         let kind = kind_of(node);
-        if kind != "RootJoinNode" && kind != "HashJoinNode" {
+        if kind != "RootJoinNode"
+            && kind != "HashJoinNode"
+            && kind != "TestNode"
+            && kind != "NegationNode"
+            && kind != "ExistsNode"
+            && kind != "AccumulateNode"
+        {
             continue;
         }
         let child_ids = node_children(node);
@@ -2889,6 +2896,57 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         }
 
         phase_end("filter", __pt4);
+
+        // ── 3.6 Join-after-filter (A1): HashJoin children of Test/Neg/Exists/Accum. ─
+        // The P6 loop above only left-activates from Root/HashJoin. Compile will parent
+        // a HashJoin on a mid-chain :where (Clara does; Join → Test → Join). Filter just
+        // filled d_beta[test]; push those tokens across the next join. keyed_join against
+        // the full alpha is the catch-up: this child produced nothing in step 3, so there
+        // is nothing to double-count.
+        let __pt36 = phase_start();
+        for node_id in &node_ids {
+            let node = match get_node(&wm.network, *node_id) {
+                Some(n) => n,
+                None => continue,
+            };
+            let kind = kind_of(node);
+            if kind != "TestNode"
+                && kind != "NegationNode"
+                && kind != "ExistsNode"
+                && kind != "AccumulateNode"
+            {
+                continue;
+            }
+            let new_tokens: Vec<Token> = match d_beta.get(node_id) {
+                Some(ts) if !ts.is_empty() => ts.clone(),
+                _ => continue,
+            };
+            let child_ids = node_children(node);
+            for child_id in &child_ids {
+                let child_node = match get_node(&wm.network, *child_id) {
+                    Some(n) => n,
+                    None => continue,
+                };
+                if kind_of(child_node) != "HashJoinNode" {
+                    continue;
+                }
+                let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
+                let elements = match wm.alpha.get(&alpha_id) {
+                    Some(els) if !els.is_empty() => els.as_slice(),
+                    _ => continue,
+                };
+                let joined = keyed_join(&new_tokens, elements, alpha_id);
+                if joined.is_empty() {
+                    continue;
+                }
+                if beta_readers.contains(child_id) {
+                    beta_written(*child_id, joined.len() as u64);
+                    wm.beta.entry(*child_id).or_default().extend(joined.iter().cloned());
+                }
+                d_beta.entry(*child_id).or_default().extend(joined);
+            }
+        }
+        phase_end("join-after-filter", __pt36);
 
         // ── 4. Production delta: fire production nodes on NEW tokens only. ────────
         let __pt5 = phase_start();

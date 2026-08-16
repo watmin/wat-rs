@@ -1452,11 +1452,15 @@
     tokens))
 
 ;; hash-join-pass — fold step: propagate tokens from a beta node to its HashJoinNode children.
-;; For each node-id: if it is a RootJoinNode or HashJoinNode with tokens in beta-memory,
-;; for each HashJoinNode child J, cross beta-memory[here] × alpha-memory[alpha-feeding(J)].
-;; WHY topological pass in node-id order: compile assigns IDs left-to-right (root-join < hash-join),
-;; so iterating ascending node-ids processes parents before children — one pass is a valid fixpoint
-;; for the v1 linear-chain topology. No cycle possible (DAG; monotone insertions only).
+;; For each node-id: if it is a left-parent (RootJoin / HashJoin / Test / Negation / Exists /
+;; Accumulate) with tokens in beta-memory, for each HashJoinNode child J, cross
+;; beta-memory[here] × alpha-memory[alpha-feeding(J)].
+;; WHY Test/Negation/Exists/Accumulate count: compile will parent a HashJoin on a mid-chain
+;; :where / :not / :exists / accumulate (Clara does; so must we). A kind gate that only
+;; accepted Root/Hash starved that child — A1, both impls.
+;; WHY topological pass in node-id order: compile assigns IDs left-to-right, and fire-once
+;; now populate-then-emits per node (filter/accum first, then this pass), so a TestNode's
+;; beta is already filled when we emit to its HashJoin children. DAG; monotone insertions only.
 (:wat::core::defn :wat::rete::hash-join-pass
   [alpha-mem <- :wat::core::PersistentMap
    network   <- :wat::core::PersistentMap
@@ -1468,7 +1472,11 @@
                              "hash-join-pass: node not found")
                     kind (:wat::rete::node-kind-label node)]
     (:wat::core::if (:wat::core::or (:wat::core::= kind "RootJoinNode")
-                                    (:wat::core::= kind "HashJoinNode"))
+                                    (:wat::core::or (:wat::core::= kind "HashJoinNode")
+                                      (:wat::core::or (:wat::core::= kind "TestNode")
+                                        (:wat::core::or (:wat::core::= kind "NegationNode")
+                                          (:wat::core::or (:wat::core::= kind "ExistsNode")
+                                                          (:wat::core::= kind "AccumulateNode"))))))
       (:wat::core::match (:wat::core::PersistentMap/get beta-mem node-id) 
         ((:wat::core::Some tokens)
          (:wat::core::foldl
@@ -1625,8 +1633,10 @@
 ;;                  alpha-memory[negated-alpha-id] are token-element-compatible? with the token.
 ;; alpha-mem is threaded in (the negation filter needs it); TestNode ignores it.
 ;; WHY unified fold: any interleaving of :where/:not in a condition chain is correct because
-;; the fold processes node-ids in topological (ascending) order — each filter reads its
-;; parent's beta slot, already populated earlier in the same fold.
+;; fire-once walks node-ids in topological (ascending) order and, per node, populate
+;; (this pass) THEN emit (hash-join-pass). A filter reads its parent's beta (already
+;; written); a later HashJoin then reads THIS node's beta. The old "all joins, then all
+;; filters" split made Join→Test→Join starve — the comment was true only for trailing filters.
 (:wat::core::defn :wat::rete::filter-pass
   [network   <- :wat::core::PersistentMap
    alpha-mem <- :wat::core::PersistentMap
@@ -1767,36 +1777,23 @@
                                   (:wat::rete::root-join-pass new-amem network acc node-id))
                                 (:wat::core::PersistentMap)
                                 node-ids)
-                    ;; hash-join pass (3b) — propagate tokens LEFT→RIGHT through HashJoinNodes
-                    ;; WHY one ordered pass: compile assigns IDs in topological order (see hash-join-pass)
-                    joined-bmem (:wat::core::foldl
-                                   (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                    node-id <- :wat::core::i64]
-                                     -> :wat::core::PersistentMap
-                                     (:wat::rete::hash-join-pass new-amem network acc node-id))
-                                   new-bmem
-                                   node-ids)
-                    ;; accumulate pass (8-a) — for each AccumulateNode, gather compatible :from elements,
-                    ;; fold with apply-accumulator, extend token with result-var → aggregate.
-                    ;; WHY before filter-pass: a :where on ?result reads the extended binding.
-                    ;; WHY pass new-amem: the gather reads alpha-memory[from-alpha-id].
-                    acc-bmem (:wat::core::foldl
-                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                 node-id <- :wat::core::i64]
-                                  -> :wat::core::PersistentMap
-                                  (:wat::rete::accumulate-pass network new-amem acc node-id))
-                                joined-bmem
-                                node-ids)
-                    ;; filter pass (7-a, unified) — filter tokens through TestNodes + NegationNodes.
-                    ;; Dispatches by kind: TestNode → eval-test; NegationNode → negation (zero-compatible).
-                    ;; WHY after joins: filter nodes read their parent's beta slot (join nodes come first by ID).
-                    ;; WHY pass new-amem: NegationNode filter needs alpha-memory to check absent facts.
+                    ;; beta walk (3b+7+8) — ONE topological fold: populate this node, then emit
+                    ;; to its HashJoin children. Populate = accumulate-pass (no-op unless Accum)
+                    ;; then filter-pass (no-op unless Test/Neg/Exists). Emit = hash-join-pass
+                    ;; (now accepts Test/Neg/Exists/Accum as left parents). Compile IDs are
+                    ;; left-to-right, so a mid-chain :where's TestNode is filled before the
+                    ;; next HashJoin reads it. The old split (all joins, then all filters)
+                    ;; starved Join→Test→Join — Clara left-activates; so do we.
                     filtered-bmem (:wat::core::foldl
                                     (:wat::core::fn [acc     <- :wat::core::PersistentMap
                                                      node-id <- :wat::core::i64]
                                       -> :wat::core::PersistentMap
-                                      (:wat::rete::filter-pass network new-amem acc node-id))
-                                    acc-bmem
+                                      (:wat::rete::hash-join-pass new-amem network
+                                        (:wat::rete::filter-pass network new-amem
+                                          (:wat::rete::accumulate-pass network new-amem acc node-id)
+                                          node-id)
+                                        node-id))
+                                    new-bmem
                                     node-ids)
                     ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
                     new-pmem (:wat::core::foldl

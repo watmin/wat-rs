@@ -19,7 +19,7 @@
 //! `#grid/Result {... :derived #wat.core/PersistentVector [...] ...}` line. Those are asserted
 //! here per axis: (1) exit 0, (2) a `#grid/Result` line present, (3) `:derived` is NOT `[]`.
 //!
-//! The other 9 are the `where-*.wat` expressivity corpus (`check-where-shapes.sh`'s population):
+//! The other 10 are the `where-*.wat` expressivity corpus (`check-where-shapes.sh`'s population):
 //! no stdin, and stdout is N `row ... n=... ->...` lines, not a `#grid/Result`. They get their
 //! own assertion shape (run + produce output) rather than being silently skipped — and the
 //! EXEMPT SET itself is asserted exactly equal to the known 9 names, so a 10th `where-*.wat`
@@ -127,6 +127,7 @@ const WHERE_FAMILY: &[&str] = &[
     "where-boolean",
     "where-collection",
     "where-control",
+    "where-join-order",
     "where-multivar",
     "where-nesting",
     "where-numeric",
@@ -239,7 +240,7 @@ fn grid_axes_run_and_derive_nonvacuously() {
     assert!(
         stems.len() >= 18,
         "found only {} .wat files under wat-scripts/perf/grid/ (expected >= 18: 9 sized axes + \
-         9 where-* expressivity files) — the gate is measuring less than the known grid, or the \
+         10 where-* expressivity files) — the gate is measuring less than the known grid, or the \
          directory moved: {stems:?}",
         stems.len()
     );
@@ -307,7 +308,7 @@ fn grid_axes_run_and_derive_nonvacuously() {
         }
     }
 
-    // ── the 9 where-* axes: must RUN and produce output rows (different shape, same intent) ──
+    // ── the where-* axes: must RUN and produce output rows (different shape, same intent) ──
     for &stem in &where_stems {
         let (ok, stdout, stderr) = run_where_axis(stem);
         if !ok {
