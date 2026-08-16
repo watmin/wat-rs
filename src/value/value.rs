@@ -1030,6 +1030,9 @@ pub(crate) fn names_arc_from_static(fields: &'static [&'static str]) -> Arc<Vec<
 pub struct EnumValue {
     pub type_path: String,
     pub variant_name: String,
+    /// Field names in declaration order. **Same length as `fields`, always.**
+    /// Arc 296 G′: carried, never looked up — the enum mirror of `AggregateValue.names`.
+    pub names: Arc<Vec<String>>,
     pub fields: Vec<Value>,
 }
 

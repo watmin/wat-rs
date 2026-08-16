@@ -322,6 +322,26 @@ pub enum EnumVariant {
     },
 }
 
+impl EnumDef {
+    /// Field names of a tagged variant, declaration order — the enum mirror of
+    /// [`AggregateDef::names_arc`] (arc 296 G′).
+    ///
+    /// The door every REGISTRY-HOLDING construction site uses to hand a variant's declared
+    /// names to the [`crate::value::EnumValue`] it is building, so no render site ever
+    /// re-derives them by walking `self.variants` (or worse, guessing `field-N`).
+    ///
+    /// Returns `None` when the variant is absent from this def, or is a `Unit` variant —
+    /// the caller RAISES on `None`; it does not fabricate a positional fallback.
+    pub fn variant_names_arc(&self, variant: &str) -> Option<std::sync::Arc<Vec<String>>> {
+        self.variants.iter().find_map(|v| match v {
+            EnumVariant::Tagged { name, fields } if name == variant => Some(std::sync::Arc::new(
+                fields.iter().map(|(n, _)| n.clone()).collect(),
+            )),
+            _ => None,
+        })
+    }
+}
+
 /// Newtype declaration — nominal wrapper distinct from its inner type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewtypeDef {

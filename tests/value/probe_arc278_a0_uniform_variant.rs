@@ -64,6 +64,8 @@ fn color_red() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":a0::Color".to_string(),
         variant_name: "Red".to_string(),
+        // Unit variant — no fields, so nothing to name (arc 296 G′).
+        names: Arc::new(vec![]),
         fields: vec![],
     }))
 }

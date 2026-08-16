@@ -531,3 +531,160 @@ fn field_names_of(src: &str, file: &str, want: &str) -> Result<Vec<String>, Stri
     }
     Err(format!("no `defrecord`/`defstruct` for `{want}` in `{file}` — wat is the source of truth, so the names cannot be generated without it"))
 }
+
+// ─── wat_enum_field_names_from! ────────────────────────────────────────────────
+//
+// Arc 296 G′. The field NAMES of one TAGGED variant of a wat-declared enum, as a
+// `&'static [&'static str]`, read directly from the `.wat` `defenum` declaration's SOURCE
+// TEXT at build time. `wat_field_names_from!` (above) covers `defrecord`/`defstruct`;
+// `defenum` needs its own reader because an enum's field list is PER VARIANT, not one
+// list per type.
+//
+// ## Why compile-time source text, not a runtime `TypeEnv` lookup
+//
+// A handful of builtin enums are declared via `defenum` in the bundled `.wat` stdlib
+// (`:wat::spawn::ServiceEvent` in `wat/spawn.wat`, `:wat::sqlite::Cell` in
+// `wat/sqlite.wat`) rather than as a `types.rs::register_builtin_types` Rust literal, so
+// they are ABSENT from the cheap `TypeEnv::with_builtins()` that `builtin_enum_variant_names`
+// (`runtime.rs`) uses for the Rust-registered ones. The first fix for that gap called
+// `crate::freeze::env::build_env(vec![])` lazily behind a `OnceLock`, on the theory that the
+// full baked-stdlib environment is the one registry that carries every `.wat`-declared type
+// too. Measured (a `#[test]` in `runtime.rs`, isolated, `--test-threads=1`): it DEADLOCKS —
+// `OnceLock::get_or_init`'s closure runs the full stdlib macro-expansion pipeline, which
+// re-enters a call needing the SAME lock before the first call returns (`OnceLock` treats
+// reentrant `get_or_init` as a hang, not an error — confirmed via `/proc/<pid>/stat`: zero
+// CPU time accruing, all threads parked in `futex_do_wait`). Reading the `.wat` SOURCE TEXT
+// at compile time — what `wat_field_names_from!` already does for records — has no such
+// hazard: there is no runtime environment to build, so there is nothing to re-enter.
+//
+// ## Shape
+//
+//     wat_enum_field_names_from!(SERVICE_EVENT_MESSAGE_FIELDS, "wat/spawn.wat",
+//         ":wat::spawn::ServiceEvent", "Message");
+//     // → const SERVICE_EVENT_MESSAGE_FIELDS: &[&str] = &["idx", "msg"];
+
+#[proc_macro]
+pub fn wat_enum_field_names_from(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as WatEnumFieldNamesArgs);
+    match expand_wat_enum_field_names(&args) {
+        Ok(ts) => ts,
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+struct WatEnumFieldNamesArgs {
+    ident: syn::Ident,
+    path: syn::LitStr,
+    type_path: syn::LitStr,
+    variant: syn::LitStr,
+}
+
+impl syn::parse::Parse for WatEnumFieldNamesArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ident: syn::Ident = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let path: syn::LitStr = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let type_path: syn::LitStr = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let variant: syn::LitStr = input.parse()?;
+        Ok(WatEnumFieldNamesArgs { ident, path, type_path, variant })
+    }
+}
+
+fn expand_wat_enum_field_names(args: &WatEnumFieldNamesArgs) -> syn::Result<TokenStream> {
+    let rel = args.path.value();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+        syn::Error::new_spanned(&args.path, "CARGO_MANIFEST_DIR unset — cannot resolve the wat file")
+    })?;
+    let abs: PathBuf = PathBuf::from(&manifest).join(&rel);
+    let src = std::fs::read_to_string(&abs).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("cannot read `{}`: {e}", abs.display()))
+    })?;
+
+    let want_type = args.type_path.value();
+    let want_variant = args.variant.value();
+    let names = enum_variant_field_names_of(&src, &abs.to_string_lossy(), &want_type, &want_variant)
+        .map_err(|m| syn::Error::new_spanned(&args.variant, m))?;
+
+    let ident = &args.ident;
+    let type_path = &args.type_path;
+    let variant = &args.variant;
+    let n: Vec<&String> = names.iter().collect();
+
+    Ok(quote! {
+        const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
+
+        #[doc = concat!("GENERATED field names for `", #type_path, "::", #variant, "`, read from its wat `defenum` declaration.")]
+        #[doc = ""]
+        #[doc = "⛔ Do NOT hand-write these. **wat is the source of truth** — the names live in the"]
+        #[doc = "`.wat` declaration and this const follows."]
+        pub(crate) const #ident: &[&str] = &[ #( #n ),* ];
+    }
+    .into())
+}
+
+/// The `[name <- :Type …]` field list of ONE tagged variant inside a `defenum` in `src`.
+/// Mirrors `field_names_of`'s walk (`wat_record_from!`'s reader) but for `defenum`'s
+/// per-variant shape: a flat keyword/vector sequence after the mandatory purity marker,
+/// the SAME shape `expand_wat_enum_from` (`wat_enum_from!`) already walks to collect
+/// variant NAMES — this walk additionally opens the Vector to read one variant's ARGSPEC.
+fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_variant: &str) -> Result<Vec<String>, String> {
+    let forms = wat_reader::parse_all_with_file(src, file)
+        .map_err(|e| format!("wat parse error in `{file}`: {e:?}"))?;
+    for form in &forms {
+        let wat_reader::WatAST::List(items, _) = form else { continue };
+        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        if head != ":wat::core::defenum" { continue }
+        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
+        if tp != want_type { continue }
+        // items[2] is the mandatory purity marker; variants follow as a flat
+        // keyword/vector sequence (one-token lookahead: a Vector immediately after a
+        // variant keyword makes it Tagged; anything else makes it Unit).
+        let mut i = 3usize;
+        while i < items.len() {
+            let wat_reader::WatAST::Keyword(vname, _) = &items[i] else {
+                return Err(format!("`{want_type}`: expected a variant keyword at position {i}"));
+            };
+            let vname_bare = vname.trim_start_matches(':');
+            let next_is_vector = matches!(items.get(i + 1), Some(wat_reader::WatAST::Vector(_, _)));
+            if !next_is_vector {
+                // Unit variant.
+                if vname_bare == want_variant {
+                    return Err(format!(
+                        "`{want_type}::{want_variant}` is a UNIT variant (no fields) — \
+                         `wat_enum_field_names_from!` is for TAGGED variants only"
+                    ));
+                }
+                i += 1;
+                continue;
+            }
+            let Some(wat_reader::WatAST::Vector(fs, _)) = items.get(i + 1) else { unreachable!() };
+            if vname_bare == want_variant {
+                let mut out = Vec::new();
+                let mut fi = 0usize;
+                while fi < fs.len() {
+                    match &fs[fi] {
+                        wat_reader::WatAST::Symbol(id, _) if id.as_str() == "~@" => {
+                            return Err(format!(
+                                "`{want_type}::{want_variant}` uses a SURFACE SPLICE — splices \
+                                 resolve against a live TypeEnv, which does not exist at compile time"
+                            ));
+                        }
+                        wat_reader::WatAST::Symbol(name, _) => {
+                            out.push(name.as_str().to_string());
+                            fi += 3;
+                        }
+                        other => return Err(format!(
+                            "`{want_type}::{want_variant}`: unexpected item in the field vector: {other:?}"
+                        )),
+                    }
+                }
+                return Ok(out);
+            }
+            i += 2;
+        }
+        return Err(format!("`defenum {want_type}` has no variant `{want_variant}`"));
+    }
+    Err(format!("no `(:wat::core::defenum {want_type} …)` in `{file}` — wat is the source of truth, so the names cannot be generated without it"))
+}

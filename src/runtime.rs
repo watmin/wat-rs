@@ -1796,6 +1796,7 @@ pub fn register_enum_methods(
                         EnumValue {
                             type_path: enum_def.name.clone(),
                             variant_name: variant_name.clone(),
+                            names: no_field_names(),
                             fields: Vec::new(),
                         },
                     );
@@ -13987,9 +13988,34 @@ fn eval_variant(
     for arg in &args[2..] {
         fields.push(eval_inner(arg, env, sym)?.value_owned());
     }
+    // Arc 296 G′ — the generic constructor: names come from the registry, never
+    // invented. STOP-2: an unregistered type/variant RAISES, it does not fall back
+    // to a positional guess.
+    let types = sym.types().ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+        head: ":wat::core::variant".into(),
+        reason: "variant construction requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+    }))?;
+    let enum_def = match types.get(&type_path) {
+        Some(crate::types::TypeDef::Enum(e)) => e,
+        _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::variant".into(),
+            reason: format!("{} is not a registered enum type", type_path)
+        }).into()),
+    };
+    let names = match enum_def.variant_names_arc(&variant_name) {
+        Some(n) => n,
+        None if enum_def.variants.iter().any(|v| matches!(v, crate::types::EnumVariant::Unit(n) if n == &variant_name)) => {
+            no_field_names()
+        }
+        None => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::variant".into(),
+            reason: format!("enum {} has no variant named {}", type_path, variant_name)
+        }).into()),
+    };
     Ok(Value::Enum(Arc::new(EnumValue {
         type_path,
         variant_name,
+        names,
         fields,
     })))
 }
@@ -14068,6 +14094,9 @@ fn eval_retag_op(
         Value::Enum(ev) if ev.type_path == surface_path => Ok(Value::Enum(Arc::new(EnumValue {
             type_path: service_path,
             variant_name: ev.variant_name.clone(),
+            // Arc 296 G′ — retag carries the surface op's own names forward: the
+            // variant/fields are unchanged, only the type_path is re-tagged.
+            names: ev.names.clone(),
             fields: ev.fields.clone(),
         }))),
         // Already service-tagged (a timer's internal op) or any other enum: pass through.
@@ -15238,11 +15267,13 @@ fn eval_edn_validate(
         Ok(_) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::edn::Validation".into(),
             variant_name: "Valid".into(),
+            names: no_field_names(),
             fields: vec![],
         })),
         Err(e) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::edn::Validation".into(),
             variant_name: "Invalid".into(),
+            names: builtin_enum_variant_names(":wat::edn::Validation", "Invalid"),
             fields: vec![
                 Value::Vec(Arc::new(edn_coerce_path_segments(&e.path))),
                 Value::String(Arc::new(e.expected)),
@@ -19062,6 +19093,117 @@ fn pair_values_to_vectors(
     }
 }
 
+/// Arc 296 G′ — empty `EnumValue.names`, shared so unit-variant (and
+/// zero-field tagged-variant) constructors don't each allocate their own.
+/// Correct for ANY variant with zero fields: there is nothing to name, so
+/// there is no ambiguity to resolve via a registry lookup.
+pub(crate) fn no_field_names() -> Arc<Vec<String>> {
+    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    N.get_or_init(|| Arc::new(Vec::new())).clone()
+}
+
+// Arc 296 G′ — `:wat::spawn::ServiceEvent`'s tagged-variant field names, read straight
+// from its `defenum` in `wat/spawn.wat` at COMPILE TIME via `wat_enum_field_names_from!`
+// — never a runtime `TypeEnv` lookup.
+//
+// Why not the obvious "look it up in the registry" move `builtin_enum_variant_names`
+// below uses for the Rust-registered outcome enums: `ServiceEvent` is declared via
+// `defenum` in the `.wat` stdlib, not as a `types.rs::register_builtin_types` literal, so
+// it is ABSENT from the cheap `TypeEnv::with_builtins()`. The first fix for that gap
+// called `crate::freeze::env::build_env(vec![])` (the full baked-stdlib pipeline) lazily
+// behind a `OnceLock`. Measured (a `#[test]`, isolated, `--test-threads=1`,
+// `/proc/<pid>/stat` showing zero CPU time accruing, every thread parked in
+// `futex_do_wait`): it DEADLOCKS — `OnceLock::get_or_init`'s closure runs stdlib
+// macro-expansion, which re-enters a call needing the SAME lock before the first call
+// returns, and `OnceLock` treats reentrant `get_or_init` as a hang, not an error. Reading
+// the `.wat` source TEXT at compile time — what `wat_field_names_from!` already does for
+// records — has no such hazard: there is no runtime environment to build, so nothing to
+// re-enter. See `wat_enum_field_names_from!`'s doc (`wat-source-derive/src/lib.rs`) for
+// the full account.
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_ADMIN_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Admin"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_CONNECTION_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Connection"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_MESSAGE_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Message"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_CLOSED_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Closed"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_LOST_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Lost"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_MALFORMED_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Malformed"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_REJECTED_FIELDS, "wat/spawn.wat", ":wat::spawn::ServiceEvent<I,O,A>", "Rejected"
+);
+
+// Arc 296 G′ — `:wat::sqlite::Cell`'s tagged-variant field names, same reasoning, read from
+// `wat/sqlite.wat`. `Nil` needs no const: `parse_defenum`'s one-token lookahead makes even
+// `:Nil []` a `Tagged{fields: []}` (never `Unit`), so its names are provably `no_field_names()`
+// — zero fields, nothing to name, not a guess.
+::wat_source_derive::wat_enum_field_names_from!(
+    CELL_I64_FIELDS, "wat/sqlite.wat", ":wat::sqlite::Cell", "I64"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    CELL_F64_FIELDS, "wat/sqlite.wat", ":wat::sqlite::Cell", "F64"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    CELL_STR_FIELDS, "wat/sqlite.wat", ":wat::sqlite::Cell", "Str"
+);
+
+/// Arc 296 G′ — field names for a BUILTIN enum's tagged variant, for the many
+/// constructors in this file (and its sibling modules) that build a value of a
+/// statically-known type with no `TypeEnv` in scope (a `CosineOutcome`, a
+/// `LociDiedError`, a `ServiceEvent`, a `:wat::sqlite::Cell`, …).
+///
+/// Two DIFFERENT kinds of "builtin" back these types, and this is the ONE door over both:
+/// - Registered directly in `types.rs::register_builtin_types` as a literal `EnumDef`
+///   (`CosineOutcome`, `LociDiedError`, `RunResult`, …) — present in the cheap
+///   `TypeEnv::with_builtins()`, looked up there below.
+/// - Declared via `(:wat::core::defenum …)` in a `.wat` stdlib file (`ServiceEvent` —
+///   `wat/spawn.wat`; `:wat::sqlite::Cell` — `wat/sqlite.wat`) — ABSENT from
+///   `with_builtins()`; sourced from the compile-time `wat_enum_field_names_from!` consts
+///   just above instead (see that block's doc for why NOT a runtime registry).
+///
+/// Panics on an unknown type/variant — a programmer error (the constructor and the
+/// registration disagree), not a user-facing fault; see STOP-2 in DESIGN-STONE-G-prime —
+/// raise, never fall back to positional.
+pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<Vec<String>> {
+    // The `.wat`-declared exceptions first — `with_builtins()` doesn't carry them.
+    match (type_path, variant) {
+        (":wat::spawn::ServiceEvent", "Admin") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_ADMIN_FIELDS),
+        (":wat::spawn::ServiceEvent", "Connection") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_CONNECTION_FIELDS),
+        (":wat::spawn::ServiceEvent", "Message") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_MESSAGE_FIELDS),
+        (":wat::spawn::ServiceEvent", "Closed") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_CLOSED_FIELDS),
+        (":wat::spawn::ServiceEvent", "Lost") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_LOST_FIELDS),
+        (":wat::spawn::ServiceEvent", "Malformed") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_MALFORMED_FIELDS),
+        (":wat::spawn::ServiceEvent", "Rejected") => return crate::value::value::names_arc_from_static(SERVICE_EVENT_REJECTED_FIELDS),
+        (":wat::sqlite::Cell", "I64") => return crate::value::value::names_arc_from_static(CELL_I64_FIELDS),
+        (":wat::sqlite::Cell", "F64") => return crate::value::value::names_arc_from_static(CELL_F64_FIELDS),
+        (":wat::sqlite::Cell", "Str") => return crate::value::value::names_arc_from_static(CELL_STR_FIELDS),
+        (":wat::sqlite::Cell", "Nil") => return no_field_names(),
+        _ => {}
+    }
+    static ENV: OnceLock<crate::types::TypeEnv> = OnceLock::new();
+    let env = ENV.get_or_init(crate::types::TypeEnv::with_builtins);
+    match env.get(type_path) {
+        Some(crate::types::TypeDef::Enum(e)) => e.variant_names_arc(variant).unwrap_or_else(|| {
+            panic!(
+                "builtin_enum_variant_names: `{type_path}` has no TAGGED variant `{variant}` in \
+                 its registration — the constructor and the registry disagree"
+            )
+        }),
+        _ => panic!(
+            "builtin_enum_variant_names: `{type_path}` is not a registered builtin enum"
+        ),
+    }
+}
+
 /// Arc 278 the cosine outcome wall — type path of `:wat::holon::DegenerateSide`
 /// (registered in `types.rs`). Diagnostic payload for `CosineOutcome::Degenerate`.
 const DEGENERATE_SIDE_TYPE: &str = ":wat::holon::DegenerateSide";
@@ -19072,6 +19214,7 @@ fn degenerate_side_target() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: DEGENERATE_SIDE_TYPE.into(),
         variant_name: "Target".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -19082,6 +19225,7 @@ fn degenerate_side_reference() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: DEGENERATE_SIDE_TYPE.into(),
         variant_name: "Reference".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -19091,6 +19235,7 @@ fn degenerate_side_both() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: DEGENERATE_SIDE_TYPE.into(),
         variant_name: "Both".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -19105,6 +19250,7 @@ fn cosine_outcome_similarity(similarity: f64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: COSINE_OUTCOME_TYPE.into(),
         variant_name: "Similarity".into(),
+        names: builtin_enum_variant_names(COSINE_OUTCOME_TYPE, "Similarity"),
         fields: vec![Value::f64(similarity)],
     }))
 }
@@ -19118,6 +19264,7 @@ fn cosine_outcome_degenerate(side: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: COSINE_OUTCOME_TYPE.into(),
         variant_name: "Degenerate".into(),
+        names: builtin_enum_variant_names(COSINE_OUTCOME_TYPE, "Degenerate"),
         fields: vec![side],
     }))
 }
@@ -19129,6 +19276,7 @@ fn cosine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: COSINE_OUTCOME_TYPE.into(),
         variant_name: "DimensionMismatch".into(),
+        names: builtin_enum_variant_names(COSINE_OUTCOME_TYPE, "DimensionMismatch"),
         fields: vec![Value::i64(expected), Value::i64(got)],
     }))
 }
@@ -19741,6 +19889,7 @@ fn dot_outcome_computed(product: f64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: DOT_OUTCOME_TYPE.into(),
         variant_name: "Computed".into(),
+        names: builtin_enum_variant_names(DOT_OUTCOME_TYPE, "Computed"),
         fields: vec![Value::f64(product)],
     }))
 }
@@ -19754,6 +19903,7 @@ fn dot_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: DOT_OUTCOME_TYPE.into(),
         variant_name: "DimensionMismatch".into(),
+        names: builtin_enum_variant_names(DOT_OUTCOME_TYPE, "DimensionMismatch"),
         fields: vec![Value::i64(expected), Value::i64(got)],
     }))
 }
@@ -19995,6 +20145,7 @@ fn vector_decode_outcome_decoded(v: holon::Vector) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
         variant_name: "Decoded".into(),
+        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "Decoded"),
         fields: vec![Value::Vector(Arc::new(v))],
     }))
 }
@@ -20005,6 +20156,7 @@ fn vector_decode_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
         variant_name: "DimensionMismatch".into(),
+        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "DimensionMismatch"),
         fields: vec![Value::i64(expected), Value::i64(got)],
     }))
 }
@@ -20016,6 +20168,7 @@ fn vector_decode_outcome_truncated_header(got: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
         variant_name: "TruncatedHeader".into(),
+        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "TruncatedHeader"),
         fields: vec![Value::i64(got)],
     }))
 }
@@ -20026,6 +20179,7 @@ fn vector_decode_outcome_length_mismatch(expected: i64, got: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
         variant_name: "LengthMismatch".into(),
+        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "LengthMismatch"),
         fields: vec![Value::i64(expected), Value::i64(got)],
     }))
 }
@@ -20036,6 +20190,7 @@ fn vector_decode_outcome_invalid_cell(at: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
         variant_name: "InvalidCell".into(),
+        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "InvalidCell"),
         fields: vec![Value::i64(at)],
     }))
 }
@@ -20274,6 +20429,7 @@ fn combine_outcome_combined(v: holon::Vector) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: COMBINE_OUTCOME_TYPE.into(),
         variant_name: "Combined".into(),
+        names: builtin_enum_variant_names(COMBINE_OUTCOME_TYPE, "Combined"),
         fields: vec![Value::Vector(Arc::new(v))],
     }))
 }
@@ -20287,6 +20443,7 @@ fn combine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: COMBINE_OUTCOME_TYPE.into(),
         variant_name: "DimensionMismatch".into(),
+        names: builtin_enum_variant_names(COMBINE_OUTCOME_TYPE, "DimensionMismatch"),
         fields: vec![Value::i64(expected), Value::i64(got)],
     }))
 }
@@ -22920,6 +23077,7 @@ fn thread_died_error_panic(
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Panic".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
         fields: vec![Value::String(Arc::new(message)), failure_field],
     }))
 }
@@ -23097,6 +23255,7 @@ fn thread_died_error_runtime(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "RuntimeError".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "RuntimeError"),
         fields: vec![Value::String(Arc::new(message))],
     }))
 }
@@ -23117,6 +23276,7 @@ fn thread_died_error_shutdown() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Stopped".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23283,6 +23443,7 @@ fn process_died_error_panic(
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Panic".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
         fields: vec![Value::String(Arc::new(message)), failure_field],
     }))
 }
@@ -23305,6 +23466,7 @@ fn process_died_error_runtime(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "RuntimeError".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "RuntimeError"),
         fields: vec![Value::String(Arc::new(message))],
     }))
 }
@@ -23331,6 +23493,7 @@ fn process_died_error_main_signature(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "MainSignature".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "MainSignature"),
         fields: vec![Value::String(Arc::new(message))],
     }))
 }
@@ -23352,6 +23515,7 @@ fn process_died_error_bad_return(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "BadReturn".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "BadReturn"),
         fields: vec![Value::String(Arc::new(message))],
     }))
 }
@@ -23595,6 +23759,7 @@ fn recv_outcome_message(msg: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: RECV_OUTCOME_TYPE.into(),
         variant_name: "Message".into(),
+        names: builtin_enum_variant_names(RECV_OUTCOME_TYPE, "Message"),
         fields: vec![msg],
     }))
 }
@@ -23604,6 +23769,7 @@ fn recv_outcome_closed() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: RECV_OUTCOME_TYPE.into(),
         variant_name: "Closed".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23616,6 +23782,7 @@ fn recv_outcome_lost(reason: String, types: Option<&crate::types::TypeEnv>) -> V
     Value::Enum(Arc::new(EnumValue {
         type_path: RECV_OUTCOME_TYPE.into(),
         variant_name: "Lost".into(),
+        names: builtin_enum_variant_names(RECV_OUTCOME_TYPE, "Lost"),
         fields: vec![loci_died_error_from_reason(reason, types)],
     }))
 }
@@ -23641,6 +23808,7 @@ fn recv_outcome_shutdown() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: RECV_OUTCOME_TYPE.into(),
         variant_name: "Stopped".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23683,6 +23851,7 @@ fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::Type
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Panic".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
         fields: vec![
             Value::String(Arc::new(reason)),
             Value::Option(Arc::new(None)),
@@ -23712,6 +23881,7 @@ fn send_outcome_sent() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SEND_OUTCOME_TYPE.into(),
         variant_name: "Sent".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23722,6 +23892,7 @@ fn send_outcome_closed() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SEND_OUTCOME_TYPE.into(),
         variant_name: "Closed".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23739,6 +23910,7 @@ fn loci_died_disconnected() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Disconnected".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23773,6 +23945,7 @@ fn send_outcome_stopped() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SEND_OUTCOME_TYPE.into(),
         variant_name: "Stopped".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23807,6 +23980,7 @@ fn send_outcome_lost(cause: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SEND_OUTCOME_TYPE.into(),
         variant_name: "Lost".into(),
+        names: builtin_enum_variant_names(SEND_OUTCOME_TYPE, "Lost"),
         fields: vec![cause],
     }))
 }
@@ -23823,6 +23997,7 @@ fn try_send_outcome_sent() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
         variant_name: "Sent".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23834,6 +24009,7 @@ fn try_send_outcome_would_block() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
         variant_name: "WouldBlock".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23844,6 +24020,7 @@ fn try_send_outcome_closed() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
         variant_name: "Closed".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23856,6 +24033,7 @@ fn try_send_outcome_lost(cause: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
         variant_name: "Lost".into(),
+        names: builtin_enum_variant_names(TRY_SEND_OUTCOME_TYPE, "Lost"),
         fields: vec![cause],
     }))
 }
@@ -23871,6 +24049,7 @@ fn close_outcome_closed(exit: Option<i64>) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CLOSE_OUTCOME_TYPE.into(),
         variant_name: "Closed".into(),
+        names: builtin_enum_variant_names(CLOSE_OUTCOME_TYPE, "Closed"),
         fields: vec![Value::Option(Arc::new(exit.map(Value::i64)))],
     }))
 }
@@ -23882,6 +24061,7 @@ fn close_outcome_signaled(signal: i64) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CLOSE_OUTCOME_TYPE.into(),
         variant_name: "Signaled".into(),
+        names: builtin_enum_variant_names(CLOSE_OUTCOME_TYPE, "Signaled"),
         fields: vec![Value::i64(signal)],
     }))
 }
@@ -23894,6 +24074,7 @@ fn close_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CLOSE_OUTCOME_TYPE.into(),
         variant_name: "Failed".into(),
+        names: builtin_enum_variant_names(CLOSE_OUTCOME_TYPE, "Failed"),
         fields: vec![message_only_failure(reason)],
     }))
 }
@@ -23921,6 +24102,7 @@ fn signal_outcome_delivered() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SIGNAL_OUTCOME_TYPE.into(),
         variant_name: "Delivered".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23934,6 +24116,7 @@ fn signal_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SIGNAL_OUTCOME_TYPE.into(),
         variant_name: "Failed".into(),
+        names: builtin_enum_variant_names(SIGNAL_OUTCOME_TYPE, "Failed"),
         fields: vec![message_only_failure(reason)],
     }))
 }
@@ -23949,6 +24132,7 @@ pub(crate) fn accept_outcome_accepted(peer_val: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ACCEPT_OUTCOME_TYPE.into(),
         variant_name: "Accepted".into(),
+        names: builtin_enum_variant_names(ACCEPT_OUTCOME_TYPE, "Accepted"),
         fields: vec![peer_val],
     }))
 }
@@ -23960,6 +24144,7 @@ pub(crate) fn accept_outcome_closed() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ACCEPT_OUTCOME_TYPE.into(),
         variant_name: "Closed".into(),
+        names: no_field_names(),
         fields: vec![],
     }))
 }
@@ -23972,6 +24157,7 @@ pub(crate) fn accept_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ACCEPT_OUTCOME_TYPE.into(),
         variant_name: "Failed".into(),
+        names: builtin_enum_variant_names(ACCEPT_OUTCOME_TYPE, "Failed"),
         fields: vec![message_only_failure(reason)],
     }))
 }
@@ -23988,6 +24174,7 @@ pub(crate) fn connect_outcome_connected(peer_val: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CONNECT_OUTCOME_TYPE.into(),
         variant_name: "Connected".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Connected"),
         fields: vec![peer_val],
     }))
 }
@@ -24001,6 +24188,7 @@ pub(crate) fn connect_outcome_refused(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CONNECT_OUTCOME_TYPE.into(),
         variant_name: "Refused".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Refused"),
         fields: vec![message_only_failure(reason)],
     }))
 }
@@ -24013,6 +24201,7 @@ pub(crate) fn connect_outcome_rejected(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CONNECT_OUTCOME_TYPE.into(),
         variant_name: "Rejected".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Rejected"),
         fields: vec![message_only_failure(reason)],
     }))
 }
@@ -24024,6 +24213,7 @@ pub(crate) fn connect_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CONNECT_OUTCOME_TYPE.into(),
         variant_name: "Failed".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Failed"),
         fields: vec![message_only_failure(reason)],
     }))
 }
@@ -24177,9 +24367,17 @@ fn eval_form_ast(
 const FORM_OUTCOME_TYPE: &str = ":wat::eval::FormOutcome";
 
 fn form_outcome(variant: &str, fields: Vec<Value>) -> Value {
+    // Arc 296 G′ — `Declared` is a Unit variant (no fields to name); every other
+    // `FormOutcome` variant is Tagged with exactly one field, looked up by name.
+    let names = if fields.is_empty() {
+        no_field_names()
+    } else {
+        builtin_enum_variant_names(FORM_OUTCOME_TYPE, variant)
+    };
     Value::Enum(Arc::new(EnumValue {
         type_path: FORM_OUTCOME_TYPE.into(),
         variant_name: variant.into(),
+        names,
         fields,
     }))
 }
@@ -24790,16 +24988,19 @@ fn step_value_to_enum(sv: StepValue) -> Value {
         StepValue::Next(form) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "StepNext".into(),
+            names: builtin_enum_variant_names(":wat::eval::StepResult", "StepNext"),
             fields: vec![Value::wat__WatAST(Arc::new(form))],
         })),
         StepValue::Terminal(holon) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "StepTerminal".into(),
+            names: builtin_enum_variant_names(":wat::eval::StepResult", "StepTerminal"),
             fields: vec![Value::holon__HolonAST(Arc::new(holon))],
         })),
         StepValue::AlreadyTerminal(holon) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "AlreadyTerminal".into(),
+            names: builtin_enum_variant_names(":wat::eval::StepResult", "AlreadyTerminal"),
             fields: vec![Value::holon__HolonAST(Arc::new(holon))],
         })),
     }
@@ -27514,6 +27715,7 @@ fn eval_peer_select_prime(
                     Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
                         type_path: SELECT_EVENT_TYPE_THREAD.into(),
                         variant_name: "Message".into(),
+                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE_THREAD, "Message"),
                         fields: vec![Value::i64(peer_idx), msg],
                     }))),
                     Err(_) => {
@@ -27523,11 +27725,13 @@ fn eval_peer_select_prime(
                             PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_THREAD.into(),
                                 variant_name: "Lost".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_THREAD, "Lost"),
                                 fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
                             })),
                             PeerDeath::Closed => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_THREAD.into(),
                                 variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_THREAD, "Closed"),
                                 fields: vec![Value::i64(peer_idx)],
                             })),
                             // Arc 278 #73 — a stop woke this peer's read. It is NOT a
@@ -27539,6 +27743,7 @@ fn eval_peer_select_prime(
                             PeerDeath::Shutdown => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_THREAD.into(),
                                 variant_name: "Shutdown".into(),
+                                names: no_field_names(),
                                 fields: vec![],
                             })),
                         };
@@ -27658,11 +27863,13 @@ fn eval_peer_select_prime(
                                 PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Lost".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Lost"),
                                     fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
                                 })),
                                 PeerDeath::Closed => Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Closed".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
                                     fields: vec![Value::i64(peer_idx)],
                                 })),
                                 // Arc 278 #73 — see the thread-tier arm above. A stop is
@@ -27670,6 +27877,7 @@ fn eval_peer_select_prime(
                                 PeerDeath::Shutdown => Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Shutdown".into(),
+                                    names: no_field_names(),
                                     fields: vec![],
                                 })),
                             },
@@ -27677,6 +27885,7 @@ fn eval_peer_select_prime(
                             None => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
                                 fields: vec![Value::i64(peer_idx)],
                             })),
                         };
@@ -27695,6 +27904,7 @@ fn eval_peer_select_prime(
                         Ok(Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE.into(),
                             variant_name: "Message".into(),
+                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
                             fields: vec![Value::i64(peer_idx), value],
                         })))
                     }
@@ -27811,12 +28021,14 @@ fn eval_peer_select_prime(
                             Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_PEER.into(),
                                 variant_name: "Message".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Message"),
                                 fields: vec![Value::i64(peer_idx), msg],
                             }))),
                             // EOF — bare connection peer left gracefully (no crash channel).
                             Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_PEER.into(),
                                 variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Closed"),
                                 fields: vec![Value::i64(peer_idx)],
                             }))),
                         }
@@ -27898,6 +28110,7 @@ fn eval_peer_select_prime(
                                 Ok(Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE_PEER.into(),
                                     variant_name: "Message".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Message"),
                                     fields: vec![Value::i64(peer_idx), msg],
                                 })))
                             }
@@ -27905,6 +28118,7 @@ fn eval_peer_select_prime(
                             Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_PEER.into(),
                                 variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Closed"),
                                 fields: vec![Value::i64(peer_idx)],
                             }))),
                         }
@@ -28443,11 +28657,13 @@ fn eval_poll_prime(
                             Ok(msg) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Admin".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
                                 fields: vec![msg],
                             })),
                             Err(_) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Shutdown".into(),
+                                names: no_field_names(),
                                 fields: vec![],
                             })),
                         }
@@ -28465,6 +28681,7 @@ fn eval_poll_prime(
                         Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE.into(),
                             variant_name: "Connection".into(),
+                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Connection"),
                             fields: vec![peer_value],
                         }))
                     } else {
@@ -28477,6 +28694,7 @@ fn eval_poll_prime(
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Message".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
                                     fields: vec![Value::i64(peer_idx), msg],
                                 }))
                             }
@@ -28492,6 +28710,7 @@ fn eval_poll_prime(
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Closed".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
                                     fields: vec![Value::i64(peer_idx)],
                                 }))
                             }
@@ -28612,12 +28831,14 @@ fn eval_poll_prime(
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Admin".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
                                     fields: vec![msg],
                                 }))
                             }
                             Err(_) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Shutdown".into(),
+                                names: no_field_names(),
                                 fields: vec![],
                             })),
                         }
@@ -28655,12 +28876,14 @@ fn eval_poll_prime(
                                     Ok(msg) => Value::Enum(Arc::new(EnumValue {
                                         type_path: SELECT_EVENT_TYPE.into(),
                                         variant_name: "Message".into(),
+                                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
                                         fields: vec![Value::i64(peer_idx), msg],
                                     })),
                                     // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
                                     Err(e) => Value::Enum(Arc::new(EnumValue {
                                         type_path: SELECT_EVENT_TYPE.into(),
                                         variant_name: "Malformed".into(),
+                                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
                                         fields: vec![
                                             Value::i64(peer_idx),
                                             message_only_failure(format!(
@@ -28684,6 +28907,7 @@ fn eval_poll_prime(
                             Err(crate::comms::RecvError::FrameTooLarge) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Rejected".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Rejected"),
                                 fields: vec![
                                     Value::i64(peer_idx),
                                     message_only_failure("request too large — exceeded this service's \
@@ -28699,6 +28923,7 @@ fn eval_poll_prime(
                             Err(_) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
                                 fields: vec![Value::i64(peer_idx)],
                             })),
                         }
@@ -28764,6 +28989,7 @@ fn eval_poll_prime(
                                 break Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Connection".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Connection"),
                                     fields: vec![peer_value],
                                 }));
                             }
@@ -28818,6 +29044,7 @@ fn eval_poll_prime(
                                                     Value::Enum(Arc::new(EnumValue {
                                                         type_path: SELECT_EVENT_TYPE.into(),
                                                         variant_name: "Shutdown".into(),
+                                                        names: no_field_names(),
                                                         fields: vec![],
                                                     }))
                                                 } else {
@@ -28846,6 +29073,7 @@ fn eval_poll_prime(
                                                                     type_path: SELECT_EVENT_TYPE
                                                                         .into(),
                                                                     variant_name: "Message".into(),
+                                                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
                                                                     fields: vec![
                                                                         Value::i64(pidx),
                                                                         msg2,
@@ -28855,6 +29083,7 @@ fn eval_poll_prime(
                                                                     type_path: SELECT_EVENT_TYPE
                                                                         .into(),
                                                                     variant_name: "Malformed".into(),
+                                                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
                                                                     fields: vec![
                                                                         Value::i64(pidx),
                                                                         message_only_failure(format!("poll (process tier re-poll): client message decode failed: {}", e)),
@@ -28869,6 +29098,7 @@ fn eval_poll_prime(
                                                         Err(crate::comms::RecvError::FrameTooLarge) => Value::Enum(Arc::new(EnumValue {
                                                             type_path: SELECT_EVENT_TYPE.into(),
                                                             variant_name: "Rejected".into(),
+                                                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Rejected"),
                                                             fields: vec![
                                                                 Value::i64(pidx),
                                                                 message_only_failure("request too large — exceeded this service's max-frame-bytes limit; request rejected, connection closed".to_string()),
@@ -28879,6 +29109,7 @@ fn eval_poll_prime(
                                                                 type_path: SELECT_EVENT_TYPE
                                                                     .into(),
                                                                 variant_name: "Closed".into(),
+                                                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
                                                                 fields: vec![Value::i64(pidx)],
                                                             },
                                                         )),
@@ -35136,5 +35367,28 @@ mod tests {
             !walk_compare_bool(r#"(< "a" 1)"#),
             "an incomparable pair must stay silent-false, not error"
         );
+    }
+
+    // ─── Arc 296 G′ — `builtin_enum_variant_names` must see BOTH kinds of builtin ──────
+
+    /// A Rust-registered builtin enum (`types.rs::register_builtin_types`, no `.wat`
+    /// declaration) must resolve.
+    #[test]
+    fn arc296_gprime_builtin_enum_variant_names_rust_registered() {
+        let names = builtin_enum_variant_names(":wat::holon::CosineOutcome", "Similarity");
+        assert_eq!(names.as_ref(), &vec!["similarity".to_string()]);
+    }
+
+    /// A `.wat`-declared builtin enum (`defenum` in the bundled stdlib, e.g.
+    /// `:wat::spawn::ServiceEvent` from `wat/spawn.wat`) must ALSO resolve — this is the
+    /// exact gap the first draft of `builtin_enum_variant_names` had (backed only by
+    /// `TypeEnv::with_builtins()`, which does not run the `.wat` stdlib pass): it panicked
+    /// at runtime the first time a `ServiceEvent` was actually constructed. Caught by a
+    /// gate-row-3 probe, not by this migration's own build — recorded here so it can't
+    /// regress silently.
+    #[test]
+    fn arc296_gprime_builtin_enum_variant_names_wat_declared() {
+        let names = builtin_enum_variant_names(":wat::spawn::ServiceEvent", "Message");
+        assert_eq!(names.len(), 2, "ServiceEvent::Message [idx <- i64  msg <- T]: {names:?}");
     }
 }

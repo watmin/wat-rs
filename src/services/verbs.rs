@@ -353,6 +353,7 @@ pub fn eval_kernel_readln_prime(
             Value::Enum(Arc::new(crate::value::value::EnumValue {
                 type_path: ":wat::kernel::ReadlnOutcome".into(),
                 variant_name: "Datum".into(),
+                names: crate::runtime::builtin_enum_variant_names(":wat::kernel::ReadlnOutcome", "Datum"),
                 fields: vec![v],
             }))
         }
@@ -360,6 +361,7 @@ pub fn eval_kernel_readln_prime(
             Value::Enum(Arc::new(crate::value::value::EnumValue {
                 type_path: ":wat::kernel::ReadlnOutcome".into(),
                 variant_name: "Eof".into(),
+                names: crate::runtime::no_field_names(),
                 fields: vec![],
             }))
         }
@@ -367,6 +369,7 @@ pub fn eval_kernel_readln_prime(
             Value::Enum(Arc::new(crate::value::value::EnumValue {
                 type_path: ":wat::kernel::ReadlnOutcome".into(),
                 variant_name: "Stopped".into(),
+                names: crate::runtime::no_field_names(),
                 fields: vec![],
             }))
         }

@@ -212,6 +212,7 @@ fn read_json_outcome_value(value: Value) -> Value {
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: READ_JSON_OUTCOME_TYPE.into(),
         variant_name: "Value".into(),
+        names: crate::runtime::builtin_enum_variant_names(READ_JSON_OUTCOME_TYPE, "Value"),
         fields: vec![value],
     }))
 }
@@ -266,6 +267,7 @@ fn read_json_outcome_malformed(
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: READ_JSON_OUTCOME_TYPE.into(),
         variant_name: "Malformed".into(),
+        names: crate::runtime::builtin_enum_variant_names(READ_JSON_OUTCOME_TYPE, "Malformed"),
         fields: vec![cause],
     }))
 }
@@ -527,6 +529,7 @@ fn read_outcome_forms(forms: Value) -> Value {
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: READ_OUTCOME_TYPE.into(),
         variant_name: "Forms".into(),
+        names: crate::runtime::builtin_enum_variant_names(READ_OUTCOME_TYPE, "Forms"),
         fields: vec![forms],
     }))
 }
@@ -567,6 +570,7 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: READ_OUTCOME_TYPE.into(),
         variant_name: "Malformed".into(),
+        names: crate::runtime::builtin_enum_variant_names(READ_OUTCOME_TYPE, "Malformed"),
         fields: vec![cause],
     }))
 }
@@ -2583,6 +2587,7 @@ fn coerce_enum_path(
                     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
                         type_path: type_path.to_string(),
                         variant_name: tag_name,
+                        names: crate::runtime::no_field_names(),
                         fields: vec![],
                     })))
                 }
@@ -2628,9 +2633,18 @@ fn coerce_enum_path(
                 let _ = i; // path uses field name, index reserved for future
                 walked.push(v);
             }
+            // `def` holds the registry directly (we're already inside the `Tagged` arm this
+            // very `def.variants` walk matched above, so `variant_names_arc` cannot miss).
+            let names = def.variant_names_arc(&tag_name).unwrap_or_else(|| {
+                panic!(
+                    "edn_to_enum_value: `{type_path}::{tag_name}` matched Tagged above but \
+                     variant_names_arc returned None — def and its own match arm disagree"
+                )
+            });
             Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
                 type_path: type_path.to_string(),
                 variant_name: tag_name,
+                names,
                 fields: walked,
             })))
         }
@@ -2713,20 +2727,16 @@ pub fn value_to_json_natural(
                 // Unit variant — emit the qualified string.
                 OwnedValue::String(Cow::Owned(qualified))
             } else {
-                let field_names = enum_variant_field_names(&ev.type_path, &ev.variant_name, types);
+                // Arc 296 G′ — names are carried on the value; no registry lookup, no fallback.
                 let mut entries: Vec<(OwnedValue, OwnedValue)> =
                     Vec::with_capacity(ev.fields.len() + 1);
                 entries.push((
                     OwnedValue::String(Cow::Owned("_type".into())),
                     OwnedValue::String(Cow::Owned(qualified)),
                 ));
-                for (i, fv) in ev.fields.iter().enumerate() {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
+                for (name, fv) in ev.names.iter().zip(ev.fields.iter()) {
                     entries.push((
-                        OwnedValue::String(Cow::Owned(key)),
+                        OwnedValue::String(Cow::Owned(name.clone())),
                         value_to_json_natural(fv, types),
                     ));
                 }
@@ -2778,27 +2788,6 @@ fn type_path_to_namespace(type_path: &str) -> String {
         .strip_prefix(':')
         .unwrap_or(type_path)
         .replace("::", ".")
-}
-
-fn enum_variant_field_names(
-    type_path: &str,
-    variant_name: &str,
-    types: Option<&crate::types::TypeEnv>,
-) -> Vec<String> {
-    let Some(types) = types else {
-        return vec![];
-    };
-    let Some(crate::types::TypeDef::Enum(def)) = types.get(type_path) else {
-        return vec![];
-    };
-    for variant in &def.variants {
-        if let crate::types::EnumVariant::Tagged { name, fields } = variant {
-            if name == variant_name {
-                return fields.iter().map(|(n, _)| n.clone()).collect();
-            }
-        }
-    }
-    vec![]
 }
 
 fn strip_keyword_colon(k: &str) -> String {
@@ -3342,6 +3331,18 @@ fn reconstruct_enum_tagged(
         crate::types::EnumVariant::Tagged { fields, .. } => fields.as_slice(),
         crate::types::EnumVariant::Unit(_) => &[],
     };
+    // `def` holds the registry directly (`variant` was already matched out of it above).
+    let names = match variant {
+        crate::types::EnumVariant::Tagged { .. } => {
+            def.variant_names_arc(variant_name).unwrap_or_else(|| {
+                panic!(
+                    "reconstruct_enum_tagged: `{path}::{variant_name}` matched Tagged above but \
+                     variant_names_arc returned None — def and its own match arm disagree"
+                )
+            })
+        }
+        crate::types::EnumVariant::Unit(_) => crate::runtime::no_field_names(),
+    };
     let mut fields: Vec<Value> = Vec::with_capacity(items.len());
     for (idx, item) in items.iter().enumerate() {
         let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?;
@@ -3354,6 +3355,7 @@ fn reconstruct_enum_tagged(
     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
         type_path: path,
         variant_name: variant_name.to_string(),
+        names,
         fields,
     })))
 }
@@ -4565,6 +4567,65 @@ mod tests {
         );
         // Value equality: same keys, same values.
         assert_eq!(back, pm, "EDN round-trip must preserve the map");
+    }
+
+    // ─── Arc 296 G′ gate row 3 ──────────────────────────────────────────
+
+    /// A tagged enum variant must render with its DECLARED field names on the
+    /// `write-json-natural` surface (`value_to_json_natural`'s Enum arm) — never the
+    /// `field-N` positional fallback `enum_variant_field_names` used to fabricate.
+    /// DESIGN-STONE-G-prime-the-enum-value-carries-its-own-names.md, gate row 3.
+    #[test]
+    fn arc296_gprime_tagged_variant_renders_declared_names_not_field_n() {
+        use crate::types::{EnumDef, EnumVariant, Purity, TypeDef, TypeEnv};
+
+        let mut types = TypeEnv::new();
+        types
+            .register(TypeDef::Enum(EnumDef {
+                name: ":probe::Point".to_string(),
+                type_params: vec![],
+                purity: Purity::Pure,
+                variants: vec![EnumVariant::Tagged {
+                    name: "At".to_string(),
+                    fields: vec![
+                        ("x".into(), TypeExpr::Path(":wat::core::i64".into())),
+                        ("y".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ],
+                }],
+            }))
+            .expect("register :probe::Point");
+        let def = match types.get(":probe::Point") {
+            Some(TypeDef::Enum(e)) => e,
+            _ => unreachable!(),
+        };
+        let names = def.variant_names_arc("At").expect("At is Tagged");
+
+        let ev = Value::Enum(Arc::new(crate::runtime::EnumValue {
+            type_path: ":probe::Point".to_string(),
+            variant_name: "At".to_string(),
+            names,
+            fields: vec![Value::i64(3), Value::i64(4)],
+        }));
+
+        let json = value_to_json_natural(&ev, Some(&types));
+        let OwnedValue::Map(entries) = &json else {
+            panic!("expected a JSON object, got {json:?}");
+        };
+        let keys: Vec<&str> = entries
+            .iter()
+            .map(|(k, _)| match k {
+                OwnedValue::String(s) => s.as_ref(),
+                other => panic!("non-string key: {other:?}"),
+            })
+            .collect();
+        // Exact, not loose: the field-N fallback would produce "field-0"/"field-1" keys,
+        // which this byte-identical comparison against the DECLARED x/y already excludes —
+        // a separate `starts_with("field-")` check would be a redundant loose assertion.
+        assert_eq!(
+            keys,
+            vec!["_type", "x", "y"],
+            "declared field names x/y must appear verbatim, never field-0/field-1"
+        );
     }
 }
 

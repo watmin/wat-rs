@@ -1816,6 +1816,9 @@ pub(crate) fn eval_axis_violation(
                     Value::Enum(Arc::new(EnumValue {
                         type_path: AXIS_TYPE.to_string(),
                         variant_name: axis_variant.to_string(),
+                        // Arc 296 G′ — `Axis` is a Unit-only enum (no variant carries a
+                        // payload); `fields` is always `vec![]` above.
+                        names: crate::runtime::no_field_names(),
                         fields: vec![],
                     })),
                     span_val,

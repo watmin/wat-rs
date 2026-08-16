@@ -1067,12 +1067,18 @@ mod arc116_diagnostic_tests {
     // Arc 278 the vacuous-gate wall — RunResult is an enum: `:Passed` (no
     // payload) / `:Failed[failure]` (UNCONSTRUCTIBLE without a Failure).
     fn make_run_result(failure: Option<Value>) -> Value {
+        let variant_name = match failure {
+            Some(_) => "Failed",
+            None => "Passed",
+        };
+        let names = match failure {
+            Some(_) => crate::runtime::builtin_enum_variant_names(":wat::kernel::RunResult", "Failed"),
+            None => crate::runtime::no_field_names(),
+        };
         Value::Enum(Arc::new(crate::value::EnumValue {
             type_path: ":wat::kernel::RunResult".into(),
-            variant_name: match failure {
-                Some(_) => "Failed".into(),
-                None => "Passed".into(),
-            },
+            variant_name: variant_name.into(),
+            names,
             fields: failure.into_iter().collect(),
         }))
     }

@@ -90,6 +90,9 @@ pub(crate) trait ToEnumValue {
         Value::Enum(Arc::new(EnumValue {
             type_path: Self::WAT_TYPE_PATH.into(),
             variant_name: self.variant_str().into(),
+            // Arc 296 G′ — every variant this door serves is a payload-free (Unit) closed-domain
+            // tag; `fields` is always `vec![]` above, so there is nothing to name.
+            names: crate::runtime::no_field_names(),
             fields: vec![],
         }))
     }

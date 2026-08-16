@@ -1111,12 +1111,14 @@ pub fn eval_ioreader_read_frame(
             Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
                 type_path: ":wat::io::IOReader::ReadFrameOutcome".into(),
                 variant_name: "Frame".into(),
+                names: crate::runtime::builtin_enum_variant_names(":wat::io::IOReader::ReadFrameOutcome", "Frame"),
                 fields: vec![Value::String(Arc::new(s))],
             })))
         }
         FramedRead::Eof => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
             type_path: ":wat::io::IOReader::ReadFrameOutcome".into(),
             variant_name: "Eof".into(),
+            names: crate::runtime::no_field_names(),
             fields: vec![],
         }))),
         // Arc 170 — the whole point: a stop request is NOT an EOF and NOT an
@@ -1127,6 +1129,7 @@ pub fn eval_ioreader_read_frame(
         FramedRead::Shutdown => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
             type_path: ":wat::io::IOReader::ReadFrameOutcome".into(),
             variant_name: "Stopped".into(),
+            names: crate::runtime::no_field_names(),
             fields: vec![],
         }))),
         FramedRead::Truncated(partial) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {

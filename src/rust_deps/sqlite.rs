@@ -202,6 +202,7 @@ fn cell_to_wat(v: ValueRef) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::sqlite::Cell".to_string(),
         variant_name: variant.to_string(),
+        names: crate::runtime::builtin_enum_variant_names(":wat::sqlite::Cell", variant),
         fields,
     }))
 }
