@@ -460,8 +460,7 @@
                       (:wat::core::if has-ephemeral
                         
                         (:wat::core::macro-error
-                          (:wat::core::string::concat fqdn-str
-                            ": :ephemeral declares fields but no :init — the macro cannot construct ephemeral fields; provide :init : Record → State"))
+                          (:wat::core::string::interpolate "{fqdn-str}: :ephemeral declares fields but no :init — the macro cannot construct ephemeral fields; provide :init : Record → State" :fqdn-str fqdn-str))
                         `(:wat::core::fn [~d-sym <- ~record-ty] -> ~state-ty (~state-new-kw ~d-sym))))
      ;; Extract the param vector children [name <- :T] from the init fn node
      ;; init-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
@@ -539,8 +538,7 @@
                         
                         nil
                         (:wat::core::macro-error
-                          (:wat::core::string::concat fqdn-str
-                            ": :hibernate return type must be ::Record (the resume seed); declared a different type")))
+                          (:wat::core::string::interpolate "{fqdn-str}: :hibernate return type must be ::Record (the resume seed); declared a different type" :fqdn-str fqdn-str)))
      hibernate-project-name-str (:wat::core::string::interpolate "{b}::hibernate-project{p}" :b fqdn-base :p fqdn-tp)
      hibernate-project-name (:wat::core::keyword/from-string hibernate-project-name-str)
      hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty ~hibernate-body)
@@ -699,7 +697,7 @@
                             acc
                             (:wat::core::let
                               [sf-kw (:wat::core::keyword/from-string
-                                       (:wat::core::string::concat s-str "::surface-forms"))]
+                                       (:wat::core::string::interpolate "{s-str}::surface-forms" :s-str s-str))]
                               (:wat::core::conj acc `(~sf-kw)))))
                         (:wat::core::Vector :wat::WatAST)
                         peers-surfaces)
@@ -1018,7 +1016,7 @@
                                    (:wat::core::string::subs op-str 1 (:wat::core::string::length op-str))))
                                (:wat::core::string::kebab->pascal-in surface-kw op-str))
               variant-kw-node (:wat::core::keyword-node
-                                (:wat::core::string::concat ":" variant-pascal))
+                                (:wat::core::string::interpolate ":{variant-pascal}" :variant-pascal variant-pascal))
               field-vec   (:wat::core::if is-internal
                             
                             empty-vec
@@ -1071,7 +1069,7 @@
              [op-str (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause)))]
              (:wat::core::if (:wat::core::string::starts-with? op-str "-")
                
-               (:wat::core::conj acc (:wat::core::string::concat ":" op-str))
+               (:wat::core::conj acc (:wat::core::string::interpolate ":{op-str}" :op-str op-str))
                acc)))
          (:wat::core::Vector :wat::core::String)
          impl-clauses)
@@ -1178,11 +1176,11 @@
                           ;; over <service>::Op (post-retag), NOT the surface <proto>::Op.
                           op-variant-kw (:wat::core::keyword/from-string
                                           (:wat::core::string::concat service-op-str
-                                            (:wat::core::string::concat "::" variant-pascal)))
+                                            (:wat::core::string::interpolate "::{variant-pascal}" :variant-pascal variant-pascal)))
                           ;; reply-variant-kw: the SURFACE reply variant (surface ops only wrap a reply).
                           reply-variant-kw (:wat::core::keyword/from-string
                                              (:wat::core::string::concat proto-base
-                                               (:wat::core::string::concat "::Reply::" variant-pascal)))
+                                               (:wat::core::string::interpolate "::Reply::{variant-pascal}" :variant-pascal variant-pascal)))
                           state-sym     (:wat::core::symbol-node "state")
                           ;; arc 278 ctx-is-mandatory — the ctx CONSTRUCTOR CALLS, built here at
                           ;; macro-expand time. `~fqdn-kw`/`~op-str` splice as LITERALS;
@@ -2164,7 +2162,7 @@
      ;; proto-str = the surface fqdn (`:satisfies` is mandatory; `:ops` is retired), so the carrier
      ;; name is `<surface>::surface-forms`.
      surface-forms-kw (:wat::core::keyword/from-string
-                        (:wat::core::string::concat proto-base "::surface-forms"))
+                        (:wat::core::string::interpolate "{proto-base}::surface-forms" :proto-base proto-base))
      ;; Arc 278 S4d: concat the OWN surface's forms + every :peers surface's forms + own internals.
      ;; `concat` is strictly binary, so we build a LEFT-nested chain (order-preserving):
      ;;   (concat (concat … (concat (OwnSurface::surface-forms) (S1::surface-forms)) …) own-forms-call)

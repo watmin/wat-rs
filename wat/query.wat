@@ -145,10 +145,10 @@
      name-str   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
                   (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
                   raw-name)
-     svc-str    (:wat::core::string::concat name-str "'")
+     svc-str    (:wat::core::string::interpolate "{name-str}'" :name-str name-str)
 
-     surface-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" name-str))
-     svc-kw      (:wat::core::keyword-node (:wat::core::string::concat ":" svc-str))
+     surface-kw  (:wat::core::keyword-node (:wat::core::string::interpolate ":{name-str}" :name-str name-str))
+     svc-kw      (:wat::core::keyword-node (:wat::core::string::interpolate ":{svc-str}" :svc-str svc-str))
      req-kw      (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest")))
      resp-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse")))
      resp-ded-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Deductions")))
@@ -275,7 +275,7 @@
          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
            -> :wat::core::Vector<wat::WatAST>
            (:wat::core::let
-             [tkw (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))]
+             [tkw (:wat::core::keyword-node (:wat::core::string::interpolate ":{tstr}" :tstr tstr))]
              (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~tkw))))
          (:wat::core::Vector :wat::WatAST)
          deduction-type-strs)

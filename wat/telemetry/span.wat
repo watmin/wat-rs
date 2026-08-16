@@ -134,8 +134,8 @@
                        (:wat::core::fn [a <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a x))
                        0 samples)
                base (:wat::core::keyword/to-string name)
-               count-name (:wat::core::keyword/from-string (:wat::core::string::concat base "/count"))
-               dur-name   (:wat::core::keyword/from-string (:wat::core::string::concat base "/duration"))]
+               count-name (:wat::core::keyword/from-string (:wat::core::format "{base}/count" :base base))
+               dur-name   (:wat::core::keyword/from-string (:wat::core::format "{base}/duration" :base base))]
               (:wat::core::conj
                 (:wat::core::conj acc
                   (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now

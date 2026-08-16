@@ -156,10 +156,10 @@
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
      fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
-     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
      ;; Arc 294 item (C) — the bare `:T` keyword STRING, spliced into the companion's
      ;; live `kwargs-construct` form (check/eval read the field order off the registry).
-     bare-kw-str   (:wat::core::string::concat ":" fqdn-bare-str)
+     bare-kw-str   (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
      prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
@@ -245,9 +245,9 @@
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
      fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
-     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
      ;; Arc 294 item (C) — the bare `:T` keyword STRING for the live `kwargs-construct`.
-     bare-kw-str   (:wat::core::string::concat ":" fqdn-bare-str)
+     bare-kw-str   (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
      prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)

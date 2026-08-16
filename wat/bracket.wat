@@ -195,9 +195,9 @@
   (:wat::core::let
     [base-str     (:wat::core::keyword/to-string work-fn)
      assemble-kw  (:wat::core::keyword/from-string
-                    (:wat::core::string::concat base-str "::assemble"))
+                    (:wat::core::format "{base-str}::assemble" :base-str base-str))
      impl-kw      (:wat::core::keyword/from-string
-                    (:wat::core::string::concat base-str "$impl"))]
+                    (:wat::core::format "{base-str}$impl" :base-str base-str))]
     (:wat::core::match (:wat::kernel::recv self)
       ((:wat::kernel::RecvOutcome::Message m)
         (:wat::core::match m
@@ -339,8 +339,8 @@
   ([work-fn <- :wat::core::keyword] -> :wat::core::Vector<wat::WatAST>
     (:wat::core::let
       [base-str      (:wat::core::keyword/to-string work-fn)
-       impl-kw       (:wat::core::keyword/from-string (:wat::core::string::concat base-str "$impl"))
-       kwargs-ty-str (:wat::core::string::concat base-str "::Kwargs")
+       impl-kw       (:wat::core::keyword/from-string (:wat::core::format "{base-str}$impl" :base-str base-str))
+       kwargs-ty-str (:wat::core::format "{base-str}::Kwargs" :base-str base-str)
        kwargs-ty     (:wat::core::keyword/from-string kwargs-ty-str)
        work-name     (:wat::core::keyword/from-string "user::bracket::work-fn")
        forms         (:wat::kernel::fn-forms impl-kw work-name)
@@ -379,14 +379,14 @@
                        (:wat::kernel::assertion-failed!
                          "bracket process-work-forms: field-names-of/field-types-of length mismatch"
                          :wat::core::None :wat::core::None))
-       coords-ty-str (:wat::core::string::concat base-str "::Coords")
+       coords-ty-str (:wat::core::format "{base-str}::Coords" :base-str base-str)
        sp-out-str    (:wat::core::string::concat "(wat::core::i64," (:wat::core::string::concat ret-t ")"))
-       sp-out        (:wat::core::keyword-node (:wat::core::string::concat ":" sp-out-str))
+       sp-out        (:wat::core::keyword-node (:wat::core::format ":{sp-out-str}" :sp-out-str sp-out-str))
        ;; sp-in D = the ::Coords RECORD (a plain type path), NOT a Tuple: PoolMsg<<base>::Coords,I>.
        sp-in-str     (:wat::core::string::concat "wat::bracket::PoolMsg<"
                        (:wat::core::string::concat coords-ty-str
                          (:wat::core::string::concat "," (:wat::core::string::concat item-t ">"))))
-       sp-in         (:wat::core::keyword-node (:wat::core::string::concat ":" sp-in-str))
+       sp-in         (:wat::core::keyword-node (:wat::core::format ":{sp-in-str}" :sp-in-str sp-in-str))
        runner-self-kw (:wat::core::keyword-node
                         (:wat::core::string::concat ":wat::kernel::Peer<"
                           (:wat::core::string::concat sp-out-str
@@ -394,8 +394,8 @@
        ;; ctx holds the assembled ::Kwargs (the N-heterogeneous dialed-peer bundle), None until Setup.
        ctx-ty-kw     (:wat::core::keyword-node
                        (:wat::core::string::concat ":wat::core::Option<" (:wat::core::string::concat kwargs-ty-str ">")))
-       ret-kw        (:wat::core::keyword-node (:wat::core::string::concat ":" ret-t))
-       kwargs-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" kwargs-ty-str))
+       ret-kw        (:wat::core::keyword-node (:wat::core::format ":{ret-t}" :ret-t ret-t))
+       kwargs-kw     (:wat::core::keyword-node (:wat::core::format ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
        ;; kwargs-prime-kw: the POSITIONAL ctor for the just-defined ::Kwargs aggregate. Post-flip,
        ;; the bare `kwargs-kw` name is the KWARGS MACRO (unresolved as a positional call) — generated
        ;; construction must go through the type-name PRIME, mirroring core.wat's coords-prime-kw.

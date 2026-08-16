@@ -642,24 +642,21 @@
         (:wat::core::string::concat "compile-condition: " context " expr is not pure — '"
                                      (:wat::rete::AxisViolation/head v) "' is not pure"))
        (:wat::core::None
-        (:wat::core::string::concat "compile-condition: " context
-                                     " expr is not pure (offending head could not be attributed)"))))
+        (:wat::core::format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context))))
     (:wat::rete::Axis::Deterministic
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Deterministic)
        ((:wat::core::Some v)
         (:wat::core::string::concat "compile-condition: " context " expr is not deterministic — '"
                                      (:wat::rete::AxisViolation/head v) "' is not deterministic"))
        (:wat::core::None
-        (:wat::core::string::concat "compile-condition: " context
-                                     " expr is not deterministic (offending head could not be attributed)"))))
+        (:wat::core::format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context))))
     (:wat::rete::Axis::Total
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Total)
        ((:wat::core::Some v)
         (:wat::core::string::concat "compile-condition: " context " expr is not total — '"
                                      (:wat::rete::AxisViolation/head v) "' is not total"))
        (:wat::core::None
-        (:wat::core::string::concat "compile-condition: " context
-                                     " expr is not total (offending head could not be attributed)"))))
+        (:wat::core::format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context))))
     ;; #57 LAW A — the sentence the name was CHOSEN for. The three arms above read "is not pure" /
     ;; "is not deterministic" / "is not total"; this one reads "is not a rete primitive", which IS
     ;; the law ("the entire rete query language may only be composed from rete primitives") and
@@ -673,8 +670,7 @@
                                      (:wat::rete::AxisViolation/head v)
                                      "' is not a rete primitive; a where admits only :wat::rete:: ops"))
        (:wat::core::None
-        (:wat::core::string::concat "compile-condition: " context
-                                     " expr is not a rete primitive (offending head could not be attributed)"))))))
+        (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context))))))
 
 (:wat::core::defn :wat::rete::compile-condition
   [acc  <- :wat::rete::CondFoldAcc
