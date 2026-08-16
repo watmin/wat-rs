@@ -60,24 +60,28 @@ permanently blind — and the span discriminates *which call site* raised the er
 
 ## ⛔ TWO HAZARDS, and they sit in the two biggest files
 
-### 1. `probe_diagnostic_value_snapshot_in_errors.rs` (7) — `field-N` must NOT be captured
+### 1. `probe_diagnostic_value_snapshot_in_errors.rs` (7) — `field-N` is a CANARY, not a live defect
 
-`src/edn_shim.rs:3572` still reads:
+⚠ **CORRECTED 2026-08-15, before this brief was executed.** An earlier revision of this section claimed
+`value_to_edn_with(v, None)` renders records positionally as `{:field-0 …}` and called that a live defect
+on this path. **That is wrong, and the builder caught it** — *"i thought we annihilated /every/ field-NNN
+producer."* Substantially, we did. Measured exhaustively this session
+(`grep -rn 'format!("field-\|"field-' --include=*.rs src/`):
 
-```rust
-pub fn value_to_edn_with(v: &Value, types: Option<&crate::types::TypeEnv>) -> OwnedValue
-```
+- **Exactly ONE `field-N` producer survives in all of `src/`** — `edn_shim.rs:2727`, inside
+  **`value_to_json_natural`** (the JSON/MCP surface).
+- **The EDN path has none.** `value_to_edn_with` still carries an `Option<&TypeEnv>` parameter, and
+  `None` callers exist (`panic_hook.rs:191`, and `value_to_edn` at `edn_shim.rs:3432`) — but that door no
+  longer has a `field-N` consequence. The shape outlived the defect.
+- `tests/diagnostics/*.edn` currently holds **zero** `field-N` occurrences.
 
-**A caller that passes `None` renders a record POSITIONALLY as `{:field-0 … :field-1 …}` instead of by its
-real field names.** That is a live, documented defect — `NOTE-value-to-edn-renders-fields-positionally.md`.
-This file captures **value snapshots embedded in errors**, which is exactly the path that reaches that door.
+**So treat `field-N` as a cheap canary, not a hunt.** It stays in the FINDING column because it costs
+nothing to check and it is already campaign vocabulary. **Report the count after your work — it must still
+be zero** — but do not go looking for a defect on this path that the record says was already annihilated.
+If a `field-N` *does* appear, that is a genuine FINDING and a regression: report it verbatim, do not capture.
 
-**Measured this session: there are currently ZERO `field-0`/`field-N` occurrences in any
-`tests/diagnostics/*.edn`. Your job includes keeping that number at zero.**
-
-If any snapshot renders `field-N`, that is a **FINDING** — report it with the verbatim golden fragment and
-which test produced it. **Do not capture it.** Capturing would freeze a known defect into a golden and make
-it read as ground truth, which is precisely the trap Wave B2's findings 1 and 8 turned out to be.
+**The surviving JSON-side producer is NOT yours** — it is tracked separately by the orchestrator. Do not
+touch `value_to_json_natural`; it is outside this brief's blast radius.
 
 ### 2. `probe_arc241_stone10_remedy.rs` (6) — remedies collapsing to `[]`
 
