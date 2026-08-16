@@ -1,0 +1,32 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::struct-restricted form: ':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding"
+      :location #wat.core/Span {
+        :file "tests/types/struct_restricted_legacy.wat.bad"
+        :line 2
+        :col 2
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 2
+            :col 31
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::struct-restricted"
+      :reason "':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form ":wat::core::defstruct"
+          :kind :retirement
+          :score 0
+          :note "re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding"
+        }
+      ]
+    }
+  ]
+}

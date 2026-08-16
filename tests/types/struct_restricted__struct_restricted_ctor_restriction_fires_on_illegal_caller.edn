@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/DefRestrictedCallerNotAllowed {
+      :message "`:my::Token` has a restricted caller whitelist [:my::issuer::]; the enclosing fn `:user::bad-mint` does not match any entry (declared via `{:restricted-to [...]}` metadata-map). An entry ending in `::` is a namespace prefix (caller FQDN must start with it); an entry without trailing `::` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `:user::bad-mint` to the `:restricted-to` list at the binding site."
+      :location #wat.core/Span {
+        :file "tests/types/struct_restricted_ctor_denied.wat.bad"
+        :line 6
+        :col 4
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 14
+          }
+        ]
+      }
+      :causes []
+      :callee ":my::Token"
+      :enclosing-fn ":user::bad-mint"
+      :prefixes [":my::issuer::"]
+    }
+  ]
+}

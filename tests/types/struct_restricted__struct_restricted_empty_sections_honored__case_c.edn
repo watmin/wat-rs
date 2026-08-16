@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/DefRestrictedCallerNotAllowed {
+      :message "`:my::Secret/data` has a restricted caller whitelist [:my::internal::]; the enclosing fn `:user::outsider::get-data` does not match any entry (declared via `{:restricted-to [...]}` metadata-map). An entry ending in `::` is a namespace prefix (caller FQDN must start with it); an entry without trailing `::` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `:user::outsider::get-data` to the `:restricted-to` list at the binding site."
+      :location #wat.core/Span {
+        :file "tests/types/struct_restricted_field_denied_c.wat.bad"
+        :line 8
+        :col 4
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 8
+            :col 20
+          }
+        ]
+      }
+      :causes []
+      :callee ":my::Secret/data"
+      :enclosing-fn ":user::outsider::get-data"
+      :prefixes [":my::internal::"]
+    }
+  ]
+}

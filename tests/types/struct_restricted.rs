@@ -47,26 +47,24 @@ fn struct_restricted_form_parses_and_accessors_callable_from_whitelist() {
 
 // ─── Test 2 — Constructor restriction fires on illegal caller ──────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn struct_restricted_ctor_restriction_fires_on_illegal_caller() {
     // Token/new is guarded by :restricted-to [:my::issuer::]. A caller in
     // namespace :user:: does NOT start with that prefix — the walker fires
     // DefRestrictedCallerNotAllowed.
     let err = startup_err("tests/types/struct_restricted_ctor_denied.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/struct_restricted_ctor_denied.wat.bad", line: 6, col: 4, end_line: 6, end_col: 14 }, kind: DefRestrictedCallerNotAllowed { callee: ":my::Token", enclosing_fn: ":user::bad-mint", prefixes: [":my::issuer::"] } }]))"#);
+    wat::assert_edn_matches_file!(err, "struct_restricted__struct_restricted_ctor_restriction_fires_on_illegal_caller.edn", "ctor restriction fires on illegal caller (macro-expanded path): DefRestrictedCallerNotAllowed anchors to the type name, not the whole call");
 }
 
 // ─── Test 3 — Per-field restriction fires per restricted accessor ───────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn struct_restricted_per_field_restriction_fires_on_illegal_caller() {
     // A struct with one restricted field (secret) and one public field (name).
     // A caller outside the secret's whitelist trying to call Vault/secret
     // gets DefRestrictedCallerNotAllowed.
     let err = startup_err("tests/types/struct_restricted_field_denied.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/struct_restricted_field_denied.wat.bad", line: 9, col: 4, end_line: 9, end_col: 21 }, kind: DefRestrictedCallerNotAllowed { callee: ":my::Vault/secret", enclosing_fn: ":user::outsider::read-secret", prefixes: [":my::admin::"] } }]))"#);
+    wat::assert_edn_matches_file!(err, "struct_restricted__struct_restricted_per_field_restriction_fires_on_illegal_caller.edn", "per-field restriction fires: DefRestrictedCallerNotAllowed");
 
     // A caller whose FQDN IS in the field's whitelist can access the restricted
     // field, even if it's not in the ctor whitelist.
@@ -85,7 +83,6 @@ fn struct_restricted_public_accessors_unrestricted() {
 
 // ─── Test 5 — Various capability shapes ─────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn struct_restricted_empty_sections_honored() {
     // Case A: ctor restricted, no per-field restrictions — all fields public;
@@ -98,21 +95,20 @@ fn struct_restricted_empty_sections_honored() {
 
     // Case C: ctor restricted + field restricted — outsider cannot read data field.
     let err = startup_err("tests/types/struct_restricted_field_denied_c.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/struct_restricted_field_denied_c.wat.bad", line: 8, col: 4, end_line: 8, end_col: 20 }, kind: DefRestrictedCallerNotAllowed { callee: ":my::Secret/data", enclosing_fn: ":user::outsider::get-data", prefixes: [":my::internal::"] } }]))"#);
+    wat::assert_edn_matches_file!(err, "struct_restricted__struct_restricted_empty_sections_honored__case_c.edn", "Case C: ctor restricted + field restricted, outsider denied: DefRestrictedCallerNotAllowed");
 }
 
 // ─── Test 6 — Malformed shapes rejected ──────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn struct_restricted_malformed_shapes_rejected() {
     // Case A: empty metadata map {} ILLEGAL (FORM-COLLAPSE-NOTES).
     let err = startup_err("tests/types/struct_restricted_empty_metadata.wat.bad");
-    assert_eq!(err, r#"Type(TypeError { span: Span { file: "tests/types/struct_restricted_empty_metadata.wat.bad", line: 3, col: 3, end_line: 3, end_col: 5 }, kind: MalformedDecl { head: ":wat::core::defstruct", reason: "empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)" } })"#);
+    wat::assert_edn_matches_file!(err, "struct_restricted__struct_restricted_malformed_shapes_rejected__case_a.edn", "Case A: empty `{}` metadata-map is illegal: MalformedDecl");
 
     // Case B: legacy :wat::core::struct-restricted HARD CUT — rejected.
     let err = startup_err("tests/types/struct_restricted_legacy.wat.bad");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/struct_restricted_legacy.wat.bad", line: 2, col: 2, end_line: 2, end_col: 31 }, kind: MalformedForm { head: ":wat::core::struct-restricted", reason: "':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding", remedies: [Remedy { form: ":wat::core::defstruct", kind: Retirement, note: Some("re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding") }] } }]))"#);
+    wat::assert_edn_matches_file!(err, "struct_restricted__struct_restricted_malformed_shapes_rejected__case_b.edn", "Case B: legacy struct-restricted retired: MalformedForm + Retirement remedy");
 }
 
 // ─── Test 7 — Arc 198 strike 2 (A1): the positional prime is not a bare-alias escape ────────

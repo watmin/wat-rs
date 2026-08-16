@@ -361,10 +361,11 @@ pub fn expand_once(
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     if let WatAST::List(items, span) = &form {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
             if let Some(def) = registry.get(head) {
+                let head_span = head_span.clone();
                 let args = items[1..].to_vec();
-                return expand_macro_call(def, args, span.clone(), env, sym);
+                return expand_macro_call(def, args, span.clone(), head_span, env, sym);
             }
         }
     }
@@ -516,12 +517,13 @@ pub(super) fn expand_form(
             // returns the OWNED expansion; the registry is then free to be re-borrowed
             // `&mut` for the output fixpoint (which may register the expansion's own
             // `defmacro` children). Cheaper than cloning the MacroDef on every call.
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if let Some(WatAST::Keyword(head, head_span)) = items.first() {
                 if registry.contains(head) {
+                    let head_span = head_span.clone();
                     let args = items[1..].to_vec();
                     let expanded = {
                         let def = registry.get(head).expect("contains checked immediately above");
-                        expand_macro_call(def, args, list_span.clone(), env, sym)?
+                        expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?
                     };
                     return expand_form(expanded, registry, expansion_depth + 1, env, sym, privilege);
                 }
@@ -533,8 +535,9 @@ pub(super) fn expand_form(
             // macro falls through to the child-recursion (its call-position ref rewriting
             // happens downstream). The macro's own body ignores the head token, so no head
             // rewrite is needed here — only the raw tail args flow in.
-            if let Some(WatAST::Symbol(ident, _)) = items.first() {
+            if let Some(WatAST::Symbol(ident, ident_span)) = items.first() {
                 if ident.is_reference() {
+                    let head_span = ident_span.clone();
                     let slash_pos = ident.as_str().rfind('/').unwrap();
                     let primary = crate::edn_shim::ns_to_wat_path(
                         &ident.as_str()[..slash_pos],
@@ -544,7 +547,7 @@ pub(super) fn expand_form(
                         let args = items[1..].to_vec();
                         let expanded = {
                             let def = registry.get(&primary).expect("contains checked immediately above");
-                            expand_macro_call(def, args, list_span.clone(), env, sym)?
+                            expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?
                         };
                         return expand_form(expanded, registry, expansion_depth + 1, env, sym, privilege);
                     }
@@ -735,6 +738,7 @@ pub(super) fn expand_macro_call(
     def: &MacroDef,
     args: Vec<WatAST>,
     call_site_span: Span,
+    head_span: Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
@@ -806,7 +810,22 @@ pub(super) fn expand_macro_call(
     // rewalks the expansion and repoints any node whose span still names a *different* file
     // than the call site (i.e. it came from the macro's own definition, not from the user's
     // spliced arguments) at the call site.
-    Ok(restamp_unknown_spans(expanded, &call_site_span))
+    //
+    // Arc 233 / 170 / 167 (198 span-fix rider): a diagnostic span anchors to the NARROWEST
+    // user-source node that IS the offence, never to its enclosing form and never to
+    // synthetic expansion output. Most restamped nodes have no narrower user-source
+    // counterpart than "the whole call", so `call_site_span` (the invocation's full list
+    // span) remains their fallback. The one exception this function knows about: a
+    // synthesized Keyword node whose VALUE equals the macro's own dispatch name (`def.name`)
+    // — e.g. a companion ctor macro rebuilding its type keyword via a runtime
+    // `keyword-node` call (`aggregate_kwargs_companion_source`, src/macros/parse.rs) — is,
+    // by construction, always a re-mint of the exact token the user wrote as the call's
+    // head. For that one case `head_span` (the real span of `items.first()` at the call
+    // site, captured before dispatch) is the narrower, still-genuinely-user-source anchor.
+    // This is an identity check against the exact string used to look up THIS expansion,
+    // not a spelling-based inference of provenance (contrast the recurring
+    // `ends_with("'")`-style class this repo already knows to be wrong).
+    Ok(restamp_unknown_spans(expanded, &call_site_span, &head_span, &def.name))
 }
 
 /// Arc 170: repoint every node in `form` whose span's file differs from
@@ -848,7 +867,7 @@ pub(super) fn expand_macro_call(
 /// Exhaustive over every `WatAST` variant on purpose — no `_ =>` catch-all — so a new
 /// variant added later fails to compile here instead of silently passing through
 /// unrestamped.
-fn restamp_unknown_spans(form: WatAST, call_site: &Span) -> WatAST {
+fn restamp_unknown_spans(form: WatAST, call_site: &Span, head_span: &Span, head_name: &str) -> WatAST {
     fn restamp_span(span: &Span, call_site: &Span) -> Span {
         if span.file != call_site.file {
             call_site.clone()
@@ -865,7 +884,19 @@ fn restamp_unknown_spans(form: WatAST, call_site: &Span) -> WatAST {
         WatAST::BoolLit(v, s) => WatAST::BoolLit(v, restamp_span(&s, call_site)),
         WatAST::StringLit(v, s) => WatAST::StringLit(v, restamp_span(&s, call_site)),
         WatAST::NilLit(s) => WatAST::NilLit(restamp_span(&s, call_site)),
-        WatAST::Keyword(v, s) => WatAST::Keyword(v, restamp_span(&s, call_site)),
+        // Arc 233 / 170 / 167 (198 span-fix rider): a Keyword node whose value IS the
+        // macro's own dispatch name (`head_name`) is, by construction, a re-mint of the
+        // exact token the user wrote as the call's head — see the doc comment at the call
+        // site in `expand_macro_call`. It gets the narrower `head_span` instead of the
+        // whole-call `call_site`; every other synthesized Keyword keeps the existing
+        // whole-call fallback.
+        WatAST::Keyword(v, s) => {
+            if s.file != call_site.file && v == head_name {
+                WatAST::Keyword(v, head_span.clone())
+            } else {
+                WatAST::Keyword(v, restamp_span(&s, call_site))
+            }
+        }
         WatAST::Symbol(v, s) => WatAST::Symbol(v, restamp_span(&s, call_site)),
         WatAST::List(items, s) => {
             let is_nested_defmacro = matches!(
@@ -876,24 +907,27 @@ fn restamp_unknown_spans(form: WatAST, call_site: &Span) -> WatAST {
                 WatAST::List(items, restamp_span(&s, call_site))
             } else {
                 WatAST::List(
-                    items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect(),
+                    items.into_iter().map(|c| restamp_unknown_spans(c, call_site, head_span, head_name)).collect(),
                     restamp_span(&s, call_site),
                 )
             }
         }
         WatAST::Vector(items, s) => WatAST::Vector(
-            items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect(),
+            items.into_iter().map(|c| restamp_unknown_spans(c, call_site, head_span, head_name)).collect(),
             restamp_span(&s, call_site),
         ),
         WatAST::Map(pairs, s) => WatAST::Map(
             pairs
                 .into_iter()
-                .map(|(k, v)| (restamp_unknown_spans(k, call_site), restamp_unknown_spans(v, call_site)))
+                .map(|(k, v)| (
+                    restamp_unknown_spans(k, call_site, head_span, head_name),
+                    restamp_unknown_spans(v, call_site, head_span, head_name),
+                ))
                 .collect(),
             restamp_span(&s, call_site),
         ),
         WatAST::Set(items, s) => WatAST::Set(
-            items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect(),
+            items.into_iter().map(|c| restamp_unknown_spans(c, call_site, head_span, head_name)).collect(),
             restamp_span(&s, call_site),
         ),
     }

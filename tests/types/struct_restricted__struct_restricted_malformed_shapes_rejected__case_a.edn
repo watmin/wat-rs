@@ -1,0 +1,17 @@
+#wat.type/MalformedDecl {
+  :message "malformed :wat::core::defstruct declaration: empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)"
+  :location #wat.core/Span {
+    :file "tests/types/struct_restricted_empty_metadata.wat.bad"
+    :line 3
+    :col 3
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 3
+        :col 5
+      }
+    ]
+  }
+  :causes []
+  :head ":wat::core::defstruct"
+  :reason "empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)"
+}
