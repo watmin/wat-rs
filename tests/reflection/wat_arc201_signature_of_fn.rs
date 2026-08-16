@@ -200,7 +200,6 @@ fn signature_of_fn_composes_with_bundle_children() {
 
 // ─── Errors cleanly on non-fn input ────────────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn signature_of_fn_errors_on_non_fn_input() {
     // Passing a non-fn value (an i64 here) must raise TypeMismatch with
@@ -209,9 +208,5 @@ fn signature_of_fn_errors_on_non_fn_input() {
         "tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat",
     )
     .expect("expected runtime error from signature-of-fn on non-fn input");
-    assert_eq!(
-        err,
-        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat\", line: 6, col: 50, end_line: 6, end_col: 52 }, kind: TypeMismatch { op: \":wat::runtime::signature-of-fn\", expected: \"wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`)\", got: ValueSnapshot { type_name: \"wat::core::i64\", rendered: \"42\", provenance: Unknown } } }",
-        "signature-of-fn must raise TypeMismatch on non-fn input"
-    );
+    wat::assert_edn_matches_file!(err, "wat_arc201_signature_of_fn__errors_on_non_fn_input.edn", "signature-of-fn must raise TypeMismatch on non-fn input");
 }

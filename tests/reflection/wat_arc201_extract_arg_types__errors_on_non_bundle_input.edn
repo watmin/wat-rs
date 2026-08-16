@@ -1,0 +1,22 @@
+#wat.runtime/TypeMismatch {
+  :message ":wat::runtime::extract-arg-types: expected :wat::WatAST (signature head), got wat::core::i64 `42`"
+  :location #wat.core/Span {
+    :file "tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat"
+    :line 6
+    :col 52
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 6
+        :col 54
+      }
+    ]
+  }
+  :causes []
+  :op ":wat::runtime::extract-arg-types"
+  :expected ":wat::WatAST (signature head)"
+  :got {
+    :type "wat::core::i64"
+    :rendered "42"
+    :provenance nil
+  }
+}

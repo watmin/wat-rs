@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed :wat::kernel::allow form: allow is a process-tier service gate; a thread listener's handle IS the grant"
+  :location #wat.core/Span {
+    :file "tests/services/probe_arc209_c0b3bb_verbs_thread.wat"
+    :line 6
+    :col 32
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 6
+        :col 33
+      }
+    ]
+  }
+  :causes []
+  :head ":wat::kernel::allow"
+  :reason "allow is a process-tier service gate; a thread listener's handle IS the grant"
+}

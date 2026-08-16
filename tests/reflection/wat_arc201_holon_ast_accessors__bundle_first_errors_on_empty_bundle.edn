@@ -1,0 +1,22 @@
+#wat.runtime/TypeMismatch {
+  :message ":wat::holon::Bundle/first: expected Bundle with at least one child, got empty Bundle `<unavailable>`"
+  :location #wat.core/Span {
+    :file "tests/reflection/wat_arc201_holon_ast_accessors_first_err_empty.wat"
+    :line 10
+    :col 53
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 10
+        :col 58
+      }
+    ]
+  }
+  :causes []
+  :op ":wat::holon::Bundle/first"
+  :expected "Bundle with at least one child"
+  :got {
+    :type "empty Bundle"
+    :rendered "<unavailable>"
+    :provenance nil
+  }
+}

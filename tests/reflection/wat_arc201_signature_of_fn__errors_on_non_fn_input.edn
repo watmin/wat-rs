@@ -1,0 +1,22 @@
+#wat.runtime/TypeMismatch {
+  :message ":wat::runtime::signature-of-fn: expected wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`), got wat::core::i64 `42`"
+  :location #wat.core/Span {
+    :file "tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat"
+    :line 6
+    :col 50
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 6
+        :col 52
+      }
+    ]
+  }
+  :causes []
+  :op ":wat::runtime::signature-of-fn"
+  :expected "wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`)"
+  :got {
+    :type "wat::core::i64"
+    :rendered "42"
+    :provenance nil
+  }
+}

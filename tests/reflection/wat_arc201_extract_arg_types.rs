@@ -157,7 +157,6 @@ fn extract_arg_types_arity_matches_extract_arg_names() {
 
 // ─── Error handling: non-Bundle input raises TypeMismatch ───────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn extract_arg_types_errors_on_non_bundle_input() {
     // Passing a non-Bundle HolonAST (here we pass an integer — will fail
@@ -171,9 +170,5 @@ fn extract_arg_types_errors_on_non_bundle_input() {
         "tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat",
     )
     .expect("expected runtime error from extract-arg-types on non-HolonAST input");
-    assert_eq!(
-        err,
-        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat\", line: 6, col: 52, end_line: 6, end_col: 54 }, kind: TypeMismatch { op: \":wat::runtime::extract-arg-types\", expected: \"wat::holon::HolonAST (signature head)\", got: ValueSnapshot { type_name: \"wat::core::i64\", rendered: \"42\", provenance: Unknown } } }",
-        "extract-arg-types must raise TypeMismatch on non-HolonAST input"
-    );
+    wat::assert_edn_matches_file!(err, "wat_arc201_extract_arg_types__errors_on_non_bundle_input.edn", "extract-arg-types must raise TypeMismatch on non-HolonAST input");
 }

@@ -1,0 +1,23 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/UnknownCallee {
+      :message "unknown callee: :wat::spawn::ProcessLaunch/bogus-field"
+      :location #wat.core/Span {
+        :file "tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat"
+        :line 18
+        :col 81
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 18
+            :col 119
+          }
+        ]
+      }
+      :causes []
+      :callee ":wat::spawn::ProcessLaunch/bogus-field"
+    }
+  ]
+}

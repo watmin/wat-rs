@@ -31,7 +31,6 @@ fn process_listener_allow_deny_succeed() {
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn thread_listener_allow_errors_with_tier_message() {
     // RED at HEAD: `allow'` is an unknown head → the error names an unknown verb, NOT the tier.
@@ -50,11 +49,7 @@ fn thread_listener_allow_errors_with_tier_message() {
     })();
     match outcome {
         Err(msg) => {
-            assert_eq!(
-                msg,
-                "RuntimeError { span: Span { file: \"tests/services/probe_arc209_c0b3bb_verbs_thread.wat\", line: 6, col: 33, end_line: 6, end_col: 34 }, kind: MalformedForm { head: \":wat::kernel::allow\", reason: \"allow' is a process-tier service gate; a thread listener's handle IS the grant\" } }",
-                "allow' on a thread listener must match process-tier rejection golden"
-            );
+            wat::assert_edn_matches_file!(msg, "probe_arc209_c0b3bb_verbs__thread_listener_allow_errors_with_tier_message.edn", "allow' on a thread listener must match process-tier rejection golden");
         }
         Ok(v) => panic!(
             "expected allow' on a thread listener to error (the crossbeam handle is the grant); \

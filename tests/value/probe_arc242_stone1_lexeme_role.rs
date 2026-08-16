@@ -51,7 +51,6 @@ fn contract_02_keyword_nil_preserved_as_type() {
 
 // ─── C03: :wat::core::Char HARD-CUT-rejected with retirement remedy ────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_legacy_char_hard_cut_with_remedy() {
     // The _bad fixture defines :test::needs-char with :wat::core::Char (uppercase).
@@ -64,11 +63,7 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
         ":wat::core::Char must be rejected by the substrate (retirement hard-cut)"
     );
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
-        msg,
-        "check:\n2 type-check error(s):\n  - tests/value/probe_arc242_stone1_lexeme_role.wat.bad:8:43: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n  - tests/value/probe_arc242_stone1_lexeme_role.wat.bad:8:64: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n",
-        "retirement remedy must carry exact golden"
-    );
+    wat::assert_edn_matches_file!(msg, "probe_arc242_stone1_lexeme_role__contract_03_legacy_char_hard_cut_with_remedy.edn", "retirement remedy must carry exact golden");
 }
 
 // ─── C04: :wat::core::char (lowercase) works as type ───────────────────────────

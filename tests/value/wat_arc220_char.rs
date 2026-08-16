@@ -91,7 +91,6 @@ fn char_literal_unicode_escape() {
 /// with a diagnostic mentioning "supplementary-plane" or "BMP".
 /// This tests that the lexer enforces BMP-only at the source level.
 /// Uses the negative fixture: tests/value/wat_arc220_char_supplementary_plane.wat.bad
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn char_literal_supplementary_plane_rejected() {
     let result = startup_from_file("tests/value/wat_arc220_char_supplementary_plane.wat.bad");
@@ -101,11 +100,7 @@ fn char_literal_supplementary_plane_rejected() {
         "supplementary-plane char literal must fail at lex time"
     );
     let msg = format!("{}", result.unwrap_err());
-    assert_eq!(
-        msg,
-        "parse: crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 292: invalid character literal: \\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)",
-        "error must be exact lex rejection golden"
-    );
+    wat::assert_edn_matches_file!(msg, "wat_arc220_char__char_literal_supplementary_plane_rejected.edn", "error must be exact lex rejection golden");
 }
 
 // ─── 5: `(:wat::core::char/of "x")` returns typed Char ──────────────────────

@@ -62,7 +62,6 @@ fn thread_post_spawn_hook_fires_with_empty_launch() {
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn accessor_typechecks_at_parse_time() {
     // GREEN after 3b-c: the ctor is known, so the checker reaches the hook body and rejects the
@@ -76,10 +75,12 @@ fn accessor_typechecks_at_parse_time() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert_eq!(
+            wat::assert_edn_matches_file!(
                 msg,
-                "Check(CheckErrors([CheckError { span: Span { file: \"tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat\", line: 10, col: 63, end_line: 10, end_col: 101 }, kind: UnknownCallee { callee: \":wat::spawn::ProcessLaunch/bogus-field\" } }]))",
-                "parse-time error must match ProcessLaunch/bogus-field golden"
+                "probe_arc209_c0b3bc_post_spawn__accessor_typechecks_at_parse_time.edn",
+                "parse-time error: ProcessLaunch has no field `bogus-field` (exactly ONE error — \
+                 the fixture's SendOutcome match was missing its `Stopped` arm until 296 B6, \
+                 which added a second, unrelated MalformedForm to this negative fixture)"
             );
         }
     }

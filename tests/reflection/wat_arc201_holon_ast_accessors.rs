@@ -134,7 +134,6 @@ fn bundle_children_walks_parametric_type_slot() {
 
 // ─── Bundle/children: error on non-Bundle input ────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn bundle_children_errors_on_atom_input() {
     // Passing a primitive leaf (`HolonAST::I64`, constructed via
@@ -144,11 +143,7 @@ fn bundle_children_errors_on_atom_input() {
         "tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat",
     )
     .expect("expected runtime error from Bundle/children on a leaf");
-    assert_eq!(
-        err,
-        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat\", line: 7, col: 51, end_line: 7, end_col: 55 }, kind: TypeMismatch { op: \":wat::holon::Bundle/children\", expected: \"Bundle (signature head HolonAST)\", got: ValueSnapshot { type_name: \"non-Bundle HolonAST variant\", rendered: \"<unavailable>\", provenance: Unknown } } }",
-        "Bundle/children on a leaf must raise TypeMismatch with op and non-Bundle message"
-    );
+    wat::assert_edn_matches_file!(err, "wat_arc201_holon_ast_accessors__bundle_children_errors_on_atom_input.edn", "Bundle/children on a leaf must raise TypeMismatch with op and non-Bundle message");
 }
 
 // ─── Bundle/first: returns the first child as HolonAST ─────────────────────
@@ -186,23 +181,17 @@ fn bundle_first_composes_with_atom_value() {
 
 // ─── Bundle/first: error on non-Bundle input ───────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn bundle_first_errors_on_leaf_input() {
     let err = run_expecting_runtime_error_file(
         "tests/reflection/wat_arc201_holon_ast_accessors_first_err_leaf.wat",
     )
     .expect("expected runtime error from Bundle/first on a leaf");
-    assert_eq!(
-        err,
-        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_holon_ast_accessors_first_err_leaf.wat\", line: 7, col: 48, end_line: 7, end_col: 52 }, kind: TypeMismatch { op: \":wat::holon::Bundle/first\", expected: \"Bundle (signature head HolonAST)\", got: ValueSnapshot { type_name: \"non-Bundle HolonAST variant\", rendered: \"<unavailable>\", provenance: Unknown } } }",
-        "Bundle/first on a leaf must raise TypeMismatch with op and non-Bundle message"
-    );
+    wat::assert_edn_matches_file!(err, "wat_arc201_holon_ast_accessors__bundle_first_errors_on_leaf_input.edn", "Bundle/first on a leaf must raise TypeMismatch with op and non-Bundle message");
 }
 
 // ─── Bundle/first: error on empty Bundle ───────────────────────────────────
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn bundle_first_errors_on_empty_bundle() {
     // `:wat::holon::Bundle` takes a `:wat::core::Vector<wat::holon::HolonAST>`
@@ -213,9 +202,5 @@ fn bundle_first_errors_on_empty_bundle() {
         "tests/reflection/wat_arc201_holon_ast_accessors_first_err_empty.wat",
     )
     .expect("expected runtime error from Bundle/first on empty Bundle");
-    assert_eq!(
-        err,
-        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_holon_ast_accessors_first_err_empty.wat\", line: 10, col: 53, end_line: 10, end_col: 58 }, kind: TypeMismatch { op: \":wat::holon::Bundle/first\", expected: \"Bundle with at least one child\", got: ValueSnapshot { type_name: \"empty Bundle\", rendered: \"<unavailable>\", provenance: Unknown } } }",
-        "Bundle/first on empty Bundle must raise TypeMismatch with empty-Bundle message"
-    );
+    wat::assert_edn_matches_file!(err, "wat_arc201_holon_ast_accessors__bundle_first_errors_on_empty_bundle.edn", "Bundle/first on empty Bundle must raise TypeMismatch with empty-Bundle message");
 }

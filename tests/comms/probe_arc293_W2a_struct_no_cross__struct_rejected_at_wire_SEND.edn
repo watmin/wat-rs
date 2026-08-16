@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::program::self-peer form: a wire peer (Peer<I,O>) carries only pure data — type :w2c::S is not pure (§7 purity wall). If this peer is used only within a thread (in-locus, shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. If this peer must cross a process boundary (wire), redesign I/O types to use records, scalars, or pure enums (no Sender/Receiver/handle fields)."
+      :location #wat.core/Span {
+        :file "tests/comms/probe_arc293_W2c_compile_time_send.wat"
+        :line 25
+        :col 38
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 25
+            :col 45
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::program::self-peer"
+      :reason "a wire peer (Peer<I,O>) carries only pure data — type :w2c::S is not pure (§7 purity wall). If this peer is used only within a thread (in-locus, shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. If this peer must cross a process boundary (wire), redesign I/O types to use records, scalars, or pure enums (no Sender/Receiver/handle fields)."
+      :remedies []
+    }
+  ]
+}
