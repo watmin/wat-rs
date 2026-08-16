@@ -6,3 +6,5 @@
 (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])
 (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
   "ok")
+(:wat::core::defn :probe::drive [] -> :wat::core::String
+  (:geo::describe (:geo::Circle :color "red" :radius 2.0)))

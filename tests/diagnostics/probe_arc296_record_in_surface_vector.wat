@@ -15,3 +15,8 @@
 
 (:wat::core::defrecord :g::Boom
   [msg <- :wat::core::String])
+
+(:wat::core::defn :probe::drive [] -> :wat::core::i64
+  (:wat::core::let
+    [v (:wat::core::Vector :g::E (:g::Boom :msg "x"))]
+    (:wat::core::Vector/length v)))

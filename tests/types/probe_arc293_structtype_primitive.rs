@@ -24,7 +24,9 @@ fn structtype_primitive_registers_a_struct() {
     let world = startup_beside(file!());
     assert!(
         world.is_ok(),
-        ":wat::core::structtype should register a struct with /new + field accessors; got: {:?}",
+        ":wat::core::structtype should register a struct with its PRIME ctor `:my::Point'` \
+         + field accessors. (`/new` was annihilated by 293.R2.3; the bare kwargs name is a \
+         MACRO `defstruct` emits alongside structtype, NOT something the primitive mints.) got: {:?}",
         world.err()
     );
 }

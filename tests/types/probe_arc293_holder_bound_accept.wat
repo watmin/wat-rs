@@ -9,3 +9,5 @@
 (:wat::holon::defrecord :env::HEnv [slot <- :wat::core::i64])
 (:wat::core::defn :env::wants-holon [x <- :env::Holon] -> :wat::core::bool
   true)
+(:wat::core::defn :probe::drive [] -> :wat::core::bool
+  (:env::wants-holon (:env::HEnv :slot 1)))
