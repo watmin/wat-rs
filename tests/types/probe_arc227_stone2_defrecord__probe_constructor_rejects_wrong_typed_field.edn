@@ -1,0 +1,46 @@
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":ns::P: parameter #1 expects :wat::core::i64; got :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc227_stone2_defrecord_wrongfield.wat.bad"
+        :line 3
+        :col 73
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 80
+          }
+        ]
+      }
+      :causes []
+      :callee ":ns::P"
+      :param "#1"
+      :expected ":wat::core::i64"
+      :got ":wat::core::String"
+      :remedies []
+    }
+    #wat.check/ReturnTypeMismatch {
+      :message ":user::compute: body produces :ns::P; signature declares :wat::holon::HolonAST"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc227_stone2_defrecord_wrongfield.wat.bad"
+        :line 3
+        :col 62
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 3
+            :col 89
+          }
+        ]
+      }
+      :causes []
+      :function ":user::compute"
+      :expected ":wat::holon::HolonAST"
+      :got ":ns::P"
+      :remedies []
+    }
+  ]
+}

@@ -45,14 +45,13 @@ fn holon_record_accepted_where_holon_wanted() {
 /// Case 4 — THE NARROW (forbidden): a CORE record may NOT be passed where a
 /// `:wat::holon::Record` is wanted — even though the fields are identical.
 /// Holon-ness is CATEGORICAL (carries `holon_form`/VSA capability), not structural.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn core_record_rejected_where_holon_wanted() {
     let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c4.wat.bad");
     // The rejection must be the HOLDER mismatch — not an incidental error. The fields are
     // identical to a holon's, so the only thing that can fail is `:geo::Pt` ↛ `:wat::holon::Record`.
-    let err = format!("{:?}", world.err());
-    assert_eq!(err, r##"Some(Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc293_holder_substitution_c4.wat.bad", line: 6, col: 20, end_line: 6, end_col: 34 }, kind: TypeMismatch { callee: ":u::wants-holon", param: "#1", expected: ":wat::holon::Record", got: ":geo::Pt" } }])))"##);
+    let err = world.expect_err("expected startup failure; got Ok").to_string();
+    wat::assert_edn_matches_file!(err, "probe_arc293_holder_substitution__core_record_rejected_where_holon_wanted.edn", "core record narrowed to :wat::holon::Record must be rejected: TypeMismatch");
 }
 
 /// Case 5 — a STRUCT is not a record (separate branch): passing `:geo::SPt` where

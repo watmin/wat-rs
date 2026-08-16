@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::let form: struct-destructure: field \"nonexistent\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)"
+      :location #wat.core/Span {
+        :file "tests/types/struct_destructure_unknown_field.wat.bad"
+        :line 8
+        :col 6
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 8
+            :col 27
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::let"
+      :reason "struct-destructure: field \"nonexistent\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)"
+      :remedies []
+    }
+  ]
+}

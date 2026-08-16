@@ -300,22 +300,21 @@ fn enum_ord_raises_type_mismatch() {
     wat::assert_edn_matches_file!(err, "wat_arc148_ord_buildout__enum_ord_raises_type_mismatch.edn", "user enum is not orderable: TypeMismatch");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn struct_ord_raises_type_mismatch() {
     let err = run_expecting_check_error("tests/types/ord_struct.wat.bad");
-    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_struct.wat.bad", line: 9, col: 6, end_line: 9, end_col: 19 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":my::Point" } }])"##);
+    wat::assert_edn_matches_file!(err, "wat_arc148_ord_buildout__struct_ord_raises_type_mismatch.edn", "Struct is not orderable: TypeMismatch");
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn unit_ord_raises_type_mismatch() {
-    // Unit () — not in the orderable class; rejected at check (Stone 245.8:
-    // the checker types `()` as unit, which the orderable gate excludes —
+    // Unit nil — not in the orderable class; rejected at check (Stone 245.8:
+    // the checker types `nil` as unit, which the orderable gate excludes —
     // ordering a one-inhabitant type is meaningless). Same shape as the
-    // five sibling rejection witnesses above.
+    // five sibling rejection witnesses above. (Fixture uses `nil`, arc 179's
+    // sole unit-value spelling — the bare `()` literal is itself retired.)
     let err = run_expecting_check_error("tests/types/ord_unit.wat.bad");
-    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_unit.wat.bad", line: 3, col: 4, end_line: 3, end_col: 17 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":()" } }])"##);
+    wat::assert_edn_matches_file!(err, "wat_arc148_ord_buildout__unit_ord_raises_type_mismatch.edn", "unit (nil) is not orderable: TypeMismatch");
 }
 
 #[test]

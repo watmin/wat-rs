@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":u::wants-holon: parameter #1 expects :wat::holon::Record; got :geo::Pt"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc293_holder_substitution_c4.wat.bad"
+        :line 6
+        :col 20
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 40
+          }
+        ]
+      }
+      :causes []
+      :callee ":u::wants-holon"
+      :param "#1"
+      :expected ":wat::holon::Record"
+      :got ":geo::Pt"
+      :remedies []
+    }
+  ]
+}

@@ -4,6 +4,6 @@
    grace-residue <- :wat::core::f64])
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [p (:test::PaperResolved "Grace" 5.5)
+    [p (:test::PaperResolved :outcome "Grace" :grace-residue 5.5)
      {} p]
     "unreachable"))

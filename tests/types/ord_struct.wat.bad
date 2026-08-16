@@ -4,6 +4,6 @@
    y <- :wat::core::i64])
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [p (:my::Point 1 2)
-     q (:my::Point 3 4)]
+    [p (:my::Point :x 1 :y 2)
+     q (:my::Point :x 3 :y 4)]
     (:wat::core::< p q)))

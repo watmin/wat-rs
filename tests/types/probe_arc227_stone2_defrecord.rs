@@ -401,9 +401,8 @@ fn probe_cross_namespace_distinct_classifiers_n2() {
 
 // EXPECTATIONS row 11: constructor type-checks each field
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_constructor_rejects_wrong_typed_field() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_wrongfield.wat.bad");
-    assert_eq!(err, "check:\n2 type-check error(s):\n  - tests/types/probe_arc227_stone2_defrecord_wrongfield.wat.bad:3:70: :ns::P: parameter #1 expects :wat::core::i64; got :wat::core::String\n  - tests/types/probe_arc227_stone2_defrecord_wrongfield.wat.bad:3:62: :user::compute: body produces :ns::P; signature declares :wat::holon::HolonAST\n");
+    wat::assert_edn_matches_file!(err, "probe_arc227_stone2_defrecord__probe_constructor_rejects_wrong_typed_field.edn", "constructor rejects wrong-typed field a (String for declared i64) + return-type fallout");
 }

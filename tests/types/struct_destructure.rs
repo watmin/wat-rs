@@ -113,11 +113,13 @@ fn field_order_can_differ_from_declaration() {
 /// struct doesn't declare. Substrate-as-teacher: error should name
 /// the offending field AND list the struct's actual fields so the
 /// user can fix without going back to the declaration.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn unknown_field_name_is_clean_malformed_form() {
     let err = startup_err("tests/types/struct_destructure_unknown_field.wat.bad");
-    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_unknown_field.wat.bad:8:6: malformed :wat::core::let form: struct-destructure: field \"nonexistent\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_unknown_field.wat.bad\", line: 8, col: 6, end_line: 8, end_col: 27 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"struct-destructure: field \\\"nonexistent\\\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)\", remedies: [] } }]))");
+    // Same rationale as `non_struct_subject_is_clean_type_mismatch` above: Display and
+    // Debug are now the same EDN body; take the half before the `\n---\n` separator.
+    let (edn, _) = err.split_once("\n---\n").expect("startup_err always joins with \\n---\\n");
+    wat::assert_edn_matches_file!(edn.to_string(), "struct_destructure__unknown_field_name_is_clean_malformed_form.edn", "unknown field in :keys destructure: MalformedForm");
 }
 
 // ─── Test 7 — non_struct_subject_is_clean_type_mismatch ─────────────────
@@ -138,11 +140,13 @@ fn non_struct_subject_is_clean_type_mismatch() {
 
 /// `[{} p]` — empty map in binder position; classified as non-destructure,
 /// surfaces as a malformed binder error.
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn empty_brace_form_is_clean_malformed_form() {
     let err = startup_err("tests/types/struct_destructure_empty_brace.wat.bad");
-    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_empty_brace.wat.bad:8:6: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_empty_brace.wat.bad\", line: 8, col: 6, end_line: 8, end_col: 8 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\", remedies: [] } }]))");
+    // Same rationale as `non_struct_subject_is_clean_type_mismatch` above: Display and
+    // Debug are now the same EDN body; take the half before the `\n---\n` separator.
+    let (edn, _) = err.split_once("\n---\n").expect("startup_err always joins with \\n---\\n");
+    wat::assert_edn_matches_file!(edn.to_string(), "struct_destructure__empty_brace_form_is_clean_malformed_form.edn", "empty map in binder position: MalformedForm");
 }
 
 // ─── Test 9 — non_symbol_inside_brace_form_is_clean_malformed_form ──────
