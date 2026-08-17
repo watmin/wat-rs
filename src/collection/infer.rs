@@ -635,24 +635,33 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 /// Returns `None` for a `Var` (caller defers to the runtime backstop, same policy as
 /// `extract_seq_elem`) or for any other shape (caller emits `TypeMismatch`).
 ///
-/// **This IS the `Seqable` set — the type wat cannot currently spell.** Clojure has exactly one
-/// `filter` (and `map`/`reduce`/…) because it calls `seq`, a universal coercion every collection
-/// implements, and walks an `ISeq`. wat has no surface way to name "any of these four
-/// containers" as a parameter type — this hardcoded four-head match is the ONLY place the
-/// concept exists, and it is checker-internal, unreachable from a `.wat` signature. Three
-/// blockers keep it that way (none is a small fix):
-/// 1. no `defsurface` `:nature` admits a builtin container (only `:wat::core::Record` and
-///    `:wat::kernel::Peer'` exist);
-/// 2. no builtin (`Vector`/`PersistentVector`/`List`) satisfies any surface today — surface
-///    satisfaction is an aggregate mechanism (attributes + methods, R28), builtins sit outside it;
-/// 3. wat has no ad-hoc unions, deliberately (R7) — a bound over four concrete builtins is
-///    structurally a union unless the surface mechanism genuinely subsumes it.
+/// **This IS the `Seqable` set — and, as of stone 118.3-B, wat CAN spell it.** Clojure has
+/// exactly one `filter` (and `map`/`reduce`/…) because it calls `seq`, a universal coercion every
+/// collection implements, and walks an `ISeq`. This hardcoded four-head match is still the ONLY
+/// place the concept exists in the *checker's own* lazy-input classification — that has not
+/// changed, and this fn is unaffected by 118.3-B — but the three blockers once cited here for why
+/// a `.wat` program itself could never name "any of these four containers" as a parameter type
+/// are now ALL refuted, measured against the disk (not reasoned):
+/// 1. ~~no `defsurface` `:nature` admits a builtin container~~ — REFUTED: `:nature
+///    :wat::core::Struct` + `extend-type` on a builtin, both bare and parametric, type-check and
+///    run today (`wat-scripts/scratch-pad/probe-seqable-is-spellable-today.wat`,
+///    `probe-seqable-parametric-all-four.wat`).
+/// 2. ~~no builtin satisfies any surface today~~ — REFUTED twice over: a bare surface over
+///    `Vector`/`PersistentVector` (`SCORE-293.4d`, 2026-06-28), and — the stone-118.3-B fix,
+///    `src/check.rs`'s `(Parametric actual, Parametric expected)` arm, ~14858 — a PARAMETRIC
+///    surface (`Seqable<T>`) over all four: `Vector`, `PersistentVector`, `List`, `Stream`.
+/// 3. ~~wat has no ad-hoc unions~~ — DISSOLVED, not refuted: it was never a union. It is N
+///    `extend-type`s of ONE surface — Clojure's `ISeq`.
 ///
-/// See `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md` for the full writeup
-/// (the twelve `<verb>-stream` twins that exist only because this type doesn't, and why arc
-/// 278's native route is this note's PRECONDITION, not a competing fix — it collapses the set's
-/// ~30 hand-rolled re-spellings down to this one function, which is what makes naming it
-/// tractable later).
+/// Minting `:wat::core::Seqable` in the stdlib, extending these four containers, and pointing
+/// `join`/`map`/`filter` at it is the NEXT stone (118.3-B's brief, "out of scope" section) — this
+/// function's hand-rolled four-head match is exactly what that stone would delete. See
+/// `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/MEASURED-118.3-B-is-a-string-compare-not-a-mechanism.md`
+/// for the full diagnosis, and `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md`
+/// for the original writeup (the twelve `<verb>-stream` twins that exist only because this type
+/// wasn't wired up yet, and why arc 278's native route is this note's PRECONDITION, not a
+/// competing fix — it collapses the set's ~30 hand-rolled re-spellings down to this one function,
+/// which is what made naming it tractable).
 fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
     match reduced {
         TypeExpr::Parametric { head, args }

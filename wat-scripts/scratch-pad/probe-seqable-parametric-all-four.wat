@@ -56,3 +56,18 @@
 ;; THE PAYOFF — one generic fn over ANY Seqable<T>
 (:wat::core::defn :sq::count-of<T> [s <- :sq::Seqable<T>] -> :wat::core::i64
   (:wat::core::length (:sq::Seqable/as-vec s)))
+
+;; STONE 118.3-B — the four call sites. Pre-fix: each is RED, `TypeMismatch`,
+;; `:sq::count-of: parameter #1 expects :sq::Seqable<?N>; got :wat::core::<Container><…>`
+;; (the exact defect MEASURED-118.3-B names). Post-fix: type-checks AND runs, "3,4,5,2".
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println
+    (:wat::core::string::join ","
+      (:wat::core::Vector :wat::core::i64
+        (:sq::count-of (:wat::core::Vector :wat::core::i64 1 2 3))
+        (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))
+        (:sq::count-of (:wat::core::List/of 1 2 3 4 5))
+        (:sq::count-of (:wat::stream::cons 1
+                          (:wat::stream::lazy
+                            (:wat::stream::cons 2
+                              (:wat::stream::lazy (:wat::stream::empty))))))))))

@@ -14869,6 +14869,45 @@ pub(crate) fn assignable(
         {
             return nature_floor_ok(&a, &crate::types::parametric_head_fqdn(eh), types);
         }
+        // Stone 118.3-B — the exact-string compare above can never succeed when `e`'s args
+        // still carry an unbound unification VAR (e.g. a fresh `?454` from an uninstantiated
+        // generic fn's own type param — `count-of<T> [s <- Seqable<T>]`): `format_type(&e)`
+        // renders the fresh var, but the registered `extend-type` edge is keyed by the
+        // SURFACE's own declared param name, verbatim (`:sq::Seqable<T>`, types.rs:2151) —
+        // "<?454>" != "<T>", always. Bind instead of string-match: confirm `eh` resolves to a
+        // registered SURFACE by its BARE key (`parametric_head_fqdn` — the same lookup arm 3,
+        // 14800-14812, already uses), confirm the actual's family really does extend-type it
+        // (existence only, arg-agnostic — `satisfies_bare_surface`, the same helper arm 3
+        // calls), then UNIFY — invariant, per this arm's own doctrine two paragraphs up — the
+        // surface's declared params (already positionally == `eargs`) against the actual's own
+        // args. `e` is already fully `reduce`d (this fn's top), so `eargs` needs no re-walk.
+        //
+        // Deliberately gated on `eargs` still containing a Var: this arm's existing tenants —
+        // `Dialable` / `TypedCapability` / `Handle` (293.W.2f just above) — are BAKED
+        // per-instance with fully CONCRETE args (e.g. `TypedCapability<Echo::Op,Echo::Reply>`,
+        // never a bare `S`/`R`; confirmed live at
+        // tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32), so their `e` is always
+        // fully resolved before reaching here — the exact-string arm above already decides
+        // them, byte-identical, and this branch is unreached for their calls. It is reachable
+        // ONLY for a still-polymorphic surface dispatch, which the swap-gate (arm 4's comment,
+        // 14814-14822) has no opinion about — there is nothing concrete yet to swap.
+        else if eargs.iter().any(|t| matches!(t, TypeExpr::Var(_))) {
+            let bare = crate::types::parametric_head_fqdn(eh);
+            if let Some(crate::types::TypeDef::Surface(surf)) = types.get(&bare) {
+                if surf.type_params.len() == eargs.len()
+                    && aargs.len() == eargs.len()
+                    && transport_edge_keys(&a)
+                        .iter()
+                        .any(|k| crate::types::satisfies_bare_surface(k, &bare, types))
+                    && aargs
+                        .iter()
+                        .zip(eargs.iter())
+                        .all(|(x, y)| unify(x, y, subst, types).is_ok())
+                {
+                    return nature_floor_ok(&a, &bare, types);
+                }
+            }
+        }
         // Handle<K,V> ↔ Handle<K,V,T> (missing transport slot).
         if ah == eh
             && (aargs.len() + 1 == eargs.len() || eargs.len() + 1 == aargs.len())
