@@ -1,0 +1,3 @@
+;; 293.W.2e negative control — address-wire? on a non-Address is TypeMismatch naming Address<S,R>.
+(:wat::core::defn :user::main [] -> :wat::core::bool
+  (:wat::kernel::address-wire? 42))

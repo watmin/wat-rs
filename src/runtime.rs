@@ -6762,6 +6762,9 @@ fn dispatch_keyword_head_value(
         // for a socket-tier peer (send' encodes via send_wire — a wire), FALSE for
         // thread-tier (shared memory, never encodes). See eval_peer_wire.
         ":wat::kernel::peer-wire?" => eval_peer_wire(args, list_span, env, sym),
+        // 293.W.2e — Address answers "is this shared memory?": portable_form Some = wire,
+        // None = crossbeam. Same purity/bool as peer-wire?, ADDRESS_TYPE_PATH not PEER.
+        ":wat::kernel::address-wire?" => eval_address_wire(args, list_span, env, sym),
         // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
         // select' : Vector<peer<I,O>> -> Tuple<i64, O>
         ":wat::kernel::select" => eval_peer_select_prime(args, list_span, env, sym),
@@ -31564,6 +31567,58 @@ fn eval_peer_wire(
         )
         .into()),
     }
+}
+
+/// `(:wat::kernel::address-wire? addr)` — 293.W.2e.
+///
+/// PURE PROJECTION of `Address::portable_form().is_some()`. Some = wire
+/// (SocketAddress; a process may hold and dial it). None = shared memory
+/// (crossbeam; only a thread in that address space may dial it).
+/// Downcast reuses `eval_connect_prime`'s ADDRESS_TYPE_PATH match.
+fn eval_address_wire(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::address-wire?";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let addr: &crate::kernel::address::Address = match addr_val {
+        Value::RustOpaque(ref inner)
+            if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH =>
+        {
+            use crate::rust_deps::marshal::downcast_ref_opaque;
+            downcast_ref_opaque(
+                inner.as_ref(),
+                crate::kernel::spawn::ADDRESS_TYPE_PATH,
+                OP,
+                args[0].span().clone(),
+            )?
+        }
+        ref other => {
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Address<S,R>",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    Ok(Value::bool(addr.portable_form().is_some()))
 }
 
 /// `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.

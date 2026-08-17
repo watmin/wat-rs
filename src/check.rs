@@ -4122,6 +4122,16 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // 293.W.2e — `address-wire?`: 1 arg, unify Address<S,R>, return bool.
+            // Twin of infer_peer_wire, different type-path. Do NOT call project_peer_io.
+            ":wat::kernel::address-wire?" => {
+                let (val, mut errs) = infer_address_wire(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 278 RST stone — `serve-dispatch-op'`: `clients` is checked
             // for internal consistency only (do-style, unconstrained — same
             // discipline as `poll'`'s `listener` arg); `body`'s type IS the
@@ -10836,6 +10846,75 @@ fn infer_peer_wire(
         Err(()) => {
             let t = fresh.fresh();
             CheckResult::partial_with(t, local_errors)
+        }
+    }
+}
+
+/// Type-check `(:wat::kernel::address-wire? addr)` — 293.W.2e.
+///
+/// One positional arg: unify against `Address<S,R>` (same expected type as
+/// `infer_connect_prime`). Result is always `:wat::core::bool`. PURE
+/// PROJECTION — do not call `project_peer_io`; do not check wire purity.
+fn infer_address_wire(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::address-wire?";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    let addr_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let ret = TypeExpr::Path(":wat::core::bool".into());
+            return CheckResult::partial_with(ret, local_errors);
+        }
+    };
+    let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
+    let s = fresh.fresh();
+    let r = fresh.fresh();
+    let expected = TypeExpr::Parametric {
+        head: "wat::kernel::Address".into(),
+        args: vec![s, r],
+    };
+    match unify(&addr_reduced, &expected, subst, env.types()) {
+        Ok(_) => {
+            let ret = TypeExpr::Path(":wat::core::bool".into());
+            if local_errors.is_empty() {
+                CheckResult::ok(ret)
+            } else {
+                CheckResult::partial_with(ret, local_errors)
+            }
+        }
+        Err(_) => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "addr".into(),
+                    expected: "Address<S,R>".into(),
+                    got: format_type(&addr_reduced),
+                },
+            });
+            CheckResult::partial_with(TypeExpr::Path(":wat::core::bool".into()), local_errors)
         }
     }
 }
