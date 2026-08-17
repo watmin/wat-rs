@@ -162,7 +162,10 @@ unknown one silently renders `unnamed`.
 A also makes B cheap: once the namespace lives in one constant, the rename is a one-line change for
 the opaque family instead of eighteen.
 
-## C — 279.2: `str` goes TOTAL
+## C — 279.2: `str` goes TOTAL — ✅ **SHIPPED `25d9d015`, 2026-08-14**
+
+> ⊘ **AMENDED 2026-08-17.** This section said "RED" for three days after it went green, and that
+> staleness was quoted forward into the seam and three later stones. C is DONE.
 
 **Drawn, probe committed and RED at `2278b350`.** See `279-format/DESIGN-STONE-279.2-str-totality.md`,
 its BRIEF and EXPECTATIONS. `tests/value/probe_arc279_str_totality` is 3 controls green / 5 rows red.
@@ -179,7 +182,28 @@ before it is renamed — the same rename-before-carve logic that reordered home 
 don't do string equality here, we do data equality."* And `render_value` SURVIVES: `ValueSnapshot::of`
 still needs it for diagnostics, which has its own depth cap and golden blast radius.
 
-## D — `Seqable`, and `join` renders its elements
+## D — `Seqable`, and `join` renders its elements — ✅ join half SHIPPED · Seqable is TOMORROW
+
+> ⊘ **AMENDED 2026-08-17 — D IS TWO STONES, and the signature below was written against a type that
+> does not exist.**
+>
+> | | status |
+> |---|---|
+> | `join` renders its elements | ✅ **279.3 `8b2cdbf2`** — and it stayed a Rust INTRINSIC: `core.wat` ↔ `string.wat` is a real bootstrap cycle. It ships over **`Vector<T>`, NOT `Seqable<T>`** — narrower than this section specifies. |
+> | (sibling) `interpolate` goes total | ✅ **279.4 `94142919`** — the partial renderer DELETED; one rendering fn, three callers |
+> | `Seqable` as a nameable type | ← **TOMORROW.** 118.3-B (`a15f4ea9`) landed the mechanism |
+>
+> ⛔ **`wat.type/Seq` DOES NOT EXIST and never did.** The `(seq [self] :- (wat.type/Seq [T]))`
+> signature below names a type nobody built. The real contract — intermediate vs terminal, what
+> `seq` returns, and why `length`/`empty?`/`get` REFUSE a Stream — is ruled in
+> **`docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN-118.4-the-seqable-contract-terminal-vs-intermediate.md`**.
+> Read that, not the sketch below.
+>
+> ★ And the three blockers this section's neighbours cite from `infer.rs:638` were **STALE** — refuted
+> by a test that was already green a month before they were written.
+> `118/NOTE-the-blockers-were-stale-seqable-is-spellable.md`
+
+
 
 ```
 (defsurface  wat.type/Seqable [T]  (seq [self] :- (wat.type/Seq [T])))
