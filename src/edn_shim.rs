@@ -2650,14 +2650,25 @@ fn coerce_enum_path(
 /// Compute the EDN tag namespace + name for a struct's wire form.
 /// Mirrors `tag_from_type_path` (file-local helper) but extracted
 /// for the coercion side.
+///
+/// Arc 294.k — decode-side mirror of `tag_from_type_path`'s fabrication
+/// fix. The old code fabricated a "no-home" placeholder namespace when
+/// `type_path` had no `::`; that is the same silent lie, moved in the
+/// same change. `panic!` for the same reason (see `tag_from_type_path`).
+#[track_caller]
 fn struct_tag_for(type_path: &str) -> (String, String) {
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
-    if let Some(idx) = stripped.rfind("::") {
-        let ns = stripped[..idx].replace("::", ".");
-        let name = stripped[idx + 2..].to_string();
-        (ns, name)
-    } else {
-        ("wat-edn.local".into(), stripped.to_string())
+    match stripped.rfind("::") {
+        Some(idx) => {
+            let ns = stripped[..idx].replace("::", ".");
+            let name = stripped[idx + 2..].to_string();
+            (ns, name)
+        }
+        None => panic!(
+            "struct_tag_for: type path {type_path:?} has no `::` namespace separator — no \
+             derivable EDN home (fabricating a namespace would silently erase this type's \
+             identity on the wire)"
+        ),
     }
 }
 
@@ -3956,17 +3967,37 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
 /// Build a tag from a type path like `:trading::cache::L1`. Drops the
 /// leading colon (if present) and translates `::` to `.` for the
 /// namespace; the last segment becomes the tag name.
+///
+/// Arc 294.k — a type whose home cannot be derived has no honest tag.
+/// The old code fabricated a placeholder "no-home" namespace when `path`
+/// had no `::`, and silently erased the name to the literal word
+/// "unnamed" under a placeholder "opaque" namespace when `Tag::try_ns`
+/// rejected the split. Both were lies that raised nothing. `value_to_edn_with` (this
+/// fn's only callers) is infallible across 72 call sites outside
+/// `edn_shim.rs`, so threading `Result` here would escape this module
+/// (STOP-2) — `panic!` is the wall, matching the house convention
+/// `holon_ast_to_edn_data` already uses for the same class of defect
+/// (DESIGN-STONE-294.j).
+#[track_caller]
 fn tag_from_type_path(path: &str) -> Tag {
     let stripped = path.strip_prefix(':').unwrap_or(path);
-    if let Some(idx) = stripped.rfind("::") {
-        let ns = stripped[..idx].replace("::", ".");
-        let name = &stripped[idx + 2..];
-        Tag::try_ns(&ns, name).unwrap_or_else(|_| Tag::ns("wat-edn.opaque", "unnamed"))
-    } else {
-        // No namespace separator — fabricate a "wat-edn.local" namespace
-        // so wat-edn's spec-required namespace constraint is met.
-        Tag::try_ns("wat-edn.local", stripped)
-            .unwrap_or_else(|_| Tag::ns("wat-edn.opaque", "unnamed"))
+    match stripped.rfind("::") {
+        Some(idx) => {
+            let ns = stripped[..idx].replace("::", ".");
+            let name = &stripped[idx + 2..];
+            Tag::try_ns(&ns, name).unwrap_or_else(|e| {
+                panic!(
+                    "tag_from_type_path: type path {path:?} has no derivable EDN home — \
+                     namespace {ns:?} / name {name:?} rejected: {e} (fabricating one would \
+                     silently erase this type's identity on the wire)"
+                )
+            })
+        }
+        None => panic!(
+            "tag_from_type_path: type path {path:?} has no `::` namespace separator — no \
+             derivable EDN home (fabricating a namespace would silently erase this type's \
+             identity on the wire)"
+        ),
     }
 }
 
@@ -4519,6 +4550,156 @@ mod tests {
             keys,
             vec!["_type", "x", "y"],
             "declared field names x/y must appear verbatim, never field-0/field-1"
+        );
+    }
+
+    // ─── Arc 294.k — tag_from_type_path / struct_tag_for: raise, don't fabricate ───
+    //
+    // Both functions used to fabricate a placeholder "no-home" namespace for a type
+    // path with no `::`, and to erase the type's name to the literal word "unnamed"
+    // under a placeholder "opaque" namespace when the split's namespace/name failed
+    // `Tag::try_ns`'s validation. Both fallbacks raised nothing — a value could cross
+    // with its identity silently lost. DESIGN-STONE-294.k: both fabrications become a
+    // `panic!` that names the offending path.
+    //
+    // Downcast a `catch_unwind` panic payload to the message string, house pattern
+    // from `tests/lint/no_inlined_wat_in_tests.rs` / `tests/lint/no_inlined_edn.rs`.
+    fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+        payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+            .unwrap_or_else(|| "<non-string panic payload>".to_string())
+    }
+
+    /// Row 3 (the load-bearing gate row): `tag_from_type_path` (encode side, bare
+    /// `Tag`) and `struct_tag_for` (decode side, `(String, String)`) are one concept
+    /// implemented twice — a pattern that has diverged three times already in this
+    /// arc (294.j's `holon_to_watast` vs `from_holon_item`; task #102's
+    /// `watast_to_holon` vs `to_holon_inner`). Feed both the same paths; assert
+    /// identical `(ns, name)` on every success, and that both raise together.
+    #[test]
+    fn arc294k_tag_from_type_path_and_struct_tag_for_agree() {
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+
+        let paths = [
+            // Real, observed corpus — DESIGN-STONE-294.k's measurement (every
+            // `type_path` on the tree is `::`-separated).
+            ":probe::Point",
+            ":test::Token",
+            ":wat::edn::Validation",
+            ":wat::eval::StepResult",
+            ":wat::kernel::RunResult",
+            ":wat::kernel::LociDiedError",
+            ":wat::sqlite::Cell",
+            ":wat::io::IOReader::ReadFrameOutcome",
+            // No `::` at all — the dead `.local` fallback's old input.
+            ":NoNamespace",
+            "NoNamespace",
+            ":",
+            "",
+        ];
+
+        for path in paths {
+            let a = std::panic::catch_unwind(|| {
+                let tag = tag_from_type_path(path);
+                (tag.namespace().to_string(), tag.name().to_string())
+            });
+            let b = std::panic::catch_unwind(|| struct_tag_for(path));
+
+            match (a, b) {
+                (Ok(a), Ok(b)) => assert_eq!(
+                    a, b,
+                    "tag_from_type_path and struct_tag_for disagree on the SUCCESSFUL path \
+                     {path:?}: {a:?} vs {b:?}"
+                ),
+                (Err(_), Err(_)) => {} // both raised — agreement
+                (a, b) => panic!(
+                    "tag_from_type_path and struct_tag_for DISAGREE on whether {path:?} has a \
+                     derivable home: tag_from_type_path -> {:?}, struct_tag_for -> {:?}",
+                    a.is_ok(),
+                    b.is_ok()
+                ),
+            }
+        }
+
+        std::panic::set_hook(prev_hook);
+    }
+
+    /// Row 4/5 — a path with no derivable home RAISES on the encode side, and the
+    /// message names the offending path (never a generic "invalid type path", which
+    /// would reproduce the exact defect — an identity lost silently — one layer up).
+    /// A kept negative control, not deleted after the write-up
+    /// (`[[feedback_a_negative_control_that_can_be_kept_must_be_kept]]`).
+    #[test]
+    fn arc294k_tag_from_type_path_raises_and_names_the_path() {
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = std::panic::catch_unwind(|| tag_from_type_path(":NoNamespaceHere"));
+        std::panic::set_hook(prev_hook);
+
+        let msg = panic_message(result.expect_err(
+            "tag_from_type_path must RAISE, not fabricate a placeholder no-home namespace, for \
+             a path with no `::`",
+        ));
+        // Exact, not loose (`tests/lint/no_loose_string_assert.rs`) — the message is a
+        // deterministic scalar this test itself authors, not a value that varies per run.
+        assert_eq!(
+            msg,
+            "tag_from_type_path: type path \":NoNamespaceHere\" has no `::` namespace \
+             separator — no derivable EDN home (fabricating a namespace would silently erase \
+             this type's identity on the wire)"
+        );
+    }
+
+    /// Row 4/5, decode side — same control for `struct_tag_for`, which must move
+    /// together with `tag_from_type_path` (one concept, one change).
+    #[test]
+    fn arc294k_struct_tag_for_raises_and_names_the_path() {
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = std::panic::catch_unwind(|| struct_tag_for(":NoNamespaceHere"));
+        std::panic::set_hook(prev_hook);
+
+        let msg = panic_message(result.expect_err(
+            "struct_tag_for must RAISE, not fabricate a placeholder no-home namespace, for a \
+             path with no `::`",
+        ));
+        // Exact, not loose (`tests/lint/no_loose_string_assert.rs`) — same rationale as
+        // `arc294k_tag_from_type_path_raises_and_names_the_path`.
+        assert_eq!(
+            msg,
+            "struct_tag_for: type path \":NoNamespaceHere\" has no `::` namespace separator \
+             — no derivable EDN home (fabricating a namespace would silently erase this \
+             type's identity on the wire)"
+        );
+    }
+
+    /// STOP-1 negative control: a path that DOES have a `::` separator but whose
+    /// namespace/name fails `Tag::try_ns`'s validation (name starts with a digit) —
+    /// the OTHER fallback this stone killed (the placeholder "opaque"/"unnamed" pair).
+    /// Also raises, also names the path. `struct_tag_for` never validated this branch (it has no
+    /// `try_ns` call at all — a pre-existing asymmetry with `tag_from_type_path`,
+    /// not something this stone introduces), so this probe is encode-side only.
+    #[test]
+    fn arc294k_tag_from_type_path_raises_on_invalid_name_after_split() {
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = std::panic::catch_unwind(|| tag_from_type_path(":wat::kernel::0bad"));
+        std::panic::set_hook(prev_hook);
+
+        let msg = panic_message(result.expect_err(
+            "tag_from_type_path must RAISE, not fabricate the opaque/unnamed placeholder, when \
+             the split namespace/name fails Tag::try_ns",
+        ));
+        // Exact, not loose (`tests/lint/no_loose_string_assert.rs`) — deterministic scalar.
+        assert_eq!(
+            msg,
+            "tag_from_type_path: type path \":wat::kernel::0bad\" has no derivable EDN home \
+             — namespace \"wat.kernel\" / name \"0bad\" rejected: first character must be \
+             non-numeric (fabricating one would silently erase this type's identity on the \
+             wire)"
         );
     }
 }
