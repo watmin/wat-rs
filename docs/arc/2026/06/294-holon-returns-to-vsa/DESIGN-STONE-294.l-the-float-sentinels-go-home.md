@@ -126,3 +126,48 @@ Row 5 is load-bearing: this is the one family whose wire form a **non-wat** read
 Core and rete f64 semantics are **untouched**. `:wat::core::f64::{+,-,*,/}` keep raw IEEE and
 `total: false`; the rete fallback rows keep their `:undefined` shape. This stone changes **only how a
 non-finite f64 is spelled in EDN text.**
+
+---
+
+# ⛔ CORRECTION — 2026-08-16, before briefing. GATE ROW 5 WAS UNRUNNABLE AND VACUOUS.
+
+Row 5 read *"⛔ the Clojure interop tests pass — `crates/wat-edn/interop-tests/`. This is a wire-format
+change visible to external readers; they are the gate that says so."* **Both halves are wrong**, and I
+wrote it without checking what the instrument can see — the failure this arc has been correcting all
+day.
+
+**MEASURED before briefing:**
+
+1. **They are not in the workspace.** `crates/wat-edn/interop-tests/` has its own `Cargo.toml` and
+   `Cargo.lock`; its README says *"This is a separate Cargo project (NOT in the wat-rs workspace)…
+   Run requires `clojure` 1.11+ on `$PATH`."* The floor's single `interop` hit is
+   `probe_arc278_sqlite_interop`, unrelated. **A rider cannot satisfy this row from the floor**, and
+   the builder's standing constraint is *"i do not wish to have the jvm requirement in our CI tooling
+   — so this remains local one offs for now."*
+2. **They do not exercise NaN or ±Inf.** `grep -rn "nan\|NaN\|inf\|Inf"` over
+   `interop-tests/src/` and `interop-tests/clj/` returns **nothing**. So even run by hand, they are
+   **vacuous for this stone** — green before and green after, proving nothing either way.
+   `[[feedback_a_green_test_can_prove_nothing]]`
+
+**The honest gate** is the in-workspace coverage, which does run in the floor and does touch the
+sentinels: `crates/wat-edn/tests/spec_strict.rs` and `crates/wat-edn/tests/comprehensive.rs`
+(both grep-positive for the float sentinel handling), plus the round-trip row.
+
+**Row 5 is replaced by:**
+
+| # | assertion |
+|---|---|
+| 5 | `crates/wat-edn/tests/{spec_strict,comprehensive}.rs` green **and** each carries an assertion naming the NEW spelling — if neither mentions it after the strike, the coverage is vacuous and the rider must add it |
+
+## ★ AND A FINDING THE CORRECTION SURFACED — filed, not fixed here
+
+**The interop tests do not cover the one construct that is genuinely wat-specific and non-standard.**
+`#wat-edn.float/nan` is precisely what a stock `clojure.edn` reader would choke on — an unknown tag
+with no reader function — and **nothing tests that across the boundary.** The suite covers
+TradeSignal-shaped ordinary data, which stock EDN handles natively.
+
+So the wire-compat risk this stone carries is **real and currently unmeasured**, and it was unmeasured
+before the stone too. That is a coverage gap in the interop suite, not a reason to block: the spelling
+changes from one unknown-to-Clojure tag to another unknown-to-Clojure tag, so the risk is *unchanged*
+by this strike. Tracked separately; `clojure` IS on `$PATH` here (`/usr/local/bin/clojure`), so it is
+runnable as a local one-off when someone chooses to close it.
