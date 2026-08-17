@@ -34,10 +34,21 @@ intermediate half and stopped.**
 
 ```
 INTERMEDIATE  map ✓  filter ✓  take ✓  drop ✓        already done, arc 118.2a
-              concat · conj                          to add
+              concat · conj                          to add  (ordered / has_append)
 
-TERMINAL      foldl · foldr · count · contains? · get · reverse
+TERMINAL      foldl · foldr                          to add  (mappable)
+              count                                  to MINT (new verb)
+              contains?                              to add  (searchable)
+              reverse                                to add  (ordered, materializes)
+
+REFUSED — correctly, NO CHANGE          length · empty?  (measurable)
+                                        get              (gettable)
+
+ALREADY TRUE                            first/second/third (indexable) · rest (has_tail)
 ```
+
+★ `first` and `rest` are already `true` for Stream — **Clojure's ISeq primitives are already under
+it.** The foundation was there the whole time.
 
 ## ★ `length` STAYS REFUSED — and this corrects my own earlier worklist
 
@@ -70,12 +81,39 @@ arm**. Someone intended it and never built it. Minting it needs no allowlist cha
 And one rule with no exceptions is what the bytecode compiler wants as input. Builder, 2026-08-17:
 *"the surface will be our expression language for optimized code it produces."*
 
-## Unruled, flagged not decided
+## ★ RULED 2026-08-17 — `empty?` refuses too, and the rule becomes uniform
 
-- **`empty?` on a Stream.** It needs only ONE element — cheap — but on a read-once value that element
-  is *gone*. Clojure allows it (realizes one, cached, harmless); Ruby's Enumerator has no `empty?`;
-  Java has no `isEmpty`. Under our read-once semantics it is a **terminal op that looks free**. Allow
-  it as terminal, or refuse it like `length`? Genuinely open.
+Builder demonstrated it live, same session, same shape as `length`:
+
+```
+[1] e = Enumerator.new { |y| y << 1 }
+[2] e.empty?     NoMethodError: undefined method `empty?' for an instance of Enumerator
+[3] [].empty?    => true
+```
+
+Ruby refuses **both** `length` and `empty?` on a read-once sequence, and refuses them for one reason:
+they are **cheap structural queries**, and a stream cannot answer either without consuming.
+
+Clojure's `empty?` *does* work on a lazy seq — and it works for exactly the reason its `count` works:
+**caching makes realizing one element harmless.** We have no cache. So the same argument that took
+Clojure's `count` off the table takes its `empty?` too. Builder: *"ruby's bias."*
+
+> **A read-once value gets no cheap structural queries.** `length` and `empty?` both refuse Stream.
+> The terminal `count` is how you find out, and it costs you the stream.
+
+★ **Consequence: `measurable()` needs NO CHANGE AT ALL.** Its doc says *"`length` / `empty?` — element
+count"*, and `Stream => false` is now the correct answer for both. What the table calls a `○ gap`
+there is not a gap; it is the contract.
+
+## The same argument disposes of `get`
+
+`gettable()` gates `get` — index lookup. Ruby's `Enumerator` has no `[]`; Java's `Stream` has no
+`get`. **Random access implies a shape a stream does not have**, so `gettable() => false` for Stream
+is also correct and also needs no change.
+
+Note the substrate already draws this line correctly: `indexable()` is **true** for Stream
+(`first`/`second`/`third` — O(1)-ish prefix walks) while `gettable()` is **false** (`get n` is O(n)
+random access). That distinction was already right.
 - **`reverse` over a Stream** materializes. Permitted under the standing ruling — *"single-pass is a
   property of the value, never of the surface"* — but worth naming as terminal so nobody reads it as
   lazy.
