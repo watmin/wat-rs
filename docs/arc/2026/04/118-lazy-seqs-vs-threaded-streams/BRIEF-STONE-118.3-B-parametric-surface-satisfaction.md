@@ -98,4 +98,10 @@ Anything else red is STOP-5.
   if and only if row 1 goes green, and say so in your report.
 - **Perf.** Already measured: **~795 ns per surface dispatch (upper bound), 1.76×**, and chain-D's
   design dispatches **once per collection**, not per element. `wat-scripts/scratch-pad/bench-surface-dispatch-cost.wat`.
-  Nothing here needs re-measuring.
+  Nothing here needs re-measuring — **and do not optimize against that number.** Builder, 2026-08-17:
+  *"wat will be byte code compiled… the surface will be our expression language for optimized code
+  it produces… interpretted wat has a death sentence."* The bench measures the **condemned
+  interpreter** (its own DIRECT arm costs ~1.05 µs for a `length` call — that baseline *is*
+  interpreter overhead). The surface is the compiler's input, and one polymorphic verb is strictly
+  easier to compile than seven hand-rolled twins. **Write the clearest surface; do not hand-roll
+  around a cost the compiler deletes.**

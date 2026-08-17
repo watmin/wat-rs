@@ -22,6 +22,23 @@
 ;; fanout N=40,000 that is ~32ms; at N=1M, ~0.8s. If anyone later proposes per-element
 ;; dispatch, THIS is the number to argue with.
 ;;
+;; ★★ READ THIS BEFORE USING THE NUMBER AGAINST A SURFACE DESIGN. Builder, 2026-08-17:
+;;   "wat will be byte code compiled.... we are finishing the surface... the surface will be our
+;;    expression language for optimized code it produces... interpretted wat has a death sentence
+;;    ... we are building towards amazing perf"
+;;
+;; So ~795ns is a measurement OF THE INTERPRETER, and the interpreter is condemned. Note the
+;; DIRECT arm costs ~1.05us for what is a length() call — the baseline here IS interpreter
+;; overhead, not dispatch. This number is a fact about today's execution model, NOT a constraint
+;; on the surface design.
+;;
+;; ⛔ DO NOT cite this bench to argue against surfaces, Seqable, or extend-type. The surface IS
+;; the expression language the compiler will consume, and ONE polymorphic verb is strictly easier
+;; to compile than SEVEN hand-rolled `-stream` twins. Seqable makes the compiler's job smaller.
+;;
+;; What the number IS good for: bounding a PER-ELEMENT dispatch proposal on today's runtime, and
+;; as a before-figure when the compiler lands.
+;;
 ;; Shape discipline (feedback_a_benchmarks_shape_manufactures_its_result): fixed n, BOTH
 ;; block orderings run to catch ordering artifacts, and a non-vacuity control proving both
 ;; arms compute the same value. No recalibration inside the run.
