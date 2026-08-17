@@ -214,16 +214,103 @@ the next Rust→wat move rediscovers it at the cost of a rider flight.
 
 ```rust
 ":wat::core::string::join" => TypeScheme {
-    type_params: vec!["T"],                                          // ← was vec![]
+    type_params: vec!["T".into()],                                        // ← was vec![]
     params: vec![ string_ty(),
-                  Parametric { head: "wat::core::Vector",
-                               args: vec![TypeExpr::Var("T")] } ],   // ← was string_ty()
+                  TypeExpr::Parametric { head: "wat::core::Vector".into(),
+                                         args: vec![TypeExpr::Path("T".into())] } ],
     ret: string_ty(),
+    rest_param_type: None,
 }
 ```
 
 …and `eval_string_join` renders each element through the **total** `str` (279.2, `25d9d015`) instead
 of demanding `Value::String`.
+
+> ### ⊘ AMENDED 2026-08-17 — the snippet above was WRONG TWICE and would not compile
+>
+> As first written this section said `type_params: vec!["T"]` and `args: vec![TypeExpr::Var("T")]`.
+> Both are wrong, and a rider copying them hits a type error before it reaches the real work:
+>
+> | as written | on disk | why |
+> |---|---|---|
+> | `vec!["T"]` | `vec!["T".into()]` | `type_params: Vec<String>` |
+> | `TypeExpr::Var("T")` | `TypeExpr::Path("T".into())` | **`Var(u64)`** — `types.rs:92-98`: *"Fresh unification variable — synthetic, **NEVER produced by parsing**"*, allocated by `InferCtx`. A scheme's own type parameter is a `Path`: `types.rs:73-76` — *"Lexically-scoped type variables (`:T`, `:K`, `:V`) also appear as `Path` … the type checker distinguishes them via the enclosing scheme's `type_params`."* |
+>
+> Live exemplar to copy instead — `:wat::eval-ast!`, `check.rs:17058`, a `Path("T")` inside a
+> `Parametric`'s args under `type_params: vec!["T".into()]`. That is this stone's exact shape.
+>
+> I wrote a Rust snippet into a stone without compiling it, one day after
+> `[[feedback_a_rendered_example_is_not_a_measurement]]`. Kept visible rather than edited away.
+
+## ★ THE LOAD-BEARING DETAIL — the door must carry the top-level-String-bare arm
+
+`str`'s totality is **two arms**, not one (`runtime.rs:23359-23366`):
+
+```rust
+Value::String(s) => (**s).clone(),                                   // top level → BARE
+other            => value_to_edn_string_with(other, sym.types()),    // everything else → encoder
+```
+
+Both halves are load-bearing and **each has already caused a shipped defect**:
+
+- **Drop the String arm** → `(join "-" ["a" "b"])` renders `"\"a\"-\"b\""` and all 26 live call
+  sites silently corrupt, because the encoder quotes strings.
+- **Drop the registry argument** → records render `{:field-0 1}` instead of `{:x 1}`. That is
+  literally the 296/279.2 fix whose comment sits above the line, and
+  `[[feedback_a_totality_claim_is_only_as_good_as_its_sampling]]` is the twelve hours it cost.
+
+So this stone does **not** hand-roll the match a second time inside `eval_string_join`. It mints
+**one door** — `render_str_total(v, types)` — and makes `eval_str` its first caller and
+`eval_string_join` its second. Two hand-rolls of a two-arm rule where the second arm is invisible at
+the call site is exactly the shape `[[feedback_a_totality_claim_is_only_as_good_as_its_sampling]]`
+was written about; `edn_shim.rs:3490` already states the discipline for the registry argument —
+*"a caller with no registry passes `None` EXPLICITLY, in the open, where the next reader can ask why."*
+
+## Two things measured while grounding this, neither of them in scope
+
+1. **`render_unquoted`'s doc comment lies.** `string_ops.rs:510` says it is *"the `:wat::core::str`
+   semantics"*. It is the **pre-279.2 partial** renderer — five arms, raises on the sixth — and `str`
+   has not used it since `25d9d015`. Its one remaining caller is `interpolate` (`string_ops.rs:602`).
+   One-line fix, in a file this stone already opens: in scope, as truth-in-comment.
+2. **`interpolate` is still PARTIAL while `str` is TOTAL** — same file, one call site apart. So
+   `(str <record>)` renders and `(interpolate "{x}" :x <record>)` raises. **Out of this stone's
+   scope and NOT filed as a silent deferral:** widening it changes what the `format` macro does with
+   a non-scalar, and the builder ruled `str` total — nobody ruled `format` total. It is a question
+   for the builder, surfaced, not a task I may rule on.
+
+## No rete mirror — measured
+
+`grep -rn 'string::join' src/rete/` → **empty**. Chain-E's *"every string op has a paired
+`:wat::rete::core::string::*` row"* does not hold for `join`; there is nothing to keep in sync, and
+`vocabulary.rs`'s admission assert cannot fire on this change.
+
+## The purity gate is settled precedent, not a new question
+
+`join` is on `is_pure_total` (`macros/eval.rs:469`) — it **must** be, since `defrecord`'s macro body
+calls it at expand time. `:wat::core::str` is on the same list (`eval.rs:632`) and **already** routes
+through `value_to_edn_string_with`. Routing `join` the same way follows a verb already admitted on
+that exact basis, and it makes `join` *more* total, never less: it deletes a raise.
+
+## ⛔ THE CENSUS WAS WRONG — 19 was never the number
+
+The stone above and the superseded brief both say **19** call sites with a per-file breakdown. Both
+are wrong. Measured this session, command included so the number is reproducible:
+
+```
+grep -rn 'wat::core::string::join' --include=*.wat . | grep -v '^./target'   → 28
+```
+
+| where | n | |
+|---|---|---|
+| `wat/` | **13** | `core.wat` 5 · `bracket.wat` 3 · `Record.wat` 2 · `lint.wat` 1 · `service.wat` 1 · `string.wat` 1 |
+| `tests/` | **7** | `collection/sort.wat` 4 · `comms/wat_pipe.wat` · `kernel/wat_string_ops.wat` · `macros/probe_arc249_4…` |
+| `wat-scripts/` | **6** | `fixes/` 4 · `probes/arc-170/probe-m1-argcount` · `scratch-pad/probe-279.3` |
+| `wat-tests/` | **1** | `service-cache-lru.wat` |
+| `docs/` | **1** | `arc/2026/05/130-…/complected-2026-05-02/test.wat` — historical, not loaded |
+
+**27 live, 26 of them pre-existing.** The old breakdown was wrong per-file too (`core.wat` ×6 → 5;
+`string.wat` ×2 → 1). Fifth census error of the campaign, same mechanism every time: a count quoted
+without the command that produced it. `[[feedback_state_what_the_instrument_can_see_before_quoting_it]]`
 
 **Everything the exemplar proved still holds and still decides the contract**: `str` is total, so `T`
 needs no bound; a `String` element renders **bare**, so `(join "-" ["a" "b"])` → `"a-b"`, Ruby's
