@@ -1056,7 +1056,7 @@ fn leading_trailing_whitespace_in_collections() {
 #[test]
 fn nan_writes_as_sentinel() {
     let s = write(&Value::Float(f64::NAN));
-    assert_eq!(s, "#wat-edn.float/nan nil");
+    assert_eq!(s, "#wat.core.f64/NaN []");
 }
 
 #[test]

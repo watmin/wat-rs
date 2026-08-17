@@ -48,8 +48,8 @@
 //! - Character literals: spec defines `\space \newline \tab \return`
 //!   plus `\uXXXX`. wat-edn also accepts `\formfeed` and `\backspace`.
 //! - Non-finite floats: spec doesn't define NaN or Infinity. wat-edn
-//!   emits `#wat-edn.float/nan nil` / `#wat-edn.float/inf nil` /
-//!   `#wat-edn.float/neg-inf nil` so `f64` round-trips losslessly. Other
+//!   emits `#wat.core.f64/NaN []` / `#wat.core.f64/+Inf []` /
+//!   `#wat.core.f64/-Inf []` so `f64` round-trips losslessly. Other
 //!   EDN readers see ordinary user tags and may pass through or ignore.
 //!
 //! These extensions are read-and-write symmetric and round-trip cleanly.

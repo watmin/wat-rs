@@ -181,7 +181,7 @@ fn allows_double_dot_symbol() {
 fn nan_round_trips() {
     let v = Value::Float(f64::NAN);
     let s = wat_edn::write(&v);
-    assert_eq!(s, "#wat-edn.float/nan nil");
+    assert_eq!(s, "#wat.core.f64/NaN []");
     let v2 = parse(&s).unwrap();
     if let Value::Float(f) = v2 {
         assert!(f.is_nan());
@@ -194,7 +194,7 @@ fn nan_round_trips() {
 fn pos_inf_round_trips() {
     let v = Value::Float(f64::INFINITY);
     let s = wat_edn::write(&v);
-    assert_eq!(s, "#wat-edn.float/inf nil");
+    assert_eq!(s, "#wat.core.f64/+Inf []");
     let v2 = parse(&s).unwrap();
     assert_eq!(v2, Value::Float(f64::INFINITY));
 }
@@ -203,7 +203,7 @@ fn pos_inf_round_trips() {
 fn neg_inf_round_trips() {
     let v = Value::Float(f64::NEG_INFINITY);
     let s = wat_edn::write(&v);
-    assert_eq!(s, "#wat-edn.float/neg-inf nil");
+    assert_eq!(s, "#wat.core.f64/-Inf []");
     let v2 = parse(&s).unwrap();
     assert_eq!(v2, Value::Float(f64::NEG_INFINITY));
 }

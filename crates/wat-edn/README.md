@@ -88,7 +88,7 @@ spec-mandated `must not` against regression.
 
 Documented extensions (Clojure-aligned, all round-trip-symmetric):
 `\b \f \/` string escapes, `\formfeed \backspace` char names,
-`#wat-edn.float/{nan,inf,neg-inf}` sentinels for `f64` round-trip.
+`#wat.core.f64/{NaN,+Inf,-Inf}` sentinels for `f64` round-trip.
 See [§9 Spec extensions](docs/USER-GUIDE.md#9-spec-extensions).
 
 ## Verification (cross-language)

@@ -357,13 +357,23 @@ impl<'a> Parser<'a> {
 
                 // wat-edn-internal sentinels for non-finite floats (mirror
                 // of writer.rs::write_float). Recognized so f64 round-trips
-                // through write→parse without losing NaN / Inf.
-                if ns == "wat-edn.float" {
-                    match name {
-                        "nan" => return Ok(Value::Float(f64::NAN)),
-                        "inf" => return Ok(Value::Float(f64::INFINITY)),
-                        "neg-inf" => return Ok(Value::Float(f64::NEG_INFINITY)),
-                        _ => {}
+                // through write→parse without losing NaN / Inf. Body must
+                // be the legal unit-variant shape (`[]`, arc 278 A.0) —
+                // wat-edn has no type registry so it intercepts the tag
+                // here rather than deferring to substrate dispatch, but it
+                // still owes the substrate's shape. A non-`[]` body falls
+                // through to an ordinary `Value::Tagged`, same as any other
+                // unrecognized name under this namespace.
+                if ns == "wat.core.f64" {
+                    if let Value::Vector(items) = &body {
+                        if items.is_empty() {
+                            match name {
+                                "NaN" => return Ok(Value::Float(f64::NAN)),
+                                "+Inf" => return Ok(Value::Float(f64::INFINITY)),
+                                "-Inf" => return Ok(Value::Float(f64::NEG_INFINITY)),
+                                _ => {}
+                            }
+                        }
                     }
                 }
 

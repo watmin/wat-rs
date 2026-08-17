@@ -245,15 +245,21 @@ fn write_float(f: f64, out: &mut String) {
     // through write→parse even for non-finite values. Other EDN readers
     // see them as ordinary user tags and can pass through, ignore, or
     // install a handler.
+    //
+    // Shape: `#wat.core.f64/{NaN,+Inf,-Inf} []` — arc 294.l. The body is
+    // an empty vector, not `nil`: arc 278 A.0 retired the bare-nil unit
+    // variant body (`#tag []` is the only legal shape), and wat-edn's own
+    // sentinel is not exempt just because parser.rs intercepts it before
+    // substrate tag dispatch ever sees it.
     if f.is_nan() {
-        out.push_str("#wat-edn.float/nan nil");
+        out.push_str("#wat.core.f64/NaN []");
         return;
     }
     if f.is_infinite() {
         if f.is_sign_negative() {
-            out.push_str("#wat-edn.float/neg-inf nil");
+            out.push_str("#wat.core.f64/-Inf []");
         } else {
-            out.push_str("#wat-edn.float/inf nil");
+            out.push_str("#wat.core.f64/+Inf []");
         }
         return;
     }

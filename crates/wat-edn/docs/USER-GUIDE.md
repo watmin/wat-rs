@@ -506,9 +506,9 @@ EDN doesn't define NaN or ±Infinity. wat-edn emits namespaced
 sentinel tags so `f64` round-trips losslessly:
 
 ```text
-NaN          → #wat-edn.float/nan nil
-+Infinity    → #wat-edn.float/inf nil
--Infinity    → #wat-edn.float/neg-inf nil
+NaN          → #wat.core.f64/NaN []
++Infinity    → #wat.core.f64/+Inf []
+-Infinity    → #wat.core.f64/-Inf []
 ```
 
 Other EDN readers see them as ordinary user tags and may pass
