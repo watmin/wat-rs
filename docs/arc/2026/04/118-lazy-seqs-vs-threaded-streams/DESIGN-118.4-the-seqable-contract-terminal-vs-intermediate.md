@@ -120,6 +120,34 @@ random access). That distinction was already right.
 - **The seven `-stream` twins** (`wat/seq.wat`) are the workaround this contract deletes. Their own
   stone, after this.
 
+## ★★ THE REFUSAL IS A FORCING FUNCTION, NOT A LIMITATION — and the escape hatch already exists
+
+Builder, 2026-08-17: *"a user could shove a stream into a vec and then do the empty check?.. and any
+others.. right?"* **Yes — and `into` already has the clauses.** Measured live:
+
+```wat
+(:wat::core::into (:wat::core::Vector :wat::core::i64) some-stream)
+(:wat::core::into (:wat::core::PersistentVector)       some-stream)
+;=> "vec-len=3 vec-empty=false vec-get=#wat.core.Option/Some [2] pv-len=2"
+```
+
+`into`'s clause list carries **`(Vector<T>, Stream<T>)`** and **`(PersistentVector<T>, Stream<T>)`**
+today. So the complete story is:
+
+> **A Stream refuses `length`/`empty?`/`get`. `into` materializes it. The materialized value answers
+> everything.**
+
+That is Java's `collect(toList())` then `.size()`/`.isEmpty()`/`.get(i)`, and Ruby's `to_a` then
+`.length`/`.empty?`/`[]`. Every read-once design lands here.
+
+★ **This is what upgrades the refusal from Honest to Good UX.** The cost of walking a read-once
+sequence is made **visible at the call site** — the user writes `into` and thereby says *"I am
+consuming this"* — and after that one obvious verb, nothing is restricted. The wrong path (a silent
+consuming `length`) is not there; the right path is one word.
+
+⚠ The one real `into` gap found this session is **`(Vector<T>, List)`** — List, not Stream. Sibling
+of task #45's already-shipped `(PersistentVector, Vector)`. Independent of this contract.
+
 ## What is measured vs what is knowledge
 
 **Measured on disk this session:** Stream's full capability row; `mappable()`/`ordered()` marking
