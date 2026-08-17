@@ -18,8 +18,13 @@
                (:wat::rete::core::i64::> ?w 30))))]
   :then [(:woa::Hit :loc ?loc)])
 
+(:wat::rete::defquery :woa::q-Hit
+  :params []
+  :when [(?fact <- :woa::Hit)])
+
+
 (:wat::core::defn :woa::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "woa::Hit")))
+  (:wat::core::length (:wat::rete::query s (:woa::q-Hit))))
 
 (:wat::core::defn :woa::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -34,33 +39,33 @@
     (:woa::line 1 "really-cold"
       (:woa::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c -10 :loc "MCI")))))
     (:woa::line 2 "cold-and-windy"
       (:woa::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c 15 :loc "MCI")
             (:woa::Wind :kph 50 :loc "MCI")))))
     (:woa::line 3 "mild-only"
       (:woa::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c 15 :loc "MCI")))))
     (:woa::line 4 "wind-only"
       (:woa::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Wind :kph 50 :loc "MCI")))))
     (:woa::line 5 "really-cold-and-windy"
       (:woa::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c -10 :loc "MCI")
             (:woa::Wind :kph 50 :loc "MCI")))))
     (:woa::line 6 "hot-and-windy"
       (:woa::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c 25 :loc "MCI")
             (:woa::Wind :kph 50 :loc "MCI")))))))

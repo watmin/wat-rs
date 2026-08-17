@@ -15,16 +15,23 @@
   :when [(:cg::Anchor (?x <- :x))]
   :then [(:cg::Wrap :s (:cg::Status::Active 7))])
 
+(:wat::rete::defquery :cg::q-Wrap
+  :params []
+  :when [(:cg::Wrap (?s <- :s))])
+
+
 ;; Fires via the WAT ORACLE.
 (:wat::core::defn :user::run-oracle [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Wrap)))
      session (:wat::rete::insert session (:cg::Anchor :x 0))
      fired   (:wat::rete::fire-rules-spec session)
-     derived (:wat::rete::query-by-type-string fired "cg::Wrap")
+     derived (:wat::rete::query fired (:cg::q-Wrap))
      r       (:wat::core::first derived)
-     s       (:cg::Wrap/s r)]
+     s       (:wat::core::Option/expect
+               (:wat::core::PersistentMap/get r "?s")
+               "q-Wrap: ?s")]
     (:wat::core::match s
       ((:cg::Status::Active lvl) lvl))))
 
@@ -32,11 +39,13 @@
 (:wat::core::defn :user::run-native [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Wrap)))
      session (:wat::rete::insert' session (:cg::Anchor :x 0))
      fired   (:wat::rete::fire-rules' session)
-     derived (:wat::rete::query-by-type-string fired "cg::Wrap")
+     derived (:wat::rete::query fired (:cg::q-Wrap))
      r       (:wat::core::first derived)
-     s       (:cg::Wrap/s r)]
+     s       (:wat::core::Option/expect
+               (:wat::core::PersistentMap/get r "?s")
+               "q-Wrap: ?s")]
     (:wat::core::match s
       ((:cg::Status::Active lvl) lvl))))

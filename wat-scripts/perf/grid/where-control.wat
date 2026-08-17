@@ -256,6 +256,11 @@
   :then
   [(:wsc::Hit ?k)])
 
+(:wat::rete::defquery :wsc::q-Hit
+  :params []
+  :when [(?fact <- :wsc::Hit)])
+
+
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wsc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
@@ -298,8 +303,8 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :wsc::Hit] -> :wat::core::i64 (:wsc::Hit/k f))
-        (:wat::rete::query-by-type-string fired "wsc::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wsc::Hit/k f)))
+        (:wat::rete::query fired (:wsc::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
@@ -330,7 +335,7 @@
 (:wat::core::defn :wsc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wsc::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wsc::seed (:wat::rete::compile rules) (:wsc::items))
+                    staged  (:wsc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsc::q-Hit))) (:wsc::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wsc::derived-ints fired)
                     n       (:wat::core::Vector/length derived)]

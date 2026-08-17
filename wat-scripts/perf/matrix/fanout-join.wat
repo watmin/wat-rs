@@ -7,6 +7,11 @@
 (:wat::core::defrecord :perf::FanResult
   [keys <- :wat::core::i64 fanout <- :wat::core::i64 pairs <- :wat::core::i64 native-ns <- :wat::core::i64])
 
+(:wat::rete::defquery :fan::q-Pair
+  :params []
+  :when [(?fact <- :fan::Pair)])
+
+
 ;; seed Left(k,f)+Right(k,f) for f in 0..fanout, threaded onto session s, for one key k.
 (:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
@@ -25,13 +30,13 @@
                     c2   (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
                     rhs  (:wat::core::quote (:fan::Pair ?k ?l ?r))
                     rule (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-                    s0   (:wat::rete::compile (:wat::core::PersistentVector rule))
+                    s0   (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair)))
                     staged (:wat::core::foldl
                               (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
                                 (:fan::seed-key acc k fanout))
                               s0
                               (:wat::core::range 0 keys))
                     n0 (:wat::time::now)  fn (:wat::rete::fire-rules' staged)       n1 (:wat::time::now)
-                    pairs   (:wat::core::length (:wat::rete::query-by-type-string fn "fan::Pair"))
+                    pairs   (:wat::core::length (:wat::rete::query fn (:fan::q-Pair)))
                     nat-ns  (:wat::core::i64::- (:wat::time::epoch-nanos n1) (:wat::time::epoch-nanos n0))]
     (:wat::kernel::println (:perf::FanResult :keys keys :fanout fanout :pairs pairs :native-ns nat-ns))))

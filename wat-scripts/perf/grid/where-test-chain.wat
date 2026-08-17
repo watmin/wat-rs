@@ -36,6 +36,11 @@
   :then
   [(:wtc::Pair :a ?t1 :b ?t2)])
 
+(:wat::rete::defquery :wtc::q-Pair
+  :params []
+  :when [(:wtc::Pair (?a <- :a) (?b <- :b))])
+
+
 (:wat::core::defn :wtc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
@@ -53,17 +58,23 @@
     (:wtc::Temp :c 80 :loc "MCI")))
 
 (:wat::core::defn :wtc::render [fired <- :wat::rete::Session] -> :wat::core::String
-  (:wat::core::let [pairs (:wat::rete::query-by-type-string fired "wtc::Pair")
+  (:wat::core::let [pairs (:wat::rete::query fired (:wtc::q-Pair))
                     n     (:wat::core::length pairs)
                     shown (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::String  p <- :wtc::Pair]
+                             (:wat::core::fn [acc <- :wat::core::String  p <- :wat::core::PersistentMap]
                                -> :wat::core::String
                                (:wat::core::String/concat acc
                                  (:wat::core::String/concat " "
                                    (:wat::core::String/concat
-                                     (:wat::core::i64::to-string (:wtc::Pair/a p))
+                                     (:wat::core::i64::to-string
+                                       (:wat::core::Option/expect
+                                         (:wat::core::PersistentMap/get p "?a")
+                                         "q-Pair: ?a"))
                                      (:wat::core::String/concat ","
-                                       (:wat::core::i64::to-string (:wtc::Pair/b p)))))))
+                                       (:wat::core::i64::to-string
+                                         (:wat::core::Option/expect
+                                           (:wat::core::PersistentMap/get p "?b")
+                                           "q-Pair: ?b")))))))
                              ""
                              pairs)]
     (:wat::core::String/concat
@@ -73,7 +84,7 @@
 (:wat::core::defn :wtc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules (:wtc::build-rules row)
                     rule  (:wat::core::first rules)
-                    fired (:wat::rete::fire-rules (:wtc::seed (:wat::rete::compile rules)))
+                    fired (:wat::rete::fire-rules (:wtc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wtc::q-Pair)))))
                     name  (:wat::core::foldl
                              (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String]
                                -> :wat::core::String seg)

@@ -29,7 +29,11 @@ fn world(acc: &str, gate: &str) -> String {
             {acc}\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           [(:w::Busy :location ?loc :n ?n)])"
+           [(:w::Busy :location ?loc :n ?n)])\n\
+         \n\
+         (:wat::rete::defquery :w::q-Busy\n\
+           :params []\n\
+           :when [(:w::Busy)])"
     )
 }
 
@@ -43,11 +47,11 @@ fn busy_count(acc: &str, gate: &str, readings: &[(&str, i64)]) -> Result<i64, St
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
-             session (:wat::rete::compile rules)\n\
+             session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Busy)))\n\
              session (:wat::rete::insert session (:w::Station \"Oslo\"))\n\
 {reading_inserts}\
              fired   (:wat::rete::fire-rules-spec session)]\n\
-            (:wat::rete::query fired :w::Busy)))"
+            (:wat::rete::query fired (:w::q-Busy))))"
     );
     let world_src = world(acc, gate);
     let w = startup_from_source(&world_src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))

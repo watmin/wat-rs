@@ -8,12 +8,12 @@
 (:wat::core::defrecord :wal::Busy    [n <- :wat::core::i64])
 
 (:wat::rete::defrule :wal::count-zero
-  :when [(?n <- (:wat::rete::acc::count) :from (:wal::Reading (?v <- :v)))
+  :when [(?n <- (:wat::rete::acc::count) :from (:wal::Reading))
          (:wat::rete::where (:wat::rete::core::i64::= ?n 0))]
   :then [(:wal::Busy :n ?n)])
 
 (:wat::rete::defrule :wal::count-three
-  :when [(?n <- (:wat::rete::acc::count) :from (:wal::Reading (?v <- :v)))
+  :when [(?n <- (:wat::rete::acc::count) :from (:wal::Reading))
          (:wat::rete::where (:wat::rete::core::i64::= ?n 3))]
   :then [(:wal::Busy :n ?n)])
 
@@ -22,8 +22,13 @@
          (:wat::rete::where (:wat::rete::core::i64::> ?m 40))]
   :then [(:wal::Busy :n ?m)])
 
+(:wat::rete::defquery :wal::q-Busy
+  :params []
+  :when [(?fact <- :wal::Busy)])
+
+
 (:wat::core::defn :wal::n-busy [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wal::Busy")))
+  (:wat::core::length (:wat::rete::query s (:wal::q-Busy))))
 
 (:wat::core::defn :wal::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -38,26 +43,26 @@
                     t (:wat::core::PersistentVector (:wal::count-three))
                     m (:wat::core::PersistentVector (:wal::max-hi))]
     (:wal::line 1 "count0-empty"
-      (:wal::n-busy (:wat::rete::fire-rules (:wat::rete::compile z))))
+      (:wal::n-busy (:wat::rete::fire-rules (:wat::rete::compile-all z (:wat::core::PersistentVector (:wal::q-Busy))))))
     (:wal::line 2 "count0-three"
       (:wal::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile z)
+          (:wat::rete::insert (:wat::rete::compile-all z (:wat::core::PersistentVector (:wal::q-Busy)))
             (:wal::Reading :v 1) (:wal::Reading :v 2) (:wal::Reading :v 3)))))
     (:wal::line 3 "count3-three"
       (:wal::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile t)
+          (:wat::rete::insert (:wat::rete::compile-all t (:wat::core::PersistentVector (:wal::q-Busy)))
             (:wal::Reading :v 1) (:wal::Reading :v 2) (:wal::Reading :v 3)))))
     (:wal::line 4 "count3-two"
       (:wal::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile t)
+          (:wat::rete::insert (:wat::rete::compile-all t (:wat::core::PersistentVector (:wal::q-Busy)))
             (:wal::Reading :v 1) (:wal::Reading :v 2)))))
     (:wal::line 5 "max-empty"
-      (:wal::n-busy (:wat::rete::fire-rules (:wat::rete::compile m))))
+      (:wal::n-busy (:wat::rete::fire-rules (:wat::rete::compile-all m (:wat::core::PersistentVector (:wal::q-Busy))))))
     (:wal::line 6 "max-50"
       (:wal::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile m)
+          (:wat::rete::insert (:wat::rete::compile-all m (:wat::core::PersistentVector (:wal::q-Busy)))
             (:wal::Reading :v 50) (:wal::Reading :v 40)))))))

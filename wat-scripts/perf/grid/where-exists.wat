@@ -41,11 +41,21 @@
          (:wat::rete::exists (:wex::Wind (?loc <- :loc)))]
   :then [(:wex::At :loc ?loc)])
 
+(:wat::rete::defquery :wex::q-At
+  :params []
+  :when [(?fact <- :wex::At)])
+
+
+(:wat::rete::defquery :wex::q-Hit
+  :params []
+  :when [(?fact <- :wex::Hit)])
+
+
 (:wat::core::defn :wex::n-at [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wex::At")))
+  (:wat::core::length (:wat::rete::query s (:wex::q-At))))
 
 (:wat::core::defn :wex::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wex::Hit")))
+  (:wat::core::length (:wat::rete::query s (:wex::q-Hit))))
 
 (:wat::core::defn :wex::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -62,17 +72,17 @@
                     mid  (:wat::core::PersistentVector (:wex::mid-wind))
                     mboth (:wat::core::PersistentVector (:wex::mid-both))]
     (:wex::line 1 "lead-empty"
-      (:wex::n-at (:wat::rete::fire-rules (:wat::rete::compile lead))))
+      (:wex::n-at (:wat::rete::fire-rules (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit))))))
     (:wex::line 2 "lead-two-same"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile lead)
+          (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")
             (:wex::Wind :kph 60 :loc "MCI")))))
     (:wex::line 3 "lead-two-locs"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile lead)
+          (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")
             (:wex::Wind :kph 60 :loc "ORD")))))
     (:wex::line 4 "lead-retract"
@@ -80,7 +90,7 @@
         (:wat::rete::fire-rules
           (:wat::rete::retract
             (:wat::rete::retract
-              (:wat::rete::insert (:wat::rete::compile lead)
+              (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
                 (:wex::Wind :kph 50 :loc "MCI")
                 (:wex::Wind :kph 60 :loc "MCI"))
               (:wex::Wind :kph 50 :loc "MCI"))
@@ -88,67 +98,67 @@
     (:wex::line 5 "and-wind-only"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile both)
+          (:wat::rete::insert (:wat::rete::compile-all both (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")))))
     (:wex::line 6 "and-diff-locs"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile both)
+          (:wat::rete::insert (:wat::rete::compile-all both (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")
             (:wex::Temp :c 60 :loc "ORD")))))
     (:wex::line 7 "and-both-mci"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile both)
+          (:wat::rete::insert (:wat::rete::compile-all both (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")
             (:wex::Temp :c 60 :loc "MCI")))))
     (:wex::line 8 "and-two-cities"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile both)
+          (:wat::rete::insert (:wat::rete::compile-all both (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")
             (:wex::Wind :kph 60 :loc "ORD")
             (:wex::Temp :c 60 :loc "MCI")
             (:wex::Temp :c 70 :loc "ORD")))))
     (:wex::line 9 "or-empty"
-      (:wex::n-hit (:wat::rete::fire-rules (:wat::rete::compile ore))))
+      (:wex::n-hit (:wat::rete::fire-rules (:wat::rete::compile-all ore (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit))))))
     (:wex::line 10 "or-caw"
       (:wex::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile ore)
+          (:wat::rete::insert (:wat::rete::compile-all ore (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Caw :t 10 :w 10)))))
     (:wex::line 11 "or-temp"
       (:wex::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile ore)
+          (:wat::rete::insert (:wat::rete::compile-all ore (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Temp :c 10 :loc "MCI")))))
     (:wex::line 12 "or-both"
       (:wex::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile ore)
+          (:wat::rete::insert (:wat::rete::compile-all ore (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Caw :t 10 :w 10)
             (:wex::Temp :c 10 :loc "MCI")))))
     (:wex::line 13 "mid-loc-only"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mid)
+          (:wat::rete::insert (:wat::rete::compile-all mid (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Loc :loc "MCI")))))
     (:wex::line 14 "mid-wind-only"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mid)
+          (:wat::rete::insert (:wat::rete::compile-all mid (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Wind :kph 50 :loc "MCI")))))
     (:wex::line 15 "mid-two-winds"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mid)
+          (:wat::rete::insert (:wat::rete::compile-all mid (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Loc :loc "MCI")
             (:wex::Wind :kph 50 :loc "MCI")
             (:wex::Wind :kph 60 :loc "MCI")))))
     (:wex::line 16 "mid-two-locs"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mid)
+          (:wat::rete::insert (:wat::rete::compile-all mid (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Loc :loc "MCI")
             (:wex::Loc :loc "ORD")
             (:wex::Wind :kph 50 :loc "MCI")
@@ -156,7 +166,7 @@
     (:wex::line 17 "mid-both-one-city"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mboth)
+          (:wat::rete::insert (:wat::rete::compile-all mboth (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Loc :loc "MCI")
             (:wex::Loc :loc "ORD")
             (:wex::Wind :kph 50 :loc "MCI")
@@ -165,7 +175,7 @@
     (:wex::line 18 "mid-both-two-cities"
       (:wex::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mboth)
+          (:wat::rete::insert (:wat::rete::compile-all mboth (:wat::core::PersistentVector (:wex::q-At) (:wex::q-Hit)))
             (:wex::Loc :loc "MCI")
             (:wex::Loc :loc "ORD")
             (:wex::Wind :kph 50 :loc "MCI")

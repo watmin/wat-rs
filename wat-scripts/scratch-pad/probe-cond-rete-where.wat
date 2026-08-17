@@ -30,10 +30,15 @@
   :then
   [(:probe::Hit :tier ?tier)])
 
+(:wat::rete::defquery :probe::q-Hit
+  :params []
+  :when [(?fact <- :probe::Hit)])
+
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules  (:wat::core::PersistentVector (:probe::score-rule))
-     staged (:wat::rete::insert (:wat::rete::compile rules) (:probe::Item :tier :silver))
+     staged (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) (:probe::Item :tier :silver))
      fired  (:wat::rete::fire-rules staged)
-     hits   (:wat::rete::query fired :probe::Hit)]
+     hits   (:wat::rete::query fired (:probe::q-Hit))]
     (:wat::kernel::println (:wat::core::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))

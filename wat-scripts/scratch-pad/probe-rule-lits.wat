@@ -1,7 +1,7 @@
 ;; Probe (v2): sift-rules-defsvc's two macro-time extraction problems, end to end:
 ;;   (1) build Rule VALUES from raw (defrule …) forms (no top-level defn needed) — via make-rule.
-;;   (2) macro-emit a per-derived-type `query` flat-map (Session/facts set-diff does NOT carry
-;;       derived facts — proven false below; the per-type `query` fallback is what actually works).
+;;   (2) macro-emit a per-derived-type QueryNode `query` flat-map (Session/facts set-diff does
+;;       NOT carry derived facts — proven false below; make-query + query is the mouth).
 ;; Both probed together, then wired into a deduce-one that flat-maps ALL derived types into one
 ;; PersistentVector<Value> — the exact shape sift-rules' op needs per Log/seed.
 
@@ -60,18 +60,31 @@
                  (:wat::core::Vector :wat::core::String)
                  rules-children)
      fired-sym  (:wat::core::symbol-node "fired")
-     query-calls
+     query-lits
                (:wat::core::foldl
                  (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
                    -> :wat::core::Vector<wat::WatAST>
                    (:wat::core::let
-                     [tkw (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))]
-                     (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~tkw))))
+                     [tkw  (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))
+                      cond `(~tkw)]
+                     (:wat::core::conj acc
+                       `(:wat::rete::make-query ~tstr
+                          (:wat::core::quote [])
+                          (:wat::core::quote [~cond])))))
                  (:wat::core::Vector :wat::WatAST)
-                 derived-type-strs)]
+                 derived-type-strs)
+     query-calls
+               (:wat::core::foldl
+                 (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> lit <- :wat::WatAST]
+                   -> :wat::core::Vector<wat::WatAST>
+                   (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~lit)))
+                 (:wat::core::Vector :wat::WatAST)
+                 query-lits)]
     `(:wat::core::do
        (:wat::core::defn :usr::rules-template [] -> :wat::rete::Session
-         (:wat::rete::compile (:wat::core::PersistentVector ~@rule-lits)))
+         (:wat::rete::compile-all
+           (:wat::core::PersistentVector ~@rule-lits)
+           (:wat::core::PersistentVector ~@query-lits)))
        (:wat::core::defn :usr::deduce-one
          [template <- :wat::rete::Session  seed <- :usr::Temp]
          -> :wat::core::PersistentVector<wat::core::Value>

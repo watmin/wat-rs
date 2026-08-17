@@ -41,6 +41,16 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :asym::q-B
+  :params []
+  :when [(?fact <- :asym::B)])
+
+
+(:wat::rete::defquery :asym::q-C
+  :params []
+  :when [(?fact <- :asym::C)])
+
+
 ;; encode tag k — canonical single-i64 witness for one derived fact (B=tag 0, C=tag 1).
 ;; items is always far below 1,000,000 at grid scale, so the encoding is injective here.
 (:wat::core::defn :asym::encode [tag <- :wat::core::i64  k <- :wat::core::i64] -> :wat::core::i64
@@ -78,13 +88,13 @@
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
 (:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
   (:wat::core::into (:wat::core::Vector :wat::core::i64)
-    (:wat::core::map (:wat::core::fn [f <- :asym::B] -> :wat::core::i64 (:asym::encode 0 (:asym::B/k f)))
-      (:wat::rete::query-by-type-string fired "asym::B"))))
+    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:asym::encode 0 (:asym::B/k f))))
+      (:wat::rete::query fired (:asym::q-B)))))
 
 (:wat::core::defn :asym::c-codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
   (:wat::core::into (:wat::core::Vector :wat::core::i64)
-    (:wat::core::map (:wat::core::fn [f <- :asym::C] -> :wat::core::i64 (:asym::encode 1 (:asym::C/k f)))
-      (:wat::rete::query-by-type-string fired "asym::C"))))
+    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:asym::encode 1 (:asym::C/k f))))
+      (:wat::rete::query fired (:asym::q-C)))))
 
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
@@ -107,7 +117,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:asym::build-rules)
-                    staged  (:asym::seed-items (:wat::rete::compile rules) items)
+                    staged  (:asym::seed-items (:wat::rete::compile-all rules (:wat::core::PersistentVector (:asym::q-B) (:asym::q-C))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

@@ -95,6 +95,11 @@
   :then
   [(:wjo::Hit ?k)])
 
+(:wat::rete::defquery :wjo::q-Hit
+  :params []
+  :when [(?fact <- :wjo::Hit)])
+
+
 (:wat::core::defn :wjo::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
@@ -126,8 +131,8 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :wjo::Hit] -> :wat::core::i64 (:wjo::Hit/k f))
-        (:wat::rete::query-by-type-string fired "wjo::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wjo::Hit/k f)))
+        (:wat::rete::query fired (:wjo::q-Hit))))))
 
 (:wat::core::defn :wjo::render-ints [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::String
   (:wat::core::foldl
@@ -147,7 +152,7 @@
 (:wat::core::defn :wjo::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wjo::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wjo::seed (:wat::rete::compile rules) (:wjo::items))
+                    staged  (:wjo::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wjo::q-Hit))) (:wjo::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wjo::derived-ints fired)
                     n       (:wat::core::Vector/length derived)]

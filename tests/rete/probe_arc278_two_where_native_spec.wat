@@ -15,9 +15,14 @@
          (:wat::rete::where (:wat::rete::core::i64::> ?k 30))]
   :then [(:tw::ColdWindy :loc ?loc)])
 
+(:wat::rete::defquery :tw::q-ColdWindy
+  :params []
+  :when [(?fact <- :tw::ColdWindy)])
+
+
 (:wat::core::defn :user::stage [] -> :wat::rete::Session
   (:wat::rete::insert
-    (:wat::rete::compile (:wat::rete::collect-rules :tw))
+    (:wat::rete::compile-all (:wat::rete::collect-rules :tw) (:wat::core::PersistentVector (:tw::q-ColdWindy)))
     (:tw::Temp :c 5 :loc "oslo")
     (:tw::Wind :kph 40 :loc "oslo")
     (:tw::Temp :c 22 :loc "rome")
@@ -25,12 +30,8 @@
 
 (:wat::core::defn :user::native-count [] -> :wat::core::i64
   (:wat::core::length
-    (:wat::rete::query-by-type-string
-      (:wat::rete::fire-rules (:user::stage))
-      "tw::ColdWindy")))
+    (:wat::rete::query (:wat::rete::fire-rules (:user::stage)) (:tw::q-ColdWindy))))
 
 (:wat::core::defn :user::spec-count [] -> :wat::core::i64
   (:wat::core::length
-    (:wat::rete::query-by-type-string
-      (:wat::rete::fire-rules-spec (:user::stage))
-      "tw::ColdWindy")))
+    (:wat::rete::query (:wat::rete::fire-rules-spec (:user::stage)) (:tw::q-ColdWindy))))

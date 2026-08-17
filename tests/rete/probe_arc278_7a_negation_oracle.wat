@@ -12,6 +12,11 @@
   :then
   [(:alert::Unattended :location ?loc)])
 
+(:wat::rete::defquery :alert::q-Unattended
+  :params []
+  :when [(?fact <- :alert::Unattended)])
+
+
 ;; Fire the oracle after the given inserts and count derived Unattended facts.
 
 ;; 1 — `:not` PASSES when the negated fact is ABSENT: Temp(Oslo), no Maintenance → 1 Unattended.
@@ -19,21 +24,21 @@
   (:wat::core::length
     (:wat::core::let
       [rules   (:wat::rete::collect-rules :alert)
-       session (:wat::rete::compile rules)
+       session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        fired   (:wat::rete::fire-rules-spec session)]
-      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+      (:wat::rete::query fired (:alert::q-Unattended)))))
 
 ;; 2 — `:not` BLOCKS when the negated fact is PRESENT and MATCHES: Temp(Oslo) + Maintenance(Oslo) → 0.
 (:wat::core::defn :user::unattended-count-present-matching [] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::let
       [rules   (:wat::rete::collect-rules :alert)
-       session (:wat::rete::compile rules)
+       session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        session (:wat::rete::insert session (:ops::Maintenance :location "Oslo"))
        fired   (:wat::rete::fire-rules-spec session)]
-      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+      (:wat::rete::query fired (:alert::q-Unattended)))))
 
 ;; 3 — `:not` PASSES when a negated fact exists but at a DIFFERENT binding (the shared-var join-filter):
 ;; Temp(Oslo) + Maintenance(Bergen) → the Bergen maintenance does NOT match ?loc=Oslo → 1 Unattended.
@@ -41,9 +46,9 @@
   (:wat::core::length
     (:wat::core::let
       [rules   (:wat::rete::collect-rules :alert)
-       session (:wat::rete::compile rules)
+       session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        session (:wat::rete::insert session (:ops::Maintenance :location "Bergen"))
        fired   (:wat::rete::fire-rules-spec session)]
-      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+      (:wat::rete::query fired (:alert::q-Unattended)))))
 

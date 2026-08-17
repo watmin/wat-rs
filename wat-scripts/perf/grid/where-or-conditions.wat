@@ -51,8 +51,13 @@
          (:wat::rete::where (:wat::rete::core::i64::> ?v 10))]
   :then [(:wor::Hit :loc ?loc)])
 
+(:wat::rete::defquery :wor::q-Hit
+  :params []
+  :when [(?fact <- :wor::Hit)])
+
+
 (:wat::core::defn :wor::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wor::Hit")))
+  (:wat::core::length (:wat::rete::query s (:wor::q-Hit))))
 
 (:wat::core::defn :wor::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -67,17 +72,17 @@
   (:wor::line 1 "or-cold-only"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-hit)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-hit)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Temp :c 15 :loc "MCI")))))
   (:wor::line 2 "or-wind-only"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-hit)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-hit)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Wind :kph 50 :loc "MCI")))))
   (:wor::line 3 "or-both"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-hit)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-hit)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Temp :c 15 :loc "MCI")
           (:wor::Wind :kph 50 :loc "MCI")))))
 
@@ -85,71 +90,71 @@
   (:wor::line 4 "prefix-or-cold"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::prefix-then-or)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::prefix-then-or)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Station :loc "MCI")
           (:wor::Temp :c 15 :loc "MCI")))))
   (:wor::line 5 "prefix-or-wind"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::prefix-then-or)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::prefix-then-or)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Station :loc "MCI")
           (:wor::Wind :kph 50 :loc "MCI")))))
   (:wor::line 6 "prefix-or-both"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::prefix-then-or)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::prefix-then-or)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Station :loc "MCI")
           (:wor::Temp :c 15 :loc "MCI")
           (:wor::Wind :kph 50 :loc "MCI")))))
   (:wor::line 7 "prefix-or-no-station"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::prefix-then-or)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::prefix-then-or)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Temp :c 15 :loc "MCI")))))
 
   ;; 8–11 :or then fact
   (:wor::line 8 "or-fact-cold"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-fact)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-fact)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Station :loc "MCI")
           (:wor::Temp :c 15 :loc "MCI")))))
   (:wor::line 9 "or-fact-wind"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-fact)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-fact)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Station :loc "MCI")
           (:wor::Wind :kph 50 :loc "MCI")))))
   (:wor::line 10 "or-fact-both"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-fact)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-fact)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Station :loc "MCI")
           (:wor::Temp :c 15 :loc "MCI")
           (:wor::Wind :kph 50 :loc "MCI")))))
   (:wor::line 11 "or-fact-no-station"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-fact)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-fact)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Temp :c 15 :loc "MCI")))))
 
   ;; 12–14 prefix + :or + :where
   (:wor::line 12 "or-where-pass"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-where)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-where)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Reading :loc "MCI" :v 15)
           (:wor::Temp :c 15 :loc "MCI")))))
   (:wor::line 13 "or-where-fail"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-where)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-where)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Reading :loc "MCI" :v 5)
           (:wor::Temp :c 15 :loc "MCI")))))
   (:wor::line 14 "or-where-both"
     (:wor::n-hit
       (:wat::rete::fire-rules
-        (:wat::rete::insert (:wat::rete::compile (:wat::core::PersistentVector (:wor::or-then-where)))
+        (:wat::rete::insert (:wat::rete::compile-all (:wat::core::PersistentVector (:wor::or-then-where)) (:wat::core::PersistentVector (:wor::q-Hit)))
           (:wor::Reading :loc "MCI" :v 15)
           (:wor::Temp :c 15 :loc "MCI")
           (:wor::Wind :kph 50 :loc "MCI"))))))

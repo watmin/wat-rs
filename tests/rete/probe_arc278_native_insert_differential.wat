@@ -21,8 +21,13 @@
   :then
   [(:nin::Out ?g)])
 
+(:wat::rete::defquery :nin::q-Out
+  :params []
+  :when [(?fact <- :nin::Out)])
+
+
 (:wat::core::defn :nin::base [] -> :wat::rete::Session
-  (:wat::rete::compile (:wat::rete::collect-rules :nin)))
+  (:wat::rete::compile-all (:wat::rete::collect-rules :nin) (:wat::core::PersistentVector (:nin::q-Out))))
 
 ;; ── the three seeders — identical but for the verb under test ────────────────
 
@@ -59,15 +64,18 @@
 ;; on the first pass, and the accum grid axis reads it the same way (map a concretely-typed fn over
 ;; the result). Declaring `Vector<nin::Out>` here was my error, not the subject's.
 (:wat::core::defn :nin::fired-outs [s <- :wat::rete::Session] -> :wat::core::PersistentVector
-  (:wat::rete::query-by-type-string (:wat::rete::fire-rules s) "nin::Out"))
+  (:wat::rete::query (:wat::rete::fire-rules s) (:nin::q-Out)))
 
 (:wat::core::defn :nin::fired-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:nin::fired-outs s)))
 
 (:wat::core::defn :nin::fired-sum [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::core::i64  o <- :nin::Out] -> :wat::core::i64
-      (:wat::core::i64::+ a (:nin::Out/g o)))
+    (:wat::core::fn [a <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+      (:wat::core::let [o (:wat::core::Option/expect
+                            (:wat::core::PersistentMap/get p "?fact")
+                            "q-Out: ?fact")]
+        (:wat::core::i64::+ a (:nin::Out/g o))))
     0
     (:nin::fired-outs s)))
 

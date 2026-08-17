@@ -73,10 +73,15 @@
   :then
   [(:stopa::Hit ?k)])
 
+(:wat::rete::defquery :stopa::q-Hit
+  :params []
+  :when [(?fact <- :stopa::Hit)])
+
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [session (:wat::rete::insert-all
-               (:wat::rete::compile (:wat::core::PersistentVector (:stopa::overflow-in-where)))
+               (:wat::rete::compile-all (:wat::core::PersistentVector (:stopa::overflow-in-where)) (:wat::core::PersistentVector (:stopa::q-Hit)))
                (:wat::core::PersistentVector
                  (:stopa::Big :k 1 :n 1)
                  (:stopa::Big :k 2 :n 9223372036854775807)))
@@ -86,4 +91,4 @@
     (:wat::kernel::println
       (:wat::core::i64::to-string
         (:wat::core::PersistentVector/length
-          (:wat::rete::query-by-type-string fired "stopa::Hit"))))))
+          (:wat::rete::query fired (:stopa::q-Hit)))))))

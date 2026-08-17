@@ -44,6 +44,11 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :neg::q-Ok
+  :params []
+  :when [(?fact <- :neg::Ok)])
+
+
 ;; build-rules — the single-rule set: Ok(k) :- Item(k) AND NOT Bad(k).
 ;; Two LHS conditions: bind ?k off Item, then negate Bad on the same ?k. One RHS insert.
 (:wat::core::defn :neg::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
@@ -84,8 +89,8 @@
 (:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                             (:wat::core::map
-                              (:wat::core::fn [f <- :neg::Ok] -> :wat::core::i64 (:neg::Ok/k f))
-                              (:wat::rete::query-by-type-string fired "neg::Ok")))]
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
+                              (:wat::rete::query fired (:neg::q-Ok))))]
     (:neg::vec->pvec (:wat::core::sort codes))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
@@ -96,7 +101,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:neg::build-rules)
-                    staged  (:neg::seed (:wat::rete::compile rules) items)
+                    staged  (:neg::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:neg::q-Ok))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

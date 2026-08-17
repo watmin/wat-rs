@@ -203,6 +203,11 @@
   :then
   [(:wmv::Hit ?k)])
 
+(:wat::rete::defquery :wmv::q-Hit
+  :params []
+  :when [(?fact <- :wmv::Hit)])
+
+
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
@@ -258,8 +263,8 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :wmv::Hit] -> :wat::core::i64 (:wmv::Hit/k f))
-        (:wat::rete::query-by-type-string fired "wmv::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
+        (:wat::rete::query fired (:wmv::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's note; both sides must be BYTE-IDENTICAL for `diff` to be the whole verdict.
@@ -292,7 +297,7 @@
   (:wat::core::let
     [rules   (:wmv::build-rules row)
      rule    (:wat::core::first rules)
-     staged  (:wmv::seed (:wat::rete::compile rules) (:wmv::items))
+     staged  (:wmv::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wmv::q-Hit))) (:wmv::items))
      fired   (:wat::rete::fire-rules staged)
      derived (:wmv::derived-ints fired)
      n       (:wat::core::Vector/length derived)]

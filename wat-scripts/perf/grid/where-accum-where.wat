@@ -20,8 +20,13 @@
          (:wat::rete::where (:wat::rete::core::i64::> ?m 40))]
   :then [(:waw::Busy :loc ?loc :n ?m)])
 
+(:wat::rete::defquery :waw::q-Busy
+  :params []
+  :when [(?fact <- :waw::Busy)])
+
+
 (:wat::core::defn :waw::n-busy [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "waw::Busy")))
+  (:wat::core::length (:wat::rete::query s (:waw::q-Busy))))
 
 (:wat::core::defn :waw::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -37,7 +42,7 @@
     (:waw::line 1 "count-eq-3"
       (:waw::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile cnt)
+          (:wat::rete::insert (:wat::rete::compile-all cnt (:wat::core::PersistentVector (:waw::q-Busy)))
             (:waw::Station :loc "OSL")
             (:waw::Reading :loc "OSL" :v 1)
             (:waw::Reading :loc "OSL" :v 2)
@@ -45,28 +50,28 @@
     (:waw::line 2 "count-eq-3-miss"
       (:waw::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile cnt)
+          (:wat::rete::insert (:wat::rete::compile-all cnt (:wat::core::PersistentVector (:waw::q-Busy)))
             (:waw::Station :loc "OSL")
             (:waw::Reading :loc "OSL" :v 1)
             (:waw::Reading :loc "OSL" :v 2)))))
     (:waw::line 3 "max-gt-40"
       (:waw::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mx)
+          (:wat::rete::insert (:wat::rete::compile-all mx (:wat::core::PersistentVector (:waw::q-Busy)))
             (:waw::Station :loc "OSL")
             (:waw::Reading :loc "OSL" :v 50)
             (:waw::Reading :loc "OSL" :v 40)))))
     (:waw::line 4 "max-le-40"
       (:waw::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile mx)
+          (:wat::rete::insert (:wat::rete::compile-all mx (:wat::core::PersistentVector (:waw::q-Busy)))
             (:waw::Station :loc "OSL")
             (:waw::Reading :loc "OSL" :v 40)
             (:waw::Reading :loc "OSL" :v 30)))))
     (:waw::line 5 "count-two-stations"
       (:waw::n-busy
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile cnt)
+          (:wat::rete::insert (:wat::rete::compile-all cnt (:wat::core::PersistentVector (:waw::q-Busy)))
             (:waw::Station :loc "OSL")
             (:waw::Station :loc "BGO")
             (:waw::Reading :loc "OSL" :v 1)

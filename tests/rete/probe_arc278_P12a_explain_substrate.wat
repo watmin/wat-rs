@@ -19,6 +19,11 @@
   :then
   [(:weather::WeatherAlert :celsius ?c :kph ?k)])
 
+(:wat::rete::defquery :weather::q-ColdAndWindy
+  :params []
+  :when [(?fact <- :weather::ColdAndWindy)])
+
+
 ;; The shared lifecycle prefix (collect → compile → insert ×2 → fire-rules-explain, binding `ex`) is
 ;; inlined into each entry point below — one per probe assertion.
 
@@ -27,18 +32,18 @@
 (:wat::core::defn :user::closure-fidelity-coldandwindy-count [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
      session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
      ex      (:wat::rete::fire-rules-explain session)]
     (:wat::core::length
-      (:wat::rete::query-by-type-string (:wat::rete::Explained/session ex) "weather::ColdAndWindy"))))
+      (:wat::rete::query (:wat::rete::Explained/session ex) (:weather::q-ColdAndWindy)))))
 
 ;; 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
 (:wat::core::defn :user::support-index-length [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
      session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
      ex      (:wat::rete::fire-rules-explain session)]
@@ -50,7 +55,7 @@
 (:wat::core::defn :user::support-chains-total-length [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
      session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
      ex      (:wat::rete::fire-rules-explain session)]

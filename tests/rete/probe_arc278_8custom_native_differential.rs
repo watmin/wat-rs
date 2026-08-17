@@ -35,7 +35,11 @@ fn world(gate: &str) -> String {
             (?s <- (:w::sum-of-squares ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           [(:w::Flagged :location ?loc)])"
+           [(:w::Flagged :location ?loc)])\n\
+         \n\
+         (:wat::rete::defquery :w::q-Flagged\n\
+           :params []\n\
+           :when [(:w::Flagged)])"
     )
 }
 
@@ -48,11 +52,11 @@ fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, Str
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
-             session (:wat::rete::compile rules)\n\
+             session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Flagged)))\n\
              session (:wat::rete::insert session (:w::Station :location \"Oslo\"))\n\
 {reading_inserts}\
              fired   (:wat::rete::{fire_fn} session)]\n\
-            (:wat::rete::query fired :w::Flagged)))"
+            (:wat::rete::query fired (:w::q-Flagged))))"
     );
     let w = startup_from_source(&world(gate), Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup: {e:?}"))?;

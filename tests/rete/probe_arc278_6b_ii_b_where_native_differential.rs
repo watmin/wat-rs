@@ -29,7 +29,11 @@ fn world(threshold: i64) -> String {
             (:weather::WindSpeed   (?loc <- :location) (?k <- :kph))\n\
             (:wat::rete::where (:wat::rete::core::i64::> ?c {threshold}))]\n\
            :then\n\
-           [(:weather::ColdAndWindy :location ?loc)])"
+           [(:weather::ColdAndWindy :location ?loc)])\n\
+         \n\
+         (:wat::rete::defquery :weather::q-ColdAndWindy\n\
+           :params []\n\
+           :when [(:weather::ColdAndWindy)])"
     )
 }
 
@@ -40,11 +44,11 @@ fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :weather)\n\
-             session (:wat::rete::compile rules)\n\
+             session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))\n\
              session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
              session (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
              fired   (:wat::rete::{fire_fn} session)]\n\
-            (:wat::rete::query fired :weather::ColdAndWindy)))"
+            (:wat::rete::query fired (:weather::q-ColdAndWindy))))"
     );
     let world = startup_from_source(world_src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup: {e:?}"))?;

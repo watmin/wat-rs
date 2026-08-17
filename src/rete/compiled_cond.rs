@@ -159,14 +159,8 @@ struct Ctx<'a> {
 /// invariant) so a caller can fall back to `alpha_match_inner` instead of panicking if that
 /// invariant is ever violated.
 pub(crate) fn compile_condition(cond: &WatAST, field_names: &[String]) -> Option<CompiledCond> {
-    let items = match cond {
-        WatAST::List(items, _) if !items.is_empty() => items,
-        _ => return None,
-    };
-    if !matches!(&items[0], WatAST::Keyword(_, _)) {
-        return None;
-    }
-    let clauses = &items[1..];
+    let pat = crate::rete::matcher::alpha_pattern(cond)?;
+    let clauses = pat.clauses;
 
     let mut ctx = Ctx { field_names, next_slot: 0 };
     let mut scope: HashMap<String, usize> = HashMap::new();
@@ -271,6 +265,7 @@ fn compile_one(
         ReteClauseShape::Where(_)
         | ReteClauseShape::Exists(_)
         | ReteClauseShape::Accumulate { .. }
+        | ReteClauseShape::FactBind { .. }
         | ReteClauseShape::Unrecognized => ops.push(Op::Fail),
     }
 }

@@ -155,17 +155,32 @@
            (:wat::rete::core::i64::= ?i (:wat::rete::core::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fx::IsTypePos :id ?id)])
 
+(:wat::rete::defquery :fx::q-IsArrow
+  :params []
+  :when [(?fact <- :fx::IsArrow)])
+
+
+(:wat::rete::defquery :fx::q-IsHeadKw
+  :params []
+  :when [(?fact <- :fx::IsHeadKw)])
+
+
+(:wat::rete::defquery :fx::q-IsTypePos
+  :params []
+  :when [(?fact <- :fx::IsTypePos)])
+
+
 (:wat::core::defn :fx::classify [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
     [acc   (:fx::extract (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos))
-     s0    (:wat::rete::insert-all (:wat::rete::compile rules) (:fx::Acc/nodes acc))
+     s0    (:wat::rete::insert-all (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos))) (:fx::Acc/nodes acc))
      fired (:wat::rete::fire-rules (:wat::rete::insert-all s0 (:fx::Acc/named acc)))]
     (:wat::kernel::println
       (:wat::core::string::concat path
-        (:wat::core::string::concat "  arrows=" (:wat::core::str (:wat::core::length (:wat::rete::query fired :fx::IsArrow)))
-          (:wat::core::string::concat "  head-kw=" (:wat::core::str (:wat::core::length (:wat::rete::query fired :fx::IsHeadKw)))
-            (:wat::core::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired :fx::IsTypePos))))))))))
+        (:wat::core::string::concat "  arrows=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsArrow))))
+          (:wat::core::string::concat "  head-kw=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsHeadKw))))
+            (:wat::core::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsTypePos)))))))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

@@ -98,8 +98,10 @@ impl AlphaTree {
                 HashMap::with_capacity(alpha_ids.len());
             for aid in alpha_ids {
                 let clauses: &[WatAST] = match alpha_cond.get(aid) {
-                    Some(WatAST::List(items, _)) if !items.is_empty() => &items[1..],
-                    _ => &[],
+                    Some(cond) => crate::rete::matcher::alpha_pattern(cond)
+                        .map(|p| p.clauses)
+                        .unwrap_or(&[]),
+                    None => &[],
                 };
                 disc.insert(*aid, analyze_condition(clauses, &field_names));
             }

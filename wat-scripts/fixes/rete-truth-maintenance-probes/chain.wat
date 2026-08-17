@@ -13,25 +13,40 @@
          (:c::A (?k <- :k))]
   :then [(:c::C ?k)])
 
+(:wat::rete::defquery :c::q-A
+  :params []
+  :when [(:c::A)])
+
+
+(:wat::rete::defquery :c::q-B
+  :params []
+  :when [(:c::B)])
+
+
+(:wat::rete::defquery :c::q-C
+  :params []
+  :when [(:c::C)])
+
+
 ;; Bug repro for fire_fixpoint_delta asymmetric-arrival drop:
 ;; A (right side of R2's hash join) arrives in round 1 while B (left) is not yet derived.
 ;; Before the fix: right_idx[J] was never populated → C=0. After: C=2.
 ;;
 ;; Oracle-vs-native differential check: fire-fixpoint (wat oracle) == fire-rules' (native delta).
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [s0       (:wat::rete::compile (:wat::rete::collect-rules :c))
+  (:wat::core::let [s0       (:wat::rete::compile-all (:wat::rete::collect-rules :c) (:wat::core::PersistentVector (:c::q-A) (:c::q-B) (:c::q-C)))
                     s1       (:wat::rete::insert s0 (:c::A 1))
                     s2       (:wat::rete::insert s1 (:c::A 2))
                     ;; Native delta engine (fire-rules')
                     native   (:wat::rete::fire-rules' s2)
                     ;; Wat oracle (fire-fixpoint)
                     oracle   (:wat::rete::fire-fixpoint s2)
-                    n-a      (:wat::core::length (:wat::rete::query-by-type-string native "c::A"))
-                    n-b      (:wat::core::length (:wat::rete::query-by-type-string native "c::B"))
-                    n-c      (:wat::core::length (:wat::rete::query-by-type-string native "c::C"))
-                    o-a      (:wat::core::length (:wat::rete::query-by-type-string oracle "c::A"))
-                    o-b      (:wat::core::length (:wat::rete::query-by-type-string oracle "c::B"))
-                    o-c      (:wat::core::length (:wat::rete::query-by-type-string oracle "c::C"))]
+                    n-a      (:wat::core::length (:wat::rete::query native (:c::q-A)))
+                    n-b      (:wat::core::length (:wat::rete::query native (:c::q-B)))
+                    n-c      (:wat::core::length (:wat::rete::query native (:c::q-C)))
+                    o-a      (:wat::core::length (:wat::rete::query oracle (:c::q-A)))
+                    o-b      (:wat::core::length (:wat::rete::query oracle (:c::q-B)))
+                    o-c      (:wat::core::length (:wat::rete::query oracle (:c::q-C)))]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::string::concat "=== native (fire-rules') ==="))
       (:wat::kernel::println (:wat::core::string::concat "A (input, queried) = " (:wat::core::str n-a)))

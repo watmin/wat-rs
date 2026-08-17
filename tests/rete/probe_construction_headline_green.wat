@@ -18,24 +18,33 @@
   :when [(:cg::Anchor (?x <- :x))]
   :then [(:cg::make-rate 7 9)])
 
+(:wat::rete::defquery :cg::q-Rate
+  :params []
+  :when [(:cg::Rate (?count <- :count))])
+
+
 ;; Fires via the WAT ORACLE.
 (:wat::core::defn :user::run-oracle [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Rate)))
      session (:wat::rete::insert session (:cg::Anchor :x 0))
      fired   (:wat::rete::fire-rules-spec session)
-     derived (:wat::rete::query-by-type-string fired "cg::Rate")
+     derived (:wat::rete::query fired (:cg::q-Rate))
      r       (:wat::core::first derived)]
-    (:cg::Rate/count r)))
+    (:wat::core::Option/expect
+      (:wat::core::PersistentMap/get r "?count")
+      "q-Rate: ?count")))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
 (:wat::core::defn :user::run-native [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Rate)))
      session (:wat::rete::insert' session (:cg::Anchor :x 0))
      fired   (:wat::rete::fire-rules' session)
-     derived (:wat::rete::query-by-type-string fired "cg::Rate")
+     derived (:wat::rete::query fired (:cg::q-Rate))
      r       (:wat::core::first derived)]
-    (:cg::Rate/count r)))
+    (:wat::core::Option/expect
+      (:wat::core::PersistentMap/get r "?count")
+      "q-Rate: ?count")))

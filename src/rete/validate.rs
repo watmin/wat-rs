@@ -534,6 +534,9 @@ fn validate_when_entry(
         ReteClauseShape::Accumulate { from, .. } => {
             validate_fact_type_head_only(from, rule_name, types, errors);
         }
+        ReteClauseShape::FactBind { type_head, clauses, .. } => {
+            validate_typed_clauses(cond, type_head, clauses, rule_name, types, binds, errors);
+        }
         // Condition `:or` — or of activations (Clara `[:or [Temp] [Wind]]`). Each arm
         // is a full :when entry, not a fact named `or`. Empty `:or` is malformed.
         ReteClauseShape::Or(arms) => {
@@ -569,23 +572,24 @@ fn validate_plain_condition(
     binds: &std::collections::HashMap<String, String>,
     errors: &mut Vec<ReteCheckError>,
 ) {
-    let items = match cond {
-        WatAST::List(items, _) if !items.is_empty() => items,
-        _ => {
-            errors.push(malformed(cond.span().clone(), rule_name, "", cond));
-            return;
-        }
-    };
-    let head_kw = match &items[0] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => {
-            errors.push(malformed(cond.span().clone(), rule_name, "", cond));
-            return;
-        }
-    };
-    let fact_type = head_kw.trim_start_matches(':').to_string();
-    // Declared types in the SAME declaration order as `field_names`, so a per-type rete
-    // constraint can be checked against the field it actually reads.
+    match crate::rete::matcher::alpha_pattern(cond) {
+        Some(p) => validate_typed_clauses(
+            cond, p.type_head, p.clauses, rule_name, types, binds, errors,
+        ),
+        None => errors.push(malformed(cond.span().clone(), rule_name, "", cond)),
+    }
+}
+
+fn validate_typed_clauses(
+    cond: &WatAST,
+    fact_type: &str,
+    clauses: &[WatAST],
+    rule_name: &str,
+    types: &TypeEnv,
+    binds: &std::collections::HashMap<String, String>,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let fact_type = fact_type.to_string();
     let field_types = lookup_field_types(types, &fact_type).unwrap_or_default();
     let field_names = match lookup_fields(types, &fact_type) {
         Some(f) => f,
@@ -594,10 +598,10 @@ fn validate_plain_condition(
                 span: cond.span().clone(),
                 kind: ReteCheckErrorKind::UnknownFactType { rule: rule_name.to_string(), fact_type },
             });
-            return; // no schema to validate clauses against
+            return;
         }
     };
-    for clause in &items[1..] {
+    for clause in clauses {
         validate_clause(
             clause,
             &ClauseCtx {
@@ -662,7 +666,10 @@ fn validate_clause(
         ReteClauseShape::Where(_) => {}
         // `exists`/`accumulate` never legitimately occur as within-condition clauses (they
         // are top-level-only wrappers, consumed before a condition's clause list is built).
-        ReteClauseShape::Exists(_) | ReteClauseShape::Accumulate { .. } | ReteClauseShape::Unrecognized => {
+        ReteClauseShape::Exists(_)
+        | ReteClauseShape::Accumulate { .. }
+        | ReteClauseShape::FactBind { .. }
+        | ReteClauseShape::Unrecognized => {
             errors.push(malformed(clause.span().clone(), rule_name, fact_type, clause));
         }
     }
@@ -719,21 +726,13 @@ fn check_field_at(
 /// Design call 3 — accumulate's `:from` inner and (by extension) any bare fact-type-head-only
 /// check: registered-type validation ONLY, no clause walk.
 fn validate_fact_type_head_only(cond: &WatAST, rule_name: &str, types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
-    let items = match cond {
-        WatAST::List(items, _) if !items.is_empty() => items,
-        _ => {
+    let fact_type = match crate::rete::matcher::alpha_pattern(cond) {
+        Some(p) => p.type_head.to_string(),
+        None => {
             errors.push(malformed(cond.span().clone(), rule_name, "", cond));
             return;
         }
     };
-    let head_kw = match &items[0] {
-        WatAST::Keyword(k, _) => k,
-        _ => {
-            errors.push(malformed(cond.span().clone(), rule_name, "", cond));
-            return;
-        }
-    };
-    let fact_type = head_kw.trim_start_matches(':').to_string();
     if lookup_fields(types, &fact_type).is_none() {
         errors.push(ReteCheckError {
             span: cond.span().clone(),
@@ -927,17 +926,21 @@ fn collect_rule_bind_types(
                 let nested = collect_rule_bind_types(std::slice::from_ref(inner), types);
                 out.extend(nested);
             }
+            ReteClauseShape::Accumulate { from, .. } => {
+                let nested = collect_rule_bind_types(std::slice::from_ref(from), types);
+                out.extend(nested);
+            }
             _other => {
-                let pattern = cond;
-                let WatAST::List(items, _) = pattern else { continue };
-                let Some(WatAST::Keyword(head, _)) = items.first() else { continue };
-                let fact_type = head.trim_start_matches(':');
+                let Some(pat) = crate::rete::matcher::alpha_pattern(cond) else { continue };
+                if let Some(var) = pat.fact_var {
+                    out.insert(var.to_string(), format!(":{}", pat.type_head));
+                }
                 let (Some(names), Some(tys)) =
-                    (lookup_fields(types, fact_type), lookup_field_types(types, fact_type))
+                    (lookup_fields(types, pat.type_head), lookup_field_types(types, pat.type_head))
                 else {
                     continue;
                 };
-                for clause in items.iter().skip(1) {
+                for clause in pat.clauses {
                     if let ReteClauseShape::Bind { var, field } = classify_rete_clause(clause) {
                         if let Some(idx) = names.iter().position(|f| f == field) {
                             if let Some(t) = tys.get(idx) {

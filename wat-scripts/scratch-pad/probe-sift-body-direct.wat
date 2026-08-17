@@ -8,15 +8,24 @@
 (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
 (:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])
 
+(:wat::rete::defquery :usr::q-Hot
+  :params []
+  :when [(?fact <- :usr::Hot)])
+
+
+(:wat::rete::defquery :usr::q-Warn
+  :params []
+  :when [(?fact <- :usr::Warn)])
+
+
 (:wat::core::defn :usr::template [] -> :wat::rete::Session
-  (:wat::rete::compile
-    (:wat::core::PersistentVector
+  (:wat::rete::compile-all (:wat::core::PersistentVector
       (:wat::rete::make-rule "usr::hot-rule"
         (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Hot :c ?c)]))
       (:wat::rete::make-rule "usr::warn-rule"
         (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))])
-        (:wat::core::quote [(:usr::Warn :c ?c)])))))
+        (:wat::core::quote [(:usr::Warn :c ?c)]))) (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Warn))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -64,7 +73,21 @@
                       (:wat::core::let
                         [fired (:wat::rete::fire-rules
                                  (:wat::rete::insert tmpl (:wat::edn::read (:wat::telemetry::Log/message log))))]
-                        (:wat::core::concat (:wat::rete::query fired :usr::Hot) (:wat::rete::query fired :usr::Warn)))))
+                        (:wat::core::concat
+                          (:wat::core::into (:wat::core::PersistentVector)
+                            (:wat::core::map
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::Value
+                                (:wat::core::Option/expect
+                                  (:wat::core::PersistentMap/get p "?fact")
+                                  "q-Hot: ?fact"))
+                              (:wat::rete::query fired (:usr::q-Hot))))
+                          (:wat::core::into (:wat::core::PersistentVector)
+                            (:wat::core::map
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::Value
+                                (:wat::core::Option/expect
+                                  (:wat::core::PersistentMap/get p "?fact")
+                                  "q-Warn: ?fact"))
+                              (:wat::rete::query fired (:usr::q-Warn))))))))
                   (:wat::core::PersistentVector)
                   qlogs)
            _p2 (:wat::kernel::println (:wat::core::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]

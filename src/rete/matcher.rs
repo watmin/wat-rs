@@ -195,7 +195,8 @@ pub(crate) fn eval_alpha_match(
         .unwrap_or_default();
 
     // Pure match: no environment, no eval, bindings as an array (element-side — see `Bindings`).
-    let result = alpha_match_inner(&cond_ast, fact.class_fqdn, fact.fields, &field_names);
+    let result = alpha_match_inner(&cond_ast, fact.class_fqdn, fact.fields, &field_names)
+        .map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
     Ok(match result {
         // wat-contract boundary: this primitive's surface is `Option<PersistentMap>` — build one
         // from the array here (not the matcher hot path; this is a primitive dispatch, not
@@ -287,7 +288,8 @@ pub(crate) fn eval_alpha_match_under(
         fact.fields,
         &field_names,
         &seed,
-    );
+    )
+    .map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
     Ok(match result {
         Some(bindings) => {
             let pm = crate::value::pmap::PMap::from_pairs(
@@ -308,6 +310,61 @@ pub(crate) fn eval_alpha_match_under(
 /// accumulator folds a plain `Vec<(Value, Value)>` (cheap: elements bind 1-2 vars in practice),
 /// sealed into the `Arc<[(Value, Value)]>` `Element.bindings` wants via `.into()` at the end.
 /// Building an array here instead of folding an `rpds` trie is most of this stone's win.
+/// A top-level alpha condition: `(:Type clause…)` or `(?p <- :Type clause…)`.
+pub(crate) struct AlphaPattern<'a> {
+    pub fact_var: Option<&'a str>,
+    pub type_head: &'a str,
+    pub clauses: &'a [WatAST],
+}
+
+/// Parse the B-form `(?p <- :ns::Type …)` or the field-only `(:Type …)`.
+pub(crate) fn alpha_pattern(cond: &WatAST) -> Option<AlphaPattern<'_>> {
+    let items = match cond {
+        WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
+        _ => return None,
+    };
+    match &items[0] {
+        WatAST::Keyword(k, _) => Some(AlphaPattern {
+            fact_var: None,
+            type_head: k.trim_start_matches(':'),
+            clauses: &items[1..],
+        }),
+        WatAST::Symbol(s, _)
+            if s.as_str().starts_with('?')
+                && items.len() >= 3
+                && matches!(&items[1], WatAST::Symbol(a, _) if a.as_str() == "<-") =>
+        {
+            let kw = match &items[2] {
+                WatAST::Keyword(k, _) if k.contains("::") => k.as_str(),
+                _ => return None,
+            };
+            Some(AlphaPattern {
+                fact_var: Some(s.as_str()),
+                type_head: kw.trim_start_matches(':'),
+                clauses: &items[3..],
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Put the matched fact on `?p` when `cond` is `(?p <- :Type …)`.
+pub(crate) fn attach_fact_bind(
+    cond: &WatAST,
+    fact: &Value,
+    bindings: Arc<[(Value, Value)]>,
+) -> Arc<[(Value, Value)]> {
+    match alpha_pattern(cond).and_then(|p| p.fact_var) {
+        Some(var) => {
+            let mut out: Vec<(Value, Value)> = Vec::with_capacity(bindings.len() + 1);
+            out.push((Value::String(Arc::new(var.to_string())), fact.clone()));
+            out.extend(bindings.iter().map(|(k, v)| (k.clone(), v.clone())));
+            out.into()
+        }
+        None => bindings,
+    }
+}
+
 pub(crate) fn alpha_match_inner(
     cond: &WatAST,
     fact_class: &str,
@@ -332,24 +389,13 @@ pub(crate) fn alpha_match_inner_seeded(
     field_names: &[String],
     seed: &[(Value, Value)],
 ) -> Option<Arc<[(Value, Value)]>> {
-    let items = match cond {
-        WatAST::List(items, _) if !items.is_empty() => items,
-        _ => return None,
-    };
-    let cond_head = match &items[0] {
-        WatAST::Keyword(k, _) => k.trim_start_matches(':'),
-        _ => return None,
-    };
+    let pat = alpha_pattern(cond)?;
     crate::rete::kernel::census_count("match:calls");
-    if cond_head != fact_class {
+    if pat.type_head != fact_class {
         crate::rete::kernel::census_count("match:head-miss");
         return None;
     }
-    eval_clauses(clauses_of(items), fact_fields, field_names, seed.to_vec()).map(Into::into)
-}
-
-fn clauses_of(items: &[WatAST]) -> &[WatAST] {
-    &items[1..]
+    eval_clauses(pat.clauses, fact_fields, field_names, seed.to_vec()).map(Into::into)
 }
 
 /// Walk a slice of top-level condition clauses, threading bindings left→right.
@@ -424,6 +470,14 @@ pub(crate) enum ReteClauseShape<'a> {
         var: &'a str,
         acc_form: &'a WatAST,
         from: &'a WatAST,
+    },
+    /// `(?p <- :ns::Type clause…)` — top-level fact bind (Clara `[?p <- Type]`).
+    /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
+    /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
+    FactBind {
+        var: &'a str,
+        type_head: &'a str,
+        clauses: &'a [WatAST],
     },
     /// Not a recognized rete-DSL shape at any level. `eval_clause` maps this to `None`
     /// (Clara no-error); the freeze-time validator maps this to a located
@@ -532,16 +586,28 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
             if !var_name.starts_with('?') {
                 return ReteClauseShape::Unrecognized;
             }
-            // Bind: (?v <- :field) — [Symbol(?v), Symbol(<-), Keyword(:field)].
-            if items.len() == 3 {
+            // Fact-bind: (?p <- :ns::Type clause…) — type keyword contains `::`.
+            // Field-bind: (?v <- :field) — bare field keyword, exactly 3 items.
+            if items.len() >= 3 {
                 let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
                 if is_arrow {
-                    if let Some(field_kw) = keyword_payload(&items[2]) {
-                        let field = field_kw.strip_prefix(':').unwrap_or(field_kw);
-                        return ReteClauseShape::Bind { var: var_name, field };
+                    if let Some(kw) = keyword_payload(&items[2]) {
+                        if kw.contains("::") {
+                            return ReteClauseShape::FactBind {
+                                var: var_name,
+                                type_head: kw.trim_start_matches(':'),
+                                clauses: &items[3..],
+                            };
+                        }
+                        if items.len() == 3 {
+                            let field = kw.strip_prefix(':').unwrap_or(kw);
+                            return ReteClauseShape::Bind { var: var_name, field };
+                        }
                     }
                 }
-                return ReteClauseShape::Unrecognized;
+                if items.len() == 3 {
+                    return ReteClauseShape::Unrecognized;
+                }
             }
             // Accumulate: (?result <- (acc-form) :from (inner)) — 5 items, `:from` at [3].
             if items.len() == 5 {
@@ -685,7 +751,9 @@ fn eval_clause(
         // `exists`/`accumulate` are top-level `:when`-entry wrappers, consumed entirely by
         // compile-condition (wat/rete.wat) before alpha-match runs — they never legitimately
         // reach a condition's clause list. Matches the pre-extraction default-arm outcome.
-        ReteClauseShape::Exists(_) | ReteClauseShape::Accumulate { .. } => None,
+        ReteClauseShape::Exists(_)
+        | ReteClauseShape::Accumulate { .. }
+        | ReteClauseShape::FactBind { .. } => None,
 
         // Unrecognised clause shape → None.
         ReteClauseShape::Unrecognized => None,

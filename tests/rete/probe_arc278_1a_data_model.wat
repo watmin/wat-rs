@@ -10,7 +10,7 @@
      net (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) 0 n0) 1 n1)
      em  (:wat::core::PersistentMap)
      ev  (:wat::core::PersistentVector)
-     s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2)]
+     s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2 :query-memory em)]
     (:wat::core::PersistentMap/length (:wat::rete::Session/network s))))
 
 (:wat::core::defn :user::render-dag-of-session [] -> :wat::core::String
@@ -20,5 +20,5 @@
      net (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) 0 n0) 1 n1)
      em  (:wat::core::PersistentMap)
      ev  (:wat::core::PersistentVector)
-     s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2)]
+     s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2 :query-memory em)]
     (:wat::rete::render-dag s)))

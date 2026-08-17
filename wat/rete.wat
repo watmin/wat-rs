@@ -54,6 +54,13 @@
    lhs  <- :wat::core::PersistentVector<wat::WatAST>
    rhs  <- :wat::core::PersistentVector<wat::WatAST>])
 
+;; Query — a named parametric query (Clara defquery). No :then; answers are
+;; binding maps, filtered by param values at `query` time.
+(:wat::core::defrecord :wat::rete::Query
+  [name   <- :wat::core::String
+   params <- :wat::core::PersistentVector<wat::core::String>
+   lhs    <- :wat::core::PersistentVector<wat::WatAST>])
+
 ;; ─── the network nodes (MVP set) ────────────────────────────────────────────
 ;; Negation / Test / Accumulate / ExpressionJoin nodes arrive at stones 6–8.
 
@@ -181,6 +188,7 @@
 ;;   production-memory: node-id → PV<:wat::core::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
+;;   query-memory:      query-name → PV of binding maps (QueryNode answers; survives fire).
 (:wat::core::defrecord :wat::rete::Session
   [network           <- :wat::core::PersistentMap
    rules             <- :wat::core::PersistentVector<wat::rete::Rule>
@@ -188,7 +196,8 @@
    beta-memory       <- :wat::core::PersistentMap
    production-memory <- :wat::core::PersistentMap
    facts             <- :wat::core::PersistentVector
-   next-id           <- :wat::core::i64])
+   next-id           <- :wat::core::i64
+   query-memory      <- :wat::core::PersistentMap])
 
 ;; ─── P12a: explain substrate ────────────────────────────────────────────────
 
@@ -685,7 +694,8 @@
   (:wat::core::let [state0    (:wat::rete::CondFoldAcc/state     acc)
                     parent-ids (:wat::rete::CondFoldAcc/parent-ids acc)
                     ;; TOP: detect (:wat::rete::where <expr>) form
-                    ;; All conditions are non-empty list forms with a keyword head; Option/expect is safe.
+                    ;; Keyword-headed wrappers (`:where`/`:not`/`:exists`/`:or`/`:and`)
+                    ;; or a symbol-headed fact-bind / accumulate. Non-empty list.
                     cond-ch   (:wat::core::ast->children cond)
                     head      (:wat::core::first cond-ch)
                     head-nm        (:wat::core::ast-name head)
@@ -694,9 +704,9 @@
                     is-exists      (:wat::core::= head-nm ":wat::rete::exists")
                     is-or          (:wat::core::= head-nm ":wat::rete::or")
                     is-and         (:wat::core::= head-nm ":wat::rete::and")
-                    ;; Accumulate: detected by a ?-symbol head (head-nm starts with "?")
-                    ;; Collision-free: :where and :not start with ":", ?-vars start with "?" — disjoint.
-                    is-accumulate  (:wat::core::= (:wat::core::string::subs head-nm 0 1) "?")]
+                    ;; Accumulate: `?` head AND not fact-bind `(?p <- :ns::Type …)`.
+                    ;; Fact-bind shares the `?` head; `:from` / a list after `<-` is accumulate.
+                    is-accumulate  (:wat::rete::cond-is-accumulate cond)]
     (:wat::core::if is-or
       ;; Each arm is its own left chain from the SAME incoming parents.
       ;; Terminals of every arm become the outgoing parent-ids (Clara :or
@@ -1113,6 +1123,275 @@
                     _fact-ty  (:wat::runtime::field-names-of ret-kw)]
     acc))
 
+;; ast-qvars — every `?var` symbol under a condition AST (binds and uses).
+(:wat::core::defn :wat::rete::ast-qvars
+  [ast <- :wat::WatAST]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::let [k (:wat::core::ast-kind ast)]
+    (:wat::core::if (:wat::core::= k "symbol")
+      (:wat::core::let [nm (:wat::core::ast-name ast)]
+        (:wat::core::if (:wat::core::string::starts-with? nm "?")
+          (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) nm)
+          (:wat::core::PersistentVector)))
+      (:wat::core::if
+        (:wat::core::if (:wat::core::= k "list")
+          true
+          (:wat::core::= k "vector"))
+        (:wat::core::let [ch (:wat::core::ast->children ast)
+                          n  (:wat::core::length ch)]
+          (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                             i   <- :wat::core::i64]
+              -> :wat::core::PersistentVector<wat::core::String>
+              (:wat::core::let [kid (:wat::core::Option/expect
+                                      (:wat::core::get ch i)
+                                      "ast-qvars")]
+                (:wat::core::foldl
+                  (:wat::core::fn [out <- :wat::core::PersistentVector<wat::core::String>
+                                   nm  <- :wat::core::String]
+                    -> :wat::core::PersistentVector<wat::core::String>
+                    (:wat::core::if (:wat::core::PersistentVector/contains? out nm)
+                      out
+                      (:wat::core::PersistentVector/conj out nm)))
+                  acc
+                  (:wat::rete::ast-qvars kid))))
+            (:wat::core::PersistentVector)
+            (:wat::core::range 0 n)))
+        (:wat::core::PersistentVector)))))
+
+;; cond-bind-keys — `?var` names this condition BINDS (`(?v <- :field)`,
+;; fact-bind `(?p <- :ns::Type …)`, accum result, `:from` inner, `:exists`
+;; inner). `:not` / `:where` bind nothing.
+(:wat::core::defn :wat::rete::cond-bind-keys
+  [cond <- :wat::WatAST]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind cond) "list"))
+    (:wat::core::PersistentVector)
+    (:wat::core::let [ch (:wat::core::ast->children cond)
+                      n  (:wat::core::length ch)]
+      (:wat::core::if (:wat::core::= n 0)
+        (:wat::core::PersistentVector)
+        (:wat::core::let [head   (:wat::core::first ch)
+                          head-k (:wat::core::ast-kind head)]
+          (:wat::core::if (:wat::core::= head-k "symbol")
+            (:wat::core::let [hnm (:wat::core::ast-name head)]
+              (:wat::core::if (:wat::rete::cond-is-fact-bind cond)
+                (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                   i   <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::String>
+                    (:wat::core::let [kid (:wat::core::Option/expect
+                                            (:wat::core::get ch i)
+                                            "cond-bind-keys: fact-bind clause")]
+                      (:wat::core::foldl
+                        (:wat::core::fn [out <- :wat::core::PersistentVector<wat::core::String>
+                                         nm  <- :wat::core::String]
+                          -> :wat::core::PersistentVector<wat::core::String>
+                          (:wat::core::if (:wat::core::PersistentVector/contains? out nm)
+                            out
+                            (:wat::core::PersistentVector/conj out nm)))
+                        acc
+                        (:wat::rete::cond-bind-keys kid))))
+                  (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
+                  (:wat::core::range 3 n))
+                (:wat::core::if
+                  (:wat::core::if (:wat::core::string::starts-with? hnm "?")
+                    (:wat::core::if (:wat::core::= n 3)
+                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind
+                                                      (:wat::core::Option/expect
+                                                        (:wat::core::get ch 1)
+                                                        "cond-bind-keys: bind arrow"))
+                                                    "symbol")
+                        (:wat::core::= (:wat::core::ast-name
+                                        (:wat::core::Option/expect
+                                          (:wat::core::get ch 1)
+                                          "cond-bind-keys: bind arrow"))
+                                      "<-")
+                        false)
+                      false)
+                    false)
+                  (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
+                  (:wat::core::if
+                    (:wat::core::if (:wat::core::string::starts-with? hnm "?")
+                      (:wat::core::if (:wat::core::= n 5)
+                        (:wat::core::= (:wat::core::ast-name
+                                        (:wat::core::Option/expect
+                                          (:wat::core::get ch 3)
+                                          "cond-bind-keys: :from"))
+                                      ":from")
+                        false)
+                      false)
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                       nm  <- :wat::core::String]
+                        -> :wat::core::PersistentVector<wat::core::String>
+                        (:wat::core::if (:wat::core::PersistentVector/contains? acc nm)
+                          acc
+                          (:wat::core::PersistentVector/conj acc nm)))
+                      (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
+                      (:wat::rete::cond-bind-keys
+                        (:wat::core::Option/expect
+                          (:wat::core::get ch 4)
+                          "cond-bind-keys: :from inner")))
+                    (:wat::core::PersistentVector)))))
+            (:wat::core::if (:wat::core::= head-k "keyword")
+              (:wat::core::let [hnm (:wat::core::ast-name head)]
+                (:wat::core::cond
+                  ((:wat::core::= hnm ":wat::rete::not")
+                   (:wat::core::PersistentVector))
+                  ((:wat::core::= hnm ":wat::rete::where")
+                   (:wat::core::PersistentVector))
+                  ((:wat::core::= hnm ":wat::rete::exists")
+                   (:wat::rete::cond-bind-keys
+                     (:wat::core::second ch)))
+                  (:else
+                   (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                      i   <- :wat::core::i64]
+                       -> :wat::core::PersistentVector<wat::core::String>
+                       (:wat::core::let [kid (:wat::core::Option/expect
+                                               (:wat::core::get ch i)
+                                               "cond-bind-keys: child")]
+                         (:wat::core::foldl
+                           (:wat::core::fn [out <- :wat::core::PersistentVector<wat::core::String>
+                                            nm  <- :wat::core::String]
+                             -> :wat::core::PersistentVector<wat::core::String>
+                             (:wat::core::if (:wat::core::PersistentVector/contains? out nm)
+                               out
+                               (:wat::core::PersistentVector/conj out nm)))
+                           acc
+                           (:wat::rete::cond-bind-keys kid))))
+                     (:wat::core::PersistentVector)
+                     (:wat::core::range 1 n)))))
+              (:wat::core::PersistentVector))))))))
+
+;; cond-is-fact-bind — `(?p <- :ns::Type …)` (Clara `[?p <- Type]`). Type keyword has `::`.
+(:wat::core::defn :wat::rete::cond-is-fact-bind
+  [cond <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind cond) "list"))
+    false
+    (:wat::core::let [ch (:wat::core::ast->children cond)]
+      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
+        false
+        (:wat::core::if
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "symbol")
+            (:wat::core::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
+            false)
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind
+                                            (:wat::core::Option/expect
+                                              (:wat::core::get ch 1)
+                                              "cond-is-fact-bind: arrow"))
+                                          "symbol")
+              (:wat::core::= (:wat::core::ast-name
+                               (:wat::core::Option/expect
+                                 (:wat::core::get ch 1)
+                                 "cond-is-fact-bind: arrow"))
+                             "<-")
+              false)
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind
+                                            (:wat::core::Option/expect
+                                              (:wat::core::get ch 2)
+                                              "cond-is-fact-bind: type"))
+                                          "keyword")
+              (:wat::core::string::contains?
+                (:wat::core::ast-name
+                  (:wat::core::Option/expect
+                    (:wat::core::get ch 2)
+                    "cond-is-fact-bind: type"))
+                "::")
+              false)
+            false)
+          false)))))
+
+;; cond-is-accumulate — `?result` head that is NOT a fact-bind.
+(:wat::core::defn :wat::rete::cond-is-accumulate
+  [cond <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::rete::cond-is-fact-bind cond)
+    false
+    (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind cond) "list"))
+      false
+      (:wat::core::let [ch (:wat::core::ast->children cond)]
+        (:wat::core::if (:wat::core::= (:wat::core::length ch) 0)
+          false
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "symbol")
+            (:wat::core::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
+            false))))))
+
+;; sort-lhs — Clara defers accumulators so a later fact can bind the group
+;; key (test-count-none-joined: Wind first, then count Temps at ?loc → 0).
+;; Non-accums that mention an accum result-var stay after the accum (`:where`
+;; on ?c). Relative order inside each partition is preserved.
+(:wat::core::defn :wat::rete::sort-lhs
+  [lhs <- :wat::core::PersistentVector<wat::WatAST>]
+  -> :wat::core::PersistentVector<wat::WatAST>
+  (:wat::core::let [result-vars
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+                                       cond <- :wat::WatAST]
+                        -> :wat::core::PersistentVector<wat::core::String>
+                        (:wat::core::if (:wat::rete::cond-is-accumulate cond)
+                          (:wat::core::let [ch (:wat::core::ast->children cond)]
+                            (:wat::core::PersistentVector/conj
+                              acc
+                              (:wat::core::ast-name (:wat::core::first ch))))
+                          acc))
+                      (:wat::core::PersistentVector)
+                      lhs)
+                    uses-result?
+                    (:wat::core::fn [cond <- :wat::WatAST] -> :wat::core::bool
+                      (:wat::core::let [qs (:wat::rete::ast-qvars cond)]
+                        (:wat::core::foldl
+                          (:wat::core::fn [hit <- :wat::core::bool
+                                           rv  <- :wat::core::String]
+                            -> :wat::core::bool
+                            (:wat::core::if hit
+                              true
+                              (:wat::core::PersistentVector/contains? qs rv)))
+                          false
+                          result-vars)))
+                    independent
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::WatAST>
+                                       cond <- :wat::WatAST]
+                        -> :wat::core::PersistentVector<wat::WatAST>
+                        (:wat::core::if
+                          (:wat::core::if (:wat::rete::cond-is-accumulate cond)
+                            false
+                            (:wat::core::not (uses-result? cond)))
+                          (:wat::core::PersistentVector/conj acc cond)
+                          acc))
+                      (:wat::core::PersistentVector)
+                      lhs)
+                    accums
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::WatAST>
+                                       cond <- :wat::WatAST]
+                        -> :wat::core::PersistentVector<wat::WatAST>
+                        (:wat::core::if (:wat::rete::cond-is-accumulate cond)
+                          (:wat::core::PersistentVector/conj acc cond)
+                          acc))
+                      (:wat::core::PersistentVector)
+                      lhs)
+                    rest
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::WatAST>
+                                       cond <- :wat::WatAST]
+                        -> :wat::core::PersistentVector<wat::WatAST>
+                        (:wat::core::if
+                          (:wat::core::if (:wat::rete::cond-is-accumulate cond)
+                            false
+                            (uses-result? cond))
+                          (:wat::core::PersistentVector/conj acc cond)
+                          acc))
+                      (:wat::core::PersistentVector)
+                      lhs)]
+    (:wat::core::PersistentVector/concat
+      independent
+      (:wat::core::PersistentVector/concat accums rest))))
+
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
 ;; the ProductionNode as a child of every remaining parent (one join after a
@@ -1130,10 +1409,11 @@
                     rhs        (:wat::rete::Rule/rhs rule)
                     rname      (:wat::rete::Rule/name rule)
                     _rhs-fence (:wat::core::foldl :wat::rete::then-item-fence 0 rhs)
+                    lhs-sorted (:wat::rete::sort-lhs lhs)
                     init-acc   (:wat::rete::CondFoldAcc
                                  :state state
                                  :parent-ids (:wat::core::PersistentVector))
-                    final-acc  (:wat::core::foldl :wat::rete::compile-condition init-acc lhs)
+                    final-acc  (:wat::core::foldl :wat::rete::compile-condition init-acc lhs-sorted)
                     state2     (:wat::rete::CondFoldAcc/state      final-acc)
                     pids       (:wat::rete::CondFoldAcc/parent-ids final-acc)
                     network2   (:wat::rete::CompileState/network state2)
@@ -1144,20 +1424,47 @@
     (:wat::rete::CompileState :network net4 :next-id (:wat::core::i64::+ next-id2 1)
       :dedup (:wat::rete::CompileState/dedup state2))))
 
-;; compile — turn a PersistentVector of Rules into a Session with the compiled network.
-;; The session constructor for arc 278: (compile rules) → insert → fire → query.
-;; Empty memories and facts; next-id reflects the actual count of minted nodes.
+;; compile-query — same LHS fold as compile-rule; terminal is a QueryNode.
+(:wat::core::defn :wat::rete::compile-query
+  [state <- :wat::rete::CompileState
+   q     <- :wat::rete::Query]
+  -> :wat::rete::CompileState
+  (:wat::core::let [lhs        (:wat::rete::sort-lhs (:wat::rete::Query/lhs q))
+                    qname      (:wat::rete::Query/name q)
+                    init-acc   (:wat::rete::CondFoldAcc
+                                 :state state
+                                 :parent-ids (:wat::core::PersistentVector))
+                    final-acc  (:wat::core::foldl :wat::rete::compile-condition init-acc lhs)
+                    state2     (:wat::rete::CondFoldAcc/state      final-acc)
+                    pids       (:wat::rete::CondFoldAcc/parent-ids final-acc)
+                    network2   (:wat::rete::CompileState/network state2)
+                    next-id2   (:wat::rete::CompileState/next-id state2)
+                    qnode      (:wat::rete::QueryNode
+                                 :id next-id2
+                                 :query-name qname
+                                 :param-keys (:wat::rete::Query/params q))
+                    net3       (:wat::core::PersistentMap/assoc network2 next-id2 qnode)
+                    net4       (:wat::rete::wire-parents net3 pids next-id2)]
+    (:wat::rete::CompileState :network net4 :next-id (:wat::core::i64::+ next-id2 1)
+      :dedup (:wat::rete::CompileState/dedup state2))))
+
+;; compile — rules only (existing callers). Use compile-all to add queries.
 (:wat::core::defn :wat::rete::compile
   [rules <- :wat::core::PersistentVector<wat::rete::Rule>]
+  -> :wat::rete::Session
+  (:wat::rete::compile-all rules (:wat::core::PersistentVector)))
+
+;; compile-all — rules + queries (Clara mk-session mixes both).
+(:wat::core::defn :wat::rete::compile-all
+  [rules   <- :wat::core::PersistentVector<wat::rete::Rule>
+   queries <- :wat::core::PersistentVector<wat::rete::Query>]
   -> :wat::rete::Session
   (:wat::core::let [init-state (:wat::rete::CompileState
                                   :network (:wat::core::PersistentMap)
                                   :next-id 0
                                   :dedup (:wat::core::HashMap :wat::core::String :wat::core::i64))
-                    final-state (:wat::core::foldl
-                                    :wat::rete::compile-rule
-                                    init-state
-                                    rules)
+                    after-rules (:wat::core::foldl :wat::rete::compile-rule init-state rules)
+                    final-state (:wat::core::foldl :wat::rete::compile-query after-rules queries)
                     network  (:wat::rete::CompileState/network final-state)
                     next-id  (:wat::rete::CompileState/next-id final-state)
                     empty-pm (:wat::core::PersistentMap)
@@ -1169,7 +1476,8 @@
        :beta-memory empty-pm
        :production-memory empty-pm
        :facts empty-pv
-       :next-id next-id)))
+       :next-id next-id
+       :query-memory empty-pm)))
 
 ;; ─── insert + fire-rules ────────────────────────────────────────────────────────
 
@@ -1190,7 +1498,8 @@
     :beta-memory (:wat::rete::Session/beta-memory       session)
     :production-memory (:wat::rete::Session/production-memory session)
     :facts (:wat::core::PersistentVector/conj (:wat::rete::Session/facts session) fact)
-    :next-id (:wat::rete::Session/next-id           session)))
+    :next-id (:wat::rete::Session/next-id           session)
+    :query-memory (:wat::rete::Session/query-memory session)))
 
 ;; insert-all-spec — the wat reference engine (the SPEC / differential oracle) for BATCH insert.
 ;; Stages every fact in `facts` into the session's working memory: N chained insert-spec calls,
@@ -2046,6 +2355,35 @@
       (:wat::rete::walk-sorted-ids phase facts network rules amem bmem ids
         (:wat::core::i64::+ i 1) acc1))))
 
+;; collect-query-memory — QueryNode name → parent-token bindings (the fire's answers).
+(:wat::core::defn :wat::rete::collect-query-memory
+  [network  <- :wat::core::PersistentMap
+   beta-mem <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentMap
+  (:wat::core::foldl
+    (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                     node-id <- :wat::core::i64]
+      -> :wat::core::PersistentMap
+      (:wat::core::let [node (:wat::core::Option/expect
+                                (:wat::core::PersistentMap/get network node-id)
+                                "collect-query-memory: node")]
+        (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "QueryNode")
+          (:wat::core::let [qname (:wat::rete::QueryNode/query-name node)
+                            pids  (:wat::rete::node-parents node-id network)
+                            toks  (:wat::rete::tokens-from-parents beta-mem pids)
+                            maps  (:wat::core::foldl
+                                     (:wat::core::fn [a   <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                                                      tok <- :wat::rete::Token]
+                                       -> :wat::core::PersistentVector<wat::core::PersistentMap>
+                                       (:wat::core::PersistentVector/conj a
+                                         (:wat::rete::Token/bindings tok)))
+                                     (:wat::core::PersistentVector)
+                                     toks)]
+            (:wat::core::PersistentMap/assoc acc qname maps))
+          acc)))
+    (:wat::core::PersistentMap)
+    (:wat::core::PersistentMap/keys network)))
+
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
 ;; Recomputes all memories from Session.facts each call (re-run-from-scratch); derived facts
@@ -2072,7 +2410,8 @@
                     new-amem (:wat::rete::walk-sorted-ids 0 facts network rules empty empty node-ids 0 empty)
                     new-bmem (:wat::rete::walk-sorted-ids 1 facts network rules new-amem empty node-ids 0 empty)
                     filtered-bmem (:wat::rete::walk-sorted-ids 2 facts network rules new-amem new-bmem node-ids 0 new-bmem)
-                    new-pmem (:wat::rete::walk-sorted-ids 3 facts network rules new-amem filtered-bmem node-ids 0 empty)]
+                    new-pmem (:wat::rete::walk-sorted-ids 3 facts network rules new-amem filtered-bmem node-ids 0 empty)
+                    qmem     (:wat::rete::collect-query-memory network filtered-bmem)]
     (:wat::rete::Session
       :network (:wat::rete::Session/network session)
       :rules (:wat::rete::Session/rules   session)
@@ -2080,7 +2419,8 @@
       :beta-memory filtered-bmem
       :production-memory new-pmem
       :facts facts
-      :next-id (:wat::rete::Session/next-id session))))
+      :next-id (:wat::rete::Session/next-id session)
+      :query-memory qmem)))
 
 ;; collect-derived — flatten production-memory's per-node PV<Record> values into one PV<:wat::core::Record>.
 ;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to PV<Record>;
@@ -2143,7 +2483,8 @@
           :beta-memory (:wat::rete::Session/beta-memory  fired)
           :production-memory (:wat::rete::Session/production-memory fired)
           :facts new-facts
-          :next-id (:wat::rete::Session/next-id fired))))))
+          :next-id (:wat::rete::Session/next-id fired)
+          :query-memory (:wat::rete::Session/query-memory fired))))))
 
 ;; ─── stratified negation (arc 300 interstitial) ─────────────────────────────
 ;;
@@ -2479,15 +2820,27 @@
                                 (:wat::core::PersistentVector))
                     all-d     (:wat::rete::FireStratAcc/derived final-acc)
                     ;; pack derived facts into a production-memory structure the caller can query
-                    fprod-m   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) 0 all-d)]
+                    fprod-m   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) 0 all-d)
+                    closed    (:wat::rete::FireStratAcc/facts final-acc)
+                    q-seed    (:wat::rete::Session
+                                :network (:wat::rete::Session/network session)
+                                :rules (:wat::rete::Session/rules   session)
+                                :alpha-memory (:wat::core::PersistentMap)
+                                :beta-memory (:wat::core::PersistentMap)
+                                :production-memory fprod-m
+                                :facts closed
+                                :next-id (:wat::rete::Session/next-id session)
+                                :query-memory (:wat::core::PersistentMap))
+                    q-fired   (:wat::rete::fire-once q-seed)]
     (:wat::rete::Session
       :network (:wat::rete::Session/network session)
       :rules (:wat::rete::Session/rules   session)
       :alpha-memory (:wat::core::PersistentMap)
       :beta-memory (:wat::core::PersistentMap)
       :production-memory fprod-m
-      :facts (:wat::rete::FireStratAcc/facts final-acc)
-      :next-id (:wat::rete::Session/next-id session))))
+      :facts closed
+      :next-id (:wat::rete::Session/next-id session)
+      :query-memory (:wat::rete::Session/query-memory q-fired))))
 
 ;; fire-rules-spec — the wat reference engine (the SPEC / differential oracle).
 ;; Now delegates to fire-stratified (which handles negation-over-derived correctly)
@@ -2507,7 +2860,8 @@
       :beta-memory (:wat::rete::Session/beta-memory       fired)
       :production-memory (:wat::rete::Session/production-memory fired)
       :facts input
-      :next-id (:wat::rete::Session/next-id           fired))))
+      :next-id (:wat::rete::Session/next-id           fired)
+      :query-memory (:wat::rete::Session/query-memory fired))))
 
 ;; fire-rules — THE PUBLIC PRODUCTION VERB. Delegates to the native Rust delta kernel (`fire-rules'`):
 ;; semi-naive incremental activation, keyed joins, transient-during-fire/persistent-at-rest. This is what
@@ -2555,60 +2909,91 @@
       :beta-memory (:wat::rete::Session/beta-memory       session)
       :production-memory (:wat::rete::Session/production-memory session)
       :facts new-facts
-      :next-id (:wat::rete::Session/next-id           session))))
+      :next-id (:wat::rete::Session/next-id           session)
+      :query-memory (:wat::rete::Session/query-memory session))))
 
-;; ─── query — read derived facts of a type from a fired session ──────────────
+;; ─── query — ONE mouth: QueryNode harvest, filtered by params ───────────────
 
-;; query-by-type-string — runtime helper: filter production-memory by a colon-free type FQDN.
-;; Flattens all production-node PVs into one PV, then filters by (:wat::core::type f) == ty-str.
-;; Private; called by the `query` macro which resolves the type FQDN string at expand time.
-;; Returns an empty PV if the type was never derived — never raises.
-(:wat::core::defn :wat::rete::query-by-type-string
+;; query-read — binding maps parked on QueryNode at fire, filtered by params.
+(:wat::core::defn :wat::rete::query-read
   [session <- :wat::rete::Session
-   ty-str  <- :wat::core::String]
-  -> :wat::core::PersistentVector
-  (:wat::core::let [all (:wat::core::foldl
-                           (:wat::core::fn [acc <- :wat::core::PersistentVector
-                                            pv  <- :wat::core::PersistentVector]
-                             -> :wat::core::PersistentVector
-                             (:wat::core::foldl
-                               (:wat::core::fn [a <- :wat::core::PersistentVector
-                                                f <- :wat::core::Record]
-                                 -> :wat::core::PersistentVector
-                                 (:wat::core::PersistentVector/conj a f))
-                               acc
-                               pv))
+   q       <- :wat::rete::Query
+   params  <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentVector<wat::core::PersistentMap>
+  (:wat::core::let [want (:wat::rete::Query/params q)
+                    got  (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                            k   <- :wat::core::String]
+                             -> :wat::core::PersistentVector<wat::core::String>
+                             (:wat::core::PersistentVector/conj acc k))
                            (:wat::core::PersistentVector)
-                           (:wat::core::PersistentMap/values
-                             (:wat::rete::Session/production-memory session)))]
-    ;; Arc 118.2a — `filter` flipped LAZY; the function's declared return type is
-    ;; `PersistentVector`, so materialize via `into`.
-    (:wat::core::into (:wat::core::PersistentVector)
-      (:wat::core::filter
-        (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool
-          (:wat::core::= (:wat::core::type f) ty-str))
-        all))))
+                           (:wat::core::PersistentMap/keys params))
+                    missing (:wat::rete::keys-minus want got)
+                    extra   (:wat::rete::keys-minus got want)
+                    _params (:wat::core::Option/expect
+                              (:wat::core::if
+                                (:wat::core::if (:wat::core::= (:wat::core::length missing) 0)
+                                  (:wat::core::= (:wat::core::length extra) 0)
+                                  false)
+                                (:wat::core::Some nil)
+                                :wat::core::None)
+                              "query: params must match the query's :params")
+                    raw (:wat::core::match
+                           (:wat::core::PersistentMap/get
+                             (:wat::rete::Session/query-memory session)
+                             (:wat::rete::Query/name q))
+                           ((:wat::core::Some pv) pv)
+                           (:wat::core::None (:wat::core::PersistentVector)))]
+    (:wat::core::if (:wat::core::= (:wat::core::length want) 0)
+      raw
+      (:wat::core::into (:wat::core::PersistentVector)
+        (:wat::core::filter
+          (:wat::core::fn [m <- :wat::core::PersistentMap] -> :wat::core::bool
+            (:wat::core::foldl
+              (:wat::core::fn [ok <- :wat::core::bool
+                               k  <- :wat::core::String]
+                -> :wat::core::bool
+                (:wat::core::if ok
+                  (:wat::core::= (:wat::core::PersistentMap/get m k)
+                                 (:wat::core::PersistentMap/get params k))
+                  false))
+              true
+              want))
+          raw)))))
 
-;; query — MACRO: type-safe read of derived facts of a type from a fired session.
-;; `ty` is a bare type-name keyword AST node (unevaluated, e.g. :weather::ColdAndWindy) —
-;; this MUST be a macro, not a runtime fn: arc 294 item 9a's construction flip made a bare
-;; type name evaluate to its KWARGS MACRO in value position (not a ctor fn anymore); only the
-;; PRIME `:T'` still resolves to the type's positional constructor fn. So this macro appends
-;; `'` to `ty` at expand time (the proven idiom: keyword-node + string::concat) and emits a
-;; call to return-type-of on the PRIME. return-type-of (arc 278 intrinsic) reads the prime
-;; ctor's declared return type (= the record type) as a colon-free FQDN string, directly
-;; comparable to (:wat::core::type fact). An UNREGISTERED type is a check-time error (see
-;; check.rs's return-type-of special-case) with a runtime raise as the last-resort net (see
-;; runtime.rs eval_return_type_of) — no more silent-0 typos. Returns an empty PV only when the
-;; (registered) type was never derived.
+;; query-params-form — expand-time map builder (a MACRO: a defn head is refused
+;; inside another macro by the F5 pure-combinator gate). Recurses in the
+;; template so a PersistentVector of mixed keyword/value kwargs never exists.
+(:wat::core::defmacro :wat::rete::query-params-form
+  [acc <- :wat::WatAST
+   & items <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::if (:wat::core::empty? items)
+    acc
+    (:wat::core::if (:wat::core::empty? (:wat::core::rest items))
+      (:wat::core::macro-error "query: param kwargs must come in key/value pairs")
+      (:wat::core::let [k (:wat::core::first items)
+                        v (:wat::core::first (:wat::core::rest items))
+                        knm (:wat::core::ast-name k)
+                        kstr (:wat::core::if
+                               (:wat::core::= (:wat::core::string::subs knm 0 1) ":")
+                               (:wat::core::string::subs knm 1
+                                 (:wat::core::string::length knm))
+                               knm)]
+        `(:wat::rete::query-params-form
+           (:wat::core::PersistentMap/assoc ~acc ~kstr ~v)
+           ~@(:wat::core::rest (:wat::core::rest items)))))))
+
+;; query — ONE mouth. q is a Query. Optional Clara-shaped kwargs.
+;;   (:wat::rete::query session (:wq::all-wind))
+;;   (:wat::rete::query session (:wq::temps-at) :?loc "MCI")
 (:wat::core::defmacro :wat::rete::query
   [session <- :wat::WatAST
-   ty      <- :wat::WatAST]
+   q       <- :wat::WatAST
+   & rest  <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
-  (:wat::core::let [ty-prime-kw (:wat::core::keyword-node
-                                   (:wat::core::string::concat ":"
-                                     (:wat::core::string::concat (:wat::core::keyword/to-string ty) "'")))]
-    `(:wat::rete::query-by-type-string ~session (:wat::runtime::return-type-of ~ty-prime-kw))))
+  `(:wat::rete::query-read ~session ~q
+     (:wat::rete::query-params-form (:wat::core::PersistentMap) ~@rest)))
 
 ;; ─── cond — rete's OWN macro, expanding into rete's `if` ──────────────────
 ;;
@@ -2743,6 +3128,51 @@
        (:wat::rete::make-rule ~name-str
          (:wat::core::quote ~when-vec)
          (:wat::core::quote ~then-vec)))))
+
+;; make-query — split quoted :params / :when vectors into a Query.
+(:wat::core::defn :wat::rete::make-query
+  [name       <- :wat::core::String
+   params-ast <- :wat::WatAST
+   when-ast   <- :wat::WatAST]
+  -> :wat::rete::Query
+  (:wat::core::let [params-pv (:wat::core::foldl
+                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                                  p   <- :wat::WatAST]
+                                   -> :wat::core::PersistentVector<wat::core::String>
+                                   (:wat::core::PersistentVector/conj acc (:wat::core::ast-name p)))
+                                 (:wat::core::PersistentVector)
+                                 (:wat::core::ast->children params-ast))
+                    lhs-pv (:wat::core::foldl
+                              (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                                               c   <- :wat::WatAST]
+                                -> :wat::core::PersistentVector<wat::WatAST>
+                                (:wat::core::PersistentVector/conj acc c))
+                              (:wat::core::PersistentVector)
+                              (:wat::core::ast->children when-ast))]
+    (:wat::rete::Query :name name :params params-pv :lhs lhs-pv)))
+
+;; defquery — Clara `[defquery q [:?loc] …]`. Zero-arg defn returning Query.
+;;   (:wat::rete::defquery :wq::temps-at
+;;     :params [?loc]
+;;     :when   […])
+(:wat::core::defmacro :wat::rete::defquery
+  [name <- :wat::WatAST
+   & rest <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::let [raw-name  (:wat::core::ast-name name)
+                    name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
+                                 (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                                 raw-name)
+                    params-vec (:wat::core::Option/expect
+                                  (:wat::core::get rest 1)
+                                  "defquery: missing :params vector")
+                    when-vec   (:wat::core::Option/expect
+                                  (:wat::core::get rest 3)
+                                  "defquery: missing :when conditions vector")]
+    `(:wat::core::defn ~name [] -> :wat::rete::Query
+       (:wat::rete::make-query ~name-str
+         (:wat::core::quote ~params-vec)
+         (:wat::core::quote ~when-vec)))))
 
 ;; ─── acc:: — pure wat accumulator fold library (Stone 8-i) ─────────────────
 ;;
@@ -3049,13 +3479,67 @@
                          ntk  (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk))))))
 
+;; acc-operand-keys — `?var` args of the acc-form (`max ?v` → [?v]; count → []).
+(:wat::core::defn :wat::rete::acc-operand-keys
+  [acc-form <- :wat::WatAST]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::let [ch (:wat::core::ast->children acc-form)
+                    n  (:wat::core::length ch)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                       i   <- :wat::core::i64]
+        -> :wat::core::PersistentVector<wat::core::String>
+        (:wat::core::let [kid (:wat::core::Option/expect
+                                (:wat::core::get ch i)
+                                "acc-operand-keys")]
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind kid) "symbol")
+            (:wat::core::let [nm (:wat::core::ast-name kid)]
+              (:wat::core::if (:wat::core::string::starts-with? nm "?")
+                (:wat::core::PersistentVector/conj acc nm)
+                acc))
+            acc)))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 1 n))))
+
+;; keys-minus — `from` without any name in `drop`.
+(:wat::core::defn :wat::rete::keys-minus
+  [from <- :wat::core::PersistentVector<wat::core::String>
+   drop <- :wat::core::PersistentVector<wat::core::String>]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                     k   <- :wat::core::String]
+      -> :wat::core::PersistentVector<wat::core::String>
+      (:wat::core::if (:wat::core::PersistentVector/contains? drop k)
+        acc
+        (:wat::core::PersistentVector/conj acc k)))
+    (:wat::core::PersistentVector)
+    from))
+
+;; project-group-keys — element's bindings restricted to `keys` (the group key).
+(:wat::core::defn :wat::rete::project-group-keys
+  [el   <- :wat::rete::Element
+   keys <- :wat::core::PersistentVector<wat::core::String>]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [eb (:wat::rete::Element/bindings el)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentMap
+                       k   <- :wat::core::String]
+        -> :wat::core::PersistentMap
+        (:wat::core::match (:wat::core::PersistentMap/get eb k)
+          ((:wat::core::Some v) (:wat::core::PersistentMap/assoc acc k v))
+          (:wat::core::None acc)))
+      (:wat::core::PersistentMap)
+      keys)))
+
 ;; ─── accumulate-pass (Stone 8-a) ────────────────────────────────────────────
 ;;
 ;; Fold step: for each AccumulateNode, for each token in beta-memory[parent],
-;; gather token-compatible elements from alpha-memory[from-alpha-id], call
-;; accumulate-pass-for-token (which dispatches over acc-form and handles each
-;; fold's specific return type), and append the extended token (or drop it for
-;; empty min/max/mean) into beta-memory[acc-node-id].
+;; gather token-compatible elements from alpha-memory[from-alpha-id], group by
+;; `:from` binds that are not already on the token and not acc-form operands
+;; (Clara unbound grouping), call accumulate-pass-for-token per group, and
+;; append the extended token (or drop it for empty min/max/mean).
+;; Empty gather + non-empty group keys: no bag-wide 0 (Clara new-bindings).
 ;; Runs AFTER hash-join-pass and BEFORE filter-pass (so a :where on ?result sees the binding).
 ;;
 ;; STOP-3 resolution: apply-accumulator cannot return Option<Value> because the wat type system
@@ -3077,20 +3561,24 @@
                         from-alpha-id (:wat::rete::AccumulateNode/from-alpha-id node)
                         tokens        (:wat::rete::tokens-or-empty-seed
                                         network beta-mem node-id)
-                        ;; gather all :from elements from alpha-memory (may be empty PV)
                         from-els      (:wat::core::match
                                          (:wat::core::PersistentMap/get alpha-mem from-alpha-id)
                                          
                                        ((:wat::core::Some pv) pv)
-                                       (:wat::core::None (:wat::core::PersistentVector)))]
-        ;; For each parent token: filter from-els to compatible ones, then dispatch to
-        ;; accumulate-pass-for-token which handles the per-fold type inline.
+                                       (:wat::core::None (:wat::core::PersistentVector)))
+                        from-alpha    (:wat::core::Option/expect
+                                         (:wat::core::PersistentMap/get network from-alpha-id)
+                                         "accumulate-pass: from alpha missing")
+                        from-cond     (:wat::core::Option/expect
+                                         (:wat::core::get (:wat::rete::AlphaNode/tests from-alpha) 0)
+                                         "accumulate-pass: from alpha has no cond")
+                        from-keys     (:wat::rete::cond-bind-keys from-cond)
+                        operand-keys  (:wat::rete::acc-operand-keys acc-form)]
         (:wat::core::foldl
           (:wat::core::fn [bm  <- :wat::core::PersistentMap
                            tok <- :wat::rete::Token]
             -> :wat::core::PersistentMap
-            (:wat::core::let [;; gather token-compatible :from elements (shared ?var agreement)
-                              gathered (:wat::core::foldl
+            (:wat::core::let [gathered (:wat::core::foldl
                                           (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Element>
                                                            el  <- :wat::rete::Element]
                                             -> :wat::core::PersistentVector<wat::rete::Element>
@@ -3098,9 +3586,72 @@
                                               (:wat::core::PersistentVector/conj acc el)
                                               acc))
                                           (:wat::core::PersistentVector)
-                                          from-els)]
-              (:wat::rete::accumulate-pass-for-token
-                 acc-form gathered result-var tok node-id bm)))
+                                          from-els)
+                              tok-keys (:wat::core::foldl
+                                          (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                                           k   <- :wat::core::String]
+                                            -> :wat::core::PersistentVector<wat::core::String>
+                                            (:wat::core::PersistentVector/conj acc k))
+                                          (:wat::core::PersistentVector)
+                                          (:wat::core::PersistentMap/keys
+                                            (:wat::rete::Token/bindings tok)))
+                              group-keys (:wat::rete::keys-minus
+                                           (:wat::rete::keys-minus from-keys tok-keys)
+                                           operand-keys)]
+              (:wat::core::if (:wat::core::= (:wat::core::length group-keys) 0)
+                (:wat::rete::accumulate-pass-for-token
+                   acc-form gathered result-var tok node-id bm)
+                (:wat::core::if (:wat::core::= (:wat::core::length gathered) 0)
+                  bm
+                  (:wat::core::let [key-maps
+                                    (:wat::rete::distinct-maps
+                                      (:wat::core::foldl
+                                        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                                                         el  <- :wat::rete::Element]
+                                          -> :wat::core::PersistentVector<wat::core::PersistentMap>
+                                          (:wat::core::PersistentVector/conj
+                                            acc
+                                            (:wat::rete::project-group-keys el group-keys)))
+                                        (:wat::core::PersistentVector)
+                                        gathered))]
+                    (:wat::core::foldl
+                      (:wat::core::fn [bm2 <- :wat::core::PersistentMap
+                                       km  <- :wat::core::PersistentMap]
+                        -> :wat::core::PersistentMap
+                        (:wat::core::let [group-els
+                                          (:wat::core::foldl
+                                            (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Element>
+                                                             el  <- :wat::rete::Element]
+                                              -> :wat::core::PersistentVector<wat::rete::Element>
+                                              (:wat::core::if
+                                                (:wat::core::PersistentVector/contains?
+                                                  (:wat::core::PersistentVector/conj
+                                                    (:wat::core::PersistentVector) km)
+                                                  (:wat::rete::project-group-keys el group-keys))
+                                                (:wat::core::PersistentVector/conj acc el)
+                                                acc))
+                                            (:wat::core::PersistentVector)
+                                            gathered)
+                                          km-keys (:wat::core::PersistentMap/keys km)
+                                          ext-binds
+                                          (:wat::core::foldl
+                                            (:wat::core::fn [nb <- :wat::core::PersistentMap
+                                                             k  <- :wat::core::String]
+                                              -> :wat::core::PersistentMap
+                                              (:wat::core::match (:wat::core::PersistentMap/get km k)
+                                                ((:wat::core::Some v)
+                                                 (:wat::core::PersistentMap/assoc nb k v))
+                                                (:wat::core::None nb)))
+                                            (:wat::rete::Token/bindings tok)
+                                            km-keys)
+                                          ext-tok
+                                          (:wat::rete::Token
+                                            :matches (:wat::rete::Token/matches tok)
+                                            :bindings ext-binds)]
+                          (:wat::rete::accumulate-pass-for-token
+                             acc-form group-els result-var ext-tok node-id bm2)))
+                      bm
+                      key-maps))))))
           beta-mem
           tokens))
       beta-mem)))

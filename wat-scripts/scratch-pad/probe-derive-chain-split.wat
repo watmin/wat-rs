@@ -60,6 +60,11 @@
    into-count   <- :wat::core::i64
    direct-count <- :wat::core::i64])
 
+(:wat::rete::defquery :dc::q-Out
+  :params []
+  :when [(?fact <- :dc::Out)])
+
+
 ;; ── the workload, copied from grid/node-share.wat (namespace changed only) ───
 
 (:wat::core::defn :dc::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
@@ -103,15 +108,15 @@
                                 (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
-                    staged  (:dc::seed (:wat::rete::compile (:dc::build-rules rules-n)) items)
+                    staged  (:dc::seed (:wat::rete::compile-all (:dc::build-rules rules-n) (:wat::core::PersistentVector (:dc::q-Out))) items)
                     fired   (:wat::rete::fire-rules staged)
 
                     ;; ── the chain as the axis writes it, link by link ────────
                     q0      (:wat::time::now)
-                    q       (:wat::rete::query-by-type-string fired "dc::Out")
+                    q       (:wat::rete::query fired (:dc::q-Out))
                     q1      (:wat::time::now)
                     mapped  (:wat::core::map
-                              (:wat::core::fn [f <- :dc::Out] -> :wat::core::i64 (:dc::Out/k f))
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dc::Out/k f)))
                               q)
                     q2      (:wat::time::now)
                     vec     (:wat::core::into (:wat::core::Vector :wat::core::i64) mapped)
@@ -133,9 +138,12 @@
                     d0      (:wat::time::now)
                     direct  (:wat::core::foldl
                               (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>
-                                               f   <- :dc::Out]
+                                               p   <- :wat::core::PersistentMap]
                                 -> :wat::core::PersistentVector<wat::core::i64>
-                                (:wat::core::PersistentVector/conj acc (:dc::Out/k f)))
+                                (:wat::core::let [f (:wat::core::Option/expect
+                                                      (:wat::core::PersistentMap/get p "?fact")
+                                                      "q-Out: ?fact")]
+                                  (:wat::core::PersistentVector/conj acc (:dc::Out/k f))))
                               (:wat::core::PersistentVector)
                               q)
                     d1      (:wat::time::now)]

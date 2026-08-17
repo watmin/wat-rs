@@ -52,6 +52,11 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :mf::q-Busy
+  :params []
+  :when [(?fact <- :mf::Busy)])
+
+
 ;; encode loc n — canonical single-i64 witness for one activated Busy fact. `n` is a station's
 ;; finding count (< 2*threshold, far below 1,000,000) and `loc` is < 1,000,000 at every grid size,
 ;; so the encoding is injective for the sizes this axis is ever run at.
@@ -135,9 +140,8 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [f <- :mf::Busy] -> :wat::core::i64
-            (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f)))
-          (:wat::rete::query-by-type-string fired "mf::Busy"))))))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
+          (:wat::rete::query fired (:mf::q-Busy)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
 (:wat::core::defn :mf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -148,7 +152,7 @@
                     stations  (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [stations threshold]")
                     threshold (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [stations threshold]")
                     rules     (:wat::core::PersistentVector (:mf::build-rule threshold))
-                    staged    (:mf::seed (:wat::rete::compile rules) stations threshold)
+                    staged    (:mf::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:mf::q-Busy))) stations threshold)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0        (:wat::time::now)
                     fired     (:wat::rete::fire-rules staged)

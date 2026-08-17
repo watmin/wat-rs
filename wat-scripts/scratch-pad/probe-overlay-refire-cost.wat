@@ -53,6 +53,11 @@
 (:wat::core::defrecord :ovl::Req [k <- :wat::core::i64])
 (:wat::core::defrecord :ovl::Hit [k <- :wat::core::i64])
 
+(:wat::rete::defquery :ovl::q-Hit
+  :params []
+  :when [(?fact <- :ovl::Hit)])
+
+
 ;; The rule is deliberately MINIMAL — one alpha condition, one production, no join. Cost is then
 ;; ~proportional to the facts the engine actually processes, so a "redo" shows up as time tracking N
 ;; instead of being buried under join work. Hit(k) :- Req(?k) AND k mod 10 == 3.
@@ -86,8 +91,8 @@
   (:wat::core::Vector/length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :ovl::Hit] -> :wat::core::i64 (:ovl::Hit/k f))
-        (:wat::rete::query-by-type-string fired "ovl::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:ovl::Hit/k f)))
+        (:wat::rete::query fired (:ovl::q-Hit))))))
 
 (:wat::core::defn :ovl::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
@@ -100,7 +105,7 @@
 ;; rung n — the three timings at one base size, plus the non-vacuity assertion.
 (:wat::core::defn :ovl::rung [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let
-    [staged    (:ovl::stage (:wat::rete::compile (:ovl::rules)) 0 n)
+    [staged    (:ovl::stage (:wat::rete::compile-all (:ovl::rules) (:wat::core::PersistentVector (:ovl::q-Hit))) 0 n)
 
      ;; (1) COLD — fire an unfired base of n facts. The yardstick.
      c0        (:wat::time::now)

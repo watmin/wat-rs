@@ -131,6 +131,41 @@
          (:wat::rete::not (:m::Ruling (?c <- :concept)))]
   :then [(:m::NoRuling :concept ?c)])
 
+(:wat::rete::defquery :m::q-Concept
+  :params []
+  :when [(?fact <- :m::Concept)])
+
+
+(:wat::rete::defquery :m::q-StyleSeen
+  :params []
+  :when [(?fact <- :m::StyleSeen)])
+
+
+(:wat::rete::defquery :m::q-Settled
+  :params []
+  :when [(?fact <- :m::Settled)])
+
+
+(:wat::rete::defquery :m::q-TargetNS
+  :params []
+  :when [(?fact <- :m::TargetNS)])
+
+
+(:wat::rete::defquery :m::q-Target
+  :params []
+  :when [(?fact <- :m::Target)])
+
+
+(:wat::rete::defquery :m::q-Inconsistent
+  :params []
+  :when [(?fact <- :m::Inconsistent)])
+
+
+(:wat::rete::defquery :m::q-NoRuling
+  :params []
+  :when [(?fact <- :m::NoRuling)])
+
+
 ;; ─── the seed — REAL spellings, measured from wat/ this session ───────────────
 ;;   String/  2 members  ·  string::  19 members   <- ONE concept, TWO styles  => Inconsistent
 ;;   i64::   13 members                            <- consistent; ruled        => Target
@@ -161,22 +196,22 @@
              (:m::concept-of) (:m::style-seen) (:m::inconsistent)
              (:m::settled) (:m::target) (:m::target-ns) (:m::no-ruling))
      fired (:wat::rete::fire-rules
-             (:m::seed-rulings (:m::seed (:wat::rete::compile rules))))]
+             (:m::seed-rulings (:m::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:m::q-Concept) (:m::q-StyleSeen) (:m::q-Settled) (:m::q-TargetNS) (:m::q-Target) (:m::q-Inconsistent) (:m::q-NoRuling))))))]
     (:wat::core::do
       ;; non-vacuity: 0 concepts ⇒ the seed never landed and every row below is meaningless
       (:m::show "Concept      (want 5; 0 => seed dead, all below vacuous): "
-        (:wat::core::length (:wat::rete::query fired :m::Concept)))
+        (:wat::core::length (:wat::rete::query fired (:m::q-Concept))))
       (:m::show "StyleSeen    (want 4 = string/slash,string/colons,i64,vector): "
-        (:wat::core::length (:wat::rete::query fired :m::StyleSeen)))
+        (:wat::core::length (:wat::rete::query fired (:m::q-StyleSeen))))
       (:m::show "Settled      (want 2 = i64, vector):                      "
-        (:wat::core::length (:wat::rete::query fired :m::Settled)))
+        (:wat::core::length (:wat::rete::query fired (:m::q-Settled))))
       ;; the two answers
       (:m::show "TargetNS     (bisect, want 1; GREEN since #94):              "
-        (:wat::core::length (:wat::rete::query fired :m::TargetNS)))
+        (:wat::core::length (:wat::rete::query fired (:m::q-TargetNS))))
       (:m::show "Target       (want 2; GREEN since ff581b6f closed #94):      "
-        (:wat::core::length (:wat::rete::query fired :m::Target)))
+        (:wat::core::length (:wat::rete::query fired (:m::q-Target))))
       ;; ★ the two DISTINCT unknowns — this is the deliverable
       (:m::show "Inconsistent (want 1 = 'string': String/ vs string::):    "
-        (:wat::core::length (:wat::rete::query fired :m::Inconsistent)))
+        (:wat::core::length (:wat::rete::query fired (:m::q-Inconsistent))))
       (:m::show "NoRuling     (want 1 = 'vector': settled, undecided):     "
-        (:wat::core::length (:wat::rete::query fired :m::NoRuling))))))
+        (:wat::core::length (:wat::rete::query fired (:m::q-NoRuling)))))))

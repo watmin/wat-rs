@@ -27,6 +27,11 @@ fn gen_world(depth: usize) -> String {
              (:wat::core::defrecord :casc::Tag{k}   [id <- :wat::core::i64])\n"
         ));
     }
+    s.push_str(&format!(
+        "(:wat::rete::defquery :casc::q-Stage{depth}\n\
+           :params []\n\
+           :when [(:casc::Stage{depth})])\n"
+    ));
     s
 }
 
@@ -44,9 +49,11 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
              \n  rule{k} (:wat::rete::Rule :name \"r{k}\" :lhs (:wat::core::PersistentVector r{k}c1 r{k}c2) :rhs (:wat::core::PersistentVector r{k}t1 r{k}t2))\n"
         ));
     }
-    binds.push_str("  s0 (:wat::rete::compile (:wat::core::PersistentVector");
+    binds.push_str("  s0 (:wat::rete::compile-all (:wat::core::PersistentVector");
     for k in 1..=depth { binds.push_str(&format!(" rule{k}")); }
-    binds.push_str("))\n");
+    binds.push_str(&format!(
+        ") (:wat::core::PersistentVector (:casc::q-Stage{depth})))\n"
+    ));
     let mut idx = 1usize;
     let mut prev = 0usize;
     for i in 0..width {
@@ -57,7 +64,7 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
     }
     format!(
         "(:wat::core::let [{binds}\n fired ({fire_verb} s{prev})]\
-           (:wat::core::length (:wat::rete::query-by-type-string fired \"casc::Stage{depth}\")))"
+           (:wat::core::length (:wat::rete::query fired (:casc::q-Stage{depth}))))"
     )
 }
 

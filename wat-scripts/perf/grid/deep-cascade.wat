@@ -43,6 +43,16 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :cascade::q-Node
+  :params []
+  :when [(?fact <- :cascade::Node)])
+
+
+(:wat::rete::defquery :cascade::q-Tag
+  :params []
+  :when [(?fact <- :cascade::Tag)])
+
+
 ;; build-rule k — the k-th cascade level: join Node⋈Tag at level (k-1) on ?id, derive Node,Tag at
 ;; level k. The level literals (k-1 in the conditions, k in the inserts) are spliced via
 ;; quasiquote/unquote (byte-identical in shape to the legacy file's :perf::build-rule).
@@ -97,13 +107,13 @@
 (:wat::core::defn :dc::codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
-          (:wat::core::map (:wat::core::fn [f <- :cascade::Node] -> :wat::core::i64 (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f)))
-            (:wat::core::filter (:wat::core::fn [f <- :cascade::Node] -> :wat::core::bool (:wat::core::i64::> (:cascade::Node/level f) 0))
-              (:wat::rete::query-by-type-string fired "cascade::Node"))))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f))))
+            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wat::core::i64::> (:cascade::Node/level f) 0)))
+              (:wat::rete::query fired (:cascade::q-Node)))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [f <- :cascade::Tag] -> :wat::core::i64 (:dc::enc 1 (:cascade::Tag/level f) (:cascade::Tag/id f)))
-            (:wat::core::filter (:wat::core::fn [f <- :cascade::Tag] -> :wat::core::bool (:wat::core::i64::> (:cascade::Tag/level f) 0))
-              (:wat::rete::query-by-type-string fired "cascade::Tag"))))]
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dc::enc 1 (:cascade::Tag/level f) (:cascade::Tag/id f))))
+            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wat::core::i64::> (:cascade::Tag/level f) 0)))
+              (:wat::rete::query fired (:cascade::q-Tag)))))]
     c1))
 
 ;; derived-vector fired — the sorted i64 accuracy witness (the full derived set, not a count).
@@ -119,7 +129,7 @@
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:dc::build-rules depth)
-                    staged  (:dc::seed-level-0 (:wat::rete::compile rules) width)
+                    staged  (:dc::seed-level-0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag))) width)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

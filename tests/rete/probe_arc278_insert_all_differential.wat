@@ -35,8 +35,13 @@
   :then
   [(:nia::Out ?g)])
 
+(:wat::rete::defquery :nia::q-Out
+  :params []
+  :when [(?fact <- :nia::Out)])
+
+
 (:wat::core::defn :nia::base [] -> :wat::rete::Session
-  (:wat::rete::compile (:wat::rete::collect-rules :nia)))
+  (:wat::rete::compile-all (:wat::rete::collect-rules :nia) (:wat::core::PersistentVector (:nia::q-Out))))
 
 ;; The facts under test — N=5, satisfying assertion 3's N > 1 requirement.
 (:wat::core::defn :nia::the-facts [] -> :wat::core::PersistentVector<nia::Reading>
@@ -78,15 +83,18 @@
   (:wat::core::length (:wat::rete::Session/facts s)))
 
 (:wat::core::defn :nia::fired-outs [s <- :wat::rete::Session] -> :wat::core::PersistentVector
-  (:wat::rete::query-by-type-string (:wat::rete::fire-rules s) "nia::Out"))
+  (:wat::rete::query (:wat::rete::fire-rules s) (:nia::q-Out)))
 
 (:wat::core::defn :nia::fired-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:nia::fired-outs s)))
 
 (:wat::core::defn :nia::fired-sum [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::core::i64  o <- :nia::Out] -> :wat::core::i64
-      (:wat::core::i64::+ a (:nia::Out/g o)))
+    (:wat::core::fn [a <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+      (:wat::core::let [o (:wat::core::Option/expect
+                            (:wat::core::PersistentMap/get p "?fact")
+                            "q-Out: ?fact")]
+        (:wat::core::i64::+ a (:nia::Out/g o))))
     0
     (:nia::fired-outs s)))
 

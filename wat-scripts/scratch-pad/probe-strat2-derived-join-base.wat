@@ -58,6 +58,26 @@
   :when [(:z::S2 (?c <- :c)) (:z::R (?c <- :c) (?t <- :t))]
   :then [(:z::Out2 :c ?c :t ?t)])
 
+(:wat::rete::defquery :z::q-S
+  :params []
+  :when [(?fact <- :z::S)])
+
+
+(:wat::rete::defquery :z::q-S2
+  :params []
+  :when [(?fact <- :z::S2)])
+
+
+(:wat::rete::defquery :z::q-Out2
+  :params []
+  :when [(?fact <- :z::Out2)])
+
+
+(:wat::rete::defquery :z::q-Out
+  :params []
+  :when [(?fact <- :z::Out)])
+
+
 (:wat::core::defn :z::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println (:wat::core::string::concat label (:wat::core::str n))))
 
@@ -66,15 +86,15 @@
     [f (:wat::rete::fire-rules
          (:wat::rete::insert
            (:wat::rete::insert
-             (:wat::rete::compile (:wat::core::PersistentVector
-               (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)))
+             (:wat::rete::compile-all (:wat::core::PersistentVector
+               (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)) (:wat::core::PersistentVector (:z::q-S) (:z::q-S2) (:z::q-Out2) (:z::q-Out)))
              (:z::A :c "i64"))
            (:z::R :c "i64" :t "wat.core.i64")))]
     (:wat::core::do
       ;; non-vacuity: both gates must derive, or the Out rows below mean nothing
-      (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f :z::S)))
-      (:z::show "S2 plain         (want 1): " (:wat::core::length (:wat::rete::query f :z::S2)))
+      (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-S))))
+      (:z::show "S2 plain         (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-S2))))
       ;; the differential — these two must agree
-      (:z::show "Out2 CONTROL     (want 1): " (:wat::core::length (:wat::rete::query f :z::Out2)))
+      (:z::show "Out2 CONTROL     (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-Out2))))
       (:z::show "Out  SUBJECT     (want 1; GREEN since ff581b6f closed #94): "
-        (:wat::core::length (:wat::rete::query f :z::Out))))))
+        (:wat::core::length (:wat::rete::query f (:z::q-Out)))))))

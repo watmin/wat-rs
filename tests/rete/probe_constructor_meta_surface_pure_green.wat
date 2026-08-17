@@ -20,12 +20,19 @@
   :when [(:cg::Anchor (?x <- :x))]
   :then [(:cg::Handle :label ?x)])
 
+(:wat::rete::defquery :cg::q-Handle
+  :params []
+  :when [(:cg::Handle (?label <- :label))])
+
+
 (:wat::core::defn :user::run [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Handle)))
      session (:wat::rete::insert session (:cg::Anchor :x 5))
      fired   (:wat::rete::fire-rules-spec session)
-     derived (:wat::rete::query-by-type-string fired "cg::Handle")
+     derived (:wat::rete::query fired (:cg::q-Handle))
      r       (:wat::core::first derived)]
-    (:cg::Handle/label r)))
+    (:wat::core::Option/expect
+      (:wat::core::PersistentMap/get r "?label")
+      "q-Handle: ?label")))

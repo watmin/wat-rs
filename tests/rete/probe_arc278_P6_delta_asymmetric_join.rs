@@ -60,6 +60,11 @@ fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
 // Bug: A (right of R2's hash join) arrives in round 1 while B (left) is not yet derived.
 // J is skipped; right_idx[J] never populated. Round 2: B arrives but right_idx is empty → C=0.
 
+fn q_call(ty: &str) -> String {
+    let (ns, name) = ty.rsplit_once("::").expect("namespaced type");
+    format!("(:{ns}::q-{name})")
+}
+
 /// Build the chain let-expression for `N` input A records. `FIRE_VERB` is a placeholder.
 fn chain_expr(n: usize, query_type: &str) -> String {
     let r1c = "(:wat::core::quote (:chain::A (?k <- :k)))";
@@ -67,6 +72,7 @@ fn chain_expr(n: usize, query_type: &str) -> String {
     let r2c1 = "(:wat::core::quote (:chain::B (?k <- :k)))";
     let r2c2 = "(:wat::core::quote (:chain::A (?k <- :k)))";
     let r2t = "(:wat::core::quote (:chain::C ?k))";
+    let q = q_call(query_type);
     let mut binds = format!(
         "  r1 (:wat::rete::Rule :name \"r1\" \
              :lhs (:wat::core::PersistentVector {r1c}) \
@@ -74,7 +80,7 @@ fn chain_expr(n: usize, query_type: &str) -> String {
          r2 (:wat::rete::Rule :name \"r2\" \
              :lhs (:wat::core::PersistentVector {r2c1} {r2c2}) \
              :rhs (:wat::core::PersistentVector {r2t}))\n\
-         s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2))\n"
+         s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2) (:wat::core::PersistentVector {q}))\n"
     );
     let mut prev = 0usize;
     for i in 1..=n {
@@ -87,7 +93,7 @@ fn chain_expr(n: usize, query_type: &str) -> String {
     format!(
         "(:wat::core::let [{binds}\n\
            fired (FIRE_VERB s{prev})]\n\
-           (:wat::core::length (:wat::rete::query-by-type-string fired \"{query_type}\")))"
+           (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
 
@@ -119,7 +125,9 @@ fn chain_c_five_inputs_equals_oracle() {
 // Insert A(1), A(2). Expected: B=2, C=2, D=2.
 
 fn triple_expr(n: usize, query_type: &str) -> String {
-    let rules = "\
+    let q = q_call(query_type);
+    let mut binds = format!(
+        "\
         r1 (:wat::rete::Rule :name \"r1\" \
              :lhs (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::B ?k))))\n\
@@ -133,8 +141,8 @@ fn triple_expr(n: usize, query_type: &str) -> String {
                (:wat::core::quote (:tri::C (?k <- :k))) \
                (:wat::core::quote (:tri::B (?k <- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::D ?k))))\n\
-        s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2 r3))\n";
-    let mut binds = rules.to_string();
+        s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2 r3) (:wat::core::PersistentVector {q}))\n"
+    );
     let mut prev = 0usize;
     for i in 1..=n {
         binds.push_str(&format!("  s{i} (:wat::rete::insert s{prev} (:tri::A :k {i}))\n"));
@@ -143,7 +151,7 @@ fn triple_expr(n: usize, query_type: &str) -> String {
     format!(
         "(:wat::core::let [{binds}\n\
            fired (FIRE_VERB s{prev})]\n\
-           (:wat::core::length (:wat::rete::query-by-type-string fired \"{query_type}\")))"
+           (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
 
@@ -185,7 +193,9 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
                (:wat::core::quote (:xyz::X (?k <- :k))) \
                (:wat::core::quote (:xyz::Y (?k <- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:xyz::Z ?k))))\n\
-        s0 (:wat::rete::compile (:wat::core::PersistentVector r1))\n";
+        s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1) (:wat::core::PersistentVector {q}))\n";
+    let q = q_call(query_type);
+    let rule = format!("{rule}", rule = rule.replace("{q}", &q));
     let mut binds = rule.to_string();
     let mut prev = 0usize;
     // Insert ALL X first (i=1..n), then ALL Y (i=1..n).
@@ -203,7 +213,7 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
     format!(
         "(:wat::core::let [{binds}\n\
            fired (FIRE_VERB s{prev})]\n\
-           (:wat::core::length (:wat::rete::query-by-type-string fired \"{query_type}\")))"
+           (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
 

@@ -28,6 +28,11 @@
    sort-ns       <- :wat::core::i64
    pvec-ns       <- :wat::core::i64])
 
+(:wat::rete::defquery :dd::q-Pair
+  :params []
+  :when [(?fact <- :dd::Pair)])
+
+
 (:wat::core::defn :dd::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
@@ -61,7 +66,7 @@
      c2      (:wat::core::quote (:dd::Right (?k <- :key) (?r <- :rid)))
      rhs     (:wat::core::quote (:dd::Pair ?k ?l ?r))
      rule    (:wat::rete::Rule :name "dd" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-     staged  (:dd::seed (:wat::rete::compile (:wat::core::PersistentVector rule)) keys fanout)
+     staged  (:dd::seed (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:dd::q-Pair))) keys fanout)
 
      f0      (:wat::time::now)
      fired   (:wat::rete::fire-rules staged)
@@ -72,14 +77,13 @@
      ;; clause but NOT its mirror (Vector,PV) — so this cannot be materialised into a Vector
      ;; without the very asymmetry DESIGN-STONE-into-pv-from-vector.md left owed. Map directly.
      q0      (:wat::time::now)
-     pairs   (:wat::rete::query-by-type-string fired "dd::Pair")
+     pairs   (:wat::rete::query fired (:dd::q-Pair))
      q1      (:wat::time::now)
 
      m0      (:wat::time::now)
      codes   (:wat::core::into (:wat::core::Vector :wat::core::i64)
                (:wat::core::map
-                 (:wat::core::fn [f <- :dd::Pair] -> :wat::core::i64
-                   (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f)))
+                 (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
                  pairs))
      m1      (:wat::time::now)
 

@@ -91,6 +91,31 @@
   :then
   [(:acc::ExistsF ?g)])
 
+(:wat::rete::defquery :acc::q-CountF
+  :params []
+  :when [(?fact <- :acc::CountF)])
+
+
+(:wat::rete::defquery :acc::q-SumF
+  :params []
+  :when [(?fact <- :acc::SumF)])
+
+
+(:wat::rete::defquery :acc::q-MinF
+  :params []
+  :when [(?fact <- :acc::MinF)])
+
+
+(:wat::rete::defquery :acc::q-MaxF
+  :params []
+  :when [(?fact <- :acc::MaxF)])
+
+
+(:wat::rete::defquery :acc::q-ExistsF
+  :params []
+  :when [(?fact <- :acc::ExistsF)])
+
+
 ;; val g j — the deterministic reading value at (group g, index j): (g*31 + j*17) mod 1000.
 ;; No i64::mod op exists (only +,-,*,/), so mod is manual: x - (x/1000)*1000 (x>=0, truncating /).
 ;; The IDENTICAL fn runs on the Clara side (gen-accum.sh uses (mod (+ (* g 31) (* j 17)) 1000)),
@@ -142,20 +167,20 @@
 (:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
-          (:wat::core::map (:wat::core::fn [f <- :acc::CountF] -> :wat::core::i64 (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f)))
-            (:wat::rete::query-by-type-string fired "acc::CountF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f))))
+            (:wat::rete::query fired (:acc::q-CountF))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [f <- :acc::SumF] -> :wat::core::i64 (:acc::enc 1 (:acc::SumF/g f) (:acc::SumF/n f)))
-            (:wat::rete::query-by-type-string fired "acc::SumF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 1 (:acc::SumF/g f) (:acc::SumF/n f))))
+            (:wat::rete::query fired (:acc::q-SumF))))
      c2 (:wat::core::into c1
-          (:wat::core::map (:wat::core::fn [f <- :acc::MinF] -> :wat::core::i64 (:acc::enc 2 (:acc::MinF/g f) (:acc::MinF/n f)))
-            (:wat::rete::query-by-type-string fired "acc::MinF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 2 (:acc::MinF/g f) (:acc::MinF/n f))))
+            (:wat::rete::query fired (:acc::q-MinF))))
      c3 (:wat::core::into c2
-          (:wat::core::map (:wat::core::fn [f <- :acc::MaxF] -> :wat::core::i64 (:acc::enc 3 (:acc::MaxF/g f) (:acc::MaxF/n f)))
-            (:wat::rete::query-by-type-string fired "acc::MaxF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 3 (:acc::MaxF/g f) (:acc::MaxF/n f))))
+            (:wat::rete::query fired (:acc::q-MaxF))))
      c4 (:wat::core::into c3
-          (:wat::core::map (:wat::core::fn [f <- :acc::ExistsF] -> :wat::core::i64 (:acc::enc 4 (:acc::ExistsF/g f) 0))
-            (:wat::rete::query-by-type-string fired "acc::ExistsF")))]
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 4 (:acc::ExistsF/g f) 0)))
+            (:wat::rete::query fired (:acc::q-ExistsF))))]
     c4))
 
 ;; derived-vector fired — the sorted i64 accuracy witness (the full set, not a count).
@@ -171,7 +196,7 @@
                     groups  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [groups readings]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [groups readings]")
                     rules   (:wat::rete::collect-rules :acc)
-                    staged  (:acc::seed (:wat::rete::compile rules) groups reads)
+                    staged  (:acc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF))) groups reads)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

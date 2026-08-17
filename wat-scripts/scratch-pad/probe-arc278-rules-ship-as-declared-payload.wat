@@ -89,9 +89,16 @@
       (:wat::rete::query
         (:wat::rete::fire-rules
           (:wat::rete::insert
-            (:wat::rete::compile (:wat::rete::collect-rules :usr))
+            (:wat::rete::compile-all
+              (:wat::rete::collect-rules :usr)
+              (:wat::core::PersistentVector
+                (:wat::rete::make-query "usr::Hot"
+                  (:wat::core::quote [])
+                  (:wat::core::quote [(:usr::Hot)]))))
             (:usr::Temp :c 150)))
-        :usr::Hot))))
+        (:wat::rete::make-query "usr::Hot"
+          (:wat::core::quote [])
+          (:wat::core::quote [(:usr::Hot)]))))))
 
 ;; ── run one payload and name which arm fired ──────────────────────────────────────────
 (:wat::core::defn :probe::run

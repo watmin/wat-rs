@@ -76,6 +76,11 @@
   :then
   [(:ur::Agg ?loc ?s)])
 
+(:wat::rete::defquery :ur::q-Agg
+  :params []
+  :when [(?fact <- :ur::Agg)])
+
+
 ;; seed-loc session loc reads — stage Station(loc) then Reading(loc, (loc+j) mod 7) for j in [0,reads).
 ;; loc-facts acc loc reads — Station(loc) then its `reads` Readings, appended to a FACT VECTOR.
 ;; No longer threads a Session: staging is one BATCH `insert-all` at the end of `seed-all`.
@@ -115,9 +120,8 @@
   -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                            (:wat::core::map
-                             (:wat::core::fn [f <- :ur::Agg] -> :wat::core::i64
-                               (:ur::encode (:ur::Agg/loc f) (:ur::Agg/sos f)))
-                             (:wat::rete::query-by-type-string fired "ur::Agg")))]
+                             (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:ur::encode (:ur::Agg/loc f) (:ur::Agg/sos f))))
+                             (:wat::rete::query fired (:ur::q-Agg))))]
     (:ur::vec->pvec (:wat::core::sort codes))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
@@ -129,7 +133,7 @@
                     locs    (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [locs reads]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [locs reads]")
                     rules   (:wat::rete::collect-rules :ur)
-                    staged  (:ur::seed-all (:wat::rete::compile rules) locs reads)
+                    staged  (:ur::seed-all (:wat::rete::compile-all rules (:wat::core::PersistentVector (:ur::q-Agg))) locs reads)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

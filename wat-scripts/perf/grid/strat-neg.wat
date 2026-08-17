@@ -60,6 +60,56 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :strat::q-S0
+  :params []
+  :when [(?fact <- :strat::S0)])
+
+
+(:wat::rete::defquery :strat::q-S1
+  :params []
+  :when [(?fact <- :strat::S1)])
+
+
+(:wat::rete::defquery :strat::q-S2
+  :params []
+  :when [(?fact <- :strat::S2)])
+
+
+(:wat::rete::defquery :strat::q-S3
+  :params []
+  :when [(?fact <- :strat::S3)])
+
+
+(:wat::rete::defquery :strat::q-S4
+  :params []
+  :when [(?fact <- :strat::S4)])
+
+
+(:wat::rete::defquery :strat::q-S5
+  :params []
+  :when [(?fact <- :strat::S5)])
+
+
+(:wat::rete::defquery :strat::q-S6
+  :params []
+  :when [(?fact <- :strat::S6)])
+
+
+(:wat::rete::defquery :strat::q-S7
+  :params []
+  :when [(?fact <- :strat::S7)])
+
+
+(:wat::rete::defquery :strat::q-S8
+  :params []
+  :when [(?fact <- :strat::S8)])
+
+
+(:wat::rete::defquery :strat::q-S9
+  :params []
+  :when [(?fact <- :strat::S9)])
+
+
 ;; encode stratum k — canonical single-i64 witness for one derived S<n> fact.
 ;; items is always far below 1,000,000 in every size this axis is run at (grid scale, not
 ;; production scale), so the encoding is injective for the sizes this ward ever sees.
@@ -167,44 +217,44 @@
   (:wat::core::cond
     ((:wat::core::= lvl 0)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S0] -> :wat::core::i64 (:strat::encode 0 (:strat::S0/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S0"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 0 (:strat::S0/k f))))
+         (:wat::rete::query fired (:strat::q-S0)))))
     ((:wat::core::= lvl 1)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S1] -> :wat::core::i64 (:strat::encode 1 (:strat::S1/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S1"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 1 (:strat::S1/k f))))
+         (:wat::rete::query fired (:strat::q-S1)))))
     ((:wat::core::= lvl 2)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S2] -> :wat::core::i64 (:strat::encode 2 (:strat::S2/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S2"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 2 (:strat::S2/k f))))
+         (:wat::rete::query fired (:strat::q-S2)))))
     ((:wat::core::= lvl 3)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S3] -> :wat::core::i64 (:strat::encode 3 (:strat::S3/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S3"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 3 (:strat::S3/k f))))
+         (:wat::rete::query fired (:strat::q-S3)))))
     ((:wat::core::= lvl 4)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S4] -> :wat::core::i64 (:strat::encode 4 (:strat::S4/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S4"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 4 (:strat::S4/k f))))
+         (:wat::rete::query fired (:strat::q-S4)))))
     ((:wat::core::= lvl 5)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S5] -> :wat::core::i64 (:strat::encode 5 (:strat::S5/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S5"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 5 (:strat::S5/k f))))
+         (:wat::rete::query fired (:strat::q-S5)))))
     ((:wat::core::= lvl 6)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S6] -> :wat::core::i64 (:strat::encode 6 (:strat::S6/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S6"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 6 (:strat::S6/k f))))
+         (:wat::rete::query fired (:strat::q-S6)))))
     ((:wat::core::= lvl 7)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S7] -> :wat::core::i64 (:strat::encode 7 (:strat::S7/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S7"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 7 (:strat::S7/k f))))
+         (:wat::rete::query fired (:strat::q-S7)))))
     ((:wat::core::= lvl 8)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S8] -> :wat::core::i64 (:strat::encode 8 (:strat::S8/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S8"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 8 (:strat::S8/k f))))
+         (:wat::rete::query fired (:strat::q-S8)))))
     ((:wat::core::= lvl 9)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
-       (:wat::core::map (:wat::core::fn [f <- :strat::S9] -> :wat::core::i64 (:strat::encode 9 (:strat::S9/k f)))
-         (:wat::rete::query-by-type-string fired "strat::S9"))))
+       (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:strat::encode 9 (:strat::S9/k f))))
+         (:wat::rete::query fired (:strat::q-S9)))))
     (:else (:wat::core::Option/expect  :wat::core::None
              (:wat::core::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
@@ -239,7 +289,7 @@
                     strata  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [strata items]")
                     items   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [strata items]")
                     rules   (:strat::build-rules strata)
-                    staged  (:strat::seed-items (:wat::rete::compile rules) items)
+                    staged  (:strat::seed-items (:wat::rete::compile-all rules (:wat::core::PersistentVector (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

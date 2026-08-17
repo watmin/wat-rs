@@ -39,6 +39,31 @@
   :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]
   :then [(:n3::Safe :k ?k)])
 
+(:wat::rete::defquery :n::q-Bad
+  :params []
+  :when [(?fact <- :n::Bad)])
+
+
+(:wat::rete::defquery :n::q-Ok
+  :params []
+  :when [(?fact <- :n::Ok)])
+
+
+(:wat::rete::defquery :n3::q-Bad
+  :params []
+  :when [(?fact <- :n3::Bad)])
+
+
+(:wat::rete::defquery :n3::q-Warn
+  :params []
+  :when [(?fact <- :n3::Warn)])
+
+
+(:wat::rete::defquery :n3::q-Safe
+  :params []
+  :when [(?fact <- :n3::Safe)])
+
+
 ;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──
 ;; The .rs names one entry and passes the fire fn (fire-rules native / fire-rules-spec oracle);
 ;; all the wat lives here, on disk. Returns the per-type counts the differential compares.
@@ -48,28 +73,28 @@
   [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
   -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [rules (:wat::rete::collect-rules :n)
-                    s0    (:wat::rete::compile rules)
+                    s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
                     s1    (:wat::rete::insert s0 (:n::A :k 1))
                     s2    (:wat::rete::insert s1 (:n::A :k 2))
                     fired (fire s2)]
     (:wat::core::PersistentVector
-      (:wat::core::length (:wat::rete::query-by-type-string fired "n::Bad"))
-      (:wat::core::length (:wat::rete::query-by-type-string fired "n::Ok")))))
+      (:wat::core::length (:wat::rete::query fired (:n::q-Bad)))
+      (:wat::core::length (:wat::rete::query fired (:n::q-Ok))))))
 
 ;; 3-stratum chain: A(1),A(2),A(3) → (Bad, Warn, Safe)
 (:wat::core::defn :n3::run-counts
   [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
   -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [rules (:wat::rete::collect-rules :n3)
-                    s0    (:wat::rete::compile rules)
+                    s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
                     s1    (:wat::rete::insert s0 (:n3::A :k 1))
                     s2    (:wat::rete::insert s1 (:n3::A :k 2))
                     s3    (:wat::rete::insert s2 (:n3::A :k 3))
                     fired (fire s3)]
     (:wat::core::PersistentVector
-      (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Bad"))
-      (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Warn"))
-      (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Safe")))))
+      (:wat::core::length (:wat::rete::query fired (:n3::q-Bad)))
+      (:wat::core::length (:wat::rete::query fired (:n3::q-Warn)))
+      (:wat::core::length (:wat::rete::query fired (:n3::q-Safe))))))
 
 ;; just-eval entry points — thin zero-arg wrappers naming the fire verb (the only thing the
 ;; differential varies), so the Rust driver only names an entry point (no inline wat).

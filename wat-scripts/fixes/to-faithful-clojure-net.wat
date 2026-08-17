@@ -134,6 +134,19 @@
          (:fix::Node (?off <- :offset) (?len <- :len))]
   :then [(:fix::ArrowConv ?off ?len)])
 
+(:wat::rete::defquery :fix::q-HeadConv
+  :params []
+  :when [(:fix::HeadConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+
+(:wat::rete::defquery :fix::q-ArrowConv
+  :params []
+  :when [(:fix::ArrowConv (?offset <- :offset) (?len <- :len))])
+
+(:wat::rete::defquery :fix::q-TypeConv
+  :params []
+  :when [(:fix::TypeConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+
+
 ;; ══ THE OBSERVATION WALK — emit :fix::Node facts (pure; zero classification) ══
 (:wat::core::defn :fix::walk-seq
   [items  <- :wat::core::Vector<wat::WatAST>
@@ -192,13 +205,18 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::foldl
     (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
-                     hc <- :fix::HeadConv]
+                     hc <- :wat::core::PersistentMap]
       -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
       (:wat::core::concat a
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
-          (:wat::core::Tuple (:fix::HeadConv/offset hc) (:fix::HeadConv/len hc)
+          (:wat::core::Tuple
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?offset") "q-HeadConv: ?offset")
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?len") "q-HeadConv: ?len")
             (:wat::core::ast-name (:wat::core::keyword/to-symbol
-              (:wat::core::keyword-node (:fix::HeadConv/name hc))))))))
+              (:wat::core::keyword-node
+                (:wat::core::Option/expect
+                  (:wat::core::PersistentMap/get hc "?name")
+                  "q-HeadConv: ?name"))))))))
     acc convs))
 
 (:wat::core::defn :fix::arrow-edits
@@ -207,11 +225,14 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::foldl
     (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
-                     ac <- :fix::ArrowConv]
+                     ac <- :wat::core::PersistentMap]
       -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
       (:wat::core::concat a
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
-          (:wat::core::Tuple (:fix::ArrowConv/offset ac) (:fix::ArrowConv/len ac) ":-"))))
+          (:wat::core::Tuple
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?offset") "q-ArrowConv: ?offset")
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?len") "q-ArrowConv: ?len")
+            ":-"))))
     acc convs))
 
 (:wat::core::defn :fix::type-edits
@@ -220,13 +241,18 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::foldl
     (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
-                     tc <- :fix::TypeConv]
+                     tc <- :wat::core::PersistentMap]
       -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
       (:wat::core::concat a
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
-          (:wat::core::Tuple (:fix::TypeConv/offset tc) (:fix::TypeConv/len tc)
+          (:wat::core::Tuple
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?offset") "q-TypeConv: ?offset")
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?len") "q-TypeConv: ?len")
             (:wat::core::write-forms (:wat::core::keyword/to-type-form
-              (:wat::core::keyword-node (:fix::TypeConv/name tc))))))))
+              (:wat::core::keyword-node
+                (:wat::core::Option/expect
+                  (:wat::core::PersistentMap/get tc "?name")
+                  "q-TypeConv: ?name"))))))))
     acc convs))
 
 ;; ══ CONVERT — walk → fire the network → query out → edit → batch-apply ══════
@@ -239,13 +265,13 @@
                     ;; top-level forms have no enclosing list → :fix::Parent::Root (no sentinel).
                     nodes   (:fix::walk-seq forms :fix::Parent::Root 0 lines)
                     rules   (:wat::rete::collect-rules :fix)
-                    session (:wat::rete::compile rules)
+                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
                     staged  (:fix::insert-nodes session nodes)
                     fired   (:wat::rete::fire-fixpoint staged)
                     empty-e (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-                    e1      (:fix::head-edits  (:wat::rete::query-by-type-string fired "fix::HeadConv")  empty-e)
-                    e2      (:fix::arrow-edits (:wat::rete::query-by-type-string fired "fix::ArrowConv") e1)
-                    e3      (:fix::type-edits  (:wat::rete::query-by-type-string fired "fix::TypeConv")  e2)
+                    e1      (:fix::head-edits  (:wat::rete::query fired (:fix::q-HeadConv))  empty-e)
+                    e2      (:fix::arrow-edits (:wat::rete::query fired (:fix::q-ArrowConv)) e1)
+                    e3      (:fix::type-edits  (:wat::rete::query fired (:fix::q-TypeConv))  e2)
                     sorted  (:wat::core::sort
                               (:wat::core::fn [a <- :(wat::core::i64,wat::core::i64,wat::core::String)
                                                b <- :(wat::core::i64,wat::core::i64,wat::core::String)]

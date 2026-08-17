@@ -29,11 +29,21 @@
                (:wat::rete::core::i64::< ?c 20))))]
   :then [(:wna::At :loc ?loc)])
 
+(:wat::rete::defquery :wna::q-Hit
+  :params []
+  :when [(?fact <- :wna::Hit)])
+
+
+(:wat::rete::defquery :wna::q-At
+  :params []
+  :when [(?fact <- :wna::At)])
+
+
 (:wat::core::defn :wna::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wna::Hit")))
+  (:wat::core::length (:wat::rete::query s (:wna::q-Hit))))
 
 (:wat::core::defn :wna::n-at [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wna::At")))
+  (:wat::core::length (:wat::rete::query s (:wna::q-At))))
 
 (:wat::core::defn :wna::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -47,44 +57,44 @@
   (:wat::core::let [lead (:wat::core::PersistentVector (:wna::not-cold-and-windy))
                     pref (:wat::core::PersistentVector (:wna::station-not-both))]
     (:wna::line 1 "empty"
-      (:wna::n-hit (:wat::rete::fire-rules (:wat::rete::compile lead))))
+      (:wna::n-hit (:wat::rete::fire-rules (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At))))))
     (:wna::line 2 "wind-only"
       (:wna::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile lead)
+          (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Wind :kph 40 :loc "MCI")))))
     (:wna::line 3 "temp-only"
       (:wna::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile lead)
+          (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Temp :c 10 :loc "MCI")))))
     (:wna::line 4 "both"
       (:wna::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile lead)
+          (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Wind :kph 40 :loc "MCI")
             (:wna::Temp :c 10 :loc "MCI")))))
     (:wna::line 5 "prefix-empty"
       (:wna::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile pref)
+          (:wat::rete::insert (:wat::rete::compile-all pref (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Station :loc "MCI")))))
     (:wna::line 6 "prefix-wind"
       (:wna::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile pref)
+          (:wat::rete::insert (:wat::rete::compile-all pref (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Station :loc "MCI")
             (:wna::Wind :kph 40 :loc "MCI")))))
     (:wna::line 7 "prefix-temp"
       (:wna::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile pref)
+          (:wat::rete::insert (:wat::rete::compile-all pref (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Station :loc "MCI")
             (:wna::Temp :c 10 :loc "MCI")))))
     (:wna::line 8 "prefix-both"
       (:wna::n-at
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile pref)
+          (:wat::rete::insert (:wat::rete::compile-all pref (:wat::core::PersistentVector (:wna::q-Hit) (:wna::q-At)))
             (:wna::Station :loc "MCI")
             (:wna::Wind :kph 40 :loc "MCI")
             (:wna::Temp :c 10 :loc "MCI")))))))

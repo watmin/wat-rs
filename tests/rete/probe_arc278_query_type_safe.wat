@@ -18,25 +18,30 @@
   :then
   [(:weather::ColdAndWindy :location ?loc)])
 
+(:wat::rete::defquery :weather::q-ColdAndWindy
+  :params []
+  :when [(?fact <- :weather::ColdAndWindy)])
+
+
 ;; ── defn-freeze path: the Rule comes from the `defrule`-macro-generated defn ────────────────
 
 (:wat::core::defn :user::query-defrule-path [] -> :wat::core::i64
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:weather::cold-and-windy))
-     sess0 (:wat::rete::compile rules)
+     sess0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]
-    (:wat::core::length (:wat::rete::query fired :weather::ColdAndWindy))))
+    (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::query-by-type-string-defrule-path [] -> :wat::core::i64
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:weather::cold-and-windy))
-     sess0 (:wat::rete::compile rules)
+     sess0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]
-    (:wat::core::length (:wat::rete::query-by-type-string fired "weather::ColdAndWindy"))))
+    (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 ;; ── inline path: a hand-built Rule literal, no defrule macro ────────────────────────────────
 
@@ -46,11 +51,11 @@
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))
      rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "weather::cold-and-windy" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
-     sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
+     sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]
-    (:wat::core::length (:wat::rete::query fired :weather::ColdAndWindy))))
+    (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::query-by-type-string-inline-path [] -> :wat::core::i64
   (:wat::core::let
@@ -58,8 +63,8 @@
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))
      rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "weather::cold-and-windy" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
-     sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
+     sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]
-    (:wat::core::length (:wat::rete::query-by-type-string fired "weather::ColdAndWindy"))))
+    (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))

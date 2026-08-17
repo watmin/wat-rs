@@ -23,12 +23,27 @@
   :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 90))]
   :then [(:usr::Critical :c ?c)])
 
+(:wat::rete::defquery :usr::q-Hot
+  :params []
+  :when [(?fact <- :usr::Hot)])
+
+
+(:wat::rete::defquery :usr::q-Alert
+  :params []
+  :when [(?fact <- :usr::Alert)])
+
+
+(:wat::rete::defquery :usr::q-Critical
+  :params []
+  :when [(?fact <- :usr::Critical)])
+
+
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Temp] -> :wat::core::String
   (:wat::core::let
     [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
-     h (:wat::core::length (:wat::rete::query fired :usr::Hot))
-     a (:wat::core::length (:wat::rete::query fired :usr::Alert))
-     cr (:wat::core::length (:wat::rete::query fired :usr::Critical))]
+     h (:wat::core::length (:wat::rete::query fired (:usr::q-Hot)))
+     a (:wat::core::length (:wat::rete::query fired (:usr::q-Alert)))
+     cr (:wat::core::length (:wat::rete::query fired (:usr::q-Critical)))]
     (:wat::core::string::concat "Hot=" (:wat::core::string::concat (:wat::core::str h)
       (:wat::core::string::concat " Alert=" (:wat::core::string::concat (:wat::core::str a)
         (:wat::core::string::concat " Critical=" (:wat::core::str cr))))))))
@@ -36,7 +51,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:usr::hot) (:usr::alert) (:usr::critical))
-     template (:wat::rete::compile rules)]
+     template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Alert) (:usr::q-Critical)))]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::string::concat "Temp=60: " (:usr::fire-one template (:usr::Temp :c 60))))
       (:wat::kernel::println (:wat::core::string::concat "Temp=95: " (:usr::fire-one template (:usr::Temp :c 95)))))))

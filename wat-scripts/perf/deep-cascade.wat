@@ -27,6 +27,11 @@
    wat-ns    <- :wat::core::i64
    native-ns <- :wat::core::i64])
 
+(:wat::rete::defquery :cascade::q-Node
+  :params []
+  :when [(?fact <- :cascade::Node)])
+
+
 ;; build-rule k — the k-th cascade level: join Node⋈Tag at level (k-1) on ?id, derive Node,Tag at level k.
 ;; The level literals (k-1 in the conditions, k in the inserts) are spliced via quasiquote/unquote.
 (:wat::core::defn :perf::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule
@@ -59,8 +64,8 @@
 (:wat::core::defn :perf::count-at-level [fired <- :wat::rete::Session  lvl <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::filter
-      (:wat::core::fn [n <- :cascade::Node] -> :wat::core::bool (:wat::core::= (:cascade::Node/level n) lvl))
-      (:wat::rete::query-by-type-string fired "cascade::Node"))))
+      (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [n (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
+      (:wat::rete::query fired (:cascade::q-Node)))))
 
 ;; elapsed-ns thunk-result-start-end — nanoseconds between two Instants.
 (:wat::core::defn :perf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -71,7 +76,7 @@
                     depth   (:wat::core::Option/expect   (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect   (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:perf::build-rules depth)
-                    staged  (:perf::seed-level-0 (:wat::rete::compile rules) width)
+                    staged  (:perf::seed-level-0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node))) width)
                     ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)
                     w0      (:wat::time::now)
                     fired-w (:wat::rete::fire-rules-spec staged)

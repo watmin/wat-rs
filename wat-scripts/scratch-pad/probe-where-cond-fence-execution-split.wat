@@ -40,6 +40,11 @@
 (:wat::core::defrecord :pcf::Req [k <- :wat::core::i64])
 (:wat::core::defrecord :pcf::Hit [k <- :wat::core::i64])
 
+(:wat::rete::defquery :pcf::q-Hit
+  :params []
+  :when [(?fact <- :pcf::Hit)])
+
+
 ;; The control: the SAME branching logic spelled with `if`, a runtime primitive. This one works, which
 ;; is what proves the wall is `cond`'s MACRO-NESS and not the branching.
 (:wat::core::defn :pcf::rule-if [] -> :wat::rete::Rule
@@ -82,20 +87,20 @@
   (:wat::core::Vector/length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :pcf::Hit] -> :wat::core::i64 (:pcf::Hit/k f))
-        (:wat::rete::query-by-type-string fired "pcf::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:pcf::Hit/k f)))
+        (:wat::rete::query fired (:pcf::q-Hit))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     ;; 1. The `if` control fires and derives — so the branching logic is fine.
     [ctl     (:wat::rete::fire-rules
-               (:pcf::seed (:wat::rete::compile (:wat::core::PersistentVector (:pcf::rule-if)))))
+               (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit)))))
      _ok     (:wat::kernel::println
                (:wat::core::String/concat "if-control derived n=" (:wat::core::i64::to-string (:pcf::derived ctl))))
 
      ;; 2. COMPILE the cond rule. The purity fence runs HERE and passes — this line does not raise,
      ;;    which is precisely the defect: every static gate has now said yes.
-     compiled (:wat::rete::compile (:wat::core::PersistentVector (:pcf::rule-cond)))
+     compiled (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-cond)) (:wat::core::PersistentVector (:pcf::q-Hit)))
      _fence   (:wat::kernel::println "cond-subject PASSED compile + the purity fence")
 
      ;; 3. FIRE. This raises #wat.runtime/UnknownFunction on :wat::core::cond.

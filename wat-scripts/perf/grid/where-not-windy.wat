@@ -13,8 +13,13 @@
                             (:wat::rete::core::i64::< ?c 20)))]
   :then [(:wnwdy::Hit :loc ?loc)])
 
+(:wat::rete::defquery :wnwdy::q-Hit
+  :params []
+  :when [(?fact <- :wnwdy::Hit)])
+
+
 (:wat::core::defn :wnwdy::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wnwdy::Hit")))
+  (:wat::core::length (:wat::rete::query s (:wnwdy::q-Hit))))
 
 (:wat::core::defn :wnwdy::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -29,35 +34,35 @@
     (:wnwdy::line 1 "wind-only"
       (:wnwdy::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnwdy::q-Hit)))
             (:wnwdy::Wind :kph 40 :loc "MCI")))))
     (:wnwdy::line 2 "wind-hot"
       (:wnwdy::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnwdy::q-Hit)))
             (:wnwdy::Wind :kph 40 :loc "MCI")
             (:wnwdy::Temp :c 80 :loc "MCI")))))
     (:wnwdy::line 3 "wind-cold"
       (:wnwdy::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnwdy::q-Hit)))
             (:wnwdy::Wind :kph 40 :loc "MCI")
             (:wnwdy::Temp :c 10 :loc "MCI")))))
     (:wnwdy::line 4 "calm"
       (:wnwdy::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnwdy::q-Hit)))
             (:wnwdy::Wind :kph 20 :loc "MCI")))))
     (:wnwdy::line 5 "two-locs"
       (:wnwdy::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnwdy::q-Hit)))
             (:wnwdy::Wind :kph 40 :loc "MCI")
             (:wnwdy::Wind :kph 50 :loc "ORD")))))
     (:wnwdy::line 6 "two-locs-one-cold"
       (:wnwdy::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnwdy::q-Hit)))
             (:wnwdy::Wind :kph 40 :loc "MCI")
             (:wnwdy::Wind :kph 50 :loc "ORD")
             (:wnwdy::Temp :c 10 :loc "DFW")))))))

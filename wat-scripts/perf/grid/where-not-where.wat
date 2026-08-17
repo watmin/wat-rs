@@ -14,8 +14,13 @@
            (:wat::rete::where (:wat::rete::core::string::= ?a ?b)))]
   :then [(:wnw::Hit :a ?a :b ?b)])
 
+(:wat::rete::defquery :wnw::q-Hit
+  :params []
+  :when [(?fact <- :wnw::Hit)])
+
+
 (:wat::core::defn :wnw::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string s "wnw::Hit")))
+  (:wat::core::length (:wat::rete::query s (:wnw::q-Hit))))
 
 (:wat::core::defn :wnw::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
@@ -30,24 +35,24 @@
     (:wnw::line 1 "same-loc"
       (:wnw::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")
             (:wnw::Wind :kph 10 :loc "MCI")))))
     (:wnw::line 2 "diff-loc"
       (:wnw::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")
             (:wnw::Wind :kph 10 :loc "ORD")))))
     (:wnw::line 3 "temp-only"
       (:wnw::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")))))
     (:wnw::line 4 "two-diff"
       (:wnw::n-hit
         (:wat::rete::fire-rules
-          (:wat::rete::insert (:wat::rete::compile rules)
+          (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")
             (:wnw::Temp :c 12 :loc "ORD")
             (:wnw::Wind :kph 10 :loc "DFW")

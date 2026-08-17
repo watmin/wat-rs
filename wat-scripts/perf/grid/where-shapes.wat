@@ -146,6 +146,11 @@
   :then
   [(:wsh::Hit ?k)])
 
+(:wat::rete::defquery :wsh::q-Hit
+  :params []
+  :when [(?fact <- :wsh::Hit)])
+
+
 ;; build-rules row — THE ROW DISPATCH, and the extension point every future shape lands on.
 ;;
 ;; Each row is compiled into its OWN session (see `run-row`), never all into one. If every row fired
@@ -203,8 +208,8 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :wsh::Hit] -> :wat::core::i64 (:wsh::Hit/k f))
-        (:wat::rete::query-by-type-string fired "wsh::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
+        (:wat::rete::query fired (:wsh::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer, because the two
 ;; sides must be BYTE-IDENTICAL for `diff` to be the whole verdict. wat's EDN printer tags every
@@ -243,7 +248,7 @@
 (:wat::core::defn :wsh::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wsh::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wsh::seed (:wat::rete::compile rules) (:wsh::items))
+                    staged  (:wsh::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsh::q-Hit))) (:wsh::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wsh::derived-ints fired)
                     n       (:wat::core::Vector/length derived)]

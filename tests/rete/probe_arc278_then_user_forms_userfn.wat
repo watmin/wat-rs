@@ -33,6 +33,11 @@
          (?rates <- (:wat::rete::acc::all) :from (:tf::Rate (?c <- :count)))]
   :then [(:tf::first-rate ?rates)])
 
+(:wat::rete::defquery :tf::q-Rate
+  :params []
+  :when [(:tf::Rate (?count <- :count))])
+
+
 ;; Fires via the WAT ORACLE. NOT an unconfounded witness for "a NEW fact was derived" — the
 ;; extraction-only fn returns a value structurally IDENTICAL to the accumulated input, so a plain
 ;; type-count cannot distinguish "the rule fired" from "the input fact was already there" (both
@@ -44,10 +49,12 @@
 (:wat::core::defn :user::run-first-count [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
      session (:wat::rete::insert session (:tf::Anchor :x 0))
      session (:wat::rete::insert session (:tf::Rate :count 5))
      fired   (:wat::rete::fire-rules-spec session)
-     derived (:wat::rete::query-by-type-string fired "tf::Rate")
+     derived (:wat::rete::query fired (:tf::q-Rate))
      r       (:wat::core::first derived)]
-    (:tf::Rate/count r)))
+    (:wat::core::Option/expect
+      (:wat::core::PersistentMap/get r "?count")
+      "q-Rate: ?count")))

@@ -64,14 +64,18 @@
          (:wat::rete::where (:probe-term::countdown ?n))]
   :then [(:probe-term::Done :n ?n)])
 
+(:wat::rete::defquery :probe-term::q-Done
+  :params []
+  :when [(?fact <- :probe-term::Done)])
+
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     ;; `:wat::rete::compile` is what runs `compile-condition` — WHERE THE FENCE LIVES.
     ;; If this line returns a template, the fence measured pure ∧ deterministic ∧ total ∧ rete
     ;; on a predicate that can loop forever, and passed all four. That is the whole finding,
     ;; and proving it needs NO fire — so this file cannot hang no matter what.
-    [template (:wat::rete::compile
-                (:wat::core::PersistentVector (:probe-term::recursive-predicate-is-admitted)))
+    [template (:wat::rete::compile-all (:wat::core::PersistentVector (:probe-term::recursive-predicate-is-admitted)) (:wat::core::PersistentVector (:probe-term::q-Done)))
      fired    (:wat::rete::fire-rules
                 (:wat::rete::insert template (:probe-term::Tick :n 0)))]
     (:wat::core::do
@@ -81,7 +85,7 @@
       ;; fire forever, with no diagnostic. DO NOT ADD ONE.
       (:wat::kernel::println
         (:wat::core::string::concat ":derived-at-n0 "
-          (:wat::core::str (:wat::core::length (:wat::rete::query fired :probe-term::Done)))))
+          (:wat::core::str (:wat::core::length (:wat::rete::query fired (:probe-term::q-Done))))))
       ;; the bounded twin, for contrast — repetition the vocabulary CAN prove terminates
       (:wat::kernel::println
         (:wat::core::string::concat ":bounded-fold "

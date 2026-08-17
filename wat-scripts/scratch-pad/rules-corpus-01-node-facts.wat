@@ -85,6 +85,21 @@
          (:wat::rete::where (:wat::rete::core::i64::= ?i (:wat::rete::core::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fixr::IsTypePos :id ?id)])
 
+(:wat::rete::defquery :fixr::q-IsArrow
+  :params []
+  :when [(?fact <- :fixr::IsArrow)])
+
+
+(:wat::rete::defquery :fixr::q-IsHeadKw
+  :params []
+  :when [(?fact <- :fixr::IsHeadKw)])
+
+
+(:wat::rete::defquery :fixr::q-IsTypePos
+  :params []
+  :when [(?fact <- :fixr::IsTypePos)])
+
+
 ;; ─── the driver — built as a DIFFERENTIAL, because a bare pass proves nothing ─
 ;;
 ;; Nodes 1-3 model `[body <- :wat::WatAST]`:
@@ -124,7 +139,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:fixr::arrow) (:fixr::head-kw) (:fixr::type-pos))
-     template (:wat::rete::compile rules)
+     template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fixr::q-IsArrow) (:fixr::q-IsHeadKw) (:fixr::q-IsTypePos)))
      fired    (:wat::rete::fire-rules (:fixr::seed-names (:fixr::seed template)))]
     (:wat::core::do
       ;; ⚠ `query` reads accumulated PRODUCTION memory, so it can only see DERIVED facts —
@@ -132,8 +147,8 @@
       ;; query-artifact, and it means the non-vacuity guard must be a DERIVED count, never a
       ;; base-fact count. IsArrow is that guard: it is 0 if the seed never landed.
       (:fixr::show "IsArrow   (want 1; 0 => seed never landed, all below vacuous): "
-        (:wat::core::length (:wat::rete::query fired :fixr::IsArrow)))
+        (:wat::core::length (:wat::rete::query fired (:fixr::q-IsArrow))))
       (:fixr::show "IsHeadKw  (want 2 = ids 3,5; 3 => the Named guard LEAKS): "
-        (:wat::core::length (:wat::rete::query fired :fixr::IsHeadKw)))
+        (:wat::core::length (:wat::rete::query fired (:fixr::q-IsHeadKw))))
       (:fixr::show "IsTypePos (want 1 = id 3, the prev-sibling JOIN): "
-        (:wat::core::length (:wat::rete::query fired :fixr::IsTypePos))))))
+        (:wat::core::length (:wat::rete::query fired (:fixr::q-IsTypePos)))))))

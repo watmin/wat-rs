@@ -55,24 +55,21 @@ fn query_typo_is_a_compile_error() {
     let result = startup_from_file("tests/rete/probe_arc278_query_type_safe_typo.wat.bad");
     match result {
         Err(StartupError::Check(errs)) => {
-            let hit = errs.0.iter().find(|e| matches!(&e.kind, CheckErrorKind::UnknownCallee { .. }));
-            let err = hit.unwrap_or_else(|| {
-                panic!(
-                    "expected a CheckErrorKind::UnknownCallee among the check errors (typo'd \
-                     query type must be caught at check time); got: {errs:?}"
+            let hit = errs.0.iter().find(|e| {
+                matches!(
+                    &e.kind,
+                    CheckErrorKind::TypeMismatch { callee, expected, .. }
+                        if callee == ":wat::rete::query-read" && expected.contains("Query")
                 )
             });
-            if let CheckErrorKind::UnknownCallee { callee } = &err.kind {
-                assert_eq!(
-                    callee, ":weather::ColdAndWndy'",
-                    "the unknown-type error must name the exact typo'd prime type-ref that \
-                     `query`'s macro expansion emitted"
-                );
-            }
+            hit.unwrap_or_else(|| {
+                panic!(
+                    "expected TypeMismatch: query-read wants a Query, not a type keyword; got: {errs:?}"
+                )
+            });
         }
         other => panic!(
-            "expected StartupError::Check carrying an UnknownCallee (a typo'd `query` type \
-             must be a compile error, NOT a silent 0); got {other:?}"
+            "expected StartupError::Check (a keyword is not a Query); got {other:?}"
         ),
     }
 }

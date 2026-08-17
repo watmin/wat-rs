@@ -39,6 +39,11 @@
 
 (:wat::core::defrecord :shape::Hit [k <- :wat::core::i64])
 
+(:wat::rete::defquery :shape::q-Hit
+  :params []
+  :when [(?fact <- :shape::Hit)])
+
+
 ;; A user-defined predicate fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. Its presence in the spread is the point: users write these.
 (:wat::core::defn :shape::big? [n <- :wat::core::i64] -> :wat::core::bool
@@ -172,8 +177,13 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::length
-      (:wat::rete::query-by-type-string
-        (:wat::rete::fire-rules
-          (:shape::seed (:wat::rete::compile (:shape::build-rules)) 50))
-        "shape::Hit"))))
+    (:wat::core::i64::to-string
+      (:wat::core::length
+        (:wat::rete::query
+          (:wat::rete::fire-rules
+            (:shape::seed
+              (:wat::rete::compile-all
+                (:shape::build-rules)
+                (:wat::core::PersistentVector (:shape::q-Hit)))
+              50))
+          (:shape::q-Hit))))))

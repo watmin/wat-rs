@@ -65,6 +65,24 @@ WAT_BIN="${WAT_BIN:-$REPO_ROOT/target/release/wat}"
   exit 1
 }
 
+# clojure needs java on PATH. This machine keeps Temurin under $HOME/opt/jdk-*.
+if ! command -v java >/dev/null 2>&1; then
+  if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    export PATH="$JAVA_HOME/bin:$PATH"
+  else
+    for j in "$HOME"/opt/jdk-*/bin/java; do
+      [ -x "$j" ] || continue
+      export JAVA_HOME="$(cd "$(dirname "$j")/.." && pwd)"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      break
+    done
+  fi
+fi
+if ! command -v java >/dev/null 2>&1; then
+  echo "check-where-shapes: no java (PATH, JAVA_HOME, or \$HOME/opt/jdk-*)" >&2
+  exit 1
+fi
+
 CLARA_DEP='{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}'
 OUT_DIR="$(mktemp -d)"
 trap 'rm -rf "$OUT_DIR"' EXIT

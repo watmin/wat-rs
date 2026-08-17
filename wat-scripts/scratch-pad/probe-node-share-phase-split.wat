@@ -63,6 +63,11 @@
    derive-ns     <- :wat::core::i64
    derived-count <- :wat::core::i64])
 
+(:wat::rete::defquery :phase::q-Out
+  :params []
+  :when [(?fact <- :phase::Out)])
+
+
 ;; ── copied from grid/node-share.wat (namespace changed only) ─────────────────
 
 (:wat::core::defn :phase::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
@@ -107,8 +112,8 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [f <- :phase::Out] -> :wat::core::i64 (:phase::Out/k f))
-          (:wat::rete::query-by-type-string fired "phase::Out"))))))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:phase::Out/k f)))
+          (:wat::rete::query fired (:phase::q-Out)))))))
 
 (:wat::core::defn :phase::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
@@ -133,7 +138,7 @@
                     t0      (:wat::time::now)
                     rules   (:phase::build-rules rules-n)
                     t1      (:wat::time::now)
-                    session (:wat::rete::compile rules)
+                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:phase::q-Out)))
                     t2      (:wat::time::now)
                     staged  (:phase::seed session items)
                     t3      (:wat::time::now)

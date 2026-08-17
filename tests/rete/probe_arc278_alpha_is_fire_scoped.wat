@@ -8,6 +8,11 @@
 (:wat::core::defrecord :afs::Temp [value <- :wat::core::i64])
 (:wat::core::defrecord :afs::Hot  [value <- :wat::core::i64])
 
+(:wat::rete::defquery :afs::q-Hot
+  :params []
+  :when [(?fact <- :afs::Hot)])
+
+
 ;; One condition, one matching fact (25) and one non-matching fact (15, fails > 20); RHS derives
 ;; :afs::Hot from the matching fact only.
 (:wat::core::defn :afs::built [] -> :wat::rete::Session
@@ -15,7 +20,7 @@
     [cond  (:wat::core::quote (:afs::Temp (?t <- :value) (:wat::core::> ?t 20)))
      rhs1  (:wat::core::quote (:afs::Hot ?t))
      rule  (:wat::rete::Rule :name "afs" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector rhs1))
-     sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
+     sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:afs::q-Hot)))
      sess1 (:wat::rete::insert sess0 (:afs::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:afs::Temp :value 15))]
     sess2))
@@ -47,7 +52,7 @@
 ;; (5) native-derived-count / oracle-derived-count — the RESULT (production output), expected equal
 ;; and > 0: closing the alpha divergence must not move what fire actually derives.
 (:wat::core::defn :user::native-derived-count [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string (:wat::rete::fire-rules (:afs::built)) "afs::Hot")))
+  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:afs::built)) (:afs::q-Hot))))
 
 (:wat::core::defn :user::oracle-derived-count [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query-by-type-string (:wat::rete::fire-rules-spec (:afs::built)) "afs::Hot")))
+  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules-spec (:afs::built)) (:afs::q-Hot))))

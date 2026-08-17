@@ -11,6 +11,11 @@
   :then
   [(:weather::ColdAndWindy :location ?loc)])
 
+(:wat::rete::defquery :weather::q-ColdAndWindy
+  :params []
+  :when [(?fact <- :weather::ColdAndWindy)])
+
+
 ;; Calling the generated zero-arg fn yields a Rule with the expected name + lhs/rhs arity.
 (:wat::core::defn :user::rule-name [] -> :wat::core::String
   (:wat::rete::Rule/name (:weather::cold-and-windy)))
@@ -25,8 +30,8 @@
 (:wat::core::defn :user::defrule-fires-end-to-end [] -> :wat::core::i64
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:weather::cold-and-windy))
-     sess0 (:wat::rete::compile rules)
+     sess0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]
-    (:wat::core::length (:wat::rete::query fired :weather::ColdAndWindy))))
+    (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))

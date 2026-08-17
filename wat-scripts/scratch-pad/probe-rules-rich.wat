@@ -31,11 +31,21 @@
          (:wat::rete::where (:wat::core::= (:usr::Route/status ?route) 200))]
   :then [(:usr::Anomaly :client ?client)])
 
+(:wat::rete::defquery :usr::q-Suspect
+  :params []
+  :when [(?fact <- :usr::Suspect)])
+
+
+(:wat::rete::defquery :usr::q-Anomaly
+  :params []
+  :when [(?fact <- :usr::Anomaly)])
+
+
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Event] -> :wat::core::String
   (:wat::core::let
     [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
-     s (:wat::core::length (:wat::rete::query fired :usr::Suspect))
-     a (:wat::core::length (:wat::rete::query fired :usr::Anomaly))]
+     s (:wat::core::length (:wat::rete::query fired (:usr::q-Suspect)))
+     a (:wat::core::length (:wat::rete::query fired (:usr::q-Anomaly)))]
     (:wat::core::string::concat "Suspect=" (:wat::core::string::concat (:wat::core::str s)
       (:wat::core::string::concat " Anomaly=" (:wat::core::str a))))))
 
@@ -48,7 +58,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::let [rules (:wat::core::PersistentVector (:usr::suspect) (:usr::anomaly))
-                      template (:wat::rete::compile rules)]
+                      template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Suspect) (:usr::q-Anomaly)))]
       (:wat::core::do
         (:wat::kernel::println (:wat::core::string::concat "XX/-5/9e6/200 (want S=1 A=1): " (:usr::fire-one template (:usr::mk "XX" -5 9000000 200))))
         (:wat::kernel::println (:wat::core::string::concat "US/-5/9e6/200 (want S=0 A=0): " (:usr::fire-one template (:usr::mk "US" -5 9000000 200))))

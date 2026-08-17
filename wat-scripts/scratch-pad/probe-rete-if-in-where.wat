@@ -17,11 +17,16 @@
   :then
   [(:probe::Hit :a ?a)])
 
+(:wat::rete::defquery :probe::q-Hit
+  :params []
+  :when [(?fact <- :probe::Hit)])
+
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules   (:wat::core::PersistentVector (:probe::r1))
-     staged  (:wat::rete::insert (:wat::rete::compile rules) (:probe::Req :a true))
+     staged  (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) (:probe::Req :a true))
      fired   (:wat::rete::fire-rules staged)
-     hits    (:wat::rete::query fired :probe::Hit)]
+     hits    (:wat::rete::query fired (:probe::q-Hit))]
     (:wat::kernel::println
       (:wat::core::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))

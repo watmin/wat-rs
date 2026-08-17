@@ -19,6 +19,16 @@
   :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
   :then [(:usr::Warn :c ?c)])
 
+(:wat::rete::defquery :usr::q-Hot
+  :params []
+  :when [(?fact <- :usr::Hot)])
+
+
+(:wat::rete::defquery :usr::q-Warn
+  :params []
+  :when [(?fact <- :usr::Warn)])
+
+
 ;; deduce-one: fire ONE seed from the fresh template, flat-map its deductions into a PV<Value>
 ;; (Hot's + Warn's — heterogeneous, up-cast to the universal top :wat::core::Value).
 (:wat::core::defn :usr::deduce-one
@@ -26,25 +36,31 @@
   -> :wat::core::PersistentVector<wat::core::Value>
   (:wat::core::let
     [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
-     hots  (:wat::rete::query fired :usr::Hot)
-     warns (:wat::rete::query fired :usr::Warn)
+     hots  (:wat::rete::query fired (:usr::q-Hot))
+     warns (:wat::rete::query fired (:usr::q-Warn))
      acc0  (:wat::core::foldl
-             (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Value>  h <- :usr::Hot]
+             (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Value>  p <- :wat::core::PersistentMap]
                -> :wat::core::PersistentVector<wat::core::Value>
-               (:wat::core::PersistentVector/conj a h))
+               (:wat::core::PersistentVector/conj a
+                 (:wat::core::Option/expect
+                   (:wat::core::PersistentMap/get p "?fact")
+                   "q-Hot: ?fact")))
              (:wat::core::PersistentVector)
              hots)]
     (:wat::core::foldl
-      (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Value>  w <- :usr::Warn]
+      (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Value>  p <- :wat::core::PersistentMap]
         -> :wat::core::PersistentVector<wat::core::Value>
-        (:wat::core::PersistentVector/conj a w))
+        (:wat::core::PersistentVector/conj a
+          (:wat::core::Option/expect
+            (:wat::core::PersistentMap/get p "?fact")
+            "q-Warn: ?fact")))
       acc0
       warns)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:usr::hot-rule) (:usr::warn-rule))
-     template (:wat::rete::compile rules)
+     template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Warn)))
      hot      (:usr::deduce-one template (:usr::Temp :c 60))   ;; expect 2 deductions (Hot + Warn)
      cold     (:usr::deduce-one template (:usr::Temp :c 10))   ;; expect 0 (below threshold)
      total    (:wat::core::+ (:wat::core::length hot) (:wat::core::length cold))]

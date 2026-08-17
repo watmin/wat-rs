@@ -60,6 +60,36 @@
          (:wat::rete::where (:wat::core::> (:arena::Timing/dns-ns ?timing) 300000))]
   :then [(:arena::Critical :client ?client)])
 
+(:wat::rete::defquery :arena::q-Suspect
+  :params []
+  :when [(?fact <- :arena::Suspect)])
+
+
+(:wat::rete::defquery :arena::q-Flagged
+  :params []
+  :when [(?fact <- :arena::Flagged)])
+
+
+(:wat::rete::defquery :arena::q-Anomaly
+  :params []
+  :when [(?fact <- :arena::Anomaly)])
+
+
+(:wat::rete::defquery :arena::q-Breach
+  :params []
+  :when [(?fact <- :arena::Breach)])
+
+
+(:wat::rete::defquery :arena::q-Overflow
+  :params []
+  :when [(?fact <- :arena::Overflow)])
+
+
+(:wat::rete::defquery :arena::q-Critical
+  :params []
+  :when [(?fact <- :arena::Critical)])
+
+
 (:wat::core::defn :arena::mk
   [ctry <- :wat::core::String rep <- :wat::core::i64 method <- :arena::Method status <- :wat::core::i64
    total-ns <- :wat::core::i64 dns-ns <- :wat::core::i64 bytes <- :wat::core::i64]
@@ -73,12 +103,12 @@
 (:wat::core::defn :arena::fire-one [template <- :wat::rete::Session seed <- :arena::Event] -> :wat::core::String
   (:wat::core::let
     [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
-     su (:wat::core::length (:wat::rete::query fired :arena::Suspect))
-     fl (:wat::core::length (:wat::rete::query fired :arena::Flagged))
-     an (:wat::core::length (:wat::rete::query fired :arena::Anomaly))
-     br (:wat::core::length (:wat::rete::query fired :arena::Breach))
-     ov (:wat::core::length (:wat::rete::query fired :arena::Overflow))
-     cr (:wat::core::length (:wat::rete::query fired :arena::Critical))
+     su (:wat::core::length (:wat::rete::query fired (:arena::q-Suspect)))
+     fl (:wat::core::length (:wat::rete::query fired (:arena::q-Flagged)))
+     an (:wat::core::length (:wat::rete::query fired (:arena::q-Anomaly)))
+     br (:wat::core::length (:wat::rete::query fired (:arena::q-Breach)))
+     ov (:wat::core::length (:wat::rete::query fired (:arena::q-Overflow)))
+     cr (:wat::core::length (:wat::rete::query fired (:arena::q-Critical)))
      total (:wat::core::+ an (:wat::core::+ br (:wat::core::+ ov cr)))]
     (:wat::core::string::concat "Su=" (:wat::core::string::concat (:wat::core::str su)
       (:wat::core::string::concat " Fl=" (:wat::core::string::concat (:wat::core::str fl)
@@ -93,7 +123,7 @@
     [rules (:wat::core::PersistentVector
              (:arena::suspect-rule) (:arena::anomaly-rule) (:arena::breach-rule)
              (:arena::overflow-rule) (:arena::flagged-rule) (:arena::critical-rule))
-     template (:wat::rete::compile rules)]
+     template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:arena::q-Suspect) (:arena::q-Flagged) (:arena::q-Anomaly) (:arena::q-Breach) (:arena::q-Overflow) (:arena::q-Critical)))]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::string::concat "cat0 clean            (want 0): " (:arena::fire-one template (:arena::mk "US" 50 :arena::Method::GET 200 100000 10000 1000))))
       (:wat::kernel::println (:wat::core::string::concat "cat1 hot-wrong-country (want 0): " (:arena::fire-one template (:arena::mk "US" -10 :arena::Method::GET 200 6000000 10000 1000))))

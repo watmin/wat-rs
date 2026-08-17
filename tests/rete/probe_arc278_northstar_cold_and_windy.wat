@@ -18,15 +18,20 @@
   :then
   [(:weather::ColdAndWindy :location ?loc)])
 
+(:wat::rete::defquery :weather::q-ColdAndWindy
+  :params []
+  :when [(?fact <- :weather::ColdAndWindy)])
+
+
 ;; The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the
 ;; derived facts (wrapped in `length` so the Rust driver just-evals to a scalar).
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::let
       [rules    (:wat::rete::collect-rules :weather)
-       session  (:wat::rete::compile rules)
+       session  (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
        session  (:wat::rete::insert session (:weather::Temperature :celsius 15 :location "Oslo"))
        session  (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location "Oslo"))
        fired    (:wat::rete::fire-rules session)]
-      (:wat::rete::query-by-type-string fired "weather::ColdAndWindy"))))
+      (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 

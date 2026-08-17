@@ -58,6 +58,11 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :nc::q-Final
+  :params []
+  :when [(?fact <- :nc::Final)])
+
+
 (:wat::core::defn :nc::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     ;; THE GATE — negates a base fact, so the stratifier lifts it correctly.
@@ -95,8 +100,8 @@
 (:wat::core::defn :nc::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                             (:wat::core::map
-                              (:wat::core::fn [f <- :nc::Final] -> :wat::core::i64 (:nc::Final/k f))
-                              (:wat::rete::query-by-type-string fired "nc::Final")))]
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:nc::Final/k f)))
+                              (:wat::rete::query fired (:nc::q-Final))))]
     (:nc::vec->pvec (:wat::core::sort codes))))
 
 (:wat::core::defn :nc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -106,7 +111,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:nc::build-rules)
-                    staged  (:nc::seed (:wat::rete::compile rules) items)
+                    staged  (:nc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:nc::q-Final))) items)
                     ;; NATIVE — the production fast path. Timed alone.
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

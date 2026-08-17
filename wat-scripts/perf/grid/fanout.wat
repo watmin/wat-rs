@@ -48,6 +48,11 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :fan::q-Pair
+  :params []
+  :when [(?fact <- :fan::Pair)])
+
+
 ;; facts-key k fanout — the Left(k,f)+Right(k,f) facts for f in [0,fanout), as a FACT VECTOR.
 ;; It no longer threads a Session: staging is now one BATCH call at the end (below), so the
 ;; helper's job is to produce facts, not to insert them. Named for what it returns.
@@ -92,8 +97,8 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [f <- :fan::Pair] -> :wat::core::i64 (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f)))
-          (:wat::rete::query-by-type-string fired "fan::Pair"))))))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
+          (:wat::rete::query fired (:fan::q-Pair)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors accum.wat's ns-between).
 (:wat::core::defn :fan::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -108,7 +113,7 @@
                     c2      (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
                     rhs     (:wat::core::quote (:fan::Pair ?k ?l ?r))
                     rule    (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-                    staged  (:fan::seed (:wat::rete::compile (:wat::core::PersistentVector rule)) keys fanout)
+                    staged  (:fan::seed (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair))) keys fanout)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)

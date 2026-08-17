@@ -123,11 +123,11 @@
 ;;       is decomposed (name/`:when`/`:then`, mirroring defrule's own body) into a
 ;;       `(:wat::rete::make-rule …)` call LITERAL — no defn, no cross-fork gap.
 ;;   (2) Deduction extraction: `Session/facts` does NOT carry derived facts post-fire (proven false
-;;       — probed: pre == post even though the rules demonstrably fired); the query-per-type
-;;       fallback DOES (STOP-3b's designated fallback). So this macro walks every rule's `:then`
-;;       fact-forms (arc 278 Stone A: `:then` is a vector of bare facts, no `insert` wrapper),
-;;       collects the UNIQUE derived type names, and emits one
-;;       `(:wat::rete::query fired :Type)` per unique type, flat-mapped via `:wat::core::concat`.
+;;       — probed: pre == post even though the rules demonstrably fired); QueryNode lookup DOES.
+;;       This macro walks every rule's `:then` fact-forms (arc 278 Stone A: `:then` is a vector of
+;;       bare facts, no `insert` wrapper), collects the UNIQUE derived type names, and emits one
+;;       `make-query` + `(:wat::rete::query fired q)` per unique type, flat-mapped via
+;;       `:wat::core::concat`. No type-keyword `query` mouth — that path is gone.
 ;;
 ;; Everything (both extractions above, the Journal page read, the class-guarded foreign decode, the
 ;; fire/collect fold) is INLINED directly into the `:impls` op body — never a sibling top-level
@@ -265,20 +265,40 @@
          derived-type-strs)
 
      fired-sym (:wat::core::symbol-node "fired")
-     ;; query-calls: one `(:wat::rete::query fired :Type)` per unique DEDUCTION (derived −
-     ;; fired-upon) type — flat-mapped via `:wat::core::concat` into the reply's
-     ;; PersistentVector<Value> (probed: `concat` on PersistentVectors unifies to the declared
-     ;; Value-typed return; no `into` needed/accepted). Lemma types are NOT queried back — they
-     ;; stay internal to the fired session, cascaded-upon only.
-     query-calls
+     fact-sym  (:wat::core::symbol-node "?fact")
+     pmap-sym  (:wat::core::symbol-node "p")
+     ;; query-lits / query-calls: one make-query + `(:wat::rete::query fired q)` per unique
+     ;; DEDUCTION (derived − fired-upon) type. make-query (not defquery) so the Query value
+     ;; is a literal in the :init / op body — same cross-fork reason as make-rule. Lemma
+     ;; types are NOT queried back — they stay internal to the fired session.
+     query-lits
        (:wat::core::foldl
          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
            -> :wat::core::Vector<wat::WatAST>
            (:wat::core::let
-             [tkw (:wat::core::keyword-node (:wat::core::string::interpolate ":{tstr}" :tstr tstr))]
-             (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~tkw))))
+             [tkw  (:wat::core::keyword-node
+                      (:wat::core::string::interpolate ":{tstr}" :tstr tstr))
+              cond `(~fact-sym <- ~tkw)]
+             (:wat::core::conj acc
+               `(:wat::rete::make-query ~tstr
+                  (:wat::core::quote [])
+                  (:wat::core::quote [~cond])))))
          (:wat::core::Vector :wat::WatAST)
          deduction-type-strs)
+     query-calls
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> lit <- :wat::WatAST]
+           -> :wat::core::Vector<wat::WatAST>
+           (:wat::core::conj acc
+             `(:wat::core::into (:wat::core::PersistentVector)
+                (:wat::core::map
+                  (:wat::core::fn [~pmap-sym <- :wat::core::PersistentMap] -> :wat::core::Value
+                    (:wat::core::Option/expect
+                      (:wat::core::PersistentMap/get ~pmap-sym "?fact")
+                      "sift-rules: ?fact"))
+                  (:wat::rete::query ~fired-sym ~lit)))))
+         (:wat::core::Vector :wat::WatAST)
+         query-lits)
 
      ;; concat-chain: `:wat::core::concat` is BINARY (Vector/concat's arity, not variadic) —
      ;; `(:wat::core::concat ~@query-calls)` only type-checks when there are exactly 2 deduction
@@ -367,7 +387,9 @@
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                                ((:wat::kernel::ConnectOutcome::Failed c)
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-                   :template (:wat::rete::compile (:wat::core::PersistentVector ~@rule-lits))))
+                   :template (:wat::rete::compile-all
+                               (:wat::core::PersistentVector ~@rule-lits)
+                               (:wat::core::PersistentVector ~@query-lits))))
          :impls
          ;; arc 278 ctx-is-mandatory — `[s ctx req]`, not `[s req]`: EVERY public op arm receives an
          ;; `:wat::service::Invocation` (BRIEF-ctx-is-mandatory.md). This template was missed by the

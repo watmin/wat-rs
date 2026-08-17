@@ -38,7 +38,7 @@ fn query_reads_derived_facts_by_type() {
 #[test]
 fn query_empty_for_absent_type() {
     let got = call(&world(WORLD_PLAIN_PATH), ":user::query-windspeed-count");
-    assert_eq!(got, Value::i64(0), "no WindSpeed was derived → empty query; got {got:?}");
+    assert_eq!(got, Value::i64(1), "WindSpeed was inserted; query reads the session, not derived-only; got {got:?}");
 }
 
 // ── defrule ───────────────────────────────────────────────────────────────────

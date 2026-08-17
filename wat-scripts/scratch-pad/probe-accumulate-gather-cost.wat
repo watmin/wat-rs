@@ -123,6 +123,31 @@
   :then
   [(:acp::ExistsF ?g)])
 
+(:wat::rete::defquery :acp::q-CountF
+  :params []
+  :when [(?fact <- :acp::CountF)])
+
+
+(:wat::rete::defquery :acp::q-SumF
+  :params []
+  :when [(?fact <- :acp::SumF)])
+
+
+(:wat::rete::defquery :acp::q-MinF
+  :params []
+  :when [(?fact <- :acp::MinF)])
+
+
+(:wat::rete::defquery :acp::q-MaxF
+  :params []
+  :when [(?fact <- :acp::MaxF)])
+
+
+(:wat::rete::defquery :acp::q-ExistsF
+  :params []
+  :when [(?fact <- :acp::ExistsF)])
+
+
 (:wat::core::defn :acp::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]
     (:wat::core::i64::- x (:wat::core::i64::* (:wat::core::i64::/ x 1000) 1000))))
@@ -158,20 +183,20 @@
 (:wat::core::defn :acp::codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
-          (:wat::core::map (:wat::core::fn [f <- :acp::CountF] -> :wat::core::i64 (:acp::enc 0 (:acp::CountF/g f) (:acp::CountF/n f)))
-            (:wat::rete::query-by-type-string fired "acp::CountF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acp::enc 0 (:acp::CountF/g f) (:acp::CountF/n f))))
+            (:wat::rete::query fired (:acp::q-CountF))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [f <- :acp::SumF] -> :wat::core::i64 (:acp::enc 1 (:acp::SumF/g f) (:acp::SumF/n f)))
-            (:wat::rete::query-by-type-string fired "acp::SumF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acp::enc 1 (:acp::SumF/g f) (:acp::SumF/n f))))
+            (:wat::rete::query fired (:acp::q-SumF))))
      c2 (:wat::core::into c1
-          (:wat::core::map (:wat::core::fn [f <- :acp::MinF] -> :wat::core::i64 (:acp::enc 2 (:acp::MinF/g f) (:acp::MinF/n f)))
-            (:wat::rete::query-by-type-string fired "acp::MinF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acp::enc 2 (:acp::MinF/g f) (:acp::MinF/n f))))
+            (:wat::rete::query fired (:acp::q-MinF))))
      c3 (:wat::core::into c2
-          (:wat::core::map (:wat::core::fn [f <- :acp::MaxF] -> :wat::core::i64 (:acp::enc 3 (:acp::MaxF/g f) (:acp::MaxF/n f)))
-            (:wat::rete::query-by-type-string fired "acp::MaxF")))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acp::enc 3 (:acp::MaxF/g f) (:acp::MaxF/n f))))
+            (:wat::rete::query fired (:acp::q-MaxF))))
      c4 (:wat::core::into c3
-          (:wat::core::map (:wat::core::fn [f <- :acp::ExistsF] -> :wat::core::i64 (:acp::enc 4 (:acp::ExistsF/g f) 0))
-            (:wat::rete::query-by-type-string fired "acp::ExistsF")))]
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acp::enc 4 (:acp::ExistsF/g f) 0)))
+            (:wat::rete::query fired (:acp::q-ExistsF))))]
     c4))
 
 (:wat::core::defn :acp::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
@@ -199,7 +224,7 @@
                     t0      (:wat::time::now)
                     rules   (:wat::rete::collect-rules :acp)
                     t1      (:wat::time::now)
-                    session (:wat::rete::compile rules)
+                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acp::q-CountF) (:acp::q-SumF) (:acp::q-MinF) (:acp::q-MaxF) (:acp::q-ExistsF)))
                     t2      (:wat::time::now)
                     staged  (:acp::seed session groups reads)
                     t3      (:wat::time::now)

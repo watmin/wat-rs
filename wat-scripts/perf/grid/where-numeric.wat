@@ -200,6 +200,11 @@
   :then
   [(:wnm::Hit ?k)])
 
+(:wat::rete::defquery :wnm::q-Hit
+  :params []
+  :when [(?fact <- :wnm::Hit)])
+
+
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure (mirrors where-shapes.wat).
 (:wat::core::defn :wnm::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
@@ -245,8 +250,8 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [f <- :wnm::Hit] -> :wat::core::i64 (:wnm::Hit/k f))
-        (:wat::rete::query-by-type-string fired "wnm::Hit")))))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
+        (:wat::rete::query fired (:wnm::q-Hit))))))
 
 ;; render-ints — mirrors where-shapes.wat's render-ints EXACTLY (own rendering, not the EDN
 ;; printer, so `diff` is the entire verdict).
@@ -279,7 +284,7 @@
 (:wat::core::defn :wnm::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wnm::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wnm::seed (:wat::rete::compile rules) (:wnm::items))
+                    staged  (:wnm::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnm::q-Hit))) (:wnm::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wnm::derived-ints fired)
                     n       (:wat::core::Vector/length derived)]

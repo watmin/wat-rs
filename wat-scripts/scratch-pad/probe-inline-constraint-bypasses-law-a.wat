@@ -44,14 +44,19 @@
   :then
   [(:probe::Flagged :location ?loc)])
 
+(:wat::rete::defquery :probe::q-Flagged
+  :params []
+  :when [(?fact <- :probe::Flagged)])
+
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Flagged)))
      session (:wat::rete::insert session (:probe::Reading :location "Oslo"   :value 42))
      session (:wat::rete::insert session (:probe::Reading :location "Bergen" :value 3))
      fired   (:wat::rete::fire-rules session)
-     flagged (:wat::rete::query fired :probe::Flagged)]
+     flagged (:wat::rete::query fired (:probe::q-Flagged))]
     ;; :rule-count 2 = BOTH compiled (the top-level form (a) never reached this point).
     ;; :flagged-count 1 = only Oslo; Bergen (value 3) was filtered, so the constraint discriminated.
     ;;

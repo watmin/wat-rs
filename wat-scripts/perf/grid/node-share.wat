@@ -56,6 +56,11 @@
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
    oracle-ns      <- :wat::core::i64])
 
+(:wat::rete::defquery :nsh::q-Out
+  :params []
+  :when [(?fact <- :nsh::Out)])
+
+
 ;; build-rule i n — the i-th rule of the N-rule set:
 ;;   Out(k) :- A(k) AND B(k) AND (i == k mod N)
 ;; The leading [A (?k)] and [B (?k)] conditions are BYTE-IDENTICAL across every i (no i splices into
@@ -126,8 +131,8 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [f <- :nsh::Out] -> :wat::core::i64 (:nsh::Out/k f))
-          (:wat::rete::query-by-type-string fired "nsh::Out"))))))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
+          (:wat::rete::query fired (:nsh::q-Out)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. min-finding.wat).
 (:wat::core::defn :nsh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -138,7 +143,7 @@
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
                     rules   (:nsh::build-rules rules-n)
-                    staged  (:nsh::seed (:wat::rete::compile rules) items)
+                    staged  (:nsh::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:nsh::q-Out))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)

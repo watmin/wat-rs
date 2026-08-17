@@ -160,6 +160,11 @@ priority = 99                                             # just below the scrip
 # So the real contention band for this cohort is 3.5x–4.4x, not 3.5x. A future test added
 # here should be budgeted at alone x 4.4, not x 3.5.
 #
+# 2026-08-17 later the same day: where-query-compat added 13 rows / 3 fires to the
+# spec_equals walk. Isolated after that add: 22.3–23.6s. Still inside this 60s/120s
+# envelope; do not add a second named override above this block — first-match would
+# strip `priority = 98` and put spec_equals back at the tail.
+#
 # THE DURABLE FIX, named so this stays a stopgap and not a habit: split
 # `spec_equals_native_on_every_where_family` PER where-family, the way the scripts gate
 # should split per directory. Each piece then fits a normal budget and a failure names

@@ -19,10 +19,15 @@
   :then
   [(:wnb::Busy :loc ?loc :n ?m)])
 
+(:wat::rete::defquery :wnb::q-Busy
+  :params []
+  :when [(?fact <- :wnb::Busy)])
+
+
 (:wat::core::defn :wnb::fire [lo <- :wat::core::i64  hi <- :wat::core::i64] -> :wat::rete::Session
   (:wat::rete::fire-rules
     (:wat::rete::insert
-      (:wat::rete::compile (:wat::core::PersistentVector (:wnb::max-not-below)))
+      (:wat::rete::compile-all (:wat::core::PersistentVector (:wnb::max-not-below)) (:wat::core::PersistentVector (:wnb::q-Busy)))
       (:wnb::Station :loc "OSL")
       (:wnb::Reading :loc "OSL" :v lo)
       (:wnb::Reading :loc "OSL" :v hi))))
@@ -37,6 +42,6 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wnb::line 1 "max-not-below-mixed"
-    (:wat::core::length (:wat::rete::query-by-type-string (:wnb::fire 50 40) "wnb::Busy")))
+    (:wat::core::length (:wat::rete::query (:wnb::fire 50 40) (:wnb::q-Busy))))
   (:wnb::line 2 "max-not-below-tied"
-    (:wat::core::length (:wat::rete::query-by-type-string (:wnb::fire 50 50) "wnb::Busy"))))
+    (:wat::core::length (:wat::rete::query (:wnb::fire 50 50) (:wnb::q-Busy)))))

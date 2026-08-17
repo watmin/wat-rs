@@ -105,6 +105,8 @@ pub(crate) struct WorkingMemory {
     pub(crate) facts:      Value,
     /// Passthrough — monotonically increasing fact/node id counter.
     pub(crate) next_id:    i64,
+    /// QueryNode name → binding maps (survives fire; beta does not).
+    pub(crate) query:      HashMap<String, Vec<crate::value::pmap::PMap>>,
 }
 
 // ─── Memory conversion helpers ────────────────────────────────────────────────
@@ -484,8 +486,97 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     let alpha      = pm_to_alpha(OP, alpha_pm)?;
     let beta       = pm_to_beta(OP, beta_pm)?;
     let production = pm_to_hashmap(OP, prod_pm)?;
+    let query = if sf.len() > 7 {
+        pm_to_query_memory(OP, &sf[7])?
+    } else {
+        HashMap::new()
+    };
 
-    Ok(WorkingMemory { network, rules, alpha, beta, production, facts, next_id })
+    Ok(WorkingMemory { network, rules, alpha, beta, production, facts, next_id, query })
+}
+
+fn pm_to_query_memory(
+    op: &'static str,
+    pm: &Value,
+) -> Result<HashMap<String, Vec<crate::value::pmap::PMap>>, EvalBreak> {
+    match pm {
+        Value::wat__core__PersistentMap(m) => {
+            let mut out: HashMap<String, Vec<crate::value::pmap::PMap>> = HashMap::new();
+            for (k, v) in m.iter() {
+                let name = match k {
+                    Value::String(s) => s.as_ref().clone(),
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "query-name String",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into());
+                    }
+                };
+                let maps = match v {
+                    Value::wat__core__PersistentVector(pv) => {
+                        let mut acc = Vec::new();
+                        for item in pv.iter() {
+                            match item {
+                                Value::wat__core__PersistentMap(im) => acc.push(im.clone()),
+                                other => {
+                                    return Err(RuntimeError::new(
+                                        crate::rust_caller_span!(),
+                                        RuntimeErrorKind::TypeMismatch {
+                                            op: op.into(),
+                                            expected: "binding PersistentMap",
+                                            got: Box::new(ValueSnapshot::of(other)),
+                                        },
+                                    )
+                                    .into());
+                                }
+                            }
+                        }
+                        acc
+                    }
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "PersistentVector of binding maps",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into());
+                    }
+                };
+                out.insert(name, maps);
+            }
+            Ok(out)
+        }
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "query-memory PersistentMap",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
+fn query_memory_to_pm(
+    query: HashMap<String, Vec<crate::value::pmap::PMap>>,
+) -> Value {
+    let pairs = query.into_iter().map(|(name, maps)| {
+        let mut pv = rpds::VectorSync::new_sync();
+        for m in maps {
+            pv.push_back_mut(Value::wat__core__PersistentMap(m));
+        }
+        (Value::String(Arc::new(name)), Value::wat__core__PersistentVector(pv))
+    });
+    Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs))
 }
 
 /// Convert a `WorkingMemory` back into a frozen `:wat::rete::Session` `Value`.
@@ -521,6 +612,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
             prod_pm,
             wm.facts,
             Value::i64(wm.next_id),
+            query_memory_to_pm(wm.query),
         ]),
     )))
 }
@@ -829,6 +921,8 @@ fn alpha_pass(
             if let Some(bindings) = crate::rete::matcher::alpha_match_inner(
                 &cond_ast, fact_class, fact_fields, &field_names,
             ) {
+                let bindings =
+                    crate::rete::matcher::attach_fact_bind(&cond_ast, fact, bindings);
                 let el = make_element(fact.clone(), bindings);
                 wm.alpha.entry(*node_id).or_default().push(el);
             }
@@ -1047,6 +1141,7 @@ fn fact_bindings_under(
         &field_names,
         &seed_pairs,
     )?;
+    let pairs = crate::rete::matcher::attach_fact_bind(cond, fact, pairs);
     Some(crate::value::pmap::PMap::from_pairs(
         pairs.iter().map(|(k, v)| (k.clone(), v.clone())),
     ))
@@ -1420,10 +1515,40 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     hash_join_pass(&mut wm);
     production_pass(&mut wm, sym)?;
 
+    harvest_query_memory(&mut wm);
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
     // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
     wm.beta.clear();
     Ok(to_persistent(wm))
+}
+
+fn harvest_query_memory(wm: &mut WorkingMemory) {
+    wm.query.clear();
+    let node_ids = sorted_node_ids(&wm.network);
+    for node_id in node_ids {
+        let node = match get_node(&wm.network, node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "QueryNode" {
+            continue;
+        }
+        let (_, sf) = match node_record(node) {
+            Some(p) => p,
+            None => continue,
+        };
+        let qname = match &sf[1] {
+            Value::String(s) => s.as_ref().clone(),
+            _ => continue,
+        };
+        let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
+        for pid in node_parents(node_id, &wm.network) {
+            if let Some(ts) = wm.beta.get(&pid) {
+                maps.extend(ts.iter().map(|t| t.bindings.clone()));
+            }
+        }
+        wm.query.insert(qname, maps);
+    }
 }
 
 // ── Public entry: native fire-once' ──────────────────────────────────────────
@@ -1539,6 +1664,11 @@ fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
                     sf[4].clone(), // production-memory
                     new_facts,     // facts (replaced)
                     sf[6].clone(), // next-id
+                    if sf.len() > 7 {
+                        sf[7].clone()
+                    } else {
+                        Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())
+                    },
                 ]),
             )))
         }
@@ -1700,6 +1830,71 @@ fn acc_var_i64(el: &Element, var: &Value) -> i64 {
         Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
         None => panic!("accumulate: var {var:?} unbound in element bindings"),
     }
+}
+
+fn string_bind_key(name: &str) -> Value {
+    Value::String(Arc::new(name.to_string()))
+}
+
+/// `?var` names a condition binds — mirrors `cond-bind-keys` in `wat/rete.wat`.
+fn cond_bind_keys(cond: &WatAST) -> Vec<Value> {
+    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+    match classify_rete_clause(cond) {
+        ReteClauseShape::Bind { var, .. } => vec![string_bind_key(var)],
+        ReteClauseShape::FactBind { var, clauses, .. } => {
+            let mut ks = vec![string_bind_key(var)];
+            ks.extend(clauses.iter().flat_map(cond_bind_keys));
+            ks
+        }
+        ReteClauseShape::Accumulate { var, from, .. } => {
+            let mut ks = vec![string_bind_key(var)];
+            ks.extend(cond_bind_keys(from));
+            ks
+        }
+        ReteClauseShape::And(kids) | ReteClauseShape::Or(kids) => {
+            kids.iter().flat_map(cond_bind_keys).collect()
+        }
+        ReteClauseShape::Exists(inner) => cond_bind_keys(inner),
+        ReteClauseShape::Not(_) | ReteClauseShape::Where(_) | ReteClauseShape::Constraint { .. } => {
+            vec![]
+        }
+        ReteClauseShape::Unrecognized => match cond {
+            WatAST::List(items, _) if items.len() > 1 => {
+                items[1..].iter().flat_map(cond_bind_keys).collect()
+            }
+            _ => vec![],
+        },
+    }
+}
+
+/// `?var` args of the acc-form (`max ?v` → [?v]; count → []).
+fn acc_operand_keys(acc_form: &WatAST) -> Vec<Value> {
+    let items = match acc_form {
+        WatAST::List(items, _) => items.as_slice(),
+        _ => return vec![],
+    };
+    items
+        .iter()
+        .skip(1)
+        .filter_map(|kid| match kid {
+            WatAST::Symbol(s, _) if s.as_str().starts_with('?') => Some(string_bind_key(s.as_str())),
+            WatAST::Keyword(k, _) if k.starts_with('?') => Some(string_bind_key(k)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn project_group_keys(
+    el_bindings: &Arc<[(Value, Value)]>,
+    keys: &[Value],
+) -> Vec<(Value, Value)> {
+    let mut out = Vec::with_capacity(keys.len());
+    for k in keys {
+        if let Some(pair) = el_bindings.iter().find(|(ek, _)| **ek == *k) {
+            out.push((pair.0.clone(), pair.1.clone()));
+        }
+    }
+    out
 }
 
 /// Compute the aggregate `Value` for an `acc-form` over the gathered elements.
@@ -2289,12 +2484,10 @@ pub(crate) fn build_alpha_index(
             _ => continue,
         };
         // The condition's fact-type head (colon-free), exactly as alpha_match_inner reads it.
-        if let WatAST::List(items, _) = &cond_ast {
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
-                let ty = k.trim_start_matches(':').to_string();
-                alpha_by_type.entry(ty).or_default().push(*node_id);
-                alpha_cond.insert(*node_id, cond_ast);
-            }
+        if let Some(pat) = crate::rete::matcher::alpha_pattern(&cond_ast) {
+            let ty = pat.type_head.to_string();
+            alpha_by_type.entry(ty).or_default().push(*node_id);
+            alpha_cond.insert(*node_id, cond_ast);
         }
     }
     (alpha_by_type, alpha_cond)
@@ -2453,10 +2646,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
             for child in node_children(node) {
-                let child_is_join = get_node(&wm.network, child)
-                    .map(|c| kind_of(c) == "HashJoinNode")
-                    .unwrap_or(false);
-                if child_is_join {
+                let child_kind = get_node(&wm.network, child).map(kind_of).unwrap_or("");
+                if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
                     readers.insert(*node_id);
                     break;
                 }
@@ -2581,6 +2772,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 };
                 phase_end("  ├ alpha:match", __am);
                 if let Some(bindings) = matched {
+                    let bindings = match alpha_cond.get(aid) {
+                        Some(cond_ast) => {
+                            crate::rete::matcher::attach_fact_bind(cond_ast, fact, bindings)
+                        }
+                        None => bindings,
+                    };
                     let __mk = phase_start();
                     let el = make_element(fact.clone(), bindings);
                     phase_end("  ├ alpha:element", __mk);
@@ -2954,6 +3151,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 (elements, idx)
             });
             phase_end("  ├ accum:index", __ix);
+            let from_keys = alpha_cond_of(&wm.network, from_alpha_id)
+                .map(|c| cond_bind_keys(&c))
+                .unwrap_or_default();
+            let operand_keys = acc_operand_keys(&acc_form);
             let __fd = phase_start();
             for tok in new_tokens {
                 let key = key_of(&tok.bindings, &join_keys);
@@ -2970,15 +3171,60 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         token_element_compatible(&tok.bindings, el_b)
                     })
                     .collect();
-                if let Some(aggregate) = accumulate_value(&acc_form, &gathered, sym)? {
-                    // Extend the token: same matches; bindings + {result-var → aggregate}.
-                    let new_bindings = tok.bindings.assoc(result_var.clone(), aggregate);
-                    let new_tok = Token { matches: tok.matches.clone(), bindings: new_bindings };
-                    if beta_readers.contains(node_id) {
-                        beta_written(*node_id, 1);
-                        wm.beta.entry(*node_id).or_default().push(new_tok.clone());
+                let group_keys: Vec<Value> = from_keys
+                    .iter()
+                    .filter(|k| {
+                        tok.bindings.get(k).is_none() && !operand_keys.iter().any(|o| o == *k)
+                    })
+                    .cloned()
+                    .collect();
+                // One fold of the whole gather when the token already holds every
+                // `:from` bind (or the `:from` binds none). Otherwise group by the
+                // leftover binds; empty gather + leftover keys is not a bag-wide 0.
+                let groups: Vec<(crate::value::pmap::PMap, Vec<&Element>)> = if group_keys.is_empty()
+                {
+                    vec![(tok.bindings.clone(), gathered)]
+                } else if gathered.is_empty() {
+                    Vec::new()
+                } else {
+                    let mut order: Vec<Vec<(Value, Value)>> = Vec::new();
+                    let mut buckets: HashMap<Vec<(Value, Value)>, Vec<&Element>> = HashMap::new();
+                    for el in gathered {
+                        let (_, el_b) = element_fact_bindings(el);
+                        let proj = project_group_keys(el_b, &group_keys);
+                        buckets
+                            .entry(proj.clone())
+                            .or_insert_with(|| {
+                                order.push(proj);
+                                Vec::new()
+                            })
+                            .push(el);
                     }
-                    d_beta.entry(*node_id).or_default().push(new_tok);
+                    order
+                        .into_iter()
+                        .map(|proj| {
+                            let mut nb = tok.bindings.clone();
+                            for (k, v) in &proj {
+                                nb = nb.assoc(k.clone(), v.clone());
+                            }
+                            let els = buckets.remove(&proj).unwrap_or_default();
+                            (nb, els)
+                        })
+                        .collect()
+                };
+                for (group_bindings, group_els) in groups {
+                    if let Some(aggregate) = accumulate_value(&acc_form, &group_els, sym)? {
+                        let new_bindings = group_bindings.assoc(result_var.clone(), aggregate);
+                        let new_tok = Token {
+                            matches: tok.matches.clone(),
+                            bindings: new_bindings,
+                        };
+                        if beta_readers.contains(node_id) {
+                            beta_written(*node_id, 1);
+                            wm.beta.entry(*node_id).or_default().push(new_tok.clone());
+                        }
+                        d_beta.entry(*node_id).or_default().push(new_tok);
+                    }
                 }
             }
             phase_end("  └ accum:fold", __fd);
@@ -3600,6 +3846,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         }
     }
 
+    harvest_query_memory(&mut wm);
     let __drop = phase_start();
     wm.alpha.clear();
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
@@ -4023,6 +4270,16 @@ fn fire_rules_stratified(
     }
     let prod_pm = crate::value::pmap::PMap::from_pairs([(Value::i64(0), Value::wat__core__PersistentVector(prod_pv))]);
 
+    // Oracle fire-stratified does a throwaway fire-once on the ORIGINAL network + closed
+    // facts so QueryNodes (absent from per-stratum slices) fill query-memory.
+    let q_fired = fire_once_session(&session_with_facts(session, acc_facts.clone()), sym)?;
+    let qmem = match &q_fired {
+        Value::Aggregate(a) if a.nature != Nature::Struct && a.fields.len() > 7 => {
+            a.fields.as_slice()[7].clone()
+        }
+        _ => Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
+    };
+
     match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
@@ -4037,6 +4294,7 @@ fn fire_rules_stratified(
                     Value::wat__core__PersistentMap(prod_pm),                  // production-memory
                     input_facts,                                               // facts = input
                     sf[6].clone(),                                             // next-id (original)
+                    qmem,
                 ]),
             ))))
         }

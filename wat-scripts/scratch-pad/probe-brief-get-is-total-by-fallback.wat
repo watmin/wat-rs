@@ -37,16 +37,21 @@
   :then
   [(:g278get::Hit 1)])
 
+(:wat::rete::defquery :g278get::q-Hit
+  :params []
+  :when [(?fact <- :g278get::Hit)])
+
+
 (:wat::core::defn :g278get::row7 [] -> :wat::core::nil
   (:wat::core::let
-    [s0    (:wat::rete::compile (:wat::rete::collect-rules :g278get))
+    [s0    (:wat::rete::compile-all (:wat::rete::collect-rules :g278get) (:wat::core::PersistentVector (:g278get::q-Hit)))
      s1    (:wat::rete::insert s0 (:g278get::PV (:wat::core::PersistentVector 7 8 9)))
      s2    (:wat::rete::insert s1 (:g278get::PV (:wat::core::PersistentVector 1 2 3)))
      s3    (:wat::rete::insert s2 (:g278get::PV (:wat::core::PersistentVector)))
      fired (:wat::rete::fire-rules-spec s3)]
     (:wat::kernel::println
       (:wat::core::string::concat "row7 seam-composes Hit-count (expect 1) = "
-        (:wat::core::str (:wat::core::length (:wat::rete::query-by-type-string fired "g278get::Hit")))))))
+        (:wat::core::str (:wat::core::length (:wat::rete::query fired (:g278get::q-Hit))))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

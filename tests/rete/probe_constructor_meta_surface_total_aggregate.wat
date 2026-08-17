@@ -25,25 +25,36 @@
   :when [(:cg::Anchor (?x <- :x))]
   :then [(:cg::Outer :inner (:cg::Inner :x 5))])
 
+(:wat::rete::defquery :cg::q-Outer
+  :params []
+  :when [(:cg::Outer (?inner <- :inner))])
+
+
 ;; Fires via the WAT ORACLE.
 (:wat::core::defn :user::run-oracle [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Outer)))
      session (:wat::rete::insert session (:cg::Anchor :x 0))
      fired   (:wat::rete::fire-rules-spec session)
-     derived (:wat::rete::query-by-type-string fired "cg::Outer")
+     derived (:wat::rete::query fired (:cg::q-Outer))
      r       (:wat::core::first derived)]
-    (:cg::Inner/x (:cg::Outer/inner r))))
+    (:cg::Inner/x
+      (:wat::core::Option/expect
+        (:wat::core::PersistentMap/get r "?inner")
+        "q-Outer: ?inner"))))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path
 ;; (`insert'`/`fire-rules'`) instead of the interpreted oracle.
 (:wat::core::defn :user::run-native [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Outer)))
      session (:wat::rete::insert' session (:cg::Anchor :x 0))
      fired   (:wat::rete::fire-rules' session)
-     derived (:wat::rete::query-by-type-string fired "cg::Outer")
+     derived (:wat::rete::query fired (:cg::q-Outer))
      r       (:wat::core::first derived)]
-    (:cg::Inner/x (:cg::Outer/inner r))))
+    (:cg::Inner/x
+      (:wat::core::Option/expect
+        (:wat::core::PersistentMap/get r "?inner")
+        "q-Outer: ?inner"))))

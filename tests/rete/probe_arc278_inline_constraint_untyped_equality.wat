@@ -19,11 +19,16 @@
   :then
   [(:probe::Hot :location ?loc)])
 
+(:wat::rete::defquery :probe::q-Hot
+  :params []
+  :when [(?fact <- :probe::Hot)])
+
+
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
-     session (:wat::rete::compile rules)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hot)))
      session (:wat::rete::insert session (:probe::Reading :location "Oslo"   :value 42))
      session (:wat::rete::insert session (:probe::Reading :location "Bergen" :value 3))
      fired   (:wat::rete::fire-rules session)]
-    (:wat::core::length (:wat::rete::query fired :probe::Hot))))
+    (:wat::core::length (:wat::rete::query fired (:probe::q-Hot)))))
