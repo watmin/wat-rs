@@ -1,4 +1,4 @@
-//! Arc 272 — the capability narrow-waist (`wat-edn.cap`).
+//! Arc 272 — the capability narrow-waist — a capability wears its own type home on the wire.
 //!
 //! A **portable capability** is a substrate value whose wire content is meaningful + safe across a
 //! process boundary (vs an ordinary opaque handle — an fd, a `Sender` — which must NOT cross). This
@@ -146,19 +146,19 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
         Value::Aggregate(a) => a,
         _ => {
             return Err(cap_decode_error(
-                "wat-edn.cap/address (expected a SocketAddressWire record)",
+                "#wat.kernel/Address (expected a SocketAddressWire record)",
             ))
         }
     };
     if agg.class.as_str() != SOCKET_ADDRESS_WIRE_CLASS {
         return Err(cap_decode_error(format!(
-            "wat-edn.cap/address (wrong record class: {})",
+            "#wat.kernel/Address (wrong record class: {})",
             agg.class
         )));
     }
     if agg.fields.len() != 2 {
         return Err(cap_decode_error(
-            "wat-edn.cap/address (SocketAddressWire must have 2 fields)",
+            "#wat.kernel/Address (SocketAddressWire must have 2 fields)",
         ));
     }
     // Field 0: minter-pid (i64)
@@ -166,7 +166,7 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
         Value::i64(n) => *n as i32,
         _ => {
             return Err(cap_decode_error(
-                "wat-edn.cap/address (minter-pid field must be i64)",
+                "#wat.kernel/Address (minter-pid field must be i64)",
             ))
         }
     };
@@ -175,7 +175,7 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
         Value::Vec(xs) => xs.clone(),
         _ => {
             return Err(cap_decode_error(
-                "wat-edn.cap/address (name field must be Vector<i64>)",
+                "#wat.kernel/Address (name field must be Vector<i64>)",
             ))
         }
     };
@@ -183,12 +183,12 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
     const ABSTRACT_UDS_NAME_MAX: usize = 107;
     if name_bytes_vals.is_empty() {
         return Err(cap_decode_error(
-            "wat-edn.cap/address (empty name — a minted abstract name is never zero-length)",
+            "#wat.kernel/Address (empty name — a minted abstract name is never zero-length)",
         ));
     }
     if name_bytes_vals.len() > ABSTRACT_UDS_NAME_MAX {
         return Err(cap_decode_error(format!(
-            "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
+            "#wat.kernel/Address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
             name_bytes_vals.len(),
             ABSTRACT_UDS_NAME_MAX
         )));
@@ -199,7 +199,7 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
             Value::i64(n) if (0..=255).contains(n) => name_bytes.push(*n as u8),
             _ => {
                 return Err(cap_decode_error(
-                    "wat-edn.cap/address (name byte out of 0..=255)",
+                    "#wat.kernel/Address (name byte out of 0..=255)",
                 ))
             }
         }
@@ -224,13 +224,13 @@ fn address_codec() -> CapCodec {
             ))
         },
         decode: |body, types| {
-            // body is the OwnedValue body of #wat-edn.cap/address — expected to be a
+            // body is the OwnedValue body of #wat.kernel/Address — expected to be a
             // #wat.kernel/SocketAddressWire tagged map (as produced by value_to_edn_with on the
             // SocketAddressWire record).
             // ctx=None: this codec only ever decodes the fixed `SocketAddressWire` Record
             // (never a user-declared HolonRecord class), so no EncodingCtx is ever needed.
             let record_val = crate::edn_shim::edn_to_value(body, Some(types), None).map_err(|_| {
-                cap_decode_error("wat-edn.cap/address (body failed edn_to_value)")
+                cap_decode_error("#wat.kernel/Address (body failed edn_to_value)")
             })?;
             let (minter_pid, name_bytes) = socket_address_wire_from_record(&record_val)?;
             let addr = crate::kernel::address::Address::from_socket_name_bytes(name_bytes, minter_pid);
@@ -403,7 +403,7 @@ mod waist_proof {
             .expect_err("an over-long address name must be refused at decode");
         match err.kind {
             EdnReadErrorKind::UnsupportedTag(msg) => {
-                assert_eq!(msg, "wat-edn.cap/address (name 200 bytes exceeds the 107-byte abstract-UDS limit)");
+                assert_eq!(msg, "#wat.kernel/Address (name 200 bytes exceeds the 107-byte abstract-UDS limit)");
             }
             other => panic!("expected UnsupportedTag for an over-long name, got {other:?}"),
         }
@@ -429,7 +429,7 @@ mod waist_proof {
             .expect_err("an empty address name must be refused at decode");
         match err.kind {
             EdnReadErrorKind::UnsupportedTag(msg) => {
-                assert_eq!(msg, "wat-edn.cap/address (empty name — a minted abstract name is never zero-length)");
+                assert_eq!(msg, "#wat.kernel/Address (empty name — a minted abstract name is never zero-length)");
             }
             other => panic!("expected UnsupportedTag for an empty name, got {other:?}"),
         }

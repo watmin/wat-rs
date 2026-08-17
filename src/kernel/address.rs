@@ -306,7 +306,7 @@ impl Address {
     /// Arc 272 6c.2 — the PORTABLE form of this address: `(minter_pid, name_bytes)`, IF it is
     /// a process-tier socket address. A process-tier address is a true capability: its name bytes
     /// and minter pid are meaningful across a process boundary, so it may cross the IPC wire (as a
-    /// `#wat-edn.cap/address` `#wat.kernel/SocketAddressWire` record). A thread-tier address (a
+    /// `#wat.kernel/Address` `#wat.kernel/SocketAddressWire` record). A thread-tier address (a
     /// crossbeam `Sender`) has NO portable form — it is in-memory, same-process only — so this
     /// returns `None` and the address falls to the opaque (non-portable) wire path.
     pub(crate) fn portable_form(&self) -> Option<(i32, Vec<u8>)> {

@@ -1446,7 +1446,7 @@ pub fn read_edn(
 }
 
 /// Arc 272 6a-i — the capability-aware decode worker. PRIVATE by design: when `allow_caps` is true,
-/// portable `wat-edn.cap` tags reconstruct into live capabilities. There is intentionally NO public
+/// portable capability tags reconstruct into live capabilities. There is intentionally NO public
 /// way to pass `allow_caps = true` — the only caller that may is [`decode_trusted_wire`], the single
 /// audited door. This is what makes "mint a capability from an untrusted decode" UNREPRESENTABLE:
 /// general code holds no flag to flip and no fn to reach (extirpare top rung; ocap transfer-only).
@@ -1745,7 +1745,7 @@ pub fn edn_to_value(
     types: Option<&crate::types::TypeEnv>,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    // Arc 272 6a-i gating — the GENERAL decode path REFUSES portable-capability (`wat-edn.cap`)
+    // Arc 272 6a-i gating — the GENERAL decode path REFUSES portable-capability
     // tags. Object-capability rule: a capability is obtained only by being handed it on a trusted
     // channel, NEVER forged from parsed data. The trusted peer wire opts in via the `_caps` worker
     // with `allow_caps = true` (see `read_edn_caps` / `edn_string_to_value_trusted`).
@@ -3519,7 +3519,7 @@ pub(crate) fn edn_string_to_value(s: &str) -> Result<Value, EdnReadError> {
 }
 
 /// Arc 272 6a-i — **THE ONE TRUSTED-WIRE DECODE DOOR.** The sole entry that reconstructs portable
-/// capability (`wat-edn.cap`) tags into live capabilities. Object-capability transfer-only: a
+/// capability tags into live capabilities. Object-capability transfer-only: a
 /// capability is obtained only by being handed it over a trusted channel — the process peer wire
 /// (`recv'` / `select'`, whose bytes came from a lineage peer) — NEVER forged from parsed data.
 ///
@@ -3592,7 +3592,7 @@ mod cap_decode_boundary {
     fn general_decode_refuses_capability_tags() {
         assert!(
             edn_string_to_value(CAP_TAG_GENERAL).is_err(),
-            "general/untrusted decode MUST refuse a wat-edn.cap tag — a capability is handed over a \
+            "general/untrusted decode MUST refuse a capability tag — a capability is handed over a \
              trusted channel, never forged from parsed data (ocap transfer-only)"
         );
     }
@@ -3602,7 +3602,7 @@ mod cap_decode_boundary {
         let types = make_types();
         assert!(
             decode_trusted_wire(CAP_TAG_GENERAL, Some(&types), None).is_ok(),
-            "the trusted-wire door MUST reconstruct a wat-edn.cap tag into a live capability"
+            "the trusted-wire door MUST reconstruct a capability tag into a live capability"
         );
     }
 }
@@ -3829,7 +3829,7 @@ pub fn value_to_edn_with(
         Value::RustOpaque(inner) => {
             // Arc 272 narrow-waist — GENERIC capability dispatch (the FROZEN waist; never changes
             // per-capability). If this opaque is a registered PORTABLE capability with a portable
-            // form, emit its `#wat-edn.cap/<name>` tag; otherwise it is a process-local handle (an fd,
+            // form, emit its `#wat.kernel/<Name>` tag; otherwise it is a process-local handle (an fd,
             // a `Sender`) that must NOT cross → the payload-less per-type-home tag (the decoder
             // refuses any bare-nil tagged value; arc 278 A.0). The per-capability codecs live in
             // `crate::capability::registry`. `types` is required by record-based codecs (arc 272

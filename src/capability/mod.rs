@@ -4,11 +4,11 @@
 //! holds across all accept arms, the minter-pid stamp consistent end-to-end).
 //!
 //! Arc 272 — the capability subsystem (a warded home). Three concerns: what may cross a boundary as a
-//! capability, how it serializes (the `wat-edn.cap` **narrow waist**), and — v4 — who may receive it
+//! capability, how it serializes (the capability **narrow waist**), and — v4 — who may receive it
 //! (the comms policy / **powerbox**).
 //!
 //! - [`registry`] — the frozen WAIST: a [`registry::CapCodec`] registry + the generic
-//!   [`encode_capability`] / [`decode_capability`] dispatch over the `wat-edn.cap` wire. Adding a
+//!   [`encode_capability`] / [`decode_capability`] dispatch over the capability wire. Adding a
 //!   capability is a registry row; the dispatch never changes — the hourglass / narrow-waist law, run
 //!   inward (a rigid core enabling unbounded capabilities above it).
 //! - [`policy`] — v4 the POWERBOX: [`policy::CommsPolicy`] decides, from a peer's kernel-verified

@@ -28,7 +28,7 @@
 ;; ── Arc 272 6c.2 — SocketAddressWire (the portable address capability record) ──
 ;; The portable form of a process-tier Address': minter-pid + autobind name bytes
 ;; (as Vector<i64>, since wat has no byte scalar). Encodes as:
-;;   #wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}
+;;   #wat.kernel/Address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}
 ;; The cap codec builds/reads this record; the connect gate verifies minter-pid.
 (:wat::core::defrecord :wat::kernel::SocketAddressWire
   [minter-pid <- :wat::core::i64

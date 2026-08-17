@@ -5,7 +5,7 @@
 ;; round-trips a live process Address' AND connect' on the read-back addr reaches A, then
 ;; closure_extract can encode a captured Address' by emitting that same form (no new codec).
 ;;
-;; EXPECT (green):  a "wire:" line showing #wat-edn.cap/address #wat.kernel/SocketAddressWire {...}
+;; EXPECT (green):  a "wire:" line showing #wat.kernel/Address #wat.kernel/SocketAddressWire {...}
 ;;                  then  "result: echo:roundtrip"
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer

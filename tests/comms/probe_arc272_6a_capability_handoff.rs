@@ -18,7 +18,7 @@
 //! GREEN as of 258.5a + 272 6a-i. Two composing fixes made the no-ascription handoff work: (1)
 //! arc 258.5a — `connect'` UNIFIES its arg, so the fresh 1-arg `(recv' svc)` result binds to
 //! `Address'` from the consumer ("the type lives in the channel"; no `-> :T`); (2) arc 272 6a-i —
-//! `Address'` crosses as a portable `#wat-edn.cap/address [bytes]` tag (decode via
+//! `Address'` crosses as a portable `#wat.kernel/Address [bytes]` tag (decode via
 //! `from_socket_name_bytes`), so `recv'` reconstructs the capability with no runtime type hint.
 //! No `-> :T` ascription anywhere — that arrow stays killed. `spawn-program'` stays 2-arg throughout —
 //! the listener never touches the spawn surface.
