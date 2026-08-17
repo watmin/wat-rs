@@ -90,9 +90,40 @@ unless a new kind is forced.
 - `wat/bracket.wat` `defmacro map` ~838 (the ProcessOpts-AST raise).
 - 2e probe `tests/comms/probe_arc293_W2e_address_wire.*` must stay GREEN.
 
+## The farm — wat-fix, not a hand rewrite
+
+Adding T to `Address` / `Bound` / `Handle` is a **structural corpus rewrite**.
+The weapon is **wat-fix** (`wat/fix.wat` + `wat-scripts/fixes/*.wat`). Not
+hand-edits. Not python. Not sed.
+
+- Framework: `wat/fix.wat` — `read-string` → `with-children` / comment-faithful
+  text edits (`rename-keyword-prefix` is the closest primitive; this strike
+  needs a **type-arg append** on parametric keywords, recorded as a new
+  `:wat::fix::…` verb or a one-shot walk in the fix script).
+- Recorded migration: `wat-scripts/fixes/address-transport-arity.wat`
+  (new). Header: *"Self-hosted fix-wat codemod: no hand-editing of .wat files."*
+- Drive: `printf '["pathA" …]\n' | cargo wat ./wat-scripts/fixes/address-transport-arity.wat`
+  List EVERY path. Idempotent (re-run = 0 changes). Dry-run on a copy first, `diff`.
+- **STASH-DANCE** (`wat/fix.wat` header): this ships WITH a checker change that
+  makes the old 2-arg form illegal. Do not hand-edit instead.
+
+  1. Land the NEW fix verb in `wat/fix.wat` (old checker still accepts 2-arg Address).
+  2. `git stash push` the `src/check.rs` / `src/runtime.rs` (and any other rust)
+     that rejects 2-arg.
+  3. `cargo build --release` — old checker + new verb.
+  4. Run the fix over the whole corpus (`wat/`, `wat-scripts/`, `tests/`, `wat-tests/`).
+  5. `git stash pop`.
+  6. `cargo build --release` — new checker; corpus is 3-arg.
+
+Default rewrite of a 2-arg `Address<S,R>` / `Bound<S,R>` is
+`…,wat::kernel::Wire` (the old "it crosses" meaning, now explicit). Thread
+`listener` sites that must be Shared are the checker (infer_listener) plus
+the `Bound`/`Handle` declarations that are *parametric in T*, not a second
+guessy pass.
+
 ## Calibration
 
-This is a cascade (Handle/start/Bound/listener types). Substrate-as-teacher:
-apply the rule, ride the fail-count to zero. Band 90–180 min. STOP at 240 min
+This is a cascade + a recorded wat-fix. Band 90–180 min. STOP at 240 min
 if kwargs+defclause cannot express the start split — that is a substrate
-extension, not a guess.
+extension, not a guess. STOP if you start hand-editing more than the
+declaration sites + the fix script.

@@ -79,12 +79,39 @@ A symbol locus (`loc`) is a residual — do not guess. The acceptance test uses
 Do not weaken 2e. Do not weaken `probe_thread_kwargs_thread_svc` (legal:
 thread map + thread handle).
 
+## The farm is wat-fix (R21)
+
+A third type argument is a corpus rewrite. Read `wat/fix.wat` (header
+BOOTSTRAP / STASH-DANCE, then `rename-keyword-prefix` as the closest
+vehicle) and copy a `wat-scripts/fixes/*.wat` (e.g.
+`reclaim-ipc-prime-names.wat`, `retarget-peer-purity-probes.wat`) for the
+script shape: `:user::migrate` + stdin path list + `write-file`.
+
+Write `wat-scripts/fixes/address-transport-arity.wat`. It walks keyword
+leaves whose name is a 2-arg `:wat::kernel::Address<…>` or
+`:wat::spawn::Bound<…>` and appends `,wat::kernel::Wire` (comment-faithful
+text edit, like rename-prefix). Idempotent: a 3-arg form is left alone.
+
+**STASH-DANCE** — do not hand-edit the farm; do not skip this:
+
+1. Add the fix verb / script first (checker still accepts 2-arg).
+2. Stash `src/check.rs` `src/runtime.rs` (the rust that rejects 2-arg).
+3. `cargo build --release`.
+4. `printf '[…EVERY path…]\n' | cargo wat ./wat-scripts/fixes/address-transport-arity.wat`
+5. Stash pop.
+6. Rebuild. New checker; corpus is 3-arg.
+
+Dry-run on a copy and `diff` first. Generate the path list; never type it.
+Python/sed are forbidden. `tools/` Rust binaries are for Rust syntax only —
+`.wat` is wat-fix's job.
+
 ## Discipline
 
 - wat-rs only. No holon-rs.
 - No new `Value` variant. Runtime `Address` entity unchanged.
-- Any transform script: Rust Cargo binary under repo-local `tools/`. Never
-  Python. Never `/tmp/`. Delete the tool before you stop.
+- `.wat` corpus: wat-fix only. Declaration sites (`wat/spawn.wat` Bound,
+  `wat/service.wat` Handle/addr-ty, `wat/fix.wat` if a new verb) may be
+  authored; everything else is the recorded migration.
 - Commit nothing.
 
 ## STOP
