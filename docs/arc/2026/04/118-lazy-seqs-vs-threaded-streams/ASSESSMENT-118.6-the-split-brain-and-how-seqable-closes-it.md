@@ -59,9 +59,41 @@ and "Seqable is blocked." That is the split brain's origin, and it is one stale 
 > seqable live in Rust' is a **convention** — nothing stops a new wat-level stage with per-container
 > arms and a `rest`-walk tomorrow, and it would be quadratic and green."*
 
-## ★★ `Seqable` REPLACES the native route as the ANSWER — and keeps its engine
+## ⊘ CORRECTED 2026-08-17, at the builder's challenge — `seqable->stream` IS DELETED, NAME AND ALL
 
-The two are not competitors. Measured: **`seqable->stream` has ZERO callers outside `wat/seq.wat`**
+> Builder: *"i do not know if we want `seqable->stream` at all... you didn't lean into this
+> direction at all last night."*
+>
+> **He is right, and the section below as first written was wrong in exactly the way this document
+> exists to attack.** I proposed *keeping* `seqable->stream` as "the implementation behind
+> `Seqable/seq`." But look at the two signatures:
+>
+> ```
+> seqable->stream :  Seqable → Stream      a verb
+> Seqable/seq     :  Seqable → Stream      a method
+> ```
+>
+> **They are the same function.** Keeping both is two public names for one operation — which is
+> precisely how the seven `-stream` twins arrived: a second spelling with a story about why it is
+> fine. **N=2 in the document arguing against N.**
+>
+> ★ **The reflex is worth naming.** I found prior art and moved to preserve it. Preserving is not
+> assessing. The right question was never "how does `Seqable` fit around `seqable->stream`" but
+> **"which of these two names survives"** — and the answer is forced: `seq` is the Clojure-familiar
+> name, it is the surface method, and it is the one a user can extend.
+>
+> **So: the native `eval_seqable_to_stream` CODE is kept — it is the correct, linear,
+> registry-backed engine and 278 earned it. The VERB `:wat::core::seqable->stream` is deleted.**
+> That native becomes the body of `Vector`/`List`/`PersistentVector`'s `seq`; `Stream`'s `seq` is
+> identity (Clojure: `seq` of a seq is itself).
+>
+> **Cost of the deletion: zero external breakage.** Measured — 0 callers outside `wat/seq.wat`. The
+> 42 internal uses migrate to `(:wat::core::Seqable/seq …)` by **wat-fix codemod** (R21), which is
+> a rename, the tooling's easiest shape.
+
+## `Seqable` REPLACES the native route as the ANSWER — and keeps its engine
+
+The engine and the name are separable. Measured: **`seqable->stream` has ZERO callers outside `wat/seq.wat`**
 (42 uses inside, none outside — only a probe's comment mentions it). It is already an internal
 normalizer, not a user verb.
 
@@ -76,7 +108,7 @@ So:
 ;; …List, PersistentVector, Stream likewise
 ```
 
-**`seqable->stream` becomes the builtins' IMPLEMENTATION of `seq` and stops being a verb.** 278's
+**The verb is deleted; its native body becomes the builtins' `seq`.** 278's
 linear, position-stepping, registry-backed native is *kept* — it is exactly the right engine — and
 gains a nameable interface over it. Nothing 278 built is discarded; what changes is that the
 concept acquires a name a `.wat` signature can spell.
@@ -114,8 +146,9 @@ its stated reason is measurably false and it should not be executed on that reas
 
 ## Sequence
 
-1. **Mint `Seqable<T>`** in `wat/seq.wat` (pos 67) + extend the four builtins onto
-   `seqable->stream`. Nothing else changes; nothing breaks.
+1. **Mint `Seqable<T>`** in `wat/seq.wat` (pos 67); extend the four builtins, their `seq` bodies
+   being the existing native. **Delete the verb `:wat::core::seqable->stream`** — 42 internal call
+   sites migrate to `Seqable/seq` by wat-fix codemod; 0 external callers, so nothing breaks.
 2. **Move the twin-backed 7 onto it** — `keep` `dedupe` `distinct` `keep-indexed` `map-indexed`
    `reduce` `interpose` — deleting arms **and** the 7 twins.
 3. **Move the armless 5** — `remove` `take-while` `drop-while` `reductions` `take-nth`. This is
