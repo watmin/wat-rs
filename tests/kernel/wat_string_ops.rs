@@ -73,6 +73,16 @@ fn split_produces_vec() {
 }
 
 #[test]
+fn join_renders_non_string_elements() {
+    assert_str(run_fn(":my::compute-join-non-string"), "1,2,3");
+}
+
+#[test]
+fn join_renders_string_elements_bare() {
+    assert_str(run_fn(":my::compute-join-string-bare"), "a-b");
+}
+
+#[test]
 fn split_empty_separator_rejected() {
     let msg = run_expecting_eval_err(":my::compute-split-empty-sep");
     assert!(

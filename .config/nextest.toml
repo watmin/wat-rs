@@ -107,6 +107,71 @@ priority = 100                                            # schedule first
 filter = 'binary_id(wat::lint)'
 priority = 99                                             # just below the scripts gate
 
+# The rete cohort — the grid axes + the spec==native oracle + the accumulator census.
+#
+# ⛔ SAME STOPGAP SHAPE AS THE SCRIPTS GATE ABOVE, AND IT IS THE SECOND ONE. Raising a
+# number is not a fix. It is recorded here with the measurement so the next raise has to
+# argue with data instead of repeating "just double it".
+#
+# MEASURED 2026-08-17, each test ALONE (plain `cargo test`, nextest bypassed so no
+# deadline could truncate it) against its duration under a full floor:
+#
+#   test                                        alone    under floor   contention
+#   accum_fire_phase_census ..................   8.13s   12.9–14.6s     1.6–1.8x
+#   grid_axes_run_and_derive_nonvacuously ....   7.98s   18.7–21.1s     2.3–2.6x
+#   spec_equals_native_on_every_where_family .  13.77s   never finished     —
+#
+# ★ ALL THREE PASS ALONE. There is no hang — that had to be proven, not assumed, because
+# a timeout is the ONLY thing standing between the floor and the genuine `where`-predicate
+# hang/SIGSEGV hazard (tasks #58/#86). Raising a deadline over an uncharacterized timeout
+# would have papered over exactly that.
+#
+# ★ WHY IT FIRED NOW: `spec_equals_native_on_every_where_family` is NEW (grok, b4e2985a)
+# and is the heaviest of the three at 13.77s alone. At this cohort's own historically
+# observed contention (2.3x–3.5x) it lands at 31.7s–48.2s — i.e. it CANNOT fit the 30s
+# kill at ANY factor this cohort has ever shown. It was over budget on arrival, and its
+# added load pushed the contention factor up for its two neighbours, which had 1.6x/2.3x
+# headroom and lost it. Three simultaneous timeouts, one cause.
+#
+# THE NUMBER, derived not picked: worst case is 13.77s x 3.5 = 48.2s. Warn 60s / kill 120s
+# gives ~2.5x margin on that projection — the same generosity the scripts gate above was
+# given (219s observed -> 300s warn / 600s kill). `priority` puts them in an early wave so
+# they overlap the bulk instead of contending with the tail, per the same argument as the
+# lint binary above.
+#
+# ✅ VERIFIED ON THE FIRST GREEN FLOOR AFTER THIS CHANGE (4697/4697, 220.334s). The
+# projection for the new test was accurate to 0.5s — and the OTHER TWO WERE UNDER-ESTIMATED,
+# so record the real spread rather than the borrowed 3.5x:
+#
+#   test                            alone     under floor   ACTUAL contention   margin @120s
+#   accum_fire_phase_census .....   8.13s        35.39s          4.35x             3.4x
+#   grid_axes_run_and_derive ....   7.98s        29.42s          3.69x             4.1x
+#   spec_equals_native ..........  13.77s        48.72s          3.54x             2.5x
+#
+# ⚠ `accum_fire_phase_census` went 12.9–14.6s (three prior runs, tight spread) -> 35.39s.
+# That 2.4x jump is consistent with `priority = 98` moving it into the SAME early wave as
+# the scripts gate (100) and the lint binary (99) — i.e. the two heaviest things in the
+# suite. That is the overlap working as designed, not a regression: the gate IS ~98% of the
+# floor's wall-clock (see its note above), so "early" means "inside the gate's window", and
+# the floor's TOTAL was unchanged (220.3s vs 215.8s before). But it is worth stating plainly
+# that the individual times went UP, because a naive reading of "priority makes it start
+# sooner" predicts the opposite, and the budget above has to cover the wave it lands in.
+#
+# So the real contention band for this cohort is 3.5x–4.4x, not 3.5x. A future test added
+# here should be budgeted at alone x 4.4, not x 3.5.
+#
+# THE DURABLE FIX, named so this stays a stopgap and not a habit: split
+# `spec_equals_native_on_every_where_family` PER where-family, the way the scripts gate
+# should split per directory. Each piece then fits a normal budget and a failure names
+# which family broke instead of "the oracle timed out". Not built.
+#
+# `accum_fire_phase_census` lives in the lib binary (`binary_id(wat)`), not `wat::rete` —
+# hence the explicit `or`, because a `binary_id(wat::rete)` filter alone silently misses it.
+[[profile.default.overrides]]
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
+slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
+priority = 98                                             # just below the lint binary
+
 [[profile.ci.overrides]]
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
@@ -121,6 +186,14 @@ priority = 100
 [[profile.ci.overrides]]
 filter = 'binary_id(wat::lint)'
 priority = 99
+
+# raised with [profile.default] 2026-08-17 — CI runs the same rete cohort on the same box;
+# a deadline only the dev profile can meet is not a deadline (the same reasoning the
+# scripts gate's ci override records).
+[[profile.ci.overrides]]
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
+slow-timeout = { period = "60s", terminate-after = 2 }
+priority = 98
 
 # 296 Stone K, move 3 — the slow profile. `all()` re-admits everything
 # `[profile.default]`'s `default-filter` excludes EXCEPT the three STOP-2
@@ -148,3 +221,9 @@ priority = 100
 [[profile.slow.overrides]]
 filter = 'binary_id(wat::lint)'
 priority = 99
+
+# raised with [profile.default] 2026-08-17 — same cohort, same box, same argument.
+[[profile.slow.overrides]]
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
+slow-timeout = { period = "60s", terminate-after = 2 }
+priority = 98

@@ -23356,13 +23356,12 @@ fn eval_str(
         .into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let s = match &v {
-        Value::String(s) => (**s).clone(),
-        // 296 / 279.2 fix — pass the registry so a record renders by NAME. Before this,
-        // `(str <record>)` answered `#user/Pt {:field-0 1 :field-1 2}` while `println` of
-        // the same value answered `#user/Pt {:x 1 :y 2}`: one value, two faces.
-        other => crate::edn_shim::value_to_edn_string_with(other, sym.types().map(|a| a.as_ref())),
-    };
+    // 296 / 279.2 fix — pass the registry so a record renders by NAME. Before this,
+    // `(str <record>)` answered `#user/Pt {:field-0 1 :field-1 2}` while `println` of
+    // the same value answered `#user/Pt {:x 1 :y 2}`: one value, two faces. Now shared
+    // via `render_str_total` (279.3) so `join`'s per-element render cannot drift from
+    // this one.
+    let s = crate::string_ops::render_str_total(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(s)))
 }
 

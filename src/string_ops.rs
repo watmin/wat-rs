@@ -485,36 +485,46 @@ pub fn eval_string_join(
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vec<String>",
+                expected: "Vec<T>",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
             }));
         }
     };
-    let mut pieces_owned: Vec<String> = Vec::with_capacity(pieces.len());
-    for item in pieces.iter() {
-        match item {
-            Value::String(s) => pieces_owned.push((**s).clone()),
-            other => {
-                // Vec element iteration over Values — per-element WatAST span unavailable; list_span is the best available location
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "String",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(other))
-                }));
-            }
-        }
-    }
+    let types = sym.types().map(|a| a.as_ref());
+    let pieces_owned: Vec<String> = pieces
+        .iter()
+        .map(|item| render_str_total(item, types))
+        .collect();
     Ok(Value::String(Arc::new(pieces_owned.join(&sep))))
 }
 
-/// Render a `Value` as an unquoted string — the `:wat::core::str` semantics.
+/// `:wat::core::str`'s rendering, factored so `str` and `join` cannot drift
+/// (279.3). Total over every `Value`: two arms, both load-bearing.
 ///
-/// `String` → itself (no surrounding quotes), `i64` → decimal digits,
-/// `f64` → decimal text, `bool` → `true`/`false`, `u8` → decimal digits.
-/// Any other variant → `RuntimeError::TypeMismatch`.
+/// - `Value::String` → itself, BARE (no surrounding quotes). The EDN encoder
+///   quotes strings; routing a top-level `String` through it would corrupt
+///   every caller that expects unquoted text (`(join "-" ["a" "b"])` would
+///   render `"\"a\"-\"b\""` instead of `"a-b"`).
+/// - everything else → `value_to_edn_string_with`, passed `types` so a
+///   record renders by field NAME (`{:x 1}`) rather than positionally
+///   (`{:field-0 1}`) — the 296/279.2 fix. Callers with no registry pass
+///   `None` explicitly, per `edn_shim.rs:3490`'s stated discipline.
+pub(crate) fn render_str_total(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
+    match v {
+        Value::String(s) => (**s).clone(),
+        other => crate::edn_shim::value_to_edn_string_with(other, types),
+    }
+}
+
+/// Render a `Value` as an unquoted string for `:wat::core::string::interpolate`
+/// (the `format` macro's runtime twin). Partial: `String` → itself, `i64` →
+/// decimal digits, `f64` → decimal text, `bool` → `true`/`false`, `u8` →
+/// decimal digits; any other variant → `RuntimeError::TypeMismatch`.
 ///
-/// Factored from `eval_str` in `runtime.rs` so that `eval_string_interpolate`
-/// can render each kwarg value the same way without a full AST eval round-trip.
+/// Not `:wat::core::str`'s semantics — `str` is TOTAL (`render_str_total`,
+/// 279.2/279.3); this is the pre-279.2 partial renderer, kept because
+/// `interpolate` still needs a fallible per-scalar render. Its only
+/// remaining caller is `interpolate` below.
 pub fn render_unquoted(v: Value, op: &str, span: &Span) -> Result<String, RuntimeError> {
     match v {
         Value::String(s)  => Ok((*s).clone()),

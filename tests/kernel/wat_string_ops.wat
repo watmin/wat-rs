@@ -39,6 +39,16 @@
     [pieces (:wat::core::string::split "a,b,c" ",")]
     (:wat::core::string::join "|" pieces)))
 
+;; 279.3 — join is generic over element type, rendering each element
+;; through the total `str`. Non-String elements (i64 here).
+(:wat::core::defn :my::compute-join-non-string [] -> :wat::core::String
+  (:wat::core::string::join "," [1 2 3]))
+
+;; 279.3 ★ load-bearing — a String element renders BARE, not re-quoted
+;; by the encoder. Must be "a-b", never "\"a\"-\"b\"".
+(:wat::core::defn :my::compute-join-string-bare [] -> :wat::core::String
+  (:wat::core::string::join "-" ["a" "b"]))
+
 (:wat::core::defn :my::compute-split-empty-sep [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::string::split "abc" ""))
 

@@ -16597,12 +16597,12 @@ fn register_builtins(env: &mut CheckEnv) {
     env.register(
         ":wat::core::string::join".to_string(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["T".into()],
             params: vec![
                 string_ty(),
                 TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![string_ty()],
+                    args: vec![TypeExpr::Path("T".into())],
                 },
             ],
             ret: string_ty(),
