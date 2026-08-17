@@ -516,30 +516,6 @@ pub(crate) fn render_str_total(v: &Value, types: Option<&crate::types::TypeEnv>)
     }
 }
 
-/// Render a `Value` as an unquoted string for `:wat::core::string::interpolate`
-/// (the `format` macro's runtime twin). Partial: `String` → itself, `i64` →
-/// decimal digits, `f64` → decimal text, `bool` → `true`/`false`, `u8` →
-/// decimal digits; any other variant → `RuntimeError::TypeMismatch`.
-///
-/// Not `:wat::core::str`'s semantics — `str` is TOTAL (`render_str_total`,
-/// 279.2/279.3); this is the pre-279.2 partial renderer, kept because
-/// `interpolate` still needs a fallible per-scalar render. Its only
-/// remaining caller is `interpolate` below.
-pub fn render_unquoted(v: Value, op: &str, span: &Span) -> Result<String, RuntimeError> {
-    match v {
-        Value::String(s)  => Ok((*s).clone()),
-        Value::i64(n)     => Ok(n.to_string()),
-        Value::f64(f)     => Ok(f.to_string()),
-        Value::bool(b)    => Ok(b.to_string()),
-        Value::u8(n)      => Ok(n.to_string()),
-        other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: op.into(),
-            expected: "String | i64 | f64 | bool | u8",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-        })),
-    }
-}
-
 /// `(:wat::core::string::interpolate tmpl :k1 v1 :k2 v2 …)` → `:String`.
 ///
 /// Pure-total runtime interpolation intrinsic. Same `{name}` + trailing `:name val`
@@ -608,8 +584,11 @@ pub fn eval_string_interpolate(
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             })),
         };
-        // Value: eval then render unquoted.
-        let rendered = render_unquoted(eval(val_arg, env, sym)?.value_owned(), OP, val_arg.span())?;
+        // Value: eval then render unquoted, through the same total door `str`/`join` use.
+        let rendered = render_str_total(
+            &eval(val_arg, env, sym)?.value_owned(),
+            sym.types().map(|a| a.as_ref()),
+        );
         kwargs.insert(key_name, rendered);
         i += 2;
     }
