@@ -1,4 +1,20 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-16 (late). Replaced in place, never appended.
+# ⛔ PARKED 2026-08-17 — THE LIVE SEAM MOVED. Go to `docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`.
+
+> Builder, 2026-08-17: *"255 has been in a state of partial work for months… we keep leaving it to
+> work on some dep then come back…. **we do this now**…. we are killing #wat-edn tags…. only tags
+> remain are #wat.\* and #holon … that's it."*
+>
+> The live work is **arc 294** — the tag annihilation. **Everything below this banner is a
+> 2026-08-16 snapshot and is no longer maintained.** Read the 294 seam; come back here only for
+> arc 255's own state, and check `git log` over both before trusting either.
+>
+> 255 is NOT abandoned: **7 of the 13 remaining `#[ignore]`s are its**, its blanket-accept at
+> `src/resolve/walk.rs:257` is still live, and its DAY-ONE entry-shape decision is what stops the
+> opaque-registry collision hole (294.i Part 3) from being designed by anyone else.
+
+---
+
+# SEAM — SNAPSHOT, 2026-08-16 (late). Superseded as the live breadcrumb; kept as arc 255's own state.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
