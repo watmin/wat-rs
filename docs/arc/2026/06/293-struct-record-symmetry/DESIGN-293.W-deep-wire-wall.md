@@ -101,6 +101,10 @@ zero). Service enums with `Receiver<T>` → runed. **Weigh forced-clean; the cas
   corpus migration) — the predicate the rules consume, made total by *declaration*, not recursion. **§ 293.W.2b below.**
 - **293.W.2d — peer-type containment** (the keystone; deletes the interim 2a/2c guards; makes `make-channel`
   tier-aware → closes the `:svc::Request` thread-channel case).
+- **293.W.2e — `address-wire?`** (this stone). The Address answers "is this shared memory?" The
+  runtime already knows (`portable_form`). Wat did not. First mouth. Type still lies — that is 2f.
+- **293.W.2f — (next) Address type stops lying** so a process `connect` / process Setup of a
+  shared-memory address is a compile error. Not this strike.
 - Then **K3-REVISE** (annihilate `to-struct` + `$struct`; the pair) → **K5** → showcase graduates.
 
 ## § 293.W.2b — THE ENUM MOBILITY MARKER (DESIGN SETTLED + builder-ratified 2026-06-30)
