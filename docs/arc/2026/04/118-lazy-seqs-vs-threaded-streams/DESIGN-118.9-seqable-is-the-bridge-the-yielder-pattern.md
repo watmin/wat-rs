@@ -1,3 +1,47 @@
+# ⛔⛔ WRONG — THIS PROPOSES THE DESIGN ARC 118 ALREADY KILLED. Do not build it.
+
+> **Builder, 2026-08-17:** *"we needed this CSP thing that doesn't put the producer in a dedicated
+> thread… we need to not force ourselves back onto the 'threaded producer over a crossbeam' — that's
+> not right, we started there and had to kill it."*
+>
+> **He is right, and the epitaph is on disk.** `src/stdlib.rs:226`:
+>
+> > *Arc 118 — `wat/stream.wat` **ANNIHILATED** (2026-06-27). The **thread-per-pure-stage**
+> > `:wat::stream::*` HOFs were **built wrong, successfully**; the namespace is reclaimed for the
+> > **lazy single-pass Stream family**.*
+>
+> I found `send`/`recv` and `ZERO-MUTEX`'s tier 3 and never looked for the epitaph. **A
+> channel-backed producer is a spawned program — a thread — which is precisely what was killed seven
+> weeks ago.** Third variant today of the same failure: found prior art, did not read what replaced
+> it and why.
+>
+> ## ★ THE THUNK IS ALREADY THE COROUTINE — no thread required
+>
+> `src/stream/mod.rs:122`:
+>
+> ```rust
+> pub struct NativeLazyCell {
+>     pub thunk:  NativeThunk,                    // ← the suspended producer. THIS is the yielder.
+>     pub forced: Arc<OnceLock<Arc<Stream>>>,     // ← and THIS is the defect.
+> }
+> ```
+>
+> The thunk *is* Ruby's Fiber-without-a-thread: it pauses by returning, resumes when forced, and
+> carries producer state in its closure. The builder's paginated `Enumerator` is a thunk chain whose
+> closure holds `next_token` — **no channel, no spawn, no crossbeam.**
+>
+> **The defect is `forced: OnceLock<Arc<Stream>>` — the cell memoizes its tail forever.** Every cell
+> pins its successor, so while anything holds the head the whole realized chain is retained. That is
+> the measured **585 B/element** (`MEASURED-118.8`), and it is why *"lazy single-pass"* — the
+> family's own name for itself — does not describe what runs.
+>
+> **The work is to make the existing lazy Stream actually single-pass, not to replace it.**
+> `Seqable` remains the interface question; the retention is a separate, mechanical defect in one
+> struct field. Everything below about `Iterator`-as-a-trait and one-interface-N-implementations
+> still holds — what is struck is the claim that the second implementation must be a channel.
+
+---
+
 # DESIGN — 118.9 · `Seqable` is the BRIDGE. The yielder pattern is a channel, and we already have channels.
 
 **Builder, 2026-08-17**, naming the pattern he wants:
