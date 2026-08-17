@@ -213,7 +213,7 @@ FOURTH registry to the arc whose thesis is ONE. Recorded so the hole is not re-d
 | 2 | `RustOpaque` appears in **no tag name** anywhere; the arm routes through `tag_from_type_path` |
 | 3 | the `if let Some(t) = types` door is GONE from the `RustOpaque` arm |
 | 4 | every ex-`.opaque` value emits `#wat.<home>/<Name> nil` — **except `HandlePool`, whose body stays its name** |
-| 5 | the 3 golden `.edn` files are REGENERATED, and the diff is inspected hunk-by-hunk |
+| 5 | ⊘ CORRECTED 2026-08-16 BEFORE BRIEFING — **no golden moves in this strike.** All 3 golden `.edn` files carry `#wat-edn.holon` ONLY; `.opaque` appears in none of them. The stone originally asserted a regeneration that measurement disproved. Goldens move with Part 2's `.holon` ruling, not here. |
 | 6 | floor GREEN via `scripts/floor.sh` — read the **Summary line** |
 | 7 | clippy **0** |
 | 8 | the run/skip arithmetic accounted for |
