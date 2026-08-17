@@ -1,4 +1,18 @@
-;; ★ THE FULL chain-D `Seqable` DESIGN, TYPE-CHECKING TODAY. Run 2026-08-17, --check exit 0.
+;; ⛔⛔ CORRECTED 2026-08-17 — THIS FILE PROVES DECLARATIONS ONLY. CALLS DO NOT WORK.
+;;
+;; As first committed (0548f4f9) this header said "THE FULL chain-D Seqable DESIGN, TYPE-CHECKING
+;; TODAY". That was WRONG, and the error was mine: this file DECLARES `:sq::count-of` and never
+;; CALLS it, so `--check` exit 0 proved only that the declarations are well-formed.
+;;
+;; Adding four call sites makes it RED — every one:
+;;   :sq::count-of: parameter #1 expects :sq::Seqable<?454>; got :wat::core::Vector<wat::core::i64>
+;;
+;; ★ THE REAL BLOCKER, now precisely located and NOT any of the three on record: a concrete
+;; builtin does NOT unify against a PARAMETRIC surface parameter. Its non-parametric sibling
+;; probe-seqable-is-spellable-today.wat DOES run end-to-end and prints "3,4" — so the delta is
+;; parametricity alone, not surfaces, not extend-type, not builtins.
+;;
+;; See docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/NOTE-the-real-blocker-is-parametric-satisfaction.md
 ;;
 ;; Sibling of probe-seqable-is-spellable-today.wat, which refuted infer.rs:638's three blockers
 ;; with a NON-parametric surface over two containers. This one closes the remaining three
