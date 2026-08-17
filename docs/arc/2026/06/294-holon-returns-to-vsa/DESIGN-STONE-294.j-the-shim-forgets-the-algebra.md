@@ -315,3 +315,66 @@ wire form) is its **own stone**, ruled by the builder to follow this one. Measur
 call sites**; `Thermometer` is a Rust intrinsic (`runtime.rs:6459`) so today's registry-driven kwargs
 machinery does not reach it; **`SlotMarker` has ZERO `.wat` call sites and no runtime dispatch arm** —
 it is not wat-constructible at all, so the kwargs question is moot for it and only its wire form matters.
+
+---
+
+# ⛔ CORRECTION 2 — 2026-08-16. THE DATA TAG IS `#wat/holon`. `#wat.holon <data>` IS UNPARSEABLE.
+
+The RELAND went red on one row and the rider root-caused it as a model gap. It is not. **It is my
+tag spelling, and the spelling cannot parse.**
+
+## The wall, on disk
+
+`crates/wat-edn/src/parser.rs:355` — a user tag with no `/` is a hard parse error:
+
+```rust
+Error::at(pos, ErrorKind::UserTagMissingNamespace(other.into()))
+```
+
+Only built-ins (`#inst`, `#uuid`, the `wat-edn.float` sentinels) may be slashless. So **`#holon {…}`
+and `#wat.holon {…}` are BOTH unparseable** — `wat.holon` is a *namespace with no name*, which is the
+same violation as a bare name.
+
+**I wrote `#wat.holon <data>` into CORRECTION 1 immediately after quoting the rule it breaks.** I
+applied *"user tags MUST be namespaced"* to `#holon`, then violated it one line later.
+`[[feedback_a_claims_support_does_not_travel_with_the_claim]]` — the rule and its application were two
+lines apart and I still did not carry it across.
+
+## The consequence, and why the rider's STOP-3 is downstream of this
+
+With no parseable tag available, the rider emitted **bare untagged data** (`edn_shim.rs:4013`,
+`Ok(v) => value_to_edn_with(&v, types)`). That is the only move left when the specified tag will not
+parse. And it is exactly what produced the failure: a `:wat::holon::HolonAST`-declared struct field
+whose wire value is bare data is **wire-indistinguishable** from a plain field of the same shape, so
+the general decoder cannot know to re-lift it via `to_holon_inner`.
+
+The rider then proposed threading declared field types into `reconstruct_struct`. **That is not
+needed**, and its premise was slightly off: the declared type is ALREADY in hand —
+`for (fname, fty) in &def.fields` (`edn_shim.rs:3104`) passes `fty` to `rewrap_option_field`. Only the
+*dispatch* is Option-only. But a tag is the better cure regardless, because a tag works in **every
+position** — struct field, vector element, map value, service argument — while a declared-type lookup
+only works where a declared type is in scope.
+
+## THE SPELLING — measured free
+
+```
+#wat/holon {:key1 "val1"}        data — re-derived to a holon on read
+#wat.holon/Thermometer {…}       directive
+#wat.holon/SlotMarker  {…}       directive
+```
+
+`Tag::ns("wat", "holon")`. **The bare `wat` namespace is unused** — every existing tag is
+`wat.<something>`: `wat.holon` 7, `wat.kernel` 5, `wat.core` 4, `wat.rete` 2, `wat.stream` 1,
+`wat.parse` 1, and **zero** `Tag::ns("wat", …)`. No collision.
+
+## Standing findings from the RELAND rider — both real, neither in scope here
+
+1. **`#holon {:a "b"}` (arc 294.b's literal syntax) is BROKEN TODAY, pre-existing.** It lowers via
+   `watast_to_holon`'s `WatAST::Map` arm, which builds `Bind(String("Map"), …)` — **missing the
+   `Atom(…)` wrap** that its own doc comment specifies and that `to_holon_inner`'s sibling `HashMap`
+   arm actually produces. So the builder's canonical example is wire-invisible to `from_holon_item`'s
+   classifier match. Not this stone's to fix (`watast_to_holon` has 8 unrelated callers). **Tracked.**
+2. **The rider deleted its own reproduction** of the field-decode gap after capturing the finding in
+   prose. `[[feedback_a_negative_control_that_can_be_kept_must_be_kept]]` — a reproduction that CAN be
+   kept MUST be kept; prose is the medium that rots. If the gap survives the tag, the reproduction is
+   rebuilt and kept this time.
