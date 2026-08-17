@@ -142,3 +142,111 @@ start re-quoting strings, which would silently corrupt all 19 existing sites.
   also owns the twelve `<verb>-stream` twins. `join` over `Vector<T>` does not need it.
 - **The `wat.string/*` rename.** That is chain-E. This stone keeps `:wat::core::string::join`.
 - **Making intrinsics first-class values.** Arc 255. The lambda stands until then.
+
+---
+
+# ⛔ CORRECTION — 2026-08-17. `join` STAYS AN INTRINSIC. The wat-defn breaks stdlib bootstrap.
+
+The stone above ruled a **wat defn**. A rider built it exactly as specified, hit **STOP-2**, and
+stopped without chasing it. The premise was wrong and the disk says so.
+
+## The break, verbatim
+
+```
+#wat.macro/ProgramBodyEvalFailed — macro :wat::core::defrecord — program body eval failed
+  at wat/core.wat:1885
+  cause: #wat.runtime/UnknownFunction "unknown function: :wat::core::string::join"
+         at wat/Record.wat:172
+```
+
+`wat/core.wat:1885` self-invokes `(:wat::core::defrecord :wat::kernel::Location …)` **while
+`core.wat` is still loading**. `defrecord`'s macro body computes a namespace prefix at
+`wat/Record.wat:172` — `(:wat::core::string::join "::" ns-lead)` — and that runs at **expansion
+time**, during the load. A wat-defn `join` does not exist yet.
+
+## ★ MEASURED: it is not one file, and it is not fixable by reordering
+
+Load positions in `src/stdlib.rs` of every `wat/` file that uses `join`:
+
+```
+stdlib.rs:40    wat/core.wat      ─┐
+stdlib.rs:131   wat/Record.wat    ─┼─ THREE users load BEFORE string.wat
+stdlib.rs:169   wat/bracket.wat   ─┘
+stdlib.rs:278   wat/string.wat       ← where join<T> would live
+stdlib.rs:326   wat/lint.wat
+stdlib.rs:333   wat/service.wat
+```
+
+And `string.wat` **cannot move earlier**: it calls `:wat::core::defn` and `:wat::core::keyword`
+(both `core.wat`) plus `mapv` (`seq.wat`).
+
+## ★★ THE STRUCTURAL FACT — the intrinsic is a CYCLE-BREAKER
+
+**`core.wat` ↔ `string.wat` is a genuine dependency cycle.** `core.wat`'s macro bodies need `join`;
+`string.wat` needs `defn`. The graph is acyclic today **only because `join` is a Rust intrinsic** —
+available from expression zero, before any wat exists.
+
+That is not a preference about where code should live. It is a property of the substrate, and it is
+**undeclared and unenforced** anywhere: nothing in `stdlib.rs`, nothing in the wat files, nothing in
+the docs says that a verb consumed by an early macro body may not be defined in wat. Filed separately;
+the next Rust→wat move rediscovers it at the cost of a rider flight.
+
+## The four questions — run flat on all four options, 2026-08-17
+
+- **A — generic intrinsic.** Obvious YES (one verb, one impl, available from expression zero, no
+  load-order knowledge required) · Simple YES (two edits, no new concept, no second name) ·
+  Honest YES (the signature says `Vector<T>` and means it; and it stops claiming wat can define what
+  wat cannot) · UX YES (Ruby semantics, 19 sites unchanged, no choice to make). **ALL FOUR.**
+- **B — two-tier (`join'` early, `join<T>` late).** Obvious NO (which verb you may call depends on
+  your file's line number in `stdlib.rs`) · Simple NO (invents an unenforced rule) · **Honest NO** —
+  presents `join<T>` as public while the stdlib's own early files cannot use it, and records that
+  nowhere · UX NO.
+- **C — reorder `string.wat` earlier.** All four NO, and moot: **impossible**, measured — it needs
+  `defn` from `core.wat`.
+- **D — hand-roll the ~11 early call sites.** Obvious NO · Simple NO · Honest NO (deletes real uses to
+  route around an undeclared rule *without recording the rule*) · UX NO.
+
+**Builder: "A has been reasoned."**
+
+## The corrected stone
+
+`join` **stays a Rust intrinsic** and becomes generic:
+
+```rust
+":wat::core::string::join" => TypeScheme {
+    type_params: vec!["T"],                                          // ← was vec![]
+    params: vec![ string_ty(),
+                  Parametric { head: "wat::core::Vector",
+                               args: vec![TypeExpr::Var("T")] } ],   // ← was string_ty()
+    ret: string_ty(),
+}
+```
+
+…and `eval_string_join` renders each element through the **total** `str` (279.2, `25d9d015`) instead
+of demanding `Value::String`.
+
+**Everything the exemplar proved still holds and still decides the contract**: `str` is total, so `T`
+needs no bound; a `String` element renders **bare**, so `(join "-" ["a" "b"])` → `"a-b"`, Ruby's
+semantics, off the disk rather than by ruling.
+
+## What this correction does NOT change
+
+- **`join'` is not minted.** There is one `join`. The `insert-all` / `insert-all'` pattern is not used
+  here; there is no wat surface to delegate from.
+- **No `mapv`, no lambda, no arc-255 workaround.** The rendering happens in Rust, so the
+  intrinsic-as-a-value asymmetry never arises in this stone. `255/NOTE-an-intrinsic-cannot-be-passed-as-a-value.md`
+  stands on its own — it was found here but does not depend on this stone.
+- **The gate rows are unchanged.** Rows 1 and 2 are still the contract, and row 2 is still
+  load-bearing.
+- **The 255 cost is accepted and stated**: `join` remains one of the 535 dispatch arms to carve. That
+  is real, small, and cheaper than a broken bootstrap. Trading a working substrate for a symbolic
+  reduction in a future migration would be a manufactured prerequisite.
+
+## What the rider did right, recorded because it is the reason this is correct
+
+It followed the brief exactly, hit the wall, **did not revert**, **did not chase**, left the tree as a
+live reproduction, and traced the cause to named source lines in three files plus the load order.
+It also explicitly declined to fix `Record.wat` on its own authority — *"that is a design decision
+outside this stone's authorized moves, not mine to make unilaterally."* Correct on every count. The
+STOP is what produced the fact that settles a question I had oscillated on three times with bad
+reasons on both sides.
