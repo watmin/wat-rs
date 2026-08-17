@@ -1692,6 +1692,49 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::stream::NextOutcome<T> — Arc 118.11a (stone A of two, "mint next +
+    // NextOutcome", DESIGN-STONE-118.11a). The matchable outcome of
+    // `:wat::stream::next`, the single-force pull primitive that replaces the
+    // three-force `empty?`/`first`/`rest` walk protocol (measured: 15 user-code
+    // calls for 5 elements without the memo; the memo patches the count but pins
+    // the whole realized chain in memory, +297 B/element). `next` forces exactly
+    // one cell (`crate::stream::realize`, WHNF) and returns both halves in one
+    // shot — nothing to dedupe, so no cache is needed:
+    //   :Item      [value <- T, rest <- Stream<T>] — the forced head + the
+    //                                                 undrained tail, together.
+    //   :Exhausted []                              — the named end.
+    // Parametric in T exactly as `RecvOutcome<O>` above (the copied exemplar) —
+    // and for the identical reason: the nullary `Exhausted` variant is the
+    // documented hazard in `check.rs` (the un-parametrized-nullary-variant
+    // unify failure) unless the enum itself carries `type_params`. IMPURE like
+    // `RecvOutcome<O>`, not `SendOutcome`/`CloseOutcome`: T is a caller-supplied
+    // element type that MAY be a live resource (a `Stream` of open peers, say),
+    // so a blanket `Pure` marking would lie about what crosses. This stone is
+    // purely additive — no existing verb moves, the `forced: OnceLock` memo in
+    // `src/stream/mod.rs` is untouched, no call site migrates onto `next` yet.
+    // That migration (and the memo's eventual deletion) is stone B.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::stream::NextOutcome".into(),
+        type_params: vec!["T".into()],
+        purity: Purity::Impure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Item".into(),
+                fields: vec![
+                    ("value".into(), TypeExpr::Path("T".into())),
+                    (
+                        "rest".into(),
+                        TypeExpr::Parametric {
+                            head: "wat::stream::Stream".into(),
+                            args: vec![TypeExpr::Path("T".into())],
+                        },
+                    ),
+                ],
+            },
+            EnumVariant::Unit("Exhausted".into()),
+        ],
+    }));
+
     // :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
     // DESIGN-send-outcome-wall.md): the send-side twin of RecvOutcome<O> above.
     // send' RAISED reason-free MalformedForms on a gone peer ("peer already

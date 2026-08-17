@@ -2098,6 +2098,12 @@ mod completeness_gate {
     ":wat::stream::cons",
     ":wat::stream::empty",
     ":wat::stream::lazy",
+    // Arc 118.11a — mint next/NextOutcome. Same open question as its three siblings just
+    // above (RULES: ":wat::stream::" is Disp::Unreviewed, "laziness — a Stream's purity is
+    // its producer's") — `next` forces the SAME cell `first`/`rest` already force, so it
+    // inherits exactly their unreviewed status, not a fresh one. Ruling purity is out of
+    // scope for this stone (additive: mint the verb, change nothing else).
+    ":wat::stream::next",
     ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the

@@ -19867,6 +19867,22 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 118.11a — `next :: ∀T. Stream<T> -> NextOutcome<T>`. Forces exactly one
+    // cell (`crate::stream::realize`) and returns both halves — the pull primitive
+    // stone B's migration will move `map`/`filter`/`keep`/`into`/`doall` onto.
+    // Additive only: no existing scheme above is touched.
+    env.register(
+        ":wat::stream::next".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![seq_t()],
+            ret: TypeExpr::Parametric {
+                head: "wat::stream::NextOutcome".into(),
+                args: vec![t_var()],
+            },
+            rest_param_type: None,
+        },
+    );
 
     // Arc 144 slice 3 — fingerprints for bare dispatch forms: contains? / get / conj.
     // These are Rust ∀T intrinsics (infer_contains / infer_get / infer_conj) whose
