@@ -271,15 +271,23 @@
 ;; `ThreadSelfPeer'`; this edge is what lets that call be STATIC.
 (:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)
 
-;; ── Bound<S,R> — the listening state minted by (listener' (thread) :S :R) ─────
+;; ── Shared / Wire — phantom transport markers (293.W.2f) ─────────────────────
+;; Type arguments only. Not values. The third argument of Address<S,R,T>:
+;;   Shared — in-locus (crossbeam). A process may never dial this.
+;;   Wire   — portable (SocketAddressWire). A process may hold and dial this.
+(:wat::core::defstruct :wat::kernel::Shared [])
+(:wat::core::defstruct :wat::kernel::Wire [])
+
+;; ── Bound<S,R,T> — the listening state minted by (listener' (thread) :S :R) ─────
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
 ;; (Listener'/Address'). `listener` is the server accept-side; `address` is what
 ;; clients dial via connect'. Replaces the bare Tuple the thread tier returned.
-(:wat::core::defstruct :wat::spawn::Bound<S,R>
+;; T is the transport marker (Shared | Wire); 2-arg Bound<S,R> still means T unknown.
+(:wat::core::defstruct :wat::spawn::Bound<S,R,T>
   [listener <- :wat::kernel::Listener<S,R>
-   address  <- :wat::kernel::Address<S,R>])
+   address  <- :wat::kernel::Address<S,R,T>])
 
-;; ── Launched<S,R> — what Locus/launch returns: the spawn handle + the dial address ──
+;; ── Launched<S,R,Sh,Lu,T> — what Locus/launch returns: the spawn handle + the dial address ──
 ;; A STRUCT, not a record (address is an Address' RustOpaque; handle is :Spawned).
 ;; `handle` is the owner-side spawn handle (Thread'/Process'/future-remote all derive :Spawned).
 ;; `address` is what clients dial via connect'.
@@ -288,9 +296,10 @@
 ;; Lu=LineageUp), no longer the opaque :Spawned marker. Thread'<Sh,Lu>/Process'<Sh,Lu>
 ;; bind it via the `derive …Peer'` foundation. This is what makes owner-only `stop` able
 ;; to send'/recv' on the Handle's handle. S,R = the client (listener/dial) channel.
-(:wat::core::defstruct :wat::spawn::Launched<S,R,Sh,Lu>
+;; T is the transport marker (Shared | Wire); 4-arg Launched<S,R,Sh,Lu> still means T unknown.
+(:wat::core::defstruct :wat::spawn::Launched<S,R,Sh,Lu,T>
   [handle  <- :wat::kernel::Peer<Sh,Lu>
-   address <- :wat::kernel::Address<S,R>])
+   address <- :wat::kernel::Address<S,R,T>])
 
 ;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
 ;;

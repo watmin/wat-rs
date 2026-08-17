@@ -871,7 +871,41 @@
                         (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::revoke-worker")))
        coords-ty-kw  (:wat::core::keyword-node
                         (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::Coords")))
-       checker-call  `(~checker-kw ~@kwpairs)
+       ;; 293.W.2f — process runner door. A ProcessOpts constructor locus (or
+       ;; with-label wrapping one) must not receive a Shared-memory handle.
+       locus-head    (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus) "list")
+                        (:wat::core::let [lch (:wat::core::ast->children locus)]
+                          (:wat::core::if (:wat::core::empty? lch) "" (:wat::core::ast-name (:wat::core::first lch))))
+                        "")
+       locus-inner   (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label")
+                        (:wat::core::let [lch (:wat::core::ast->children locus)]
+                          (:wat::core::if (:wat::core::empty? (:wat::core::rest lch))
+                            ""
+                            (:wat::core::let [inner (:wat::core::first (:wat::core::rest lch))]
+                              (:wat::core::if (:wat::core::= (:wat::core::ast-kind inner) "list")
+                                (:wat::core::let [ich (:wat::core::ast->children inner)]
+                                  (:wat::core::if (:wat::core::empty? ich) "" (:wat::core::ast-name (:wat::core::first ich))))
+                                ""))))
+                        locus-head)
+       process-door? (:wat::core::string::starts-with?
+                       (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label") locus-inner locus-head)
+                       ":wat::spawn::process")
+       wire-pairs    (:wat::core::if process-door?
+                        (:wat::core::foldl
+                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                           i   <- :wat::core::i64]
+                            -> :wat::core::Vector<wat::WatAST>
+                            (:wat::core::let
+                              [item (:wat::core::Option/expect
+                                      (:wat::core::get kwpairs i)
+                                      "bracket/map: kwpair")]
+                              (:wat::core::if (:wat::core::= (:wat::core::i64::mod i 2) 1)
+                                (:wat::core::conj acc `(:wat::kernel::require-wire-address ~item))
+                                (:wat::core::conj acc item))))
+                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::range 0 (:wat::core::length kwpairs)))
+                        kwpairs)
+       checker-call  `(~checker-kw ~@wire-pairs)
        pair-sym      (:wat::core::fresh-symbol "pair")
        coords-sym    (:wat::core::fresh-symbol "coords")
        handles-sym   (:wat::core::fresh-symbol "handles")]
@@ -921,7 +955,40 @@
                         (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::revoke-worker")))
        coords-ty-kw  (:wat::core::keyword-node
                         (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::Coords")))
-       checker-call  `(~checker-kw ~@kwpairs)
+       ;; 293.W.2f — process runner door (twin of map).
+       locus-head    (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus) "list")
+                        (:wat::core::let [lch (:wat::core::ast->children locus)]
+                          (:wat::core::if (:wat::core::empty? lch) "" (:wat::core::ast-name (:wat::core::first lch))))
+                        "")
+       locus-inner   (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label")
+                        (:wat::core::let [lch (:wat::core::ast->children locus)]
+                          (:wat::core::if (:wat::core::empty? (:wat::core::rest lch))
+                            ""
+                            (:wat::core::let [inner (:wat::core::first (:wat::core::rest lch))]
+                              (:wat::core::if (:wat::core::= (:wat::core::ast-kind inner) "list")
+                                (:wat::core::let [ich (:wat::core::ast->children inner)]
+                                  (:wat::core::if (:wat::core::empty? ich) "" (:wat::core::ast-name (:wat::core::first ich))))
+                                ""))))
+                        locus-head)
+       process-door? (:wat::core::string::starts-with?
+                       (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label") locus-inner locus-head)
+                       ":wat::spawn::process")
+       wire-pairs    (:wat::core::if process-door?
+                        (:wat::core::foldl
+                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                           i   <- :wat::core::i64]
+                            -> :wat::core::Vector<wat::WatAST>
+                            (:wat::core::let
+                              [item (:wat::core::Option/expect
+                                      (:wat::core::get kwpairs i)
+                                      "bracket/each: kwpair")]
+                              (:wat::core::if (:wat::core::= (:wat::core::i64::mod i 2) 1)
+                                (:wat::core::conj acc `(:wat::kernel::require-wire-address ~item))
+                                (:wat::core::conj acc item))))
+                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::range 0 (:wat::core::length kwpairs)))
+                        kwpairs)
+       checker-call  `(~checker-kw ~@wire-pairs)
        pair-sym      (:wat::core::fresh-symbol "pair")
        coords-sym    (:wat::core::fresh-symbol "coords")
        handles-sym   (:wat::core::fresh-symbol "handles")]

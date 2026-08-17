@@ -35,5 +35,5 @@ fn w2a_kwargs_check_mint_swap_is_compile_error() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == ":wat::capability::TypedCapability<probe::Echo::Op,probe::Echo::Reply>"
-            && got == ":probe::kv::Handle");
+            && got == ":probe::kv::Handle<wat::kernel::Wire>");
 }

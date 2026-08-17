@@ -6765,6 +6765,8 @@ fn dispatch_keyword_head_value(
         // 293.W.2e — Address answers "is this shared memory?": portable_form Some = wire,
         // None = crossbeam. Same purity/bool as peer-wire?, ADDRESS_TYPE_PATH not PEER.
         ":wat::kernel::address-wire?" => eval_address_wire(args, list_span, env, sym),
+        // 293.W.2f — check-time Wire door; runtime is identity.
+        ":wat::kernel::require-wire-address" => eval_require_wire_address(args, list_span, env, sym),
         // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
         // select' : Vector<peer<I,O>> -> Tuple<i64, O>
         ":wat::kernel::select" => eval_peer_select_prime(args, list_span, env, sym),
@@ -25692,7 +25694,7 @@ fn eval_listener_prime(
 ::wat_source_derive::wat_field_names_from!(
     BOUND_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::Bound<S,R>"
+    ":wat::spawn::Bound<S,R,T>"
 );
 fn bound_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
@@ -31619,6 +31621,29 @@ fn eval_address_wire(
         }
     };
     Ok(Value::bool(addr.portable_form().is_some()))
+}
+
+/// `(:wat::kernel::require-wire-address x)` — 293.W.2f. Runtime identity;
+/// the Wire check lives in `infer_require_wire_address`.
+fn eval_require_wire_address(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::require-wire-address";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    Ok(eval_inner(&args[0], env, sym)?.value_owned())
 }
 
 /// `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.

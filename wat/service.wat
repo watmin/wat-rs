@@ -734,8 +734,43 @@
      serve-name-str (:wat::core::string::interpolate "{b}::serve" :b fqdn-base)
      start-name    (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{b}/start{p}" :b fqdn-base :p fqdn-tp))
+     ;; 293.W.2f — Handle<T> / Status<T> carry the transport marker (Shared | Wire).
+     ;; Bare `::Handle{p}` / `::Status{p}` (T unknown) remain the residual.
+     ;; Transport param is `T` unless the service already binds `T` (`box-svc<T>`),
+     ;; in which case it is `Xt` so the two slots do not collide.
+     transport-param (:wat::core::if (:wat::core::if (:wat::core::string::contains? fqdn-tp "<T>") true
+                                       (:wat::core::if (:wat::core::string::contains? fqdn-tp "<T,") true
+                                         (:wat::core::if (:wat::core::string::contains? fqdn-tp ",T>") true
+                                           (:wat::core::string::contains? fqdn-tp ",T,"))))
+                       "Xt"
+                       "T")
+     handle-t-suffix (:wat::core::if fqdn-parametric?
+                       (:wat::core::string::concat
+                         (:wat::core::string::subs fqdn-tp 0
+                           (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
+                         (:wat::core::string::concat ","
+                           (:wat::core::string::concat transport-param ">")))
+                       (:wat::core::string::concat "<" (:wat::core::string::concat transport-param ">")))
+     handle-shared-suffix (:wat::core::if fqdn-parametric?
+                            (:wat::core::string::concat
+                              (:wat::core::string::subs fqdn-tp 0
+                                (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
+                              ",wat::kernel::Shared>")
+                            "<wat::kernel::Shared>")
+     handle-wire-suffix (:wat::core::if fqdn-parametric?
+                          (:wat::core::string::concat
+                            (:wat::core::string::subs fqdn-tp 0
+                              (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
+                            ",wat::kernel::Wire>")
+                          "<wat::kernel::Wire>")
+     handle-bare-name (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{b}::Handle{p}" :b fqdn-base :p fqdn-tp))
      handle-name   (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{b}::Handle{p}" :b fqdn-base :p fqdn-tp))
+                     (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-t-suffix))
+     handle-shared-name (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-shared-suffix))
+     handle-wire-name (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-wire-suffix))
      ;; handle-new-kw: :<fqdn>::Handle' — the PRIME positional ctor (arc 294 item 9a: the bare
      ;; `:<fqdn>::Handle` is now the kwargs UX macro; generated machinery constructs via the prime,
      ;; exactly as state-new-kw does for the State struct — see start-body/resume-body below).
@@ -756,10 +791,11 @@
      vector-ty     (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "wat::core::Vector<wat::kernel::Peer<{r},{o}>>"
                        :r proto-reply-ty-str :o proto-op-ty-str))
-     ;; Address<proto::Op,proto::Reply>
+     ;; Address<proto::Op,proto::Reply,T> — T is Handle/Status's transport marker (293.W.2f).
      addr-ty       (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "wat::kernel::Address<{o},{r}>"
-                       :o proto-op-ty-str :r proto-reply-ty-str))
+                     (:wat::core::string::interpolate "wat::kernel::Address<{o},{r},{t}"
+                       :o proto-op-ty-str :r proto-reply-ty-str :t
+                       (:wat::core::string::concat transport-param ">")))
      ;; Client Peer<proto::Op,proto::Reply> — connect'(Address<Op,Reply>) → Peer<Op,Reply>.
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
      ;; peer-ty (Peer<Reply,Op>) which is the server-side peer (accepts via listener').
@@ -790,7 +826,9 @@
      ;;   naming per-service types.
      admin-ty-str   (:wat::core::string::interpolate "{b}::Admin{p}" :b fqdn-base :p fqdn-tp)
      admin-ty       (:wat::core::keyword/from-string admin-ty-str)
-     status-ty-str (:wat::core::string::interpolate "{b}::Status{p}" :b fqdn-base :p fqdn-tp)
+     ;; 293.W.2f — Status<T> so Started's addr-ty T is a real type parameter
+     ;; (not a rigid leftover name). Process launch unifies T:=Wire; thread T:=Shared.
+     status-ty-str (:wat::core::string::interpolate "{b}::Status{s}" :b fqdn-base :s handle-t-suffix)
      status-ty  (:wat::core::keyword/from-string status-ty-str)
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty Peer<Reply,Op>).
@@ -1810,7 +1848,7 @@
                          (:wat::core::string::interpolate "{b}/stop{p}" :b fqdn-base :p fqdn-tp))
      handle-handle-acc (:wat::core::keyword/from-string
                          (:wat::core::string::interpolate "{b}::Handle/handle" :b fqdn-base))
-     stop-method-params `[h <- ~handle-name]
+     stop-method-params `[h <- ~handle-bare-name]
      stop-method-body  `(:wat::core::let
                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
@@ -1854,7 +1892,7 @@
      hib-r-sym         (:wat::core::symbol-node "r")
      hibernate-method-name (:wat::core::keyword/from-string
                              (:wat::core::string::interpolate "{b}/hibernate{p}" :b fqdn-base :p fqdn-tp))
-     hibernate-method-params `[h <- ~handle-name]
+     hibernate-method-params `[h <- ~handle-bare-name]
      hibernate-method-body  `(:wat::core::let
                                ;; arc 278 the send'-outcome wall — a send-then-recv': the recv'
                                ;; right below faces Lost/Closed; the send' just proceeds regardless.
@@ -1901,7 +1939,7 @@
      ;; with the receiver's own T already bound, so they name the bare fn (no turbofish).
      grant-call-name   (:wat::core::keyword/from-string
                          (:wat::core::string::interpolate "{b}/grant" :b fqdn-base))
-     grant-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
+     grant-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :wat::core::i64)]
      ;; Grant is the process-tier accept-gate. Hinge is the existing
      ;; `peer-process` on the lineage handle (same un-erase stop/signal use).
      ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer.
@@ -1952,7 +1990,7 @@
                           (:wat::core::string::interpolate "{b}/revoke{p}" :b fqdn-base :p fqdn-tp))
      revoke-call-name   (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{b}/revoke" :b fqdn-base))
-     revoke-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
+     revoke-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :wat::core::i64)]
      ;; Twin of grant: process-only via `peer-process`. Shared-memory lineage
      ;; has no pid set to revoke.
      revoke-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
@@ -2200,13 +2238,55 @@
                           [] -> :wat::core::Vector<wat::WatAST>
                           (:wat::core::concat ~peers-forms-node ~own-forms-call))
 
-     ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
-     ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.
-     ;; arc 291 3a-ii-α: ship is wrapped in Admin::Init so the lineage peer carries Admin values.
-     ;; dispatch-admin-name is passed in place of init-name so both tiers apply it.
-     ;; extract-addr-name is passed as lu-addr-kw for the ProcessOpts impl.
-     ;; arc 291 kwargs-start: flip to Form A all-kwargs; locus-sym shared with body for hygiene.
-     start-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
+     ;; 293.W.2f — `/start` must not erase T. Native kwargs+defclause is unexpressible
+     ;; (`& [… ]` is a defn-macro idiom; defclause's argspec rejects a vector after `&`;
+     ;; a generated defclause inside this `do` is also invisible to the top-level
+     ;; defclause preregister). Public `start` stays a kwargs macro. Three positional
+     ;; impls (ThreadOpts → Handle<Shared>, ProcessOpts → Handle<Wire>, Locus residual)
+     ;; so K,V infer from init args; the macro picks the impl from the `:locus` AST.
+     ;; Abstract-locus (a symbol / `Locus`-typed value) is the residual — T stays unknown.
+     start-impl-name (:wat::core::keyword/from-string
+                       (:wat::core::string::interpolate "{b}/start$impl{p}" :b fqdn-base :p fqdn-tp))
+     start-impl-call (:wat::core::keyword/from-string
+                       (:wat::core::string::interpolate "{b}/start$impl" :b fqdn-base))
+     start-impl-thread-name (:wat::core::keyword/from-string
+                              (:wat::core::string::interpolate "{b}/start$impl-thread{p}" :b fqdn-base :p fqdn-tp))
+     start-impl-thread-call (:wat::core::keyword/from-string
+                              (:wat::core::string::interpolate "{b}/start$impl-thread" :b fqdn-base))
+     start-impl-process-name (:wat::core::keyword/from-string
+                               (:wat::core::string::interpolate "{b}/start$impl-process{p}" :b fqdn-base :p fqdn-tp))
+     start-impl-process-call (:wat::core::keyword/from-string
+                               (:wat::core::string::interpolate "{b}/start$impl-process" :b fqdn-base))
+     start-macro-name (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{b}/start" :b fqdn-base))
+     resume-impl-name (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{b}/resume$impl{p}" :b fqdn-base :p fqdn-tp))
+     resume-impl-call (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{b}/resume$impl" :b fqdn-base))
+     resume-impl-thread-name (:wat::core::keyword/from-string
+                               (:wat::core::string::interpolate "{b}/resume$impl-thread{p}" :b fqdn-base :p fqdn-tp))
+     resume-impl-thread-call (:wat::core::keyword/from-string
+                               (:wat::core::string::interpolate "{b}/resume$impl-thread" :b fqdn-base))
+     resume-impl-process-name (:wat::core::keyword/from-string
+                                (:wat::core::string::interpolate "{b}/resume$impl-process{p}" :b fqdn-base :p fqdn-tp))
+     resume-impl-process-call (:wat::core::keyword/from-string
+                                (:wat::core::string::interpolate "{b}/resume$impl-process" :b fqdn-base))
+     resume-macro-name (:wat::core::keyword/from-string
+                         (:wat::core::string::interpolate "{b}/resume" :b fqdn-base))
+     start-call-args-sym (:wat::core::symbol-node "call-args")
+     start-fname-nodes (:wat::core::foldl
+                         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                          n   <- :wat::WatAST]
+                           -> :wat::core::Vector<wat::WatAST>
+                           (:wat::core::conj acc n))
+                         (:wat::core::conj (:wat::core::Vector :wat::WatAST) locus-sym)
+                         init-arg-names)
+     start-fnames-ast (:wat::core::with-children init-params-vec start-fname-nodes)
+     start-impl-params `[~locus-sym <- :wat::spawn::Locus ~@init-param]
+     start-impl-thread-params `[~locus-sym <- :wat::spawn::ThreadOpts ~@init-param]
+     start-impl-process-params `[~locus-sym <- :wat::spawn::ProcessOpts ~@init-param]
+     start-handle-expr `(~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
+                                        (:wat::spawn::Launched/address ~lr-sym))
      start-body    `(:wat::core::let
                       [~origin-sym (:wat::kernel::call-site)
                        ~lr-sym (~launch-head-kw
@@ -2232,9 +2312,105 @@
                                  ;; arc 278: lu-mk-kw = the Status::Started ctor (thread tier's
                                  ;; generic serve closure uses it to send Started after :init).
                                  (:wat::core::keyword/from-string ~status-started-str))]
-                      (~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
-                                      (:wat::spawn::Launched/address ~lr-sym)))
-     start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
+                      ~start-handle-expr)
+     start-body-thread `(:wat::core::let
+                          [~origin-sym (:wat::kernel::call-site)
+                           ~lr-sym (~launch-head-kw
+                                     (:wat::spawn::with-label ~locus-sym
+                                       (:wat::process::Service
+                                         :name (:wat::core::keyword/from-string ~fqdn-base)
+                                         :file (:wat::kernel::Frame/file ~origin-sym)
+                                         :line (:wat::kernel::Frame/line ~origin-sym)))
+                                     (~admin-init-kw ~@init-arg-names)
+                                     (:wat::core::keyword/from-string ~dispatch-admin-name-str)
+                                     (:wat::core::keyword/from-string ~serve-name-str)
+                                     (~service-forms-kw)
+                                     (:wat::core::keyword/from-string ~extract-addr-name-str)
+                                     (:wat::core::keyword/from-string ~status-started-str))]
+                          (:wat::core::ann-form ~start-handle-expr ~handle-shared-name))
+     start-body-process `(:wat::core::let
+                           [~origin-sym (:wat::kernel::call-site)
+                            ~lr-sym (~launch-head-kw
+                                      (:wat::spawn::with-label ~locus-sym
+                                        (:wat::process::Service
+                                          :name (:wat::core::keyword/from-string ~fqdn-base)
+                                          :file (:wat::kernel::Frame/file ~origin-sym)
+                                          :line (:wat::kernel::Frame/line ~origin-sym)))
+                                      (~admin-init-kw ~@init-arg-names)
+                                      (:wat::core::keyword/from-string ~dispatch-admin-name-str)
+                                      (:wat::core::keyword/from-string ~serve-name-str)
+                                      (~service-forms-kw)
+                                      (:wat::core::keyword/from-string ~extract-addr-name-str)
+                                      (:wat::core::keyword/from-string ~status-started-str))]
+                           (:wat::core::ann-form ~start-handle-expr ~handle-wire-name))
+     start-impl-fn `(:wat::core::defn ~start-impl-name ~start-impl-params -> ~handle-name ~start-body)
+     start-impl-thread-fn `(:wat::core::defn ~start-impl-thread-name ~start-impl-thread-params -> ~handle-shared-name ~start-body-thread)
+     start-impl-process-fn `(:wat::core::defn ~start-impl-process-name ~start-impl-process-params -> ~handle-wire-name ~start-body-process)
+     start-fn      `(:wat::core::do
+                      ~start-impl-fn
+                      ~start-impl-thread-fn
+                      ~start-impl-process-fn
+                      (:wat::core::defmacro ~start-macro-name
+                        [& ~start-call-args-sym <- :wat::core::Vector<wat::WatAST>]
+                        -> :wat::WatAST
+                        (:wat::core::let
+                          [~(:wat::core::symbol-node "flat")
+                           (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::length call-args) 1)
+                                               (:wat::core::= (:wat::core::ast-kind (:wat::core::first call-args)) "map")
+                                               false)
+                             (:wat::core::ast->children (:wat::core::first call-args))
+                             call-args)
+                           ~(:wat::core::symbol-node "found")
+                           (:wat::core::foldl
+                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                              i   <- :wat::core::i64]
+                               -> :wat::core::Vector<wat::WatAST>
+                               (:wat::core::if (:wat::core::not (:wat::core::empty? acc))
+                                 acc
+                                 (:wat::core::let
+                                   [k (:wat::core::Option/expect
+                                        (:wat::core::get flat (:wat::core::i64::* i 2))
+                                        "start kwargs: locus key")
+                                    v (:wat::core::Option/expect
+                                        (:wat::core::get flat (:wat::core::i64::+ (:wat::core::i64::* i 2) 1))
+                                        "start kwargs: locus val")]
+                                   (:wat::core::if (:wat::core::= (:wat::core::ast-name k) ":locus")
+                                     (:wat::core::conj acc v)
+                                     acc))))
+                             (:wat::core::Vector :wat::WatAST)
+                             (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length flat) 2)))
+                           ~(:wat::core::symbol-node "locus-ast")
+                           (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
+                           ~(:wat::core::symbol-node "head-nm")
+                           (:wat::core::if (:wat::core::empty? found)
+                             ""
+                             (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus-ast) "list")
+                               (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                                 (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
+                               ""))
+                           ~(:wat::core::symbol-node "inner-nm")
+                           (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label")
+                             (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                               (:wat::core::if (:wat::core::empty? (:wat::core::rest ch))
+                                 ""
+                                 (:wat::core::let [inner (:wat::core::first (:wat::core::rest ch))]
+                                   (:wat::core::if (:wat::core::= (:wat::core::ast-kind inner) "list")
+                                     (:wat::core::let [ich (:wat::core::ast->children inner)]
+                                       (:wat::core::if (:wat::core::empty? ich) "" (:wat::core::ast-name (:wat::core::first ich))))
+                                     ""))))
+                             head-nm)
+                           ~(:wat::core::symbol-node "ctor-nm")
+                           (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label") inner-nm head-nm)
+                           ~(:wat::core::symbol-node "impl")
+                           (:wat::core::if (:wat::core::string::starts-with? ctor-nm ":wat::spawn::process")
+                             ~start-impl-process-call
+                             (:wat::core::if (:wat::core::string::starts-with? ctor-nm ":wat::spawn::thread")
+                               ~start-impl-thread-call
+                               ~start-impl-call))
+                           ~(:wat::core::symbol-node "kty")  (:wat::core::keyword-node ":wat::core::agg-positional")
+                           ~(:wat::core::symbol-node "fvec") (:wat::core::quote ~start-fnames-ast)
+                           ~(:wat::core::symbol-node "ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~fqdn-base))]
+                          `(:wat::core::kwargs-lower ~impl ~kty ~fvec 0 ~ns ~@call-args))))
 
      ;; ── arc 291 4b-ii: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
      ;; (defn <fqdn>/resume [locus <- :wat::spawn::Locus  snapshot <- ~record-ty] -> ~handle-name
@@ -2245,9 +2421,7 @@
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
      resume-name    (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{b}/resume{p}" :b fqdn-base :p fqdn-tp))
-     ;; arc 291 kwargs-start: mirrors start-params — kwargs Form A; locus-sym shared for hygiene.
-     ;; All init binders are spliced in; resume re-accepts all live operating-inputs.
-     resume-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
+     ;; 293.W.2f — resume is the same T-stamp as start (kwargs UX + impl + ann-form).
      resume-body    `(:wat::core::let
                        [~origin-sym (:wat::kernel::call-site)
                         ~lr-sym (~launch-head-kw
@@ -2264,9 +2438,105 @@
                                   (:wat::core::keyword/from-string ~extract-addr-name-str)
                                   ;; arc 278: lu-mk-kw = the Status::Started ctor (see start-body).
                                   (:wat::core::keyword/from-string ~status-started-str))]
-                       (~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
-                                       (:wat::spawn::Launched/address ~lr-sym)))
-     resume-fn      `(:wat::core::defn ~resume-name ~resume-params -> ~handle-name ~resume-body)
+                       ~start-handle-expr)
+     resume-body-thread `(:wat::core::let
+                           [~origin-sym (:wat::kernel::call-site)
+                            ~lr-sym (~launch-head-kw
+                                      (:wat::spawn::with-label ~locus-sym
+                                        (:wat::process::Service
+                                          :name (:wat::core::keyword/from-string ~fqdn-base)
+                                          :file (:wat::kernel::Frame/file ~origin-sym)
+                                          :line (:wat::kernel::Frame/line ~origin-sym)))
+                                      (~admin-resume-kw ~@init-arg-names)
+                                      (:wat::core::keyword/from-string ~dispatch-admin-name-str)
+                                      (:wat::core::keyword/from-string ~serve-name-str)
+                                      (~service-forms-kw)
+                                      (:wat::core::keyword/from-string ~extract-addr-name-str)
+                                      (:wat::core::keyword/from-string ~status-started-str))]
+                           (:wat::core::ann-form ~start-handle-expr ~handle-shared-name))
+     resume-body-process `(:wat::core::let
+                            [~origin-sym (:wat::kernel::call-site)
+                             ~lr-sym (~launch-head-kw
+                                       (:wat::spawn::with-label ~locus-sym
+                                         (:wat::process::Service
+                                           :name (:wat::core::keyword/from-string ~fqdn-base)
+                                           :file (:wat::kernel::Frame/file ~origin-sym)
+                                           :line (:wat::kernel::Frame/line ~origin-sym)))
+                                       (~admin-resume-kw ~@init-arg-names)
+                                       (:wat::core::keyword/from-string ~dispatch-admin-name-str)
+                                       (:wat::core::keyword/from-string ~serve-name-str)
+                                       (~service-forms-kw)
+                                       (:wat::core::keyword/from-string ~extract-addr-name-str)
+                                       (:wat::core::keyword/from-string ~status-started-str))]
+                            (:wat::core::ann-form ~start-handle-expr ~handle-wire-name))
+     resume-impl-fn `(:wat::core::defn ~resume-impl-name ~start-impl-params -> ~handle-name ~resume-body)
+     resume-impl-thread-fn `(:wat::core::defn ~resume-impl-thread-name ~start-impl-thread-params -> ~handle-shared-name ~resume-body-thread)
+     resume-impl-process-fn `(:wat::core::defn ~resume-impl-process-name ~start-impl-process-params -> ~handle-wire-name ~resume-body-process)
+     resume-fn      `(:wat::core::do
+                       ~resume-impl-fn
+                       ~resume-impl-thread-fn
+                       ~resume-impl-process-fn
+                       (:wat::core::defmacro ~resume-macro-name
+                         [& ~start-call-args-sym <- :wat::core::Vector<wat::WatAST>]
+                         -> :wat::WatAST
+                         (:wat::core::let
+                           [~(:wat::core::symbol-node "flat")
+                            (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::length call-args) 1)
+                                                (:wat::core::= (:wat::core::ast-kind (:wat::core::first call-args)) "map")
+                                                false)
+                              (:wat::core::ast->children (:wat::core::first call-args))
+                              call-args)
+                            ~(:wat::core::symbol-node "found")
+                            (:wat::core::foldl
+                              (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                               i   <- :wat::core::i64]
+                                -> :wat::core::Vector<wat::WatAST>
+                                (:wat::core::if (:wat::core::not (:wat::core::empty? acc))
+                                  acc
+                                  (:wat::core::let
+                                    [k (:wat::core::Option/expect
+                                         (:wat::core::get flat (:wat::core::i64::* i 2))
+                                         "resume kwargs: locus key")
+                                     v (:wat::core::Option/expect
+                                         (:wat::core::get flat (:wat::core::i64::+ (:wat::core::i64::* i 2) 1))
+                                         "resume kwargs: locus val")]
+                                    (:wat::core::if (:wat::core::= (:wat::core::ast-name k) ":locus")
+                                      (:wat::core::conj acc v)
+                                      acc))))
+                              (:wat::core::Vector :wat::WatAST)
+                              (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length flat) 2)))
+                            ~(:wat::core::symbol-node "locus-ast")
+                            (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
+                            ~(:wat::core::symbol-node "head-nm")
+                            (:wat::core::if (:wat::core::empty? found)
+                              ""
+                              (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus-ast) "list")
+                                (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                                  (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
+                                ""))
+                            ~(:wat::core::symbol-node "inner-nm")
+                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label")
+                              (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                                (:wat::core::if (:wat::core::empty? (:wat::core::rest ch))
+                                  ""
+                                  (:wat::core::let [inner (:wat::core::first (:wat::core::rest ch))]
+                                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind inner) "list")
+                                      (:wat::core::let [ich (:wat::core::ast->children inner)]
+                                        (:wat::core::if (:wat::core::empty? ich) "" (:wat::core::ast-name (:wat::core::first ich))))
+                                      ""))))
+                              head-nm)
+                            ~(:wat::core::symbol-node "ctor-nm")
+                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label") inner-nm head-nm)
+                            ~(:wat::core::symbol-node "impl")
+                            (:wat::core::if (:wat::core::string::starts-with? ctor-nm ":wat::spawn::process")
+                              ~resume-impl-process-call
+                              (:wat::core::if (:wat::core::string::starts-with? ctor-nm ":wat::spawn::thread")
+                                ~resume-impl-thread-call
+                                ~resume-impl-call))
+                            ~(:wat::core::symbol-node "kty")  (:wat::core::keyword-node ":wat::core::agg-positional")
+                            ~(:wat::core::symbol-node "fvec") (:wat::core::quote ~start-fnames-ast)
+                            ~(:wat::core::symbol-node "ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~fqdn-base))]
+                           `(:wat::core::kwargs-lower ~impl ~kty ~fvec 0 ~ns ~@call-args))))
 
      ;; ── C.3: Handle STRUCT ───────────────────────────────────────────────────────
      ;; (defstruct <fqdn>::Handle
@@ -2314,7 +2584,7 @@
      grantable-pids-sym (:wat::core::symbol-node "pids")
      handle-addr-name (:wat::core::keyword/from-string
                          (:wat::core::string::interpolate "{b}::Handle/addr" :b fqdn-base))
-     grantable-extend `(:wat::core::extend-type ~handle-name :wat::capability::Capability
+     grantable-extend `(:wat::core::extend-type ~handle-bare-name :wat::capability::Capability
                          (grant  [~grantable-self-sym ~grantable-pids-sym] (~grant-call-name  ~grantable-self-sym ~grantable-pids-sym))
                          (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-call-name ~grantable-self-sym ~grantable-pids-sym))
                          (coordinate [~grantable-self-sym]
@@ -2331,7 +2601,7 @@
      dialable-ty (:wat::core::keyword/from-string
                    (:wat::core::string::interpolate "wat::capability::Dialable<{o},{r}>"
                      :o proto-op-ty-str :r proto-reply-ty-str))
-     dialable-extend `(:wat::core::extend-type ~handle-name ~dialable-ty
+     dialable-extend `(:wat::core::extend-type ~handle-bare-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
      ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability<S,R> extend-type ─────
@@ -2345,7 +2615,7 @@
      typedcap-ty (:wat::core::keyword/from-string
                    (:wat::core::string::interpolate "wat::capability::TypedCapability<{o},{r}>"
                      :o proto-op-ty-str :r proto-reply-ty-str))
-     typedcap-extend `(:wat::core::extend-type ~handle-name ~typedcap-ty)]
+     typedcap-extend `(:wat::core::extend-type ~handle-bare-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:
     ;;   record + state defs (durable/ephemeral projections)

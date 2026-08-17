@@ -46,5 +46,5 @@ fn wrong_parametric_surface_param_is_compile_error() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == ":wat::capability::Dialable<probe::Kv::Op,probe::Kv::Reply>"
-            && got == ":probe::echo::Handle");
+            && got == ":probe::echo::Handle<wat::kernel::Wire>");
 }

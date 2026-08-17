@@ -73,5 +73,5 @@ fn mixed_via_macro_swap_is_compile_error() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == ":wat::capability::TypedCapability<probe::S1::Op,probe::S1::Reply>"
-            && got == ":probe::s2::Handle");
+            && got == ":probe::s2::Handle<wat::kernel::Wire>");
 }

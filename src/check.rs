@@ -4122,6 +4122,15 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // 293.W.2f — require a kwargs handle's address to be Wire.
+            ":wat::kernel::require-wire-address" => {
+                let (val, mut errs) = infer_require_wire_address(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // 293.W.2e — `address-wire?`: 1 arg, unify Address<S,R>, return bool.
             // Twin of infer_peer_wire, different type-path. Do NOT call project_peer_io.
             ":wat::kernel::address-wire?" => {
@@ -4923,13 +4932,19 @@ fn infer_list(
                             let concrete = arg_tys.first()
                                 .and_then(|o| o.as_ref())
                                 .and_then(|recv_ty| {
-                                    let recv_concrete = format_type(&apply_subst(recv_ty, subst));
-                                    let concrete_key = format!("{}/{}", recv_concrete, method_name);
-                                    env.get(&concrete_key).map(|scheme| {
-                                        let ret = scheme.ret.clone();
-                                        let params = scheme.params.get(1..).unwrap_or(&[]).to_vec();
-                                        (ret, params)
-                                    })
+                                    let recv = apply_subst(recv_ty, subst);
+                                    // 293.W.2f — Handle<Wire> is an instantiation of
+                                    // Handle<T>; the extend-type scheme is keyed on
+                                    // Handle<T> (or the bare Handle). Try exact, then
+                                    // T/Xt in the last slot, then the bare head.
+                                    for key in satisfier_method_keys(&recv, method_name) {
+                                        if let Some(scheme) = env.get(&key) {
+                                            let ret = scheme.ret.clone();
+                                            let params = scheme.params.get(1..).unwrap_or(&[]).to_vec();
+                                            return Some((ret, params));
+                                        }
+                                    }
+                                    None
                                 });
                             match concrete {
                                 Some(rp) => rp,
@@ -9367,7 +9382,7 @@ fn infer_listener_prime(
         } });
         let s = fresh.fresh();
         let r = fresh.fresh();
-        return CheckResult::partial_with(bound_type(s, r), local_errors);
+        return CheckResult::partial_with(bound_type(s, r, fresh.fresh()), local_errors);
     }
     // args[0] = locus expression — infer it, then dispatch on ThreadOpts vs ProcessOpts.
     let host_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -9375,18 +9390,18 @@ fn infer_listener_prime(
         let host_surface = apply_subst(host_ty, subst);
         let host_reduced = reduce(&host_surface, subst, env.types());
         if host_reduced == TypeExpr::Path(":wat::spawn::ThreadOpts".into()) {
-            // Thread tier: 3 args — host, :S, :R.
+            // Thread tier: 3 args — host, :S, :R. T = Shared (in-locus).
             if args.len() != 3 {
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                     callee: OP.into(), expected: 3, got: args.len()
                 } });
                 let s = fresh.fresh();
                 let r = fresh.fresh();
-                return CheckResult::partial_with(bound_type(s, r), local_errors);
+                return CheckResult::partial_with(bound_type(s, r, shared_marker()), local_errors);
             }
             let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
             let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
-            bound_type(s_ty, r_ty)
+            bound_type(s_ty, r_ty, shared_marker())
         } else if host_reduced == TypeExpr::Path(":wat::spawn::ProcessOpts".into()) {
             // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)` → `Bound<S,R>`,
             // mirroring the thread tier (the listener mints its own kernel-unique address;
@@ -9416,7 +9431,7 @@ fn infer_listener_prime(
                         }
                     }
                 }
-                let ty = bound_type(s_ty, r_ty);
+                let ty = bound_type(s_ty, r_ty, wire_marker());
                 return if local_errors.is_empty() {
                     CheckResult::ok(ty)
                 } else {
@@ -9431,12 +9446,12 @@ fn infer_listener_prime(
             } });
             let s = fresh.fresh();
             let r = fresh.fresh();
-            bound_type(s, r)
+            bound_type(s, r, wire_marker())
         } else if host_reduced == TypeExpr::Path(":wat::spawn::Locus".into()) {
             // Arc 209 host-parity-4a — abstract locus (the `:wat::spawn::Locus`
             // protocol): a locus-blind `(listener' locus :S :R)` inside
             // defservice's `start [locus <- :Locus]`. Shape mirrors the thread
-            // tier (3 args: locus, :S, :R → Bound<S,R>); runtime
+            // tier (3 args: locus, :S, :R → Bound<S,R,T> with T fresh); runtime
             // `eval_listener_prime` dispatches on the concrete locus value the
             // caller actually passes.
             if args.len() != 3 {
@@ -9445,11 +9460,11 @@ fn infer_listener_prime(
                 } });
                 let s = fresh.fresh();
                 let r = fresh.fresh();
-                return CheckResult::partial_with(bound_type(s, r), local_errors);
+                return CheckResult::partial_with(bound_type(s, r, fresh.fresh()), local_errors);
             }
             let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
             let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
-            bound_type(s_ty, r_ty)
+            bound_type(s_ty, r_ty, fresh.fresh())
         } else {
             local_errors.push(CheckError {
                 span: args[0].span().clone(),
@@ -9462,20 +9477,132 @@ fn infer_listener_prime(
             });
             let s = fresh.fresh();
             let r = fresh.fresh();
-            bound_type(s, r)
+            bound_type(s, r, fresh.fresh())
         }
     } else {
         // Locus type couldn't be inferred; fall back.
         let s = fresh.fresh();
         let r = fresh.fresh();
-        bound_type(s, r)
+        bound_type(s, r, fresh.fresh())
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `Bound<S,R>` — result type of `(listener' (thread) …)`.
-fn bound_type(s: TypeExpr, r: TypeExpr) -> TypeExpr {
-    TypeExpr::Parametric { head: "wat::spawn::Bound".into(), args: vec![s, r] }
+/// `Bound<S,R,T>` — result type of `(listener' (thread|process|locus) …)`.
+/// T is Shared (thread), Wire (process), or a fresh var (abstract Locus).
+fn bound_type(s: TypeExpr, r: TypeExpr, t: TypeExpr) -> TypeExpr {
+    TypeExpr::Parametric { head: "wat::spawn::Bound".into(), args: vec![s, r, t] }
+}
+
+fn shared_marker() -> TypeExpr {
+    TypeExpr::Path(":wat::kernel::Shared".into())
+}
+
+fn wire_marker() -> TypeExpr {
+    TypeExpr::Path(":wat::kernel::Wire".into())
+}
+
+fn is_shared_marker(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Path(p) if p == ":wat::kernel::Shared")
+}
+
+fn is_wire_marker(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Path(p) if p == ":wat::kernel::Wire")
+}
+
+fn is_type_param_letter(ty: &TypeExpr) -> bool {
+    match ty {
+        TypeExpr::Var(_) => true,
+        TypeExpr::Path(p) => {
+            let bare = p.trim_start_matches(':');
+            bare == "Xt"
+                || (bare.len() == 1 && bare.chars().all(|c| c.is_ascii_uppercase()))
+        }
+        _ => false,
+    }
+}
+
+/// Subtype-edge keys for Handle<Wire> / Handle<K,V,Shared>: the bare head,
+/// Handle<T>, Handle<Xt>, and the full type with last arg rewritten to T/Xt.
+fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
+    let mut keys = Vec::new();
+    match ty {
+        TypeExpr::Path(p) => keys.push(p.clone()),
+        TypeExpr::Parametric { head, args } => {
+            keys.extend(crate::types::transport_satisfier_heads(head));
+            if !args.is_empty() {
+                for letter in ["T", "Xt"] {
+                    let mut inst = args.clone();
+                    inst[args.len() - 1] = TypeExpr::Path(letter.into());
+                    keys.push(format_type(&TypeExpr::Parametric {
+                        head: head.clone(),
+                        args: inst,
+                    }));
+                }
+            }
+        }
+        _ => {}
+    }
+    keys
+}
+
+/// Scheme keys for a surface method on `recv`: exact format_type, then
+/// last-arg rewritten to T / Xt (Handle<Wire> → Handle<T>), then the bare head.
+fn satisfier_method_keys(recv: &TypeExpr, method_name: &str) -> Vec<String> {
+    let mut keys = vec![format!("{}/{}", format_type(recv), method_name)];
+    if let TypeExpr::Parametric { head, args } = recv {
+        if let Some(last) = args.last() {
+            if is_shared_marker(last) || is_wire_marker(last) || is_type_param_letter(last) {
+                for letter in ["T", "Xt"] {
+                    let mut inst = args.clone();
+                    inst[args.len() - 1] = TypeExpr::Path(letter.into());
+                    keys.push(format!(
+                        "{}/{}",
+                        format_type(&TypeExpr::Parametric {
+                            head: head.clone(),
+                            args: inst,
+                        }),
+                        method_name
+                    ));
+                }
+            }
+        }
+        keys.push(format!(
+            "{}/{}",
+            crate::types::parametric_head_fqdn(head),
+            method_name
+        ));
+    }
+    keys
+}
+
+/// T (type-param / var) instantiates to Shared or Wire. Not Shared↔Wire.
+fn transport_param_instantiates(actual: &TypeExpr, expected: &TypeExpr) -> bool {
+    if is_type_param_letter(actual) && (is_shared_marker(expected) || is_wire_marker(expected) || is_type_param_letter(expected))
+    {
+        return true;
+    }
+    if is_type_param_letter(expected) && (is_shared_marker(actual) || is_wire_marker(actual)) {
+        return true;
+    }
+    false
+}
+
+/// 293.W.2f — the extra T slot of Address/Bound/Handle/Launched: Shared, Wire,
+/// a unification var, or a single-letter type param (`T`).
+fn is_transport_slot(ty: &TypeExpr) -> bool {
+    match ty {
+        TypeExpr::Var(_) => true,
+        TypeExpr::Path(p) => {
+            if p == ":wat::kernel::Shared" || p == ":wat::kernel::Wire" {
+                return true;
+            }
+            let bare = p.trim_start_matches(':');
+            bare == "Xt"
+                || (bare.len() == 1 && bare.chars().all(|c| c.is_ascii_uppercase()))
+        }
+        _ => false,
+    }
 }
 
 
@@ -10916,6 +11043,93 @@ fn infer_address_wire(
             });
             CheckResult::partial_with(TypeExpr::Path(":wat::core::bool".into()), local_errors)
         }
+    }
+}
+
+/// Type-check `(:wat::kernel::require-wire-address x)` — 293.W.2f.
+///
+/// The process-runner door. Unifies the argument's transport marker against
+/// `Wire`. A `Handle<Shared>` / `Address<_,_,Shared>` is a TypeMismatch
+/// naming Shared vs Wire. 2-arg Address (T unknown) and non-address data
+/// fields are residuals (allowed). Result type is the argument's type.
+/// Runtime is identity.
+fn infer_require_wire_address(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::require-wire-address";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    let got_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let t = fresh.fresh();
+            return CheckResult::partial_with(t, local_errors);
+        }
+    };
+    let got_reduced = reduce(&apply_subst(&got_ty, subst), subst, env.types());
+    if let Some(marker) = transport_marker(&got_reduced) {
+        let marker = reduce(&apply_subst(&marker, subst), subst, env.types());
+        if !is_wire_marker(&marker) {
+            // T unknown (a unification var) unifies with Wire — residual.
+            if matches!(marker, TypeExpr::Var(_)) {
+                let _ = unify(&marker, &wire_marker(), subst, env.types());
+            } else {
+                local_errors.push(CheckError {
+                    span: args[0].span().clone(),
+                    kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "addr".into(),
+                        expected: "Address<S,R,Wire>".into(),
+                        got: format_type(&got_reduced),
+                    },
+                });
+            }
+        }
+    }
+    if local_errors.is_empty() {
+        CheckResult::ok(got_ty)
+    } else {
+        CheckResult::partial_with(got_ty, local_errors)
+    }
+}
+
+/// Extract the transport marker T from `Address<S,R,T>` or from a parametric
+/// type whose last argument is Shared/Wire (Handle<Shared>, Handle<K,V,Wire>).
+/// 2-arg Address and unrelated parametrics (Vector<i64>, …) yield None.
+fn transport_marker(ty: &TypeExpr) -> Option<TypeExpr> {
+    match ty {
+        TypeExpr::Parametric { head, args } if head == "wat::kernel::Address" && args.len() == 3 => {
+            Some(args[2].clone())
+        }
+        TypeExpr::Parametric { args, .. } if !args.is_empty() => {
+            let last = args.last().cloned().expect("non-empty");
+            if is_shared_marker(&last) || is_wire_marker(&last) || matches!(last, TypeExpr::Var(_)) {
+                Some(last)
+            } else {
+                None
+            }
+        }
+        _ => None,
     }
 }
 
@@ -12854,6 +13068,22 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Peer"
                 | "wat::kernel::Thread"
                 | "wat::kernel::Process" => false,
+                // 293.W.2f — Address<_,_,Shared> is an in-locus resource (impure).
+                // Address<_,_,Wire> stays pure (it already crosses as SocketAddressWire).
+                // 2-arg Address<S,R> stays pure (T unknown — do not break Coords records).
+                "wat::kernel::Address" => {
+                    match args.as_slice() {
+                        [s, r] => is_pure_type(s, types) && is_pure_type(r, types),
+                        [s, r, t] => {
+                            if is_shared_marker(t) {
+                                false
+                            } else {
+                                is_pure_type(s, types) && is_pure_type(r, types)
+                            }
+                        }
+                        _ => args.iter().all(|a| is_pure_type(a, types)),
+                    }
+                }
                 // Pure container: pure iff all type args are pure.
                 // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
                 // HashSet<T>, Tuple<...> — any other parametric is conservatively
@@ -14307,6 +14537,18 @@ pub(crate) fn unify(
                 Err(UnifyError)
             }
         }
+        // 293.W.2f — bare `Status` (T unknown) unifies with `Status<T>` /
+        // `Status<Shared>`. Same residual as 2-arg Address.
+        (TypeExpr::Path(p), TypeExpr::Parametric { head, args })
+            if crate::types::parametric_head_fqdn(head) == *p && !args.is_empty() =>
+        {
+            Ok(())
+        }
+        (TypeExpr::Parametric { head, args }, TypeExpr::Path(p))
+            if crate::types::parametric_head_fqdn(head) == *p && !args.is_empty() =>
+        {
+            Ok(())
+        }
         // arc 278 Stone 1 — the tier-open `Timer'` fusion arms are RETIRED. `after` now
         // builds a UNIFIED `Peer'<nil, O>`, so a timer unifies with real peers through the
         // ordinary structural `Parametric ~ Parametric` arm below — there is no `Timer'`
@@ -14315,6 +14557,42 @@ pub(crate) fn unify(
             TypeExpr::Parametric { head: h1, args: a1 },
             TypeExpr::Parametric { head: h2, args: a2 },
         ) => {
+            // 293.W.2f — Address<S,R> (T unknown) unifies with Address<S,R,T>;
+            // Bound<S,R> unifies with Bound<S,R,T>; Launched<S,R,Sh,Lu> unifies
+            // with Launched<S,R,Sh,Lu,T>. Same-head n vs n+1 also covers
+            // Handle<K,V> ↔ Handle<K,V,T> when the extra slot is the transport.
+            if h1 == h2 {
+                let n_fixed = match h1.as_str() {
+                    "wat::kernel::Address" | "wat::spawn::Bound" => Some(2),
+                    "wat::spawn::Launched" => Some(4),
+                    _ => None,
+                };
+                if let Some(n) = n_fixed {
+                    let ok1 = a1.len() == n || a1.len() == n + 1;
+                    let ok2 = a2.len() == n || a2.len() == n + 1;
+                    if ok1 && ok2 {
+                        for i in 0..n {
+                            unify(&a1[i], &a2[i], subst, types)?;
+                        }
+                        if a1.len() == n + 1 && a2.len() == n + 1 {
+                            unify(&a1[n], &a2[n], subst, types)?;
+                        }
+                        return Ok(());
+                    }
+                }
+                if a1.len() + 1 == a2.len() && is_transport_slot(&a2[a2.len() - 1]) {
+                    for i in 0..a1.len() {
+                        unify(&a1[i], &a2[i], subst, types)?;
+                    }
+                    return Ok(());
+                }
+                if a2.len() + 1 == a1.len() && is_transport_slot(&a1[a1.len() - 1]) {
+                    for i in 0..a2.len() {
+                        unify(&a1[i], &a2[i], subst, types)?;
+                    }
+                    return Ok(());
+                }
+            }
             if h1 != h2 || a1.len() != a2.len() {
                 return Err(UnifyError);
             }
@@ -14486,6 +14764,15 @@ pub(crate) fn assignable(
     let types = env.types();
     let a = reduce(&walk(actual, subst), subst, types);
     let e = reduce(&walk(expected, subst), subst, types);
+    // 293.W.2f — tuples assign elementwise (Handle<Shared> <: Handle inside
+    // start-primed-stdio's return triple). Unify is exact; assignable is not.
+    if let (TypeExpr::Tuple(ae), TypeExpr::Tuple(ee)) = (&a, &e) {
+        return ae.len() == ee.len()
+            && ae
+                .iter()
+                .zip(ee.iter())
+                .all(|(x, y)| assignable(x, y, subst, env));
+    }
     // Arc 293 S3-Nature-4 (Path B) — a dialed peer intrinsically satisfies a `:nature :Peer`
     // surface: no extend-type needed. `Peer'<X,Y>` satisfies `:S` iff X/Y equal :S's own
     // S1-synthesized `Op`/`Reply` enums.
@@ -14515,7 +14802,11 @@ pub(crate) fn assignable(
         // Full-args edge (a full-parametric extend-type, e.g. Peer'<Op,Reply> <: :S — PROTOCOL-SPECIFIC)
         // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. Vector<T> <: :Proto).
         if crate::types::is_subtype(&format_type(&a), ep, types)
-            || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types) {
+            || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types)
+            || transport_edge_keys(&a)
+                .iter()
+                .any(|k| crate::types::satisfies_bare_surface(k, ep, types))
+        {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
         }
@@ -14538,6 +14829,25 @@ pub(crate) fn assignable(
                 return nature_floor_ok(&a, &surface_key, types);
             }
         }
+        // 293.W.2f — uninstantiated aggregate `Handle` (T unknown) accepts any
+        // `Handle<Shared>` / `Handle<Wire>` instantiation, and the reverse.
+        if surface_key == *ap {
+            if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
+                if !agg.type_params.is_empty() {
+                    return true;
+                }
+            }
+        }
+    }
+    if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
+        let key = crate::types::parametric_head_fqdn(head);
+        if key == *ep {
+            if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ep) {
+                if !agg.type_params.is_empty() {
+                    return true;
+                }
+            }
+        }
     }
     // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
     // the expected head (the derive graph — N-loci-general: Thread'/Process'/<future remote>
@@ -14550,6 +14860,36 @@ pub(crate) fn assignable(
         TypeExpr::Parametric { head: eh, args: eargs },
     ) = (&a, &e)
     {
+        // 293.W.2f — Handle<Shared> / Handle<K,V,Shared> satisfies
+        // TypedCapability<S,R> via the extend-type on Handle<T> / Handle<K,V,T>.
+        if ah != eh
+            && transport_edge_keys(&a)
+                .iter()
+                .any(|k| crate::types::is_subtype(k, &format_type(&e), types))
+        {
+            return nature_floor_ok(&a, &crate::types::parametric_head_fqdn(eh), types);
+        }
+        // Handle<K,V> ↔ Handle<K,V,T> (missing transport slot).
+        if ah == eh
+            && (aargs.len() + 1 == eargs.len() || eargs.len() + 1 == aargs.len())
+            && unify(&a, &e, subst, types).is_ok()
+        {
+            return true;
+        }
+        // Handle<T> → Handle<Shared>/Handle<Wire>: T is a type-param letter
+        // (not a unification var). Prefix args unify; the transport slot
+        // instantiates. Shared ↛ Wire stays rejected.
+        if ah == eh && aargs.len() == eargs.len() && !aargs.is_empty() {
+            let last = aargs.len() - 1;
+            if transport_param_instantiates(&aargs[last], &eargs[last])
+                && aargs[..last]
+                    .iter()
+                    .zip(eargs[..last].iter())
+                    .all(|(x, y)| unify(x, y, subst, types).is_ok())
+            {
+                return true;
+            }
+        }
         if ah != eh
             && aargs.len() == eargs.len()
             && crate::types::is_subtype(

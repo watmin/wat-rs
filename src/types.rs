@@ -740,6 +740,40 @@ impl TypeEnv {
     }
 }
 
+/// Heads to try for extend-type edges of a Handle-like parametric:
+/// bare `Handle`, `Handle<T>`, `Handle<Xt>`.
+pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
+    let fq = parametric_head_fqdn(head);
+    vec![fq.clone(), format!("{fq}<T>"), format!("{fq}<Xt>")]
+}
+
+/// 293.W.2f — `Handle<Wire>` satisfies a bare surface `Dialable` if Handle
+/// or Handle<T> extend-types some `Dialable<S,R>`.
+pub(crate) fn satisfies_bare_surface(sub_head: &str, surface: &str, env: &TypeEnv) -> bool {
+    let prefix = format!("{surface}<");
+    for key in transport_satisfier_heads(sub_head) {
+        if is_subtype(&key, surface, env) {
+            return true;
+        }
+        let mut visited = std::collections::HashSet::new();
+        let mut stack: Vec<String> = env
+            .subtype_parents(&key)
+            .map(|p| p.to_vec())
+            .unwrap_or_default();
+        while let Some(p) = stack.pop() {
+            if p == surface || p.starts_with(&prefix) {
+                return true;
+            }
+            if visited.insert(p.clone()) {
+                if let Some(parents) = env.subtype_parents(&p) {
+                    stack.extend(parents.iter().cloned());
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Seeds a fresh [`TypeEnv`] with wat-rs's own `:wat::*` declarations.
 /// Called exactly once, from [`TypeEnv::with_builtins`]. New builtins
 /// land here as the algebra grows; each entry documents why the
