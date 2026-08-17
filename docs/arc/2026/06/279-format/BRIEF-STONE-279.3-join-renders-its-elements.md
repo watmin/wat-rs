@@ -1,3 +1,22 @@
+# ⛔⛔ SUPERSEDED 2026-08-17 — THIS BRIEF SPECIFIES A DESIGN THAT BREAKS STDLIB BOOTSTRAP. DO NOT STRIKE IT.
+
+> A rider built exactly what is written below. It hit **STOP-2**: `wat/core.wat:1885` self-invokes
+> `defrecord` while `core.wat` is still loading, `defrecord`'s macro body joins a namespace prefix at
+> `wat/Record.wat:172` **at expansion time**, and a wat-defn `join` does not exist yet →
+> `UnknownFunction`, before `main`, stdlib dead.
+>
+> **`core.wat` ↔ `string.wat` is a genuine dependency cycle. The Rust intrinsic is what breaks it.**
+>
+> ⛔ **THE CORRECTED DESIGN IS `DESIGN-STONE-279.3-…md`'s `⛔ CORRECTION` SECTION** (option A: `join`
+> stays an intrinsic and becomes generic — two edits, `TypeScheme` gains `type_params: vec!["T"]`,
+> `eval_string_join` renders each element through the total `str`). The four questions were run flat
+> on all four options; the builder ruled **"A has been reasoned."**
+>
+> Everything below is kept as the record of what was tried and why it failed. **The gate rows (1, 2)
+> and the contract still stand** — only the *where it lives* is wrong.
+
+---
+
 # BRIEF — 279.3 · `join` renders its elements
 
 **You are a rider, not the orchestrator. Ending your turn ENDS you** — nothing wakes you, no
