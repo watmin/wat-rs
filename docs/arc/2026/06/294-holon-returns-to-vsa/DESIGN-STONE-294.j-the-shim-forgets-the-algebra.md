@@ -213,3 +213,105 @@ on it, and does not settle it.
 and is not repeated here — it reported `:wat::core::quote` as a HolonAST producer when `eval_quote`
 returns `Value::wat__WatAST` (`runtime.rs:5401`). Nearest-preceding-string is not the owning arm.
 `[[feedback_state_what_the_instrument_can_see_before_quoting_it]]`
+
+---
+
+# ⛔ CORRECTION — 2026-08-16, after the first strike went RED. THE ENCODER MUST RENDER **DATA**, NOT SOURCE FORMS.
+
+The strike above was built and reddened the floor on a real, deterministic defect. The builder's
+correction, verbatim:
+
+> *"`(:wat::holon::Thermometer 50.0 0.0 100.0)` → `"(:wat.holon/Thermometer 50.0 0.0 100.0)"` — this
+> should be illegal.... it should be a record-ish thing... `#wat.holon/Thermometer {:value 50.0 :min
+> 0.0 :max 0.0}`"*
+>
+> *"all things you can represent in Holon is EDN ... HolonAST is literally a vector builder... you
+> give it edn (or edn-like data) and you get a vector out who represents that data.... both EDN and
+> Holon are completely capable of holding the same data..... one looks like what rich hickey did with
+> edn and the other looks like what kanerva did with ternary vectors."*
+>
+> *"**we do not transmit bind, bundle, atom, etc etc.... /they are data/**"*
+>
+> *"`#wat.holon {:key1 "val1"}` ;; this is both edn and holon … its also a bundle of typed binds …
+> **the only things that need tags are stuff like thermometers as they convey constructor details
+> about the data.**"*
+
+## What the first strike actually shipped, measured
+
+```
+(:wat::holon::leaf :k2)                    →  ":k2"                                        ✅ data
+(:wat::holon::Thermometer 50.0 0.0 100.0)  →  "(:wat.holon/Thermometer 50.0 0.0 100.0)"    ❌ SOURCE FORM
+(:wat::holon::Bind a b)                    →  "(:wat.holon/Bind …)"                        ❌ SOURCE FORM
+```
+
+Decoding a source form structurally gives a **Bundle**, because `runtime.rs:19711` is unconditional:
+
+```rust
+WatAST::List(items, _) => HolonAST::bundle(items.iter().map(watast_to_holon).collect()),
+```
+
+A round-tripped Thermometer answers `Bundle/children` — which *raises* on a real Thermometer. That is
+the far-side crash in `wat-tests/service-cache-hologram.wat:121`, reproduced on three independent runs.
+
+## ★ THE DEFECT IN THIS STONE, NAMED
+
+**I reached for `holon_to_watast` because it was total and adjacent — and it renders wat SOURCE.**
+The job needs a renderer of **DATA**. `holon_to_watast`'s totality made it look correct the whole way
+down; totality is not the property that was needed.
+
+**The mechanism existed — SEVENTH instance today of *capability built, never adopted*.**
+`from_holon_item` (`runtime.rs:16641`, `pub(crate)`) is the holon→data inverse. `edn_shim` never
+called it. Its own error message already states the builder's rule:
+
+> `"unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other
+> composite)"`
+
+It converts data-shaped holons (`Map`/`Set`/`Vector`/`List`/`Tuple`/keywords/scalars) back to data and
+**refuses everything that is not data** — Thermometer included, because a Thermometer is not data, it
+is a constructor directive. The code drew this line before we did.
+
+## THE CORRECTED DESIGN — three cases, no algebra on the wire
+
+```
+encode   from_holon_item(h) → Ok(data)  ⇒  #wat.holon <data>
+         HolonAST::Thermometer          ⇒  #wat.holon/Thermometer {:value v :min lo :max hi}
+         HolonAST::SlotMarker           ⇒  #wat.holon/SlotMarker  {:min lo :max hi}
+         anything else                  ⇒  RAISE — neither data nor a directive
+
+decode   #wat.holon <data>              ⇒  to_holon (derive the vector)
+         #wat.holon/Thermometer {…}     ⇒  HolonAST::Thermometer
+         #wat.holon/SlotMarker  {…}     ⇒  HolonAST::SlotMarker
+```
+
+`Bind`, `Bundle`, `Atom`, `Permute`, `Blend` **never appear on a wire in any form** — not as tags, not
+as call forms. They are the derived vector structure. A receiver rebuilds them from the data.
+
+The RAISE arm is the wall: a holon that is neither data nor a directive **cannot be silently
+mis-transmitted**. Unrepresentable beats guarded.
+
+## ★ BARE `#holon` IS NOT CONSTRUCTIBLE — the crate already ruled it
+
+The builder asked whether to drop the `wat` prefix, then reconsidered on Clojure grounds. The disk
+settles it — `crates/wat-edn/src/value.rs:382`:
+
+> *"Build a namespaced tag. Per the EDN spec, user tags MUST be namespaced — **there is no
+> `Tag::new(name)` because a no-namespace tag is invalid input.**"*
+
+`Tag::namespace` is **required at the type level, not `Option`**. Census: `Tag::new` → **0 uses (the
+constructor does not exist)**; `Tag::ns` → **33**. So `#wat.holon` and `#wat.holon/…` are the only
+spellings available, and this is a wall, not a convention.
+
+## What survives from the first strike
+
+The 14-tag deletion, the reader collapse, the mode-selector removal, the export deletions, and the
+`#[ignore]`-count discipline were all **correct and stand**. Only the encode and decode arms change:
+from `holon_to_watast`/`watast_to_holon` to `from_holon_item`/`to_holon` plus the two directive tags.
+
+## Out of scope, tracked
+
+**Thermometer as a real record** (kwargs `:value :min :max`, so `kwargs-construct` and
+`positional-to-kwargs.wat` both reach it, and the directive tag collapses into the ordinary record
+wire form) is its **own stone**, ruled by the builder to follow this one. Measured for it: **38 `.wat`
+call sites**; `Thermometer` is a Rust intrinsic (`runtime.rs:6459`) so today's registry-driven kwargs
+machinery does not reach it; **`SlotMarker` has ZERO `.wat` call sites and no runtime dispatch arm** —
+it is not wat-constructible at all, so the kwargs question is moot for it and only its wire form matters.
