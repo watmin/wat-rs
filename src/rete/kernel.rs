@@ -2904,6 +2904,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // the full alpha is the catch-up: this child produced nothing in step 3, so there
         // is nothing to double-count.
         let __pt36 = phase_start();
+        let mut after_join_frontier: Vec<i64> = Vec::new();
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
@@ -2944,9 +2945,151 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     wm.beta.entry(*child_id).or_default().extend(joined.iter().cloned());
                 }
                 d_beta.entry(*child_id).or_default().extend(joined);
+                after_join_frontier.push(*child_id);
             }
         }
         phase_end("join-after-filter", __pt36);
+
+        // ── 3.7 Filter-after-join: Test/Neg/Exists whose parent just got tokens
+        // in 3.6 (trailing `:where` after a mid-chain `:where` + join). A1 only
+        // left-activated HashJoin children of a Test. The trailing Test is a
+        // *child* of that HashJoin; the first filter pass already finished
+        // before 3.6 wrote d_beta[join]. Spec's topo emit covers it; native
+        // must too. Loop: a Test may itself parent another HashJoin.
+        let __pt37 = phase_start();
+        let mut frontier = after_join_frontier;
+        while !frontier.is_empty() {
+            let mut next_frontier: Vec<i64> = Vec::new();
+            for hj_id in frontier {
+                let hj_node = match get_node(&wm.network, hj_id) {
+                    Some(n) => n,
+                    None => continue,
+                };
+                let filter_kids = node_children(hj_node);
+                for filter_id in filter_kids {
+                    let filter_node = match get_node(&wm.network, filter_id) {
+                        Some(n) => n,
+                        None => continue,
+                    };
+                    let fkind = kind_of(filter_node);
+                    if fkind != "TestNode"
+                        && fkind != "NegationNode"
+                        && fkind != "ExistsNode"
+                    {
+                        continue;
+                    }
+                    let new_tokens: Vec<Token> = match d_beta.get(&hj_id) {
+                        Some(ts) if !ts.is_empty() => ts.clone(),
+                        _ => continue,
+                    };
+                    if fkind == "TestNode" {
+                        let (_, sf) = match node_record(filter_node) {
+                            Some(p) => p,
+                            None => continue,
+                        };
+                        let expr: WatAST = match &sf[1] {
+                            Value::wat__WatAST(ast) => (**ast).clone(),
+                            _ => continue,
+                        };
+                        for tok in new_tokens {
+                            census_count("filter:test-evals");
+                            if crate::rete::matcher::eval_test_core(
+                                &expr,
+                                &tok.bindings,
+                                &crate::runtime::Environment::new(),
+                                sym,
+                            )? {
+                                census_count("filter:test-pass");
+                                if beta_readers.contains(&filter_id) {
+                                    beta_written(filter_id, 1);
+                                    wm.beta.entry(filter_id).or_default().push(tok.clone());
+                                }
+                                d_beta.entry(filter_id).or_default().push(tok);
+                            }
+                        }
+                    } else {
+                        let (_, sf) = match node_record(filter_node) {
+                            Some(p) => p,
+                            None => continue,
+                        };
+                        let is_exists = fkind == "ExistsNode";
+                        let alpha_id: i64 = match &sf[1] {
+                            Value::i64(n) => *n,
+                            _ => continue,
+                        };
+                        if new_tokens.is_empty() {
+                            continue;
+                        }
+                        let join_keys = gather_join_keys(
+                            &new_tokens[0].bindings,
+                            wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]),
+                        );
+                        let cache_key = (alpha_id, join_keys.clone());
+                        let (filter_elements, index) = gather_cache.entry(cache_key).or_insert_with(|| {
+                            let elements: Vec<Element> = match wm.alpha.get(&alpha_id) {
+                                Some(els) => els.clone(),
+                                None => vec![],
+                            };
+                            census_count("accum:index-builds");
+                            census_count_n("accum:index-elements", elements.len() as u64);
+                            let idx = build_gather_index(&elements, &join_keys);
+                            (elements, idx)
+                        });
+                        for tok in new_tokens {
+                            let key = key_of(&tok.bindings, &join_keys);
+                            let bucket: &[usize] = index.get(&key).map_or(&[][..], |v| v.as_slice());
+                            let any_compat = bucket.iter().any(|&i| {
+                                census_gather_visit();
+                                let (_, el_b) = element_fact_bindings(&filter_elements[i]);
+                                token_element_compatible(&tok.bindings, el_b)
+                            });
+                            let pass = if is_exists { any_compat } else { !any_compat };
+                            if pass {
+                                if beta_readers.contains(&filter_id) {
+                                    beta_written(filter_id, 1);
+                                    wm.beta.entry(filter_id).or_default().push(tok.clone());
+                                }
+                                d_beta.entry(filter_id).or_default().push(tok);
+                            }
+                        }
+                    }
+                    let filter_node = match get_node(&wm.network, filter_id) {
+                        Some(n) => n,
+                        None => continue,
+                    };
+                    for gc_id in node_children(filter_node) {
+                        let gc = match get_node(&wm.network, gc_id) {
+                            Some(n) => n,
+                            None => continue,
+                        };
+                        if kind_of(gc) != "HashJoinNode" {
+                            continue;
+                        }
+                        let gc_tokens: Vec<Token> = match d_beta.get(&filter_id) {
+                            Some(ts) if !ts.is_empty() => ts.clone(),
+                            _ => continue,
+                        };
+                        let alpha_id = feeding_alpha_of.get(&gc_id).copied().unwrap_or(-1);
+                        let elements = match wm.alpha.get(&alpha_id) {
+                            Some(els) if !els.is_empty() => els.as_slice(),
+                            _ => continue,
+                        };
+                        let joined = keyed_join(&gc_tokens, elements, alpha_id);
+                        if joined.is_empty() {
+                            continue;
+                        }
+                        if beta_readers.contains(&gc_id) {
+                            beta_written(gc_id, joined.len() as u64);
+                            wm.beta.entry(gc_id).or_default().extend(joined.iter().cloned());
+                        }
+                        d_beta.entry(gc_id).or_default().extend(joined);
+                        next_frontier.push(gc_id);
+                    }
+                }
+            }
+            frontier = next_frontier;
+        }
+        phase_end("filter-after-join", __pt37);
 
         // ── 4. Production delta: fire production nodes on NEW tokens only. ────────
         let __pt5 = phase_start();

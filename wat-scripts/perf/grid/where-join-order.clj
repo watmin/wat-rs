@@ -17,8 +17,11 @@
 ;; wat A1 (tmp/NOTE-where-between-joins-still-false-green.md): `:where` between two positive
 ;; joins compiles, fires green, and derives nothing. Clara 0.24.0 does not exhibit that — a
 ;; TestNode is left-only and `send-tokens` to its children, including a HashJoinNode
-;; (`clara/rules/engine.cljc`). This pair is the Clara-good ref for that shape. Wat comes to
-;; parity when the diff is empty.
+;; (`clara/rules/engine.cljc`). This pair is the Clara-good ref for that shape.
+;; Rows 5–6 add the chain A1 did not cover: mid-chain `:test` AND a trailing `:test`
+;; (Test → HashJoin → Test). The two predicates are independent (`n>10` AND `m<25`)
+;; so dropping either filter cannot land the same 14-key set. 5↔6 must print
+;; identical `n=` / sets. Wat comes to parity when the diff is empty.
 ;;
 ;; ── FAITHFULNESS, NOT IDIOM ───────────────────────────────────────────────────────────────────
 ;;
@@ -31,7 +34,7 @@
 (def items 40)
 
 (defrecord Left  [k n])
-(defrecord Right [k])
+(defrecord Right [k m])
 (defrecord Hit   [k])
 
 ;; ROW 1 — filter BETWEEN the two joins. Left, :test (> ?n 10), Right.
@@ -63,15 +66,34 @@
   [:test (> ?n 25)]
   => (insert! (->Hit ?k)))
 
+;; ROW 5 — mid-chain AND trailing. n > 10 AND m < 25 → k in 11..24 => 14 of 40.
+;; Independent predicates: drop the first filter → 25 keys; drop the second → 29.
+(defrule where-between-then-where
+  [Left (= ?k k) (= ?n n)]
+  [:test (> ?n 10)]
+  [Right (= ?k k) (= ?m m)]
+  [:test (< ?m 25)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 6 — both filters after the join. Same set as row 5.
+(defrule join-then-two-where
+  [Left (= ?k k) (= ?n n)]
+  [Right (= ?k k) (= ?m m)]
+  [:test (> ?n 10)]
+  [:test (< ?m 25)]
+  => (insert! (->Hit ?k)))
+
 (defquery hit-q [] [Hit (= ?k k)])
 
 (def rows
-  [[1 "where-between"      where-between]
-   [2 "join-then-where"    join-then-where]
-   [3 "where-between-hi"   where-between-hi]
-   [4 "join-then-where-hi" join-then-where-hi]])
+  [[1 "where-between"             where-between]
+   [2 "join-then-where"           join-then-where]
+   [3 "where-between-hi"          where-between-hi]
+   [4 "join-then-where-hi"        join-then-where-hi]
+   [5 "where-between-then-where"  where-between-then-where]
+   [6 "join-then-two-where"       join-then-two-where]])
 
-(defn seed-pair [i] [(->Left i i) (->Right i)])
+(defn seed-pair [i] [(->Left i i) (->Right i i)])
 
 (def seeds (mapcat seed-pair (range items)))
 

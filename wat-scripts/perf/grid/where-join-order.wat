@@ -18,18 +18,24 @@
 ;; bag either order. Rows 1 and 3 are the hole; rows 2 and 4 are the order wat already honors —
 ;; same predicate, same stream, so a correct engine prints identical `n=` / sets on 1↔2 and 3↔4.
 ;;
-;; ── THE FOUR RULES (same as where-shapes.wat; restated) ────────────────────────────────────────
+;; ── THE SIX RULES ─────────────────────────────────────────────────────────────────────────────
 ;; 1. Each row is its own session (build-rules picks one Rule).
 ;; 2. EVERY ROW MUST DISCRIMINATE A PROPER SUBSET — 0 < n < 40 — written in the comment.
-;; 3. SEED FROM A FORMULA OVER `i`: Left(k=i, n=i) + Right(k=i), i in [0, 40).
-;; 4. MIRROR THE OPERATION: `i64::>` against 10 / 25 on both sides; no idiom swap.
+;; 3. SEED FROM A FORMULA OVER `i`: Left(k=i, n=i) + Right(k=i, m=i), i in [0, 40).
+;; 4. MIRROR THE OPERATION: `i64::>` / `i64::<` against 10 / 25 on both sides; no idiom swap.
+;;
+;; Rows 1–4 are A1 (one `:where`, Test → HashJoin vs HashJoin → Test).
+;; Rows 5–6 are the chain A1 did not cover: mid-chain `:where` AND a trailing `:where`
+;; (Test → HashJoin → Test). The two predicates are independent (n>10 AND m<25) so an
+;; engine that drops either filter cannot land the same 14-key set. 5↔6 must print
+;; identical `n=` / sets — Clara 0.24.0 does.
 
 (:wat::core::defn :wjo::items [] -> :wat::core::i64 40)
 
-(:wat::core::defn :wjo::row-count [] -> :wat::core::i64 4)
+(:wat::core::defn :wjo::row-count [] -> :wat::core::i64 6)
 
 (:wat::core::defrecord :wjo::Left  [k <- :wat::core::i64  n <- :wat::core::i64])
-(:wat::core::defrecord :wjo::Right [k <- :wat::core::i64])
+(:wat::core::defrecord :wjo::Right [k <- :wat::core::i64  m <- :wat::core::i64])
 (:wat::core::defrecord :wjo::Hit   [k <- :wat::core::i64])
 
 ;; ROW 1 — filter BETWEEN the two joins. n > 10 → k in 11..39 => 29/40.
@@ -68,6 +74,27 @@
   :then
   [(:wjo::Hit ?k)])
 
+;; ROW 5 — mid-chain AND trailing. n > 10 AND m < 25 → k in 11..24 => 14/40.
+;; Independent predicates: drop the first filter → 25 keys; drop the second → 29.
+(:wat::rete::defrule :wjo::where-between-then-where
+  :when
+  [(:wjo::Left (?k <- :k) (?n <- :n))
+   (:wat::rete::where (:wat::rete::core::i64::> ?n 10))
+   (:wjo::Right (?k <- :k) (?m <- :m))
+   (:wat::rete::where (:wat::rete::core::i64::< ?m 25))]
+  :then
+  [(:wjo::Hit ?k)])
+
+;; ROW 6 — both filters after the join. Same set as row 5.
+(:wat::rete::defrule :wjo::join-then-two-where
+  :when
+  [(:wjo::Left (?k <- :k) (?n <- :n))
+   (:wjo::Right (?k <- :k) (?m <- :m))
+   (:wat::rete::where (:wat::rete::core::i64::> ?n 10))
+   (:wat::rete::where (:wat::rete::core::i64::< ?m 25))]
+  :then
+  [(:wjo::Hit ?k)])
+
 (:wat::core::defn :wjo::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
     (:wat::core::cond
@@ -75,6 +102,8 @@
       ((:wat::core::= row 2) (:wjo::join-then-where))
       ((:wat::core::= row 3) (:wjo::where-between-hi))
       ((:wat::core::= row 4) (:wjo::join-then-where-hi))
+      ((:wat::core::= row 5) (:wjo::where-between-then-where))
+      ((:wat::core::= row 6) (:wjo::join-then-two-where))
       (:else
         (:wat::kernel::assertion-failed!
           (:wat::core::String/concat "where-join-order: unknown row " (:wat::core::i64::to-string row))
@@ -88,7 +117,7 @@
                       -> :wat::core::PersistentVector<wat::core::Record>
         (:wat::core::PersistentVector/conj
           (:wat::core::PersistentVector/conj acc (:wjo::Left :k i :n i))
-          (:wjo::Right :k i)))
+          (:wjo::Right :k i :m i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
