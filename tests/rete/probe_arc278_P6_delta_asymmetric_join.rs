@@ -195,8 +195,7 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:xyz::Z ?k))))\n\
         s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1) (:wat::core::PersistentVector {q}))\n";
     let q = q_call(query_type);
-    let rule = format!("{rule}", rule = rule.replace("{q}", &q));
-    let mut binds = rule.to_string();
+    let mut binds = rule.replace("{q}", &q);
     let mut prev = 0usize;
     // Insert ALL X first (i=1..n), then ALL Y (i=1..n).
     // X seeds the left memory BEFORE Y arrives on the right.
