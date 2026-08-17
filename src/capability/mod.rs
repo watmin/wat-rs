@@ -26,4 +26,4 @@ pub mod policy;
 pub mod registry;
 
 pub use policy::CommsPolicy;
-pub use registry::{decode_capability, encode_capability};
+pub use registry::{decode_capability, encode_capability, is_capability_type_path};

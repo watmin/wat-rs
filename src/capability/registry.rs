@@ -17,13 +17,16 @@ use crate::runtime::Value;
 use crate::types::TypeEnv;
 use crate::value::value::AggregateValue;
 use std::sync::OnceLock;
-use wat_edn::{OwnedValue, Tag};
+use wat_edn::OwnedValue;
 
-/// A registered portable capability — the codec that crosses the `wat-edn.cap` waist.
+/// A registered portable capability — the codec that crosses the capability waist.
 pub struct CapCodec {
-    /// The `#wat-edn.cap/<name>` tag name — the DECODE key.
-    pub name: &'static str,
-    /// The `RustOpaque` `type_path` this codec encodes — the ENCODE key.
+    /// The `RustOpaque` `type_path` this codec encodes AND decodes — the single key in both
+    /// directions (arc 294.m collapsed the former two-key asymmetry: encode resolved by
+    /// `type_path` while decode resolved by a separate `name` nickname stamped into a
+    /// `wat-edn.cap` marker tag). The wire tag is now the capability's own type home, derived
+    /// from this same `type_path` via `edn_shim::tag_from_type_path` — e.g.
+    /// `:wat::kernel::Address` → `#wat.kernel/Address`.
     pub type_path: &'static str,
     /// Encode the opaque's PORTABLE form to a wire body. `None` when this opaque instance has no
     /// portable form (e.g. a thread-tier `Address'`, whose `Sender` cannot cross) → the caller falls
@@ -50,16 +53,25 @@ fn registry() -> &'static [CapCodec] {
 }
 
 /// Generic ENCODE dispatch — called by `edn_shim`'s single `RustOpaque` arm. Returns the
-/// `#wat-edn.cap/<name>` tag when `inner` is a registered portable capability WITH a portable form;
-/// `None` otherwise (→ the caller emits the non-portable opaque tag).
+/// capability's own type-home tag (`#wat.kernel/Address`, …) when `inner` is a registered
+/// portable capability WITH a portable form; `None` otherwise (→ the caller emits the
+/// non-portable opaque tag).
 pub fn encode_capability(inner: &RustOpaqueInner, types: &TypeEnv) -> Option<OwnedValue> {
     encode_in(registry(), inner, types)
 }
 
-/// Generic DECODE dispatch — called by `edn_shim`'s `wat-edn.cap` tag arm, which is reached ONLY off
-/// the trusted door (`decode_trusted_wire`). An unregistered name is refused.
-pub fn decode_capability(name: &str, body: &OwnedValue, types: &TypeEnv) -> Result<Value, EdnReadError> {
-    decode_in(registry(), name, body, types)
+/// Arc 294.m — is `type_path` a registered capability codec? This is THE question the refusal
+/// (`edn_shim::tagged_to_value`) asks before deciding a tag needs the trusted door at all — the
+/// registry is the wall now, not a namespace string (arc 198's ruling).
+pub fn is_capability_type_path(type_path: &str) -> bool {
+    registry().iter().any(|c| c.type_path == type_path)
+}
+
+/// Generic DECODE dispatch — called by `edn_shim`'s capability-tag arm, which is reached ONLY off
+/// the trusted door (`decode_trusted_wire`), and only once [`is_capability_type_path`] has already
+/// confirmed `type_path` is registered. An unregistered `type_path` is refused.
+pub fn decode_capability(type_path: &str, body: &OwnedValue, types: &TypeEnv) -> Result<Value, EdnReadError> {
+    decode_in(registry(), type_path, body, types)
 }
 
 /// The encode dispatch over an EXPLICIT codec set. Identical for N capabilities — a linear find by
@@ -68,7 +80,10 @@ pub fn decode_capability(name: &str, body: &OwnedValue, types: &TypeEnv) -> Resu
 fn encode_in(caps: &[CapCodec], inner: &RustOpaqueInner, types: &TypeEnv) -> Option<OwnedValue> {
     let codec = caps.iter().find(|c| c.type_path == inner.type_path)?;
     let body = (codec.encode)(inner, types)?;
-    Some(OwnedValue::Tagged(Tag::ns("wat-edn.cap", codec.name), Box::new(body)))
+    // Arc 294.m — the wire tag IS the capability's real type home, derived from the same
+    // `type_path` key encode just resolved by (never a second, hand-rolled path-joiner; never a
+    // `wat-edn.cap` marker namespace + nickname).
+    Some(OwnedValue::Tagged(crate::edn_shim::tag_from_type_path(codec.type_path), Box::new(body)))
 }
 
 /// Construct a capability-decode error. Decode reconstructs off the trusted peer wire from an
@@ -82,12 +97,14 @@ fn cap_decode_error(reason: impl Into<String>) -> EdnReadError {
     EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(reason.into()) }
 }
 
-/// The decode dispatch over an EXPLICIT codec set — a linear find by tag `name`.
-fn decode_in(caps: &[CapCodec], name: &str, body: &OwnedValue, types: &TypeEnv) -> Result<Value, EdnReadError> {
+/// The decode dispatch over an EXPLICIT codec set — a linear find by `type_path`, the SAME key
+/// [`encode_in`] resolves by (arc 294.m collapsed the former encode-by-type_path /
+/// decode-by-name asymmetry into a single key).
+fn decode_in(caps: &[CapCodec], type_path: &str, body: &OwnedValue, types: &TypeEnv) -> Result<Value, EdnReadError> {
     let codec = caps
         .iter()
-        .find(|c| c.name == name)
-        .ok_or_else(|| cap_decode_error(format!("wat-edn.cap/{name}")))?;
+        .find(|c| c.type_path == type_path)
+        .ok_or_else(|| cap_decode_error(format!("no registered capability codec for type path {type_path}")))?;
     (codec.decode)(body, types)
 }
 
@@ -197,7 +214,6 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
 /// `encode` returns `None`.
 fn address_codec() -> CapCodec {
     CapCodec {
-        name: "address",
         type_path: crate::kernel::spawn::ADDRESS_TYPE_PATH,
         encode: |inner, types| {
             let addr = inner.payload.downcast_ref::<crate::kernel::address::Address>()?;
@@ -238,7 +254,6 @@ mod waist_proof {
     /// A toy second capability: `:test::Token` over a `u64`. Real shape, trivial payload.
     fn toy_token_codec() -> CapCodec {
         CapCodec {
-            name: "test-token",
             type_path: ":test::Token",
             encode: |inner, _types| {
                 Some(OwnedValue::Integer(*inner.payload.downcast_ref::<u64>()? as i64))
@@ -247,7 +262,7 @@ mod waist_proof {
                 OwnedValue::Integer(n) => Ok(make_rust_opaque(":test::Token", *n as u64)),
                 // Route through the SAME attested spanless helper the production codecs use, so
                 // span-omission is ONE runed path, not a parallel hand-built struct literal.
-                _ => Err(cap_decode_error("wat-edn.cap/test-token (expected an integer)")),
+                _ => Err(cap_decode_error("test::Token (expected an integer)")),
             },
         }
     }
@@ -291,7 +306,7 @@ mod waist_proof {
         let tag = encode_in(caps, inner, types).expect("capability must encode through the waist");
         match tag {
             OwnedValue::Tagged(t, b) => (t.name().to_string(), *b),
-            _ => panic!("expected a #wat-edn.cap/<name> tag"),
+            _ => panic!("expected the capability's own type-home tag"),
         }
     }
 
@@ -300,11 +315,11 @@ mod waist_proof {
     /// each test because each test asserts a different payload type.
     fn decode_through_waist(
         caps: &[CapCodec],
-        name: &str,
+        type_path: &str,
         body: &wat_edn::OwnedValue,
         types: &crate::types::TypeEnv,
     ) -> Value {
-        decode_in(caps, name, body, types).expect("capability must decode through the waist")
+        decode_in(caps, type_path, body, types).expect("capability must decode through the waist")
     }
 
     #[test]
@@ -314,11 +329,12 @@ mod waist_proof {
 
         // Encode a Token through the SAME generic dispatch that carries Address'.
         let token = make_rust_opaque(":test::Token", 42u64);
-        let (name, body) = encode_through_waist(&caps, &token, &types);
-        assert_eq!(name, "test-token", "the toy cap got its own tag through the generic dispatch");
+        let (tag_name, body) = encode_through_waist(&caps, &token, &types);
+        assert_eq!(tag_name, "Token", "the toy cap wears its own type-home tag through the generic dispatch");
 
-        // Decode it back through the SAME generic dispatch → a live :test::Token.
-        let back = decode_through_waist(&caps, &name, &body, &types);
+        // Decode it back through the SAME generic dispatch, keyed by the SAME type_path encode
+        // resolved by (arc 294.m: one key, both directions) → a live :test::Token.
+        let back = decode_through_waist(&caps, ":test::Token", &body, &types);
         match back {
             Value::RustOpaque(inner) => {
                 assert_eq!(inner.payload.downcast_ref::<u64>(), Some(&42u64))
@@ -346,7 +362,7 @@ mod waist_proof {
             addr,
         );
         let (_, body) = encode_through_waist(&caps, &opaque, &types);
-        let back = decode_through_waist(&caps, "address", &body, &types);
+        let back = decode_through_waist(&caps, crate::kernel::spawn::ADDRESS_TYPE_PATH, &body, &types);
         match back {
             Value::RustOpaque(inner) => {
                 let reconstructed = inner
@@ -383,7 +399,7 @@ mod waist_proof {
             (0..200).map(|_| Value::i64(b'a' as i64)).collect(),
         ));
         let body = make_address_body(1, name_vec, &types);
-        let err = decode_in(&[address_codec()], "address", &body, &types)
+        let err = decode_in(&[address_codec()], crate::kernel::spawn::ADDRESS_TYPE_PATH, &body, &types)
             .expect_err("an over-long address name must be refused at decode");
         match err.kind {
             EdnReadErrorKind::UnsupportedTag(msg) => {
@@ -395,11 +411,12 @@ mod waist_proof {
 
     #[test]
     fn registry_rows_have_distinct_keys() {
+        // Arc 294.m — `type_path` is now the ONLY key, in both directions; a duplicate would
+        // silently shadow both encode (already true before) AND decode (new: decode used to key
+        // on the separate `name` nickname, which is now gone).
         let rows = registry();
-        let names: std::collections::HashSet<_> = rows.iter().map(|c| c.name).collect();
         let type_paths: std::collections::HashSet<_> = rows.iter().map(|c| c.type_path).collect();
-        assert_eq!(names.len(), rows.len(), "duplicate name in registry — decode would silently shadow");
-        assert_eq!(type_paths.len(), rows.len(), "duplicate type_path in registry — encode would silently shadow");
+        assert_eq!(type_paths.len(), rows.len(), "duplicate type_path in registry — encode AND decode would silently shadow");
     }
 
     #[test]
@@ -408,7 +425,7 @@ mod waist_proof {
         let types = make_types_with_wire();
         let name_vec = Value::Vec(std::sync::Arc::new(vec![]));
         let body = make_address_body(1, name_vec, &types);
-        let err = decode_in(&[address_codec()], "address", &body, &types)
+        let err = decode_in(&[address_codec()], crate::kernel::spawn::ADDRESS_TYPE_PATH, &body, &types)
             .expect_err("an empty address name must be refused at decode");
         match err.kind {
             EdnReadErrorKind::UnsupportedTag(msg) => {

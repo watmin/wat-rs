@@ -2842,12 +2842,18 @@ fn tagged_to_value(
     let ns = tag.namespace();
     let name = tag.name();
 
-    // Arc 272 6a-i — PORTABLE CAPABILITY tags. These ARE reconstructable — but ONLY off a
-    // TRUSTED channel (`allow_caps`, set by the peer wire). On the general decode path
-    // (`:wat::edn::read`, config, any parsed data) a `wat-edn.cap` tag is REFUSED: an
+    // Arc 294.m — PORTABLE CAPABILITY tags. A capability now wears its real type home
+    // (`#wat.kernel/Address`, not the retired `wat-edn.cap` marker namespace), so `wat.kernel`
+    // no longer means "capability" by itself — it also hosts ordinary data (`Frame`,
+    // `Location`). The refusal therefore asks the REGISTRY whether THIS EXACT type path is a
+    // registered capability codec — arc 198's ruling, verbatim: "ask the registry whether the
+    // key is live; never ask a string what it looks like." A registered capability tag IS
+    // reconstructable — but ONLY off a TRUSTED channel (`allow_caps`, set by the peer wire). On
+    // the general decode path (`:wat::edn::read`, config, any parsed data) it is REFUSED: an
     // object-capability is obtained by being handed it over a channel, never forged from data
     // (ocap unforgeability + transfer-only).
-    if ns == "wat-edn.cap" {
+    let cap_type_path = ns_to_wat_path(ns, name);
+    if crate::capability::is_capability_type_path(&cap_type_path) {
         if allow_caps {
             // Arc 272 6c.2 — record-based codecs (SocketAddressWire) need the type registry.
             // The trusted peer wire always provides types (decode_trusted_wire is always called
@@ -2856,7 +2862,7 @@ fn tagged_to_value(
                 span: crate::rust_caller_span!(),
                 kind: EdnReadErrorKind::NoTypeRegistry,
             })?;
-            return crate::capability::decode_capability(name, body, t);
+            return crate::capability::decode_capability(&cap_type_path, body, t);
         }
         return Err(EdnReadError {
             span: crate::rust_caller_span!(),
@@ -3544,15 +3550,19 @@ pub(crate) fn decode_trusted_wire(
 
 #[cfg(test)]
 mod cap_decode_boundary {
-    //! Arc 272 6a-i / 6c.2 — the trap-door ward. A capability (`wat-edn.cap`) tag reconstructs ONLY
-    //! through the trusted door; the general/untrusted decode path REFUSES it. If this ever flips, the
-    //! forge-hole reopens (parsed data minting live capabilities). This is the regression alarm bolted
-    //! onto the exact trap we fell through — it must never open again.
+    //! Arc 272 6a-i / 6c.2, updated 294.m — the trap-door ward. A capability now wears its real
+    //! type home (`#wat.kernel/Address`, not the retired `wat-edn.cap` marker namespace) and
+    //! reconstructs ONLY through the trusted door; the general/untrusted decode path REFUSES it
+    //! because the refusal consults the REGISTRY (is this type path a registered capability
+    //! codec?), never a namespace string. If this ever flips, the forge-hole reopens (parsed data
+    //! minting live capabilities). This is the regression alarm bolted onto the exact trap we
+    //! fell through — it must never open again.
     use super::{decode_trusted_wire, edn_string_to_value};
 
     // Arc 272 6c.2 — the wire format is now a SocketAddressWire record (not a bare byte vector).
-    // The address cap tag wraps a #wat.kernel/SocketAddressWire tagged map.
-    const CAP_TAG_GENERAL: &str = "#wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 1 :name [1 2 3 4 5]}";
+    // Arc 294.m — the outer tag is the capability's real type home, `#wat.kernel/Address`, not
+    // the retired `wat-edn.cap` marker namespace.
+    const CAP_TAG_GENERAL: &str = "#wat.kernel/Address #wat.kernel/SocketAddressWire {:minter-pid 1 :name [1 2 3 4 5]}";
 
     fn make_types() -> crate::types::TypeEnv {
         use crate::types::{AggregateDef, Nature, TypeDef, TypeExpr};
@@ -3979,7 +3989,7 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
 /// `holon_ast_to_edn_data` already uses for the same class of defect
 /// (DESIGN-STONE-294.j).
 #[track_caller]
-fn tag_from_type_path(path: &str) -> Tag {
+pub(crate) fn tag_from_type_path(path: &str) -> Tag {
     let stripped = path.strip_prefix(':').unwrap_or(path);
     match stripped.rfind("::") {
         Some(idx) => {
