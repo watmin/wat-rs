@@ -97,10 +97,16 @@ inheritance, not a verdict.
 > **`f` runs exactly N times for N elements — AND — per-element retention reaches the eager
 > baseline.** Both, or it has not landed.
 
-⚠ **O(1) is a PREDICTION, and it is the SHARED PREMISE neither route's four questions can see:**
-*once no three-call walker remains, both memos can die and retention goes to O(1).* **UNPROVEN.**
-The last prediction here was wrong (memo-off reached eager parity, not O(1)). **Probe it before
-striking either route** — throwaway no-memo build + the committed 4-point series.
+⛔ **CORRECTION — "the O(1) prediction was wrong" IS ITSELF WRONG, and it was in 4 docs incl. this
+seam.** `DESIGN-118.10`'s own table: memo-on **585** B/elem · memo-off **288** · eager `mapv`, **no
+stream at all**, **288**. Memo-off equals a program with no stream in it — **zero stream retention,
+exactly as predicted.** "Eager parity" is the SUCCESS condition: `into`/`mapv` materialize by
+contract, so that instrument is O(n) under *any* implementation and could never show total O(1).
+A clean confirmation got recorded as a refutation and became a standing reason to distrust the fix.
+
+**Still genuinely open: population C** (the wat-closure generator — the builder's own idiom, 3,124
+B/elem) has **never been run memo-off.** Cheap, owed under both routes, instrument committed and
+retains nothing: `wat-scripts/scratch-pad/probe-118B-dorun-retention-slope.wat`.
 
 ### The measured numbers — and the seam was quoting the CHEAP half
 

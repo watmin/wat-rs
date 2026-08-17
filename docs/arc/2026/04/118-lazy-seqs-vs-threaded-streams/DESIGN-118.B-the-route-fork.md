@@ -119,14 +119,48 @@ The four questions discriminate BETWEEN options; they never validate what BOTH r
 `[[feedback_four_questions_cannot_see_a_shared_premise]]`
 
 Both routes rest on: **once no three-call walker remains, both memos can be deleted and retention
-goes to O(1).** That is **UNPROVEN**. It is the prediction the whole tier is aimed at, and the last
-prediction in this area — that removing the memo alone reaches O(1) — was **wrong**; it reached
-eager parity.
+goes to O(1).**
 
-If that premise is false, neither route delivers the memory fix, and the fork was about code
-organization all along. **It should be probed before either route is struck**, and it is cheap:
-build a throwaway no-memo variant and run the four-point RSS series that already exists
-(`wat-scripts/scratch-pad/probe-118B-dorun-retention-slope.wat`).
+### ⛔ CORRECTION 2026-08-17 — the record says this prediction "was wrong." IT WAS RIGHT.
+
+Four documents (this arc's `DESIGN-118.10`, `DESIGN-STONE-118.11a`, the 294 seam, and — until this
+edit — my own lair doc) carry the line *"my prediction that removing the memo alone would reach O(1)
+was wrong; it reached eager parity."* **Read the table it cites** (`DESIGN-118.10`, "The measurement
+that quantifies the trade"):
+
+```
+memo ON (today)          585 B/element      f runs 1×
+memo OFF                 288 B/element      f runs 3×
+mapv — eager, NO STREAM  288 B/element      f runs 1×     ← the control
+```
+
+**Memo-off is identical to a program containing no stream at all** — within 200 KB on 326 MB, and
+the doc says so itself: *"the 288 B is the output `Vector` the caller asked for."* That is **zero
+stream retention**. The memo *was* the entire overhead, exactly as predicted.
+
+"Eager parity" is the **success condition**, not a failure — because `into`/`mapv` **materialize by
+contract**. A drain that builds an n-element Vector is O(n) in memory under *any* implementation,
+including a perfect one. **That instrument could not have shown total O(1) no matter what the
+substrate did.** Calling its result a refutation converted a clean confirmation into a standing
+reason to distrust the fix.
+
+This is the same instrument error I made myself an hour earlier and caught: proving non-vacuity with
+`(length (into [] …))` in a maxRSS probe, where the scaffolding out-allocates the subject. Twice in
+one day, one shape — **the drain's own retention swamping the thing being measured.**
+`[[feedback_a_probe_that_recalibrates_under_load_measures_nothing]]`
+
+### What is therefore actually known, and what remains open
+
+- **Population B (native `map` chain): the premise HOLDS, measured.** Memo-off → zero stream
+  retention against a no-stream control.
+- **Population C (wat-closure generator): UNTESTED.** Today it retains **3,124 B/element** (§5),
+  9.1× population B, and no memo-off run has ever been done against it. `:probe::counter` holds no
+  prior cell itself, so only the memo links cell→tail — which predicts C also drops to ~0. **That is
+  a prediction; C is the population the builder's own idiom uses, and it is the one that has never
+  been measured.**
+- The probe is cheap and the instrument now exists and retains nothing:
+  `wat-scripts/scratch-pad/probe-118B-dorun-retention-slope.wat`. Throwaway no-memo build, run the
+  four-point series, restore. **Owed under both routes.**
 
 Also shared, and true: `next` ships under both routes. Users write their own producers and consumers
 either way, so the pull primitive is not route-dependent. 118.11a was correctly scoped.

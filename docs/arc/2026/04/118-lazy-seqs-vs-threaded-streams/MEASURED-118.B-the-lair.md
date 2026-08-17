@@ -222,8 +222,18 @@ with per-claim annotations; the original text is preserved as filed.
 
 ## 8. WHAT THIS DOES NOT SETTLE
 
-- **That deleting the memos reaches O(1).** Still a **prediction**. The last prediction here — that
-  removing the memo alone gives O(1) — was wrong; it reached eager parity. B measures.
+- **That deleting the memos reaches O(1) for population C.** Open — and see the correction below,
+  because the record's account of this is wrong in a way that has been propagating.
+
+  ⛔ **CORRECTION.** Four docs carry *"the prediction that removing the memo alone reaches O(1) was
+  wrong; it reached eager parity."* **It was right.** `DESIGN-118.10`'s own table: memo-on 585 B/elem,
+  memo-off **288** B/elem, eager `mapv` with **no stream at all** **288** B/elem. Memo-off equals a
+  program containing no stream — **zero stream retention**, exactly as predicted. "Eager parity" is
+  the success condition, because `into`/`mapv` materialize by contract and are O(n) under *any*
+  implementation. That instrument could never have shown total O(1).
+  **What remains genuinely open is population C** (the wat-closure generator, 3,124 B/elem, §5) —
+  never run memo-off, and it is the population the builder's own idiom uses.
+  Full argument: `DESIGN-118.B-the-route-fork.md` § shared premise.
 - **Whether the three doors close.** A dialect ruling, and the builder's (§4).
 - **`keep-stream`'s `None` arm** recurses directly inside its own `lazy` body, so a long run of
   dropped elements recurses in Rust. Pre-existing, unmeasured, and NOT stone B's scope — but it is
