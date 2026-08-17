@@ -39,7 +39,7 @@
 //! | HashSet | `Set` |
 //! | Struct | `Tagged #ns/Type {:field-0 v0 :field-1 v1 ...}` |
 //! | Enum | `Tagged #ns/Variant [v0 v1 ...]` (unit variant → `[]`) |
-//! | HolonAST | Tagged per variant (Symbol/String/I64/F64/Bool/Atom/Bind/Bundle/Permute/Thermometer/Blend) |
+//! | HolonAST | DATA, never a wat source form (arc 294.j RELAND): a data-shaped holon renders as the plain EDN `from_holon_item` recovers; `Thermometer`/`SlotMarker` (constructor directives) render as `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`; the algebra (Bind/Bundle/Atom/Permute/Blend) never crosses the wire in any form — encoding one RAISES |
 //! | All other substrate handles | `Tagged #wat.<home>/<TypeName> nil` (arc 294.i — per-type home, not a shared bucket) |
 //!
 //! # Performance
@@ -1957,7 +1957,7 @@ fn coerce_variant_single<'a>(
 /// | user `Struct` | `Tagged #ns/Name {map}` | recurse per field |
 /// | user `Enum` (Unit variant) | `Tagged #ns/Variant nil` | enum variant |
 /// | user `Enum` (Tagged variant) | `Tagged #ns/Variant [items]` | recurse per field |
-/// | `:wat::holon::HolonAST` | any | call [`edn_to_holon_ast_natural`] / tagged path |
+/// | `:wat::holon::HolonAST` | any | call [`edn_derive_holon`] (arc 294.j — one collapsed reader) |
 ///
 /// On mismatch the returned [`EdnCoerceError`] carries the declared
 /// type's rendered form, the EDN shape that arrived, and the path
@@ -2091,24 +2091,17 @@ fn edn_to_typed_value_inner(
                     got: format!("{e}"),
                     path: String::new(),
                 }),
+            // Arc 294.j — ONE reader, no mode selector. The old tagged-vs-
+            // natural branch existed to pick between two readers that only
+            // differed in how they treated a BARE leaf; both died with the
+            // tag family (`edn_derive_holon`, above) — there is nothing left
+            // to select between, so both former branches call the same fn.
             ":wat::holon::HolonAST" => {
-                // Tagged round-trip OR natural-form lift to a leaf —
-                // mirrors `edn_shim`'s two-mode reader.
-                let ast = match edn {
-                    Edn::Tagged(tag, _) if tag.namespace() == "wat-edn.holon" => {
-                        edn_to_holon_ast(edn).map_err(|e| EdnCoerceError {
-                            expected: ":wat::holon::HolonAST".into(),
-                            got: format!("HolonAST decode error: {e}"),
-                            path: String::new(),
-                        })?
-                    }
-                    _ => edn_to_holon_ast_natural(edn).map_err(|e| EdnCoerceError {
-                        expected: ":wat::holon::HolonAST".into(),
-                        got: format!("HolonAST decode error: {e}"),
-                        path: String::new(),
-                    })?,
-                };
-                Ok(Value::holon__HolonAST(ast))
+                edn_derive_holon(edn, types, ctx).map(Value::holon__HolonAST).map_err(|e| EdnCoerceError {
+                    expected: ":wat::holon::HolonAST".into(),
+                    got: format!("HolonAST decode error: {e}"),
+                    path: String::new(),
+                })
             }
             // ── Arc 278 the PARAMETRIC PROTOCOL — a type VARIABLE position is OPAQUE ──
             // `:K` / `:V` / `:T` is a declaration's lexically-scoped binder, not a registered
@@ -2154,9 +2147,12 @@ fn edn_to_typed_value_inner(
                     // `<S>::<Op>Request` is a defrecord), so without this the sanitization wall
                     // would reject every well-formed request. `coerce_struct_path` builds with
                     // the DECLARED nature (below) so the reconstructed value does not lie.
-                    // HolonRecord stays out: its wire form is a `#wat-edn.holon/Bind` hologram
-                    // (see `reconstruct_holon_record`), which this field-map walk cannot honestly
-                    // rebuild — it keeps its existing fall-through.
+                    // HolonRecord stays out: its wire form is the SAME class-tag-plus-fields
+                    // map a plain record wears (294.g moved the discriminator from body shape
+                    // to the registry; the hologram is a DERIVED index, never on the wire — see
+                    // `reconstruct_holon_record`, which builds it via `build_holon_hologram`
+                    // rather than reading one). This walker doesn't know how to derive it, so
+                    // it keeps its existing fall-through and leaves that to the dedicated path.
                     Some(crate::types::TypeDef::Aggregate(a))
                         if matches!(
                             a.nature,
@@ -2867,14 +2863,13 @@ fn tagged_to_value(
     // happens not to be a Map/Vector) falls to the generic `UnknownTag` arm. Neither path
     // reconstructs a live opaque handle from data — the property this check used to assert by
     // name is now structural, not a namespace string match.
-    if ns == "wat-edn.holon" {
-        // Arc 093 — substrate-internal HolonAST round-trip.
-        // `holon_ast_to_edn` produces these tags on the write
-        // side; lift back to a Value::holon__HolonAST here so
-        // EDN containing tagged HolonASTs reads cleanly.
-        let ast = edn_holon_tag_to_ast(name, body)?;
-        return Ok(Value::holon__HolonAST(ast));
-    }
+    //
+    // Arc 294.j — the sibling holon-tag dispatch that used to sit here (`if ns == the-dead-tag
+    // { edn_holon_tag_to_ast(...) }`) is GONE the same way, and for the same reason: the tag
+    // family it dispatched on no longer exists on the write side (DESIGN-STONE-294.j), so a
+    // value arriving here bearing the old namespace has NO arm — it falls through this whole
+    // `if`-chain to the generic `UnknownTag` refusal below. Dead, not dormant (gate 5): there is
+    // no name check doing the refusing, only the absence of a matching arm.
     // Arc 278 Stone A.0 — Option wire form is VECTOR-bodied: `#wat.core.Option/None []`
     // / `#wat.core.Option/Some [v]`. `None` accepts `[]`; `Some` reads the single field.
     if ns == "wat.core.Option" {
@@ -2940,6 +2935,33 @@ fn tagged_to_value(
         return Ok(Value::wat__core__PersistentVector(pv));
     }
 
+    // Arc 294.j RELAND — `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`, the two
+    // encoding DIRECTIVES, reconstruct here too, NOT only through the narrow
+    // `:wat::holon::HolonAST` typed-coercion arm (`edn_derive_holon`). MEASURED: the process
+    // tier's message decode goes through THIS general (untyped) path — a service request
+    // carrying a Thermometer nested in its fields hit `reconstruct_struct`'s registry lookup
+    // (`:wat::holon::Thermometer` is a Rust intrinsic, never a registered struct) and refused
+    // as `UnknownTag`, which is the far-side crash `wat-tests/service-cache-hologram.wat:121`
+    // reproduced on the `on_process` tier. Registry-independent, same as
+    // `wat.core.Option`/`wat.core.Result`/`wat.core/PersistentMap` immediately above — a
+    // directive tag is recognised by NAME, not by a registered type.
+    if ns == "wat.holon" {
+        if let Some(holon) = decode_holon_directive_tag(name, body)? {
+            return Ok(Value::holon__HolonAST(Arc::new(holon)));
+        }
+    }
+
+    // Arc 294.j CORRECTION 2 — `#wat/holon <data>`, the DATA tag (distinct namespace/name
+    // split from the `wat.holon/*` directives immediately above: namespace "wat", name
+    // "holon", so it renders `#wat/holon` not `#wat.holon/holon`). Same MEASURED reason as
+    // the directive check: the process tier's message decode goes through THIS general
+    // (untyped) path, not only the narrow `:wat::holon::HolonAST` typed-coercion arm
+    // (`edn_derive_holon`) — a struct field carrying a data holon needs to re-lift here too.
+    if ns == "wat" && name == "holon" {
+        let inner = edn_to_value_caps(body, types, allow_caps, foreign, ctx)?;
+        return Ok(Value::holon__HolonAST(Arc::new(decode_holon_data_tag(inner)?)));
+    }
+
     // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
     let types = types.ok_or(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::NoTypeRegistry })?;
 
@@ -2949,8 +2971,9 @@ fn tagged_to_value(
     //   Aggregate(kind==Struct) or unknown → reconstruct_struct (returns UnknownTag on miss).
     match body {
         // Arc 294.g — the discriminator moved from BODY SHAPE to the REGISTRY. Before this
-        // stone a holon record had a distinct `Edn::Tagged(#wat-edn.holon/*, _)` body (the
-        // serialized hologram) so the decoder could tell it apart from a base record's
+        // stone a holon record had a distinct tagged-HolonAST body (the serialized hologram,
+        // under the tag family 294.j later killed outright) so the decoder could tell it
+        // apart from a base record's
         // `Edn::Map` body by shape alone. Now every record — Record or HolonRecord — wears
         // the SAME `Edn::Map` body (class tag + fields), so the only signal left is what the
         // type registry says `a.nature` is. `Nature::HolonRecord` routes to
@@ -3728,9 +3751,35 @@ pub fn value_to_edn_with(
         }
 
         // ── Substrate compound values — opaque or structural ─────
-        Value::holon__HolonAST(h) => holon_ast_to_edn(h),
+        // Arc 294.j RELAND — `edn_shim` forgets the algebra, and renders
+        // DATA, never a wat source form (DESIGN-STONE-294.j, the ⛔
+        // CORRECTION section). The first strike reached for `holon_to_watast`
+        // because it was total and adjacent — it renders wat SOURCE, which
+        // is exactly the defect the builder caught (a Thermometer wire form
+        // that round-trips to a Bundle and crashes the far side). The job
+        // needs a renderer of DATA: `from_holon_item` (runtime.rs), the
+        // holon→data inverse `:wat::holon::from-holon` already uses, which
+        // refuses (Err) on anything that is not data — Thermometer/SlotMarker
+        // included, because they are constructor directives, not data. See
+        // `holon_ast_to_edn_data` below for the three-case dispatch.
+        Value::holon__HolonAST(h) => holon_ast_to_edn_data(h, types),
+        // Arc 294.j — the realized VSA vector is the algebra's OWN terminal
+        // artifact (the materialized `holon::Vector` a Bind/Bundle tree
+        // evaluates to), so it shares the "derived, not shipped" disposition
+        // the DESIGN STONE's classification table gives the algebra family —
+        // it was the one member of that family not living in
+        // `holon_ast_to_edn` (it is a `Value::Vector`, not a `HolonAST`
+        // variant — holon-rs has no such variant). Its OLD tag shared the
+        // now-dead namespace by accident of authorship, not by kinship with
+        // the tag/reader pair this stone kills; it never had a reader arm at
+        // all (`Vector` never appeared in `edn_holon_tag_to_ast`), so there
+        // is no decode path to remove. Body is unchanged (`:dim`, the one
+        // legitimate non-secret fact about an opaque handle — same
+        // "preserve real data" call 294.i made for `HandlePool`'s name);
+        // only the home moves off the dead namespace, to the same
+        // `wat.holon` per-type home the VSA five already use.
         Value::Vector(vec) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Vector"),
+            Tag::ns("wat.holon", "Vector"),
             Box::new(OwnedValue::Map(vec![(
                 OwnedValue::Keyword(Keyword::new("dim")),
                 OwnedValue::Integer(vec.dimensions() as i64),
@@ -3816,7 +3865,7 @@ pub fn value_to_edn_with(
         // `:t::Holo` is holon-held from the type registry and derives its own
         // (`build_holon_hologram`). This is the body every base record already produced
         // (Arc 234 Stone 234.7a); the old `HolonForm::Hologram` arm (Stone 234.7b, riding
-        // the hologram as `#wat-edn.holon/Bind[...]`) is ANNIHILATED.
+        // the hologram as a serialized tagged-HolonAST tree) is ANNIHILATED.
         Value::Aggregate(a) => {
             let type_key = format!(":{}", a.class);
             let tag = tag_from_type_path(&type_key);
@@ -3926,380 +3975,213 @@ fn opaque_nil(ns: &str, name: &str) -> OwnedValue {
     OwnedValue::Tagged(Tag::ns(ns, name), Box::new(OwnedValue::Nil))
 }
 
-/// Render a HolonAST as a tagged EDN value. Primitives unwrap to
-/// their EDN equivalent inside the tag; composites recurse.
+/// Arc 294.j RELAND — encode a `HolonAST` as DATA (DESIGN-STONE-294.j, the
+/// ⛔ CORRECTION section). Three cases, no algebra on the wire:
 ///
-/// Arc 230: Symbol/Keyword/Tag/Nil variants retired. Those forms now
-/// exist as `Bind(Atom(String(cls)), Atom(String(val)))` compositions.
-/// We intercept them before the generic Bind arm so that the EDN
-/// round-trip writer emits the familiar `#wat-edn.holon/Keyword` etc.
-/// tags (the reader reconstructs via the updated constructors).
-fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
+/// - `Thermometer` / `SlotMarker` — the two encoding DIRECTIVES (the data
+///   cannot say "build a thermometer, not a 3-key map"). Render as
+///   `#wat.holon/Thermometer {:value :min :max}` /
+///   `#wat.holon/SlotMarker {:min :max}` — legible, self-describing, plain
+///   EDN, never a call form.
+/// - anything else that IS data — [`crate::runtime::from_holon_item`] (the
+///   holon→data inverse `:wat::holon::from-holon` already uses) recovers the
+///   `Value` it derived from; that `Value` renders through the SAME
+///   `value_to_edn_with` this function is itself an arm of, wrapped in
+///   `#wat/holon <data>` (arc 294.j CORRECTION 2 — `#wat.holon <data>`
+///   cannot parse, `wat.holon` being a namespace with no name; `Tag::ns("wat",
+///   "holon")` is the only spelling that does). The tag is what makes a data
+///   holon re-liftable in EVERY position — struct field, vector element, map
+///   value, service argument — with no declared type in scope required.
+/// - anything else — the algebra (`Bind`/`Bundle`/`Atom`/`Permute`/`Blend`)
+///   is neither data nor a directive and MUST NOT cross the wire. RAISE
+///   (`panic!`) rather than fall back to a Bundle/nil/best-effort rendering —
+///   `[[feedback_a_negative_control_that_can_be_kept_must_be_kept]]`,
+///   unrepresentable beats guarded. `value_to_edn_with` has no `Result` in
+///   its signature (72 call sites, all infallible today; threading `Result`
+///   through is out of this stone's scope) so `panic!` is the wall, matching
+///   the house convention for a "fails closed" wat-visible condition
+///   (`tests/collection/bundle_capacity.rs`'s `:panic` mode).
+fn holon_ast_to_edn_data(h: &holon::HolonAST, types: Option<&crate::types::TypeEnv>) -> OwnedValue {
     use holon::HolonAST;
-    // Arc 230: intercept Symbol/Keyword/Tag/Nil compositions before generic dispatch.
-    if let Some(s) = h.as_symbol() {
-        return OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Symbol"),
-            Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
-        );
-    }
-    if let Some(s) = h.as_keyword() {
-        return OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Keyword"),
-            Box::new(OwnedValue::Keyword(Keyword::new(s))),
-        );
-    }
-    if let Some(s) = h.as_tag() {
-        return OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Tag"),
-            Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
-        );
-    }
-    // Note: is_nil() = as_symbol() == Some("nil"), handled by the Symbol arm above.
     match h {
-        HolonAST::String(s) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "String"),
-            Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
-        ),
-        HolonAST::I64(n) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "I64"),
-            Box::new(OwnedValue::Integer(*n)),
-        ),
-        HolonAST::F64(x) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "F64"),
-            Box::new(OwnedValue::Float(*x)),
-        ),
-        HolonAST::Bool(b) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Bool"),
-            Box::new(OwnedValue::Bool(*b)),
-        ),
-        HolonAST::Atom(inner) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Atom"),
-            Box::new(holon_ast_to_edn(inner)),
-        ),
-        HolonAST::Bind(role, filler) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Bind"),
-            Box::new(OwnedValue::Vector(vec![
-                holon_ast_to_edn(role),
-                holon_ast_to_edn(filler),
-            ])),
-        ),
-        HolonAST::Bundle(xs) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Bundle"),
-            Box::new(OwnedValue::Vector(
-                xs.iter().map(holon_ast_to_edn).collect(),
-            )),
-        ),
-        HolonAST::Permute(child, k) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Permute"),
-            Box::new(OwnedValue::Vector(vec![
-                holon_ast_to_edn(child),
-                OwnedValue::Integer(*k as i64),
-            ])),
-        ),
         HolonAST::Thermometer { value, min, max } => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Thermometer"),
+            Tag::ns("wat.holon", "Thermometer"),
             Box::new(OwnedValue::Map(vec![
-                (
-                    OwnedValue::Keyword(Keyword::new("value")),
-                    OwnedValue::Float(*value),
-                ),
-                (
-                    OwnedValue::Keyword(Keyword::new("min")),
-                    OwnedValue::Float(*min),
-                ),
-                (
-                    OwnedValue::Keyword(Keyword::new("max")),
-                    OwnedValue::Float(*max),
-                ),
+                (OwnedValue::Keyword(Keyword::new("value")), OwnedValue::Float(*value)),
+                (OwnedValue::Keyword(Keyword::new("min")), OwnedValue::Float(*min)),
+                (OwnedValue::Keyword(Keyword::new("max")), OwnedValue::Float(*max)),
             ])),
-        ),
-        HolonAST::Blend(a, b, w1, w2) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Blend"),
-            Box::new(OwnedValue::Vector(vec![
-                holon_ast_to_edn(a),
-                holon_ast_to_edn(b),
-                OwnedValue::Float(*w1),
-                OwnedValue::Float(*w2),
-            ])),
-        ),
-        // Arc 221 Stone 221.2 — Char primitive leaf. Encodes as
-        // #wat-edn.holon/Char containing an EDN character literal.
-        HolonAST::Char(c) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Char"),
-            Box::new(OwnedValue::Char(*c)),
         ),
         HolonAST::SlotMarker { min, max } => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "SlotMarker"),
+            Tag::ns("wat.holon", "SlotMarker"),
             Box::new(OwnedValue::Map(vec![
-                (
-                    OwnedValue::Keyword(Keyword::new("min")),
-                    OwnedValue::Float(*min),
-                ),
-                (
-                    OwnedValue::Keyword(Keyword::new("max")),
-                    OwnedValue::Float(*max),
-                ),
+                (OwnedValue::Keyword(Keyword::new("min")), OwnedValue::Float(*min)),
+                (OwnedValue::Keyword(Keyword::new("max")), OwnedValue::Float(*max)),
             ])),
         ),
+        other => match crate::runtime::from_holon_item(
+            other,
+            ":wat::edn::write",
+            &crate::rust_caller_span!(),
+        ) {
+            // Arc 294.j CORRECTION 2 — the data tag is `#wat/holon <data>`, NOT `#wat.holon
+            // <data>`. `#wat.holon` cannot parse: `wat.holon` is a namespace with no name,
+            // the same violation as a bare `#holon` (`crates/wat-edn/src/parser.rs:355`,
+            // `ErrorKind::UserTagMissingNamespace`). `Tag::ns("wat", "holon")` renders
+            // `#wat/holon` — namespace "wat", name "holon" — which DOES parse, and is a
+            // real tag visible in every position (struct field, vector element, map value,
+            // service argument), unlike the bare-untagged data the first RELAND emitted.
+            Ok(v) => OwnedValue::Tagged(
+                Tag::ns("wat", "holon"),
+                Box::new(value_to_edn_with(&v, types)),
+            ),
+            Err(e) => panic!(
+                "cannot encode HolonAST to the wire — {e} — the algebra \
+                 (Bind/Bundle/Atom/Permute/Blend) never crosses the wire in any form, per \
+                 DESIGN-STONE-294.j; only DATA and the two directives (Thermometer/SlotMarker) do"
+            ),
+        },
     }
 }
 
-/// Inverse of [`holon_ast_to_edn`] — reconstruct a HolonAST from
-/// a round-trip-safe tagged EDN form (`#wat-edn.holon/*`). The
-/// arc-091/092 read counterpart that the original write side
-/// shipped without; arc 093's reader-cursor needs this to lift
-/// `:wat::edn::Tagged` columns back to their original HolonAST.
+/// Arc 294.j RELAND — the ONE collapsed HolonAST reader (DESIGN-STONE-294.j,
+/// the ⛔ CORRECTION section). Mirrors [`holon_ast_to_edn_data`]'s three
+/// cases exactly:
 ///
-/// The body shape disambiguates per-tag:
-/// - leaves (`Symbol`/`String`/`I64`/`F64`/`Bool`) carry a single
-///   primitive payload;
-/// - `Atom` carries a single nested HolonAST EDN form;
-/// - `Bind` / `Permute` / `Bundle` / `Blend` carry a Vector of
-///   children (with the right arity per variant);
-/// - `Thermometer` / `SlotMarker` carry a Map keyed on field
-///   names (`:value`, `:min`, `:max`).
-fn edn_to_holon_ast(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, EdnReadError> {
-    match edn {
-        OwnedValue::Tagged(tag, body) if tag.namespace() == "wat-edn.holon" => {
-            edn_holon_tag_to_ast(tag.name(), body)
+/// - `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}` — the two
+///   directive tags reconstruct DIRECTLY (they carry constructor details a
+///   generic data walk cannot recover).
+/// - `#wat/holon <data>` (arc 294.j CORRECTION 2) — a tagged data holon.
+///   Unwrap the tag and lift the body via [`decode_holon_data_tag`].
+/// - anything else (untagged data, for a slot that received plain EDN with
+///   no wrapper) — the SAME lift applied directly to the whole value, via
+///   [`edn_to_value`] (the SAME untyped decode `:wat::edn::read` uses) then
+///   [`decode_holon_data_tag`]. Composing functions that already exist and
+///   are already total, not a third HolonAST reader.
+fn edn_derive_holon(
+    edn: &OwnedValue,
+    types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
+) -> Result<Arc<holon::HolonAST>, EdnReadError> {
+    use wat_edn::Value as Edn;
+    if let Edn::Tagged(tag, body) = edn {
+        if tag.namespace() == "wat.holon" {
+            if let Some(holon) = decode_holon_directive_tag(tag.name(), body)? {
+                return Ok(Arc::new(holon));
+            }
         }
-        // arc 138: no span — edn_to_holon_ast walks parsed OwnedValue, no WatAST in scope
-        _ => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("expected #wat-edn.holon/* tagged form for HolonAST round-trip; use edn_to_holon_ast_natural for the tagless read".into()) }),
+        if tag.namespace() == "wat" && tag.name() == "holon" {
+            let value = edn_to_value(body, types, ctx).map_err(|e| EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::Other(format!("HolonAST decode: {e}")),
+            })?;
+            return Ok(Arc::new(decode_holon_data_tag(value)?));
+        }
+    }
+    let value = edn_to_value(edn, types, ctx).map_err(|e| EdnReadError {
+        span: crate::rust_caller_span!(),
+        kind: EdnReadErrorKind::Other(format!("HolonAST decode: {e}")),
+    })?;
+    Ok(Arc::new(decode_holon_data_tag(value)?))
+}
+
+/// Derive a `HolonAST` from an already-decoded `Value` — the shared tail of
+/// both `#wat/holon <data>` decode arms (`edn_derive_holon`'s typed slot and
+/// `tagged_to_value`'s general/untyped dispatch): lift the `Value` via
+/// `to_holon_inner`, the SAME holon-side lift `:wat::holon::literal` (`#holon
+/// <form>`, arc 294.b) uses to derive a HolonAST from an arbitrary `Value`.
+/// Shared so the two decode doors agree by construction, not by two
+/// hand-kept-in-sync copies (the same reasoning as
+/// [`decode_holon_directive_tag`] for the directive tags).
+fn decode_holon_data_tag(value: Value) -> Result<holon::HolonAST, EdnReadError> {
+    match crate::runtime::to_holon_inner(value, &crate::rust_caller_span!()) {
+        Ok(Value::holon__HolonAST(h)) => Ok((*h).clone()),
+        Ok(other) => unreachable!(
+            "to_holon_inner always returns holon__HolonAST on Ok; got {other:?}"
+        ),
+        Err(e) => Err(EdnReadError {
+            span: crate::rust_caller_span!(),
+            kind: EdnReadErrorKind::Other(format!(
+                "HolonAST decode: {e} (the algebra never crosses the wire — a HolonAST is \
+                 derived from plain EDN data, not read back from a serialized tag)"
+            )),
+        }),
     }
 }
 
-/// Tagless-friendly HolonAST read — primitives unwrap from their
-/// bare EDN form (mirroring [`holon_ast_to_edn_notag`]);
-/// composite operators still need their `#wat-edn.holon/*` tag
-/// (the natural form keeps these tags because dropping them
-/// would lose the operation's identity). Used by arc-093's
-/// reader cursor for `:wat::edn::NoTag` columns where the writer
-/// stripped tags from primitive HolonASTs.
-fn edn_to_holon_ast_natural(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, EdnReadError> {
-    use holon::HolonAST;
-    match edn {
-        // Tagged composite ops — same path as the strict round-trip read.
-        OwnedValue::Tagged(tag, body) if tag.namespace() == "wat-edn.holon" => {
-            edn_holon_tag_to_ast(tag.name(), body)
-        }
-        // Bare primitives — best-effort lift to the matching leaf.
-        OwnedValue::Keyword(k) => {
-            // Arc 230: HolonAST::keyword() now produces Bind composition.
-            // Arc 221 Stone 221.4b — EDN keyword maps to HolonAST::keyword() (no leading colon).
-            // Mirror `keyword_from_wat_path`'s inverse — EDN keyword `foo/bar`
-            // (namespace `foo`, name `bar`) maps to wat-path `foo::bar`.
-            let s = match k.namespace() {
-                Some(ns) => format!("{}::{}", ns.replace('.', "::"), k.name()),
-                None => k.name().to_string(),
-            };
-            Ok(Arc::new(HolonAST::keyword(&s)))
-        }
-        OwnedValue::String(s) => {
-            Ok(Arc::new(HolonAST::String(Arc::from(s.as_ref()))))
-        }
-        OwnedValue::Integer(n) => Ok(Arc::new(HolonAST::I64(*n))),
-        OwnedValue::Float(x) => Ok(Arc::new(HolonAST::F64(*x))),
-        OwnedValue::Bool(b) => Ok(Arc::new(HolonAST::Bool(*b))),
-        // Anything else (Map, Vector, Tagged with non-holon ns,
-        // Nil, Char, Symbol, BigInt, BigDec, Inst, Set) doesn't
-        // correspond to a HolonAST shape in the natural form.
-        // arc 138: no span — edn_to_holon_ast_natural walks parsed OwnedValue, no WatAST
-        _ => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("natural-form HolonAST read can't lift this EDN shape; expected primitive leaf or #wat-edn.holon/* tagged composite".to_string()) }),
-    }
-}
-
-/// Inner switch — given a tag-name from the `wat-edn.holon`
-/// namespace and its body, reconstruct the HolonAST variant.
-/// Mirrors [`holon_ast_to_edn`] arm-for-arm.
-fn edn_holon_tag_to_ast(
+/// Decode a `#wat.holon/<name> <body>` DIRECTIVE tag (`Thermometer` /
+/// `SlotMarker`) into its `HolonAST`. `Ok(None)` for any other name under the
+/// `wat.holon` namespace — NOT an error; the caller (both [`edn_derive_holon`]
+/// and [`tagged_to_value`]'s general dispatch) falls through to its own
+/// generic handling (data, or `UnknownTag`) for anything that isn't one of
+/// the two directives. Shared so the typed (`:wat::holon::HolonAST` slot) and
+/// untyped (any `#tag {…}` on any wire, incl. the process tier's message
+/// decode — MEASURED: `service-cache-hologram.wat`'s far-side crash was this
+/// exact path missing the untyped case) decode doors agree by construction,
+/// not by two hand-kept-in-sync copies.
+fn decode_holon_directive_tag(
     name: &str,
     body: &OwnedValue,
-) -> Result<Arc<holon::HolonAST>, EdnReadError> {
-    use holon::HolonAST;
-    match (name, body) {
-        // Arc 230: Symbol/Keyword/Nil/Tag variants retired; constructors produce
-        // Bind(Atom(String(cls)), Atom(String(val))) compositions.
-        ("Symbol", OwnedValue::String(s)) => {
-            Ok(Arc::new(HolonAST::symbol(s.as_ref())))
+) -> Result<Option<holon::HolonAST>, EdnReadError> {
+    match name {
+        "Thermometer" => {
+            let value = edn_holon_directive_field(body, "Thermometer", "value")?;
+            let min = edn_holon_directive_field(body, "Thermometer", "min")?;
+            let max = edn_holon_directive_field(body, "Thermometer", "max")?;
+            Ok(Some(holon::HolonAST::Thermometer { value, min, max }))
         }
-        ("String", OwnedValue::String(s)) => {
-            Ok(Arc::new(HolonAST::String(Arc::from(s.as_ref()))))
+        "SlotMarker" => {
+            let min = edn_holon_directive_field(body, "SlotMarker", "min")?;
+            let max = edn_holon_directive_field(body, "SlotMarker", "max")?;
+            Ok(Some(holon::HolonAST::SlotMarker { min, max }))
         }
-        ("I64", OwnedValue::Integer(n)) => Ok(Arc::new(HolonAST::I64(*n))),
-        ("F64", OwnedValue::Float(x)) => Ok(Arc::new(HolonAST::F64(*x))),
-        ("Bool", OwnedValue::Bool(b)) => Ok(Arc::new(HolonAST::Bool(*b))),
-        // Arc 221 Stone 221.2 — Char leaf round-trip (mirrors holon_ast_to_edn Char arm).
-        ("Char", OwnedValue::Char(c)) => Ok(Arc::new(HolonAST::Char(*c))),
-        // Arc 230: Keyword/Nil/Tag use updated constructors (produce Bind compositions).
-        // Keyword: stored content has no leading colon; keyword() strips it.
-        ("Keyword", OwnedValue::Keyword(kw)) => {
-            Ok(Arc::new(HolonAST::keyword(kw.name())))
-        }
-        ("Nil", OwnedValue::Nil) => Ok(Arc::new(HolonAST::nil())),
-        // Tag: stored content has no leading '#'; reconstruct via tag() constructor.
-        ("Tag", OwnedValue::String(s)) => {
-            Ok(Arc::new(HolonAST::tag(s.as_ref())))
-        }
-        ("Atom", inner) => {
-            let child = edn_to_holon_ast(inner)?;
-            Ok(Arc::new(HolonAST::Atom(child)))
-        }
-        ("Bind", OwnedValue::Vector(items)) if items.len() == 2 => {
-            let role = edn_to_holon_ast(&items[0])?;
-            let filler = edn_to_holon_ast(&items[1])?;
-            Ok(Arc::new(HolonAST::Bind(role, filler)))
-        }
-        ("Bundle", OwnedValue::Vector(items)) => {
-            let xs: Vec<holon::HolonAST> = items
-                .iter()
-                .map(|x| edn_to_holon_ast(x).map(|a| (*a).clone()))
-                .collect::<Result<_, _>>()?;
-            Ok(Arc::new(HolonAST::Bundle(Arc::new(xs))))
-        }
-        ("Permute", OwnedValue::Vector(items)) if items.len() == 2 => {
-            let child = edn_to_holon_ast(&items[0])?;
-            let k = match &items[1] {
-                OwnedValue::Integer(n) => *n as i32,
-                // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
-                _ => {
-                    return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("#wat-edn.holon/Permute body[1] must be an Integer (k)".into()) });
-                }
-            };
-            Ok(Arc::new(HolonAST::Permute(child, k)))
-        }
-        ("Thermometer", OwnedValue::Map(entries)) => {
-            let (value, min, max) = read_three_floats(entries, "Thermometer")?;
-            Ok(Arc::new(HolonAST::Thermometer { value, min, max }))
-        }
-        ("Blend", OwnedValue::Vector(items)) if items.len() == 4 => {
-            let a = edn_to_holon_ast(&items[0])?;
-            let b = edn_to_holon_ast(&items[1])?;
-            let w1 = match &items[2] {
-                OwnedValue::Float(x) => *x,
-                OwnedValue::Integer(n) => *n as f64,
-                // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
-                _ => {
-                    return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("#wat-edn.holon/Blend body[2] must be a Float (w1)".into()) });
-                }
-            };
-            let w2 = match &items[3] {
-                OwnedValue::Float(x) => *x,
-                OwnedValue::Integer(n) => *n as f64,
-                // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
-                _ => {
-                    return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("#wat-edn.holon/Blend body[3] must be a Float (w2)".into()) });
-                }
-            };
-            Ok(Arc::new(HolonAST::Blend(a, b, w1, w2)))
-        }
-        ("SlotMarker", OwnedValue::Map(entries)) => {
-            // SlotMarker has just min/max — read_three_floats expects
-            // value/min/max; specialized read here.
-            let mut min = None;
-            let mut max = None;
-            for (k, v) in entries {
-                let key = match k {
-                    OwnedValue::Keyword(kw) => kw.name().to_string(),
-                    _ => continue,
-                };
-                let f = match v {
-                    OwnedValue::Float(x) => *x,
-                    OwnedValue::Integer(n) => *n as f64,
-                    _ => continue,
-                };
-                match key.as_str() {
-                    "min" => min = Some(f),
-                    "max" => max = Some(f),
-                    _ => {}
-                }
-            }
-            // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
-            let min = min.ok_or_else(|| {
-                EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("#wat-edn.holon/SlotMarker missing :min".into()) }
-            })?;
-            let max = max.ok_or_else(|| {
-                EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("#wat-edn.holon/SlotMarker missing :max".into()) }
-            })?;
-            Ok(Arc::new(HolonAST::SlotMarker { min, max }))
-        }
-        // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
-        (other, _) => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("#wat-edn.holon/{other}: unrecognized tag or body shape")) }),
+        _ => Ok(None),
     }
 }
 
-/// Pull `value` / `min` / `max` Float entries from a `Thermometer`
-/// body Map. Substrate writer always emits these three keys; if
-/// any are missing or non-numeric we surface a parse error.
-fn read_three_floats(
-    entries: &[(OwnedValue, OwnedValue)],
-    op: &str,
-) -> Result<(f64, f64, f64), EdnReadError> {
-    let mut value = None;
-    let mut min = None;
-    let mut max = None;
+/// Read one `f64` field out of a `#wat.holon/<tag_name>` directive's map
+/// body. Shared by the `Thermometer` / `SlotMarker` decode arms above.
+fn edn_holon_directive_field(
+    body: &OwnedValue,
+    tag_name: &str,
+    field: &str,
+) -> Result<f64, EdnReadError> {
+    use wat_edn::Value as Edn;
+    let entries = match body {
+        Edn::Map(e) => e,
+        other => {
+            return Err(EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::UnsupportedTag(format!(
+                    "wat.holon/{tag_name} body must be a map, got {}",
+                    edn_shape_name(other)
+                )),
+            })
+        }
+    };
     for (k, v) in entries {
-        let key = match k {
-            OwnedValue::Keyword(kw) => kw.name().to_string(),
-            _ => continue,
-        };
-        let f = match v {
-            OwnedValue::Float(x) => *x,
-            OwnedValue::Integer(n) => *n as f64,
-            _ => continue,
-        };
-        match key.as_str() {
-            "value" => value = Some(f),
-            "min" => min = Some(f),
-            "max" => max = Some(f),
-            _ => {}
+        let is_field = matches!(k, Edn::Keyword(kw) if kw.name() == field);
+        if !is_field {
+            continue;
         }
+        return match v {
+            Edn::Float(f) => Ok(*f),
+            Edn::Integer(i) => Ok(*i as f64),
+            other => Err(EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::UnsupportedTag(format!(
+                    "wat.holon/{tag_name} :{field} must be a number, got {}",
+                    edn_shape_name(other)
+                )),
+            }),
+        };
     }
-    // arc 138: no span — read_three_floats operates on parsed OwnedValue Map entries, no WatAST
-    let value = value
-        .ok_or_else(|| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("#wat-edn.holon/{op} missing :value")) })?;
-    let min = min
-        .ok_or_else(|| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("#wat-edn.holon/{op} missing :min")) })?;
-    let max = max
-        .ok_or_else(|| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("#wat-edn.holon/{op} missing :max")) })?;
-    Ok((value, min, max))
-}
-
-/// Render a HolonAST as a tagged-EDN string (single-line).
-///
-/// Inverse of [`read_holon_ast_tagged`]. The roundtrip `read . write`
-/// is an identity on valid HolonASTs.
-///
-/// Output is single-line per `wat_edn::write` guarantee — embedded
-/// newlines in payload strings escape as `\n` literal. This makes
-/// the output safe for newline-framed wire protocols (process-tier
-/// pipe framing per arc 214 Slice 3 Stone C).
-pub fn write_holon_ast_tagged(h: &holon::HolonAST) -> String {
-    wat_edn::write(&holon_ast_to_edn(h))
-}
-
-/// Public arc-093: parse an EDN string and reconstruct a
-/// `HolonAST` from its round-trip-safe tagged form. Inverse of
-/// the substrate's `:wat::edn::write` for HolonAST values; what
-/// the wat-telemetry-sqlite cursor calls per `:wat::edn::Tagged`
-/// column.
-pub fn read_holon_ast_tagged(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadError> {
-    let edn = wat_edn::parse_owned(s)
-        // arc 138: no span — read_holon_ast_tagged operates on a raw &str with no WatAST trace
-        .map_err(|e| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
-    edn_to_holon_ast(&edn)
-}
-
-/// Public arc-093: parse an EDN string and reconstruct a
-/// `HolonAST` from its tagless-friendly natural form (primitives
-/// unwrap; composite ops keep their `#wat-edn.holon/*` tag).
-/// What the wat-telemetry-sqlite cursor calls per
-/// `:wat::edn::NoTag` column.
-pub fn read_holon_ast_natural(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadError> {
-    let edn = wat_edn::parse_owned(s)
-        // arc 138: no span — read_holon_ast_natural operates on a raw &str with no WatAST trace
-        .map_err(|e| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
-    edn_to_holon_ast_natural(&edn)
+    Err(EdnReadError {
+        span: crate::rust_caller_span!(),
+        kind: EdnReadErrorKind::UnsupportedTag(format!(
+            "wat.holon/{tag_name} body missing field :{field}"
+        )),
+    })
 }
 
 #[cfg(test)]

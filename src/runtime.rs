@@ -19483,7 +19483,12 @@ fn eval_holon_to_holon(
     to_holon_inner(v, args[0].span())
 }
 
-fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
+// Arc 294.j RELAND — widened from private to `pub(crate)`: `edn_shim`'s corrected HolonAST
+// decoder (`edn_derive_holon`, DESIGN-STONE-294.j ⛔ CORRECTION) composes this with
+// `edn_to_value` to derive a HolonAST from decoded data — the SAME holon-side lift
+// `:wat::holon::literal` (`#holon <form>`, arc 294.b) already uses. Adopting an existing total
+// function, not writing a second HolonAST-from-Value builder.
+pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
     // Arc 225 Stone 225.1 — the polymorphic UP body, moved here from the
     // retired `value_to_atom`. All arms preserved in semantics; rename only.
     let holon = match v {
@@ -19683,6 +19688,11 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
 /// per Stone 221.3 doctrine (holon-rs commit fa48b39). Pre-arc-221 used
 /// HolonAST::symbol(k.as_str()) which violated the honest-primitive
 /// discipline; retired here.
+// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn_shim` encode
+// arm; reverted here. The corrected design (DESIGN-STONE-294.j ⛔ CORRECTION) does not route
+// HolonAST↔EDN through the wat-source bijection at all — `edn_shim` now composes
+// `from_holon_item` / `to_holon_inner` instead (both already `pub(crate)`). This fn's only
+// callers are the 8 in this file (`from-wat`, macro support, etc.); private is correct again.
 fn watast_to_holon(a: &WatAST) -> HolonAST {
     match a {
         WatAST::IntLit(n, _) => HolonAST::i64(*n),
@@ -20627,6 +20637,10 @@ fn eval_therm_form(
     Ok(Value::holon__HolonAST(Arc::new(ast)))
 }
 
+// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn_shim` encode
+// arm; reverted here (DESIGN-STONE-294.j ⛔ CORRECTION: a HolonAST wire form is DATA, never the
+// wat source form this fn renders — `edn_shim` now composes `from_holon_item` /
+// `to_holon_inner` instead). Its 8 `runtime.rs` callers are unaffected; private is correct again.
 fn holon_to_watast(h: &HolonAST) -> WatAST {
     // Arc 230: Symbol/Keyword/Nil/Tag variants retired; check via accessors
     // before the generic match so the Bind arm handles generic compositions.

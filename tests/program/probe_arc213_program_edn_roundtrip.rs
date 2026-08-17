@@ -3,7 +3,7 @@
 //! See `docs/arc/2026/05/213-libc-fork-mismanagement/BRIEF-213-SERIALIZER-BRIDGE.md`.
 //!
 //! Asserts:
-//! 1. `program_to_edn` output has NO `#wat-edn.holon` substring (plain EDN only).
+//! 1. `program_to_edn` output has NO tagged-HolonAST substring (plain EDN only).
 //! 2. The serialized frame visibly contains `:wat.core/defn` keywords and
 //!    native `{ }` / `#{ }` syntax.
 //! 3. `edn_to_program` → `startup_from_forms` freezes Ok for a round-tripped program.
@@ -59,7 +59,7 @@ fn sample_program() -> String {
         .expect("sample fixture must exist (run from crate root)")
 }
 
-/// T1 — program_to_edn output is PLAIN EDN (no #wat-edn.holon tags) and
+/// T1 — program_to_edn output is PLAIN EDN (no tagged-HolonAST forms) and
 /// contains the expected structural markers.
 #[test]
 fn t1_program_to_edn_is_plain_edn() {

@@ -27,11 +27,13 @@
 //! However `watast_to_holon` — used by `type_expr_to_ast` downstream —
 //! still maps `WatAST::Keyword` to `HolonAST::Symbol`. Stone 221.5 will
 //! update that path. Until then, the reflection path emits Symbol, not Keyword.
-//! These tests rely on `:wat::edn::write` to render the HolonAST to an
-//! EDN string; a Bundle renders as `#wat-edn.holon/Bundle [...]` and a
-//! Symbol renders as `#wat-edn.holon/Symbol "..."`. The tests
-//! string-match the distinguishing substrings — they don't parse EDN,
-//! they only assert the structural presence of the slot shape.
+//! These tests rely on `:wat::edn::write` to render the HolonAST to an EDN
+//! string, compared against co-located `.edn` goldens (`assert_edn_matches_file!`)
+//! or, for `foldl` (a multi-param generic head plain EDN can't round-trip yet),
+//! a direct string-eq against its golden. Arc 294.j: the rendering is now the
+//! wat SOURCE FORM `holon_to_watast` emits (legible, constructible wat), not a
+//! tagged index — these goldens already read that way and were unaffected by
+//! that stone; this note is historical color, not a live wire-format claim.
 //!
 //! Fixtures co-located beside each test name — slurped via startup_from_file.
 

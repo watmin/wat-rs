@@ -20,10 +20,11 @@
 //! ## Arc 213 / BRIEF-213-SERIALIZER-BRIDGE context
 //!
 //! This bridge is the serializer corrected by arc 257's SUPERSEDED note:
-//! the old `watast_to_holon` path encoded every node under `#wat-edn.holon/*`
-//! tags (the VSA hologram), which is the contract-vs-encoding abuse, NOT EDN
-//! transport. Plain EDN is the correct wire format; arc 257's native Map/Set
-//! nodes make the mapping 1:1.
+//! the old `watast_to_holon` path encoded every node under a tagged-HolonAST
+//! wire family (the VSA hologram — the same family arc 294.j later kills
+//! outright on the HolonAST encode side too), which is the contract-vs-encoding
+//! abuse, NOT EDN transport. Plain EDN is the correct wire format; arc 257's
+//! native Map/Set nodes make the mapping 1:1.
 
 use crate::ast::WatAST;
 use crate::edn_shim::{keyword_from_wat_path, ns_to_wat_path};
@@ -833,7 +834,7 @@ fn edn_to_watast_node(
 /// the crossing. This matches the spec's "program = first frame on fd0"
 /// decision from DESIGN-EXECVE-PROGRAM-OVER-WIRE.md §4 (same-fd framed).
 ///
-/// The output contains **NO** `#wat-edn.holon` tags — it is plain EDN.
+/// The output contains **NO** tagged-HolonAST wire forms — it is plain EDN.
 /// Contains native `{ }` map and `#{ }` set syntax, and `:ns/name` keywords.
 pub fn program_to_edn(forms: &[WatAST]) -> String {
     let mut origins = OriginTable::default();

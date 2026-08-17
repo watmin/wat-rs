@@ -9,8 +9,7 @@
 ;;
 ;; MEASURED AT HEAD 2026-08-14 — the two siblings, same two fields:
 ;;   #t/Plain {:x 1 :y 2}
-;;   #t/Holo #wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "t::Holo"
-;;             #wat-edn.holon/Bundle [#wat-edn.holon/Bind [… "x" … 1] …]]
+;;   #t/Holo <tagged-HolonAST serialization of the Bind/Atom/Bundle tree for "t::Holo">
 ;; ~22 bytes vs ~250, and the data (`"x"`→1) is IN the second one, buried under the
 ;; algebra it derives. The wire ships the index instead of the record.
 ;;

@@ -4,8 +4,7 @@
 //!
 //! ```text
 //! #t/Plain {:x 1 :y 2}
-//! #t/Holo  #wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "t::Holo"
-//!            #wat-edn.holon/Bundle [#wat-edn.holon/Bind [… "x" … 1] …]]
+//! #t/Holo  <tagged-HolonAST serialization of the Bind/Atom/Bundle tree for "t::Holo">
 //! ```
 //!
 //! ~22 bytes against ~250 — and the data is IN the second one, buried under the algebra it
@@ -15,8 +14,8 @@
 //! `Eq`/`Hash` keyed on `(holder, class, fields)`). Once the fields ARE the identity, the hologram
 //! is a **derived index**, and a derived index has no business crossing a wire — the receiver
 //! knows `:t::Holo` is holon-held from the type registry and derives its own. This is 294 R1's
-//! flaw #3 (*"the `#wat-edn.holon/*` tags — scar tissue from a hologram-canonical wire"*) with the
-//! cure stated in R1 itself: *"the wire is plain EDN."*
+//! flaw #3 (*"the tagged-HolonAST wire family — scar tissue from a hologram-canonical wire"*)
+//! with the cure stated in R1 itself: *"the wire is plain EDN."*
 //!
 //! THE CONTROL IS THE TARGET (R59 `NISI FRANGAS, NIHIL PROBAS`). Row 1 is the plain record, green
 //! at HEAD, and its shape is precisely what row 2 must produce modulo the class name. The goal is
@@ -71,7 +70,7 @@ fn control_plain_record_wire_is_the_class_tag_and_its_fields() {
 
 #[test]
 fn holon_record_wire_is_plain_edn_not_the_serialized_hologram() {
-    // At HEAD this is a ~250-byte `#wat-edn.holon/Bind […]` tree. A holon record differs from a
+    // At HEAD this is a ~250-byte tagged-HolonAST tree. A holon record differs from a
     // plain one in HOLDER POLICY, not in what it IS, so the wire form must be identical modulo
     // the class name — compare against the control directly above.
     wat::assert_edn_matches_file!(wire(":t::wire-holon"), "probe_arc294_holon_wire_is_plain_edn__holon_wire.edn");

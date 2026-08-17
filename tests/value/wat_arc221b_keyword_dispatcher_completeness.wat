@@ -63,3 +63,38 @@
      h2  (:wat::holon::from-wat (:wat::core::quote :bar))
      eq  (:wat::core::= h1 h2)]
     (:wat::edn::write (:wat::core::not eq))))
+
+;; ─── Arc 294.j — VARIANT DISCRIMINATORS (the instrument, repaired) ────────────
+;;
+;; ⛔ THE WIRE CAN NO LONGER TELL Keyword FROM Symbol. Measured 2026-08-16: both
+;; `(:wat::holon::leaf :foo)` and `(:wat::holon::from-wat (:wat::core::quote foo))`
+;; render `#wat/holon :foo`, because `from_holon_item`'s Symbol arm maps a Symbol
+;; composition to a keyword Value (runtime.rs:16646 — a comment describing the
+;; PRE-arc-221 world, where Symbol carried colon-prefixed keywords).
+;;
+;; That is RULED NOT NOW (task #103): wat has no proper symbols yet and the grind
+;; is toward them; patching the symbol arm would muck with a surface about to be
+;; rebuilt, and the target classifier shape is different anyway
+;; (`wat.type/keyword` / `wat.type/symbol`, per the builder).
+;;
+;; ★ SO THE PROBES' GOLDENS WERE NOT REGENERATED IN PLACE. Probes 1/2/5 exist to
+;; prove a claim about the HolonAST VARIANT ("emits Keyword, NOT Symbol" — arc 221
+;; doctrine); wire text was only ever the INSTRUMENT for that claim, and the
+;; instrument went blind. Regenerating alone would have left four tests passing
+;; while proving nothing. These fns assert the CLAIM directly; the wire goldens
+;; stay alongside as encoding regression guards.
+;; `[[feedback_ask_what_a_test_measures_before_fixing_how_it_measures]]`
+
+(:wat::core::defn :t::probe-1-is-keyword [] -> :wat::core::String
+  (:wat::edn::write
+    (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :foo)))))
+
+(:wat::core::defn :t::probe-1-is-symbol [] -> :wat::core::String
+  (:wat::edn::write
+    (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote :foo)))))
+
+(:wat::core::defn :t::probe-2-is-keyword [] -> :wat::core::String
+  (:wat::edn::write (:wat::holon::is-Keyword? (:wat::holon::leaf :user::foo))))
+
+(:wat::core::defn :t::probe-5-is-nil [] -> :wat::core::String
+  (:wat::edn::write (:wat::holon::is-Nil? (:wat::holon::leaf nil))))

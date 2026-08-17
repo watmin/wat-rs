@@ -147,8 +147,8 @@ fn lookup_form_struct_returns_special_form() {
     //
     // Proven WITHOUT the holon-ast face. `lookup-define` still renders through the OLD
     // `watast_to_holon` path (`wat_edn_bridge.rs:22` calls it exactly that), and arc 294's
-    // own realizations name that face as scar tissue: flaw #3 "the `#wat-edn.holon/*` tags
-    // (scar tissue from a hologram-canonical wire)" and #5 "HolonAST-as-the-code-AST
+    // own realizations name that face as scar tissue: flaw #3 "the tagged-HolonAST wire
+    // family (scar tissue from a hologram-canonical wire)" and #5 "HolonAST-as-the-code-AST
     // vestigial (WatAST took over)" — HolonAST reduces to Hologram. Pinning that rendering
     // (inline or as a golden) would FOSSILIZE the very thing this arc exists to excise, and
     // the golden wall refuses it outright ("STOP-1: refusing to capture a non-EDN face").

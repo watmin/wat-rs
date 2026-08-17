@@ -130,13 +130,15 @@ pub use check::{check_program, CheckEnv, CheckError, CheckErrorKind, CheckErrors
 // Arc 093 — bridge EDN text to a runtime Value using the type
 // registry. `read_edn` is parse + bridge in one call;
 // `edn_to_value` operates on an already-parsed EDN tree.
-// `read_holon_ast_tagged` / `read_holon_ast_natural` lift EDN
-// text back to a HolonAST — the inverse of arc 091/092's write
-// side that arc 093's reader cursor uses per `:wat::edn::Tagged`
-// / `:wat::edn::NoTag` column.
-pub use edn_shim::{
-    edn_to_value, read_edn, read_holon_ast_natural, read_holon_ast_tagged, EdnReadError,
-};
+//
+// Arc 294.j — arc-093's standalone tagged-HolonAST-from-EDN readers (the pair
+// this export line used to carry) are GONE, not merely unexported: their tag
+// family died on the write side (DESIGN-STONE-294.j), and a
+// `:wat::holon::HolonAST`-typed decode now goes through the ordinary
+// `edn_to_value` / `edn_to_typed_value` path like any other type. Measured
+// zero callers in this repo AND in every sibling repo under `holon/`
+// (STOP-3's required check) before deleting.
+pub use edn_shim::{edn_to_value, read_edn, EdnReadError};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };

@@ -4,8 +4,7 @@
 //! THE DEFECT (caught by dogfooding the reflection surface as EDN):
 //! `eval_metadata_of`'s intrinsic branch wraps every value in
 //! `Value::holon__HolonAST` (`runtime.rs` ~10111 `put` closure). So the
-//! metadata map EDN-serializes with `#wat-edn.holon/Keyword`,
-//! `#wat-edn.holon/Bool`, ... tags — the holon VSA algebra-AST encoder leaking
+//! metadata map EDN-serializes with holon-algebra tags — the holon VSA algebra-AST encoder leaking
 //! into reflection. This is the same `HolonAST`-as-`EdnRepresentable` crutch
 //! the codebase has been rooting out (`impl EdnRepresentable for Value`,
 //! comms/mod.rs:794 — plain values already serialize cleanly).
