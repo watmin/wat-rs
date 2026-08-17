@@ -27,8 +27,8 @@ pub struct CapCodec {
     pub type_path: &'static str,
     /// Encode the opaque's PORTABLE form to a wire body. `None` when this opaque instance has no
     /// portable form (e.g. a thread-tier `Address'`, whose `Sender` cannot cross) → the caller falls
-    /// back to the non-portable `wat-edn.opaque` tag (refused on decode). `types` provides the type
-    /// registry so record codecs can encode named fields.
+    /// back to the non-portable per-type-home tag (arc 294.i; refused on decode). `types` provides
+    /// the type registry so record codecs can encode named fields.
     pub encode: fn(&RustOpaqueInner, &TypeEnv) -> Option<OwnedValue>,
     /// Reconstruct a live capability `Value` from a wire body (called only off the trusted door).
     /// `types` provides the type registry so record codecs can decode named fields.

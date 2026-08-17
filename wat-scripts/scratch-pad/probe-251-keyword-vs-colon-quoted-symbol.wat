@@ -28,7 +28,11 @@
 ;; `(:wat::kernel::println :wat::core::+)` is DELIBERATELY not in the body below. Measured
 ;; 2026-08-13 it exits 0 and prints:
 ;;
-;;   #wat-edn.opaque/clauses nil
+;;   #wat.core/clauses nil
+;;
+;; (arc 294.i renamed the tag's namespace slot from the shared opaque bucket namespace to
+;; `clauses`' own home, `wat.core`; the finding below — that this line prints at all — is
+;; unaffected by the rename.)
 ;;
 ;; The colon-quoted symbol in VALUE position resolved to the function and leaked its opaque
 ;; clause table into user-visible output. That is the whole finding in one line — the `::`

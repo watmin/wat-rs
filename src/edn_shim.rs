@@ -40,7 +40,7 @@
 //! | Struct | `Tagged #ns/Type {:field-0 v0 :field-1 v1 ...}` |
 //! | Enum | `Tagged #ns/Variant [v0 v1 ...]` (unit variant → `[]`) |
 //! | HolonAST | Tagged per variant (Symbol/String/I64/F64/Bool/Atom/Bind/Bundle/Permute/Thermometer/Blend) |
-//! | All other substrate handles | `Tagged #wat-edn.opaque/<TypeName> nil` |
+//! | All other substrate handles | `Tagged #wat.<home>/<TypeName> nil` (arc 294.i — per-type home, not a shared bucket) |
 //!
 //! # Performance
 //!
@@ -2835,12 +2835,11 @@ fn tagged_to_value(
     let ns = tag.namespace();
     let name = tag.name();
 
-    // Arc 272 6a-i — PORTABLE CAPABILITY tags. Sibling to `wat-edn.opaque` (which refuses): these
-    // ARE reconstructable — but ONLY off a TRUSTED channel (`allow_caps`, set by the peer wire). On
-    // the general decode path (`:wat::edn::read`, config, any parsed data) a `wat-edn.cap` tag is
-    // REFUSED exactly like an opaque: an object-capability is obtained by being handed it over a
-    // channel, never forged from data (ocap unforgeability + transfer-only). Checked BEFORE the
-    // opaque refusal below.
+    // Arc 272 6a-i — PORTABLE CAPABILITY tags. These ARE reconstructable — but ONLY off a
+    // TRUSTED channel (`allow_caps`, set by the peer wire). On the general decode path
+    // (`:wat::edn::read`, config, any parsed data) a `wat-edn.cap` tag is REFUSED: an
+    // object-capability is obtained by being handed it over a channel, never forged from data
+    // (ocap unforgeability + transfer-only).
     if ns == "wat-edn.cap" {
         if allow_caps {
             // Arc 272 6c.2 — record-based codecs (SocketAddressWire) need the type registry.
@@ -2860,13 +2859,14 @@ fn tagged_to_value(
         });
     }
 
-    // Substrate-emitted special tags. We don't reconstruct opaque
-    // handles (Sender, ProgramHandle, etc.) — they have no
-    // serializable identity. Treat as errors.
-    if ns == "wat-edn.opaque" {
-        // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
-        return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) });
-    }
+    // Arc 294.i — no explicit opaque-bucket refusal check needed anymore: every ex-opaque
+    // handle now writes under its own per-type home (`#wat.kernel/Sender nil`, …) with a
+    // bare-nil (or, for HandlePool, a String) body, and neither shape reconstructs by accident.
+    // A nil body already refuses generically below (`Edn::Nil` arm — arc 278 A.0, "bare-nil body
+    // — retired"); a non-nil, non-Map, non-Vector body (HandlePool's String; a Stream head that
+    // happens not to be a Map/Vector) falls to the generic `UnknownTag` arm. Neither path
+    // reconstructs a live opaque handle from data — the property this check used to assert by
+    // name is now structural, not a namespace string match.
     if ns == "wat-edn.holon" {
         // Arc 093 — substrate-internal HolonAST round-trip.
         // `holon_ast_to_edn` produces these tags on the write
@@ -3742,45 +3742,53 @@ pub fn value_to_edn_with(
         // are a total bijection). Render it faithfully as its form (legible + recoverable);
         // opaque-nil was a lie. Round-trip-as-WatAST is type-directed (from-edn :T / the typed slot).
         Value::wat__WatAST(a) => crate::wat_edn_bridge::watast_to_edn(a.as_ref()),
-        Value::wat__core__fn(_) => opaque_nil("wat-edn.opaque", "fn"),
-        Value::wat__kernel__Sender(_) => opaque_nil("wat-edn.opaque", "Sender"),
-        Value::wat__kernel__Receiver(_) => opaque_nil("wat-edn.opaque", "Receiver"),
+        Value::wat__core__fn(_) => opaque_nil("wat.core", "fn"),
+        Value::wat__kernel__Sender(_) => opaque_nil("wat.kernel", "Sender"),
+        Value::wat__kernel__Receiver(_) => opaque_nil("wat.kernel", "Receiver"),
+        // Arc 294.i — the ONE exception to "everything decorates nil": HandlePool carries its
+        // pool name as the body today. Preserve it; flattening to nil would silently drop data.
         Value::wat__kernel__HandlePool { name, .. } => OwnedValue::Tagged(
-            Tag::ns("wat-edn.opaque", "HandlePool"),
+            Tag::ns("wat.kernel", "HandlePool"),
             Box::new(OwnedValue::String(std::borrow::Cow::Owned(
                 (**name).clone(),
             ))),
         ),
-        Value::wat__kernel__ChildHandle(_) => opaque_nil("wat-edn.opaque", "ChildHandle"),
-        Value::io__IOReader(_) => opaque_nil("wat-edn.opaque", "IOReader"),
-        Value::io__IOWriter(_) => opaque_nil("wat-edn.opaque", "IOWriter"),
+        Value::wat__kernel__ChildHandle(_) => opaque_nil("wat.kernel", "ChildHandle"),
+        Value::io__IOReader(_) => opaque_nil("wat.io", "IOReader"),
+        Value::io__IOWriter(_) => opaque_nil("wat.io", "IOWriter"),
         Value::RustOpaque(inner) => {
             // Arc 272 narrow-waist — GENERIC capability dispatch (the FROZEN waist; never changes
             // per-capability). If this opaque is a registered PORTABLE capability with a portable
             // form, emit its `#wat-edn.cap/<name>` tag; otherwise it is a process-local handle (an fd,
-            // a `Sender`) that must NOT cross → the payload-less `#wat-edn.opaque/RustOpaque` tag (the
-            // decoder refuses it). The per-capability codecs live in `crate::capability::registry`.
-            // `types` is required by record-based codecs (arc 272 6c.2 SocketAddressWire field
-            // naming); when `types` is None (display/logging paths), capability encoding is skipped
-            // and the address falls to the opaque tag (appropriate — it cannot be meaningfully
-            // encoded without the type registry).
+            // a `Sender`) that must NOT cross → the payload-less per-type-home tag (the decoder
+            // refuses any bare-nil tagged value; arc 278 A.0). The per-capability codecs live in
+            // `crate::capability::registry`. `types` is required by record-based codecs (arc 272
+            // 6c.2 SocketAddressWire field naming); when `types` is None (display/logging paths,
+            // and the process-tier `send'` path when no registry is threaded through — see arc
+            // 294.i STOP-2 finding), capability encoding is skipped and the value falls to its
+            // per-type-home tag. Arc 294.i: `RustOpaque` is a Rust carrier word, never a tag name —
+            // route the fallback through `tag_from_type_path`, the same fn already used at five
+            // other sites in this file (structs, enums, records).
             if let Some(t) = types {
                 if let Some(cap_tag) = crate::capability::encode_capability(inner, t) {
                     return cap_tag;
                 }
             }
             OwnedValue::Tagged(
-                Tag::ns("wat-edn.opaque", "RustOpaque"),
-                Box::new(OwnedValue::String(std::borrow::Cow::Owned(
-                    inner.type_path.to_string(),
-                ))),
+                tag_from_type_path(inner.type_path),
+                Box::new(OwnedValue::Nil),
             )
         }
-        Value::OnlineSubspace(_) => opaque_nil("wat-edn.opaque", "OnlineSubspace"),
-        Value::Reckoner(_) => opaque_nil("wat-edn.opaque", "Reckoner"),
-        Value::Engram(_) => opaque_nil("wat-edn.opaque", "Engram"),
-        Value::EngramLibrary(_) => opaque_nil("wat-edn.opaque", "EngramLibrary"),
-        Value::Hologram(_) => opaque_nil("wat-edn.opaque", "Hologram"),
+        // Arc 294.i — the VSA five: not derivable from the `Value` variant name (bare
+        // `Hologram`, `Engram`, …), but the inner Rust type says it — all five are `holon::X`,
+        // and the codebase already names them `wat::holon::X` (see `value.rs` type_name/gate
+        // entries for OnlineSubspace/Reckoner/Engram/EngramLibrary/Hologram). Home measured
+        // from that existing convention, not invented.
+        Value::OnlineSubspace(_) => opaque_nil("wat.holon", "OnlineSubspace"),
+        Value::Reckoner(_) => opaque_nil("wat.holon", "Reckoner"),
+        Value::Engram(_) => opaque_nil("wat.holon", "Engram"),
+        Value::EngramLibrary(_) => opaque_nil("wat.holon", "EngramLibrary"),
+        Value::Hologram(_) => opaque_nil("wat.holon", "Hologram"),
         Value::Instant(t) => OwnedValue::Inst(*t),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
         // Arc 207 — typed Uuid → EDN `#uuid "..."` reader literal.
@@ -3833,23 +3841,27 @@ pub fn value_to_edn_with(
             match seq.as_ref() {
                 Stream::Empty => OwnedValue::List(vec![]),
                 Stream::Cons { head, .. } => {
-                    // Only render the head (forced); tail may be infinite.
+                    // Only render the head (forced); tail may be infinite. NOT flattened to nil —
+                    // like HandlePool, the forced head is real data the model does not discard;
+                    // only the namespace moves home (arc 294.i).
                     OwnedValue::Tagged(
-                        Tag::ns("wat-edn.opaque", "Stream"),
+                        Tag::ns("wat.stream", "Stream"),
                         Box::new(value_to_edn_with(head, types)),
                     )
                 }
-                Stream::Thunk(_) | Stream::NativeThunk(_) => opaque_nil("wat-edn.opaque", "lazy-seq"),
+                // Arc 294.i — lazy-seq is a Stream::Thunk|NativeThunk sub-state, not its own
+                // Value variant, so it shares Stream's home namespace.
+                Stream::Thunk(_) | Stream::NativeThunk(_) => opaque_nil("wat.stream", "lazy-seq"),
             }
         }
         // Stone 237.2 — wat__core__clauses: opaque (multi-arity dispatcher;
         // not directly serializable to EDN).
-        Value::wat__core__clauses(cs) => opaque_nil("wat-edn.opaque", {
+        Value::wat__core__clauses(cs) => opaque_nil("wat.core", {
             let _ = cs;
             "clauses"
         }),
         // Arc 232 Stone 232.1 — registry carriers: opaque (not value-serializable).
-        Value::wat__core__extend_def(ed) => opaque_nil("wat-edn.opaque", {
+        Value::wat__core__extend_def(ed) => opaque_nil("wat.core", {
             let _ = ed;
             "extend-def"
         }),
@@ -4532,7 +4544,7 @@ mod tests {
     // ─── WatAST renders as its form, not opaque-nil ────────────────────
     // A WatAST is, by definition, an EDN form — `watast_to_edn`/`edn_to_watast` are a total
     // bijection (a parsed s-expr IS edn). Rendering it as opaque-nil is lossy and unintuitive.
-    // RED before the fix (renders `#wat-edn.opaque/WatAST nil`); GREEN after (renders the form).
+    // RED before the fix (rendered as an opaque-bucket-tagged nil); GREEN after (renders the form).
     #[test]
     fn watast_renders_as_its_form_not_opaque_nil() {
         let forms = crate::parser::parse_all_with_file("(:wat::core::< -5 0)", "<watast-render-probe>")
