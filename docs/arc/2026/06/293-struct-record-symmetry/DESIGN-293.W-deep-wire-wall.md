@@ -103,8 +103,9 @@ zero). Service enums with `Receiver<T>` → runed. **Weigh forced-clean; the cas
   tier-aware → closes the `:svc::Request` thread-channel case).
 - **293.W.2e — `address-wire?`** (this stone). The Address answers "is this shared memory?" The
   runtime already knows (`portable_form`). Wat did not. First mouth. Type still lies — that is 2f.
-- **293.W.2f — (next) Address type stops lying** so a process `connect` / process Setup of a
-  shared-memory address is a compile error. Not this strike.
+- **293.W.2f — Address type stops lying** so a process `bracket/map` of a thread handle is
+  a CheckError (Shared ↛ Wire). Live MCP 2026-08-16: `address-wire?` was false and the
+  checker still accepted the circuit. See `DESIGN-STONE-293.W.2f-process-may-not-dial-shared.md`.
 - Then **K3-REVISE** (annihilate `to-struct` + `$struct`; the pair) → **K5** → showcase graduates.
 
 ## § 293.W.2b — THE ENUM MOBILITY MARKER (DESIGN SETTLED + builder-ratified 2026-06-30)
