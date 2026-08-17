@@ -47,6 +47,9 @@
 #
 #   check-where-shapes.sh              # every pair
 #   check-where-shapes.sh where-boolean # one pair, by stem — what a rider runs
+#
+# Oracle vs native is a different instrument: `check-spec-native.sh` on the same
+# stems. Clara cannot catch a spec/native split. That script must stay green.
 set -euo pipefail
 
 GRID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

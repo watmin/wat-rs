@@ -210,6 +210,95 @@ pub(crate) fn eval_alpha_match(
     })
 }
 
+/// `(:wat::rete::alpha-match-under cond fact bindings) -> Option<PersistentMap>`
+///
+/// Same matcher as `alpha-match`, but `bindings` (a token's left-accumulated
+/// `?vars`) seed the clause fold. Used by the oracle `:not` / `:exists` filter
+/// so a constraint that names a left-bound var (`?v < ?m`) is a beta check,
+/// not a silent alpha miss.
+pub(crate) fn eval_alpha_match_under(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::alpha-match-under";
+    if args.len() != 3 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        }).into());
+    }
+
+    let cond_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let cond_ast = match cond_val {
+        Value::wat__WatAST(ref a) => (**a).clone(),
+        other => {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::WatAST (condition form from quote)",
+                got: Box::new(ValueSnapshot::of(&other)),
+            }).into());
+        }
+    };
+
+    let fact_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let fact = match fact_from_value(&fact_val) {
+        Some(f) => f,
+        None => {
+            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Record (a record fact)",
+                got: Box::new(ValueSnapshot::of(&fact_val)),
+            }).into());
+        }
+    };
+
+    let binds_val = crate::runtime::eval_inner(&args[2], env, sym)?.value_owned();
+    let seed: Vec<(Value, Value)> = match &binds_val {
+        Value::wat__core__PersistentMap(pm) => pm
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+        other => {
+            return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::PersistentMap (token bindings)",
+                got: Box::new(ValueSnapshot::of(other)),
+            }).into());
+        }
+    };
+
+    let type_key = format!(":{}", fact.class_fqdn);
+    let field_names: Vec<String> = sym
+        .types()
+        .and_then(|t| match t.get(&type_key) {
+            Some(crate::types::TypeDef::Aggregate(a)) => {
+                Some(a.field_names().map(|s| s.to_string()).collect())
+            }
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    let result = alpha_match_inner_seeded(
+        &cond_ast,
+        fact.class_fqdn,
+        fact.fields,
+        &field_names,
+        &seed,
+    );
+    Ok(match result {
+        Some(bindings) => {
+            let pm = crate::value::pmap::PMap::from_pairs(
+                bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
+            );
+            Value::Option(Arc::new(Some(Value::wat__core__PersistentMap(pm))))
+        }
+        None => Value::Option(Arc::new(None)),
+    })
+}
+
 // ─── Pure inner matcher ────────────────────────────────────────────────────────
 
 /// The pure core: no `Environment`, no `eval_inner`. Returns the binding array or
@@ -225,28 +314,42 @@ pub(crate) fn alpha_match_inner(
     fact_fields: &[Value],
     field_names: &[String],
 ) -> Option<Arc<[(Value, Value)]>> {
-    // Condition must be a List whose head is a keyword naming the expected type.
+    alpha_match_inner_seeded(cond, fact_class, fact_fields, field_names, &[])
+}
+
+/// Alpha-match with a seed binding map (token bindings already accumulated on the left).
+///
+/// A `?var` in an inline constraint that is not bound by THIS condition is a
+/// cross-condition join key (`resolve_operand` says so). Empty-seed alpha
+/// therefore drops every fact whose `:not` / `:exists` inner mentions a
+/// left-bound var (`?v < ?m` after an accum). Clara evaluates that constraint
+/// against the token. Seed the left bindings so the same cond is honest at
+/// beta time. `alpha_match_inner` stays the empty-seed path.
+pub(crate) fn alpha_match_inner_seeded(
+    cond: &WatAST,
+    fact_class: &str,
+    fact_fields: &[Value],
+    field_names: &[String],
+    seed: &[(Value, Value)],
+) -> Option<Arc<[(Value, Value)]>> {
     let items = match cond {
         WatAST::List(items, _) if !items.is_empty() => items,
         _ => return None,
     };
-
-    // Head keyword is the fact-type selector. Both sides strip the leading `:`.
     let cond_head = match &items[0] {
         WatAST::Keyword(k, _) => k.trim_start_matches(':'),
         _ => return None,
     };
-    // fact_class is already colon-free (extracted by fact_from_value).
     crate::rete::kernel::census_count("match:calls");
     if cond_head != fact_class {
         crate::rete::kernel::census_count("match:head-miss");
         return None;
     }
+    eval_clauses(clauses_of(items), fact_fields, field_names, seed.to_vec()).map(Into::into)
+}
 
-    // Fold the remaining clauses left→right, threading the bindings accumulator.
-    let empty: Vec<(Value, Value)> = Vec::new();
-    let clauses = &items[1..];
-    eval_clauses(clauses, fact_fields, field_names, empty).map(Into::into)
+fn clauses_of(items: &[WatAST]) -> &[WatAST] {
+    &items[1..]
 }
 
 /// Walk a slice of top-level condition clauses, threading bindings left→right.

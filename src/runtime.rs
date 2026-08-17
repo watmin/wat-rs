@@ -5480,6 +5480,9 @@ fn dispatch_keyword_head_value(
         ":wat::rete::alpha-match" => {
             crate::rete::matcher::eval_alpha_match(args, list_span, env, sym)
         }
+        ":wat::rete::alpha-match-under" => {
+            crate::rete::matcher::eval_alpha_match_under(args, list_span, env, sym)
+        }
         // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
         // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
         // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).

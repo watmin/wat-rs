@@ -19,7 +19,8 @@
 //! `#grid/Result {... :derived #wat.core/PersistentVector [...] ...}` line. Those are asserted
 //! here per axis: (1) exit 0, (2) a `#grid/Result` line present, (3) `:derived` is NOT `[]`.
 //!
-//! The other 10 are the `where-*.wat` expressivity corpus (`check-where-shapes.sh`'s population):
+//! The other 10 are the `where-*.wat` expressivity corpus (`check-where-shapes.sh`'s population
+//! vs Clara; `check-spec-native.sh` / `spec_equals_native_on_every_where_family` vs the oracle):
 //! no stdin, and stdout is N `row ... n=... ->...` lines, not a `#grid/Result`. They get their
 //! own assertion shape (run + produce output) rather than being silently skipped — and the
 //! EXEMPT SET itself is asserted exactly equal to the known 9 names, so a 10th `where-*.wat`
@@ -124,16 +125,29 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
 /// this exemption silently — it will fail the exact-set assertion below and force a deliberate
 /// update here.
 const WHERE_FAMILY: &[&str] = &[
+    "where-accum-lead",
+    "where-accum-where",
     "where-boolean",
     "where-collection",
     "where-control",
+    "where-exists",
     "where-join-order",
     "where-multivar",
     "where-nesting",
+    "where-not-and",
+    "where-not-bound",
+    "where-not-fact",
+    "where-not-not",
+    "where-not-or",
+    "where-not-where",
+    "where-not-windy",
     "where-numeric",
+    "where-or-and",
+    "where-or-conditions",
     "where-record",
     "where-shapes",
     "where-string",
+    "where-test-chain",
 ];
 
 fn grid_dir() -> std::path::PathBuf {
@@ -332,6 +346,113 @@ fn grid_axes_run_and_derive_nonvacuously() {
         "{} of {} grid axes are DEAD (did not run, or ran vacuously):\n{}",
         failures.len(),
         sized_stems.len() + where_stems.len(),
+        failures.join("\n")
+    );
+}
+
+/// Rewrite the public production verb to the oracle. Does not touch an
+/// already-spec call (`fire-rules-spec`).
+fn rewrite_fire_to_spec(src: &str) -> String {
+    let needle = ":wat::rete::fire-rules";
+    let mut out = String::with_capacity(src.len() + 64);
+    let mut rest = src;
+    while let Some(i) = rest.find(needle) {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + needle.len()..];
+        if after.starts_with("-spec") {
+            out.push_str(needle);
+            rest = after;
+        } else {
+            out.push_str(":wat::rete::fire-rules-spec");
+            rest = after;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn run_wat_path(path: &Path) -> (bool, String, String) {
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .arg(path)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap_or_else(|e| panic!("spawn {bin} {}: {e}", path.display()));
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+/// THE oracle/native gate. `check-where-shapes.sh` is Clara vs native. This
+/// test is spec vs native on the SAME where-* rows. A split here is a rete
+/// defect, not a purity cut — both sides are the value session.
+#[test]
+fn spec_equals_native_on_every_where_family() {
+    let tmp = std::env::temp_dir().join(format!(
+        "wat-spec-native-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&tmp).expect("temp dir for spec rewrite");
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut rows_total = 0usize;
+
+    for stem in WHERE_FAMILY {
+        let native_path = grid_dir().join(format!("{stem}.wat"));
+        let src = std::fs::read_to_string(&native_path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", native_path.display()));
+        let spec_src = rewrite_fire_to_spec(&src);
+        let spec_calls = spec_src.match_indices(":wat::rete::fire-rules-spec").count();
+        let doubled = spec_src.match_indices(":wat::rete::fire-rules-spec-spec").count();
+        assert_ne!(
+            spec_calls, 0,
+            "{stem}: rewrite produced no fire-rules-spec call — the family never fires?"
+        );
+        assert_eq!(
+            doubled, 0,
+            "{stem}: rewrite double-applied fire-rules-spec"
+        );
+        let spec_path = tmp.join(format!("{stem}.spec.wat"));
+        std::fs::write(&spec_path, spec_src).expect("write spec rewrite");
+
+        let (n_ok, n_out, n_err) = run_wat_path(&native_path);
+        let (s_ok, s_out, s_err) = run_wat_path(&spec_path);
+        if !n_ok {
+            failures.push(format!("{stem}: native FAILED\n  stderr: {n_err}"));
+            continue;
+        }
+        if !s_ok {
+            failures.push(format!("{stem}: spec FAILED\n  stderr: {s_err}"));
+            continue;
+        }
+        let n_rows = n_out.lines().filter(|l| !l.trim().is_empty()).count();
+        let s_rows = s_out.lines().filter(|l| !l.trim().is_empty()).count();
+        if n_rows == 0 {
+            failures.push(format!("{stem}: native emitted no rows"));
+            continue;
+        }
+        if n_out != s_out {
+            failures.push(format!(
+                "{stem}: spec != native (native {n_rows} rows, spec {s_rows} rows)\n\
+                 --- spec\n{s_out}+++ native\n{n_out}"
+            ));
+            continue;
+        }
+        rows_total += n_rows;
+    }
+
+    let _ = std::fs::remove_dir_all(&tmp);
+    assert!(
+        failures.is_empty(),
+        "spec != native on {} family(ies) ({} rows agreed before first miss):\n{}",
+        failures.len(),
+        rows_total,
         failures.join("\n")
     );
 }

@@ -2064,6 +2064,7 @@ mod completeness_gate {
     ":wat::holon::vector-bytes",
     ":wat::holon::vector-permute",
     ":wat::rete::alpha-match",
+    ":wat::rete::alpha-match-under",
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",
     ":wat::rete::deterministic?",

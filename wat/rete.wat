@@ -523,21 +523,27 @@
          (:wat::rete::MintResult :id next-id :state new-state))))))
 
 ;; compile-condition — fold step: process one condition form in a rule.
-;; acc = (CompileState, i64) where the i64 is the current parent-id (-1 = no parent yet).
-;; WHY -1 sentinel: lets us distinguish first-condition (RootJoinNode) from rest
-;; (HashJoinNode) without an Option; node ids start at 0.
-;; Algorithm per DESIGN-1b (and 6b-ii-a extension):
-;;   TOP branch — if cond is (:wat::rete::where <expr>): fence pure∧det, mint TestNode,
-;;     wire parent→test (parent must exist: a where is never the first condition).
-;;   ELSE branch — existing alpha+join path:
-;;   1. find-or-mint AlphaNode for cond (alpha sharing)
-;;   2. find-or-mint RootJoinNode or HashJoinNode for (cond, parent-id) (beta-prefix sharing)
-;;   3. wire alpha→join child edge
-;;   4. wire prev-parent→join child edge (if prev-parent >= 0)
-;;   5. return updated state with parent-id = join-id
+;; acc = (CompileState, PV of parent node-ids). Empty PV = no parent yet (first
+;; condition → RootJoin). Condition `:or` leaves N arm terminals in the PV;
+;; the next condition fans out (one HashJoin / one Test / one :not per parent)
+;; and Clara does not require `:or` to be last.
 (:wat::core::defrecord :wat::rete::CondFoldAcc
-  [state     <- :wat::rete::CompileState
-   parent-id <- :wat::core::i64])
+  [state      <- :wat::rete::CompileState
+   parent-ids <- :wat::core::PersistentVector<wat::core::i64>])
+
+;; wire-parents — hang `child` off every parent (condition `:or` leaves N terminals).
+(:wat::core::defn :wat::rete::wire-parents
+  [network <- :wat::core::PersistentMap
+   pids    <- :wat::core::PersistentVector<wat::core::i64>
+   child   <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::foldl
+    (:wat::core::fn [net <- :wat::core::PersistentMap
+                     pid <- :wat::core::i64]
+      -> :wat::core::PersistentMap
+      (:wat::rete::network-add-child net pid child))
+    network
+    pids))
 
 ;; Axis — BRIEF-the-fence-names-the-head, builder-ruled: the CLOSED-SET RULE
 ;; (REALIZATIONS.md:2676 — "a closed set is an enum, name holds value; open identifiers stay
@@ -677,7 +683,7 @@
    cond <- :wat::WatAST]
   -> :wat::rete::CondFoldAcc
   (:wat::core::let [state0    (:wat::rete::CondFoldAcc/state     acc)
-                    parent-id (:wat::rete::CondFoldAcc/parent-id acc)
+                    parent-ids (:wat::rete::CondFoldAcc/parent-ids acc)
                     ;; TOP: detect (:wat::rete::where <expr>) form
                     ;; All conditions are non-empty list forms with a keyword head; Option/expect is safe.
                     cond-ch   (:wat::core::ast->children cond)
@@ -686,9 +692,68 @@
                     is-where       (:wat::core::= head-nm ":wat::rete::where")
                     is-not         (:wat::core::= head-nm ":wat::rete::not")
                     is-exists      (:wat::core::= head-nm ":wat::rete::exists")
+                    is-or          (:wat::core::= head-nm ":wat::rete::or")
+                    is-and         (:wat::core::= head-nm ":wat::rete::and")
                     ;; Accumulate: detected by a ?-symbol head (head-nm starts with "?")
                     ;; Collision-free: :where and :not start with ":", ?-vars start with "?" — disjoint.
                     is-accumulate  (:wat::core::= (:wat::core::string::subs head-nm 0 1) "?")]
+    (:wat::core::if is-or
+      ;; Each arm is its own left chain from the SAME incoming parents.
+      ;; Terminals of every arm become the outgoing parent-ids (Clara :or
+      ;; of activations). Nested `:or` recurses through compile-condition.
+      (:wat::core::let [or-ch (:wat::core::ast->children cond)
+                        arms  (:wat::core::foldl
+                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                                                  i   <- :wat::core::i64]
+                                   -> :wat::core::PersistentVector<wat::WatAST>
+                                   (:wat::core::PersistentVector/conj acc
+                                     (:wat::core::Option/expect
+                                       (:wat::core::get or-ch i)
+                                       "compile-condition: or arm")))
+                                 (:wat::core::PersistentVector)
+                                 (:wat::core::range 1 (:wat::core::length or-ch)))
+                        _or-n (:wat::core::Option/expect
+                                 (:wat::core::if (:wat::core::i64::> (:wat::core::length arms) 0)
+                                   (:wat::core::Some nil)
+                                   :wat::core::None)
+                                 "compile-condition: or of conditions has no arms")
+                        incoming parent-ids]
+        (:wat::core::foldl
+          (:wat::core::fn [fold-acc <- :wat::rete::CondFoldAcc
+                           arm      <- :wat::WatAST]
+            -> :wat::rete::CondFoldAcc
+            (:wat::core::let [arm-acc (:wat::rete::compile-condition
+                                        (:wat::rete::CondFoldAcc
+                                          :state (:wat::rete::CondFoldAcc/state fold-acc)
+                                          :parent-ids incoming)
+                                        arm)]
+              (:wat::rete::CondFoldAcc
+                :state (:wat::rete::CondFoldAcc/state arm-acc)
+                :parent-ids (:wat::core::PersistentVector/concat
+                              (:wat::rete::CondFoldAcc/parent-ids fold-acc)
+                              (:wat::rete::CondFoldAcc/parent-ids arm-acc)))))
+          (:wat::rete::CondFoldAcc :state state0 :parent-ids (:wat::core::PersistentVector))
+          arms))
+    (:wat::core::if is-and
+      ;; Sequential group (Clara `:and` inside `:or` / `:not`). Each child
+      ;; sees the previous child's terminals — same as listing them in :when.
+      (:wat::core::let [and-ch (:wat::core::ast->children cond)
+                        kids   (:wat::core::foldl
+                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                                                  i   <- :wat::core::i64]
+                                   -> :wat::core::PersistentVector<wat::WatAST>
+                                   (:wat::core::PersistentVector/conj acc
+                                     (:wat::core::Option/expect
+                                       (:wat::core::get and-ch i)
+                                       "compile-condition: and child")))
+                                 (:wat::core::PersistentVector)
+                                 (:wat::core::range 1 (:wat::core::length and-ch)))
+                        _and-n (:wat::core::Option/expect
+                                 (:wat::core::if (:wat::core::i64::> (:wat::core::length kids) 0)
+                                   (:wat::core::Some nil)
+                                   :wat::core::None)
+                                 "compile-condition: and of conditions has no children")]
+        (:wat::core::foldl :wat::rete::compile-condition acc kids))
     (:wat::core::if is-where
       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
       (:wat::core::let [expr      (:wat::core::second cond-ch)
@@ -730,27 +795,22 @@
                                      :network net1
                                      :next-id (:wat::core::i64::+ next-id0 1)
                                      :dedup dedup0)
-                        ;; wire parent → test (a where always has a prior join parent)
-                        net2      (:wat::core::if (:wat::core::i64::>= parent-id 0)
-                                     (:wat::rete::network-add-child
-                                        (:wat::rete::CompileState/network state1)
-                                        parent-id
-                                        next-id0)
-                                     (:wat::rete::CompileState/network state1))
+                        ;; wire every parent → test (`:or` may leave N terminals)
+                        net2      (:wat::rete::wire-parents
+                                     (:wat::rete::CompileState/network state1)
+                                     parent-ids
+                                     next-id0)
                         state2    (:wat::rete::CompileState
                                      :network net2
                                      :next-id (:wat::rete::CompileState/next-id state1)
                                      :dedup (:wat::rete::CompileState/dedup   state1))]
-        (:wat::rete::CondFoldAcc :state state2 :parent-id next-id0))
+        (:wat::rete::CondFoldAcc :state state2
+          :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id0)))
       (:wat::core::if is-not
         ;; ── :not branch (7-a) ───────────────────────────────────────────────────
-        ;; Guard: a leading :not (parent < 0) is banked — raise at compile time.
-        (:wat::core::let [_guard      (:wat::core::Option/expect  
-                                          (:wat::core::if (:wat::core::i64::>= parent-id 0)
-                                            (:wat::core::Some nil)
-                                            :wat::core::None)
-                                          "compile-condition: negation must follow a binding condition")
-                          ;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
+        ;; Leading :not is legal (Clara negated conjunction matches the empty world).
+        ;; Empty parent-ids: filter seeds one empty-binding token.
+        (:wat::core::let [;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
                           inner       (:wat::core::second cond-ch)
                           ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
                           alpha-res   (:wat::rete::find-or-mint-alpha inner state0)
@@ -766,26 +826,21 @@
                                          :network net2
                                          :next-id (:wat::core::i64::+ next-id1 1)
                                          :dedup dedup1)
-                          ;; wire parent → negation
-                          net3        (:wat::rete::network-add-child
+                          net3        (:wat::rete::wire-parents
                                           (:wat::rete::CompileState/network state2)
-                                          parent-id
+                                          parent-ids
                                           next-id1)
                           state3      (:wat::rete::CompileState
                                          :network net3
                                          :next-id (:wat::rete::CompileState/next-id state2)
                                          :dedup (:wat::rete::CompileState/dedup   state2))]
-          (:wat::rete::CondFoldAcc :state state3 :parent-id next-id1))
+          (:wat::rete::CondFoldAcc :state state3
+            :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id1)))
         (:wat::core::if is-exists
           ;; ── :exists branch (7-exists) ────────────────────────────────────────────
-          ;; The :not branch, IDENTICAL, except it mints an ExistsNode instead of a NegationNode.
-          ;; Guard: a leading :exists (parent < 0) is unsupported — raise at compile time.
-          (:wat::core::let [_guard       (:wat::core::Option/expect  
-                                            (:wat::core::if (:wat::core::i64::>= parent-id 0)
-                                              (:wat::core::Some nil)
-                                              :wat::core::None)
-                                            "compile-condition: exists must follow a binding condition")
-                            ;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
+          ;; Leading :exists is legal (Clara test-simple-exists). Empty parent-ids:
+          ;; filter emits one token per distinct inner binding, not a dummy seed.
+          (:wat::core::let [;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
                             inner        (:wat::core::second cond-ch)
                             ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
                             alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
@@ -801,27 +856,23 @@
                                            :network net2
                                            :next-id (:wat::core::i64::+ next-id1 1)
                                            :dedup dedup1)
-                            ;; wire parent → exists
-                            net3         (:wat::rete::network-add-child
+                            net3         (:wat::rete::wire-parents
                                             (:wat::rete::CompileState/network state2)
-                                            parent-id
+                                            parent-ids
                                             next-id1)
                             state3       (:wat::rete::CompileState
                                            :network net3
                                            :next-id (:wat::rete::CompileState/next-id state2)
                                            :dedup (:wat::rete::CompileState/dedup   state2))]
-            (:wat::rete::CondFoldAcc :state state3 :parent-id next-id1))
+            (:wat::rete::CondFoldAcc :state state3
+              :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id1)))
         (:wat::core::if is-accumulate
           ;; ── accumulate branch (8-a) ─────────────────────────────────────────────
           ;; Form: (?result-var <- (<acc-form>) :from (<inner>))
           ;; children: [?result-var, <-, acc-form, :from, inner]
-          ;; Guard: a leading accumulate (parent < 0) is unsupported — accumulate needs a left token.
-          (:wat::core::let [_guard       (:wat::core::Option/expect  
-                                             (:wat::core::if (:wat::core::i64::>= parent-id 0)
-                                               (:wat::core::Some nil)
-                                               :wat::core::None)
-                                             "compile-condition: accumulate must follow a binding condition")
-                            ;; result-var: strip the "?" prefix from head-nm to get the var name string
+          ;; Leading accumulate is legal (Clara test-count: empty world → count 0).
+          ;; Empty parent-ids: accumulate-pass seeds one empty-binding token.
+          (:wat::core::let [;; result-var: strip the "?" prefix from head-nm to get the var name string
                             result-var   head-nm
                             ;; acc-form: items[2]
                             acc-form     (:wat::core::Option/expect  
@@ -910,50 +961,60 @@
                                             :network net2
                                             :next-id (:wat::core::i64::+ next-id1 1)
                                             :dedup dedup1)
-                            ;; wire parent → accumulate
-                            net3         (:wat::rete::network-add-child
+                            net3         (:wat::rete::wire-parents
                                              (:wat::rete::CompileState/network state2)
-                                             parent-id
+                                             parent-ids
                                              next-id1)
                             state3       (:wat::rete::CompileState
                                             :network net3
                                             :next-id (:wat::rete::CompileState/next-id state2)
                                             :dedup (:wat::rete::CompileState/dedup   state2))]
-            (:wat::rete::CondFoldAcc :state state3 :parent-id next-id1))
-          ;; ── alpha+join branch (existing) ────────────────────────────────────────
-          (:wat::core::let [;; 1. find-or-mint the AlphaNode
-                        alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
+            (:wat::rete::CondFoldAcc :state state3
+              :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id1)))
+          ;; ── alpha+join: first condition → RootJoin; later → one HashJoin per parent
+          (:wat::core::let [alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
                         alpha-id   (:wat::rete::MintResult/id    alpha-res)
                         state1     (:wat::rete::MintResult/state alpha-res)
-                        ;; 2. find-or-mint the join node; -1 parent = first condition → RootJoinNode
-                        is-first  (:wat::core::i64::< parent-id 0)
-                        join-res  (:wat::core::if is-first
-                                     (:wat::rete::find-or-mint-root-join cond state1)
-                                     (:wat::rete::find-or-mint-hash-join cond parent-id state1))
-                        join-id    (:wat::rete::MintResult/id    join-res)
-                        state2     (:wat::rete::MintResult/state join-res)
-                        ;; 3. wire alpha → join
-                        net3       (:wat::rete::network-add-child
-                                      (:wat::rete::CompileState/network state2)
-                                      alpha-id
-                                      join-id)
-                        state3     (:wat::rete::CompileState
-                                      :network net3
-                                      :next-id (:wat::rete::CompileState/next-id state2)
-                                      :dedup (:wat::rete::CompileState/dedup   state2))
-                        ;; 4. wire prev-parent → join (only if there IS a prev parent)
-                        net4       (:wat::core::if (:wat::core::i64::>= parent-id 0)
-                                      (:wat::rete::network-add-child
-                                         (:wat::rete::CompileState/network state3)
-                                         parent-id
-                                         join-id)
-                                      (:wat::rete::CompileState/network state3))
-                        state4     (:wat::rete::CompileState
-                                      :network net4
-                                      :next-id (:wat::rete::CompileState/next-id state3)
-                                      :dedup (:wat::rete::CompileState/dedup   state3))]
-        ;; 5. advance parent to join-id for the next condition
-        (:wat::rete::CondFoldAcc :state state4 :parent-id join-id))))))))
+                        is-first   (:wat::core::= (:wat::core::length parent-ids) 0)]
+            (:wat::core::if is-first
+              (:wat::core::let [join-res (:wat::rete::find-or-mint-root-join cond state1)
+                                join-id  (:wat::rete::MintResult/id    join-res)
+                                state2   (:wat::rete::MintResult/state join-res)
+                                net3     (:wat::rete::network-add-child
+                                           (:wat::rete::CompileState/network state2)
+                                           alpha-id
+                                           join-id)
+                                state3   (:wat::rete::CompileState
+                                           :network net3
+                                           :next-id (:wat::rete::CompileState/next-id state2)
+                                           :dedup (:wat::rete::CompileState/dedup state2))]
+                (:wat::rete::CondFoldAcc :state state3
+                  :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) join-id)))
+              (:wat::core::let [fan (:wat::core::foldl
+                                      (:wat::core::fn [acc <- :wat::rete::CondFoldAcc
+                                                       pid <- :wat::core::i64]
+                                        -> :wat::rete::CondFoldAcc
+                                        (:wat::core::let [st0 (:wat::rete::CondFoldAcc/state acc)
+                                                          jr  (:wat::rete::find-or-mint-hash-join cond pid st0)
+                                                          jid (:wat::rete::MintResult/id jr)
+                                                          st1 (:wat::rete::MintResult/state jr)
+                                                          n1  (:wat::rete::network-add-child
+                                                                (:wat::rete::CompileState/network st1)
+                                                                alpha-id
+                                                                jid)
+                                                          n2  (:wat::rete::network-add-child n1 pid jid)
+                                                          st2 (:wat::rete::CompileState
+                                                                :network n2
+                                                                :next-id (:wat::rete::CompileState/next-id st1)
+                                                                :dedup (:wat::rete::CompileState/dedup st1))]
+                                          (:wat::rete::CondFoldAcc :state st2
+                                            :parent-ids (:wat::core::PersistentVector/conj
+                                                          (:wat::rete::CondFoldAcc/parent-ids acc)
+                                                          jid))))
+                                      (:wat::rete::CondFoldAcc :state state1
+                                        :parent-ids (:wat::core::PersistentVector))
+                                      parent-ids)]
+                fan)))))))))))
 
 ;; then-item-fence — Stone B (arc 278 DESIGN-STONE-then-is-a-vector-of-singular-facts.md §
 ;; "Stone B"): the RHS fence, mirroring `compile-condition`'s `where` fence (above,
@@ -1054,7 +1115,8 @@
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
-;; the ProductionNode as a child of the final join (the "leaf" terminal).
+;; the ProductionNode as a child of every remaining parent (one join after a
+;; linear :when; N arm terminals after a condition `:or`).
 ;;
 ;; Arc 278 Stone B — fences `rhs` (the rule's `:then` items) via `then-item-fence` BEFORE folding
 ;; `lhs`, so a malformed RHS is caught before any network nodes are minted for this rule. Mirrors
@@ -1068,25 +1130,19 @@
                     rhs        (:wat::rete::Rule/rhs rule)
                     rname      (:wat::rete::Rule/name rule)
                     _rhs-fence (:wat::core::foldl :wat::rete::then-item-fence 0 rhs)
-                    ;; fold conditions left→right; parent-id starts at -1 (none)
-                    init-acc  (:wat::rete::CondFoldAcc :state state :parent-id -1)
-                    final-acc (:wat::core::foldl
-                                  :wat::rete::compile-condition
-                                  init-acc
-                                  lhs)
-                    state2    (:wat::rete::CondFoldAcc/state     final-acc)
-                    final-par (:wat::rete::CondFoldAcc/parent-id final-acc)
-                    ;; mint the ProductionNode (never shared — one per rule)
-                    network2  (:wat::rete::CompileState/network state2)
-                    next-id2  (:wat::rete::CompileState/next-id state2)
-                    prod      (:wat::rete::ProductionNode :id next-id2 :rule-name rname)
-                    net3      (:wat::core::PersistentMap/assoc network2 next-id2 prod)
-                    ;; wire final-join → production
-                    net4      (:wat::core::if (:wat::core::i64::>= final-par 0)
-                                  (:wat::rete::network-add-child net3 final-par next-id2)
-                                  net3)
-                    dedup3    (:wat::rete::CompileState/dedup state2)]
-    (:wat::rete::CompileState :network net4 :next-id (:wat::core::i64::+ next-id2 1) :dedup dedup3)))
+                    init-acc   (:wat::rete::CondFoldAcc
+                                 :state state
+                                 :parent-ids (:wat::core::PersistentVector))
+                    final-acc  (:wat::core::foldl :wat::rete::compile-condition init-acc lhs)
+                    state2     (:wat::rete::CondFoldAcc/state      final-acc)
+                    pids       (:wat::rete::CondFoldAcc/parent-ids final-acc)
+                    network2   (:wat::rete::CompileState/network state2)
+                    next-id2   (:wat::rete::CompileState/next-id state2)
+                    prod       (:wat::rete::ProductionNode :id next-id2 :rule-name rname)
+                    net3       (:wat::core::PersistentMap/assoc network2 next-id2 prod)
+                    net4       (:wat::rete::wire-parents net3 pids next-id2)]
+    (:wat::rete::CompileState :network net4 :next-id (:wat::core::i64::+ next-id2 1)
+      :dedup (:wat::rete::CompileState/dedup state2))))
 
 ;; compile — turn a PersistentVector of Rules into a Session with the compiled network.
 ;; The session constructor for arc 278: (compile rules) → insert → fire → query.
@@ -1504,6 +1560,27 @@
 ;; WHY kind-agnostic via node-children-ids: a ProductionNode's parent is a RootJoinNode (1-condition rule)
 ;; OR a HashJoinNode (multi-condition rule); dispatching on node-children-ids covers both without
 ;; hard-coding the parent kind. Mirrors alpha-feeding but uses the shared node-children-ids accessor.
+;; node-parents — every node that names `child-id` as a child. Condition `:or`
+;; wires one ProductionNode to N arm terminals; fire must read ALL of them.
+(:wat::core::defn :wat::rete::node-parents
+  [child-id <- :wat::core::i64
+   network  <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::foldl
+    (:wat::core::fn [acc     <- :wat::core::PersistentVector<wat::core::i64>
+                     node-id <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::core::i64>
+      (:wat::core::let [node (:wat::core::Option/expect
+                                (:wat::core::PersistentMap/get network node-id)
+                                "node-parents: node not found")]
+        (:wat::core::if (:wat::core::PersistentVector/contains?
+                           (:wat::rete::node-children-ids node)
+                           child-id)
+          (:wat::core::PersistentVector/conj acc node-id)
+          acc)))
+    (:wat::core::PersistentVector)
+    (:wat::core::PersistentMap/keys network)))
+
 (:wat::core::defn :wat::rete::node-parent
   [child-id <- :wat::core::i64
    network  <- :wat::core::PersistentMap]
@@ -1524,6 +1601,30 @@
             -1))))
     -1
     (:wat::core::PersistentMap/keys network)))
+
+;; tokens-from-parents — concat beta-memory tokens from every parent.
+;; Condition `:or` leaves N terminals; a later Test/:not/:exists/accum
+;; (and production) must read ALL of them, not the first parent only.
+(:wat::core::defn :wat::rete::tokens-from-parents
+  [beta-mem   <- :wat::core::PersistentMap
+   parent-ids <- :wat::core::PersistentVector<wat::core::i64>]
+  -> :wat::core::PersistentVector<wat::rete::Token>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Token>
+                     pid <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::rete::Token>
+      (:wat::core::match (:wat::core::PersistentMap/get beta-mem pid)
+        ((:wat::core::Some tokens)
+         (:wat::core::foldl
+           (:wat::core::fn [a <- :wat::core::PersistentVector<wat::rete::Token>
+                            t <- :wat::rete::Token]
+             -> :wat::core::PersistentVector<wat::rete::Token>
+             (:wat::core::PersistentVector/conj a t))
+           acc
+           tokens))
+        (:wat::core::None acc)))
+    (:wat::core::PersistentVector)
+    parent-ids))
 
 ;; rule-by-name — linear find: given a rule name String, return the matching Rule from rules PV.
 ;; WHY foldl carrying Option: PersistentVector has no early-exit find; foldl short-circuits by
@@ -1564,10 +1665,14 @@
                                    (:wat::core::PersistentMap/get network prod-id)
                                    "fire-production: prod node not found")
                     rname      (:wat::rete::ProductionNode/rule-name prod-node)
-                    parent-id  (:wat::rete::node-parent prod-id network)
+                    parent-ids (:wat::rete::node-parents prod-id network)
                     rule       (:wat::rete::rule-by-name rules rname)
                     rhs        (:wat::rete::Rule/rhs rule)]
-    (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
+    (:wat::core::foldl
+      (:wat::core::fn [pm0 <- :wat::core::PersistentMap
+                       parent-id <- :wat::core::i64]
+        -> :wat::core::PersistentMap
+      (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
       ((:wat::core::Some tokens)
        ;; For each token: for each insert-form in rhs: eval-insert → conj into prod-mem[prod-id].
        (:wat::core::foldl
@@ -1588,9 +1693,11 @@
                       (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) derived))))))
              pm
              rhs))
-         prod-mem
+         pm0
          tokens))
-      (:wat::core::None prod-mem))))
+      (:wat::core::None pm0)))
+      prod-mem
+      parent-ids)))
 
 ;; test-pass — fold step (6b-ii-a): for each TestNode, filter beta-memory[parent] by eval-test(expr, bindings)
 ;; into beta-memory[test-id]. Runs AFTER hash-join-pass and BEFORE production-pass.
@@ -1606,28 +1713,194 @@
                              (:wat::core::PersistentMap/get network node-id)
                              "test-pass: node not found")]
     (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "TestNode")
-      (:wat::core::let [expr      (:wat::rete::TestNode/expr node)
-                        parent-id (:wat::rete::node-parent node-id network)]
-        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
-          ((:wat::core::Some tokens)
-           (:wat::core::foldl
-             (:wat::core::fn [bm  <- :wat::core::PersistentMap
-                              tok <- :wat::rete::Token]
-               -> :wat::core::PersistentMap
-               (:wat::core::if (:wat::rete::eval-test expr (:wat::rete::Token/bindings tok))
-                 (:wat::rete::append-token bm node-id tok)
-                 bm))
-             beta-mem
-             tokens))
-          (:wat::core::None beta-mem)))
+      (:wat::core::let [expr   (:wat::rete::TestNode/expr node)
+                        tokens (:wat::rete::tokens-from-parents
+                                 beta-mem
+                                 (:wat::rete::node-parents node-id network))]
+        (:wat::core::foldl
+          (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                           tok <- :wat::rete::Token]
+            -> :wat::core::PersistentMap
+            (:wat::core::if (:wat::rete::eval-test expr (:wat::rete::Token/bindings tok))
+              (:wat::rete::append-token bm node-id tok)
+              bm))
+          beta-mem
+          tokens))
       beta-mem)))
+
+;; cond-children — wrapper arms of `(:wat::rete::and …)` / `(:or …)`.
+(:wat::core::defn :wat::rete::cond-children
+  [form <- :wat::WatAST]
+  -> :wat::core::PersistentVector<wat::WatAST>
+  (:wat::core::let [ch (:wat::core::ast->children form)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                       i   <- :wat::core::i64]
+        -> :wat::core::PersistentVector<wat::WatAST>
+        (:wat::core::PersistentVector/conj acc
+          (:wat::core::Option/expect
+            (:wat::core::get ch i)
+            "cond-children")))
+      (:wat::core::PersistentVector)
+      (:wat::core::range 1 (:wat::core::length ch)))))
+
+;; binding-extensions — every binding map that satisfies `cond` under `bindings`.
+;; Fact: each matching WM fact. `:and`: backtrack. `:or`: concat arms. `:where`: keep or drop.
+(:wat::core::defn :wat::rete::binding-extensions
+  [cond     <- :wat::WatAST
+   facts    <- :wat::core::PersistentVector
+   bindings <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentVector<wat::core::PersistentMap>
+  (:wat::core::let [head-nm (:wat::core::ast-name
+                              (:wat::core::first (:wat::core::ast->children cond)))]
+    (:wat::core::cond
+      ((:wat::core::= head-nm ":wat::rete::and")
+       (:wat::core::foldl
+         (:wat::core::fn [exts <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                          kid  <- :wat::WatAST]
+           -> :wat::core::PersistentVector<wat::core::PersistentMap>
+           (:wat::core::foldl
+             (:wat::core::fn [out <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                              ext <- :wat::core::PersistentMap]
+               -> :wat::core::PersistentVector<wat::core::PersistentMap>
+               (:wat::core::PersistentVector/concat
+                 out
+                 (:wat::rete::binding-extensions kid facts ext)))
+             (:wat::core::PersistentVector)
+             exts))
+         (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) bindings)
+         (:wat::rete::cond-children cond)))
+      ((:wat::core::= head-nm ":wat::rete::or")
+       (:wat::core::foldl
+         (:wat::core::fn [out <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                          kid <- :wat::WatAST]
+           -> :wat::core::PersistentVector<wat::core::PersistentMap>
+           (:wat::core::PersistentVector/concat
+             out
+             (:wat::rete::binding-extensions kid facts bindings)))
+         (:wat::core::PersistentVector)
+         (:wat::rete::cond-children cond)))
+      ((:wat::core::= head-nm ":wat::rete::where")
+       (:wat::core::if (:wat::rete::eval-test
+                         (:wat::core::second (:wat::core::ast->children cond))
+                         bindings)
+         (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) bindings)
+         (:wat::core::PersistentVector)))
+      ((:wat::core::= head-nm ":wat::rete::not")
+       (:wat::core::if (:wat::rete::exists-cond-under
+                         (:wat::core::second (:wat::core::ast->children cond))
+                         facts bindings)
+         (:wat::core::PersistentVector)
+         (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) bindings)))
+      (:else
+       (:wat::core::foldl
+         (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                          fact <- :wat::core::Record]
+           -> :wat::core::PersistentVector<wat::core::PersistentMap>
+           (:wat::core::match (:wat::rete::alpha-match-under cond fact bindings)
+             ((:wat::core::Some b)
+              (:wat::core::PersistentVector/conj acc b))
+             (:wat::core::None acc)))
+         (:wat::core::PersistentVector)
+         facts)))))
+
+;; exists-cond-under — does the inner :not/:exists condition hold under bindings?
+;; A fact: any-fact-matches-under. `:and` of facts: some join of the children exists
+;; (Clara [:not [:and [Wind] [Temp]]]).
+(:wat::core::defn :wat::rete::exists-cond-under
+  [cond     <- :wat::WatAST
+   facts    <- :wat::core::PersistentVector
+   bindings <- :wat::core::PersistentMap]
+  -> :wat::core::bool
+  (:wat::core::let [head-nm (:wat::core::ast-name
+                              (:wat::core::first (:wat::core::ast->children cond)))]
+    (:wat::core::cond
+      ((:wat::core::= head-nm ":wat::rete::and")
+       (:wat::core::i64::> (:wat::core::length
+                             (:wat::rete::binding-extensions cond facts bindings))
+                           0))
+      ((:wat::core::= head-nm ":wat::rete::or")
+       (:wat::core::foldl
+         (:wat::core::fn [found <- :wat::core::bool
+                          kid   <- :wat::WatAST]
+           -> :wat::core::bool
+           (:wat::core::if found
+             true
+             (:wat::rete::exists-cond-under kid facts bindings)))
+         false
+         (:wat::rete::cond-children cond)))
+      ((:wat::core::= head-nm ":wat::rete::where")
+       (:wat::rete::eval-test
+         (:wat::core::second (:wat::core::ast->children cond))
+         bindings))
+      ((:wat::core::= head-nm ":wat::rete::not")
+       (:wat::core::not
+         (:wat::rete::exists-cond-under
+           (:wat::core::second (:wat::core::ast->children cond))
+           facts bindings)))
+      (:else
+       (:wat::rete::any-fact-matches-under cond facts bindings)))))
+
+;; distinct-maps — first-wins unique PersistentMaps (Clara exists: two Winds at
+;; one loc → one binding).
+(:wat::core::defn :wat::rete::distinct-maps
+  [maps <- :wat::core::PersistentVector<wat::core::PersistentMap>]
+  -> :wat::core::PersistentVector<wat::core::PersistentMap>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                     m   <- :wat::core::PersistentMap]
+      -> :wat::core::PersistentVector<wat::core::PersistentMap>
+      (:wat::core::if (:wat::core::PersistentVector/contains? acc m)
+        acc
+        (:wat::core::PersistentVector/conj acc m)))
+    (:wat::core::PersistentVector)
+    maps))
+
+;; tokens-or-empty-seed — parent tokens, or one empty-binding token when the
+;; node is leading (`:not`, accumulate). Mid-chain with no parent tokens stays empty.
+(:wat::core::defn :wat::rete::tokens-or-empty-seed
+  [network  <- :wat::core::PersistentMap
+   beta-mem <- :wat::core::PersistentMap
+   node-id  <- :wat::core::i64]
+  -> :wat::core::PersistentVector<wat::rete::Token>
+  (:wat::core::let [pids (:wat::rete::node-parents node-id network)]
+    (:wat::core::if (:wat::core::= (:wat::core::length pids) 0)
+      (:wat::core::PersistentVector/conj
+        (:wat::core::PersistentVector)
+        (:wat::rete::Token
+          :matches (:wat::core::PersistentVector)
+          :bindings (:wat::core::PersistentMap)))
+      (:wat::rete::tokens-from-parents beta-mem pids))))
+
+;; any-fact-matches-under — oracle :not / :exists beta check.
+;; Re-runs the inner condition against every staged fact WITH the token's
+;; bindings seeded (Clara join-filter). Shared-var agreement is not enough:
+;; `?v < ?m` after an accum names a left-bound var that empty-seed alpha never
+;; sees, so the negated alpha stays empty and :not falsely passes.
+(:wat::core::defn :wat::rete::any-fact-matches-under
+  [cond     <- :wat::WatAST
+   facts    <- :wat::core::PersistentVector
+   bindings <- :wat::core::PersistentMap]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [found <- :wat::core::bool
+                     fact  <- :wat::core::Record]
+      -> :wat::core::bool
+      (:wat::core::if found
+        true
+        (:wat::core::match (:wat::rete::alpha-match-under cond fact bindings)
+          ((:wat::core::Some _) true)
+          (:wat::core::None false))))
+    false
+    facts))
 
 ;; filter-pass — unified fold step (7-a): replaces the standalone test-pass.
 ;; Dispatches by node kind:
 ;;   TestNode     → eval-test filter (same as the old test-pass).
-;;   NegationNode → negation filter: pass the un-extended token iff ZERO elements in
-;;                  alpha-memory[negated-alpha-id] are token-element-compatible? with the token.
-;; alpha-mem is threaded in (the negation filter needs it); TestNode ignores it.
+;;   NegationNode → negation filter: pass the un-extended token iff ZERO staged
+;;                  facts match the inner cond under the token's bindings.
+;; facts is threaded in (the :not / :exists filter needs the input bag);
+;; TestNode ignores it.
 ;; WHY unified fold: any interleaving of :where/:not in a condition chain is correct because
 ;; fire-once walks node-ids in topological (ascending) order and, per node, populate
 ;; (this pass) THEN emit (hash-join-pass). A filter reads its parent's beta (already
@@ -1636,6 +1909,7 @@
 (:wat::core::defn :wat::rete::filter-pass
   [network   <- :wat::core::PersistentMap
    alpha-mem <- :wat::core::PersistentMap
+   facts     <- :wat::core::PersistentVector
    beta-mem  <- :wat::core::PersistentMap
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
@@ -1646,87 +1920,78 @@
     (:wat::core::cond
       ((:wat::core::= kind "TestNode")
        ;; eval-test filter: keep token iff expr evaluates true under token's bindings.
-       (:wat::core::let [expr      (:wat::rete::TestNode/expr node)
-                         parent-id (:wat::rete::node-parent node-id network)]
-         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
-           ((:wat::core::Some tokens)
-            (:wat::core::foldl
-              (:wat::core::fn [bm  <- :wat::core::PersistentMap
-                               tok <- :wat::rete::Token]
-                -> :wat::core::PersistentMap
-                (:wat::core::if (:wat::rete::eval-test expr (:wat::rete::Token/bindings tok))
-                  (:wat::rete::append-token bm node-id tok)
-                  bm))
-              beta-mem
-              tokens))
-           (:wat::core::None beta-mem))))
+       ;; Read EVERY parent — a Test after `:or` hangs off N arm terminals.
+       (:wat::core::let [expr   (:wat::rete::TestNode/expr node)
+                         tokens (:wat::rete::tokens-from-parents
+                                  beta-mem
+                                  (:wat::rete::node-parents node-id network))]
+         (:wat::core::foldl
+           (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                            tok <- :wat::rete::Token]
+             -> :wat::core::PersistentMap
+             (:wat::core::if (:wat::rete::eval-test expr (:wat::rete::Token/bindings tok))
+               (:wat::rete::append-token bm node-id tok)
+               bm))
+           beta-mem
+           tokens)))
       ((:wat::core::= kind "NegationNode")
-       ;; negation filter: pass the un-extended token iff ZERO compatible elements exist.
-       ;; Reuse token-element-compatible? (the join's shared-var agreement check) inverted.
+       ;; pass the un-extended token iff the inner cond does NOT exist under
+       ;; the token (fact, or `:and` of facts). Leading :not seeds one empty token.
        (:wat::core::let [neg-alpha-id (:wat::rete::NegationNode/negated-alpha-id node)
-                         parent-id    (:wat::rete::node-parent node-id network)]
-         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
-           ((:wat::core::Some tokens)
-            (:wat::core::foldl
-              (:wat::core::fn [bm  <- :wat::core::PersistentMap
-                               tok <- :wat::rete::Token]
-                -> :wat::core::PersistentMap
-                ;; pass the token iff no element in alpha-memory[neg-alpha-id] is compatible.
-                (:wat::core::let [els-opt (:wat::core::PersistentMap/get alpha-mem neg-alpha-id)
-                                  ;; any-compatible? = foldl over elements, short-circuit on first match
-                                  any-compat (:wat::core::match els-opt 
-                                               ((:wat::core::Some els)
-                                                (:wat::core::foldl
-                                                  (:wat::core::fn [found <- :wat::core::bool
-                                                                   el    <- :wat::rete::Element]
-                                                    -> :wat::core::bool
-                                                    (:wat::core::if found
-                                                      true
-                                                      (:wat::rete::token-element-compatible? tok el)))
-                                                  false
-                                                  els))
-                                               (:wat::core::None false))]
-                  ;; pass iff NOT any-compat (hash-join inverted: zero compatible ⇒ pass)
-                  (:wat::core::if (:wat::core::not any-compat)
-                    (:wat::rete::append-token bm node-id tok)
-                    bm)))
-              beta-mem
-              tokens))
-           (:wat::core::None beta-mem))))
+                         tokens       (:wat::rete::tokens-or-empty-seed
+                                        network beta-mem node-id)
+                         alpha-node   (:wat::core::Option/expect
+                                         (:wat::core::PersistentMap/get network neg-alpha-id)
+                                         "filter-pass: negated alpha missing")
+                         cond         (:wat::core::Option/expect
+                                         (:wat::core::get (:wat::rete::AlphaNode/tests alpha-node) 0)
+                                         "filter-pass: negated alpha has no cond")]
+         (:wat::core::foldl
+           (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                            tok <- :wat::rete::Token]
+             -> :wat::core::PersistentMap
+             (:wat::core::if
+               (:wat::rete::exists-cond-under
+                 cond facts (:wat::rete::Token/bindings tok))
+               bm
+               (:wat::rete::append-token bm node-id tok)))
+           beta-mem
+           tokens)))
       ((:wat::core::= kind "ExistsNode")
-       ;; exists filter: the NegationNode arm with the verdict FLIPPED. Pass the un-extended
-       ;; token iff ≥1 compatible element exists. Same gather; pass iff any-compat (vs negation's
-       ;; (not any-compat)). Binds nothing; passes the token once (no multiplicity).
+       ;; Mid-chain: pass the un-extended parent token once if the inner holds.
+       ;; Leading: one token per DISTINCT inner binding (Clara test-simple-exists).
        (:wat::core::let [ex-alpha-id (:wat::rete::ExistsNode/exists-alpha-id node)
-                         parent-id   (:wat::rete::node-parent node-id network)]
-         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
-           ((:wat::core::Some tokens)
-            (:wat::core::foldl
-              (:wat::core::fn [bm  <- :wat::core::PersistentMap
-                               tok <- :wat::rete::Token]
-                -> :wat::core::PersistentMap
-                ;; pass the token iff ≥1 element in alpha-memory[ex-alpha-id] is compatible.
-                (:wat::core::let [els-opt (:wat::core::PersistentMap/get alpha-mem ex-alpha-id)
-                                  ;; any-compatible? = foldl over elements, short-circuit on first match
-                                  any-compat (:wat::core::match els-opt 
-                                               ((:wat::core::Some els)
-                                                (:wat::core::foldl
-                                                  (:wat::core::fn [found <- :wat::core::bool
-                                                                   el    <- :wat::rete::Element]
-                                                    -> :wat::core::bool
-                                                    (:wat::core::if found
-                                                      true
-                                                      (:wat::rete::token-element-compatible? tok el)))
-                                                  false
-                                                  els))
-                                               (:wat::core::None false))]
-                  ;; pass iff any-compat (the flip: ≥1 compatible ⇒ pass)
-                  (:wat::core::if any-compat
-                    (:wat::rete::append-token bm node-id tok)
-                    bm)))
-              beta-mem
-              tokens))
-           (:wat::core::None beta-mem))))
+                         pids        (:wat::rete::node-parents node-id network)
+                         alpha-node  (:wat::core::Option/expect
+                                        (:wat::core::PersistentMap/get network ex-alpha-id)
+                                        "filter-pass: exists alpha missing")
+                         cond        (:wat::core::Option/expect
+                                        (:wat::core::get (:wat::rete::AlphaNode/tests alpha-node) 0)
+                                        "filter-pass: exists alpha has no cond")]
+         (:wat::core::if (:wat::core::= (:wat::core::length pids) 0)
+           (:wat::core::foldl
+             (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                              ext <- :wat::core::PersistentMap]
+               -> :wat::core::PersistentMap
+               (:wat::rete::append-token bm node-id
+                 (:wat::rete::Token
+                   :matches (:wat::core::PersistentVector)
+                   :bindings ext)))
+             beta-mem
+             (:wat::rete::distinct-maps
+               (:wat::rete::binding-extensions
+                 cond facts (:wat::core::PersistentMap))))
+           (:wat::core::foldl
+             (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                              tok <- :wat::rete::Token]
+               -> :wat::core::PersistentMap
+               (:wat::core::if
+                 (:wat::rete::exists-cond-under
+                   cond facts (:wat::rete::Token/bindings tok))
+                 (:wat::rete::append-token bm node-id tok)
+                 bm))
+             beta-mem
+             (:wat::rete::tokens-from-parents beta-mem pids)))))
       (:else beta-mem))))
 
 ;; production-pass — fold step: if this node is a ProductionNode, fire it; else pass through.
@@ -1772,7 +2037,7 @@
                                  (:wat::rete::root-join-pass amem network acc node-id))
                                 ((:wat::core::= phase 2)
                                  (:wat::rete::hash-join-pass amem network
-                                   (:wat::rete::filter-pass network amem
+                                   (:wat::rete::filter-pass network amem facts
                                      (:wat::rete::accumulate-pass network amem acc node-id)
                                      node-id)
                                    node-id))
@@ -2810,34 +3075,32 @@
       (:wat::core::let [result-var    (:wat::rete::AccumulateNode/result-var    node)
                         acc-form      (:wat::rete::AccumulateNode/acc-form      node)
                         from-alpha-id (:wat::rete::AccumulateNode/from-alpha-id node)
-                        parent-id     (:wat::rete::node-parent node-id network)
+                        tokens        (:wat::rete::tokens-or-empty-seed
+                                        network beta-mem node-id)
                         ;; gather all :from elements from alpha-memory (may be empty PV)
                         from-els      (:wat::core::match
                                          (:wat::core::PersistentMap/get alpha-mem from-alpha-id)
                                          
                                        ((:wat::core::Some pv) pv)
                                        (:wat::core::None (:wat::core::PersistentVector)))]
-        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
-          ((:wat::core::Some tokens)
-           ;; For each parent token: filter from-els to compatible ones, then dispatch to
-           ;; accumulate-pass-for-token which handles the per-fold type inline.
-           (:wat::core::foldl
-             (:wat::core::fn [bm  <- :wat::core::PersistentMap
-                              tok <- :wat::rete::Token]
-               -> :wat::core::PersistentMap
-               (:wat::core::let [;; gather token-compatible :from elements (shared ?var agreement)
-                                 gathered (:wat::core::foldl
-                                             (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Element>
-                                                              el  <- :wat::rete::Element]
-                                               -> :wat::core::PersistentVector<wat::rete::Element>
-                                               (:wat::core::if (:wat::rete::token-element-compatible? tok el)
-                                                 (:wat::core::PersistentVector/conj acc el)
-                                                 acc))
-                                             (:wat::core::PersistentVector)
-                                             from-els)]
-                 (:wat::rete::accumulate-pass-for-token
-                    acc-form gathered result-var tok node-id bm)))
-             beta-mem
-             tokens))
-          (:wat::core::None beta-mem)))
+        ;; For each parent token: filter from-els to compatible ones, then dispatch to
+        ;; accumulate-pass-for-token which handles the per-fold type inline.
+        (:wat::core::foldl
+          (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                           tok <- :wat::rete::Token]
+            -> :wat::core::PersistentMap
+            (:wat::core::let [;; gather token-compatible :from elements (shared ?var agreement)
+                              gathered (:wat::core::foldl
+                                          (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Element>
+                                                           el  <- :wat::rete::Element]
+                                            -> :wat::core::PersistentVector<wat::rete::Element>
+                                            (:wat::core::if (:wat::rete::token-element-compatible? tok el)
+                                              (:wat::core::PersistentVector/conj acc el)
+                                              acc))
+                                          (:wat::core::PersistentVector)
+                                          from-els)]
+              (:wat::rete::accumulate-pass-for-token
+                 acc-form gathered result-var tok node-id bm)))
+          beta-mem
+          tokens))
       beta-mem)))

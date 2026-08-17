@@ -525,16 +525,37 @@ fn validate_when_entry(
         // SAME full validation (registered type + every clause + every field-ref) as any
         // top-level condition.
         ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
-            validate_plain_condition(inner, rule_name, types, binds, errors);
+            // Inner is a full :when entry (fact, or `:and` of facts — Clara
+            // `[:not [:and [Wind] [Temp]]]`), not only a plain pattern.
+            validate_when_entry(inner, rule_name, types, binds, errors);
         }
         // Design call 3 — accumulate's `:from` inner gets fact-type-HEAD validation only;
         // its own clauses and the acc-form's reducer body are out of scope.
         ReteClauseShape::Accumulate { from, .. } => {
             validate_fact_type_head_only(from, rule_name, types, errors);
         }
-        // Every other shape (including Bind/Constraint/And/Or/Unrecognized, none of which are
-        // legitimate TOP-level :when entries) falls to the plain-condition path: a top-level
-        // entry that is not a wrapper must be `(:Type clause…)`.
+        // Condition `:or` — or of activations (Clara `[:or [Temp] [Wind]]`). Each arm
+        // is a full :when entry, not a fact named `or`. Empty `:or` is malformed.
+        ReteClauseShape::Or(arms) => {
+            if arms.is_empty() {
+                errors.push(malformed(cond.span().clone(), rule_name, "", cond));
+            }
+            for arm in arms {
+                validate_when_entry(arm, rule_name, types, binds, errors);
+            }
+        }
+        // Condition `:and` — grouping (Clara `[:or [Temp] [:and [Temp] [Wind]]]`).
+        // Sequential :when entries, not a fact named `and`. Empty `:and` is malformed.
+        ReteClauseShape::And(arms) => {
+            if arms.is_empty() {
+                errors.push(malformed(cond.span().clone(), rule_name, "", cond));
+            }
+            for arm in arms {
+                validate_when_entry(arm, rule_name, types, binds, errors);
+            }
+        }
+        // Bind/Constraint/And/Unrecognized are not top-level :when entries — a
+        // top-level entry that is not a wrapper must be `(:Type clause…)`.
         _ => validate_plain_condition(cond, rule_name, types, binds, errors),
     }
 }
@@ -897,23 +918,32 @@ fn collect_rule_bind_types(
     let mut out = std::collections::HashMap::new();
     for cond in when_conds {
         // Unwrap the wrappers that carry a plain pattern inside.
-        let pattern = match classify_rete_clause(cond) {
-            ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => inner,
-            _ => cond,
-        };
-        let WatAST::List(items, _) = pattern else { continue };
-        let Some(WatAST::Keyword(head, _)) = items.first() else { continue };
-        let fact_type = head.trim_start_matches(':');
-        let (Some(names), Some(tys)) =
-            (lookup_fields(types, fact_type), lookup_field_types(types, fact_type))
-        else {
-            continue;
-        };
-        for clause in items.iter().skip(1) {
-            if let ReteClauseShape::Bind { var, field } = classify_rete_clause(clause) {
-                if let Some(idx) = names.iter().position(|f| f == field) {
-                    if let Some(t) = tys.get(idx) {
-                        out.insert(var.to_string(), t.clone());
+        match classify_rete_clause(cond) {
+            ReteClauseShape::Or(arms) | ReteClauseShape::And(arms) => {
+                let nested = collect_rule_bind_types(arms, types);
+                out.extend(nested);
+            }
+            ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
+                let nested = collect_rule_bind_types(std::slice::from_ref(inner), types);
+                out.extend(nested);
+            }
+            _other => {
+                let pattern = cond;
+                let WatAST::List(items, _) = pattern else { continue };
+                let Some(WatAST::Keyword(head, _)) = items.first() else { continue };
+                let fact_type = head.trim_start_matches(':');
+                let (Some(names), Some(tys)) =
+                    (lookup_fields(types, fact_type), lookup_field_types(types, fact_type))
+                else {
+                    continue;
+                };
+                for clause in items.iter().skip(1) {
+                    if let ReteClauseShape::Bind { var, field } = classify_rete_clause(clause) {
+                        if let Some(idx) = names.iter().position(|f| f == field) {
+                            if let Some(t) = tys.get(idx) {
+                                out.insert(var.to_string(), t.clone());
+                            }
+                        }
                     }
                 }
             }

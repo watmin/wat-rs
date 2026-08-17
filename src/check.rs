@@ -20045,6 +20045,35 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    env.register(
+        ":wat::rete::alpha-match-under".into(),
+        TypeScheme {
+            type_params: vec!["V".into()],
+            params: vec![
+                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::core::Record".into()),
+                TypeExpr::Parametric {
+                    head: "wat::core::PersistentMap".into(),
+                    args: vec![
+                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":V".into()),
+                    ],
+                },
+            ],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "wat::core::PersistentMap".into(),
+                    args: vec![
+                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":V".into()),
+                    ],
+                }],
+            },
+            rest_param_type: None,
+        },
+    );
+
     // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
     // (:wat::rete::eval-insert fact-form bindings) → :wat::core::Record
     // fact-form: :wat::WatAST (a quoted `(:RecordType arg…)` form — arc 278 Stone A dropped
