@@ -1,5 +1,17 @@
 # DESIGN — Stone 7-exists: `:exists` (existential) = NegationNode's filter predicate, flipped
 
+> **2026-08-17.** This stone's gather is the contract we returned to.
+> Implementation drifted: both mouths scanned the **session fact bag**
+> (leftover `?v < ?m` after accum became the universal algorithm).
+> Dirty tree (`wat/rete.wat` + `src/rete/kernel.rs`) probes **alpha**
+> for fact-shaped inners again. Live breadcrumb:
+> **`CURRENT-STATE-annihilate-interpretation.md`**.
+>
+> Two lines below are **stale**: (1) "Leading `:exists` raises at
+> compile" — Clara `test-simple-exists` made leading exists legal.
+> (2) "ONE strike, already shipped" — the gather drifted after this
+> stone landed; cut 1 is the return, uncommitted.
+
 ## What + why
 `(:wat::rete::exists <inner>)` is a LHS condition that passes its parent token **iff ≥1 element matches the
 inner condition** for the token's bindings — **binds nothing, fires the token exactly once** regardless of how

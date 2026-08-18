@@ -1,19 +1,22 @@
 # DESIGN-STONE — THE ONE EXPRESSION CORE: the Op set, drawn
 
-> **Status: DRAWN 2026-08-06. Rulings amended 2026-08-17.**
+> **Status: DRAWN 2026-08-06. `where` WIRED 2026-08-17 (`30725034`).**
 > Live breadcrumb: **`CURRENT-STATE-annihilate-interpretation.md`**.
 > Step 1 of #49's ruled shape (`ONE CORE, THREE ADJACENT FLIPS`,
 > `DESIGN-STONE-compiled-where.md`). The builder ruled the layout the same day:
 > **nesting — "matches the precedent"**. A sub-expression is a CHILD NODE, never a jump offset.
 >
-> This stone draws the set. It does **not** build it. Everything below is derived from the disk
-> this session — the 75-row `RETE_OPS` table, `dispatch_rete_op`, `eval_test_core`,
-> `compiled_cond::Op`, `RhsOp`, and a corpus census of all 173 `where` predicates.
+> This stone drew the set. **`src/rete/expr_ir.rs` now exists** — `where` only.
+> `cond` / `rhs` / user-folds are **parked** until the oracle exists/not path
+> is rete-sane. Everything below is the draw; if a line here disagrees with
+> CURRENT-STATE, CURRENT-STATE wins.
 >
 > **2026-08-17.** STOP-2 (frame) is RULED: copied captures. A lambda is a `Program`;
 > capture is slots filled earlier, not a parent pointer. Named recursion is refused
 > at rete-defn load (`ReteDefnRecursive`). The fifth-axis termination proposal stays
-> retracted. HOF fn-arg-as-runtime-`Program` vs lexical-callee is still OPEN.
+> retracted. HOF fn-arg is **settled** (callee visible in the AST; unknown
+> `Function` at `foldl` does not load). The "still OPEN" line below this date
+> is stale.
 
 ## What the vocabulary actually is — 75 rows, and only SEVEN are lazy
 

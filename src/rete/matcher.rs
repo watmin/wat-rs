@@ -142,6 +142,62 @@ pub(crate) fn eval_alpha_match(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    eval_alpha_match_kind(args, list_span, env, sym, false)
+}
+
+pub(crate) fn eval_alpha_match_local(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_alpha_match_kind(args, list_span, env, sym, true)
+}
+
+/// `(:wat::rete::cond-has-deferred-constraint? cond) -> bool`
+pub(crate) fn eval_cond_has_deferred_constraint(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::cond-has-deferred-constraint?";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let cond_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let cond_ast = match cond_val {
+        Value::wat__WatAST(ref a) => (**a).clone(),
+        other => {
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::WatAST (condition form)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into());
+        }
+    };
+    Ok(Value::bool(cond_has_deferred_constraint(&cond_ast)))
+}
+
+fn eval_alpha_match_kind(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    local: bool,
+) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::alpha-match";
     if args.len() != 2 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
@@ -195,8 +251,16 @@ pub(crate) fn eval_alpha_match(
         .unwrap_or_default();
 
     // Pure match: no environment, no eval, bindings as an array (element-side — see `Bindings`).
-    let result = alpha_match_inner(&cond_ast, fact.class_fqdn, fact.fields, &field_names)
-        .map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
+    let matched = if local {
+        alpha_match_inner_local(&cond_ast, fact.class_fqdn, fact.fields, &field_names)
+    } else {
+        alpha_match_inner(&cond_ast, fact.class_fqdn, fact.fields, &field_names)
+    };
+    let result = matched.map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
+    pack_alpha_match_option(result)
+}
+
+fn pack_alpha_match_option(result: Option<Arc<[(Value, Value)]>>) -> Result<Value, EvalBreak> {
     Ok(match result {
         // wat-contract boundary: this primitive's surface is `Option<PersistentMap>` — build one
         // from the array here (not the matcher hot path; this is a primitive dispatch, not
@@ -371,7 +435,21 @@ pub(crate) fn alpha_match_inner(
     fact_fields: &[Value],
     field_names: &[String],
 ) -> Option<Arc<[(Value, Value)]>> {
-    alpha_match_inner_seeded(cond, fact_class, fact_fields, field_names, &[])
+    alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, &[], false)
+}
+
+/// Empty-seed match that **defers** a constraint whose `?var` is not bound in
+/// this condition (`?v < ?m` after an accum). Those facts still enter alpha;
+/// `:not` / `:exists` re-check the full cond with `alpha-match-under` at beta.
+/// Join alphas must not use this — a deferred join constraint would be lost
+/// at `token_element_compatible`.
+pub(crate) fn alpha_match_inner_local(
+    cond: &WatAST,
+    fact_class: &str,
+    fact_fields: &[Value],
+    field_names: &[String],
+) -> Option<Arc<[(Value, Value)]>> {
+    alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, &[], true)
 }
 
 /// Alpha-match with a seed binding map (token bindings already accumulated on the left).
@@ -389,13 +467,97 @@ pub(crate) fn alpha_match_inner_seeded(
     field_names: &[String],
     seed: &[(Value, Value)],
 ) -> Option<Arc<[(Value, Value)]>> {
+    alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, seed, false)
+}
+
+fn alpha_match_inner_opts(
+    cond: &WatAST,
+    fact_class: &str,
+    fact_fields: &[Value],
+    field_names: &[String],
+    seed: &[(Value, Value)],
+    defer_unbound: bool,
+) -> Option<Arc<[(Value, Value)]>> {
     let pat = alpha_pattern(cond)?;
     crate::rete::kernel::census_count("match:calls");
     if pat.type_head != fact_class {
         crate::rete::kernel::census_count("match:head-miss");
         return None;
     }
-    eval_clauses(pat.clauses, fact_fields, field_names, seed.to_vec()).map(Into::into)
+    eval_clauses(
+        pat.clauses,
+        fact_fields,
+        field_names,
+        seed.to_vec(),
+        defer_unbound,
+    )
+    .map(Into::into)
+}
+
+/// True when an inline constraint names a `?var` this condition does not bind.
+/// Those constraints are beta (`alpha-match-under`), not empty-seed alpha.
+pub(crate) fn cond_has_deferred_constraint(cond: &WatAST) -> bool {
+    let Some(pat) = alpha_pattern(cond) else {
+        return false;
+    };
+    let mut bound = std::collections::HashSet::new();
+    collect_bind_vars(pat.clauses, &mut bound);
+    clause_has_unbound_qvar(pat.clauses, &bound)
+}
+
+fn collect_bind_vars(clauses: &[WatAST], out: &mut std::collections::HashSet<String>) {
+    for clause in clauses {
+        match classify_rete_clause(clause) {
+            ReteClauseShape::Bind { var, .. } => {
+                out.insert(var.to_string());
+            }
+            ReteClauseShape::And(subs) => collect_bind_vars(subs, out),
+            _ => {}
+        }
+    }
+}
+
+fn clause_has_unbound_qvar(clauses: &[WatAST], bound: &std::collections::HashSet<String>) -> bool {
+    for clause in clauses {
+        match classify_rete_clause(clause) {
+            ReteClauseShape::Constraint { lhs, rhs, .. } => {
+                if operand_is_unbound_qvar(lhs, bound) || operand_is_unbound_qvar(rhs, bound) {
+                    return true;
+                }
+            }
+            ReteClauseShape::And(subs) => {
+                if clause_has_unbound_qvar(subs, bound) {
+                    return true;
+                }
+            }
+            ReteClauseShape::Or(subs) => {
+                if clause_has_unbound_qvar(subs, bound) {
+                    return true;
+                }
+            }
+            ReteClauseShape::Not(inner)
+                if clause_has_unbound_qvar(std::slice::from_ref(inner), bound) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn operand_is_unbound_qvar(operand: &WatAST, bound: &std::collections::HashSet<String>) -> bool {
+    match operand {
+        WatAST::Symbol(ident, _) => {
+            let name = ident.as_str();
+            name.starts_with('?') && !bound.contains(name)
+        }
+        _ => false,
+    }
+}
+
+fn operand_is_qvar(operand: &WatAST) -> bool {
+    matches!(operand, WatAST::Symbol(ident, _) if ident.as_str().starts_with('?'))
 }
 
 /// Walk a slice of top-level condition clauses, threading bindings left→right.
@@ -405,11 +567,12 @@ fn eval_clauses(
     fact_fields: &[Value],
     field_names: &[String],
     bindings: Vec<(Value, Value)>,
+    defer_unbound: bool,
 ) -> Option<Vec<(Value, Value)>> {
     let mut current = bindings;
     for clause in clauses {
         crate::rete::kernel::census_count("match:clause");
-        current = eval_clause(clause, fact_fields, field_names, current)?;
+        current = eval_clause(clause, fact_fields, field_names, current, defer_unbound)?;
     }
     Some(current)
 }
@@ -668,6 +831,7 @@ fn eval_clause(
     fact_fields: &[Value],
     field_names: &[String],
     bindings: Vec<(Value, Value)>,
+    defer_unbound: bool,
 ) -> Option<Vec<(Value, Value)>> {
     match classify_rete_clause(clause) {
         // ── bind clause: (?v <- :field) ──────────────────────────────────────
@@ -703,8 +867,15 @@ fn eval_clause(
         // ── constraint: (:wat::core::<op> a b) ───────────────────────────────
         // FQDN comparison ops; operands resolved from {bindings, field, literal}.
         ReteClauseShape::Constraint { op, lhs, rhs } => {
-            let a = resolve_operand(lhs, fact_fields, field_names, &bindings)?;
-            let b = resolve_operand(rhs, fact_fields, field_names, &bindings)?;
+            let a = resolve_operand(lhs, fact_fields, field_names, &bindings);
+            let b = resolve_operand(rhs, fact_fields, field_names, &bindings);
+            let (a, b) = match (a, b) {
+                (Some(a), Some(b)) => (a, b),
+                _ if defer_unbound && (operand_is_qvar(lhs) || operand_is_qvar(rhs)) => {
+                    return Some(bindings);
+                }
+                _ => return None,
+            };
             // The ONE DOOR again — `classify_rete_clause` produced this `Constraint`, so the head
             // is in the table by construction. A `None` here means the two disagree, which is a
             // bug in this file, not a user error.
@@ -723,13 +894,23 @@ fn eval_clause(
 
         // ── combinators ──────────────────────────────────────────────────────
         // :wat::rete::and — every sub-clause holds (thread bindings left→right).
-        ReteClauseShape::And(subs) => eval_clauses(subs, fact_fields, field_names, bindings),
+        ReteClauseShape::And(subs) => {
+            eval_clauses(subs, fact_fields, field_names, bindings, defer_unbound)
+        }
         // :wat::rete::or — ≥1 sub-clause holds. Bindings from a branch
         // do NOT survive past the `or` (which branch won is ambiguous).
         ReteClauseShape::Or(subs) => {
             let entry = bindings;
             for sub in subs {
-                if eval_clause(sub, fact_fields, field_names, entry.clone()).is_some() {
+                if eval_clause(
+                    sub,
+                    fact_fields,
+                    field_names,
+                    entry.clone(),
+                    defer_unbound,
+                )
+                .is_some()
+                {
                     return Some(entry);
                 }
             }
@@ -738,8 +919,14 @@ fn eval_clause(
         // :wat::rete::not — the sub-clause must NOT hold. Bindings from
         // the negated branch are discarded (no values to bind from a failed match).
         ReteClauseShape::Not(sub) => {
-            let sub_matched = eval_clause(sub, fact_fields, field_names, bindings.clone()).is_some();
-            if sub_matched { None } else { Some(bindings) }
+            let sub_matched =
+                eval_clause(sub, fact_fields, field_names, bindings.clone(), defer_unbound)
+                    .is_some();
+            if sub_matched {
+                None
+            } else {
+                Some(bindings)
+            }
         }
 
         // ── STOP: :wat::rete::where is stone 6 ───────────────────────────────

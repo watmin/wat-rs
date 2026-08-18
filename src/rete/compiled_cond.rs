@@ -147,6 +147,7 @@ impl CompiledCond {
 struct Ctx<'a> {
     field_names: &'a [String],
     next_slot: usize,
+    defer_unbound: bool,
 }
 
 /// Compile one alpha condition (`(:ClassName clause…)`, exactly what `alpha_cond` stores) into a
@@ -159,10 +160,32 @@ struct Ctx<'a> {
 /// invariant) so a caller can fall back to `alpha_match_inner` instead of panicking if that
 /// invariant is ever violated.
 pub(crate) fn compile_condition(cond: &WatAST, field_names: &[String]) -> Option<CompiledCond> {
+    compile_condition_opts(cond, field_names, false)
+}
+
+/// Same as [`compile_condition`], but a constraint whose `?var` is not bound
+/// in this condition is skipped (deferred to beta), not compiled as `Op::Fail`.
+/// Used only for `:exists` / `:not` alphas that mention a left-bound var.
+pub(crate) fn compile_condition_local(
+    cond: &WatAST,
+    field_names: &[String],
+) -> Option<CompiledCond> {
+    compile_condition_opts(cond, field_names, true)
+}
+
+fn compile_condition_opts(
+    cond: &WatAST,
+    field_names: &[String],
+    defer_unbound: bool,
+) -> Option<CompiledCond> {
     let pat = crate::rete::matcher::alpha_pattern(cond)?;
     let clauses = pat.clauses;
 
-    let mut ctx = Ctx { field_names, next_slot: 0 };
+    let mut ctx = Ctx {
+        field_names,
+        next_slot: 0,
+        defer_unbound,
+    };
     let mut scope: HashMap<String, usize> = HashMap::new();
     let mut order: Vec<(String, usize)> = Vec::new();
     let mut ops: Vec<Op> = Vec::new();
@@ -232,8 +255,13 @@ fn compile_one(
             // return None on every call, which makes the whole Constraint (and hence the whole
             // match) fail. Compile that permanently, at build time, instead of re-discovering it
             // on every fact.
-            match (compile_operand(lhs, scope, ctx.field_names), compile_operand(rhs, scope, ctx.field_names)) {
+            match (
+                compile_operand(lhs, scope, ctx.field_names),
+                compile_operand(rhs, scope, ctx.field_names),
+            ) {
                 (Some(lhs), Some(rhs)) => ops.push(Op::Cmp { op: cmp, lhs, rhs }),
+                _ if ctx.defer_unbound
+                    && (operand_is_qvar(lhs) || operand_is_qvar(rhs)) => {}
                 _ => ops.push(Op::Fail),
             }
         }
@@ -275,6 +303,10 @@ fn compile_one(
 /// class's declared fields, or a bare literal). Returns `None` exactly when `resolve_operand`
 /// would unconditionally return `None` for every fact of this class: an unbound `?var` (nothing
 /// earlier in this scope's walk bound it) or a field name this class does not declare.
+fn operand_is_qvar(operand: &WatAST) -> bool {
+    matches!(operand, WatAST::Symbol(ident, _) if ident.as_str().starts_with('?'))
+}
+
 fn compile_operand(operand: &WatAST, scope: &HashMap<String, usize>, field_names: &[String]) -> Option<Operand> {
     match operand {
         WatAST::Symbol(ident, _) => {

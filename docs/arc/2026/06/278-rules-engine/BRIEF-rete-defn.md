@@ -1,5 +1,11 @@
 # BRIEF — #88 v2: move the rete-defn check to REGISTRATION, and make its refusal a VALUE
 
+> ⛔ **LANDED. Do not execute this brief.** `#88` (registration + value
+> refusal) and `#87` (`ReteDefnRecursive` at load) are in the tree.
+> `#87` is in `30725034` (local). Live breadcrumb:
+> **`CURRENT-STATE-annihilate-interpretation.md`**. The "uncommitted"
+> / "floor is red by construction" lines below are historical.
+
 **Supersedes v1's strike path.** v1 built the form, the marker and the membrane — that work is IN
 THE TREE, uncommitted, and three of its defects are already corrected. It did not work, for one
 located reason, and this brief is that reason and its fix.

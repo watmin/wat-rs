@@ -1,7 +1,9 @@
-# SEAM — ⛔ PARKED 2026-08-13. THE LIVE SEAM IS ARC 251.
+# SEAM — ⛔ PARKED 2026-08-13. DO NOT RESUME 278 FROM THIS FILE.
 
-> **This arc is PARKED. Do not resume from this file.**
-> The one live breadcrumb is **`docs/arc/2026/06/251-types-as-forms/SEAM.md`** — read that first.
+> **This file is PARKED.** Rete work resumed on a different breadcrumb:
+> **`CURRENT-STATE-annihilate-interpretation.md`**. Read that first.
+> Arc 251's seam is `docs/arc/2026/06/251-types-as-forms/SEAM.md` — not
+> the rete live strike.
 >
 > The builder, 2026-08-13: *"back to 251 we go… we'll resume 278 once we have the clojure syntax
 > conversion complete."* 251 was abandoned FOR rete; rete is what made 251 executable. The
@@ -9,11 +11,13 @@
 > source into facts, and a diagnostic that names the cause instead of the call site — did not
 > exist in June and all three landed today.
 >
-> **What 278 holds when you return:** rete is ONE optimization from done — compiled exprs
-> (`#49` / annihilate interpretation). Live breadcrumb:
-> **`CURRENT-STATE-annihilate-interpretation.md`**. Expressivity (Clara-pure mouths) is
-> closed. Named rete-defn recursion is refused at load. `expr_ir.rs` is unbuilt. The arc:
-> prove the compiler in rete, then compile all of wat. Still open: **#92**
+> **What 278 holds when you return:** do **not** resume from this file.
+> Live breadcrumb: **`CURRENT-STATE-annihilate-interpretation.md`**.
+> Expressivity (Clara-pure mouths) is closed. Named rete-defn recursion is
+> refused at load. `src/rete/expr_ir.rs` **exists** (`30725034`, local,
+> not pushed) — compiled `where` only; `cond`/`rhs`/user-folds parked.
+> Live strike is oracle exists/not (alpha probe dirty, keyed gather next).
+> The arc: prove the compiler in rete, then compile all of wat. Still open: **#92**
 > (invert the decode; a PREREQUISITE to symbol-heads, not an alternative), **#93**, **#91**,
 > **#90**, and the grid's untested FEATURE INTERACTIONS — #94 lived in one such seam and the
 > others are unswept.

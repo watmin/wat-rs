@@ -1,5 +1,12 @@
 # DESIGN — Stone 7: negation (`:not`) — the NegationNode
 
+> **2026-08-17.** The gather this stone named (`token-element-compatible?`
+> over the negated alpha) is what the dirty tree does again for
+> fact-shaped inners. Session-fact scan was the drift; see
+> **`CURRENT-STATE-annihilate-interpretation.md`**. Combinator /
+> `:where` inners still use `exists-cond-under`. **Status line
+> below is historical.**
+
 **Status:** STRIKE-READY (7-a drawn; 7-b follows)
 **Depends on:** the join machinery (3a/3b — `token-element-compatible?`, alpha-memory) + the filter-pass
 shape (6b-ii TestNode). Same dual-impl pattern.

@@ -471,6 +471,37 @@
                                       :dedup new-dedup)]
          (:wat::rete::MintResult :id next-id :state new-state))))))
 
+;; mint-leaf-alphas — a `:not` / `:exists` inner that is `:and` / `:or` / `:not`
+;; has no useful single-fact alpha. Mint an alpha for each fact-shaped leaf so
+;; binding-extensions can probe the right bag instead of the session fact vector.
+(:wat::core::defn :wat::rete::mint-leaf-alphas
+  [cond  <- :wat::WatAST
+   state <- :wat::rete::CompileState]
+  -> :wat::rete::CompileState
+  (:wat::core::if (:wat::rete::exists-uses-alpha-probe? cond)
+    (:wat::rete::MintResult/state (:wat::rete::find-or-mint-alpha cond state))
+    (:wat::core::let [head-nm (:wat::core::ast-name
+                                (:wat::core::first (:wat::core::ast->children cond)))]
+      (:wat::core::cond
+        ((:wat::core::= head-nm ":wat::rete::where")
+         state)
+        ((:wat::core::or (:wat::core::= head-nm ":wat::rete::and")
+                         (:wat::core::= head-nm ":wat::rete::or"))
+         (:wat::core::foldl
+           (:wat::core::fn [st  <- :wat::rete::CompileState
+                            kid <- :wat::WatAST]
+             -> :wat::rete::CompileState
+             (:wat::rete::mint-leaf-alphas kid st))
+           state
+           (:wat::rete::cond-children cond)))
+        ((:wat::core::or (:wat::core::= head-nm ":wat::rete::not")
+                         (:wat::core::= head-nm ":wat::rete::exists"))
+         (:wat::rete::mint-leaf-alphas
+           (:wat::core::second (:wat::core::ast->children cond))
+           state))
+        (:else
+         (:wat::rete::MintResult/state (:wat::rete::find-or-mint-alpha cond state)))))))
+
 ;; find-or-mint-root-join — find or mint a RootJoinNode for the first condition.
 ;; Dedup key: "rootjoin:<cond-text>".
 ;; WHY split from hash-join: if-branching between different record types (RootJoinNode vs
@@ -828,7 +859,8 @@
                           ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
                           alpha-res   (:wat::rete::find-or-mint-alpha inner state0)
                           neg-alpha-id (:wat::rete::MintResult/id    alpha-res)
-                          state1      (:wat::rete::MintResult/state alpha-res)
+                          state1      (:wat::rete::mint-leaf-alphas inner
+                                        (:wat::rete::MintResult/state alpha-res))
                           ;; mint the NegationNode
                           network1    (:wat::rete::CompileState/network state1)
                           next-id1    (:wat::rete::CompileState/next-id state1)
@@ -858,7 +890,8 @@
                             ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
                             alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
                             ex-alpha-id  (:wat::rete::MintResult/id    alpha-res)
-                            state1       (:wat::rete::MintResult/state alpha-res)
+                            state1       (:wat::rete::mint-leaf-alphas inner
+                                           (:wat::rete::MintResult/state alpha-res))
                             ;; mint the ExistsNode
                             network1     (:wat::rete::CompileState/network state1)
                             next-id1     (:wat::rete::CompileState/next-id state1)
@@ -1580,7 +1613,10 @@
    alpha-mem <- :wat::core::PersistentMap
    fact      <- :wat::core::Record]
   -> :wat::core::PersistentMap
-  (:wat::core::let [match-result (:wat::rete::alpha-match cond fact)]
+  (:wat::core::let [match-result (:wat::core::if
+                                   (:wat::rete::cond-has-deferred-constraint? cond)
+                                   (:wat::rete::alpha-match-local cond fact)
+                                   (:wat::rete::alpha-match cond fact))]
     (:wat::core::match match-result 
       ((:wat::core::Some bindings)
        ;; WHY staged-fact = Element(record, bindings): stores the original typed record
@@ -1763,6 +1799,101 @@
       true
       (:wat::core::PersistentMap/keys e-binds))))
 
+;; any-seeded-element? — rete exists/not over alpha elements, rematched with
+;; the token's left bindings (`alpha-match-under`). Compatible-only drops
+;; leftover `?v < ?m` (Clara test-accum-result-in-negation).
+(:wat::core::defn :wat::rete::any-seeded-element?
+  [cond     <- :wat::WatAST
+   bindings <- :wat::core::PersistentMap
+   els      <- :wat::core::PersistentVector<wat::rete::Element>]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [found <- :wat::core::bool
+                     el    <- :wat::rete::Element]
+      -> :wat::core::bool
+      (:wat::core::if found
+        true
+        (:wat::core::match (:wat::rete::alpha-match-under cond
+                             (:wat::rete::Element/fact el) bindings)
+          ((:wat::core::Some _) true)
+          (:wat::core::None false))))
+    false
+    els))
+
+;; alpha-id-for-cond — the AlphaNode whose tests[0] write-forms equals cond.
+(:wat::core::defn :wat::rete::alpha-id-for-cond
+  [network <- :wat::core::PersistentMap
+   cond    <- :wat::WatAST]
+  -> :wat::core::Option<wat::core::i64>
+  (:wat::core::let [want (:wat::core::write-forms cond)]
+    (:wat::core::let [found (:wat::core::foldl
+                              (:wat::core::fn [acc     <- :wat::core::i64
+                                               node-id <- :wat::core::i64]
+                                -> :wat::core::i64
+                                (:wat::core::if (:wat::core::i64::>= acc 0)
+                                  acc
+                                  (:wat::core::let [node (:wat::core::Option/expect
+                                                           (:wat::core::PersistentMap/get network node-id)
+                                                           "alpha-id-for-cond: node missing")]
+                                    (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "AlphaNode")
+                                      (:wat::core::let [t0 (:wat::core::Option/expect
+                                                              (:wat::core::get (:wat::rete::AlphaNode/tests node) 0)
+                                                              "alpha-id-for-cond: no tests")]
+                                        (:wat::core::if (:wat::core::= (:wat::core::write-forms t0) want)
+                                          node-id
+                                          -1))
+                                      -1))))
+                              -1
+                              (:wat::core::PersistentMap/keys network))]
+      (:wat::core::if (:wat::core::i64::>= found 0)
+        (:wat::core::Some found)
+        :wat::core::None))))
+
+;; alpha-els-for-cond — Some(els) if that cond has an alpha (possibly empty);
+;; None if no alpha was minted (legacy WM-scan fallback).
+(:wat::core::defn :wat::rete::alpha-els-for-cond
+  [network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap
+   cond      <- :wat::WatAST]
+  -> :wat::core::Option<wat::core::PersistentVector<wat::rete::Element>>
+  (:wat::core::match (:wat::rete::alpha-id-for-cond network cond)
+    ((:wat::core::Some id)
+     (:wat::core::match (:wat::core::PersistentMap/get alpha-mem id)
+       ((:wat::core::Some pv) (:wat::core::Some pv))
+       (:wat::core::None (:wat::core::Some (:wat::core::PersistentVector)))))
+    (:wat::core::None :wat::core::None)))
+
+;; exists-uses-alpha-probe? — a fact-shaped inner (Reading(?g), Maintenance(?loc))
+;; is what alpha already stored. `:where` / `:and` / `:or` / `:not` / `:exists`
+;; stay on exists-cond-under (where-not-where is eval-test; leftover `?v < ?m`
+;; after accum is a where, not a reason to scan WM for the fact-shaped case).
+(:wat::core::defn :wat::rete::exists-uses-alpha-probe?
+  [cond <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::let [head-nm (:wat::core::ast-name
+                              (:wat::core::first (:wat::core::ast->children cond)))]
+    (:wat::core::not
+      (:wat::core::or (:wat::core::= head-nm ":wat::rete::where")
+        (:wat::core::or (:wat::core::= head-nm ":wat::rete::and")
+          (:wat::core::or (:wat::core::= head-nm ":wat::rete::or")
+            (:wat::core::or (:wat::core::= head-nm ":wat::rete::not")
+              (:wat::core::= head-nm ":wat::rete::exists"))))))))
+
+;; token-exists-under — mid-chain :exists / :not. Fact inner → seeded rematch
+;; over that node's alpha. Combinator / where inner → exists-cond-under, which
+;; now probes each leaf's alpha.
+(:wat::core::defn :wat::rete::token-exists-under
+  [tok       <- :wat::rete::Token
+   cond      <- :wat::WatAST
+   facts     <- :wat::core::PersistentVector
+   els       <- :wat::core::PersistentVector<wat::rete::Element>
+   network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::rete::exists-uses-alpha-probe? cond)
+    (:wat::rete::any-seeded-element? cond (:wat::rete::Token/bindings tok) els)
+    (:wat::rete::exists-cond-under cond facts (:wat::rete::Token/bindings tok)
+      network alpha-mem)))
+
 ;; extend-token — produce a new Token that merges an Element's fact and bindings.
 ;; matches: append (Tuple element.fact alpha-id) — the provenance support entry.
 ;; bindings: fold element.bindings into token.bindings (assoc each entry; shared vars
@@ -1790,13 +1921,15 @@
     (:wat::rete::Token :matches new-matches :bindings new-binds)))
 
 ;; cross-join-node — cross LEFT (tokens) × RIGHT (elements) for one HashJoinNode.
-;; For each compatible (token, element) pair, extend the token and append to beta-mem at hj-id.
-;; WHY nested foldl: outer fan-out over tokens, inner fan-out over elements; pure accumulator.
+;; Rematch the right cond under the token's bindings (`alpha-match-under`) so an
+;; inline leftover (`?w > ?c`, Clara beta) is a join filter, not dropped.
+;; Shared-var agreement is included in that rematch (bind of ?loc against seed).
 (:wat::core::defn :wat::rete::cross-join-node
   [tokens   <- :wat::core::PersistentVector
    elements <- :wat::core::PersistentVector
    hj-id    <- :wat::core::i64
    alpha-id <- :wat::core::i64
+   cond     <- :wat::WatAST
    beta-mem <- :wat::core::PersistentMap]
   -> :wat::core::PersistentMap
   (:wat::core::foldl
@@ -1807,9 +1940,12 @@
         (:wat::core::fn [bm2 <- :wat::core::PersistentMap
                          el  <- :wat::rete::Element]
           -> :wat::core::PersistentMap
-          (:wat::core::if (:wat::rete::token-element-compatible? tok el)
-            (:wat::rete::append-token bm2 hj-id (:wat::rete::extend-token tok el alpha-id))
-            bm2))
+          (:wat::core::match (:wat::rete::alpha-match-under cond
+                               (:wat::rete::Element/fact el)
+                               (:wat::rete::Token/bindings tok))
+            ((:wat::core::Some _)
+             (:wat::rete::append-token bm2 hj-id (:wat::rete::extend-token tok el alpha-id)))
+            (:wat::core::None bm2)))
         bm
         elements))
     beta-mem
@@ -1857,7 +1993,13 @@
                    (:wat::core::match (:wat::core::PersistentMap/get alpha-mem aid)
                                       
                      ((:wat::core::Some els)
-                      (:wat::rete::cross-join-node tokens els child-id aid bm))
+                      (:wat::core::let [alpha-node (:wat::core::Option/expect
+                                                      (:wat::core::PersistentMap/get network aid)
+                                                      "hash-join-pass: feeding alpha missing")
+                                        cond      (:wat::core::Option/expect
+                                                      (:wat::core::get (:wat::rete::AlphaNode/tests alpha-node) 0)
+                                                      "hash-join-pass: feeding alpha has no cond")]
+                        (:wat::rete::cross-join-node tokens els child-id aid cond bm)))
                      (:wat::core::None bm)))
                  bm)))
            beta-mem
@@ -2059,9 +2201,11 @@
 ;; binding-extensions — every binding map that satisfies `cond` under `bindings`.
 ;; Fact: each matching WM fact. `:and`: backtrack. `:or`: concat arms. `:where`: keep or drop.
 (:wat::core::defn :wat::rete::binding-extensions
-  [cond     <- :wat::WatAST
-   facts    <- :wat::core::PersistentVector
-   bindings <- :wat::core::PersistentMap]
+  [cond      <- :wat::WatAST
+   facts     <- :wat::core::PersistentVector
+   bindings  <- :wat::core::PersistentMap
+   network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap]
   -> :wat::core::PersistentVector<wat::core::PersistentMap>
   (:wat::core::let [head-nm (:wat::core::ast-name
                               (:wat::core::first (:wat::core::ast->children cond)))]
@@ -2077,7 +2221,7 @@
                -> :wat::core::PersistentVector<wat::core::PersistentMap>
                (:wat::core::PersistentVector/concat
                  out
-                 (:wat::rete::binding-extensions kid facts ext)))
+                 (:wat::rete::binding-extensions kid facts ext network alpha-mem)))
              (:wat::core::PersistentVector)
              exts))
          (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) bindings)
@@ -2089,7 +2233,7 @@
            -> :wat::core::PersistentVector<wat::core::PersistentMap>
            (:wat::core::PersistentVector/concat
              out
-             (:wat::rete::binding-extensions kid facts bindings)))
+             (:wat::rete::binding-extensions kid facts bindings network alpha-mem)))
          (:wat::core::PersistentVector)
          (:wat::rete::cond-children cond)))
       ((:wat::core::= head-nm ":wat::rete::where")
@@ -2101,35 +2245,52 @@
       ((:wat::core::= head-nm ":wat::rete::not")
        (:wat::core::if (:wat::rete::exists-cond-under
                          (:wat::core::second (:wat::core::ast->children cond))
-                         facts bindings)
+                         facts bindings network alpha-mem)
          (:wat::core::PersistentVector)
          (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) bindings)))
       (:else
-       (:wat::core::foldl
-         (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::PersistentMap>
-                          fact <- :wat::core::Record]
-           -> :wat::core::PersistentVector<wat::core::PersistentMap>
-           (:wat::core::match (:wat::rete::alpha-match-under cond fact bindings)
-             ((:wat::core::Some b)
-              (:wat::core::PersistentVector/conj acc b))
-             (:wat::core::None acc)))
-         (:wat::core::PersistentVector)
-         facts)))))
+       (:wat::core::match (:wat::rete::alpha-els-for-cond network alpha-mem cond)
+         ((:wat::core::Some els)
+          (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                             el  <- :wat::rete::Element]
+              -> :wat::core::PersistentVector<wat::core::PersistentMap>
+              (:wat::core::match (:wat::rete::alpha-match-under cond
+                                   (:wat::rete::Element/fact el) bindings)
+                ((:wat::core::Some b)
+                 (:wat::core::PersistentVector/conj acc b))
+                (:wat::core::None acc)))
+            (:wat::core::PersistentVector)
+            els))
+         (:wat::core::None
+          (:wat::core::foldl
+            (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                             fact <- :wat::core::Record]
+              -> :wat::core::PersistentVector<wat::core::PersistentMap>
+              (:wat::core::match (:wat::rete::alpha-match-under cond fact bindings)
+                ((:wat::core::Some b)
+                 (:wat::core::PersistentVector/conj acc b))
+                (:wat::core::None acc)))
+            (:wat::core::PersistentVector)
+            facts)))))))
 
 ;; exists-cond-under — does the inner :not/:exists condition hold under bindings?
 ;; A fact: any-fact-matches-under. `:and` of facts: some join of the children exists
 ;; (Clara [:not [:and [Wind] [Temp]]]).
 (:wat::core::defn :wat::rete::exists-cond-under
-  [cond     <- :wat::WatAST
-   facts    <- :wat::core::PersistentVector
-   bindings <- :wat::core::PersistentMap]
+  [cond      <- :wat::WatAST
+   facts     <- :wat::core::PersistentVector
+   bindings  <- :wat::core::PersistentMap
+   network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap]
   -> :wat::core::bool
   (:wat::core::let [head-nm (:wat::core::ast-name
                               (:wat::core::first (:wat::core::ast->children cond)))]
     (:wat::core::cond
       ((:wat::core::= head-nm ":wat::rete::and")
        (:wat::core::i64::> (:wat::core::length
-                             (:wat::rete::binding-extensions cond facts bindings))
+                             (:wat::rete::binding-extensions cond facts bindings
+                               network alpha-mem))
                            0))
       ((:wat::core::= head-nm ":wat::rete::or")
        (:wat::core::foldl
@@ -2138,7 +2299,7 @@
            -> :wat::core::bool
            (:wat::core::if found
              true
-             (:wat::rete::exists-cond-under kid facts bindings)))
+             (:wat::rete::exists-cond-under kid facts bindings network alpha-mem)))
          false
          (:wat::rete::cond-children cond)))
       ((:wat::core::= head-nm ":wat::rete::where")
@@ -2149,9 +2310,13 @@
        (:wat::core::not
          (:wat::rete::exists-cond-under
            (:wat::core::second (:wat::core::ast->children cond))
-           facts bindings)))
+           facts bindings network alpha-mem)))
       (:else
-       (:wat::rete::any-fact-matches-under cond facts bindings)))))
+       (:wat::core::match (:wat::rete::alpha-els-for-cond network alpha-mem cond)
+         ((:wat::core::Some els)
+          (:wat::rete::any-seeded-element? cond bindings els))
+         (:wat::core::None
+          (:wat::rete::any-fact-matches-under cond facts bindings)))))))
 
 ;; distinct-maps — first-wins unique PersistentMaps (Clara exists: two Winds at
 ;; one loc → one binding).
@@ -2247,8 +2412,9 @@
            beta-mem
            tokens)))
       ((:wat::core::= kind "NegationNode")
-       ;; pass the un-extended token iff the inner cond does NOT exist under
-       ;; the token (fact, or `:and` of facts). Leading :not seeds one empty token.
+       ;; pass the un-extended token iff ZERO compatible elements in the
+       ;; negated alpha (fact-shaped inner). Combinator / :where inners keep
+       ;; exists-cond-under. Leading :not seeds one empty token.
        (:wat::core::let [neg-alpha-id (:wat::rete::NegationNode/negated-alpha-id node)
                          tokens       (:wat::rete::tokens-or-empty-seed
                                         network beta-mem node-id)
@@ -2257,21 +2423,25 @@
                                          "filter-pass: negated alpha missing")
                          cond         (:wat::core::Option/expect
                                          (:wat::core::get (:wat::rete::AlphaNode/tests alpha-node) 0)
-                                         "filter-pass: negated alpha has no cond")]
+                                         "filter-pass: negated alpha has no cond")
+                         els          (:wat::core::match
+                                         (:wat::core::PersistentMap/get alpha-mem neg-alpha-id)
+                                         ((:wat::core::Some pv) pv)
+                                         (:wat::core::None (:wat::core::PersistentVector)))]
          (:wat::core::foldl
            (:wat::core::fn [bm  <- :wat::core::PersistentMap
                             tok <- :wat::rete::Token]
              -> :wat::core::PersistentMap
              (:wat::core::if
-               (:wat::rete::exists-cond-under
-                 cond facts (:wat::rete::Token/bindings tok))
+               (:wat::rete::token-exists-under tok cond facts els network alpha-mem)
                bm
                (:wat::rete::append-token bm node-id tok)))
            beta-mem
            tokens)))
       ((:wat::core::= kind "ExistsNode")
        ;; Mid-chain: pass the un-extended parent token once if the inner holds.
-       ;; Leading: one token per DISTINCT inner binding (Clara test-simple-exists).
+       ;; Leading: one token per DISTINCT inner binding (Clara test-simple-exists)
+       ;; — those bindings are the alpha elements, not a rescan of every fact.
        (:wat::core::let [ex-alpha-id (:wat::rete::ExistsNode/exists-alpha-id node)
                          pids        (:wat::rete::node-parents node-id network)
                          alpha-node  (:wat::core::Option/expect
@@ -2279,7 +2449,11 @@
                                         "filter-pass: exists alpha missing")
                          cond        (:wat::core::Option/expect
                                         (:wat::core::get (:wat::rete::AlphaNode/tests alpha-node) 0)
-                                        "filter-pass: exists alpha has no cond")]
+                                        "filter-pass: exists alpha has no cond")
+                         els         (:wat::core::match
+                                        (:wat::core::PersistentMap/get alpha-mem ex-alpha-id)
+                                        ((:wat::core::Some pv) pv)
+                                        (:wat::core::None (:wat::core::PersistentVector)))]
          (:wat::core::if (:wat::core::= (:wat::core::length pids) 0)
            (:wat::core::foldl
              (:wat::core::fn [bm  <- :wat::core::PersistentMap
@@ -2291,15 +2465,24 @@
                    :bindings ext)))
              beta-mem
              (:wat::rete::distinct-maps
-               (:wat::rete::binding-extensions
-                 cond facts (:wat::core::PersistentMap))))
+               (:wat::core::if (:wat::rete::exists-uses-alpha-probe? cond)
+                 (:wat::core::foldl
+                   (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                                    el  <- :wat::rete::Element]
+                     -> :wat::core::PersistentVector<wat::core::PersistentMap>
+                     (:wat::core::PersistentVector/conj acc
+                       (:wat::rete::Element/bindings el)))
+                   (:wat::core::PersistentVector)
+                   els)
+                 (:wat::rete::binding-extensions
+                   cond facts (:wat::core::PersistentMap)
+                   network alpha-mem))))
            (:wat::core::foldl
              (:wat::core::fn [bm  <- :wat::core::PersistentMap
                               tok <- :wat::rete::Token]
                -> :wat::core::PersistentMap
                (:wat::core::if
-                 (:wat::rete::exists-cond-under
-                   cond facts (:wat::rete::Token/bindings tok))
+                 (:wat::rete::token-exists-under tok cond facts els network alpha-mem)
                  (:wat::rete::append-token bm node-id tok)
                  bm))
              beta-mem
@@ -3585,9 +3768,12 @@
                                           (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Element>
                                                            el  <- :wat::rete::Element]
                                             -> :wat::core::PersistentVector<wat::rete::Element>
-                                            (:wat::core::if (:wat::rete::token-element-compatible? tok el)
-                                              (:wat::core::PersistentVector/conj acc el)
-                                              acc))
+                                            (:wat::core::match (:wat::rete::alpha-match-under from-cond
+                                                                 (:wat::rete::Element/fact el)
+                                                                 (:wat::rete::Token/bindings tok))
+                                              ((:wat::core::Some _)
+                                               (:wat::core::PersistentVector/conj acc el))
+                                              (:wat::core::None acc)))
                                           (:wat::core::PersistentVector)
                                           from-els)
                               tok-keys (:wat::core::foldl

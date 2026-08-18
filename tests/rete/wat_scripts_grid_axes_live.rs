@@ -125,6 +125,7 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
 /// this exemption silently — it will fail the exact-set assertion below and force a deliberate
 /// update here.
 const WHERE_FAMILY: &[&str] = &[
+    "where-accum-from-left",
     "where-accum-group",
     "where-accum-lead",
     "where-accum-where",
@@ -133,6 +134,7 @@ const WHERE_FAMILY: &[&str] = &[
     "where-control",
     "where-exists",
     "where-fact-bind",
+    "where-join-left",
     "where-join-order",
     "where-multivar",
     "where-nesting",

@@ -1,5 +1,24 @@
 # DESIGN-STONE — the keyed gather: Accumulate / Negation / Exists get the index the joins already have
 
+> **2026-08-17 — this is cut 2, not started.** Live breadcrumb:
+> **`CURRENT-STATE-annihilate-interpretation.md`**. Cut 1 (dirty,
+> uncommitted) already moved fact-shaped `:exists` / `:not` onto
+> **alpha** on both mouths. This stone keys that same bag.
+>
+> The **"no `.wat` changes"** blast radius below applies to the
+> **key**, not the bag. Cut 1 already edited `wat/rete.wat` so the
+> oracle reviews the right bag. Cut 2 is native-only over that
+> alpha; the oracle stays a linear fold (`OCVLI NOVI, ORACVLVM
+> IMMOTVM`). Line numbers in this file are stale; the algorithm
+> and the three contract clauses (order, empty-bucket, empty
+> `join_keys` → cartesian) are not.
+>
+> After cut 1, accum 200×200 native fire is **215 ms / filter 47%**
+> (was 1.83 s / 94%). That 47% is ExistsNode over `|alpha|`.
+> Accumulate `:from` gets the same index but is **not** the current
+> wall (`accum:fold` 9 ms). The 2026-07-31 numbers below are
+> pre-cut-1.
+
 > **Origin (2026-07-31):** the Clara grid re-measure inverted three axes — `accum` is a decisive LOSS
 > (Clara ~19×), `min-finding` a loss (~6×), `negation` a coin flip — all three recorded as wins. The
 > root is one defect class, measured this session: **the Accumulate and Negation/Exists gathers scan

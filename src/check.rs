@@ -20085,6 +20085,38 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     env.register(
+        ":wat::rete::cond-has-deferred-constraint?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    env.register(
+        ":wat::rete::alpha-match-local".into(),
+        TypeScheme {
+            type_params: vec!["V".into()],
+            params: vec![
+                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::core::Record".into()),
+            ],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "wat::core::PersistentMap".into(),
+                    args: vec![
+                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":V".into()),
+                    ],
+                }],
+            },
+            rest_param_type: None,
+        },
+    );
+
+    env.register(
         ":wat::rete::alpha-match-under".into(),
         TypeScheme {
             type_params: vec!["V".into()],

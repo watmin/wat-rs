@@ -33,6 +33,12 @@ is the EXECUTION.
 > STOP-2 (frame) ruled 2026-08-17: copied captures. STOP-4 (eval returns `Result`) stands.
 > Do **not** follow `BRIEF-compiled-where.md` — it still specifies `Op::Interp` and a
 > third sibling `compiled_where.rs`. The module is `src/rete/expr_ir.rs`.
+>
+> **Step 2 is done** (`30725034`, local, not pushed): `where` is wired;
+> native TestNode stashes `Program` and calls `exec_where`. The
+> "compiled_where | to write" row below is stale. **Step 3
+> (`cond`, then `rhs`) is PARKED** until the oracle exists/not path
+> is rete-sane. Do not flip them because this stone lists them next.
 
 ### THE THREE STEPS — do not collapse them
 

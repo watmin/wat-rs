@@ -5487,6 +5487,12 @@ fn dispatch_keyword_head_value(
         ":wat::rete::alpha-match" => {
             crate::rete::matcher::eval_alpha_match(args, list_span, env, sym)
         }
+        ":wat::rete::alpha-match-local" => {
+            crate::rete::matcher::eval_alpha_match_local(args, list_span, env, sym)
+        }
+        ":wat::rete::cond-has-deferred-constraint?" => {
+            crate::rete::matcher::eval_cond_has_deferred_constraint(args, list_span, env, sym)
+        }
         ":wat::rete::alpha-match-under" => {
             crate::rete::matcher::eval_alpha_match_under(args, list_span, env, sym)
         }

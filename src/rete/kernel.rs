@@ -1054,12 +1054,22 @@ fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) {
                 })
                 .unwrap_or_default();
 
-            if let Some(bindings) = crate::rete::matcher::alpha_match_inner(
-                &cond_ast,
-                fact_class,
-                fact_fields,
-                &field_names,
-            ) {
+            let matched = if crate::rete::matcher::cond_has_deferred_constraint(&cond_ast) {
+                crate::rete::matcher::alpha_match_inner_local(
+                    &cond_ast,
+                    fact_class,
+                    fact_fields,
+                    &field_names,
+                )
+            } else {
+                crate::rete::matcher::alpha_match_inner(
+                    &cond_ast,
+                    fact_class,
+                    fact_fields,
+                    &field_names,
+                )
+            };
+            if let Some(bindings) = matched {
                 let bindings = crate::rete::matcher::attach_fact_bind(&cond_ast, fact, bindings);
                 let el = make_element(fact.clone(), bindings);
                 wm.alpha.entry(*node_id).or_default().push(el);
@@ -1200,7 +1210,7 @@ fn any_fact_matches_under(
 /// `:and`: backtrack across children. `:or`: concat arms. `:where`: keep or drop.
 fn binding_extensions(
     cond: &WatAST,
-    facts: &[Value],
+    wm: &WorkingMemory,
     seed: &crate::value::pmap::PMap,
     sym: &SymbolTable,
 ) -> Vec<crate::value::pmap::PMap> {
@@ -1211,7 +1221,7 @@ fn binding_extensions(
             for kid in kids {
                 let mut next = Vec::new();
                 for ext in &exts {
-                    next.extend(binding_extensions(kid, facts, ext, sym));
+                    next.extend(binding_extensions(kid, wm, ext, sym));
                 }
                 exts = next;
                 if exts.is_empty() {
@@ -1223,7 +1233,7 @@ fn binding_extensions(
         ReteClauseShape::Or(kids) => {
             let mut out = Vec::new();
             for kid in kids {
-                out.extend(binding_extensions(kid, facts, seed, sym));
+                out.extend(binding_extensions(kid, wm, seed, sym));
             }
             out
         }
@@ -1232,16 +1242,22 @@ fn binding_extensions(
             _ => vec![],
         },
         ReteClauseShape::Not(inner) => {
-            if exists_cond_under(inner, facts, seed, sym) {
+            if exists_cond_under(inner, wm, seed, sym) {
                 vec![]
             } else {
                 vec![seed.clone()]
             }
         }
-        _ => facts
-            .iter()
-            .filter_map(|f| fact_bindings_under(cond, f, seed, sym))
-            .collect(),
+        _ => match alpha_els_for_cond(wm, cond) {
+            Some(els) => els
+                .iter()
+                .filter_map(|el| fact_bindings_under(cond, &el.fact, seed, sym))
+                .collect(),
+            None => wm_fact_slice(wm)
+                .iter()
+                .filter_map(|f| fact_bindings_under(cond, f, seed, sym))
+                .collect(),
+        },
     }
 }
 
@@ -1284,22 +1300,101 @@ fn fact_bindings_under(
 
 /// Inner of `:not` / `:exists` holds under `seed`? A fact, or `:and` of facts
 /// (Clara `[:not [:and [Wind] [Temp]]]`).
+/// Fact-shaped `:exists` / `:not` inner — the bag is already in that
+/// node's alpha. Combinator / `:where` inners stay on `exists_cond_under`
+/// (where-not-where is eval-test; leftover `?v < ?m` is a where).
+fn exists_uses_alpha_probe(cond: &WatAST) -> bool {
+    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+    !matches!(
+        classify_rete_clause(cond),
+        ReteClauseShape::And(_)
+            | ReteClauseShape::Or(_)
+            | ReteClauseShape::Not(_)
+            | ReteClauseShape::Exists(_)
+            | ReteClauseShape::Where(_)
+    )
+}
+
+fn any_seeded_in_alpha(
+    cond: &WatAST,
+    tok: &crate::value::pmap::PMap,
+    els: &[Element],
+    sym: &SymbolTable,
+) -> bool {
+    els.iter()
+        .any(|el| fact_bindings_under(cond, &el.fact, tok, sym).is_some())
+}
+
+fn cond_text(cond: &WatAST) -> String {
+    wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(cond))
+}
+
+fn alpha_id_for_cond(network: &Value, cond: &WatAST) -> Option<i64> {
+    let want = cond_text(cond);
+    for node_id in sorted_node_ids(network) {
+        let Some(node) = get_node(network, node_id) else {
+            continue;
+        };
+        if kind_of(node) != "AlphaNode" {
+            continue;
+        }
+        let Some(stored) = alpha_cond_of(network, node_id) else {
+            continue;
+        };
+        if cond_text(&stored) == want {
+            return Some(node_id);
+        }
+    }
+    None
+}
+
+fn alpha_els_for_cond<'a>(wm: &'a WorkingMemory, cond: &WatAST) -> Option<&'a [Element]> {
+    let id = alpha_id_for_cond(&wm.network, cond)?;
+    Some(wm.alpha.get(&id).map(Vec::as_slice).unwrap_or(&[]))
+}
+
+fn token_exists_under(
+    cond: &WatAST,
+    tok: &crate::value::pmap::PMap,
+    wm: &WorkingMemory,
+    alpha_id: i64,
+    sym: &SymbolTable,
+) -> bool {
+    if exists_uses_alpha_probe(cond) {
+        let empty: [Element; 0] = [];
+        let els = wm
+            .alpha
+            .get(&alpha_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&empty);
+        any_seeded_in_alpha(cond, tok, els, sym)
+    } else {
+        exists_cond_under(cond, wm, tok, sym)
+    }
+}
+
 fn exists_cond_under(
     cond: &WatAST,
-    facts: &[Value],
+    wm: &WorkingMemory,
     seed: &crate::value::pmap::PMap,
     sym: &SymbolTable,
 ) -> bool {
     use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
     match classify_rete_clause(cond) {
-        ReteClauseShape::And(_) => !binding_extensions(cond, facts, seed, sym).is_empty(),
-        ReteClauseShape::Or(kids) => kids.iter().any(|k| exists_cond_under(k, facts, seed, sym)),
+        ReteClauseShape::And(_) => !binding_extensions(cond, wm, seed, sym).is_empty(),
+        ReteClauseShape::Or(kids) => kids.iter().any(|k| exists_cond_under(k, wm, seed, sym)),
         ReteClauseShape::Where(expr) => {
             crate::rete::expr_ir::exec_test(expr, seed, sym).unwrap_or(false)
         }
-        ReteClauseShape::Not(inner) => !exists_cond_under(inner, facts, seed, sym),
-        ReteClauseShape::Exists(inner) => exists_cond_under(inner, facts, seed, sym),
-        _ => any_fact_matches_under(cond, facts, seed, sym),
+        ReteClauseShape::Not(inner) => !exists_cond_under(inner, wm, seed, sym),
+        ReteClauseShape::Exists(inner) => exists_cond_under(inner, wm, seed, sym),
+        _ => match alpha_els_for_cond(wm, cond) {
+            Some(els) => any_seeded_in_alpha(cond, seed, els, sym),
+            None => {
+                let facts = wm_fact_slice(wm);
+                any_fact_matches_under(cond, &facts, seed, sym)
+            }
+        },
     }
 }
 
@@ -1392,7 +1487,27 @@ fn seed_token_bindings(el_bindings: &Arc<[(Value, Value)]>) -> crate::value::pma
 ///
 /// The join_keys (sorted intersection of token/element binding keys) are derived from the
 /// first element of each slice — callers must guarantee both slices are non-empty.
-fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) -> Vec<Token> {
+fn join_extend(
+    tok: &Token,
+    el: &Element,
+    alpha_id: i64,
+    cond: Option<&WatAST>,
+    sym: &SymbolTable,
+) -> Option<Token> {
+    let (el_fact, el_b) = element_fact_bindings(el);
+    if let Some(cond) = cond {
+        fact_bindings_under(cond, el_fact, &tok.bindings, sym)?;
+    }
+    Some(extend_token(tok, el_fact, el_b, alpha_id))
+}
+
+fn keyed_join(
+    left_tokens: &[Token],
+    right_elements: &[Element],
+    alpha_id: i64,
+    cond: Option<&WatAST>,
+    sym: &SymbolTable,
+) -> Vec<Token> {
     if left_tokens.is_empty() || right_elements.is_empty() {
         return vec![];
     }
@@ -1453,9 +1568,11 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
             .collect();
         if let Some(bucket) = index.get(&probe_key) {
             for &el_idx in bucket {
-                let (el_fact, el_bindings) = element_fact_bindings(&right_elements[el_idx]);
-                let new_tok = extend_token(tok, el_fact, el_bindings, alpha_id);
-                out.push(new_tok);
+                if let Some(new_tok) =
+                    join_extend(tok, &right_elements[el_idx], alpha_id, cond, sym)
+                {
+                    out.push(new_tok);
+                }
             }
         }
     }
@@ -1466,7 +1583,7 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
 /// its HashJoinNode children, in ascending node-id order (topological).
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
 /// Mirrors `wat/rete.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
-fn hash_join_pass(wm: &mut WorkingMemory) {
+fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) {
     let node_ids = sorted_node_ids(&wm.network);
 
     for node_id in &node_ids {
@@ -1511,8 +1628,9 @@ fn hash_join_pass(wm: &mut WorkingMemory) {
                 Some(els) => els.as_slice(),
                 None => continue, // no right-side elements → skip
             };
+            let cond = alpha_cond_of(&wm.network, alpha_id);
             // Delegate to the shared keyed_join helper (P3 keyed index+probe).
-            let new_tokens = keyed_join(&tokens, elements, alpha_id);
+            let new_tokens = keyed_join(&tokens, elements, alpha_id, cond.as_ref(), sym);
             for new_tok in new_tokens {
                 wm.beta.entry(*child_id).or_default().push(new_tok);
             }
@@ -1660,7 +1778,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     // Four passes (alpha → root-join → hash-join → production).
     alpha_pass(&mut wm, sym);
     root_join_pass(&mut wm);
-    hash_join_pass(&mut wm);
+    hash_join_pass(&mut wm, sym);
     production_pass(&mut wm, sym)?;
 
     harvest_query_memory(&mut wm);
@@ -2849,9 +2967,12 @@ fn fire_fixpoint_delta(
         let cclass_field_names = class_field_names(sym, class);
         for aid in ids {
             if let Some(cond) = alpha_cond.get(aid) {
-                if let Some(compiled) =
+                let compiled = if crate::rete::matcher::cond_has_deferred_constraint(cond) {
+                    crate::rete::compiled_cond::compile_condition_local(cond, &cclass_field_names)
+                } else {
                     crate::rete::compiled_cond::compile_condition(cond, &cclass_field_names)
-                {
+                };
+                if let Some(compiled) = compiled {
                     compiled_conds.insert(*aid, compiled);
                 }
             }
@@ -3050,12 +3171,23 @@ fn fire_fixpoint_delta(
                     ),
                     // Defensive fallback only — see the comment where `compiled_conds` is built.
                     None => match alpha_cond.get(aid) {
-                        Some(cond_ast) => crate::rete::matcher::alpha_match_inner(
-                            cond_ast,
-                            fact_class,
-                            fact_fields,
-                            field_names,
-                        ),
+                        Some(cond_ast) => {
+                            if crate::rete::matcher::cond_has_deferred_constraint(cond_ast) {
+                                crate::rete::matcher::alpha_match_inner_local(
+                                    cond_ast,
+                                    fact_class,
+                                    fact_fields,
+                                    field_names,
+                                )
+                            } else {
+                                crate::rete::matcher::alpha_match_inner(
+                                    cond_ast,
+                                    fact_class,
+                                    fact_fields,
+                                    field_names,
+                                )
+                            }
+                        }
                         None => None,
                     },
                 };
@@ -3165,6 +3297,7 @@ fn fire_fixpoint_delta(
                     continue;
                 }
                 let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
+                let join_cond = alpha_cond_of(&wm.network, alpha_id);
 
                 // Step 1: Ensure join_keys[J] is cached.
                 // Compute from a sample token at P and a sample element at A (if both exist).
@@ -3251,9 +3384,15 @@ fn fire_fixpoint_delta(
                             let k = key_of(&tok.bindings, jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
-                                    let (el_fact, el_b) = element_fact_bindings(el);
-                                    let new_tok = extend_token(tok, el_fact, el_b, alpha_id);
-                                    new_tokens.push(new_tok);
+                                    if let Some(new_tok) = join_extend(
+                                        tok,
+                                        el,
+                                        alpha_id,
+                                        join_cond.as_ref(),
+                                        sym,
+                                    ) {
+                                        new_tokens.push(new_tok);
+                                    }
                                 }
                             }
                         }
@@ -3327,9 +3466,15 @@ fn fire_fixpoint_delta(
                             let k = key_of(&tok.bindings, jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
-                                    let (el_fact, el_b) = element_fact_bindings(el);
-                                    let new_tok = extend_token(tok, el_fact, el_b, alpha_id);
-                                    new_tokens.push(new_tok);
+                                    if let Some(new_tok) = join_extend(
+                                        tok,
+                                        el,
+                                        alpha_id,
+                                        join_cond.as_ref(),
+                                        sym,
+                                    ) {
+                                        new_tokens.push(new_tok);
+                                    }
                                 }
                             }
                         }
@@ -3343,12 +3488,19 @@ fn fire_fixpoint_delta(
                 if !dr.is_empty() {
                     if let Some(lidx) = left_idx.get(child_id) {
                         for el in dr {
-                            let (el_fact, el_b) = element_fact_bindings(el);
+                            let (_, el_b) = element_fact_bindings(el);
                             let k = key_of(el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
-                                    let new_tok = extend_token(tok, el_fact, el_b, alpha_id);
-                                    new_tokens.push(new_tok);
+                                    if let Some(new_tok) = join_extend(
+                                        tok,
+                                        el,
+                                        alpha_id,
+                                        join_cond.as_ref(),
+                                        sym,
+                                    ) {
+                                        new_tokens.push(new_tok);
+                                    }
                                 }
                             }
                         }
@@ -3471,8 +3623,10 @@ fn fire_fixpoint_delta(
                 (elements, idx)
             });
             phase_end("  ├ accum:index", __ix);
-            let from_keys = alpha_cond_of(&wm.network, from_alpha_id)
-                .map(|c| cond_bind_keys(&c))
+            let from_cond = alpha_cond_of(&wm.network, from_alpha_id);
+            let from_keys = from_cond
+                .as_ref()
+                .map(cond_bind_keys)
                 .unwrap_or_default();
             let operand_keys = acc_operand_keys(&acc_form);
             let __fd = phase_start();
@@ -3487,8 +3641,15 @@ fn fire_fixpoint_delta(
                     .map(|&i| &from_elements[i])
                     .filter(|el| {
                         census_gather_visit();
-                        let (_, el_b) = element_fact_bindings(el);
-                        token_element_compatible(&tok.bindings, el_b)
+                        match from_cond.as_ref() {
+                            Some(cond) => {
+                                fact_bindings_under(cond, &el.fact, &tok.bindings, sym).is_some()
+                            }
+                            None => {
+                                let (_, el_b) = element_fact_bindings(el);
+                                token_element_compatible(&tok.bindings, el_b)
+                            }
+                        }
                     })
                     .collect();
                 let group_keys: Vec<Value> = from_keys
@@ -3599,10 +3760,22 @@ fn fire_fixpoint_delta(
                     Some(c) => c,
                     None => continue,
                 };
-                let facts = wm_fact_slice(&wm);
-                let empty = crate::value::pmap::PMap::new();
                 let mut seen = std::collections::HashSet::new();
-                for ext in binding_extensions(&cond, &facts, &empty, sym) {
+                let exts: Vec<crate::value::pmap::PMap> = if exists_uses_alpha_probe(&cond) {
+                    wm.alpha
+                        .get(&alpha_id)
+                        .into_iter()
+                        .flatten()
+                        .map(|el| {
+                            let (_, eb) = element_fact_bindings(el);
+                            seed_token_bindings(eb)
+                        })
+                        .collect()
+                } else {
+                    let empty = crate::value::pmap::PMap::new();
+                    binding_extensions(&cond, &wm, &empty, sym)
+                };
+                for ext in exts {
                     if !seen.insert(ext.clone()) {
                         continue;
                     }
@@ -3670,11 +3843,9 @@ fn fire_fixpoint_delta(
                     Some(c) => c,
                     None => continue,
                 };
-                let facts = wm_fact_slice(&wm);
                 for tok in new_tokens {
-                    // Oracle: any-fact-matches-under. Empty-seed alpha cannot see
-                    // a left-bound var (`?v < ?m`); scan facts with the token seed.
-                    let any_compat = exists_cond_under(&cond, &facts, &tok.bindings, sym);
+                    let any_compat =
+                        token_exists_under(&cond, &tok.bindings, &wm, alpha_id, sym);
                     // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
                     let pass = if is_exists { any_compat } else { !any_compat };
                     if pass {
@@ -3729,7 +3900,8 @@ fn fire_fixpoint_delta(
                     Some(els) if !els.is_empty() => els.as_slice(),
                     _ => continue,
                 };
-                let joined = keyed_join(&new_tokens, elements, alpha_id);
+                let cond = alpha_cond_of(&wm.network, alpha_id);
+                let joined = keyed_join(&new_tokens, elements, alpha_id, cond.as_ref(), sym);
                 if joined.is_empty() {
                     continue;
                 }
@@ -3805,9 +3977,9 @@ fn fire_fixpoint_delta(
                             Some(c) => c,
                             None => continue,
                         };
-                        let facts = wm_fact_slice(&wm);
                         for tok in new_tokens {
-                            let any_compat = exists_cond_under(&cond, &facts, &tok.bindings, sym);
+                            let any_compat =
+                                token_exists_under(&cond, &tok.bindings, &wm, alpha_id, sym);
                             let pass = if is_exists { any_compat } else { !any_compat };
                             if pass {
                                 if beta_readers.contains(&filter_id) {
@@ -3843,7 +4015,9 @@ fn fire_fixpoint_delta(
                                     Some(els) if !els.is_empty() => els.as_slice(),
                                     _ => continue,
                                 };
-                                let joined = keyed_join(&parent_toks, elements, alpha_id);
+                                let cond = alpha_cond_of(&wm.network, alpha_id);
+                                let joined =
+                                    keyed_join(&parent_toks, elements, alpha_id, cond.as_ref(), sym);
                                 if joined.is_empty() {
                                     continue;
                                 }
@@ -3895,10 +4069,14 @@ fn fire_fixpoint_delta(
                                     Some(c) => c,
                                     None => continue,
                                 };
-                                let facts = wm_fact_slice(&wm);
                                 for tok in parent_toks {
-                                    let any_compat =
-                                        exists_cond_under(&cond, &facts, &tok.bindings, sym);
+                                    let any_compat = token_exists_under(
+                                        &cond,
+                                        &tok.bindings,
+                                        &wm,
+                                        alpha_id,
+                                        sym,
+                                    );
                                     let pass = if is_exists { any_compat } else { !any_compat };
                                     if pass {
                                         if beta_readers.contains(&gc_id) {
@@ -5214,7 +5392,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm);
+        hash_join_pass(&mut wm, sym);
         production_pass(&mut wm, sym).expect("production_pass should succeed");
 
         // Find the HashJoinNode (the parent of the ProductionNode) in the network.
@@ -5471,7 +5649,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm);
+        hash_join_pass(&mut wm, sym);
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -5583,7 +5761,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm);
+        hash_join_pass(&mut wm, sym);
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -5661,7 +5839,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm);
+        hash_join_pass(&mut wm, sym);
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -6216,8 +6394,13 @@ mod tests {
         let compiled_verdicts: Vec<bool> = tokens
             .iter()
             .map(|t| {
-                crate::rete::expr_ir::exec_where(&program, &t.bindings, &world.symbols, &program.span)
-                    .expect("compiled where must exec on captured bindings")
+                crate::rete::expr_ir::exec_where(
+                    &program,
+                    &t.bindings,
+                    &world.symbols,
+                    &program.span,
+                )
+                .expect("compiled where must exec on captured bindings")
             })
             .collect();
         assert_eq!(

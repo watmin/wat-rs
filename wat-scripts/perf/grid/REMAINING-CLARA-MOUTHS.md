@@ -66,8 +66,26 @@ Clara | wat-oracle | wat-native on the query families
 (`where-query-compat`, `where-query-params`, `where-fact-bind`).
 `where-query-compat` prints binding maps (sorted scalars), not just `n=`.
 
-## This list is empty. Next endeavor is not a mouth.
+## 6. Inline leftover on a HashJoin — DONE (`where-join-left`)
 
-2026-08-17: all five items above are locked. Do not invent a sixth mouth.
-The next work is **annihilate interpretation** — compile every rete expr.
+Clara `[Wind (= ?loc loc) (= ?w kph) (> ?w ?c)]` after a Temp that
+bound `?c`. Beta rematch of the right cond under the left token
+(`alpha-match-under` / `join_extend`). Same as exists/not.
+
+`check-where-shapes.sh where-join-left` 9/9 == Clara.
+`check-spec-native.sh where-join-left` 9/9 spec == native.
+
+## 7. Leftover on accumulate `:from` — DONE (`where-accum-from-left`)
+
+Clara `[?n <- (acc/count) :from [Wind (= ?loc loc) (> kph ?c)]]`
+after a Temp that bound `?c`. Beta filter on the `:from` bag.
+Empty `:from` still fires with count 0. Field form (no extra `?w`
+bind) so the count is not grouped.
+
+`check-where-shapes.sh where-accum-from-left` 7/7 == Clara.
+`check-spec-native.sh where-accum-from-left` 7/7 spec == native.
+
+## This list is empty.
+
+2026-08-17: items 1–7 locked.
 Breadcrumb: `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`.
