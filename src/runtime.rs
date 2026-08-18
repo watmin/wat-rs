@@ -8049,6 +8049,72 @@ pub fn parse_defclause_form(
         clauses.push(clause);
     }
 
+    // ── Stone 118.B2c strike 1 — THE REACHABILITY WALL ──────────────────────────────────
+    //
+    // An arm that no input can ever reach is dead code, and until this wall nothing said so:
+    // `(defclause :my::pick ([x <- :i64] "FIRST") ([x <- :i64] "SECOND"))` type-checked, ran,
+    // and answered "FIRST" forever while the second body sat unreachable and silent.
+    //
+    // ★ THIS IS THE REDEF RULE REACHING THE ONE REGISTRY IT NEVER COVERED. Arc 054 made
+    // typealias/define/defmacro "if byte-equivalent, no-op", else DuplicateDefine; clause ARMS
+    // were exempt because an arm is not a definition BY NAME — so the only registry that
+    // dispatches on TYPES had no define-once rule. An arm that can never fire is a definition
+    // with no effect. Builder, 2026-08-18: "you may only express something's def once and all
+    // other attempts must be identical."
+    //
+    // ARMED AT ZERO OFFENDERS (the house pattern). A corpus census over 1,457 .wat files found
+    // exactly ONE unreachable arm, and it is the fixture written to be refused
+    // (tests/types/probe_stone_118_b2c_overlapping_arms_are_silent.wat). See
+    // MEASURED-118.B2c-strike1-the-corpus-is-NOT-clean.md for the run and for the WRONG first
+    // predicate (intersection) that this one replaced.
+    //
+    // Three deliberate conservatisms, each so the wall refuses only what is PROVABLY dead:
+    //   - a GUARDED earlier arm never subsumes — `:guard` can evaluate false
+    //     (`ClauseFailureReason::GuardFalse` is a real dispatch outcome), so it cannot render a
+    //     later arm unreachable;
+    //   - VARIADIC arms are skipped entirely — a rest-param accepts a range of arities and the
+    //     pairwise test does not model that;
+    //   - PAIRWISE only — three arms whose first two JOINTLY exhaust the type universe would
+    //     leave a third provably dead and this wall will not see it. That is undecidable in
+    //     general, and under-firing is the correct bias for a wall.
+    for later_idx in 1..clauses.len() {
+        for earlier_idx in 0..later_idx {
+            let earlier = &clauses[earlier_idx];
+            let later = &clauses[later_idx];
+            if earlier.guard.is_some() {
+                continue;
+            }
+            if earlier.args.rest_param.is_some() || later.args.rest_param.is_some() {
+                continue;
+            }
+            if earlier.args.fixed_params.len() != later.args.fixed_params.len() {
+                continue;
+            }
+            let subsumed = earlier
+                .args
+                .fixed_params
+                .iter()
+                .zip(later.args.fixed_params.iter())
+                .all(|((_, e_ty), (_, l_ty))| declared_type_subsumes(e_ty, l_ty));
+            if subsumed {
+                return Err(RuntimeError::new(
+                    form.span().clone(),
+                    RuntimeErrorKind::UnreachableClause {
+                        name: name.clone(),
+                        clause_index: later_idx,
+                        subsumed_by: earlier_idx,
+                        declared_arg_types: later
+                            .args
+                            .fixed_params
+                            .iter()
+                            .map(|(_, t)| crate::check::format_type(t))
+                            .collect(),
+                    },
+                ));
+            }
+        }
+    }
+
     Ok((
         name.clone(),
         Arc::new(ClauseSet {
@@ -8747,6 +8813,49 @@ fn eval_call_to_defclause_with_vals(
         }
 
     Ok(result)
+}
+
+/// Stone 118.B2c strike 1 — does declared type `earlier` accept EVERY value that `later` accepts?
+///
+/// This is the REACHABILITY predicate the registration wall is built on, and it is the exact
+/// mirror of [`value_matches_type_by_name`]: `earlier` subsumes `later` iff, for every value `v`,
+/// `matches(v, later)` implies `matches(v, earlier)`.
+///
+/// ⚠ **SUBSUMPTION, NOT INTERSECTION — and the difference is the whole rule.** Two arms whose
+/// domains merely intersect (an earlier concrete arm, a later catch-all) are a legitimate
+/// FALLBACK: the later arm still fires for the rest of its domain, deterministically. That shape
+/// is in production and documented — see `wat/bracket.wat:314-316`, which names first-match-wins,
+/// calls the generic arm a "PERMISSIVE catch-all", and states that ordering is load-bearing.
+/// Refusing intersection would outlaw it. Only CONTAINMENT means dead code.
+///
+/// CONSERVATIVE BY CONSTRUCTION. It answers `true` only for the cases where
+/// `value_matches_type_by_name` is provably universal (a bare type-var Path, and the `_ => true`
+/// arm covering fn/tuple/var types) or where the two types are literally identical. Anything
+/// subtler — a Parametric head, a record supertype — answers `false`, so the wall refuses only
+/// what is PROVABLY unreachable. A wall that guesses is worse than a wall that under-fires.
+fn declared_type_subsumes(earlier: &crate::types::TypeExpr, later: &crate::types::TypeExpr) -> bool {
+    use crate::types::TypeExpr;
+    // Identical declared types: trivially, the earlier arm takes every value the later would.
+    if crate::check::format_type(earlier) == crate::check::format_type(later) {
+        return true;
+    }
+    match earlier {
+        // Mirrors the `is_type_var` early-return in `value_matches_type_by_name`: a bare
+        // uppercase path with no `::`/`.` is a wildcard at dispatch and accepts anything.
+        TypeExpr::Path(p) => {
+            let s = p.strip_prefix(':').unwrap_or(p);
+            !s.contains("::")
+                && !s.contains('.')
+                && s.chars()
+                    .find(|c| c.is_alphabetic())
+                    .is_some_and(|c| c.is_uppercase())
+        }
+        // Mirrors the matcher's `_ => true` arm (fn / tuple / var types are permissive).
+        TypeExpr::Fn { .. } | TypeExpr::Tuple(_) | TypeExpr::Var(_) => true,
+        // Everything else — concrete paths, parametrics — accepts a restricted set. Not proven
+        // universal, so not proven to subsume.
+        _ => false,
+    }
 }
 
 /// Stone 237.2 — runtime type match for defclause dispatch.
