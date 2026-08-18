@@ -12530,9 +12530,13 @@ fn eval_cons(
 ///
 /// The body is NOT evaluated here. Instead it is captured as a 0-arg wat closure
 /// over the current environment (`env.clone()` in `closed_env`), and wrapped in a
-/// `Stream::Thunk(LazyCell{ thunk, forced: OnceLock::new() })`. The body runs ONLY when
-/// the seq is forced (via `realize` on `first`/`rest`/`empty?`), and runs at most ONCE
-/// (memoized in the `OnceLock`).
+/// `Stream::Thunk(LazyCell{ thunk })`. The body runs ONLY when the seq is forced.
+///
+/// ⚠ It is NOT memoized. Stone 118.B3 deleted the `forced: OnceLock` cache this comment used to
+/// promise ("runs at most ONCE"): forcing the same cell twice now runs its body twice. The cache
+/// existed only to hide the three-call `first`/`rest`/`empty?` walk the stdlib itself used, and its
+/// cost was retaining every cell ever forced — O(n) memory for a pipeline whose entire purpose is
+/// not to have any. The stdlib walks with `:wat::stream::next` (one force per cell) since 118.B2b.
 ///
 /// Mirrors `eval_quote`'s capture-don't-eval shape (runtime.rs) + the fn-closure
 /// construction in `function::eval_fn` (a 0-param `Function` with `closed_env`).

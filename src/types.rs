@@ -1710,9 +1710,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `RecvOutcome<O>`, not `SendOutcome`/`CloseOutcome`: T is a caller-supplied
     // element type that MAY be a live resource (a `Stream` of open peers, say),
     // so a blanket `Pure` marking would lie about what crosses. This stone is
-    // purely additive — no existing verb moves, the `forced: OnceLock` memo in
-    // `src/stream/mod.rs` is untouched, no call site migrates onto `next` yet.
-    // That migration (and the memo's eventual deletion) is stone B.
+    // purely additive — no existing verb moves, no call site migrates onto `next` yet.
+    // (Stone 118.B3 has since DELETED the `forced: OnceLock` memo this comment used to say was
+    // untouched; the migration it anticipated happened in 118.B2/B2b. Both are done.)
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::stream::NextOutcome".into(),
         type_params: vec!["T".into()],

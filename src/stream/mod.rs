@@ -16,7 +16,7 @@
 //! the result is Empty|Cons. The SymbolTable is required because `apply_function`
 //! needs it (the closure may call registered substrate functions).
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use crate::span::Span;
 use crate::value::Value;
@@ -55,22 +55,30 @@ pub enum Stream {
 ///
 /// `thunk` is a 0-arg wat closure `() -> Stream<T>` constructed by `(:wat::stream::lazy <body>)`.
 ///
-/// SINGLE-PASS stream, WHNF-cached cell. You cannot rewind the stream (drop the
-/// Cons and the head is gone). You CAN ask `empty?` then `first` then `rest` on
-/// the same cell — `realize` caches Empty|Cons so that is one force, not three.
+/// SINGLE-PASS stream, and as of stone 118.B3 an UNCACHED one. You cannot rewind the stream (drop
+/// the Cons and the head is gone), and forcing the same cell twice runs its body twice.
+///
+/// ⛔ THIS DOC USED TO SAY THE OPPOSITE — "WHNF-cached cell … You CAN ask `empty?` then `first`
+/// then `rest` on the same cell — `realize` caches Empty|Cons so that is one force, not three."
+/// That cache existed for exactly one reason: to hide the three-call walk the stdlib itself used.
+/// Stones 118.B2/B2b migrated every stdlib walker onto the single-force `:wat::stream::next`, so
+/// there was nothing left to hide, and the cache's real cost — retaining every cell it ever forced
+/// — was making a lazy pipeline O(n) in memory, which is the entire thing laziness is for.
+///
+/// ⚠ THE HAZARD THAT REPLACES IT, named and not deferred: `first`/`rest`/`empty?` still ACCEPT a
+/// Stream, so USER code can still write the three-call walk — and it now runs their body 3x per
+/// element instead of once. B4 (the builder's dialect ruling) is what makes that unrepresentable.
+/// B3 did not create that hazard; it unmasked it for user code while removing it from the stdlib.
 pub struct LazyCell {
     /// The captured 0-arg wat closure whose body is the `lazy-seq` body. Contains a
     /// `closed_env` carrying the environment at `lazy-seq` construction time.
     pub thunk: Arc<Function>,
-    /// First `realize` wins. Shared across `LazyCell` clones (same cell).
-    pub forced: Arc<OnceLock<Arc<Stream>>>,
 }
 
 impl LazyCell {
     pub fn new(thunk: Arc<Function>) -> Self {
         Self {
             thunk,
-            forced: Arc::new(OnceLock::new()),
         }
     }
 }
@@ -121,14 +129,12 @@ type NativeThunk = Arc<
 #[derive(Clone)]
 pub struct NativeLazyCell {
     pub thunk: NativeThunk,
-    pub forced: Arc<OnceLock<Arc<Stream>>>,
 }
 
 impl NativeLazyCell {
     pub fn new(thunk: NativeThunk) -> Self {
         Self {
             thunk,
-            forced: Arc::new(OnceLock::new()),
         }
     }
 }
@@ -165,10 +171,6 @@ pub fn realize(
         match current.as_ref() {
             Stream::Empty | Stream::Cons { .. } => return Ok(current),
             Stream::Thunk(cell) => {
-                if let Some(s) = cell.forced.get() {
-                    current = Arc::clone(s);
-                    continue;
-                }
                 let result = crate::runtime::apply_function(
                     Arc::clone(&cell.thunk),
                     vec![],
@@ -189,15 +191,10 @@ pub fn realize(
                         )))
                     }
                 };
-                current = Arc::clone(cell.forced.get_or_init(|| next));
+                current = next;
             }
             Stream::NativeThunk(cell) => {
-                if let Some(s) = cell.forced.get() {
-                    current = Arc::clone(s);
-                    continue;
-                }
-                let next = (cell.thunk)(sym, span)?;
-                current = Arc::clone(cell.forced.get_or_init(|| next));
+                current = (cell.thunk)(sym, span)?;
             }
         }
     }

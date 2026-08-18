@@ -1,9 +1,11 @@
 //! Stone 118.11a — `:wat::stream::next` + `:wat::stream::NextOutcome<T>`.
 //!
 //! Additive: mint the parametric outcome enum + the one native verb that forces exactly one
-//! `Stream` cell and returns both halves. Nothing existing moves; the `forced: OnceLock` memo in
-//! `src/stream/mod.rs` is untouched (see `git diff src/stream/mod.rs` in the strike's own report —
-//! this file cannot assert an absence of a diff, only what the verb itself does).
+//! `Stream` cell and returns both halves. Nothing existing moved at the time.
+//!
+//! ⚠ This header used to add "the `forced: OnceLock` memo in `src/stream/mod.rs` is untouched".
+//! Stone 118.B3 deleted that memo. `next` is unaffected — it always forced exactly one cell, which
+//! is precisely why it was the primitive the stdlib migrated onto before the cache could go.
 //!
 //! Rows 1/2/4 (`DESIGN-STONE-118.11a` / `BRIEF-STONE-118.11a` / `EXPECTATIONS-STONE-118.11a`) are
 //! plain value-returning fns in the co-located fixture, driven in-process via `call_beside_value`
