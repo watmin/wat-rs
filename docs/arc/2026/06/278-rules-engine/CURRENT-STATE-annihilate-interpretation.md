@@ -7,11 +7,17 @@
 
 **Right now:** items 1–12 landed. `#wat.rete/Export` is
 the compiled program: one EDN tag, packed vectors, no
-facts / memories / source forms. `export` → `import` →
-`insert` + `fire-rules` is native-only. R67 is on the
-chronicle (this instance's first realization). `(b)` is
-still item 13 — **not started.** Oracle cannot consume an
-Export. Do not service-ify. Do not start 297.
+facts / memories / source forms. The first rete.edn on
+disk is `tests/rete/datamancer.rete.edn`. Read it, import,
+insert beats, fire — the residual deduces Datamancer
+(or Hollow, if there was a gap and no read of the log).
+Gate: `practice_on_disk_program_deduces_datamancer` /
+`impostor_on_disk_program_is_hollow`. `rule_consumes`
+walks `:exists` inner and accumulate `:from` (it used
+to leak `"?n"` and drop Artifact). R67 is on the
+chronicle. `(b)` is still item 13 — **not started.**
+Oracle cannot consume an Export. Do not service-ify.
+Do not start 297.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -200,7 +206,10 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
 14. **`#wat.rete/Export`.** **landed (this turn).** The
     compiled program as one EDN value. `export` / `import`.
     Native fire. Oracle cannot consume it. Stratify
-    schedule is `:deps`. Gate: `imported_strat_neg_matches_source`.
+    schedule is `:deps`. First program on disk:
+    `tests/rete/datamancer.rete.edn`. Gate:
+    `practice_on_disk_program_deduces_datamancer`.
+    `rule_consumes` walks `:exists` / accumulate `:from`.
 
 Keyed `?g` gather is native speed on the same bag, not a
 compiler item. Do not start it to dodge the hole.
@@ -224,7 +233,7 @@ compiler item. Do not start it to dodge the hole.
 | Four-pass `fire_once_session` / `alpha_pass` | `8d126df6` | local, not pushed |
 | Rete driver (AST-free fire) | `d774185c` | local, not pushed |
 | Persist the arm across `fire-rules` | `3f415317` | local, not pushed |
-| `#wat.rete/Export` (compiled program on the wire) | this turn | **landed (this turn)** |
+| `#wat.rete/Export` (compiled program on the wire) | this turn | **landed** — first disk program `datamancer.rete.edn` |
 | `(b)` ShadowNode | after item 12 | **not started** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 

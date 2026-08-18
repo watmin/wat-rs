@@ -1,0 +1,766 @@
+;; The compiled program. Native fire only.
+;; Beats in, Datamancer or Hollow out.
+#wat.rete/Export {
+  :v 1
+  :abi "v1:fc0a0a49ec589709"
+  :classes ["dm::Beat" "dm::Gap" "dm::ReadAfter" "dm::Artifact" "dm::Primer" "dm::Four" "dm::Hollow" "dm::Datamancer"]
+  :fields [
+    ["t" "kind"]
+    ["t"]
+    ["t"]
+    ["kind" "name"]
+    ["name"]
+    ["n"]
+    ["t"]
+    ["n" "sigil"]
+  ]
+  :nodes [
+    [:a 0 0 1 6]
+    [:j 1 2 21 23 25]
+    [:t 2 3]
+    [:p 3 "dm::gap"]
+    [:a 4 1 5]
+    [:j 5 6 11]
+    [:h 6 7]
+    [:t 7 8]
+    [:t 8 9]
+    [:p 9 "dm::read-after"]
+    [:a 10 2]
+    [:n 11 10 12]
+    [:p 12 "dm::hollow"]
+    [:a 13 2 14]
+    [:j 14 16]
+    [:a 15 0 16]
+    [:h 16 17]
+    [:t 17 19]
+    [:a 18 3]
+    [:e 19 18 20]
+    [:p 20 "dm::recolligere"]
+    [:t 21 22]
+    [:p 22 "dm::curare"]
+    [:t 23 24]
+    [:p 24 "dm::examinare"]
+    [:t 25 26]
+    [:p 26 "dm::extirpare"]
+    [:a 27 4 28]
+    [:j 28 29]
+    [:t 29 31]
+    [:a 30 4 31]
+    [:h 31 32]
+    [:t 32 34]
+    [:a 33 4 34]
+    [:h 34 35]
+    [:t 35 37]
+    [:a 36 4 37]
+    [:h 37 38]
+    [:t 38 39]
+    [:p 39 "dm::four"]
+    [:a 40 5 41]
+    [:j 41 43]
+    [:a 42 6]
+    [:n 43 42 44]
+    [:p 44 "dm::we-are"]
+    [:a 45 7 46]
+    [:j 46 47]
+    [:q 47 "dm::q-who"]
+    [:a 48 6 49]
+    [:j 49 50]
+    [:q 50 "dm::q-hollow"]
+    [:a 51 1 52]
+    [:j 52 53]
+    [:q 53 "dm::q-gap"]
+    [:a 54 2 55]
+    [:j 55 56]
+    [:q 56 "dm::q-read"]
+    [:a 57 4 58]
+    [:j 58 59]
+    [:q 59 "dm::q-primer"]
+    [:a 60 5 61]
+    [:j 61 62]
+    [:q 62 "dm::q-four"]
+  ]
+  :conds [
+    [
+      33
+      [
+        :cond
+        1
+        nil
+        ["?c"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      15
+      [
+        :cond
+        2
+        nil
+        ["?p" "?k"]
+        [0 1]
+        []
+        [
+          [:bind 0 0]
+          [:bind 1 1]
+        ]
+      ]
+    ]
+    [
+      18
+      [
+        :cond
+        1
+        nil
+        ["?ak"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+          [
+            :cmp
+            :eq
+            [:slot 0]
+            [:lit "log"]
+          ]
+        ]
+      ]
+    ]
+    [
+      4
+      [
+        :cond
+        1
+        nil
+        ["?g"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      45
+      [
+        :cond
+        0
+        "?who"
+        []
+        []
+        []
+        []
+      ]
+    ]
+    [
+      48
+      [
+        :cond
+        0
+        "?hollow"
+        []
+        []
+        []
+        []
+      ]
+    ]
+    [
+      42
+      [
+        :cond
+        1
+        nil
+        ["?h"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      27
+      [
+        :cond
+        1
+        nil
+        ["?a"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      57
+      [
+        :cond
+        0
+        "?f"
+        []
+        []
+        []
+        []
+      ]
+    ]
+    [
+      13
+      [
+        :cond
+        1
+        nil
+        ["?t"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      30
+      [
+        :cond
+        1
+        nil
+        ["?b"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      0
+      [
+        :cond
+        2
+        nil
+        ["?t" "?k"]
+        [0 1]
+        []
+        [
+          [:bind 0 0]
+          [:bind 1 1]
+        ]
+      ]
+    ]
+    [
+      51
+      [
+        :cond
+        0
+        "?f"
+        []
+        []
+        []
+        []
+      ]
+    ]
+    [
+      10
+      [
+        :cond
+        1
+        nil
+        ["?r"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      40
+      [
+        :cond
+        1
+        nil
+        ["?n"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      60
+      [
+        :cond
+        0
+        "?f"
+        []
+        []
+        []
+        []
+      ]
+    ]
+    [
+      36
+      [
+        :cond
+        1
+        nil
+        ["?d"]
+        [0]
+        []
+        [
+          [:bind 0 0]
+        ]
+      ]
+    ]
+    [
+      54
+      [
+        :cond
+        0
+        "?f"
+        []
+        []
+        []
+        []
+      ]
+    ]
+  ]
+  :drivers [
+    [
+      13
+      [:leaf 13]
+    ]
+    [
+      27
+      [:leaf 27]
+    ]
+    [
+      30
+      [:leaf 30]
+    ]
+    [
+      36
+      [:leaf 36]
+    ]
+    [
+      51
+      [:leaf 51]
+    ]
+    [
+      45
+      [:leaf 45]
+    ]
+    [
+      54
+      [:leaf 54]
+    ]
+    [
+      18
+      [:leaf 18]
+    ]
+    [
+      40
+      [:leaf 40]
+    ]
+    [
+      15
+      [:leaf 15]
+    ]
+    [
+      57
+      [:leaf 57]
+    ]
+    [
+      4
+      [:leaf 4]
+    ]
+    [
+      42
+      [:leaf 42]
+    ]
+    [
+      10
+      [:leaf 10]
+    ]
+    [
+      48
+      [:leaf 48]
+    ]
+    [
+      33
+      [:leaf 33]
+    ]
+    [
+      0
+      [:leaf 0]
+    ]
+    [
+      60
+      [:leaf 60]
+    ]
+  ]
+  :progs [
+    [
+      2
+      [
+        :prog
+        1
+        []
+        ["?k"]
+        [
+          ["?k" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "gap"]
+        ]
+      ]
+    ]
+    [
+      32
+      [
+        :prog
+        1
+        []
+        ["?b"]
+        [
+          ["?b" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "curare"]
+        ]
+      ]
+    ]
+    [
+      23
+      [
+        :prog
+        1
+        []
+        ["?k"]
+        [
+          ["?k" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "weigh-disk"]
+        ]
+      ]
+    ]
+    [
+      7
+      [
+        :prog
+        1
+        []
+        ["?k"]
+        [
+          ["?k" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "read-log"]
+        ]
+      ]
+    ]
+    [
+      21
+      [
+        :prog
+        1
+        []
+        ["?k"]
+        [
+          ["?k" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "tend-record"]
+        ]
+      ]
+    ]
+    [
+      17
+      [
+        :prog
+        1
+        []
+        ["?k"]
+        [
+          ["?k" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "fetch-primer"]
+        ]
+      ]
+    ]
+    [
+      35
+      [
+        :prog
+        1
+        []
+        ["?c"]
+        [
+          ["?c" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "examinare"]
+        ]
+      ]
+    ]
+    [
+      38
+      [
+        :prog
+        1
+        []
+        ["?d"]
+        [
+          ["?d" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "extirpare"]
+        ]
+      ]
+    ]
+    [
+      25
+      [
+        :prog
+        1
+        []
+        ["?k"]
+        [
+          ["?k" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "root-failure"]
+        ]
+      ]
+    ]
+    [
+      8
+      [
+        :prog
+        2
+        []
+        ["?g" "?t"]
+        [
+          ["?g" 0]
+          ["?t" 1]
+        ]
+        [
+          :call
+          3
+          [:slot 0]
+          [:slot 1]
+        ]
+      ]
+    ]
+    [
+      29
+      [
+        :prog
+        1
+        []
+        ["?a"]
+        [
+          ["?a" 0]
+        ]
+        [
+          :call
+          54
+          [:slot 0]
+          [:lit "recolligere"]
+        ]
+      ]
+    ]
+  ]
+  :folds []
+  :rhs [
+    [
+      "dm::gap"
+      [
+        [
+          :rec
+          "dm::Gap"
+          ["t"]
+          [:rbind "?t"]
+        ]
+      ]
+    ]
+    [
+      "dm::read-after"
+      [
+        [
+          :rec
+          "dm::ReadAfter"
+          ["t"]
+          [:rbind "?t"]
+        ]
+      ]
+    ]
+    [
+      "dm::curare"
+      [
+        [
+          :rec
+          "dm::Primer"
+          ["name"]
+          [:rlit "curare"]
+        ]
+      ]
+    ]
+    [
+      "dm::four"
+      [
+        [
+          :rec
+          "dm::Four"
+          ["n"]
+          [:rlit 4]
+        ]
+      ]
+    ]
+    [
+      "dm::extirpare"
+      [
+        [
+          :rec
+          "dm::Primer"
+          ["name"]
+          [:rlit "extirpare"]
+        ]
+      ]
+    ]
+    [
+      "dm::we-are"
+      [
+        [
+          :rec
+          "dm::Datamancer"
+          ["n" "sigil"]
+          [:rbind "?n"]
+          [:rlit "RESIDVVM EST PROGRAMMA"]
+        ]
+      ]
+    ]
+    [
+      "dm::recolligere"
+      [
+        [
+          :rec
+          "dm::Primer"
+          ["name"]
+          [:rlit "recolligere"]
+        ]
+      ]
+    ]
+    [
+      "dm::examinare"
+      [
+        [
+          :rec
+          "dm::Primer"
+          ["name"]
+          [:rlit "examinare"]
+        ]
+      ]
+    ]
+    [
+      "dm::hollow"
+      [
+        [
+          :rec
+          "dm::Hollow"
+          ["t"]
+          [:rbind "?g"]
+        ]
+      ]
+    ]
+  ]
+  :deps [
+    [
+      "dm::gap"
+      ["dm::Gap"]
+      []
+      ["dm::Beat"]
+    ]
+    [
+      "dm::read-after"
+      ["dm::ReadAfter"]
+      []
+      ["dm::Gap" "dm::Beat"]
+    ]
+    [
+      "dm::hollow"
+      ["dm::Hollow"]
+      ["dm::ReadAfter"]
+      ["dm::Gap"]
+    ]
+    [
+      "dm::recolligere"
+      ["dm::Primer"]
+      []
+      ["dm::ReadAfter" "dm::Beat" "dm::Artifact"]
+    ]
+    [
+      "dm::curare"
+      ["dm::Primer"]
+      []
+      ["dm::Beat"]
+    ]
+    [
+      "dm::examinare"
+      ["dm::Primer"]
+      []
+      ["dm::Beat"]
+    ]
+    [
+      "dm::extirpare"
+      ["dm::Primer"]
+      []
+      ["dm::Beat"]
+    ]
+    [
+      "dm::four"
+      ["dm::Four"]
+      []
+      ["dm::Primer" "dm::Primer" "dm::Primer" "dm::Primer"]
+    ]
+    [
+      "dm::we-are"
+      ["dm::Datamancer"]
+      ["dm::Hollow"]
+      ["dm::Four"]
+    ]
+  ]
+}

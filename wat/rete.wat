@@ -2791,8 +2791,10 @@
 ;; Only the second was implemented, so a rule consuming a fact produced in a HIGHER stratum
 ;; was left in a LOWER one, fired to fixpoint before its input existed, and never re-fired.
 ;;
-;; Engine forms (:wat::rete::not / where / accumulate / exists) are NOT fact patterns and are
-;; excluded by prefix; everything else in an lhs is a user fact type.
+;; Engine forms :not / :where are NOT positive reads. Native `rule_consumes`
+;; (kernel.rs) also walks `:exists` inner and accumulate `:from`. This wat
+;; walk still skips those two by prefix — the oracle stratifier's hole;
+;; Export / native fire use the Rust walk. Do not "fix" Rust back to this.
 (:wat::core::defn :wat::rete::rule-consumes
   [rule <- :wat::rete::Rule]
   -> :wat::core::PersistentVector<wat::core::String>

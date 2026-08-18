@@ -24,7 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::ast::WatAST;
-use crate::rete::matcher::Bindings;
+use crate::rete::matcher::{classify_rete_clause, Bindings, ReteClauseShape};
 use crate::runtime::{
     EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
@@ -4841,8 +4841,9 @@ fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
 /// Correct stratification needs BOTH `stratum(r) >= stratum(p)` for positively-used `p` and
 /// `stratum(r) > stratum(p)` for negated `p`. Only the second existed, so a rule consuming a
 /// fact produced in a HIGHER stratum was left LOWER, fired before its input existed, and never
-/// re-fired. Engine forms (`:wat::rete::not`/`where`/`accumulate`/`exists`) are not fact
-/// patterns and are excluded by prefix. Mirrors `rule-consumes` (`wat/rete.wat`).
+/// re-fired. `:not` / `:where` are not positive reads. `:exists` inner and accumulate
+/// `:from` ARE — they were dropped as engine-form prefixes and the `:from` head
+/// leaked as `"?n"`. Walk via `classify_rete_clause`.
 /// The stratifier's dependency view of one rule: (produced, negated, positively-consumed).
 /// `consumed` is task #94 — without it a rule that reads a higher-stratum fact sits too low.
 type RuleDeps = (Vec<String>, Vec<String>, Vec<String>);
@@ -4856,18 +4857,35 @@ type RuleParts = (Value, Vec<String>, Vec<String>, Vec<String>);
 fn rule_consumes(lhs: &[WatAST]) -> Vec<String> {
     let mut out = Vec::new();
     for form in lhs {
-        if let WatAST::List(items, _) = form {
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
-                if k.as_str().starts_with(":wat::rete::") {
-                    continue;
-                }
+        consume_types(form, &mut out);
+    }
+    out
+}
+
+fn consume_types(form: &WatAST, out: &mut Vec<String>) {
+    match classify_rete_clause(form) {
+        ReteClauseShape::Exists(inner) => consume_types(inner, out),
+        ReteClauseShape::Accumulate { from, .. } => consume_types(from, out),
+        ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {
+            for x in xs {
+                consume_types(x, out);
             }
+        }
+        ReteClauseShape::FactBind { type_head, .. } => {
+            out.push(type_head.to_string());
+        }
+        ReteClauseShape::Not(_)
+        | ReteClauseShape::Where(_)
+        | ReteClauseShape::Bind { .. }
+        | ReteClauseShape::Constraint { .. } => {}
+        ReteClauseShape::Unrecognized => {
             if let Some(name) = fact_type_head(form) {
-                out.push(name);
+                if !name.starts_with('?') {
+                    out.push(name);
+                }
             }
         }
     }
-    out
 }
 
 /// One sweep over all rules' (produced, negated, consumed) triples, raising `type_strata` entries.

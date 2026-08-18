@@ -854,11 +854,9 @@ fn unpack_fold(v: &Value) -> Result<AccFold, EvalBreak> {
 
 fn pack_rhs_op(op: &RhsOp) -> Value {
     match op {
-        RhsOp::Bind(k, dbg) => pv([
-            kw(":rbind"),
-            k.clone(),
-            Value::String(Arc::new(dbg.clone())),
-        ]),
+        // Slot name only. The second Bind field is a Debug rendering of
+        // WatAST for fire-time unbound errors — source, not residual.
+        RhsOp::Bind(k, _) => pv([kw(":rbind"), k.clone()]),
         RhsOp::Lit(v) => pv([kw(":rlit"), v.clone()]),
         RhsOp::Expr(p) => pv([kw(":rexpr"), pack_prog(p)]),
     }
@@ -867,10 +865,20 @@ fn pack_rhs_op(op: &RhsOp) -> Value {
 fn unpack_rhs_op(v: &Value) -> Result<RhsOp, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP)?;
     match expect_kw(items.first().unwrap(), IMPORT_OP)? {
-        ":rbind" => Ok(RhsOp::Bind(
-            items.get(1).unwrap().clone(),
-            expect_str(items.get(2).unwrap(), IMPORT_OP)?.to_string(),
-        )),
+        ":rbind" => {
+            let k = items
+                .get(1)
+                .ok_or_else(|| malformed(IMPORT_OP, "rbind missing key"))?
+                .clone();
+            let dbg = match items.get(2) {
+                Some(v) => expect_str(v, IMPORT_OP)?.to_string(),
+                None => match &k {
+                    Value::String(s) => s.as_ref().clone(),
+                    _ => String::new(),
+                },
+            };
+            Ok(RhsOp::Bind(k, dbg))
+        }
         ":rlit" => Ok(RhsOp::Lit(items.get(1).unwrap().clone())),
         ":rexpr" => Ok(RhsOp::Expr(Arc::new(unpack_prog(items.get(1).unwrap())?))),
         other => Err(malformed(IMPORT_OP, format!("unknown rhs-op {other}"))),

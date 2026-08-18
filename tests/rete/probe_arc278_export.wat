@@ -95,3 +95,10 @@
                     s1 (:wat::rete::import exp2)]
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
+
+;; The compiled program as an EDN string — source of tests/rete/hello.rete.edn.
+(:wat::core::defn :user::export-edn [] -> :wat::core::String
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))]
+    (:wat::edn::write (:wat::rete::export s0))))
