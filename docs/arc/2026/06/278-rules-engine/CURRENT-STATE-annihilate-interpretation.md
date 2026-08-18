@@ -6,13 +6,12 @@
 > **this file wins** and the stone is stale.
 
 **Right now:** items 1–13, fold, no-snapshot, delta-alpha
-indices, setup-seen-once, fxhash. Queue:
-`NEXT-STRIKES-after-shadow.md`. `[200 200]` FIRE 160.70 →
-**76.85 ms** (do not gate the wall). `setup:seen` 13.26 →
-**8.17** (SipHash mix gone; leftover is Hash walk + insert —
-do not add a second hasher). Largest named leftover:
-`round:drop-memories` **10.49 ms**. Index 5.77. Persist is
-still ~0 on a cold fire. Do not start 297. Do not merge
+indices, setup-seen-once, fxhash, bind-pool, aggregate
+identity. Queue: `NEXT-STRIKES-after-shadow.md`. `[200 200]`
+FIRE 160.70 → **63.10 ms**. `setup:seen` 13.26 → **6.89**
+(walk gone for shallow Records; leftover is HashSet insert
+of 40k Arcs — no second hasher). Drop 3.63. Persist still
+~0 on a cold fire. Do not start 297. Do not merge
 `origin/main` onto this dirty branch.
 
 ### Completeness grid — 2026-08-17 — do not drop
@@ -500,8 +499,9 @@ shared. SETUP did **not** fall (13.40 / `setup:seen`
 13.26) — leftover was SipHash. Hasher **landed**:
 `setup:seen` → **8.17**, FIRE → **76.85**. Remaining
 seen is Hash walk + insert (do not add a second hasher).
-Next leftover to draw: drop-memories 10.49 ms. Do not
-persist gather unless a census names it. Do not start 297.
+Bind-pool **landed**. Inline-enum was tried and reverted first.
+Do not retry inline. Do not persist gather unless a census
+names it. Do not start 297.
 
 ## NOW — item 12 landed (still true)
 
@@ -511,9 +511,9 @@ shares the id. A second `fire-rules` does not re-`lower`
 / re-`classify`. Stratified slices still build (ephemeral
 `from_trie`).
 
-Next fire-path item: draw drop-memories (10.49 ms)
-or leave it as the copy we keep. Not a second hasher.
-Not persist. Not 297.
+Next fire-path leftover: `setup:seen` HashSet insert
+(~6.89). Then `accum:index` (~5). Drop 3.44. Not a second
+hasher. Not persist. Not 297.
 
 Ruled 2026-08-17 (do not drop): **armed Session before
 ShadowNode.** That order held. The arm was armed; `(b)`

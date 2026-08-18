@@ -4,6 +4,8 @@
 //! PURE STRUCTURAL MOVE — no behavior change.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crossbeam_channel;
@@ -824,11 +826,15 @@ impl std::hash::Hash for Value {
             // > SUPERSEDED 2026-06-28 by arc 294.c.1: prior contract hashed the hologram
             // > (arc 293.R2.1 "Hologram → hash on hologram (canonical identity, Stone 234.1)").
             Value::Aggregate(a) => {
-                // Arc 294.c.1 — hash on the EDN data (nature, class, fields), matching PartialEq.
-                // The hologram is a derived index and is NOT part of identity (flaw #7 collapse).
-                a.nature.hash(state);
-                a.class.hash(state);
-                a.fields.hash(state);
+                // Stamped at construction for shallow payloads (facts). 0 means
+                // nested collections (Session) — walk, do not O(n²) at insert.
+                if a.identity != 0 {
+                    a.identity.hash(state);
+                } else {
+                    a.nature.hash(state);
+                    a.class.hash(state);
+                    a.fields.hash(state);
+                }
             }
             Value::Enum(e) => {
                 e.type_path.hash(state);
@@ -972,7 +978,7 @@ pub enum HolonForm {
 /// `fields` is the positional field vec in declaration order.
 /// `nature` is the categorical axis (`{Struct, Record, HolonRecord}`).
 /// `holon` is `Empty` for Struct/Record and `Hologram(h)` for HolonRecord.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AggregateValue {
     /// Colon-free FQDN of the declared type (e.g. `"wat::kernel::Process"`).
     /// Was `StructValue.type_name` (stripped of leading `:`) /
@@ -989,21 +995,92 @@ pub struct AggregateValue {
     pub nature: Nature,
     /// `Empty` for Struct/Record; `Hologram(h)` for HolonRecord.
     pub holon: HolonForm,
+    /// FxHash of `(nature, class, fields)` — Hash cache, not EDN.
+    /// `DESIGN-STONE-aggregate-identity`. Private so construction must restamp.
+    identity: u64,
+}
+
+fn value_is_shallow(v: &Value) -> bool {
+    match v {
+        Value::bool(_)
+        | Value::i64(_)
+        | Value::u8(_)
+        | Value::f64(_)
+        | Value::String(_)
+        | Value::Unit
+        | Value::wat__core__keyword(_)
+        | Value::wat__core__Char(_)
+        | Value::wat__core__Uuid(_)
+        | Value::Instant(_)
+        | Value::Duration(_) => true,
+        Value::Aggregate(a) => a.identity != 0,
+        Value::Enum(e) => e.fields.iter().all(value_is_shallow),
+        _ => false,
+    }
+}
+
+impl fmt::Debug for AggregateValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AggregateValue")
+            .field("class", &self.class)
+            .field("names", &self.names)
+            .field("fields", &self.fields)
+            .field("nature", &self.nature)
+            .field("holon", &self.holon)
+            .finish()
+    }
 }
 
 impl AggregateValue {
+    /// Single construction funnel. Stamps `identity` (`DESIGN-STONE-aggregate-identity`).
+    pub(crate) fn from_parts(
+        class: String,
+        names: Arc<Vec<String>>,
+        fields: Arc<Vec<Value>>,
+        nature: Nature,
+        holon: HolonForm,
+    ) -> Self {
+        // Stamp only a shallow payload. A Session's fields include the facts
+        // PV — hashing that at every insert is O(n²). identity 0 → Hash walks
+        // (`DESIGN-STONE-aggregate-identity`).
+        let identity = if fields.iter().all(value_is_shallow) {
+            let mut h = rustc_hash::FxHasher::default();
+            nature.hash(&mut h);
+            class.hash(&mut h);
+            fields.hash(&mut h);
+            let id = h.finish();
+            if id == 0 { 1 } else { id }
+        } else {
+            0
+        };
+        Self {
+            class,
+            names,
+            fields,
+            nature,
+            holon,
+            identity,
+        }
+    }
+
     /// Construct a Struct-nature aggregate (no hologram).
     /// `class` must be WITHOUT the leading colon.
     pub fn struct_(class: String, names: Arc<Vec<String>>, fields: Vec<Value>) -> Self {
-        AggregateValue { class, names, fields: Arc::new(fields), nature: Nature::Struct, holon: HolonForm::Empty }
+        Self::from_parts(class, names, Arc::new(fields), Nature::Struct, HolonForm::Empty)
     }
     /// Construct a base-Record aggregate (no hologram).
     pub fn record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>) -> Self {
-        AggregateValue { class, names, fields, nature: Nature::Record, holon: HolonForm::Empty }
+        Self::from_parts(class, names, fields, Nature::Record, HolonForm::Empty)
     }
     /// Construct a HolonRecord aggregate (with hologram).
     pub fn holon_record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>, hologram: Arc<HolonAST>) -> Self {
-        AggregateValue { class, names, fields, nature: Nature::HolonRecord, holon: HolonForm::Hologram(hologram) }
+        Self::from_parts(
+            class,
+            names,
+            fields,
+            Nature::HolonRecord,
+            HolonForm::Hologram(hologram),
+        )
     }
 }
 

@@ -107,6 +107,17 @@ impl Bindings for Arc<[(Value, Value)]> {
     }
 }
 
+impl Bindings for [(Value, Value)] {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        <[(Value, Value)]>::iter(self)
+            .find(|(kk, _)| kk == k)
+            .map(|(_, v)| v)
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        <[(Value, Value)]>::iter(self).map(|(k, v)| (k, v))
+    }
+}
+
 impl Bindings for Vec<(Value, Value)> {
     fn get(&self, k: &Value) -> Option<&Value> {
         self.as_slice().iter().find(|(kk, _)| kk == k).map(|(_, v)| v)

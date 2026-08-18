@@ -18852,13 +18852,13 @@ fn record_assoc_inner(
         }
     };
 
-    Ok(Value::Aggregate(Arc::new(AggregateValue {
-        class: agg.class.clone(),
-        names: agg.names.clone(),
-        fields: new_fields_arc,
-        nature: agg.nature,
-        holon: new_holon,
-    })))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::from_parts(
+        agg.class.clone(),
+        agg.names.clone(),
+        new_fields_arc,
+        agg.nature,
+        new_holon,
+    ))))
 }
 
 /// Thin wrapper: evaluates args then delegates to `record_assoc_inner`.

@@ -85,7 +85,9 @@ on this cell. Persist is still ~0 on a cold fire.
 | 2b | `DESIGN-STONE-delta-alpha-indices.md` — `d_alpha` is `Vec<usize>` into `wm.alpha`. | Quiet FIRE 92.54 → **83.99 ms**. Loaded run 97.55 — do not gate the wall. One Element, not two. | **LANDED** |
 | 2c | `DESIGN-STONE-setup-seen-once.md` — first worklist is the facts PV; `seen` once. | Predicted SETUP 14 → 7–10. **Measured SETUP 13.40, `setup:seen` 13.26.** Clone was not the row. | **LANDED** |
 | 2d | `DESIGN-STONE-setup-fxhash.md` — `rustc-hash` on `seen` + gather maps that hash `Value`. | `setup:seen` 13.26 → **8.17**. FIRE 86.26 → **76.85**. Index 8 → 5.77. | **LANDED** |
-| **2e** | drop-memories — the one `Element` copy we must keep (`wm.alpha.clear`). Algorithm **not drawn**. Arena or interned bindings; not a second hasher. | 10.49 ms today. | **NEXT to draw** |
+| 2e | `DESIGN-STONE-elem-bindings-inline.md` — width 0–2 in the enum, not `Arc`. | drop 10.49 → **5.45**. FIRE 76.85 → **78.38**. Push ate the win (fatter Element). **Reverted.** | **TRIED — not a FIRE win** |
+| 2f | `DESIGN-STONE-bind-pool.md` — pairs in `wm.bind_pool`; `Element` is `(off, len)`. Indices, not pointers. | drop 10.49 → **3.63**. FIRE 76.85 → **67.33**. Push stayed thin. | **LANDED** |
+| 2g | `DESIGN-STONE-aggregate-identity.md` — shallow Aggregates stamp `identity` at birth. Hash writes the u64. | `setup:seen` ~8.8 → **6.89**. FIRE 67.33 → **63.10**. Leftover is HashSet insert. | **LANDED** |
 | 3 | `DESIGN-STONE-persist-gather-across-rounds.md` — P6 for gathers; append `d_alpha`. | ~0 on a cold fire (index is first-round hash). | after a census names a multi-round cell |
 | 4 | `DESIGN-STONE-where-dim-reuse.md` — `(b)`: do not `exec_where` a proven `(= dim lit)`. | node-share polish (already 3.18 ms) | after the accum wall |
 | 5 | `DESIGN-STONE-where-range-edges.md` — populate `range_children`. | chaos-engine / `where-numeric`; not this grid | after 4 |

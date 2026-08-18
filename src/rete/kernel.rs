@@ -71,21 +71,22 @@ pub(crate) struct Token {
 /// — costs ~3-4 heap allocations each, and alpha holds tens of thousands of these (80,200 at
 /// `G=200 W=200`).
 ///
-/// `bindings` is `Arc<[(Value, Value)]>` — DESIGN-STONE-element-bindings-array: an Element is
-/// built once by `alpha_match_inner` and only read, cloned and dropped forever after (never
-/// extended), and measured, the array wins build/lookup/clone/drop over an `rpds` trie at every
-/// width. `Token.bindings` is a `PMap` (DESIGN-STONE-token-bindings-promoting) — a Token DOES
-/// extend, but a promoting map extends and stays cheap below the threshold, rather than forcing
-/// the trie up front. `matcher.rs`'s readers (`resolve_operand`, `eval_test_core`) and
-/// kernel.rs's join code (`key_of`) read both kinds through the read-only `Bindings` trait
-/// (`matcher::Bindings`) rather than converting one into the other.
+/// Bindings live in `WorkingMemory.bind_pool`. The span is `(off, len)`
+/// (`DESIGN-STONE-bind-pool`). Clone copies the span, not the pairs.
+#[derive(Clone, Copy)]
+pub(crate) struct BindSpan {
+    off: u32,
+    len: u16,
+}
+
+/// `bindings` is a span into the fire-scoped pool — DESIGN-STONE-bind-pool.
+/// `Token.bindings` is a `PMap`. Readers use `Bindings` on the sliced pairs.
 #[derive(Clone)]
 pub(crate) struct Element {
     /// The fact that matched the AlphaNode's condition.
     pub(crate) fact: Value,
-    /// Bound variables produced by the alpha match. Read-only forever after construction —
-    /// see the struct doc. Lookup is a linear scan (fine: elements bind 1-2 vars in practice).
-    pub(crate) bindings: Arc<[(Value, Value)]>,
+    /// Span into `WorkingMemory.bind_pool`.
+    pub(crate) binds: BindSpan,
 }
 
 /// The mutable mirror of a `:wat::rete::Session` — used during the fire pass (P2–P5).
@@ -111,6 +112,9 @@ pub(crate) struct WorkingMemory {
     pub(crate) next_id: i64,
     /// QueryNode name → binding maps (survives fire; beta does not).
     pub(crate) query: HashMap<String, Vec<crate::value::pmap::PMap>>,
+    /// Fire-scoped pair buffer. `Element.binds` is a span into this vec.
+    /// Append-only during fire; cleared after alpha/beta (`DESIGN-STONE-bind-pool`).
+    pub(crate) bind_pool: Vec<(Value, Value)>,
 }
 
 // ─── Memory conversion helpers ────────────────────────────────────────────────
@@ -390,7 +394,7 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
 /// Value Element Record shape (from `native_element_to_value` / `wat::rete::Element`):
 ///   struct_form[0] = fact  — the matched fact (a `wat::core::Record`)
 ///   struct_form[1] = PM    — the bindings
-fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
+fn value_to_element(el: &Value, pool: &mut Vec<(Value, Value)>) -> Result<Element, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (alpha decode)";
     let struct_form = match el {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
@@ -409,12 +413,11 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
     let fact = struct_form[0].clone();
     // Value-boundary decode: PM -> array. One-time per element at session decode (to_transient),
     // not the matcher's hot read path — see DESIGN-STONE-element-bindings-array read-order §3.
-    let bindings: Arc<[(Value, Value)]> = match &struct_form[1] {
+    let bindings = match &struct_form[1] {
         Value::wat__core__PersistentMap(m) => m
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
-            .collect::<Vec<_>>()
-            .into(),
+            .collect::<Vec<_>>(),
         other => {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
@@ -427,7 +430,7 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
             .into())
         }
     };
-    Ok(Element { fact, bindings })
+    Ok(push_element(pool, fact, bindings))
 }
 
 /// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
@@ -436,9 +439,13 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
 /// Value-boundary encode: array -> PM. One-time per element at session encode (to_persistent) —
 /// the wat contract still needs a `PersistentMap`, so this walks the array and builds one
 /// (DESIGN-STONE-element-bindings-array read-order §3); it is not the matcher's hot read path.
-fn native_element_to_value(el: Element) -> Value {
+fn native_element_to_value(el: Element, pool: &[(Value, Value)]) -> Value {
+    let pairs = {
+        let o = el.binds.off as usize;
+        &pool[o..o + el.binds.len as usize]
+    };
     let pm = crate::value::pmap::PMap::from_pairs(
-        el.bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
+        pairs.iter().map(|(k, v)| (k.clone(), v.clone())),
     );
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
@@ -450,7 +457,11 @@ fn native_element_to_value(el: Element) -> Value {
 /// Decode an `alpha-memory` PersistentMap (node-id → PV<Element Record>) into native elements.
 ///
 /// Each node's PV contains `Value Element Records`; each is decoded to a native `Element`.
-fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
+fn pm_to_alpha(
+    op: &'static str,
+    pm: &Value,
+    pool: &mut Vec<(Value, Value)>,
+) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
             let mut out: HashMap<i64, Vec<Element>> = HashMap::with_capacity(m.len());
@@ -473,7 +484,7 @@ fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>
                     Value::wat__core__PersistentVector(pv) => {
                         let mut es: Vec<Element> = Vec::with_capacity(pv.len());
                         for ev in pv.iter() {
-                            es.push(value_to_element(ev)?);
+                            es.push(value_to_element(ev, pool)?);
                         }
                         es
                     }
@@ -506,12 +517,12 @@ fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>
 }
 
 /// Encode a native alpha map (`HashMap<i64, Vec<Element>>`) back to a Value PersistentMap.
-fn alpha_to_pm(alpha: HashMap<i64, Vec<Element>>) -> Value {
+fn alpha_to_pm(alpha: HashMap<i64, Vec<Element>>, pool: &[(Value, Value)]) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, elements) in alpha {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for el in elements {
-            pv.push_back_mut(native_element_to_value(el));
+            pv.push_back_mut(native_element_to_value(el, pool));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
@@ -584,7 +595,8 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         }
     };
 
-    let alpha = pm_to_alpha(OP, alpha_pm)?;
+    let mut bind_pool = Vec::new();
+    let alpha = pm_to_alpha(OP, alpha_pm, &mut bind_pool)?;
     let beta = pm_to_beta(OP, beta_pm)?;
     let production = pm_to_hashmap(OP, prod_pm)?;
     let query = if sf.len() > 7 {
@@ -602,6 +614,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         facts,
         next_id,
         query,
+        bind_pool,
     })
 }
 
@@ -703,7 +716,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     // a rounding error. Attributing the whole to alpha without measuring the parts is the
     // exact error that made the first phase census report a quarter of fire as the whole.
     let __oa = phase_start();
-    let alpha_pm = alpha_to_pm(wm.alpha);
+    let alpha_pm = alpha_to_pm(wm.alpha, &wm.bind_pool);
     phase_end("  ├ out:alpha", __oa);
     let __ob = phase_start();
     let beta_pm = beta_to_pm(wm.beta);
@@ -950,8 +963,27 @@ fn explained_names() -> Arc<Vec<String>> {
 /// (Pre-nativise, this built the `wat::rete::Element` Value record directly; that body now
 /// lives in `native_element_to_value`, the encoder called at the one boundary — `to_persistent`
 /// — where an Element must actually become a Value.)
-fn make_element(fact: Value, bindings: Arc<[(Value, Value)]>) -> Element {
-    Element { fact, bindings }
+fn push_element(
+    pool: &mut Vec<(Value, Value)>,
+    fact: Value,
+    pairs: impl IntoIterator<Item = (Value, Value)>,
+) -> Element {
+    let off = pool.len();
+    pool.extend(pairs);
+    Element {
+        fact,
+        binds: BindSpan {
+            off: off as u32,
+            len: (pool.len() - off) as u16,
+        },
+    }
+}
+
+fn make_element(fact: Value, off: u32, len: u16) -> Element {
+    Element {
+        fact,
+        binds: BindSpan { off, len },
+    }
 }
 
 /// Build a `Token` record value (retained for documentation; superseded by native `Token` in P11).
@@ -977,8 +1009,12 @@ fn make_token(
 /// A native `Element` cannot be malformed — the two `panic!` arms this used to have (for a
 /// non-Record Value or a non-PersistentMap bindings field) are gone; the one place a malformed
 /// Value could arrive is now `value_to_element`, which returns a `Result` like `value_to_token`.
-fn element_fact_bindings(el: &Element) -> (&Value, &Arc<[(Value, Value)]>) {
-    (&el.fact, &el.bindings)
+fn element_fact_bindings<'a>(
+    el: &'a Element,
+    pool: &'a [(Value, Value)],
+) -> (&'a Value, &'a [(Value, Value)]) {
+    let o = el.binds.off as usize;
+    (&el.fact, &pool[o..o + el.binds.len as usize])
 }
 
 /// Destructure a Value Token Record: (matches pv, bindings map). Panics on malformed.
@@ -1025,15 +1061,16 @@ fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
         let alphas = arm.alpha_tree.candidates(fact_class, fact_fields);
         for aid in &alphas {
             let compiled = rematch_compiled(&arm.compiled_conds, *aid)?;
-            let Some(bindings) = crate::rete::compiled_cond::exec_compiled(
+            let Some((off, len)) = crate::rete::compiled_cond::exec_compiled(
                 compiled,
                 fact_fields,
                 &mut match_scratch,
+                &mut wm.bind_pool,
+                fact,
             ) else {
                 continue;
             };
-            let bindings = crate::rete::compiled_cond::attach_fact(compiled, fact, bindings);
-            let el = make_element(fact.clone(), bindings);
+            let el = make_element(fact.clone(), off, len);
             wm.alpha.entry(*aid).or_default().push(el);
         }
     }
@@ -1077,7 +1114,7 @@ fn root_join_pass(wm: &mut WorkingMemory) {
             }
             // Seed one native Token per Element into beta[child_id].
             for el in elements {
-                let (fact, bindings) = element_fact_bindings(el);
+                let (fact, bindings) = element_fact_bindings(el, &wm.bind_pool);
                 // Support edge: (fact, alpha-id). Mirrors seed-token (wat:544-551).
                 let tok = Token {
                     matches: vec![(fact.clone(), *node_id)],
@@ -1507,7 +1544,7 @@ fn alpha_cond_of(network: &Value, alpha_id: i64) -> Option<WatAST> {
 
 fn token_element_compatible(
     tok_bindings: &crate::value::pmap::PMap,
-    el_bindings: &Arc<[(Value, Value)]>,
+    el_bindings: &[(Value, Value)],
 ) -> bool {
     for (k, e_val) in el_bindings.iter() {
         if let Some(t_val) = tok_bindings.get(k) {
@@ -1535,7 +1572,7 @@ fn token_element_compatible(
 fn extend_token(
     tok: &Token,
     el_fact: &Value,
-    el_bindings: &Arc<[(Value, Value)]>,
+    el_bindings: &[(Value, Value)],
     alpha_id: i64,
 ) -> Token {
     // Size the matches Vec for its FINAL length up front. `tok.matches.clone()` allocates a
@@ -1562,7 +1599,7 @@ fn extend_token(
 /// other Token is produced by `extend_token`, which folds an element's bindings into an EXISTING
 /// `PMap` via `PMap::extend` (unaffected by this stone beyond the type). `from_pairs` already
 /// does the choose-the-arm-from-final-size move a fresh build needs.
-fn seed_token_bindings(el_bindings: &Arc<[(Value, Value)]>) -> crate::value::pmap::PMap {
+fn seed_token_bindings(el_bindings: &[(Value, Value)]) -> crate::value::pmap::PMap {
     crate::value::pmap::PMap::from_pairs(el_bindings.iter().map(|(k, v)| (k.clone(), v.clone())))
 }
 
@@ -1581,8 +1618,9 @@ fn join_extend(
     alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
+    pool: &[(Value, Value)],
 ) -> Result<Option<Token>, EvalBreak> {
-    let (el_fact, el_b) = element_fact_bindings(el);
+    let (el_fact, el_b) = element_fact_bindings(el, pool);
     let compiled = rematch_compiled(compiled_conds, alpha_id)?;
     if fact_bindings_under(el_fact, &tok.bindings, compiled, scratch).is_none() {
         return Ok(None);
@@ -1596,6 +1634,7 @@ fn keyed_join(
     alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
+    pool: &[(Value, Value)],
 ) -> Result<Vec<Token>, EvalBreak> {
     if left_tokens.is_empty() || right_elements.is_empty() {
         return Ok(vec![]);
@@ -1604,11 +1643,11 @@ fn keyed_join(
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
     let join_keys: Vec<Value> = {
         let sample_tok_bindings = &left_tokens[0].bindings;
-        let (_, sample_el_bindings) = element_fact_bindings(&right_elements[0]);
+        let (_, sample_el_bindings) = element_fact_bindings(&right_elements[0], pool);
         let mut keys: Vec<Value> = sample_tok_bindings
             .iter()
             .map(|(k, _)| k)
-            .filter(|k| sample_el_bindings.get(k).is_some())
+            .filter(|k| Bindings::get(sample_el_bindings, k).is_some())
             .cloned()
             .collect();
         // Binding keys are Value::String (variable names like "?loc").
@@ -1630,12 +1669,11 @@ fn keyed_join(
     // Step 2: index RIGHT (elements) by join-key-value tuple.
     let mut index: HashMap<Vec<Value>, Vec<usize>> = HashMap::new();
     for (i, el) in right_elements.iter().enumerate() {
-        let (_, el_bindings) = element_fact_bindings(el);
+        let (_, el_bindings) = element_fact_bindings(el, pool);
         let key: Vec<Value> = join_keys
             .iter()
             .map(|k| {
-                el_bindings
-                    .get(k)
+                Bindings::get(el_bindings, k)
                     .cloned()
                     .expect("keyed_join: join key missing from element bindings")
             })
@@ -1663,6 +1701,7 @@ fn keyed_join(
                     alpha_id,
                     compiled_conds,
                     scratch,
+                    pool,
                 )? {
                     out.push(new_tok);
                 }
@@ -1729,6 +1768,7 @@ fn hash_join_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak
                 alpha_id,
                 compiled_conds,
                 &mut match_scratch,
+                &wm.bind_pool,
             )?;
             for new_tok in new_tokens {
                 wm.beta.entry(*child_id).or_default().push(new_tok);
@@ -1850,6 +1890,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     wm.alpha.clear();
     wm.beta.clear();
     wm.production.clear();
+    wm.bind_pool.clear();
 
     let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym)?;
 
@@ -2166,7 +2207,7 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
 ///
 /// Panics if a join key is absent from `bindings` (structurally impossible in a well-formed
 /// rete network; all shared variables must be bound before this node is reached).
-fn key_of<B: Bindings>(bindings: &B, join_keys: &[Value]) -> Vec<Value> {
+fn key_of<B: Bindings + ?Sized>(bindings: &B, join_keys: &[Value]) -> Vec<Value> {
     join_keys
         .iter()
         .map(|k| {
@@ -2189,15 +2230,16 @@ fn key_of<B: Bindings>(bindings: &B, join_keys: &[Value]) -> Vec<Value> {
 fn gather_join_keys(
     sample_bindings: &crate::value::pmap::PMap,
     elements: &[Element],
+    pool: &[(Value, Value)],
 ) -> Vec<Value> {
     if elements.is_empty() {
         return Vec::new();
     }
-    let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
+    let (_, sample_el_bindings) = element_fact_bindings(&elements[0], pool);
     let mut keys: Vec<Value> = sample_bindings
         .iter()
         .map(|(k, _)| k)
-        .filter(|k| sample_el_bindings.get(k).is_some())
+        .filter(|k| Bindings::get(sample_el_bindings, k).is_some())
         .cloned()
         .collect();
     // Binding keys are Value::String (variable names like "?loc").
@@ -2235,10 +2277,14 @@ fn alpha_elements(alpha: &HashMap<i64, Vec<Element>>, alpha_id: i64) -> &[Elemen
 /// Panics only via `key_of` if an element's bindings lack a derived join key — structurally
 /// impossible for a well-formed network (every element at one alpha node shares a binding
 /// key-set, the same guarantee `keyed_join` already rests on).
-fn build_gather_index(elements: &[Element], join_keys: &[Value]) -> GatherIndex {
+fn build_gather_index(
+    elements: &[Element],
+    join_keys: &[Value],
+    pool: &[(Value, Value)],
+) -> GatherIndex {
     let mut index: GatherIndex = FxHashMap::default();
     for (i, el) in elements.iter().enumerate() {
-        let (_, el_bindings) = element_fact_bindings(el);
+        let (_, el_bindings) = element_fact_bindings(el, pool);
         let key = key_of(el_bindings, join_keys);
         index.entry(key).or_default().push(i);
     }
@@ -2254,12 +2300,12 @@ fn ensure_gather(
     sample: &crate::value::pmap::PMap,
 ) -> Vec<Value> {
     let els = alpha_elements(&wm.alpha, alpha_id);
-    let join_keys = gather_join_keys(sample, els);
+    let join_keys = gather_join_keys(sample, els, &wm.bind_pool);
     let cache_key = (alpha_id, join_keys.clone());
     cache.entry(cache_key).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);
-        build_gather_index(els, &join_keys)
+        build_gather_index(els, &join_keys, &wm.bind_pool)
     });
     join_keys
 }
@@ -2316,9 +2362,9 @@ fn seeded_bindings_keyed(
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
 /// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
 /// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-fn acc_var_i64(el: &Element, var: &Value) -> i64 {
-    let (_, bindings) = element_fact_bindings(el);
-    match bindings.get(var) {
+fn acc_var_i64(el: &Element, var: &Value, pool: &[(Value, Value)]) -> i64 {
+    let (_, bindings) = element_fact_bindings(el, pool);
+    match Bindings::get(bindings, var) {
         Some(Value::i64(n)) => *n,
         Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
         None => panic!("accumulate: var {var:?} unbound in element bindings"),
@@ -2328,16 +2374,20 @@ fn acc_var_i64(el: &Element, var: &Value) -> i64 {
 /// Slot of `var` on the first bucket element. Empty bucket → None (count/sum
 /// emit identity; min/max/mean drop). Derived from a live Element, never stored
 /// on the interned `AccFold` (`DESIGN-STONE-accum-fold-the-wall`).
-fn operand_slot(elements: &[Element], bucket: &[usize], var: &Value) -> Option<usize> {
+fn operand_slot(
+    elements: &[Element],
+    bucket: &[usize],
+    var: &Value,
+    pool: &[(Value, Value)],
+) -> Option<usize> {
     let &i = bucket.first()?;
-    elements[i]
-        .bindings
-        .iter()
-        .position(|(k, _)| k == var)
+    let (_, pairs) = element_fact_bindings(&elements[i], pool);
+    pairs.iter().position(|(k, _)| k == var)
 }
 
-fn slot_i64(el: &Element, slot: usize) -> i64 {
-    match el.bindings.as_ref().get(slot) {
+fn slot_i64(el: &Element, slot: usize, pool: &[(Value, Value)]) -> i64 {
+    let (_, pairs) = element_fact_bindings(el, pool);
+    match pairs.get(slot) {
         Some((_, Value::i64(n))) => *n,
         Some((_, other)) => panic!("accumulate: slot bound to non-i64 {other:?}"),
         None => panic!("accumulate: slot {slot} missing in element bindings"),
@@ -2352,30 +2402,31 @@ fn fold_bucket(
     elements: &[Element],
     bucket: &[usize],
     sym: &SymbolTable,
+    pool: &[(Value, Value)],
 ) -> Result<Option<Value>, EvalBreak> {
     match fold {
         AccFold::Count => Ok(Some(Value::i64(bucket.len() as i64))),
         AccFold::Sum(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var) else {
+            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
                 return Ok(Some(Value::i64(0)));
             };
             let s: i64 = bucket
                 .iter()
                 .map(|&i| {
                     census_gather_visit();
-                    slot_i64(&elements[i], slot)
+                    slot_i64(&elements[i], slot, pool)
                 })
                 .sum();
             Ok(Some(Value::i64(s)))
         }
         AccFold::Min(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var) else {
+            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
                 return Ok(None);
             };
             let mut acc: Option<i64> = None;
             for &i in bucket {
                 census_gather_visit();
-                let v = slot_i64(&elements[i], slot);
+                let v = slot_i64(&elements[i], slot, pool);
                 acc = Some(match acc {
                     Some(cur) if cur <= v => cur,
                     _ => v,
@@ -2384,13 +2435,13 @@ fn fold_bucket(
             Ok(acc.map(Value::i64))
         }
         AccFold::Max(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var) else {
+            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
                 return Ok(None);
             };
             let mut acc: Option<i64> = None;
             for &i in bucket {
                 census_gather_visit();
-                let v = slot_i64(&elements[i], slot);
+                let v = slot_i64(&elements[i], slot, pool);
                 acc = Some(match acc {
                     Some(cur) if cur >= v => cur,
                     _ => v,
@@ -2399,7 +2450,7 @@ fn fold_bucket(
             Ok(acc.map(Value::i64))
         }
         AccFold::Mean(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var) else {
+            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
                 return Ok(None);
             };
             let n = bucket.len() as i64;
@@ -2407,7 +2458,7 @@ fn fold_bucket(
                 .iter()
                 .map(|&i| {
                     census_gather_visit();
-                    slot_i64(&elements[i], slot)
+                    slot_i64(&elements[i], slot, pool)
                 })
                 .sum();
             Ok(Some(Value::i64(s / n)))
@@ -2417,15 +2468,15 @@ fn fold_bucket(
         | AccFold::GroupBy(_)
         | AccFold::User { .. } => {
             let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
-            accumulate_value(fold, &gathered, sym)
+            accumulate_value(fold, &gathered, sym, pool)
         }
     }
 }
 
-fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Vec<(Value, Value)> {
+fn project_group_keys(el_bindings: &[(Value, Value)], keys: &[Value]) -> Vec<(Value, Value)> {
     let mut out = Vec::with_capacity(keys.len());
     for k in keys {
-        if let Some(pair) = el_bindings.iter().find(|(ek, _)| **ek == *k) {
+        if let Some(pair) = el_bindings.iter().find(|(ek, _)| ek == k) {
             out.push((pair.0.clone(), pair.1.clone()));
         }
     }
@@ -2561,18 +2612,19 @@ fn accumulate_value(
     fold: &AccFold,
     gathered: &[&Element],
     sym: &SymbolTable,
+    pool: &[(Value, Value)],
 ) -> Result<Option<Value>, EvalBreak> {
     Ok(match fold {
         AccFold::Count => Some(Value::i64(gathered.len() as i64)),
         AccFold::Sum(var) => {
-            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var)).sum();
+            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, pool)).sum();
             Some(Value::i64(s))
         }
         AccFold::Min(var) => {
             // None seed; first element sets it, subsequent narrow with `<`. Empty → None.
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, var);
+                let v = acc_var_i64(el, var, pool);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v < cur {
@@ -2589,7 +2641,7 @@ fn accumulate_value(
         AccFold::Max(var) => {
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, var);
+                let v = acc_var_i64(el, var, pool);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v > cur {
@@ -2608,14 +2660,14 @@ fn accumulate_value(
             if n == 0 {
                 None
             } else {
-                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var)).sum();
+                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, pool)).sum();
                 Some(Value::i64(s / n))
             }
         }
         AccFold::Distinct(var) => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                let v = Value::i64(acc_var_i64(el, var));
+                let v = Value::i64(acc_var_i64(el, var, pool));
                 if !pv.iter().any(|x| *x == v) {
                     pv.push_back_mut(v);
                 }
@@ -2625,7 +2677,7 @@ fn accumulate_value(
         AccFold::All => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                let (fact, _) = element_fact_bindings(el);
+                let (fact, _) = element_fact_bindings(el, pool);
                 pv.push_back_mut(fact.clone());
             }
             Some(Value::wat__core__PersistentVector(pv))
@@ -2633,8 +2685,8 @@ fn accumulate_value(
         AccFold::GroupBy(var) => {
             let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
             for el in gathered {
-                let (fact, _) = element_fact_bindings(el);
-                let k = Value::i64(acc_var_i64(el, var));
+                let (fact, _) = element_fact_bindings(el, pool);
+                let k = Value::i64(acc_var_i64(el, var, pool));
                 let pv = match pm.get(&k) {
                     Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
                     _ => rpds::VectorSync::new_sync(),
@@ -2651,7 +2703,7 @@ fn accumulate_value(
         AccFold::User { var, program } => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, var, pool)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
             Some(crate::rete::expr_ir::exec_call(
@@ -3749,12 +3801,13 @@ fn alpha_activate_fact(
             compiled,
             fact_fields,
             match_scratch,
+            &mut wm.bind_pool,
+            fact,
         );
         phase_end("  ├ alpha:match", __am);
-        if let Some(bindings) = matched {
-            let bindings = crate::rete::compiled_cond::attach_fact(compiled, fact, bindings);
+        if let Some((off, len)) = matched {
             let __mk = phase_start();
-            let el = make_element(fact.clone(), bindings);
+            let el = make_element(fact.clone(), off, len);
             phase_end("  ├ alpha:element", __mk);
             let __pu = phase_start();
             let slot = {
@@ -3783,6 +3836,7 @@ fn fire_fixpoint_delta(
     wm.alpha.clear();
     wm.beta.clear();
     wm.production.clear();
+    wm.bind_pool.clear();
 
     // `seen`: every fact ever in the working set. Seed with all input facts.
     // Mirrors `merge-facts`'s `contains?` guard — ensures each derived fact is processed once.
@@ -3796,6 +3850,8 @@ fn fire_fixpoint_delta(
         Value::wat__core__PersistentVector(pv) => pv.clone(),
         _ => rpds::VectorSync::new_sync(),
     };
+    wm.bind_pool
+        .reserve(input_facts.len().saturating_mul(4));
     let __seen = phase_start();
     let mut seen: FxHashSet<Value> =
         FxHashSet::with_capacity_and_hasher(input_facts.len(), Default::default());
@@ -3930,7 +3986,7 @@ fn fire_fixpoint_delta(
                 }
                 for &ei in new_idxs {
                     let el = &wm.alpha[node_id][ei];
-                    let (fact, bindings) = element_fact_bindings(el);
+                    let (fact, bindings) = element_fact_bindings(el, &wm.bind_pool);
                     // Seed native Token: one matches edge (fact, alpha_id).
                     let tok = Token {
                         matches: vec![(fact.clone(), *node_id)],
@@ -4002,12 +4058,12 @@ fn fire_fixpoint_delta(
                     let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
-                            let (_, el_b) = element_fact_bindings(el);
+                            let (_, el_b) = element_fact_bindings(el, &wm.bind_pool);
                             let mut keys: Vec<Value> = tok
                                 .bindings
                                 .iter()
                                 .map(|(k, _)| k)
-                                .filter(|k| el_b.get(k).is_some())
+                                .filter(|k| Bindings::get(el_b, k).is_some())
                                 .cloned()
                                 .collect();
                             keys.sort_by(|a, b| {
@@ -4059,7 +4115,7 @@ fn fire_fixpoint_delta(
                     {
                         let ridx = right_idx.entry(*child_id).or_default();
                         for el in &all_right {
-                            let (_, el_b) = element_fact_bindings(el);
+                            let (_, el_b) = element_fact_bindings(el, &wm.bind_pool);
                             let k = key_of(el_b, jk);
                             ridx.entry(k).or_default().push(el.clone());
                         }
@@ -4079,6 +4135,7 @@ fn fire_fixpoint_delta(
                                         alpha_id,
                                         compiled_conds,
                                         &mut match_scratch,
+                                        &wm.bind_pool,
                                     )? {
                                         new_tokens.push(new_tok);
                                     }
@@ -4140,7 +4197,7 @@ fn fire_fixpoint_delta(
                     let right_mem = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
                     for &ei in dr {
                         let el = &right_mem[ei];
-                        let (_, el_b) = element_fact_bindings(el);
+                        let (_, el_b) = element_fact_bindings(el, &wm.bind_pool);
                         let k = key_of(el_b, jk);
                         ridx.entry(k).or_default().push(el.clone());
                     }
@@ -4163,6 +4220,7 @@ fn fire_fixpoint_delta(
                                         alpha_id,
                                         compiled_conds,
                                         &mut match_scratch,
+                                        &wm.bind_pool,
                                     )? {
                                         new_tokens.push(new_tok);
                                     }
@@ -4182,7 +4240,7 @@ fn fire_fixpoint_delta(
                             wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
                         for &ei in dr {
                             let el = &right_mem[ei];
-                            let (_, el_b) = element_fact_bindings(el);
+                            let (_, el_b) = element_fact_bindings(el, &wm.bind_pool);
                             let k = key_of(el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
@@ -4192,6 +4250,7 @@ fn fire_fixpoint_delta(
                                         alpha_id,
                                         compiled_conds,
                                         &mut match_scratch,
+                                        &wm.bind_pool,
                                     )? {
                                         new_tokens.push(new_tok);
                                     }
@@ -4332,7 +4391,7 @@ fn fire_fixpoint_delta(
                 // Element does not already hold. Count is len; value folds read a slot.
                 if !leftover && group_keys.is_empty() {
                     if let Some(aggregate) =
-                        fold_bucket(acc_fold, from_elements, bucket, sym)?
+                        fold_bucket(acc_fold, from_elements, bucket, sym, &wm.bind_pool)?
                     {
                         let new_bindings = tok.bindings.assoc(result_var.clone(), aggregate);
                         let new_tok = Token {
@@ -4364,7 +4423,7 @@ fn fire_fixpoint_delta(
                             )
                             .is_some(),
                             None => {
-                                let (_, el_b) = element_fact_bindings(el);
+                                let (_, el_b) = element_fact_bindings(el, &wm.bind_pool);
                                 token_element_compatible(&tok.bindings, el_b)
                             }
                         };
@@ -4388,7 +4447,7 @@ fn fire_fixpoint_delta(
                     let mut order: Vec<Vec<(Value, Value)>> = Vec::new();
                     let mut buckets: HashMap<Vec<(Value, Value)>, Vec<&Element>> = HashMap::new();
                     for el in gathered {
-                        let (_, el_b) = element_fact_bindings(el);
+                        let (_, el_b) = element_fact_bindings(el, &wm.bind_pool);
                         let proj = project_group_keys(el_b, &group_keys);
                         buckets
                             .entry(proj.clone())
@@ -4411,7 +4470,9 @@ fn fire_fixpoint_delta(
                         .collect()
                 };
                 for (group_bindings, group_els) in groups {
-                    if let Some(aggregate) = accumulate_value(acc_fold, &group_els, sym)? {
+                    if let Some(aggregate) =
+                        accumulate_value(acc_fold, &group_els, sym, &wm.bind_pool)?
+                    {
                         let new_bindings = group_bindings.assoc(result_var.clone(), aggregate);
                         let new_tok = Token {
                             matches: tok.matches.clone(),
@@ -4481,7 +4542,7 @@ fn fire_fixpoint_delta(
                         .into_iter()
                         .flatten()
                         .map(|el| {
-                            let (_, eb) = element_fact_bindings(el);
+                            let (_, eb) = element_fact_bindings(el, &wm.bind_pool);
                             seed_token_bindings(eb)
                         })
                         .collect()
@@ -4639,6 +4700,7 @@ fn fire_fixpoint_delta(
                     alpha_id,
                     compiled_conds,
                     &mut match_scratch,
+                    &wm.bind_pool,
                 )?;
                 if joined.is_empty() {
                     continue;
@@ -4804,6 +4866,7 @@ fn fire_fixpoint_delta(
                                     alpha_id,
                                     compiled_conds,
                                     &mut match_scratch,
+                                    &wm.bind_pool,
                                 )?;
                                 if joined.is_empty() {
                                     continue;
@@ -5097,7 +5160,7 @@ fn fire_fixpoint_delta(
         }
         for els in wm.alpha.values() {
             for el in els {
-                let (_, b) = element_fact_bindings(el);
+                let (_, b) = element_fact_bindings(el, &wm.bind_pool);
                 census_count(ebucket(b.len()));
                 census_count("bind-card:ELEMENTS");
             }
@@ -5116,6 +5179,8 @@ fn fire_fixpoint_delta(
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
     // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
     wm.beta.clear();
+    // Pairs last — Element spans must not dangle (`DESIGN-STONE-bind-pool`).
+    wm.bind_pool.clear();
     phase_end("  └ round:drop-memories", __drop);
     phase_end("ROUND LOOP", __rounds);
 
@@ -9798,14 +9863,18 @@ mod tests {
                     fact_fields,
                     field_names,
                 );
-                let via_compiled = exec_compiled(&compiled[aid], fact_fields, &mut scratch);
+                let mut pool = Vec::new();
+                let via_compiled =
+                    exec_compiled(&compiled[aid], fact_fields, &mut scratch, &mut pool, fact);
 
-                match (&interpreted, &via_compiled) {
+                match (interpreted.as_ref(), via_compiled.as_ref()) {
                     (None, None) => {}
-                    (Some(i), Some(c)) => {
+                    (Some(i), Some((off, len))) => {
                         matched_checked += 1;
+                        let c = &pool[*off as usize..*off as usize + *len as usize];
                         assert_eq!(
-                            i, c,
+                            i.as_ref(),
+                            c,
                             "STOP-1: bindings array diverged.\n  fact: {fact:?}\n  alpha id: {aid}\n  \
                              interpreted: {i:?}\n  compiled: {c:?}"
                         );
@@ -9873,7 +9942,15 @@ mod tests {
                 };
                 for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
                     calls += 1;
-                    if exec_compiled(&compiled[aid], fact_fields, &mut scratch).is_none() {
+                    if exec_compiled(
+                        &compiled[aid],
+                        fact_fields,
+                        &mut scratch,
+                        &mut Vec::new(),
+                        fact,
+                    )
+                    .is_none()
+                    {
                         fails += 1;
                     }
                 }

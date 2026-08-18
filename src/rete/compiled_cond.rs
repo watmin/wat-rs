@@ -16,14 +16,11 @@
 //!
 //! ## ★ THE ONE CONTRACT DECISION
 //!
-//! **Slots internally; the public `Arc<[(Value, Value)]>` is materialized ONCE, on SUCCESS
-//! ONLY.** The executor threads a `Vec<Option<Value>>` scratch buffer (reused call to call —
-//! see [`exec_compiled`]'s `scratch` parameter) indexed by slot; only when every [`Op`] in the
-//! compiled sequence has held does it zip the pre-built `slot_keys` with the bound slot values
-//! into the same `Arc<[(Value, Value)]>` shape `Element`/`Token` see today. A failing call never
-//! allocates a key, never allocates the output array, and — on the straight-line Bind/Constraint
-//! path every live grid condition actually uses — never allocates at all (the scratch buffer's
-//! own backing storage is allocated once at setup, not per call; see `kernel.rs`'s `match_scratch`).
+//! **Slots internally; populate materializes into the fire-scoped bind pool
+//! ON SUCCESS ONLY** (`DESIGN-STONE-bind-pool`). Rematch still returns an
+//! `Arc` and becomes a `PMap`. The executor threads a `Vec<Option<Value>>`
+//! scratch buffer (reused call to call — see [`exec_compiled`]'s `scratch`
+//! parameter) indexed by slot. A failing populate never writes the pool.
 //!
 //! ## Consumes `classify_rete_clause`, adds no second parser
 //!
@@ -526,14 +523,16 @@ fn compile_operand_expr(
 /// exercised by anything in the live grid corpus (see the module doc), so it never fires on the
 /// path this stone's zero-allocation gate measures.
 ///
-/// Returns exactly what `alpha_match_inner(cond, fact_class, fact_fields, field_names)` would
-/// for the SAME condition/fact — same `Some`/`None`, and on `Some` the identical
-/// `Arc<[(Value, Value)]>`: same keys, same values, same order (STOP-1).
+/// Populate: write pairs into `pool`, `?p` first when this cond is
+/// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
+/// `alpha_match_inner` + `attach_fact` (STOP-1).
 pub(crate) fn exec_compiled(
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut Vec<Option<Value>>,
-) -> Option<Arc<[(Value, Value)]>> {
+    pool: &mut Vec<(Value, Value)>,
+    fact: &Value,
+) -> Option<(u32, u16)> {
     // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's call counter, parallel to
     // `alpha_match_inner`'s `match:calls`. Since this stone re-points the round loop's step 1 at
     // this function (`kernel.rs`), `match:calls` alone would read zero on a real fire from here
@@ -545,7 +544,34 @@ pub(crate) fn exec_compiled(
     if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
         return None;
     }
-    materialize(compiled, scratch)
+    materialize_into(compiled, scratch, pool, fact)
+}
+
+fn materialize_into(
+    compiled: &CompiledCond,
+    scratch: &[Option<Value>],
+    pool: &mut Vec<(Value, Value)>,
+    fact: &Value,
+) -> Option<(u32, u16)> {
+    let off = pool.len();
+    if let Some(key) = &compiled.fact_bind {
+        pool.push((key.clone(), fact.clone()));
+    }
+    for (i, &slot) in compiled.output_slots.iter().enumerate() {
+        let v = match scratch.get(slot).and_then(|o| o.clone()) {
+            Some(v) => v,
+            None => {
+                debug_assert!(
+                    false,
+                    "compiled program guarantee violated: output slot {slot} unbound on success"
+                );
+                pool.truncate(off);
+                return None;
+            }
+        };
+        pool.push((compiled.slot_keys[i].clone(), v));
+    }
+    Some((off as u32, (pool.len() - off) as u16))
 }
 
 /// Rematch a compiled condition under a token seed. Writes `seed_reads` into
@@ -710,7 +736,8 @@ mod tests {
         let fact = [Value::i64(20)];
         let mut scratch = Vec::new();
         assert!(
-            exec_compiled(&compiled, &fact, &mut scratch).is_some(),
+            exec_compiled(&compiled, &fact, &mut scratch, &mut Vec::new(), &Value::i64(20))
+                .is_some(),
             "populate skips SeedCmp so the fact enters alpha"
         );
 
@@ -749,7 +776,14 @@ mod tests {
         );
         let mut scratch = Vec::new();
         assert!(
-            exec_compiled(&compiled, &[Value::i64(20)], &mut scratch).is_none(),
+            exec_compiled(
+                &compiled,
+                &[Value::i64(20)],
+                &mut scratch,
+                &mut Vec::new(),
+                &Value::i64(20),
+            )
+            .is_none(),
             "strict populate still Fails an unbound constraint ?var"
         );
     }
