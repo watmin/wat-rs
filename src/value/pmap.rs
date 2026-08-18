@@ -18,9 +18,18 @@
 //! promising one would be a lie the array arm could keep and the trie arm could not).
 
 use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use super::value::Value;
+
+/// Rust-only identity for a map *instance*, copied on clone and minted on every
+/// structural rewrite. Not part of `Eq` / `Hash` — two maps with the same
+/// entries stay equal across arms and across intern ids.
+fn next_intern() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
 
 /// Entries at or below this live in the array arm; `assoc` past it promotes to the trie.
 /// Clojure's `PersistentArrayMap` boundary — chosen because it is a well-worn number from
@@ -31,9 +40,11 @@ pub const PROMOTION_THRESHOLD: usize = 8;
 #[derive(Debug, Clone)]
 pub enum PMap {
     /// `<= PROMOTION_THRESHOLD` entries, insertion-ordered, linear scan. No HAMT allocation.
-    Array(Arc<Vec<(Value, Value)>>),
+    /// The `u64` is a rust intern: clone-stable, ignored by `Eq`/`Hash`.
+    Array(Arc<Vec<(Value, Value)>>, u64),
     /// Above the threshold — the prior representation, unchanged.
-    Trie(rpds::HashTrieMapSync<Value, Value>),
+    /// The `u64` is a rust intern: clone-stable, ignored by `Eq`/`Hash`.
+    Trie(rpds::HashTrieMapSync<Value, Value>, u64),
 }
 
 impl Default for PMap {
@@ -44,7 +55,16 @@ impl Default for PMap {
 
 impl PMap {
     pub fn new() -> Self {
-        PMap::Array(Arc::new(Vec::new()))
+        PMap::Array(Arc::new(Vec::new()), next_intern())
+    }
+
+    /// Clone-stable rust identity. Copied on `clone`; minted on every
+    /// structural rewrite (`assoc` / `dissoc` / `extend` that change
+    /// entries). Not part of value equality.
+    pub fn rust_identity(&self) -> u64 {
+        match self {
+            PMap::Array(_, id) | PMap::Trie(_, id) => *id,
+        }
     }
 
     /// Build from an iterator, choosing the arm from the FINAL size — so a map built in one shot
@@ -63,16 +83,16 @@ impl PMap {
             for (k, v) in acc {
                 t.insert_mut(k, v);
             }
-            PMap::Trie(t)
+            PMap::Trie(t, next_intern())
         } else {
-            PMap::Array(Arc::new(acc))
+            PMap::Array(Arc::new(acc), next_intern())
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
-            PMap::Array(v) => v.len(),
-            PMap::Trie(t) => t.size(),
+            PMap::Array(v, _) => v.len(),
+            PMap::Trie(t, _) => t.size(),
         }
     }
 
@@ -82,8 +102,8 @@ impl PMap {
 
     pub fn get(&self, k: &Value) -> Option<&Value> {
         match self {
-            PMap::Array(v) => v.iter().find(|(ek, _)| ek == k).map(|(_, ev)| ev),
-            PMap::Trie(t) => t.get(k),
+            PMap::Array(v, _) => v.iter().find(|(ek, _)| ek == k).map(|(_, ev)| ev),
+            PMap::Trie(t, _) => t.get(k),
         }
     }
 
@@ -93,8 +113,8 @@ impl PMap {
 
     pub fn iter(&self) -> Box<dyn Iterator<Item = (&Value, &Value)> + '_> {
         match self {
-            PMap::Array(v) => Box::new(v.iter().map(|(k, val)| (k, val))),
-            PMap::Trie(t) => Box::new(t.iter()),
+            PMap::Array(v, _) => Box::new(v.iter().map(|(k, val)| (k, val))),
+            PMap::Trie(t, _) => Box::new(t.iter()),
         }
     }
 
@@ -102,11 +122,11 @@ impl PMap {
     /// existing key never promotes — the size does not change, so the arm should not either.
     pub fn assoc(&self, k: Value, v: Value) -> Self {
         match self {
-            PMap::Array(entries) => {
+            PMap::Array(entries, _) => {
                 if let Some(i) = entries.iter().position(|(ek, _)| *ek == k) {
                     let mut next = (**entries).clone();
                     next[i].1 = v;
-                    return PMap::Array(Arc::new(next));
+                    return PMap::Array(Arc::new(next), next_intern());
                 }
                 if entries.len() + 1 > PROMOTION_THRESHOLD {
                     let mut t = rpds::HashTrieMapSync::new_sync();
@@ -114,16 +134,16 @@ impl PMap {
                         t.insert_mut(ek.clone(), ev.clone());
                     }
                     t.insert_mut(k, v);
-                    return PMap::Trie(t);
+                    return PMap::Trie(t, next_intern());
                 }
                 let mut next = (**entries).clone();
                 next.push((k, v));
-                PMap::Array(Arc::new(next))
+                PMap::Array(Arc::new(next), next_intern())
             }
-            PMap::Trie(t) => {
+            PMap::Trie(t, _) => {
                 let mut next = t.clone();
                 next.insert_mut(k, v);
-                PMap::Trie(next)
+                PMap::Trie(next, next_intern())
             }
         }
     }
@@ -140,7 +160,7 @@ impl PMap {
     /// materialised lazily, on the first item.
     pub fn extend<I: IntoIterator<Item = (Value, Value)>>(&self, pairs: I) -> Self {
         match self {
-            PMap::Array(entries) => {
+            PMap::Array(entries, _) => {
                 let mut next: Option<Vec<(Value, Value)>> = None;
                 for (k, v) in pairs {
                     let vec = next.get_or_insert_with(|| (**entries).clone());
@@ -157,14 +177,14 @@ impl PMap {
                             for (k, v) in vec {
                                 t.insert_mut(k, v);
                             }
-                            PMap::Trie(t)
+                            PMap::Trie(t, next_intern())
                         } else {
-                            PMap::Array(Arc::new(vec))
+                            PMap::Array(Arc::new(vec), next_intern())
                         }
                     }
                 }
             }
-            PMap::Trie(t) => {
+            PMap::Trie(t, _) => {
                 let mut next: Option<rpds::HashTrieMapSync<Value, Value>> = None;
                 for (k, v) in pairs {
                     let m = next.get_or_insert_with(|| t.clone());
@@ -172,7 +192,7 @@ impl PMap {
                 }
                 match next {
                     None => self.clone(),
-                    Some(m) => PMap::Trie(m),
+                    Some(m) => PMap::Trie(m, next_intern()),
                 }
             }
         }
@@ -182,18 +202,18 @@ impl PMap {
     /// assoc/dissoc at the boundary cannot thrash the representation.
     pub fn dissoc(&self, k: &Value) -> Self {
         match self {
-            PMap::Array(entries) => match entries.iter().position(|(ek, _)| ek == k) {
+            PMap::Array(entries, _) => match entries.iter().position(|(ek, _)| ek == k) {
                 None => self.clone(),
                 Some(i) => {
                     let mut next = (**entries).clone();
                     next.remove(i);
-                    PMap::Array(Arc::new(next))
+                    PMap::Array(Arc::new(next), next_intern())
                 }
             },
-            PMap::Trie(t) => {
+            PMap::Trie(t, _) => {
                 let mut next = t.clone();
                 next.remove_mut(k);
-                PMap::Trie(next)
+                PMap::Trie(next, next_intern())
             }
         }
     }
@@ -209,7 +229,7 @@ impl PMap {
     /// Which arm holds this map. Exposed ONLY so a test can prove promotion actually fired — a
     /// promotion test that never promotes is vacuous, and nothing else should branch on this.
     pub fn is_trie(&self) -> bool {
-        matches!(self, PMap::Trie(_))
+        matches!(self, PMap::Trie(..))
     }
 
     /// Adopt an existing trie, CHOOSING THE ARM BY SIZE. Never wrap a trie directly as
@@ -217,9 +237,12 @@ impl PMap {
     /// forever and silently opt out of promotion, the exact thing this type exists to prevent.
     pub fn from_trie(t: rpds::HashTrieMapSync<Value, Value>) -> Self {
         if t.size() <= PROMOTION_THRESHOLD {
-            PMap::Array(Arc::new(t.iter().map(|(k, v)| (k.clone(), v.clone())).collect()))
+            PMap::Array(
+                Arc::new(t.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+                next_intern(),
+            )
         } else {
-            PMap::Trie(t)
+            PMap::Trie(t, next_intern())
         }
     }
 
@@ -227,8 +250,8 @@ impl PMap {
     /// (e.g. a boundary to code that is intentionally still trie-only, such as `Token.bindings`).
     pub fn to_trie(&self) -> rpds::HashTrieMapSync<Value, Value> {
         match self {
-            PMap::Trie(t) => t.clone(),
-            PMap::Array(entries) => {
+            PMap::Trie(t, _) => t.clone(),
+            PMap::Array(entries, _) => {
                 let mut t = rpds::HashTrieMapSync::new_sync();
                 for (k, v) in entries.iter() {
                     t.insert_mut(k.clone(), v.clone());
@@ -292,12 +315,12 @@ mod tests {
     /// Same entries, forced into each arm, so every law below is checked ACROSS representations.
     fn both_arms(n: i64) -> (PMap, PMap) {
         let pairs: Vec<(Value, Value)> = (0..n).map(|i| (k(i), k(i * 10))).collect();
-        let array = PMap::Array(Arc::new(pairs.clone()));
+        let array = PMap::Array(Arc::new(pairs.clone()), next_intern());
         let mut t = rpds::HashTrieMapSync::new_sync();
         for (kk, vv) in pairs {
             t.insert_mut(kk, vv);
         }
-        (array, PMap::Trie(t))
+        (array, PMap::Trie(t, next_intern()))
     }
 
     /// ★ THE CROSS-REPRESENTATION LAW — the wall this stone stands on. A wrong answer here is
@@ -516,23 +539,56 @@ mod tests {
         let empty_array = PMap::from_pairs((0..3i64).map(|i| (k(i), k(i))));
         assert!(!empty_array.is_trie(), "setup: expected the array arm");
         let array_ptr_before = match &empty_array {
-            PMap::Array(v) => Arc::as_ptr(v),
-            PMap::Trie(_) => panic!("setup: expected the array arm"),
+            PMap::Array(v, _) => Arc::as_ptr(v),
+            PMap::Trie(..) => panic!("setup: expected the array arm"),
         };
         let extended_empty_array = empty_array.extend(Vec::<(Value, Value)>::new());
         assert!(extended_empty_array == empty_array, "empty extend must not change entries");
         assert!(!extended_empty_array.is_trie(), "empty extend must not change the arm");
         match &extended_empty_array {
-            PMap::Array(v) => assert_eq!(
+            PMap::Array(v, _) => assert_eq!(
                 Arc::as_ptr(v),
                 array_ptr_before,
                 "empty extend must not clone the backing Vec (Arc pointer changed)"
             ),
-            PMap::Trie(_) => panic!("empty extend on an Array must not promote"),
+            PMap::Trie(..) => panic!("empty extend on an Array must not promote"),
         }
 
         let empty_trie = PMap::from_pairs((0..12i64).map(|i| (k(i), k(i))));
         assert!(empty_trie.is_trie(), "setup: expected the trie arm");
         check("empty batch on a trie", empty_trie, Vec::new());
+    }
+
+    /// Item 12 — clone shares intern; a structural rewrite mints a new one.
+    /// `insert` overlays facts by cloning the network PMap; fire looks the
+    /// arm up by this id. If clone minted, every overlay would rebuild.
+    #[test]
+    fn rust_identity_survives_clone_and_empty_extend_not_rewrite() {
+        let array = PMap::from_pairs((0..3i64).map(|i| (k(i), k(i))));
+        let trie = PMap::from_pairs((0..12i64).map(|i| (k(i), k(i))));
+        assert!(!array.is_trie());
+        assert!(trie.is_trie());
+        assert_eq!(array.rust_identity(), array.clone().rust_identity());
+        assert_eq!(trie.rust_identity(), trie.clone().rust_identity());
+        assert_eq!(
+            array.rust_identity(),
+            array.extend(Vec::<(Value, Value)>::new()).rust_identity(),
+            "empty extend must keep intern (same as clone)"
+        );
+        assert_eq!(
+            trie.rust_identity(),
+            trie.extend(Vec::<(Value, Value)>::new()).rust_identity(),
+            "empty extend must keep intern (same as clone)"
+        );
+        assert_ne!(
+            array.rust_identity(),
+            array.assoc(k(99), k(1)).rust_identity(),
+            "assoc must mint — the network changed"
+        );
+        assert_ne!(
+            trie.rust_identity(),
+            trie.assoc(k(99), k(1)).rust_identity(),
+            "assoc must mint — the network changed"
+        );
     }
 }

@@ -5,12 +5,12 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–11 landed. The **round loop** is
+**Right now:** items 1–12 landed. The **round loop** is
 AST-free. The **arm** (`CondDriver`, `CompiledCond`,
-`Program`, `AccFold`) is still built at the start of every
-`fire-rules` and thrown away when fire returns. That
-rebuild is the next target. `(b)` does **not** start.
-Oracle stays interpreted. Do not service-ify.
+`Program`, `AccFold`) lives in a rust intern keyed by the
+network PMap's `rust_identity`. `insert` / clone share that
+id; a second `fire-rules` skips setup. `(b)` is item 13 —
+**not started.** Oracle stays interpreted. Do not service-ify.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -28,10 +28,11 @@ it. That is **not** the same as “native no longer interprets.”
 
 **No interpreter ≠ AST-free ≠ armed Session.** Items 1–10
 closed the interpreter verbs. Item 11 (`d774185c`) compiled
-the driver. Setup still re-derives that arm from stored AST
-**every `fire-rules`**. The Session keeps the DAG
-(`network` / `rules` / `next-id`) and drops the circuits.
-That is item 12.
+the driver. Item 12 persists the arm: fire setup is
+get-or-build against the network intern. A Weak intern died
+when fire returned — the table holds a strong `Arc`.
+Process-lifetime per unique network. Not EDN. `(b)` indexes
+this armed network.
 
 ### Item 11 — compile the rete driver (AST-free **fire**)
 
@@ -57,8 +58,9 @@ Do not start keyed gather.
 
 ### Item 12 — persist the arm (do not rebuild at `fire-rules`)
 
-**Not started. This is the next strike.** Compaction:
-do not put `(b)` or keyed gather here.
+**Landed (this turn).** Compaction: do not put `(b)` or
+keyed gather here. Gate:
+`fire_rules_reuses_arm_across_fire_and_insert_overlay`.
 
 `compile-all` already returns a Session whose `network` is
 a persistent map — `insert` shares that pointer and writes
@@ -125,8 +127,7 @@ went n=0 native / n=1 spec the moment leaves stayed in the
 slice. Merge now rejects a conflict. Same contract as
 `alpha_match_inner_seeded`.
 
-Items 1–11 landed. Item 12 is persist the arm.
-`(b)` is item 13. Keyed gather is speed.
+Items 1–12 landed. `(b)` is item 13. Keyed gather is speed.
 
 Rust copies of `eval_test_core` / `alpha_match_inner` /
 `build_insert_fact` are **oracles for differentials**, not a
@@ -186,12 +187,13 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
     `AccFold`. Slice follows `driver_leaf_ids`. Gate:
     `where-not-and` 8/8, `-bound` 8/8, `where-exists` 18/18,
     `where-not-where` 4/4, `where-accum-from-left` 7/7.
-12. **Persist the arm.** **Not started. Next.**
-    `CondDriver` / `CompiledCond` / `Program` / `AccFold`
-    live on the compiled Session, shared under `insert`.
-    `fire-rules` does not re-`lower` / re-`classify` when
-    the arm is present. Overlay = child Session (facts +
-    query-memory). Rewind = drop the child.
+12. **Persist the arm.** **landed (this turn).**
+    `ReteArm` interned by `PMap::rust_identity`. Clone /
+    `insert` share the id. `fire_fixpoint_delta` and
+    `fire_once_session` skip setup on hit. Strong `Arc`
+    (Weak died at fire return). Overlay = child Session
+    (facts + query-memory). Rewind = drop the child.
+    Stratified slices still build (new `from_trie` map).
 13. `(b)` ShadowNode — **only after item 12.** Index the
     **armed** network. Not a way around persist.
 
@@ -216,7 +218,7 @@ compiler item. Do not start it to dodge the hole.
 | Defensive populate miss | `ef50a360` | local, not pushed |
 | Four-pass `fire_once_session` / `alpha_pass` | `8d126df6` | local, not pushed |
 | Rete driver (AST-free fire) | `d774185c` | local, not pushed |
-| Persist the arm across `fire-rules` | this turn | **ruling locked; not started** |
+| Persist the arm across `fire-rules` | this turn | **landed (this turn)** |
 | `(b)` ShadowNode | after item 12 | **not started** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
@@ -225,11 +227,10 @@ compiler item. Do not start it to dodge the hole.
 **Annihilate all interpretation in wat-rete.** Every rete expression
 becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 
-**That is the endeavor.** Items 1–11 compiled expressions
-and the driver. The arm dies at the end of `fire-rules`.
-**Item 12 is persist the arm.** `(b)` does not start.
-Keyed gather is speed. Oracle stays interpreted. Do not
-service-ify this item.
+**That is the endeavor.** Items 1–12 compiled expressions,
+the driver, and persisted the arm. **`(b)` is next** —
+index the armed network. Keyed gather is speed. Oracle
+stays interpreted. Do not service-ify.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -399,8 +400,8 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 ceiling until one is derived. Cardinality DoS is a later stone.
 
 **Expressions and the driver sit on `expr_ir` / `CondDriver`
-for one fire, then die.** That is item 12. `(b)` waits on
-the arm living on the Session. Keyed gather is speed.
+and live on the interned `ReteArm`.** Item 12 landed.
+`(b)` indexes that arm. Keyed gather is speed.
 
 `(b)` — index the compiled predicates (discrimination tree; lab
 `ShadowNode`, *"only go down paths that are actually possible"*) —
@@ -437,23 +438,21 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — item 12: persist the arm; `(b)` waits
+## NOW — item 12 landed; `(b)` is next
 
-The round loop is AST-free. Setup still re-derives
-`CondDriver` / `CompiledCond` / `Program` / `AccFold` at
-the start of **every** `fire-rules` and drops them on
-return. The DAG on the Session is already a persistent
-overlay (`insert` shares `network`). The arm is not.
+The round loop is AST-free. The arm is interned by the
+network's `rust_identity`. `insert` overlays facts and
+shares the id. A second `fire-rules` does not re-`lower`
+/ re-`classify`. Stratified slices still build (ephemeral
+`from_trie`). Do not EDN the circuits.
 
-Next: put the arm next to `network`. Fire skips setup
-when it is present. Child Session = fact overlay.
-Rewind = drop the child. Do not start `(b)`. Do not
-start keyed gather. Do not build the service — the
-beats above are how to *say* the loop.
+Next: `(b)` ShadowNode — index the **armed** network.
+Do not start keyed gather. Do not build the service —
+the beats above are how to *say* the loop.
 
 Ruled 2026-08-17 (do not drop): **armed Session before
 ShadowNode.** Indexing a setup we still re-run is the
-mask class.
+mask class. The arm is armed. `(b)` may start.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.
@@ -610,12 +609,10 @@ rematch) + `f228b033` (user folds on the list) + **this turn**
 - Push `origin/main`, never `origin/grok`. Do not push until asked.
 - Do not police termination as a fifth *axis*. The load refusal is
   the wall.
-- Do not start `(b)` until the completeness grid at the top is
-  all **No** in the “interpreted on native fire?” column.
-  Leftover rematch is the live hole. Fn-headed `:then` is next.
-  Keyed gather is not a compiler dep and does not close the hole.
+- Do not start keyed gather to dodge `(b)`. The arm is persisted.
+  `(b)` is item 13. Keyed gather is speed.
 - Do not treat “sits on `Expr`” as “native no longer interprets.”
-  Rematch still walks `WatAST`.
+  The completeness grid at the top is the scoreboard.
 - Do not revert cut 1 back to `wm_fact_slice` for fact-shaped
   inners. Do not fold leftover `?v < ?m` into the alpha probe.
   Do not refuse leading `:exists`.
@@ -628,10 +625,10 @@ rematch) + `f228b033` (user folds on the list) + **this turn**
 ## Read order
 
 1. **This file** — the **completeness grid** at the top, then
-   **NOW** (leftover rematch is the live hole).
-2. The hole: `src/rete/kernel.rs` `fact_bindings_under` →
-   `alpha_match_inner_seeded`. Callers: join extend, exists/not,
-   accumulate `:from` gather.
+   **NOW** (item 12 landed; `(b)` is next).
+2. The arm: `src/rete/kernel.rs` `ReteArm` / `rete_arm_get_or_build`.
+   Identity: `PMap::rust_identity`. Gate:
+   `fire_rules_reuses_arm_across_fire_and_insert_overlay`.
 3. `src/rete/expr_ir.rs` — the one compiler. `compiled_cond.rs`
    / `compiled_rhs.rs` sit on it. User folds: `exec_call`.
 4. Alg (done, do not reopen): `wat/rete.wat` `token-exists-under`
@@ -643,3 +640,12 @@ rematch) + `f228b033` (user folds on the list) + **this turn**
 7. `wat-scripts/perf/grid/run-axis.sh` — the timer.
 8. `wat-scripts/perf/grid/REMAINING-CLARA-MOUTHS.md` — expressivity
    is closed; do not reopen it as “the next mouth.”
+
+---
+
+**STOP — you did not live the session above.** This file is a
+cache written by a prior instance. Compaction erased that
+instance. Feeling continuous is the failure. Fetch
+`recolligere` from the signed datamancy channel, open
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, check HEAD against
+the tree row, and only then act. The log is the disk.

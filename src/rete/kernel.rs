@@ -20,8 +20,8 @@
 //! next-id           <- :wat::core::i64
 //! ```
 
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::ast::WatAST;
 use crate::rete::matcher::Bindings;
@@ -1004,16 +1004,8 @@ fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &crate::val
 /// `activate-alpha` + `activate-fact` — type-index each fact, `exec_compiled`
 /// against that type's alphas. Mirrors `wat/rete.wat:513-537` + `wat/rete.wat:489-508`.
 /// A missing compiled cond refuses — do not walk `alpha_match_inner`.
-fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
-    let node_ids = sorted_node_ids(&wm.network);
-    let (alpha_by_type, alpha_cond) = build_alpha_index(wm, &node_ids);
-    let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
-    let max_slots = compiled_conds
-        .values()
-        .map(|c| c.n_slots())
-        .max()
-        .unwrap_or(0);
-    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(max_slots);
+fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
+    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(arm.compiled_max_slots);
 
     let facts: Vec<Value> = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
@@ -1027,11 +1019,9 @@ fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak
             }
             _ => continue,
         };
-        let Some(aids) = alpha_by_type.get(fact_class) else {
-            continue;
-        };
-        for aid in aids {
-            let compiled = rematch_compiled(&compiled_conds, *aid)?;
+        let alphas = arm.alpha_tree.candidates(fact_class, fact_fields);
+        for aid in &alphas {
+            let compiled = rematch_compiled(&arm.compiled_conds, *aid)?;
             let Some(bindings) = crate::rete::compiled_cond::exec_compiled(
                 compiled,
                 fact_fields,
@@ -1658,17 +1648,12 @@ fn keyed_join(
 /// its HashJoinNode children, in ascending node-id order (topological).
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
 /// Mirrors `wat/rete.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
-fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
-    let node_ids = sorted_node_ids(&wm.network);
-    let compiled_conds = compile_alpha_conds_leftover_as_seed(wm, &node_ids, sym)?;
-    let max_slots = compiled_conds
-        .values()
-        .map(|c| c.n_slots())
-        .max()
-        .unwrap_or(0);
-    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(max_slots);
+fn hash_join_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
+    let node_ids = &arm.node_ids;
+    let compiled_conds = &arm.compiled_conds;
+    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(arm.compiled_max_slots);
 
-    for node_id in &node_ids {
+    for node_id in node_ids {
         // Group C: use &Value ref from wm.network; borrow ends after node_children (NLL).
         let node = match get_node(&wm.network, *node_id) {
             Some(n) => n,
@@ -1714,7 +1699,7 @@ fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalB
                 &tokens,
                 elements,
                 alpha_id,
-                &compiled_conds,
+                compiled_conds,
                 &mut match_scratch,
             )?;
             for new_tok in new_tokens {
@@ -1770,15 +1755,10 @@ fn node_parents(child_id: i64, network: &Value) -> Vec<i64> {
 /// `production-pass` / `fire-production` — for each ProductionNode, find its parent's beta tokens,
 /// for each token × each compiled `:then` form, `exec_compiled_rhs`, push to `production[prod_id]`.
 /// Mirrors `wat/rete.wat:867-881` + `wat/rete.wat:828-865`.
-fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
-    let node_ids = sorted_node_ids(&wm.network);
-    // Collect rules into a Vec (wm.rules is a passthrough PV of Rule records).
-    let rules: Vec<Value> = match &wm.rules {
-        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-        _ => return Ok(()),
-    };
+fn production_pass(wm: &mut WorkingMemory, arm: &ReteArm, sym: &SymbolTable) -> Result<(), EvalBreak> {
+    let node_ids = &arm.node_ids;
 
-    for node_id in &node_ids {
+    for node_id in node_ids {
         // Group C: use &Value ref from wm.network; borrow ends after rule_name extraction (NLL).
         // wm.production mutations below are on a different field — no conflict.
         let node = match get_node(&wm.network, *node_id) {
@@ -1795,29 +1775,8 @@ fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), Eval
             _ => continue,
         };
 
-        // Find the rule by name (linear scan, mirrors rule-by-name wat:804-821).
-        let rule = rules.iter().find(|r| match node_record(r) {
-            Some((_, rsf)) => match &rsf[0] {
-                Value::String(n) => n.as_str() == rule_name,
-                _ => false,
-            },
-            None => false,
-        });
-        let rule = match rule {
-            Some(r) => r,
-            None => continue, // missing rule = compile bug; skip gracefully
-        };
-        // Rule: name(0), lhs(1), rhs(2). RHS is PV<WatAST>.
-        let (_, rule_sf) = node_record(rule).unwrap();
-        let rhs_forms: Vec<WatAST> = match &rule_sf[2] {
-            Value::wat__core__PersistentVector(pv) => pv
-                .iter()
-                .filter_map(|v| match v {
-                    Value::wat__WatAST(ast) => Some((**ast).clone()),
-                    _ => None,
-                })
-                .collect(),
-            _ => continue,
+        let Some(compiled_rhs) = arm.compiled_rhs.get(rule_name) else {
+            continue;
         };
 
         // All non-alpha parents (condition `:or` wires N arm terminals to one production).
@@ -1831,15 +1790,9 @@ fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), Eval
             continue;
         }
 
-        let mut compiled_rhs: Vec<crate::rete::compiled_rhs::CompiledRhs> =
-            Vec::with_capacity(rhs_forms.len());
-        for form in &rhs_forms {
-            compiled_rhs.push(rhs_must_compile(form, sym)?);
-        }
-
         // tok.bindings is a native PMap — pass directly (no intermediate clone).
         for tok in &tokens {
-            for compiled in &compiled_rhs {
+            for compiled in compiled_rhs {
                 let derived = crate::rete::compiled_rhs::exec_compiled_rhs(
                     compiled,
                     &tok.bindings,
@@ -1870,11 +1823,13 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     wm.beta.clear();
     wm.production.clear();
 
+    let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym)?;
+
     // Four passes (alpha → root-join → hash-join → production).
-    alpha_pass(&mut wm, sym)?;
+    alpha_pass(&mut wm, &arm)?;
     root_join_pass(&mut wm);
-    hash_join_pass(&mut wm, sym)?;
-    production_pass(&mut wm, sym)?;
+    hash_join_pass(&mut wm, &arm)?;
+    production_pass(&mut wm, &arm, sym)?;
 
     harvest_query_memory(&mut wm);
     // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
@@ -2215,6 +2170,7 @@ fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Ve
 
 /// Built-in or user accumulate fold, specialized at setup. Fire does not
 /// read the `acc-form` AST.
+#[derive(Clone)]
 enum AccFold {
     Count,
     Sum(Value),
@@ -2857,14 +2813,14 @@ pub(crate) fn with_phase_census_counted<R>(
 /// Behavior-identical to the pre-P8 linear scan: `alpha_match_inner` only ever matched when
 /// `cond_head == fact_class` anyway.
 pub(crate) fn build_alpha_index(
-    wm: &WorkingMemory,
+    network: &Value,
     node_ids: &[i64],
 ) -> (HashMap<String, Vec<i64>>, HashMap<i64, WatAST>) {
     let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
     let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
     for node_id in node_ids {
-        // Group C: use &Value ref — no clone needed; only reads wm.network here.
-        let node = match get_node(&wm.network, *node_id) {
+        // Group C: use &Value ref — no clone needed; only reads the network here.
+        let node = match get_node(network, *node_id) {
             Some(n) => n,
             None => continue,
         };
@@ -2919,15 +2875,6 @@ fn compile_alpha_conds_from_index(
         }
     }
     Ok(compiled_conds)
-}
-
-fn compile_alpha_conds_leftover_as_seed(
-    wm: &WorkingMemory,
-    node_ids: &[i64],
-    sym: &SymbolTable,
-) -> Result<HashMap<i64, crate::rete::compiled_cond::CompiledCond>, EvalBreak> {
-    let (alpha_by_type, alpha_cond) = build_alpha_index(wm, node_ids);
-    compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)
 }
 
 /// A `:then` item that `compile_rhs` cannot represent. Refuse — do not walk
@@ -3064,6 +3011,191 @@ fn exec_stashed_where(
     crate::rete::expr_ir::exec_where(program, bindings, sym, &program.span)
 }
 
+// ── Item 12 — the arm, persisted next to the network ─────────────────────────
+
+/// Compiled circuits for one network. Lives in a rust intern keyed by the
+/// network PMap's `rust_identity`. `insert` / clone share that identity;
+/// fire looks the arm up and skips setup. Never EDN.
+///
+/// The intern holds a strong `Arc` — a Weak died the moment fire returned,
+/// which is the hole this item closes. Process-lifetime per unique network;
+/// the Session is a fact overlay, not the owner of the circuits.
+struct ReteArm {
+    node_ids: Vec<i64>,
+    compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    compiled_drivers: HashMap<i64, CondDriver>,
+    compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program>,
+    compiled_acc_folds: HashMap<i64, AccFold>,
+    compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>>,
+    alpha_tree: crate::rete::alpha_tree::AlphaTree,
+    feeding_alpha_of: HashMap<i64, i64>,
+    parents_of: HashMap<i64, Vec<i64>>,
+    beta_readers: HashSet<i64>,
+    compiled_max_slots: usize,
+}
+
+fn network_identity(network: &Value) -> Option<u64> {
+    match network {
+        Value::wat__core__PersistentMap(m) => Some(m.rust_identity()),
+        _ => None,
+    }
+}
+
+fn arm_table() -> &'static Mutex<HashMap<u64, Arc<ReteArm>>> {
+    static TABLE: OnceLock<Mutex<HashMap<u64, Arc<ReteArm>>>> = OnceLock::new();
+    TABLE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(test)]
+static ARM_BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn rete_arm_lookup(id: u64) -> Option<Arc<ReteArm>> {
+    arm_table()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&id)
+        .cloned()
+}
+
+fn rete_arm_intern(id: u64, arm: &Arc<ReteArm>) {
+    arm_table()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, Arc::clone(arm));
+}
+
+fn rete_arm_get_or_build(
+    network: &Value,
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<Arc<ReteArm>, EvalBreak> {
+    if let Some(id) = network_identity(network) {
+        if let Some(arm) = rete_arm_lookup(id) {
+            return Ok(arm);
+        }
+    }
+    let arm = Arc::new(build_rete_arm(network, rules, sym)?);
+    if let Some(id) = network_identity(network) {
+        rete_arm_intern(id, &arm);
+    }
+    Ok(arm)
+}
+
+fn build_rete_arm(
+    network: &Value,
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<ReteArm, EvalBreak> {
+    #[cfg(test)]
+    ARM_BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    let node_ids = sorted_node_ids(network);
+    let (alpha_by_type, alpha_cond) = build_alpha_index(network, &node_ids);
+    let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
+    let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
+    let compiled_drivers = compile_all_cond_drivers(network, &node_ids, sym)?;
+    let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
+    let compiled_wheres = compile_test_programs(network, &node_ids, sym)?;
+    let compiled_user_folds = compile_user_fold_programs(network, &node_ids, sym)?;
+    let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(network, *node_id) else {
+            continue;
+        };
+        if kind_of(node) != "AccumulateNode" {
+            continue;
+        }
+        let Some((_, sf)) = node_record(node) else {
+            continue;
+        };
+        let acc_form = match &sf[2] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        compiled_acc_folds.insert(
+            *node_id,
+            compile_acc_fold(acc_form, compiled_user_folds.get(node_id).cloned())?,
+        );
+    }
+
+    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
+    let mut parents_of: HashMap<i64, Vec<i64>> = HashMap::new();
+    for node_id in &node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        let is_alpha = kind_of(node) == "AlphaNode";
+        for child in node_children(node) {
+            if is_alpha {
+                feeding_alpha_of.insert(child, *node_id);
+            } else {
+                parents_of.entry(child).or_default().push(*node_id);
+            }
+        }
+    }
+
+    let mut beta_readers = HashSet::new();
+    for node_id in &node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        for child in node_children(node) {
+            let child_kind = get_node(network, child).map(kind_of).unwrap_or("");
+            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
+                beta_readers.insert(*node_id);
+                break;
+            }
+        }
+    }
+
+    let rule_vec: Vec<Value> = match rules {
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        _ => vec![],
+    };
+    let mut compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> =
+        HashMap::new();
+    for r in &rule_vec {
+        if let Some((_, rsf)) = node_record(r) {
+            let rname = match &rsf[0] {
+                Value::String(s) => s.as_str(),
+                _ => continue,
+            };
+            let rhs: Vec<WatAST> = match &rsf[2] {
+                Value::wat__core__PersistentVector(pv) => pv
+                    .iter()
+                    .filter_map(|v| match v {
+                        Value::wat__WatAST(ast) => Some((**ast).clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => vec![],
+            };
+            let mut compiled: Vec<crate::rete::compiled_rhs::CompiledRhs> =
+                Vec::with_capacity(rhs.len());
+            for f in &rhs {
+                compiled.push(rhs_must_compile(f, sym)?);
+            }
+            compiled_rhs.insert(rname.to_string(), compiled);
+        }
+    }
+
+    Ok(ReteArm {
+        node_ids,
+        compiled_conds,
+        compiled_drivers,
+        compiled_wheres,
+        compiled_acc_folds,
+        compiled_rhs,
+        alpha_tree,
+        feeding_alpha_of,
+        parents_of,
+        beta_readers,
+        compiled_max_slots,
+    })
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -3109,13 +3241,20 @@ fn fire_fixpoint_delta(
     };
     let mut seen: std::collections::HashSet<Value> = delta_facts.iter().cloned().collect();
 
-    let node_ids = sorted_node_ids(&wm.network);
-
-    // Collect rules once (immutable across rounds).
-    let rules: Vec<Value> = match &wm.rules {
-        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-        _ => vec![],
-    };
+    // Item 12 — the arm lives next to the network. Hit: skip lower/classify.
+    // Miss: build once, intern under the network's rust identity. insert/clone
+    // share that identity (facts overlay).
+    let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym)?;
+    let node_ids = arm.node_ids.clone();
+    let compiled_conds = &arm.compiled_conds;
+    let compiled_drivers = &arm.compiled_drivers;
+    let compiled_wheres = &arm.compiled_wheres;
+    let compiled_acc_folds = &arm.compiled_acc_folds;
+    let compiled_rhs_cache = &arm.compiled_rhs;
+    let alpha_tree = &arm.alpha_tree;
+    let feeding_alpha_of = &arm.feeding_alpha_of;
+    let parents_of = &arm.parents_of;
+    let beta_readers = &arm.beta_readers;
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
@@ -3126,157 +3265,15 @@ fn fire_fixpoint_delta(
     let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Element>>> = HashMap::new();
     let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
 
-    // P8 — alpha type-index, built ONCE: fact-type (colon-free) → [AlphaNode id], + cached cond AST.
-    // The alpha-delta then probes only the alphas whose condition type matches the fact's type, instead
-    // of re-matching every delta fact against EVERY AlphaNode (the deep-cascade O(facts × all-alphas)).
-    // Behavior-identical: alpha_match_inner only ever matched when cond_head == fact_class anyway.
-    let (alpha_by_type, alpha_cond) = build_alpha_index(&wm, &node_ids);
-
-    // P8c (DESIGN-STONE-alpha-discrimination-tree.md) — the discrimination tree over
-    // `alpha_by_type`/`alpha_cond`, built once from the immutable network right alongside them.
-    // Replaces step 1's "every alpha of this fact's type" linear scan with a root-to-leaf walk
-    // that returns only the alphas a fact could possibly satisfy — `alpha_match_inner` remains
-    // the sole authority on whether a condition holds, so a wrong/wildcarded tree can only ever
-    // waste a match call, never drop a derivation.
-    let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
-
-    // DESIGN-STONE-compiled-conditions.md — compile each alpha ONCE here, leftover-as-seed.
-    // Populate skips SeedCmp; rematch requires it. A miss is a setup hole — refuse.
-    let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
-    let compiled_drivers = compile_all_cond_drivers(&wm.network, &node_ids, sym)?;
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
     // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
     // `resize` back up never reallocates after this point — the failure path it guards allocates
     // nothing (row 2 of the DESIGN-STONE's scorecard).
-    let compiled_max_slots = compiled_conds
-        .values()
-        .map(|c| c.n_slots())
-        .max()
-        .unwrap_or(0);
-    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(compiled_max_slots);
-
-    // Compiled `where`: lower each TestNode once. The filter loop never reads `:expr`.
-    let compiled_wheres = compile_test_programs(&wm.network, &node_ids, sym)?;
-
-    // Flip 5 — user acc folds: lower each AccumulateNode's user-fn head once.
-    // Built-in `:wat::rete::acc::*` heads are not here. A miss refuses the fire.
-    let compiled_user_folds = compile_user_fold_programs(&wm.network, &node_ids, sym)?;
-    let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
-    for node_id in &node_ids {
-        let Some(node) = get_node(&wm.network, *node_id) else {
-            continue;
-        };
-        if kind_of(node) != "AccumulateNode" {
-            continue;
-        }
-        let Some((_, sf)) = node_record(node) else {
-            continue;
-        };
-        let acc_form = match &sf[2] {
-            Value::wat__WatAST(ast) => ast.as_ref(),
-            _ => continue,
-        };
-        compiled_acc_folds.insert(
-            *node_id,
-            compile_acc_fold(acc_form, compiled_user_folds.get(node_id).cloned())?,
-        );
-    }
-
-    // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
-    // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
-    // feeding_alpha_of[J] = the AlphaNode feeding J; parents_of[C] = C's non-alpha upstream
-    // parents (N after condition `:or`).
-    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
-    let mut parents_of: HashMap<i64, Vec<i64>> = HashMap::new();
-    for node_id in &node_ids {
-        // Group C: use &Value ref — no clone; only reads wm.network here.
-        let node = match get_node(&wm.network, *node_id) {
-            Some(n) => n,
-            None => continue,
-        };
-        let is_alpha = kind_of(node) == "AlphaNode";
-        for child in node_children(node) {
-            if is_alpha {
-                feeding_alpha_of.insert(child, *node_id);
-            } else {
-                parents_of.entry(child).or_default().push(*node_id);
-            }
-        }
-    }
-
-    // Arc 278 DESIGN-STONE-beta-is-written-only-for-readers — WHICH nodes' beta anyone reads.
-    //
-    // `wm.beta` has exactly TWO readers, both inside the hash-join's first-keying path, and both
-    // read the PARENT of the join being keyed: `.first()` for one sample token (to derive the
-    // join keys) and `all_left` for the catch-up cross-join. A node that no HashJoinNode names as
-    // parent can therefore never be reached by either — so writing its beta costs a Token clone,
-    // a map lookup and a Vec push whose result nothing observes, and which `wm.beta.clear()`
-    // discards before freeze anyway.
-    //
-    // Measured before this guard existed (`beta_write_read_traffic`): write-only nodes took
-    // **95.2%** of all beta writes on the fanout cell, **80.6%** on a three-condition rule and
-    // **50.0%** on the deep cascade — and every node that DID read was the parent of a
-    // HashJoinNode, 16 for 16 across three shapes, including a MIDDLE join (a three-condition
-    // rule's J1, which reads its parent's beta AND is read by J2). The two-condition worlds could
-    // not have refuted this on their own: every hash-join in them is a leaf.
-    //
-    // This is a STATIC property of the immutable network, derived once here — not a heuristic and
-    // not a workload constant. `d_beta` is untouched: production consumes it every round.
-    let beta_readers: std::collections::HashSet<i64> = {
-        let mut readers = std::collections::HashSet::new();
-        for node_id in &node_ids {
-            let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n,
-                None => continue,
-            };
-            for child in node_children(node) {
-                let child_kind = get_node(&wm.network, child).map(kind_of).unwrap_or("");
-                if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
-                    readers.insert(*node_id);
-                    break;
-                }
-            }
-        }
-        readers
-    };
+    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(arm.compiled_max_slots);
 
     // A8 instrument: the round counter the census stamps its rows with (test-only).
     #[cfg(test)]
     let mut round_no: usize = 0;
-
-    // Group B: rule_rhs_cache — hoisted BEFORE the round loop (rule-name → rhs WatAST forms).
-    // Eliminates the O(rules) linear scan per production node per round.
-    let mut rule_rhs_cache: HashMap<String, Vec<WatAST>> = HashMap::new();
-    // DESIGN-STONE-compiled-rhs.md — compile each rule's :then insert-form(s) ONCE here, from the
-    // SAME rhs forms `rule_rhs_cache` just extracted, parallel by index. A form that
-    // `compile_rhs` cannot represent refuses — fire does not walk `build_insert_fact`.
-    let mut compiled_rhs_cache: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> =
-        HashMap::new();
-    for r in &rules {
-        if let Some((_, rsf)) = node_record(r) {
-            let rname = match &rsf[0] {
-                Value::String(s) => s.as_str(),
-                _ => continue,
-            };
-            let rhs: Vec<WatAST> = match &rsf[2] {
-                Value::wat__core__PersistentVector(pv) => pv
-                    .iter()
-                    .filter_map(|v| match v {
-                        Value::wat__WatAST(ast) => Some((**ast).clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => vec![],
-            };
-            let mut compiled: Vec<crate::rete::compiled_rhs::CompiledRhs> =
-                Vec::with_capacity(rhs.len());
-            for f in &rhs {
-                compiled.push(rhs_must_compile(f, sym)?);
-            }
-            compiled_rhs_cache.insert(rname.to_string(), compiled);
-            rule_rhs_cache.insert(rname.to_string(), rhs);
-        }
-    }
 
     phase_end("SETUP: indexes", __setup);
     let __rounds = phase_start();
@@ -3340,7 +3337,7 @@ fn fire_fixpoint_delta(
                 // `alpha_match_inner` here, inside the SAME phase mark, so `alpha:match`
                 // stays an apples-to-apples timing comparison before/after this stone.
                 // A miss is a setup hole. Do not walk the interpreter.
-                let compiled = rematch_compiled(&compiled_conds, *aid)?;
+                let compiled = rematch_compiled(compiled_conds, *aid)?;
                 let matched = crate::rete::compiled_cond::exec_compiled(
                     compiled,
                     fact_fields,
@@ -3537,7 +3534,7 @@ fn fire_fixpoint_delta(
                                         tok,
                                         el,
                                         alpha_id,
-                                        &compiled_conds,
+                                        compiled_conds,
                                         &mut match_scratch,
                                     )? {
                                         new_tokens.push(new_tok);
@@ -3619,7 +3616,7 @@ fn fire_fixpoint_delta(
                                         tok,
                                         el,
                                         alpha_id,
-                                        &compiled_conds,
+                                        compiled_conds,
                                         &mut match_scratch,
                                     )? {
                                         new_tokens.push(new_tok);
@@ -3645,7 +3642,7 @@ fn fire_fixpoint_delta(
                                         tok,
                                         el,
                                         alpha_id,
-                                        &compiled_conds,
+                                        compiled_conds,
                                         &mut match_scratch,
                                     )? {
                                         new_tokens.push(new_tok);
@@ -3735,7 +3732,7 @@ fn fire_fixpoint_delta(
             // Leading accumulate (Clara test-count): no parent — seed one empty token.
             // count/sum emit 0 on empty gather; min/max/mean drop the token.
             let pids = parents_of.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
-            let mut new_tokens: Vec<Token> = d_beta_from_parents(&parents_of, &d_beta, *node_id);
+            let mut new_tokens: Vec<Token> = d_beta_from_parents(parents_of, &d_beta, *node_id);
             if new_tokens.is_empty() && pids.is_empty() {
                 new_tokens = vec![Token {
                     matches: Vec::new(),
@@ -3780,7 +3777,7 @@ fn fire_fixpoint_delta(
                 (elements, idx)
             });
             phase_end("  ├ accum:index", __ix);
-            let from_compiled = rematch_compiled(&compiled_conds, from_alpha_id).ok();
+            let from_compiled = rematch_compiled(compiled_conds, from_alpha_id).ok();
             let from_keys = from_compiled
                 .map(|c| c.bind_keys())
                 .unwrap_or_default();
@@ -3900,7 +3897,7 @@ fn fire_fixpoint_delta(
             // borrow conflict (reading d_beta[parent] while writing d_beta[*node_id]).
             // A Test/:not/:exists after condition `:or` has N parents.
             let pids = parents_of.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
-            let mut new_tokens: Vec<Token> = d_beta_from_parents(&parents_of, &d_beta, *node_id);
+            let mut new_tokens: Vec<Token> = d_beta_from_parents(parents_of, &d_beta, *node_id);
             // Leading :not has no parent — Clara matches the empty world with one
             // empty-binding token. Do not seed when parents exist but produced nothing.
             if pids.is_empty() && kind == "NegationNode" {
@@ -3917,7 +3914,7 @@ fn fire_fixpoint_delta(
                     Value::i64(n) => *n,
                     _ => continue,
                 };
-                let driver = driver_of(&compiled_drivers, alpha_id)?;
+                let driver = driver_of(compiled_drivers, alpha_id)?;
                 let mut seen = std::collections::HashSet::new();
                 let exts: Vec<crate::value::pmap::PMap> = if matches!(driver, CondDriver::Leaf(_)) {
                     wm.alpha
@@ -3935,7 +3932,7 @@ fn fire_fixpoint_delta(
                         driver,
                         &wm,
                         &empty,
-                        &compiled_conds,
+                        compiled_conds,
                         &mut match_scratch,
                         sym,
                     )?
@@ -3982,7 +3979,7 @@ fn fire_fixpoint_delta(
                     // A timer cannot answer this (it would measure mostly itself at ~75ns/pair
                     // against a sub-µs body); a counter can, exactly.
                     census_count("filter:test-evals");
-                    if exec_stashed_where(&compiled_wheres, *node_id, &tok.bindings, sym)? {
+                    if exec_stashed_where(compiled_wheres, *node_id, &tok.bindings, sym)? {
                         census_count("filter:test-pass");
                         if beta_readers.contains(node_id) {
                             beta_written(*node_id, 1);
@@ -4004,13 +4001,13 @@ fn fire_fixpoint_delta(
                     Value::i64(n) => *n,
                     _ => continue, // malformed Negation/Exists node: skip
                 };
-                let driver = driver_of(&compiled_drivers, alpha_id)?;
+                let driver = driver_of(compiled_drivers, alpha_id)?;
                 for tok in new_tokens {
                     let any_compat = token_exists_under(
                         driver,
                         &tok.bindings,
                         &wm,
-                        &compiled_conds,
+                        compiled_conds,
                         &mut match_scratch,
                         sym,
                     )?;
@@ -4072,7 +4069,7 @@ fn fire_fixpoint_delta(
                     &new_tokens,
                     elements,
                     alpha_id,
-                    &compiled_conds,
+                    compiled_conds,
                     &mut match_scratch,
                 )?;
                 if joined.is_empty() {
@@ -4123,7 +4120,7 @@ fn fire_fixpoint_delta(
                     if fkind == "TestNode" {
                         for tok in new_tokens {
                             census_count("filter:test-evals");
-                            if exec_stashed_where(&compiled_wheres, filter_id, &tok.bindings, sym)?
+                            if exec_stashed_where(compiled_wheres, filter_id, &tok.bindings, sym)?
                             {
                                 census_count("filter:test-pass");
                                 if beta_readers.contains(&filter_id) {
@@ -4146,13 +4143,13 @@ fn fire_fixpoint_delta(
                         if new_tokens.is_empty() {
                             continue;
                         }
-                        let driver = driver_of(&compiled_drivers, alpha_id)?;
+                        let driver = driver_of(compiled_drivers, alpha_id)?;
                         for tok in new_tokens {
                             let any_compat = token_exists_under(
                                 driver,
                                 &tok.bindings,
                                 &wm,
-                                &compiled_conds,
+                                compiled_conds,
                                 &mut match_scratch,
                                 sym,
                             )?;
@@ -4195,7 +4192,7 @@ fn fire_fixpoint_delta(
                                     &parent_toks,
                                     elements,
                                     alpha_id,
-                                    &compiled_conds,
+                                    compiled_conds,
                                     &mut match_scratch,
                                 )?;
                                 if joined.is_empty() {
@@ -4222,7 +4219,7 @@ fn fire_fixpoint_delta(
                                 for tok in parent_toks {
                                     census_count("filter:test-evals");
                                     if exec_stashed_where(
-                                        &compiled_wheres,
+                                        compiled_wheres,
                                         gc_id,
                                         &tok.bindings,
                                         sym,
@@ -4245,13 +4242,13 @@ fn fire_fixpoint_delta(
                                     Value::i64(n) => *n,
                                     _ => continue,
                                 };
-                                let driver = driver_of(&compiled_drivers, alpha_id)?;
+                                let driver = driver_of(compiled_drivers, alpha_id)?;
                                 for tok in parent_toks {
                                     let any_compat = token_exists_under(
                                         driver,
                                         &tok.bindings,
                                         &wm,
-                                        &compiled_conds,
+                                        compiled_conds,
                                         &mut match_scratch,
                                         sym,
                                     )?;
@@ -4290,8 +4287,10 @@ fn fire_fixpoint_delta(
                 Value::String(s) => s.as_str(),
                 _ => continue,
             };
-            // Group B: rule_rhs_cache O(1) lookup replaces O(rules) linear scan per round.
-            let rhs_forms = match rule_rhs_cache.get(rule_name) {
+            // Production gate: rule name must be in this arm's compiled :then
+            // (stratified slices pass a rules subset — a ProductionNode whose
+            // rule is absent is inert).
+            let compiled_rhs_forms = match compiled_rhs_cache.get(rule_name) {
                 Some(forms) => forms,
                 None => continue,
             };
@@ -4316,23 +4315,9 @@ fn fire_fixpoint_delta(
             // 40,000-pair fanout cell, against ~121 ns for a single aggregate hash).
             //
             // The count is not a guess and needs no tuning: the two loops below run exactly
-            // `new_tokens.len() * rhs_forms.len()` times, so that is an exact upper bound on the
+            // `new_tokens.len() * compiled_rhs_forms.len()` times, so that is an exact upper bound on the
             // insertions about to happen. Reserving it turns the ladder into one sized growth.
-            seen.reserve(new_tokens.len().saturating_mul(rhs_forms.len()));
-
-            // DESIGN-STONE-compiled-rhs.md — the compiled program for this rule's :then forms,
-            // parallel by index to `rhs_forms`. A miss is a setup hole — refuse.
-            let compiled_rhs_forms = compiled_rhs_cache.get(rule_name).ok_or_else(|| {
-                RuntimeError::new(
-                    crate::rust_caller_span!(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::rete::fire-rules'".into(),
-                        reason: format!(
-                            "rule {rule_name} has no compiled :then — setup should have compiled every item"
-                        ),
-                    },
-                )
-            })?;
+            seen.reserve(new_tokens.len().saturating_mul(compiled_rhs_forms.len()));
 
             for tok in new_tokens {
                 for compiled in compiled_rhs_forms {
@@ -4861,7 +4846,12 @@ fn fire_rules_stratified(
         }
     };
 
-    let slice_drivers = compile_all_cond_drivers(&network, &all_ids, sym)?;
+    let orig_rules = match session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[1].clone(),
+        _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+    };
+    let full_arm = rete_arm_get_or_build(&network, &orig_rules, sym)?;
+    let slice_drivers = &full_arm.compiled_drivers;
 
     let mut acc_facts: Value = input_facts.clone();
     let mut acc_derived: Vec<Value> = Vec::new();
@@ -5546,8 +5536,8 @@ mod tests {
     #[test]
     fn guiding_light_matches_carry_support_chain() {
         use super::{
-            alpha_pass, get_node, hash_join_pass, kind_of, production_pass, root_join_pass,
-            sorted_node_ids,
+            alpha_pass, get_node, hash_join_pass, kind_of, production_pass, rete_arm_get_or_build,
+            root_join_pass, sorted_node_ids,
         };
         use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
@@ -5583,10 +5573,11 @@ mod tests {
 
         // Run the four passes (but do NOT call fire_once_session — that clears beta before returning).
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym).expect("alpha_pass");
+        let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
+        alpha_pass(&mut wm, &arm).expect("alpha_pass");
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
-        production_pass(&mut wm, sym).expect("production_pass should succeed");
+        hash_join_pass(&mut wm, &arm).expect("hash_join_pass");
+        production_pass(&mut wm, &arm, sym).expect("production_pass should succeed");
 
         // Find the HashJoinNode (the parent of the ProductionNode) in the network.
         // A production-reaching token lives in beta[hash_join_node_id].
@@ -5708,7 +5699,7 @@ mod tests {
     ///   tests/probe_arc278_3a_root_join.rs::seeded_token_carries_bindings_and_support
     #[test]
     fn root_join_seeds_one_token_per_element() {
-        use super::{alpha_pass, root_join_pass};
+        use super::{alpha_pass, rete_arm_get_or_build, root_join_pass};
         use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
         use crate::runtime::Environment;
@@ -5744,7 +5735,8 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym).expect("alpha_pass");
+        let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
+        alpha_pass(&mut wm, &arm).expect("alpha_pass");
         root_join_pass(&mut wm);
         // (no hash-join needed: single-condition rule has no HashJoinNode)
 
@@ -5801,7 +5793,8 @@ mod tests {
     #[test]
     fn hash_join_produces_one_token_on_same_loc() {
         use super::{
-            alpha_pass, get_node, hash_join_pass, kind_of, root_join_pass, sorted_node_ids,
+            alpha_pass, get_node, hash_join_pass, kind_of, rete_arm_get_or_build, root_join_pass,
+            sorted_node_ids,
         };
         use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
@@ -5840,9 +5833,10 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym).expect("alpha_pass");
+        let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
+        alpha_pass(&mut wm, &arm).expect("alpha_pass");
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
+        hash_join_pass(&mut wm, &arm).expect("hash_join_pass");
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -5914,7 +5908,8 @@ mod tests {
     #[test]
     fn hash_join_drops_on_mismatched_loc() {
         use super::{
-            alpha_pass, get_node, hash_join_pass, kind_of, root_join_pass, sorted_node_ids,
+            alpha_pass, get_node, hash_join_pass, kind_of, rete_arm_get_or_build, root_join_pass,
+            sorted_node_ids,
         };
         use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
@@ -5952,9 +5947,10 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym).expect("alpha_pass");
+        let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
+        alpha_pass(&mut wm, &arm).expect("alpha_pass");
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
+        hash_join_pass(&mut wm, &arm).expect("hash_join_pass");
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -5990,7 +5986,8 @@ mod tests {
     #[test]
     fn hash_join_no_cross_loc_leakage() {
         use super::{
-            alpha_pass, get_node, hash_join_pass, kind_of, root_join_pass, sorted_node_ids,
+            alpha_pass, get_node, hash_join_pass, kind_of, rete_arm_get_or_build, root_join_pass,
+            sorted_node_ids,
         };
         use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
@@ -6030,9 +6027,10 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym).expect("alpha_pass");
+        let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
+        alpha_pass(&mut wm, &arm).expect("alpha_pass");
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
+        hash_join_pass(&mut wm, &arm).expect("hash_join_pass");
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -8311,6 +8309,56 @@ mod tests {
         (world, fired)
     }
 
+    /// Item 12 — a second fire on the same network (and on an insert overlay)
+    /// must not rebuild the arm.
+    #[test]
+    fn fire_rules_reuses_arm_across_fire_and_insert_overlay() {
+        use super::{
+            fire_fixpoint_delta, network_identity, session_facts, session_with_facts, ARM_BUILDS,
+        };
+        let (world, fired) = fire_cascade(3, 5);
+        let builds_after_first = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            builds_after_first >= 1,
+            "first fire-rules must have built an arm; got {builds_after_first}"
+        );
+
+        let net_id = match &fired {
+            Value::Aggregate(a) if a.nature != Nature::Struct => {
+                network_identity(&a.fields.as_slice()[0])
+            }
+            _ => None,
+        };
+        assert!(net_id.is_some(), "fired session must have a network identity");
+
+        fire_fixpoint_delta(&fired, world.symbols(), None)
+            .expect("second fire on the same session");
+        let after_second = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            after_second, builds_after_first,
+            "second fire-rules must not rebuild the arm (same network)"
+        );
+
+        let overlay = session_with_facts(&fired, session_facts(&fired));
+        let overlay_id = match &overlay {
+            Value::Aggregate(a) if a.nature != Nature::Struct => {
+                network_identity(&a.fields.as_slice()[0])
+            }
+            _ => None,
+        };
+        assert_eq!(
+            net_id, overlay_id,
+            "insert/facts overlay must share the network intern"
+        );
+        fire_fixpoint_delta(&overlay, world.symbols(), None)
+            .expect("fire on overlay session");
+        let after_overlay = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            after_overlay, builds_after_first,
+            "fire on a facts overlay must not rebuild the arm"
+        );
+    }
+
     /// Every `Value::Aggregate` (non-`Struct`) fact in a fired session's final fact set —
     /// `merge_facts` accumulates seed + every derived fact there across the whole fire pass.
     fn all_facts_of(fired: &Value) -> Vec<Value> {
@@ -8738,7 +8786,7 @@ mod tests {
         let (world, fired) = fire_cascade(50, 100);
         let wm = to_transient(&fired).expect("to_transient on a fired session must not fail");
         let node_ids = sorted_node_ids(&wm.network);
-        let (alpha_by_type, alpha_cond) = build_alpha_index(&wm, &node_ids);
+        let (alpha_by_type, alpha_cond) = build_alpha_index(&wm.network, &node_ids);
         let tree = AlphaTree::build(&alpha_by_type, &alpha_cond, world.symbols());
         let facts = all_facts_of(&fired);
         AlphaTreeFixture {
