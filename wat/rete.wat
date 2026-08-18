@@ -207,6 +207,8 @@
 ;;   fields:  per-class declared field names (parallel to classes).
 ;;   nodes:   packed topology (kind, id, edges). No WatAST.
 ;;   conds / drivers / progs / folds / rhs: packed circuits.
+;;   deps:   [name [produced…] [negated…] [consumed…]] — stratify schedule.
+;;           Residual, not source forms. Import without this takes max_s=0.
 (:wat::core::defrecord :wat::rete::Export
   [v       <- :wat::core::i64
    abi     <- :wat::core::String
@@ -217,7 +219,8 @@
    drivers <- :wat::core::PersistentVector
    progs   <- :wat::core::PersistentVector
    folds   <- :wat::core::PersistentVector
-   rhs     <- :wat::core::PersistentVector])
+   rhs     <- :wat::core::PersistentVector
+   deps    <- :wat::core::PersistentVector])
 
 ;; ─── P12a: explain substrate ────────────────────────────────────────────────
 

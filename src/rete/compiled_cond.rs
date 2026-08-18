@@ -119,6 +119,7 @@ pub(crate) enum Op {
 
 /// A condition compiled once, at setup, from the immutable network — the pre-resolved dual of
 /// `alpha_match_inner`. Built by [`compile_condition`]; run by [`exec_compiled`].
+#[derive(Clone)]
 pub(crate) struct CompiledCond {
     /// The top-level clause sequence (nested `and` flattened in), in source order.
     ops: Vec<Op>,

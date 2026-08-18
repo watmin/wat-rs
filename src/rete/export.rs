@@ -13,8 +13,8 @@ use crate::rete::compiled_rhs::{CompiledRhs, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
     class_field_names, get_node, kind_of, network_identity, node_children, node_record,
-    rete_arm_get_or_build, rete_arm_intern, session_names, sorted_node_ids, AccFold, CondDriver,
-    ReteArm,
+    rete_arm_get_or_build, rete_arm_intern, rule_deps_from_rules, session_names, sorted_node_ids,
+    AccFold, CondDriver, ReteArm, RuleDep,
 };
 use crate::rete::matcher::{alpha_pattern, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
@@ -1280,6 +1280,7 @@ pub(crate) fn eval_export(
     let rhs = map_str(&arm.compiled_rhs, |items| {
         pv(items.iter().map(pack_rhs))
     });
+    let deps = pack_deps(&rule_deps_from_rules(rules));
     let abi = abi_of(&classes.names, &classes.fields);
     let class_pv = pv(classes
         .names
@@ -1302,15 +1303,52 @@ pub(crate) fn eval_export(
             progs,
             folds,
             rhs,
+            deps,
         ]),
     ))))
+}
+
+fn pack_deps(deps: &[RuleDep]) -> Value {
+    pv(deps.iter().map(|(name, produced, negated, consumed)| {
+        pv([
+            Value::String(Arc::new(name.clone())),
+            pv(produced.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(negated.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(consumed.iter().map(|s| Value::String(Arc::new(s.clone())))),
+        ])
+    }))
+}
+
+fn unpack_string_list(v: &Value) -> Result<Vec<String>, EvalBreak> {
+    let xs = expect_seq(v, IMPORT_OP)?;
+    let mut out = Vec::new();
+    for x in xs {
+        out.push(expect_str(&x, IMPORT_OP)?.to_string());
+    }
+    Ok(out)
+}
+
+fn unpack_deps(v: &Value) -> Result<Vec<RuleDep>, EvalBreak> {
+    let mut out = Vec::new();
+    for row in expect_seq(v, IMPORT_OP)? {
+        let p = expect_seq(&row, IMPORT_OP)?;
+        if p.len() < 4 {
+            return Err(malformed(IMPORT_OP, "deps row needs name + 3 lists"));
+        }
+        out.push((
+            expect_str(&p[0], IMPORT_OP)?.to_string(),
+            unpack_string_list(&p[1])?,
+            unpack_string_list(&p[2])?,
+            unpack_string_list(&p[3])?,
+        ));
+    }
+    Ok(out)
 }
 
 /// `(:wat::rete::import <export>) -> :wat::rete::Session`
 ///
 /// Slim topology, interned arm, empty facts. Fire does not lower.
-/// Stratified (negation-over-derived) import is a later cut — imported
-/// sessions take the unstratified path (no rule AST for strata).
+/// Stratify schedule is `:deps` (produced / negated / consumed class names).
 pub(crate) fn eval_import(
     args: &[WatAST],
     list_span: &Span,
@@ -1385,6 +1423,7 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
     let nodes_pv = expect_seq(&sf[4], IMPORT_OP)?;
     let mut network_pairs = Vec::new();
     let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut alpha_class: HashMap<i64, String> = HashMap::new();
     let mut max_id = 0i64;
     for n in nodes_pv.iter() {
         let (id, rec, class_hint) = unpack_node(n)?;
@@ -1395,6 +1434,7 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
             if class_idx >= 0 {
                 if let Some(name) = classes.get(class_idx as usize) {
                     alpha_by_type.entry(name.clone()).or_default().push(id);
+                    alpha_class.insert(id, name.clone());
                 }
             }
         }
@@ -1436,6 +1476,12 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
         }
         compiled_rhs.insert(name, rs);
     }
+
+    let rule_deps = if sf.len() > 10 {
+        unpack_deps(&sf[10])?
+    } else {
+        Vec::new()
+    };
 
     let node_ids = sorted_node_ids(&network);
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
@@ -1480,6 +1526,8 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
         parents_of,
         beta_readers,
         compiled_max_slots,
+        rule_deps,
+        alpha_class,
     });
     if let Some(id) = network_identity(&network) {
         rete_arm_intern(id, &arm);

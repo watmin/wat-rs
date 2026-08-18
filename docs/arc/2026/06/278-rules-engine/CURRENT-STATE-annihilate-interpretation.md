@@ -199,8 +199,8 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
     **armed** network. Not a way around persist.
 14. **`#wat.rete/Export`.** **landed (this turn).** The
     compiled program as one EDN value. `export` / `import`.
-    Native fire. Oracle cannot consume it. Stratified
-    import is a named hole.
+    Native fire. Oracle cannot consume it. Stratify
+    schedule is `:deps`. Gate: `imported_strat_neg_matches_source`.
 
 Keyed `?g` gather is native speed on the same bag, not a
 compiler item. Do not start it to dodge the hole.
@@ -458,10 +458,13 @@ of TypeEnv field-order + `RETE_OPS` names; import refuses
 a miss. Topology children stay PersistentVector (fire
 reads that arm).
 
-Stratified (negation-over-derived) import is a **named
-hole**: imported sessions have empty rules AST, so
-`fire-rules` takes the unstratified path. Do not claim
-strat-neg survives Export yet.
+Negation-over-derived import is **closed**. Export carries
+`:deps` (produced / negated / consumed class names). Import
+interns them on the arm. `fire-rules` stratifies from
+`rule_deps` when the Session has no rule AST. A stratum
+slice subsets the armed circuits (does not rebuild from
+empty tests). Gate: `imported_strat_neg_matches_source`
+(Bad=1, Ok=1 — the unstratified lie is Ok=2).
 
 `(b)` ShadowNode still waits — index the armed network.
 Do not start keyed gather. Do not start 297 (protobuf

@@ -43,6 +43,23 @@ fn export_edn_is_smaller_than_session() {
 }
 
 #[test]
+fn imported_strat_neg_matches_source() {
+    let src = call_beside_value(file!(), ":user::strat-source-counts").expect("source strat");
+    let imp = call_beside_value(file!(), ":user::strat-import-counts").expect("import strat");
+    assert_eq!(
+        src, imp,
+        "imported negation-over-derived must match source fire (want Bad=1 Ok=1, not Ok=2)"
+    );
+    match &src {
+        Value::wat__core__PersistentVector(pv) => {
+            assert_eq!(pv.get(0), Some(&Value::i64(1)), "Bad count");
+            assert_eq!(pv.get(1), Some(&Value::i64(1)), "Ok count");
+        }
+        other => panic!("expected [bad ok] counts, got {other:?}"),
+    }
+}
+
+#[test]
 fn edn_write_read_import_fires() {
     let v = call_beside_value(file!(), ":user::edn-roundtrip-hits").expect("edn roundtrip");
     assert_eq!(

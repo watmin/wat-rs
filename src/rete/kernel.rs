@@ -727,6 +727,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
 }
 
 ::wat_source_derive::wat_field_names_from!(SESSION_FIELDS, "wat/rete.wat", ":wat::rete::Session");
+::wat_source_derive::wat_field_names_from!(RULE_FIELDS, "wat/rete.wat", ":wat::rete::Rule");
 pub(crate) fn session_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(SESSION_FIELDS))
@@ -2014,6 +2015,74 @@ fn session_facts(session: &Value) -> Value {
 /// declaration order: network(0) rules(1) alpha-memory(2) beta-memory(3) production-memory(4)
 /// facts(5) next-id(6)). Used by `eval_fire_rules_native` to read the rule set once, before
 /// deciding fast-path vs stratified dispatch.
+fn session_network(session: &Value) -> Option<&Value> {
+    match session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice().first(),
+        _ => None,
+    }
+}
+
+fn rules_lack_ast(rules: &[Value]) -> bool {
+    if rules.is_empty() {
+        return true;
+    }
+    rules.iter().all(|r| match node_record(r) {
+        Some((_, sf)) if sf.len() > 1 => match &sf[1] {
+            Value::wat__core__PersistentVector(pv) => {
+                !pv.iter().any(|x| matches!(x, Value::wat__WatAST(_)))
+            }
+            _ => true,
+        },
+        _ => true,
+    })
+}
+
+fn synthetic_rule(name: &str) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::rete::Rule".into(),
+        crate::value::value::names_arc_from_static(RULE_FIELDS),
+        Arc::new(vec![
+            Value::String(Arc::new(name.to_string())),
+            Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+            Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+        ]),
+    )))
+}
+
+fn fire_rules_from_deps(
+    session: &Value,
+    deps: &[RuleDep],
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let mut parts: Vec<RuleParts> = Vec::with_capacity(deps.len());
+    for (name, produced, negated, consumed) in deps {
+        parts.push((
+            synthetic_rule(name),
+            produced.clone(),
+            negated.clone(),
+            consumed.clone(),
+        ));
+    }
+    let pn_only: Vec<RuleDeps> = parts
+        .iter()
+        .map(|(_, p, n, c)| (p.clone(), n.clone(), c.clone()))
+        .collect();
+    let type_strata = native_stratify(&pn_only)?;
+    let mut max_s: i64 = 0;
+    let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
+    for (_, produced, negated, _consumed) in &parts {
+        let s = native_rule_stratum(produced, negated, &type_strata);
+        rule_strata.push(s);
+        if s > max_s {
+            max_s = s;
+        }
+    }
+    if max_s == 0 {
+        return fire_fixpoint_delta(session, sym, None);
+    }
+    fire_rules_stratified(session, &parts, &rule_strata, max_s, sym)
+}
+
 fn session_rules(session: &Value) -> Value {
     match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[1].clone(),
@@ -3032,6 +3101,10 @@ pub(crate) struct ReteArm {
     pub(crate) parents_of: HashMap<i64, Vec<i64>>,
     pub(crate) beta_readers: HashSet<i64>,
     pub(crate) compiled_max_slots: usize,
+    /// name → (produced, negated, consumed). Residual of stratify.
+    /// Import has no rule AST; fire-rules reads this instead.
+    pub(crate) rule_deps: Vec<RuleDep>,
+    pub(crate) alpha_class: HashMap<i64, String>,
 }
 
 pub(crate) fn network_identity(network: &Value) -> Option<u64> {
@@ -3049,7 +3122,7 @@ fn arm_table() -> &'static Mutex<HashMap<u64, Arc<ReteArm>>> {
 #[cfg(test)]
 static ARM_BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-fn rete_arm_lookup(id: u64) -> Option<Arc<ReteArm>> {
+pub(crate) fn rete_arm_lookup(id: u64) -> Option<Arc<ReteArm>> {
     arm_table()
         .lock()
         .unwrap_or_else(|e| e.into_inner())
@@ -3181,6 +3254,14 @@ fn build_rete_arm(
         }
     }
 
+    let mut alpha_class: HashMap<i64, String> = HashMap::new();
+    for (ty, ids) in &alpha_by_type {
+        for id in ids {
+            alpha_class.insert(*id, ty.clone());
+        }
+    }
+    let rule_deps = rule_deps_from_rules(rules);
+
     Ok(ReteArm {
         node_ids,
         compiled_conds,
@@ -3193,6 +3274,161 @@ fn build_rete_arm(
         parents_of,
         beta_readers,
         compiled_max_slots,
+        rule_deps,
+        alpha_class,
+    })
+}
+
+/// Stratify inputs from the rule AST. Name, produced, negated, consumed.
+pub(crate) fn rule_deps_from_rules(rules: &Value) -> Vec<RuleDep> {
+    let rule_vec: Vec<Value> = match rules {
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        _ => vec![],
+    };
+    let mut out = Vec::new();
+    for r in &rule_vec {
+        let Some((_, rsf)) = node_record(r) else {
+            continue;
+        };
+        let name = match &rsf[0] {
+            Value::String(s) => s.as_ref().clone(),
+            _ => continue,
+        };
+        let to_asts = |v: &Value| -> Vec<WatAST> {
+            match v {
+                Value::wat__core__PersistentVector(pv) => pv
+                    .iter()
+                    .filter_map(|x| match x {
+                        Value::wat__WatAST(ast) => Some((**ast).clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => vec![],
+            }
+        };
+        let lhs = to_asts(&rsf[1]);
+        let rhs = to_asts(&rsf[2]);
+        out.push((
+            name,
+            rule_produces(&rhs),
+            rule_negates(&lhs),
+            rule_consumes(&lhs),
+        ));
+    }
+    out
+}
+
+/// Filter an armed network down to a stratum slice. The slice is a new
+/// PMap (new intern). Intern this so fire does not rebuild from empty AST.
+pub(crate) fn subset_rete_arm(
+    arm: &ReteArm,
+    active_ids: &HashSet<i64>,
+    rule_names: &HashSet<String>,
+    sliced_network: &Value,
+) -> Arc<ReteArm> {
+    let node_ids: Vec<i64> = arm
+        .node_ids
+        .iter()
+        .copied()
+        .filter(|id| active_ids.contains(id))
+        .collect();
+    let keep = |id: &i64| active_ids.contains(id);
+    let compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond> = arm
+        .compiled_conds
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, c)| (*id, c.clone()))
+        .collect();
+    let compiled_drivers: HashMap<i64, CondDriver> = arm
+        .compiled_drivers
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, d)| (*id, d.clone()))
+        .collect();
+    let compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program> = arm
+        .compiled_wheres
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, p)| (*id, p.clone()))
+        .collect();
+    let compiled_acc_folds: HashMap<i64, AccFold> = arm
+        .compiled_acc_folds
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, f)| (*id, f.clone()))
+        .collect();
+    let compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> = arm
+        .compiled_rhs
+        .iter()
+        .filter(|(n, _)| rule_names.contains(*n))
+        .map(|(n, r)| (n.clone(), r.clone()))
+        .collect();
+    let rule_deps: Vec<RuleDep> = arm
+        .rule_deps
+        .iter()
+        .filter(|(n, _, _, _)| rule_names.contains(n))
+        .cloned()
+        .collect();
+    let alpha_class: HashMap<i64, String> = arm
+        .alpha_class
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, c)| (*id, c.clone()))
+        .collect();
+    let mut by_type: HashMap<String, Vec<i64>> = HashMap::new();
+    for (id, ty) in &alpha_class {
+        by_type.entry(ty.clone()).or_default().push(*id);
+    }
+    let alpha_tree = crate::rete::alpha_tree::AlphaTree::unpruned(&by_type);
+
+    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
+    let mut parents_of: HashMap<i64, Vec<i64>> = HashMap::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(sliced_network, *node_id) else {
+            continue;
+        };
+        let is_alpha = kind_of(node) == "AlphaNode";
+        for child in node_children(node) {
+            if is_alpha {
+                feeding_alpha_of.insert(child, *node_id);
+            } else {
+                parents_of.entry(child).or_default().push(*node_id);
+            }
+        }
+    }
+    let mut beta_readers = HashSet::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(sliced_network, *node_id) else {
+            continue;
+        };
+        for child in node_children(node) {
+            let child_kind = get_node(sliced_network, child).map(kind_of).unwrap_or("");
+            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
+                beta_readers.insert(*node_id);
+                break;
+            }
+        }
+    }
+    let compiled_max_slots = compiled_conds
+        .values()
+        .map(|c: &crate::rete::compiled_cond::CompiledCond| c.n_slots())
+        .max()
+        .unwrap_or(0);
+
+    Arc::new(ReteArm {
+        node_ids,
+        compiled_conds,
+        compiled_drivers,
+        compiled_wheres,
+        compiled_acc_folds,
+        compiled_rhs,
+        alpha_tree,
+        feeding_alpha_of,
+        parents_of,
+        beta_readers,
+        compiled_max_slots,
+        rule_deps,
+        alpha_class,
     })
 }
 
@@ -4611,6 +4847,9 @@ fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
 /// `consumed` is task #94 — without it a rule that reads a higher-stratum fact sits too low.
 type RuleDeps = (Vec<String>, Vec<String>, Vec<String>);
 
+/// Residual stratify row: (name, produced, negated, consumed).
+pub(crate) type RuleDep = (String, Vec<String>, Vec<String>, Vec<String>);
+
 /// A compiled rule paired with its `RuleDeps`.
 type RuleParts = (Value, Vec<String>, Vec<String>, Vec<String>);
 
@@ -4863,11 +5102,13 @@ fn fire_rules_stratified(
         let mut stratum_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         let mut active_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
         let mut frontier: Vec<i64> = Vec::new();
+        let mut stratum_rule_names: HashSet<String> = HashSet::new();
         for ((rule_val, _, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
             if *stratum == s {
                 stratum_pv.push_back_mut(rule_val.clone());
                 if let Some((_, rsf)) = node_record(rule_val) {
                     if let Value::String(rname) = &rsf[0] {
+                        stratum_rule_names.insert(rname.to_string());
                         if let Some(&pid) = production_id_by_rule.get(rname.as_str()) {
                             if active_ids.insert(pid) {
                                 frontier.push(pid);
@@ -4935,6 +5176,16 @@ fn fire_rules_stratified(
             }
             other => other.clone(),
         };
+
+        let slice_arm = subset_rete_arm(
+            &full_arm,
+            &active_ids,
+            &stratum_rule_names,
+            &sliced_network,
+        );
+        if let Some(id) = network_identity(&sliced_network) {
+            rete_arm_intern(id, &slice_arm);
+        }
 
         // Reuse the ALREADY-compiled (now stratum-sliced) network + next-id (no
         // `invoke_wat_compile` call); fresh empty alpha/beta/production memories (same
@@ -5069,11 +5320,25 @@ pub(crate) fn eval_fire_rules_native(
     // negates a type any rule in the SAME OR LOWER stratum produces — i.e. no negation-over-
     // derived — so the fast unstratified path is observationally identical and MUST stay the
     // one taken (byte-identical to today, zero perf cost for the 99% non-stratified case).
+    //
+    // An imported Export has empty rules AST. Stratify inputs live on the interned arm
+    // (`rule_deps`). Without them, max_s is 0 and negation-over-derived lies.
     let rules_value = session_rules(&session);
     let rules: Vec<Value> = match &rules_value {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => vec![],
     };
+    if rules_lack_ast(&rules) {
+        if let Some(net) = session_network(&session) {
+            if let Some(id) = network_identity(net) {
+                if let Some(arm) = rete_arm_lookup(id) {
+                    if !arm.rule_deps.is_empty() {
+                        return fire_rules_from_deps(&session, &arm.rule_deps, sym);
+                    }
+                }
+            }
+        }
+    }
     let mut parts: Vec<RuleParts> = Vec::with_capacity(rules.len());
     for r in &rules {
         let (_, rsf) = match node_record(r) {

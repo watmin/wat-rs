@@ -78,6 +78,7 @@ pub(crate) enum RhsOp {
 
 /// An insert-form compiled once, at setup, from the immutable rule set — the pre-resolved dual of
 /// `build_insert_fact`. Built by [`compile_rhs`]; run by [`exec_compiled_rhs`].
+#[derive(Clone)]
 pub(crate) enum CompiledRhs {
     /// `(:Type field…)` constructor.
     Record {
