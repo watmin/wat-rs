@@ -50,6 +50,9 @@ pub(crate) mod purity;
 // discriminators. Prune-only (candidate set; `alpha_match_inner` stays the sole authority),
 // alpha-only (beta stays runtime), built once at setup from the immutable network.
 pub(crate) mod alpha_tree;
+// (b) ShadowNode — armed `where` circuits. Token → candidate TestNodes.
+// Over-approx only. `exec_where` stays the authority.
+pub(crate) mod where_tree;
 // DESIGN-STONE-compiled-conditions.md — compiles each alpha condition ONCE at setup (beside the
 // tree) into a pre-resolved instruction sequence (field indices, slot indices, no per-fact
 // string-key allocation, no per-fact classify_rete_clause re-derivation). Not a perf stone (see

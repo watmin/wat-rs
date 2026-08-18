@@ -23,6 +23,8 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use rustc_hash::{FxHashMap, FxHashSet};
+
 use crate::ast::WatAST;
 use crate::rete::matcher::{classify_rete_clause, Bindings, ReteClauseShape};
 use crate::runtime::{
@@ -2215,12 +2217,16 @@ fn gather_join_keys(
 }
 
 /// Join-key tuple → element indices (bucket), as built by `build_gather_index`.
-type GatherIndex = HashMap<Vec<Value>, Vec<usize>>;
+type GatherIndex = FxHashMap<Vec<Value>, Vec<usize>>;
 
-/// Round-scoped cache: `(alpha_id, join_keys) -> (snapshot, index)`. The snapshot and its index
-/// travel together — buckets are indices into that specific `Vec<Element>`, not `wm.alpha` itself
-/// (`DESIGN-STONE-gather-index-cache.md`).
-type GatherCache = HashMap<(i64, Vec<Value>), (Vec<Element>, GatherIndex)>;
+/// Round-scoped cache: `(alpha_id, join_keys) -> index`. Buckets are indices
+/// into **this round's** `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
+/// After step 1 that vec does not grow; the cache dies with the round.
+type GatherCache = FxHashMap<(i64, Vec<Value>), GatherIndex>;
+
+fn alpha_elements(alpha: &HashMap<i64, Vec<Element>>, alpha_id: i64) -> &[Element] {
+    alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[])
+}
 
 /// Build the bucket index over `elements` for a given `join_keys` tuple — the expensive half of
 /// `gather_index` (the full scan). Buckets hold element *indices* in iteration order, matching
@@ -2230,7 +2236,7 @@ type GatherCache = HashMap<(i64, Vec<Value>), (Vec<Element>, GatherIndex)>;
 /// impossible for a well-formed network (every element at one alpha node shares a binding
 /// key-set, the same guarantee `keyed_join` already rests on).
 fn build_gather_index(elements: &[Element], join_keys: &[Value]) -> GatherIndex {
-    let mut index: GatherIndex = HashMap::new();
+    let mut index: GatherIndex = FxHashMap::default();
     for (i, el) in elements.iter().enumerate() {
         let (_, el_bindings) = element_fact_bindings(el);
         let key = key_of(el_bindings, join_keys);
@@ -2247,16 +2253,13 @@ fn ensure_gather(
     alpha_id: i64,
     sample: &crate::value::pmap::PMap,
 ) -> Vec<Value> {
-    let empty: [Element; 0] = [];
-    let els = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&empty);
+    let els = alpha_elements(&wm.alpha, alpha_id);
     let join_keys = gather_join_keys(sample, els);
     let cache_key = (alpha_id, join_keys.clone());
     cache.entry(cache_key).or_insert_with(|| {
-        let elements: Vec<Element> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
         census_count("accum:index-builds");
-        census_count_n("accum:index-elements", elements.len() as u64);
-        let idx = build_gather_index(&elements, &join_keys);
-        (elements, idx)
+        census_count_n("accum:index-elements", els.len() as u64);
+        build_gather_index(els, &join_keys)
     });
     join_keys
 }
@@ -2272,9 +2275,10 @@ fn any_seeded_keyed(
 ) -> bool {
     let join_keys = ensure_gather(cache, wm, alpha_id, seed);
     let key = key_of(seed, &join_keys);
-    let (elements, index) = cache
+    let index = cache
         .get(&(alpha_id, join_keys))
         .expect("ensure_gather just inserted");
+    let elements = alpha_elements(&wm.alpha, alpha_id);
     let bucket = index.get(&key).map_or(&[][..], |v| v.as_slice());
     bucket.iter().any(|&i| {
         census_gather_visit();
@@ -2293,9 +2297,10 @@ fn seeded_bindings_keyed(
 ) -> Vec<crate::value::pmap::PMap> {
     let join_keys = ensure_gather(cache, wm, alpha_id, seed);
     let key = key_of(seed, &join_keys);
-    let (elements, index) = cache
+    let index = cache
         .get(&(alpha_id, join_keys))
         .expect("ensure_gather just inserted");
+    let elements = alpha_elements(&wm.alpha, alpha_id);
     let bucket = index.get(&key).map_or(&[][..], |v| v.as_slice());
     bucket
         .iter()
@@ -2317,6 +2322,103 @@ fn acc_var_i64(el: &Element, var: &Value) -> i64 {
         Some(Value::i64(n)) => *n,
         Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
         None => panic!("accumulate: var {var:?} unbound in element bindings"),
+    }
+}
+
+/// Slot of `var` on the first bucket element. Empty bucket → None (count/sum
+/// emit identity; min/max/mean drop). Derived from a live Element, never stored
+/// on the interned `AccFold` (`DESIGN-STONE-accum-fold-the-wall`).
+fn operand_slot(elements: &[Element], bucket: &[usize], var: &Value) -> Option<usize> {
+    let &i = bucket.first()?;
+    elements[i]
+        .bindings
+        .iter()
+        .position(|(k, _)| k == var)
+}
+
+fn slot_i64(el: &Element, slot: usize) -> i64 {
+    match el.bindings.as_ref().get(slot) {
+        Some((_, Value::i64(n))) => *n,
+        Some((_, other)) => panic!("accumulate: slot bound to non-i64 {other:?}"),
+        None => panic!("accumulate: slot {slot} missing in element bindings"),
+    }
+}
+
+/// Fold a keyed bucket with no leftover `SeedCmp`. The bucket IS the gather
+/// (join-key equality ≡ `token_element_compatible`). Count is `len`; value
+/// folds read `bindings[slot]`.
+fn fold_bucket(
+    fold: &AccFold,
+    elements: &[Element],
+    bucket: &[usize],
+    sym: &SymbolTable,
+) -> Result<Option<Value>, EvalBreak> {
+    match fold {
+        AccFold::Count => Ok(Some(Value::i64(bucket.len() as i64))),
+        AccFold::Sum(var) => {
+            let Some(slot) = operand_slot(elements, bucket, var) else {
+                return Ok(Some(Value::i64(0)));
+            };
+            let s: i64 = bucket
+                .iter()
+                .map(|&i| {
+                    census_gather_visit();
+                    slot_i64(&elements[i], slot)
+                })
+                .sum();
+            Ok(Some(Value::i64(s)))
+        }
+        AccFold::Min(var) => {
+            let Some(slot) = operand_slot(elements, bucket, var) else {
+                return Ok(None);
+            };
+            let mut acc: Option<i64> = None;
+            for &i in bucket {
+                census_gather_visit();
+                let v = slot_i64(&elements[i], slot);
+                acc = Some(match acc {
+                    Some(cur) if cur <= v => cur,
+                    _ => v,
+                });
+            }
+            Ok(acc.map(Value::i64))
+        }
+        AccFold::Max(var) => {
+            let Some(slot) = operand_slot(elements, bucket, var) else {
+                return Ok(None);
+            };
+            let mut acc: Option<i64> = None;
+            for &i in bucket {
+                census_gather_visit();
+                let v = slot_i64(&elements[i], slot);
+                acc = Some(match acc {
+                    Some(cur) if cur >= v => cur,
+                    _ => v,
+                });
+            }
+            Ok(acc.map(Value::i64))
+        }
+        AccFold::Mean(var) => {
+            let Some(slot) = operand_slot(elements, bucket, var) else {
+                return Ok(None);
+            };
+            let n = bucket.len() as i64;
+            let s: i64 = bucket
+                .iter()
+                .map(|&i| {
+                    census_gather_visit();
+                    slot_i64(&elements[i], slot)
+                })
+                .sum();
+            Ok(Some(Value::i64(s / n)))
+        }
+        AccFold::Distinct(_)
+        | AccFold::All
+        | AccFold::GroupBy(_)
+        | AccFold::User { .. } => {
+            let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
+            accumulate_value(fold, &gathered, sym)
+        }
     }
 }
 
@@ -3172,6 +3274,74 @@ fn exec_stashed_where(
     crate::rete::expr_ir::exec_where(program, bindings, sym, &program.span)
 }
 
+/// Mut sink for one where-dispatch. Named so the fire loop does not grow
+/// an 8-arg helper (validate.rs `ClauseCtx` — a struct, not an allow).
+struct WhereSink<'a> {
+    where_tree: &'a crate::rete::where_tree::WhereTree,
+    compiled_wheres: &'a HashMap<i64, crate::rete::expr_ir::Program>,
+    beta_readers: &'a HashSet<i64>,
+    wm: &'a mut WorkingMemory,
+    d_beta: &'a mut HashMap<i64, Vec<Token>>,
+    sym: &'a SymbolTable,
+}
+
+/// (b) — eval only the TestNodes the where-tree says this token could still pass.
+/// `exec_where` stays the authority. Tree miss → skip the eval (over-approx only).
+fn dispatch_where_tests(
+    tids: &[i64],
+    tokens: &[Token],
+    sink: &mut WhereSink<'_>,
+) -> Result<(), EvalBreak> {
+    if tids.is_empty() || tokens.is_empty() {
+        return Ok(());
+    }
+    let use_tree = tids.iter().any(|id| sink.where_tree.covers(*id));
+    if use_tree {
+        let span = crate::rust_caller_span!();
+        for tok in tokens {
+            let cands = sink.where_tree.candidates(&tok.bindings, &span);
+            let cand_set: HashSet<i64> = cands.into_iter().collect();
+            for &tid in tids {
+                // Uncovered ids are not in the tree — always eval.
+                // Covered + miss is a proven fail (or a raise we suppress).
+                if sink.where_tree.covers(tid) && !cand_set.contains(&tid) {
+                    continue;
+                }
+                census_count("filter:test-evals");
+                if exec_stashed_where(sink.compiled_wheres, tid, &tok.bindings, sink.sym)? {
+                    census_count("filter:test-pass");
+                    if sink.beta_readers.contains(&tid) {
+                        beta_written(tid, 1);
+                        sink.wm.beta.entry(tid).or_default().push(tok.clone());
+                    }
+                    sink.d_beta.entry(tid).or_default().push(tok.clone());
+                }
+            }
+        }
+    } else {
+        for &tid in tids {
+            for tok in tokens {
+                census_count("filter:test-evals");
+                if exec_stashed_where(sink.compiled_wheres, tid, &tok.bindings, sink.sym)? {
+                    census_count("filter:test-pass");
+                    if sink.beta_readers.contains(&tid) {
+                        beta_written(tid, 1);
+                        sink.wm.beta.entry(tid).or_default().push(tok.clone());
+                    }
+                    sink.d_beta.entry(tid).or_default().push(tok.clone());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn sorted_parents_of(parents_of: &HashMap<i64, Vec<i64>>, id: i64) -> Vec<i64> {
+    let mut p = parents_of.get(&id).cloned().unwrap_or_default();
+    p.sort_unstable();
+    p
+}
+
 // ── Item 12 — the arm, persisted next to the network ─────────────────────────
 
 /// Compiled circuits for one network. Lives in a rust intern keyed by the
@@ -3189,6 +3359,8 @@ pub(crate) struct ReteArm {
     pub(crate) compiled_acc_folds: HashMap<i64, AccFold>,
     pub(crate) compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>>,
     pub(crate) alpha_tree: crate::rete::alpha_tree::AlphaTree,
+    /// (b) ShadowNode — armed `where` index. Built from `compiled_wheres`.
+    pub(crate) where_tree: crate::rete::where_tree::WhereTree,
     pub(crate) feeding_alpha_of: HashMap<i64, i64>,
     pub(crate) parents_of: HashMap<i64, Vec<i64>>,
     pub(crate) beta_readers: HashSet<i64>,
@@ -3261,6 +3433,7 @@ fn build_rete_arm(
     let compiled_drivers = compile_all_cond_drivers(network, &node_ids, sym)?;
     let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
     let compiled_wheres = compile_test_programs(network, &node_ids, sym)?;
+    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
     let compiled_user_folds = compile_user_fold_programs(network, &node_ids, sym)?;
     let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
     for node_id in &node_ids {
@@ -3362,6 +3535,7 @@ fn build_rete_arm(
         compiled_acc_folds,
         compiled_rhs,
         alpha_tree,
+        where_tree,
         feeding_alpha_of,
         parents_of,
         beta_readers,
@@ -3507,6 +3681,7 @@ pub(crate) fn subset_rete_arm(
         .map(|c: &crate::rete::compiled_cond::CompiledCond| c.n_slots())
         .max()
         .unwrap_or(0);
+    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
 
     Arc::new(ReteArm {
         node_ids,
@@ -3516,6 +3691,7 @@ pub(crate) fn subset_rete_arm(
         compiled_acc_folds,
         compiled_rhs,
         alpha_tree,
+        where_tree,
         feeding_alpha_of,
         parents_of,
         beta_readers,
@@ -3544,6 +3720,55 @@ pub(crate) fn subset_rete_arm(
 /// P6: the hash-join delta step uses persistent per-node `left_idx`/`right_idx`/`join_keys`
 /// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
 /// probe cost per match instead of O(W) rebuild per round per node.
+/// Step-1 alpha activate for one fact. Shared by the seed worklist (`wm.facts`)
+/// and later owned deltas (`DESIGN-STONE-setup-seen-once`).
+fn alpha_activate_fact(
+    fact: &Value,
+    wm: &mut WorkingMemory,
+    d_alpha: &mut HashMap<i64, Vec<usize>>,
+    alpha_tree: &crate::rete::alpha_tree::AlphaTree,
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    match_scratch: &mut Vec<Option<Value>>,
+) -> Result<(), EvalBreak> {
+    let (fact_class, fact_fields) = match fact {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
+            (a.class.as_str(), a.fields.as_slice())
+        }
+        _ => return Ok(()),
+    };
+    let __cand = phase_start();
+    let alphas = alpha_tree.candidates(fact_class, fact_fields);
+    phase_end("  ├ alpha:candidates", __cand);
+    if alphas.is_empty() {
+        return Ok(());
+    }
+    for aid in &alphas {
+        let __am = phase_start();
+        let compiled = rematch_compiled(compiled_conds, *aid)?;
+        let matched = crate::rete::compiled_cond::exec_compiled(
+            compiled,
+            fact_fields,
+            match_scratch,
+        );
+        phase_end("  ├ alpha:match", __am);
+        if let Some(bindings) = matched {
+            let bindings = crate::rete::compiled_cond::attach_fact(compiled, fact, bindings);
+            let __mk = phase_start();
+            let el = make_element(fact.clone(), bindings);
+            phase_end("  ├ alpha:element", __mk);
+            let __pu = phase_start();
+            let slot = {
+                let v = wm.alpha.entry(*aid).or_default();
+                v.push(el);
+                v.len() - 1
+            };
+            d_alpha.entry(*aid).or_default().push(slot);
+            phase_end("  └ alpha:push", __pu);
+        }
+    }
+    Ok(())
+}
+
 fn fire_fixpoint_delta(
     session: &Value,
     sym: &SymbolTable,
@@ -3564,11 +3789,22 @@ fn fire_fixpoint_delta(
     // A HashSet (not Vec) so the membership check is O(1): with N derived facts, a Vec + `.contains`
     // is O(N) per check = O(N²) total (the fan-out blow-up); the set makes dedup O(N). Order does not
     // matter — RETE's final fact set is order-independent and the differential gates counts.
-    let mut delta_facts: Vec<Value> = match &wm.facts {
-        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-        _ => vec![],
+    // First worklist IS wm.facts. `seen` is filled once (one clone+hash per
+    // input). Later rounds own a Vec of derived facts
+    // (`DESIGN-STONE-setup-seen-once`).
+    let input_facts: rpds::VectorSync<Value> = match &wm.facts {
+        Value::wat__core__PersistentVector(pv) => pv.clone(),
+        _ => rpds::VectorSync::new_sync(),
     };
-    let mut seen: std::collections::HashSet<Value> = delta_facts.iter().cloned().collect();
+    let __seen = phase_start();
+    let mut seen: FxHashSet<Value> =
+        FxHashSet::with_capacity_and_hasher(input_facts.len(), Default::default());
+    for f in input_facts.iter() {
+        seen.insert(f.clone());
+    }
+    phase_end("  ├ setup:seen", __seen);
+    let mut owned_delta: Vec<Value> = Vec::new();
+    let mut seed_round = true;
 
     // Item 12 — the arm lives next to the network. Hit: skip lower/classify.
     // Miss: build once, intern under the network's rust identity. insert/clone
@@ -3578,6 +3814,7 @@ fn fire_fixpoint_delta(
     let compiled_conds = &arm.compiled_conds;
     let compiled_drivers = &arm.compiled_drivers;
     let compiled_wheres = &arm.compiled_wheres;
+    let where_tree = &arm.where_tree;
     let compiled_acc_folds = &arm.compiled_acc_folds;
     let compiled_rhs_cache = &arm.compiled_rhs;
     let alpha_tree = &arm.alpha_tree;
@@ -3612,7 +3849,8 @@ fn fire_fixpoint_delta(
         // the remainder has a name instead of being inferred from a parent/child subtraction.
         let __pre = phase_start();
         // Per-round delta sets (new elements/tokens created THIS round).
-        let mut d_alpha: HashMap<i64, Vec<Element>> = HashMap::new();
+        // Indices into this round's wm.alpha[aid] (DESIGN-STONE-delta-alpha-indices).
+        let mut d_alpha: HashMap<i64, Vec<usize>> = HashMap::new();
         let mut d_beta: HashMap<i64, Vec<Token>> = HashMap::new();
 
         // Round-scoped gather-index cache, shared by the accumulate pass and the
@@ -3624,65 +3862,40 @@ fn fire_fixpoint_delta(
         // Round-scoped, never longer: `wm.alpha` grows in step 1 of this same round, so a cache
         // that outlived a round would serve a stale index. Declared HERE, same lifetime as
         // `d_alpha`/`d_beta`, so it cannot leak across rounds.
-        let mut gather_cache: GatherCache = HashMap::new();
+        let mut gather_cache: GatherCache = FxHashMap::default();
 
         phase_end("  ├ round:preamble", __pre);
 
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
+        #[cfg(test)]
+        let this_round_in = if seed_round {
+            input_facts.len()
+        } else {
+            owned_delta.len()
+        };
         let __pt0 = phase_start();
-        for fact in &delta_facts {
-            let (fact_class, fact_fields) = match fact {
-                Value::Aggregate(a) if a.nature != Nature::Struct => {
-                    (a.class.as_str(), a.fields.as_slice())
-                }
-                _ => continue,
-            };
-            // DESIGN-STONE-alpha-discrimination-tree.md — the candidate set replaces
-            // `alpha_by_type.get(fact_class)`'s "every alpha of this type." It is a SUPERSET of
-            // the alphas that will actually match (never a subset); `exec_compiled` is the
-            // fire-path authority. A missing compiled cond refuses — do not interpret.
-            //
-            // ★ MARKED 2026-08-01. `alpha`'s named children summed to 23.5 of its 37.2 ms on the
-            // accum cell — 37% of the phase that dominates our WEAKEST grid axis had no mark, and
-            // this tree walk was the largest unmarked computation in it. You cannot rank a sink
-            // you have not marked; "6-8 ms remain" was wrong this morning for exactly this reason.
-            // ONE pair, not a sprinkle: these fire PER FACT and the instrument is ~20-25ns a call.
-            let __cand = phase_start();
-            let alphas = alpha_tree.candidates(fact_class, fact_fields);
-            phase_end("  ├ alpha:candidates", __cand);
-            if alphas.is_empty() {
-                continue; // no alpha matches this fact's type
-            }
-
-            // ⚠ The `alpha:*` sub-marks below fire PER FACT (and per fact×alpha), not once per node
-            // per round like the `accum:*` ones. `Instant::now()` is ~20-25ns, so eight calls
-            // against a ~1.5µs/fact phase is a material share of what it measures. Read the
-            // instrument's own cost off the census table's calibration line before apportioning,
-            // and treat these as PROPORTIONS rather than absolute times.
-
-            for aid in &alphas {
-                let __am = phase_start();
-                // DESIGN-STONE-compiled-conditions.md — the compiled executor replaces
-                // `alpha_match_inner` here, inside the SAME phase mark, so `alpha:match`
-                // stays an apples-to-apples timing comparison before/after this stone.
-                // A miss is a setup hole. Do not walk the interpreter.
-                let compiled = rematch_compiled(compiled_conds, *aid)?;
-                let matched = crate::rete::compiled_cond::exec_compiled(
-                    compiled,
-                    fact_fields,
+        if seed_round {
+            for fact in input_facts.iter() {
+                alpha_activate_fact(
+                    fact,
+                    &mut wm,
+                    &mut d_alpha,
+                    alpha_tree,
+                    compiled_conds,
                     &mut match_scratch,
-                );
-                phase_end("  ├ alpha:match", __am);
-                if let Some(bindings) = matched {
-                    let bindings = crate::rete::compiled_cond::attach_fact(compiled, fact, bindings);
-                    let __mk = phase_start();
-                    let el = make_element(fact.clone(), bindings);
-                    phase_end("  ├ alpha:element", __mk);
-                    let __pu = phase_start();
-                    wm.alpha.entry(*aid).or_default().push(el.clone());
-                    d_alpha.entry(*aid).or_default().push(el);
-                    phase_end("  └ alpha:push", __pu);
-                }
+                )?;
+            }
+            seed_round = false;
+        } else {
+            for fact in &owned_delta {
+                alpha_activate_fact(
+                    fact,
+                    &mut wm,
+                    &mut d_alpha,
+                    alpha_tree,
+                    compiled_conds,
+                    &mut match_scratch,
+                )?;
             }
         }
 
@@ -3699,9 +3912,9 @@ fn fire_fixpoint_delta(
             if kind_of(node) != "AlphaNode" {
                 continue;
             }
-            // Group C: borrow new_elements slice — d_alpha is not mutated in step 2.
-            let new_elements = match d_alpha.get(node_id) {
-                Some(els) if !els.is_empty() => els.as_slice(),
+            // New this round: indices into wm.alpha[node_id].
+            let new_idxs = match d_alpha.get(node_id) {
+                Some(ix) if !ix.is_empty() => ix.as_slice(),
                 _ => continue,
             };
             let child_ids = node_children(node);
@@ -3715,7 +3928,8 @@ fn fire_fixpoint_delta(
                 if kind_of(child_node) != "RootJoinNode" {
                     continue;
                 }
-                for el in new_elements {
+                for &ei in new_idxs {
+                    let el = &wm.alpha[node_id][ei];
                     let (fact, bindings) = element_fact_bindings(el);
                     // Seed native Token: one matches edge (fact, alpha_id).
                     let tok = Token {
@@ -3908,7 +4122,7 @@ fn fire_fixpoint_delta(
                 // Group C: borrow dl/dr slices — no Vec alloc per node per round.
                 // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
                 let dl: &[Token] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
-                let dr: &[Element] = d_alpha
+                let dr: &[usize] = d_alpha
                     .get(&alpha_id)
                     .map(Vec::as_slice)
                     .unwrap_or_default();
@@ -3919,11 +4133,13 @@ fn fire_fixpoint_delta(
                 }
 
                 // Step 2: add Δright (dr) to right_idx[J] FIRST.
-                // dr is &[Element] — iterate directly (no extra borrow needed).
+                // dr is indices into wm.alpha[A]; right_idx still owns Elements (P6).
                 let __s2 = phase_start();
                 {
                     let ridx = right_idx.entry(*child_id).or_default();
-                    for el in dr {
+                    let right_mem = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
+                    for &ei in dr {
+                        let el = &right_mem[ei];
                         let (_, el_b) = element_fact_bindings(el);
                         let k = key_of(el_b, jk);
                         ridx.entry(k).or_default().push(el.clone());
@@ -3962,7 +4178,10 @@ fn fire_fixpoint_delta(
                 let __s4 = phase_start();
                 if !dr.is_empty() {
                     if let Some(lidx) = left_idx.get(child_id) {
-                        for el in dr {
+                        let right_mem =
+                            wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
+                        for &ei in dr {
+                            let el = &right_mem[ei];
                             let (_, el_b) = element_fact_bindings(el);
                             let k = key_of(el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
@@ -4075,38 +4294,24 @@ fn fire_fixpoint_delta(
             // intersection) so the cache can be probed BEFORE paying for a snapshot clone or an
             // index build. Reads wm.alpha through a borrow, no clone yet.
             let __ix = phase_start();
-            let join_keys = gather_join_keys(
+            let join_keys = ensure_gather(
+                &mut gather_cache,
+                &wm,
+                from_alpha_id,
                 &new_tokens[0].bindings,
-                wm.alpha
-                    .get(&from_alpha_id)
-                    .map(Vec::as_slice)
-                    .unwrap_or(&[]),
             );
-            // Round-scoped cache keyed on (alpha_id, join_keys) — NOT alpha_id alone (see the
-            // cache declaration above). First reader of this pair snapshots :from and builds the
-            // index (miss path, counted below); the rest of this round borrow both together —
-            // the snapshot and its index travel as one unit (buckets are indices into THIS
-            // specific Vec<Value>).
-            let cache_key = (from_alpha_id, join_keys.clone());
-            let (from_elements, index) = gather_cache.entry(cache_key).or_insert_with(|| {
-                // Snapshot the FULL cumulative :from elements (empty vec if none — count/sum/etc.
-                // still emit their identity on empty, so we iterate parent tokens regardless).
-                let __sn = phase_start();
-                let elements: Vec<Element> = match wm.alpha.get(&from_alpha_id) {
-                    Some(els) => els.clone(),
-                    None => vec![],
-                };
-                phase_end("  ├ accum:snapshot", __sn);
-                // Counted, not assumed: this is the MISS path — the real index build. If several
-                // accumulate/filter nodes read the same (alpha, join_keys) pair, only the first
-                // lands here; the rest borrow the cached (snapshot, index) pair below.
-                census_count("accum:index-builds");
-                census_count_n("accum:index-elements", elements.len() as u64);
-                let idx = build_gather_index(&elements, &join_keys);
-                (elements, idx)
-            });
             phase_end("  ├ accum:index", __ix);
+            // No clone — indices name this round's wm.alpha[id] (step 1 is done).
+            let __sn = phase_start();
+            let from_elements = alpha_elements(&wm.alpha, from_alpha_id);
+            phase_end("  ├ accum:snapshot", __sn);
+            let index = gather_cache
+                .get(&(from_alpha_id, join_keys.clone()))
+                .expect("ensure_gather just inserted");
             let from_compiled = rematch_compiled(compiled_conds, from_alpha_id).ok();
+            let leftover = from_compiled
+                .map(crate::rete::compiled_cond::CompiledCond::has_seed_cmp)
+                .unwrap_or(false);
             let from_keys = from_compiled
                 .map(|c| c.bind_keys())
                 .unwrap_or_default();
@@ -4115,30 +4320,6 @@ fn fire_fixpoint_delta(
             for tok in new_tokens {
                 let key = key_of(&tok.bindings, &join_keys);
                 let bucket: &[usize] = index.get(&key).map_or(&[][..], |v| v.as_slice());
-                // Gather the token-compatible :from elements (shared ?var agreement), in
-                // alpha-memory insertion order (matches the wat foldl over from-els) — the
-                // bucket's indices were pushed in that same order.
-                let mut gathered: Vec<&Element> = Vec::new();
-                for &i in bucket {
-                    let el = &from_elements[i];
-                    census_gather_visit();
-                    let ok = match from_compiled {
-                        Some(compiled) => fact_bindings_under(
-                            &el.fact,
-                            &tok.bindings,
-                            compiled,
-                            &mut match_scratch,
-                        )
-                        .is_some(),
-                        None => {
-                            let (_, el_b) = element_fact_bindings(el);
-                            token_element_compatible(&tok.bindings, el_b)
-                        }
-                    };
-                    if ok {
-                        gathered.push(el);
-                    }
-                }
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
@@ -4146,6 +4327,54 @@ fn fire_fixpoint_delta(
                     })
                     .cloned()
                     .collect();
+                // No leftover SeedCmp: the keyed bucket IS the gather (keyed-gather
+                // contract). Rematch cannot reject a member or bind anything the
+                // Element does not already hold. Count is len; value folds read a slot.
+                if !leftover && group_keys.is_empty() {
+                    if let Some(aggregate) =
+                        fold_bucket(acc_fold, from_elements, bucket, sym)?
+                    {
+                        let new_bindings = tok.bindings.assoc(result_var.clone(), aggregate);
+                        let new_tok = Token {
+                            matches: tok.matches.clone(),
+                            bindings: new_bindings,
+                        };
+                        if beta_readers.contains(node_id) {
+                            beta_written(*node_id, 1);
+                            wm.beta.entry(*node_id).or_default().push(new_tok.clone());
+                        }
+                        d_beta.entry(*node_id).or_default().push(new_tok);
+                    }
+                    continue;
+                }
+                // Gather the token-compatible :from elements (shared ?var agreement), in
+                // alpha-memory insertion order (matches the wat foldl over from-els) — the
+                // bucket's indices were pushed in that same order.
+                let mut gathered: Vec<&Element> = Vec::new();
+                if leftover {
+                    for &i in bucket {
+                        let el = &from_elements[i];
+                        census_gather_visit();
+                        let ok = match from_compiled {
+                            Some(compiled) => fact_bindings_under(
+                                &el.fact,
+                                &tok.bindings,
+                                compiled,
+                                &mut match_scratch,
+                            )
+                            .is_some(),
+                            None => {
+                                let (_, el_b) = element_fact_bindings(el);
+                                token_element_compatible(&tok.bindings, el_b)
+                            }
+                        };
+                        if ok {
+                            gathered.push(el);
+                        }
+                    }
+                } else {
+                    gathered.extend(bucket.iter().map(|&i| &from_elements[i]));
+                }
                 // One fold of the whole gather when the token already holds every
                 // `:from` bind (or the `:from` binds none). Otherwise group by the
                 // leftover binds; empty gather + leftover keys is not a bag-wide 0.
@@ -4212,6 +4441,7 @@ fn fire_fixpoint_delta(
         // for NegationNode reads the full wm.alpha (populated in step 1 before this pass).
         // Passing tokens are pushed to wm.beta[node_id] (cumulative) and d_beta[node_id]
         // (new-this-round, consumed by production in step 4).
+        let mut tests_done: HashSet<i64> = HashSet::new();
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
@@ -4287,37 +4517,46 @@ fn fire_fixpoint_delta(
                 continue;
             }
             if kind == "TestNode" {
+                if tests_done.contains(node_id) {
+                    continue;
+                }
                 // DESIGN-STONE-compiled-where Step 0 — capture the FIRST (expr, tokens) this loop
                 // handles. Census only; production never reads `:expr`.
                 #[cfg(test)]
                 if let Value::wat__WatAST(ast) = &sf[1] {
                     capture_where_sample(ast.as_ref(), &new_tokens);
                 }
-                for tok in new_tokens {
-                    // ★ THE COUNTERS THAT DECIDE THE FILTER STONE'S SHAPE (task #49).
-                    //
-                    // `filter` is 89.5% of node-share's fire and grows LINEARLY with rule count,
-                    // because every token is tested by EVERY rule's TestNode. Two attacks follow
-                    // from that — compile the predicate (cheaper per evaluation) and index it
-                    // (fewer evaluations) — and which one is worth more depends entirely on the
-                    // ratio below, which had only ever been DERIVED from an assumed token count.
-                    //
-                    //   evals ≫ passes  ⇒ most work is on predicates that FAIL ⇒ indexing wins big
-                    //   evals ≈ passes  ⇒ the join already prunes ⇒ indexing is worthless and
-                    //                     compiling the walk is the whole story
-                    //
-                    // A timer cannot answer this (it would measure mostly itself at ~75ns/pair
-                    // against a sub-µs body); a counter can, exactly.
-                    census_count("filter:test-evals");
-                    if exec_stashed_where(compiled_wheres, *node_id, &tok.bindings, sym)? {
-                        census_count("filter:test-pass");
-                        if beta_readers.contains(node_id) {
-                            beta_written(*node_id, 1);
-                            wm.beta.entry(*node_id).or_default().push(tok.clone());
-                        }
-                        d_beta.entry(*node_id).or_default().push(tok);
+                // Siblings that share this TestNode's parent set see the same token
+                // stream — dispatch once through the where-tree (b).
+                let pkey = sorted_parents_of(parents_of, *node_id);
+                let mut sibs: Vec<i64> = Vec::new();
+                for oid in &node_ids {
+                    if tests_done.contains(oid) {
+                        continue;
+                    }
+                    let Some(on) = get_node(&wm.network, *oid) else {
+                        continue;
+                    };
+                    if kind_of(on) != "TestNode" {
+                        continue;
+                    }
+                    if sorted_parents_of(parents_of, *oid) == pkey {
+                        sibs.push(*oid);
                     }
                 }
+                dispatch_where_tests(
+                    &sibs,
+                    &new_tokens,
+                    &mut WhereSink {
+                        where_tree,
+                        compiled_wheres,
+                        beta_readers,
+                        wm: &mut wm,
+                        d_beta: &mut d_beta,
+                        sym,
+                    },
+                )?;
+                tests_done.extend(sibs);
             } else {
                 // NegationNode / ExistsNode struct_form: id(0), <kind>-alpha-id(1), children(2).
                 // Same gather as Acc: probe gather_cache for the token's join-key bucket.
@@ -4433,7 +4672,8 @@ fn fire_fixpoint_delta(
                     None => continue,
                 };
                 let filter_kids = node_children(hj_node);
-                for filter_id in filter_kids {
+                let mut tests_dispatched = false;
+                for filter_id in filter_kids.iter().copied() {
                     let filter_node = match get_node(&wm.network, filter_id) {
                         Some(n) => n,
                         None => continue,
@@ -4447,17 +4687,29 @@ fn fire_fixpoint_delta(
                         _ => continue,
                     };
                     if fkind == "TestNode" {
-                        for tok in new_tokens {
-                            census_count("filter:test-evals");
-                            if exec_stashed_where(compiled_wheres, filter_id, &tok.bindings, sym)?
-                            {
-                                census_count("filter:test-pass");
-                                if beta_readers.contains(&filter_id) {
-                                    beta_written(filter_id, 1);
-                                    wm.beta.entry(filter_id).or_default().push(tok.clone());
-                                }
-                                d_beta.entry(filter_id).or_default().push(tok);
-                            }
+                        if !tests_dispatched {
+                            let test_sibs: Vec<i64> = filter_kids
+                                .iter()
+                                .copied()
+                                .filter(|id| {
+                                    get_node(&wm.network, *id)
+                                        .map(|n| kind_of(n) == "TestNode")
+                                        .unwrap_or(false)
+                                })
+                                .collect();
+                            dispatch_where_tests(
+                                &test_sibs,
+                                &new_tokens,
+                                &mut WhereSink {
+                                    where_tree,
+                                    compiled_wheres,
+                                    beta_readers,
+                                    wm: &mut wm,
+                                    d_beta: &mut d_beta,
+                                    sym,
+                                },
+                            )?;
+                            tests_dispatched = true;
                         }
                     } else {
                         let (_, sf) = match node_record(filter_node) {
@@ -4502,16 +4754,44 @@ fn fire_fixpoint_delta(
                             Some(n) => n,
                             None => continue,
                         };
-                        for gc_id in node_children(fnode) {
+                        let parent_toks: Vec<Token> = match d_beta.get(&fid) {
+                            Some(ts) if !ts.is_empty() => ts.clone(),
+                            _ => continue,
+                        };
+                        let kids = node_children(fnode);
+                        let test_sibs: Vec<i64> = kids
+                            .iter()
+                            .copied()
+                            .filter(|id| {
+                                get_node(&wm.network, *id)
+                                    .map(|n| kind_of(n) == "TestNode")
+                                    .unwrap_or(false)
+                            })
+                            .collect();
+                        if !test_sibs.is_empty() {
+                            dispatch_where_tests(
+                                &test_sibs,
+                                &parent_toks,
+                                &mut WhereSink {
+                                    where_tree,
+                                    compiled_wheres,
+                                    beta_readers,
+                                    wm: &mut wm,
+                                    d_beta: &mut d_beta,
+                                    sym,
+                                },
+                            )?;
+                            chain.extend(test_sibs);
+                        }
+                        for gc_id in kids {
                             let gc = match get_node(&wm.network, gc_id) {
                                 Some(n) => n,
                                 None => continue,
                             };
                             let gkind = kind_of(gc);
-                            let parent_toks: Vec<Token> = match d_beta.get(&fid) {
-                                Some(ts) if !ts.is_empty() => ts.clone(),
-                                _ => continue,
-                            };
+                            if gkind == "TestNode" {
+                                continue;
+                            }
                             if gkind == "HashJoinNode" {
                                 let alpha_id = feeding_alpha_of.get(&gc_id).copied().unwrap_or(-1);
                                 let elements = match wm.alpha.get(&alpha_id) {
@@ -4539,58 +4819,36 @@ fn fire_fixpoint_delta(
                                 next_frontier.push(gc_id);
                                 continue;
                             }
-                            if gkind != "TestNode"
-                                && gkind != "NegationNode"
-                                && gkind != "ExistsNode"
-                            {
+                            if gkind != "NegationNode" && gkind != "ExistsNode" {
                                 continue;
                             }
-                            if gkind == "TestNode" {
-                                for tok in parent_toks {
-                                    census_count("filter:test-evals");
-                                    if exec_stashed_where(
-                                        compiled_wheres,
-                                        gc_id,
-                                        &tok.bindings,
-                                        sym,
-                                    )? {
-                                        census_count("filter:test-pass");
-                                        if beta_readers.contains(&gc_id) {
-                                            beta_written(gc_id, 1);
-                                            wm.beta.entry(gc_id).or_default().push(tok.clone());
-                                        }
-                                        d_beta.entry(gc_id).or_default().push(tok);
+                            let (_, gsf) = match node_record(gc) {
+                                Some(p) => p,
+                                None => continue,
+                            };
+                            let is_exists = gkind == "ExistsNode";
+                            let alpha_id: i64 = match &gsf[1] {
+                                Value::i64(n) => *n,
+                                _ => continue,
+                            };
+                            let driver = driver_of(compiled_drivers, alpha_id)?;
+                            for tok in &parent_toks {
+                                let any_compat = token_exists_under(
+                                    driver,
+                                    &tok.bindings,
+                                    &wm,
+                                    compiled_conds,
+                                    &mut match_scratch,
+                                    sym,
+                                    &mut gather_cache,
+                                )?;
+                                let pass = if is_exists { any_compat } else { !any_compat };
+                                if pass {
+                                    if beta_readers.contains(&gc_id) {
+                                        beta_written(gc_id, 1);
+                                        wm.beta.entry(gc_id).or_default().push(tok.clone());
                                     }
-                                }
-                            } else {
-                                let (_, gsf) = match node_record(gc) {
-                                    Some(p) => p,
-                                    None => continue,
-                                };
-                                let is_exists = gkind == "ExistsNode";
-                                let alpha_id: i64 = match &gsf[1] {
-                                    Value::i64(n) => *n,
-                                    _ => continue,
-                                };
-                                let driver = driver_of(compiled_drivers, alpha_id)?;
-                                for tok in parent_toks {
-                                    let any_compat = token_exists_under(
-                                        driver,
-                                        &tok.bindings,
-                                        &wm,
-                                        compiled_conds,
-                                        &mut match_scratch,
-                                        sym,
-                                        &mut gather_cache,
-                                    )?;
-                                    let pass = if is_exists { any_compat } else { !any_compat };
-                                    if pass {
-                                        if beta_readers.contains(&gc_id) {
-                                            beta_written(gc_id, 1);
-                                            wm.beta.entry(gc_id).or_default().push(tok.clone());
-                                        }
-                                        d_beta.entry(gc_id).or_default().push(tok);
-                                    }
+                                    d_beta.entry(gc_id).or_default().push(tok.clone());
                                 }
                             }
                             chain.push(gc_id);
@@ -4746,7 +5004,7 @@ fn fire_fixpoint_delta(
             }
             rounds.push(RoundCensus {
                 round: round_no,
-                delta_facts_in: delta_facts.len(),
+                delta_facts_in: this_round_in,
                 alpha_nodes: wm.alpha.values().filter(|v| !v.is_empty()).count(),
                 alpha_elements: wm.alpha.values().map(Vec::len).sum(),
                 beta_nodes: beta_by_node.len(),
@@ -4786,7 +5044,7 @@ fn fire_fixpoint_delta(
         let __ep = phase_start();
         let __done = next_delta.is_empty();
         if !__done {
-            delta_facts = next_delta;
+            owned_delta = next_delta;
         }
         phase_end("  └ round:epilogue", __ep);
         if __done {
@@ -7239,22 +7497,17 @@ mod tests {
         );
     }
 
-    /// ★ THE COUNTER THAT DECIDES TASK #49 — how many `where` evaluations, and how many PASS?
+    /// (b) landed — this census now gates the index, not the pre-index waste.
     ///
-    /// `filter` is 89.5% of node-share's fire (the grid's weakest engine cell, :ratio 1.56) and
-    /// scales linearly with rule count. Two attacks compete: COMPILE the predicate (cheaper per
-    /// evaluation) vs INDEX it (fewer evaluations). Their relative worth is the pass RATIO, and
-    /// until this test that ratio was DERIVED from an assumed token count, never measured — the
-    /// error that was wrong four times on 2026-08-01.
-    ///
-    /// A wasted evaluation is one that runs and fails. If they dominate, indexing removes them
-    /// wholesale and its win scales with the rule count; if the join already prunes, indexing has
-    /// nothing to remove and compiling the walk is the entire stone.
+    /// Node-share: M tokens, N rules, one shared dim `(= i (k rem n))`. Linear eval is
+    /// M×N with ~98% waste. The where-tree must cut that to ~1 eval/token so
+    /// `evals ≈ passes ≈ M`. If `evals` climbs back toward M×N the tree stopped
+    /// discriminating (analysis miss, or dispatch still walking every sibling).
     #[test]
     fn node_share_filter_eval_census() {
         let mut table = String::from(
-            "\nnode-share — `where` evaluations vs passes (the compile-vs-index decider)\n\
-             \x20 rules  items |    evals    passes   wasted  waste%   evals/rule\n\
+            "\nnode-share — `where` evaluations vs passes (the (b) ShadowNode gate)\n\
+             \x20 rules  items |    evals    passes   wasted  waste%   evals/token\n\
              \x20 --------------------------------------------------------------------\n",
         );
         let mut worst_waste = 0.0f64;
@@ -7288,24 +7541,38 @@ mod tests {
                 "node-share N={n} M={m} recorded ZERO `where` evaluations — the filter pass never \
                  ran, so any ratio taken from this is an artifact, not a measurement"
             );
-            let wasted = evals - passes;
+            assert!(
+                passes > 0,
+                "node-share N={n} M={m} recorded ZERO passes — the tree pruned every TestNode \
+                 (under-approx) or nothing fired"
+            );
+            let wasted = evals.saturating_sub(passes);
             let waste_pct = 100.0 * wasted as f64 / evals as f64;
             worst_waste = worst_waste.max(waste_pct);
             table.push_str(&format!(
                 "  {n:>5}  {m:>5} | {evals:>8}  {passes:>8} {wasted:>8}  {waste_pct:>5.1}%  \
-                 {:>10.1}  | envs {envs:>7}  keyallocs {keys:>7}\n",
-                evals as f64 / n as f64,
+                 {:>10.2}  | envs {envs:>7}  keyallocs {keys:>7}\n",
+                evals as f64 / m as f64,
             ));
+            // ~1 candidate per token. Slack of 2× covers a second filter pass / mild over-approx.
+            // Linear scan is N×M (10_000 at [50 200]) — that must not pass.
+            assert!(
+                evals <= passes.saturating_mul(2),
+                "where-tree should eval about as many predicates as pass (one matching residue \
+                 per token). N={n} M={m} evals={evals} passes={passes}.{table}"
+            );
+            assert!(
+                evals <= (m as u64).saturating_mul(4),
+                "where-tree evals should sit near M (one token → one residue), not N×M. \
+                 N={n} M={m} evals={evals}.{table}"
+            );
         }
         println!("{table}");
-        // The claim under test, stated so a future reader knows what a change MEANS: if indexing
-        // lands, `wasted` collapses and this assertion is what must be re-pointed — not deleted.
         assert!(
-            worst_waste > 50.0,
-            "expected most `where` evaluations to be WASTED (a token tested by every rule's \
-             predicate, matching at most one) — got a peak waste of {worst_waste:.1}%. If this \
-             fell legitimately, the join now prunes before the filter pass and task #49's attack \
-             (b) (indexing) has little left to remove; re-rank it against (a).{table}"
+            worst_waste < 50.0,
+            "(b) must collapse wasted `where` evals (a token tested by every rule, matching \
+             at most one) — peak waste {worst_waste:.1}%. If this rose, dispatch is linear \
+             again or DimKey failed to unify the node-share residue.{table}"
         );
     }
 
@@ -7519,6 +7786,20 @@ mod tests {
         println!(
             "\nfold cost, {elements} elements gathered, mean of {RUNS}\n                 count (NO per-element lookup)  {:>7.2} ms\n                 sum   (ONE lookup per element) {:>7.2} ms\n                 delta = the lookup             {:>7.2} ms   ({:.0} ns/element)\n",
             c / 1e6, s / 1e6, (s - c) / 1e6, (s - c) / elements as f64
+        );
+        // (b) + keyed gather left rematch in the fold mark. After the fold stone,
+        // count is bucket.len() and sum is a slot load — sum must sit near count,
+        // and count must be well below the 9.59 ms rematch walk.
+        assert!(
+            c < 5.0e6,
+            "count fold is {c:.0} ns ({:.2} ms) — rematch is still in the walk; \
+             expected bucket.len() after DESIGN-STONE-accum-fold-the-wall",
+            c / 1e6
+        );
+        assert!(
+            s <= c * 2.0 || s < 8.0e6,
+            "sum fold {s:.0} ns vs count {c:.0} ns — the 223 ns/el Bindings::get \
+             did not collapse to a slot load"
         );
     }
 
@@ -8132,9 +8413,10 @@ mod tests {
         // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
         // deleted or stops firing still fails loudly, while a mark that is ADDED shows up for
         // free. Both directions covered; neither can go quiet.
-        const REQUIRED_PHASES: [&str; 22] = [
+        const REQUIRED_PHASES: [&str; 23] = [
             "IN: to_transient",
             "SETUP: indexes",
+            "  ├ setup:seen",
             "ROUND LOOP",
             "alpha",
             "  ├ alpha:match",
@@ -8312,6 +8594,36 @@ mod tests {
                     k,
                     flag,
                 ));
+            }
+            if g == 200 && w == 200 {
+                let fold_mean = samples
+                    .get("  └ accum:fold")
+                    .map(|xs| stat(xs).0)
+                    .unwrap_or(0.0);
+                assert!(
+                    fold_mean > 0.0,
+                    "accum:fold at [200 200] recorded zero — the mark moved"
+                );
+                let fold_ms = fold_mean / 1e6;
+                assert!(
+                    fold_ms < 25.0,
+                    "accum:fold at [200 200] is {fold_ms:.2} ms — DESIGN-STONE-accum-fold-the-wall \
+                     requires < 25 ms (was 68.49).{table}"
+                );
+                let snap_mean = samples
+                    .get("  ├ accum:snapshot")
+                    .map(|xs| stat(xs).0)
+                    .unwrap_or(0.0);
+                assert!(
+                    snap_mean > 0.0,
+                    "accum:snapshot at [200 200] recorded zero — the mark was deleted"
+                );
+                let snap_ms = snap_mean / 1e6;
+                assert!(
+                    snap_ms < 1.0,
+                    "accum:snapshot at [200 200] is {snap_ms:.2} ms — \
+                     DESIGN-STONE-gather-no-snapshot requires < 1 ms (was 5.56).{table}"
+                );
             }
         }
         println!("{table}");

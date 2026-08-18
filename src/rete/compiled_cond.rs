@@ -183,6 +183,13 @@ impl CompiledCond {
         }
     }
 
+    /// Leftover seed: a `?var` this cond does not bind. Populate skipped
+    /// `SeedCmp`; rematch must still run. Absence is a proof the Element
+    /// already holds every bind the fold will read (`DESIGN-STONE-accum-fold-the-wall`).
+    pub(crate) fn has_seed_cmp(&self) -> bool {
+        !self.seed_reads.is_empty() || ops_have_seed_cmp(&self.ops)
+    }
+
     /// `?var`s this cond binds, including `(?p <- :Type …)`.
     pub(crate) fn bind_keys(&self) -> Vec<Value> {
         let mut ks = Vec::with_capacity(self.slot_keys.len() + 1);
@@ -192,6 +199,15 @@ impl CompiledCond {
         ks.extend(self.slot_keys.iter().cloned());
         ks
     }
+}
+
+fn ops_have_seed_cmp(ops: &[Op]) -> bool {
+    ops.iter().any(|op| match op {
+        Op::SeedCmp { .. } => true,
+        Op::Or(bs) => bs.iter().any(|b| ops_have_seed_cmp(b)),
+        Op::Not(inner) => ops_have_seed_cmp(inner),
+        _ => false,
+    })
 }
 
 // ─── The compiler ───────────────────────────────────────────────────────────────

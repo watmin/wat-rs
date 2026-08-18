@@ -1239,7 +1239,7 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
     }
 }
 
-fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
     match (core, args) {
         (":wat::core::=", [a, b]) | (":wat::core::enum::=", [a, b]) => Ok(Value::bool(a == b)),
         (":wat::core::not=", [a, b]) => Ok(Value::bool(a != b)),

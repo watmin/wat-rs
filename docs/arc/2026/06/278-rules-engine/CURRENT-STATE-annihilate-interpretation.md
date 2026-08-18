@@ -5,13 +5,15 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–12 landed. `#wat.rete/Export` is
-the compiled program. Circumspicere-before-shadow is
-**closed** — see `CIRCUMSPICERE-before-shadow.md`. `(b)`
-ShadowNode may start only when the builder says so. ABI
-is a contract hash (format + classes + `RETE_OPS`), not
-a Merkle of the circuit. Do not start 297. Do not spray
-derived-inners onto every Clara grid axis.
+**Right now:** items 1–13, fold, no-snapshot, delta-alpha
+indices, setup-seen-once, fxhash. Queue:
+`NEXT-STRIKES-after-shadow.md`. `[200 200]` FIRE 160.70 →
+**76.85 ms** (do not gate the wall). `setup:seen` 13.26 →
+**8.17** (SipHash mix gone; leftover is Hash walk + insert —
+do not add a second hasher). Largest named leftover:
+`round:drop-memories` **10.49 ms**. Index 5.77. Persist is
+still ~0 on a cold fire. Do not start 297. Do not merge
+`origin/main` onto this dirty branch.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -128,7 +130,7 @@ went n=0 native / n=1 spec the moment leaves stayed in the
 slice. Merge now rejects a conflict. Same contract as
 `alpha_match_inner_seeded`.
 
-Items 1–12 landed. `(b)` is item 13. Keyed gather is speed.
+Items 1–13 landed. `(b)` is item 13 and it landed. Keyed gather is speed (also landed).
 
 Rust copies of `eval_test_core` / `alpha_match_inner` /
 `build_insert_fact` are **oracles for differentials**, not a
@@ -195,10 +197,17 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
     (Weak died at fire return). Overlay = child Session
     (facts + query-memory). Rewind = drop the child.
     Stratified slices still build (new `from_trie` map).
-13. `(b)` ShadowNode — **only after item 12 and the three
-    derived-inner / harvest gates.** Index the armed
-    network. Not a way around persist. Not a way around
-    a suite that never saw acc-over-derived.
+13. `(b)` ShadowNode — **landed (this turn).**
+    `src/rete/where_tree.rs`. `ReteArm.where_tree` built
+    from `compiled_wheres` (setup + import + slice).
+    Filter / join-after-filter / Test→Test dispatch
+    through the tree. Over-approx only; uncovered ids
+    still eval. `node_share_filter_eval_census` re-pointed:
+    evals ≈ passes ≈ M, waste < 50% (measured 0%).
+    Unit: `tree_picks_the_matching_equality_leaf`,
+    `no_key_predicate_rides_wildcard`. Range edges
+    reserved, unpopulated. Driver Exists/Not stay on
+    keyed gather — not this index.
 14. **`#wat.rete/Export`.** **landed (this turn).** The
     compiled program as one EDN value. `export` / `import`.
     Native fire. Oracle cannot consume it. Stratify
@@ -230,18 +239,19 @@ compiler item. Do not start it to dodge the hole.
 | Rete driver (AST-free fire) | `d774185c` | local, not pushed |
 | Persist the arm across `fire-rules` | `3f415317` | local, not pushed |
 | `#wat.rete/Export` (compiled program on the wire) | this turn | **landed** — first disk program `datamancer.rete.edn` |
-| `(b)` ShadowNode | after item 12 | **not started** |
-| Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
+| `(b)` ShadowNode | `where_tree.rs` | **landed** — 1.00 eval/token on node-share |
+| Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **landed** (Acc + Not/Exists). Do not persist across rounds. |
 
 ## The endeavor, in one sentence
 
 **Annihilate all interpretation in wat-rete.** Every rete expression
 becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 
-**That is the endeavor.** Items 1–12 compiled expressions,
-the driver, and persisted the arm. **`(b)` is next** —
-index the armed network. Keyed gather is speed. Oracle
-stays interpreted. Do not service-ify.
+**That is the endeavor.** Items 1–13 compiled expressions,
+the driver, persisted the arm, and indexed the armed
+`where` circuits. Keyed gather is speed (landed; do not
+persist across rounds). Oracle stays interpreted. Do not
+service-ify. Do not start 297.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -449,7 +459,7 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — Export is the residual; `(b)` still waits
+## NOW — `(b)` ShadowNode landed; do not start 297
 
 `(:wat::rete::export session)` → `#wat.rete/Export`.
 `(:wat::rete::import export)` → slim Session + interned
@@ -471,9 +481,27 @@ slice subsets the armed circuits (does not rebuild from
 empty tests). Gate: `imported_strat_neg_matches_source`
 (Bad=1, Ok=1 — the unstratified lie is Ok=2).
 
-`(b)` ShadowNode still waits — index the armed network.
-Do not start keyed gather. Do not start 297 (protobuf
-codec). The Export *is* the record 297 will pack later.
+`(b)` ShadowNode **landed**. `WhereTree` / `ShadowNode`
+(`Arc`, never `Rc`) indexes TestNodes by canonical
+`(= dim lit)` from the compiled `Expr`. Token walk may
+over-approx, never under-approx. Node-share `[50 200]`:
+10,000 evals → 200 (1.00/token, 0% waste). Raise
+suppression is the intended semantic change: a token
+routed off a branch never evals that branch's `where`.
+Fold-the-wall **landed**. No leftover
+`SeedCmp` → bucket is the gather; count is `len`;
+value folds read `bindings[slot]`. `[200 200]`
+`accum:fold` 68.49 → **2.32 ms**. Gather-no-snapshot
+**landed**: `accum:snapshot` 5.56 → **0.00 ms**.
+Delta-alpha-indices **landed**: `d_alpha` is `Vec<usize>`;
+push moves. Setup-seen-once **landed**: first worklist
+is the facts PV; `seen` filled once; `alpha_activate_fact`
+shared. SETUP did **not** fall (13.40 / `setup:seen`
+13.26) — leftover was SipHash. Hasher **landed**:
+`setup:seen` → **8.17**, FIRE → **76.85**. Remaining
+seen is Hash walk + insert (do not add a second hasher).
+Next leftover to draw: drop-memories 10.49 ms. Do not
+persist gather unless a census names it. Do not start 297.
 
 ## NOW — item 12 landed (still true)
 
@@ -483,12 +511,13 @@ shares the id. A second `fire-rules` does not re-`lower`
 / re-`classify`. Stratified slices still build (ephemeral
 `from_trie`).
 
-Next fire-path item: `(b)` ShadowNode. Export is a
-different door and it is open.
+Next fire-path item: draw drop-memories (10.49 ms)
+or leave it as the copy we keep. Not a second hasher.
+Not persist. Not 297.
 
 Ruled 2026-08-17 (do not drop): **armed Session before
-ShadowNode.** Indexing a setup we still re-run is the
-mask class. The arm is armed. `(b)` may start.
+ShadowNode.** That order held. The arm was armed; `(b)`
+indexed it.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.
@@ -648,7 +677,7 @@ rematch) + `f228b033` (user folds on the list) + **this turn**
 - Keyed gather is **landed** (Acc + Negation/Exists Leaf share
   `gather_cache` / `ensure_gather`). Do not persist the index
   across rounds. Do not start keyed gather *again* to dodge `(b)`.
-  `(b)` is item 13. Persist-across-rounds is a later speed stone.
+  `(b)` is item 13 and it **landed**. Persist-across-rounds is a later speed stone.
 - Do not treat “sits on `Expr`” as “native no longer interprets.”
   The completeness grid at the top is the scoreboard.
 - Do not revert cut 1 back to `wm_fact_slice` for fact-shaped
@@ -663,7 +692,7 @@ rematch) + `f228b033` (user folds on the list) + **this turn**
 ## Read order
 
 1. **This file** — the **completeness grid** at the top, then
-   **NOW** (item 12 landed; `(b)` is next).
+   **NOW** (`(b)` landed; do not start 297).
 2. The arm: `src/rete/kernel.rs` `ReteArm` / `rete_arm_get_or_build`.
    Identity: `PMap::rust_identity`. Gate:
    `fire_rules_reuses_arm_across_fire_and_insert_overlay`.

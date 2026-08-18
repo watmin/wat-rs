@@ -121,6 +121,11 @@ num-rational.workspace = true
 num-bigint.workspace = true
 num-traits.workspace = true
 rpds    = "1"
+# Arc 278 — fire-path HashMap/HashSet whose keys are Value (seen, gather).
+# SipHash of 40k input Aggregates was 13.26 ms of SETUP after
+# setup-seen-once. rustc-hash FxHash is DESIGN-STONE-setup-fxhash.
+# Not a persisted / interchange hash.
+rustc-hash = "2"
 # Arc 198 slice 2 Stone 1 — link-time registry for Rust-side substrate
 # restriction declarations. Stone 1 adds the wiring (RestrictionEntry +
 # inventory::collect! + setup-time iteration); Stones 2-4 mint the

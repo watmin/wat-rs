@@ -1580,6 +1580,7 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
     }
     let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
     let alpha_tree = AlphaTree::unpruned(&alpha_by_type);
+    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
     let arm = Arc::new(ReteArm {
         node_ids,
         compiled_conds,
@@ -1588,6 +1589,7 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
         compiled_acc_folds,
         compiled_rhs,
         alpha_tree,
+        where_tree,
         feeding_alpha_of,
         parents_of,
         beta_readers,
