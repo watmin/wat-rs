@@ -8562,7 +8562,7 @@ fn select_defclause_clause(
             .zip(vals.iter())
             .enumerate()
             .find_map(|(pos, ((_, ty), val))| {
-                if value_matches_type_by_name(val, ty) {
+                if value_matches_type_by_name(val, ty, sym) {
                     None
                 } else {
                     Some((
@@ -8617,7 +8617,7 @@ fn select_defclause_clause(
                     .iter()
                     .enumerate()
                     .find_map(|(rest_pos, val)| {
-                        if value_matches_type_by_name(val, elem_ty) {
+                        if value_matches_type_by_name(val, elem_ty, sym) {
                             None
                         } else {
                             Some((
@@ -8866,7 +8866,11 @@ fn declared_type_subsumes(earlier: &crate::types::TypeExpr, later: &crate::types
 ///
 /// For typeunion types, we check if the value's type is a member of the union.
 /// For plain Path types, we compare against the value's type_name.
-fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool {
+fn value_matches_type_by_name(
+    val: &Value,
+    ty: &crate::types::TypeExpr,
+    sym: &SymbolTable,
+) -> bool {
     match ty {
         crate::types::TypeExpr::Path(p) => {
             // Arc 251 Stone — bare uppercase paths are type-vars (same rule as
@@ -8912,7 +8916,22 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
                 _ => {
                     // Map the value's runtime type to its canonical type-keyword path.
                     let val_type = val_type_path(val);
-                    p.as_str() == val_type
+                    if p.as_str() == val_type {
+                        return true;
+                    }
+                    // Strike 2, the MONOMORPHIC half: a surface with no type params (e.g.
+                    // `:wat::spawn::Locus`) names a top exactly as a parametric one does, and
+                    // leaving it out would ship the fix with a seam. Same additive shape, same
+                    // one door.
+                    if let Some(types) = sym.types_deref() {
+                        let surface = crate::types::parametric_head_fqdn(p);
+                        if matches!(types.get(&surface), Some(crate::types::TypeDef::Surface(_)))
+                            && crate::types::satisfies_bare_surface(val_type, &surface, types)
+                        {
+                            return true;
+                        }
+                    }
+                    false
                 }
             }
         }
@@ -8930,6 +8949,34 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
         // every other Parametric shape (HashMap<K,V>, Option<T>, Result<T,E>, etc. — never
         // multi-clause-competing on container kind) keeps the old permissive behavior.
         crate::types::TypeExpr::Parametric { head, .. } => {
+            // ── Stone 118.B2c strike 2 — A SURFACE IS THE CONTAINER-TOP ─────────────────────
+            //
+            // B1a (`eab12e05`) taught the CHECKER that a concrete instantiation satisfies a
+            // parametric surface. This selector never learned it: the container match below
+            // resolves the value to a `StreamContainer` and demands the declared head equal that
+            // container's canonical name, so `wat::core::Seqable` could never match ANYTHING. A
+            // `defclause` arm typed with a surface type-checked and then died at runtime with
+            // `NoMatchingClause` — the checker and the runtime disagreeing about the same call.
+            //
+            // ★ THIS IS THE ARC-278 RECORD-TOP FIX, ONE ARM DOWN, and that fix's own comment
+            // (just above) supplies the safety argument verbatim: "This only ADDS the supertype,
+            // so it can never make a call that dispatches today stop dispatching; and the checker
+            // still gates which calls are legal at all." That the same function needed this twice,
+            // for two different tops, is the finding — the arm enumerates concrete heads, so every
+            // new top arrives as a fresh instance of the same bug.
+            //
+            // ONE DOOR: `satisfies_bare_surface` (src/types.rs:752) is the CHECKER's own answer to
+            // "does this type satisfy this surface", walking the `extend-type` edges
+            // `register_subtype` laid down. The runtime now asks the same question of the same
+            // registry instead of keeping a second, narrower opinion.
+            if let Some(types) = sym.types_deref() {
+                let surface = crate::types::parametric_head_fqdn(head);
+                if matches!(types.get(&surface), Some(crate::types::TypeDef::Surface(_)))
+                    && crate::types::satisfies_bare_surface(val_type_path(val), &surface, types)
+                {
+                    return true;
+                }
+            }
             use crate::collection::seq_container::StreamContainer;
             match StreamContainer::of_value(val) {
                 Some(container) => {

@@ -1,99 +1,77 @@
-//! Stone 118.B2c — DISCONFIRMING PROBE for **door 1**: a `defclause` ARM typed with a SURFACE never
-//! dispatches at runtime, even though the checker accepts the call.
+//! Stone 118.B2c strike 2 — **a `defclause` arm typed with a SURFACE now dispatches.**
 //!
 //! The wat source is the co-located sibling fixture
-//! `probe_stone_118_b2c_surface_arm_never_dispatches.wat`. It LOADS and TYPE-CHECKS cleanly — that
-//! is the defect: the program is legal and dies when called.
+//! `probe_stone_118_b2c_surface_arm_never_dispatches.wat`.
+//! Design: `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/`
+//! `DESIGN-STONE-118.B2c-a-surface-typed-clause-arm-never-dispatches.md`.
 //!
-//! Found while migrating the six walkers (118.B2b, `d4c6f3a5`); PRE-EXISTING since B1 (`488eacd0`).
-//! Design: `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN-STONE-118.B2c-a-surface-typed-clause-arm-never-dispatches.md`
+//! ## THIS FILE INVERTED, EXACTLY AS ITS OWN HEADER PROMISED
 //!
-//! ## ⚠ THIS FILE IS A WITNESS, AND IT INVERTS WHEN THE FIX LANDS
+//! It was written as a WITNESS of the defect: four `clause_*` rows asserting that every container
+//! is REFUSED by a `Seqable<T>`-typed clause arm, green on the broken substrate, with the header
+//! stating *"when B2c lands, the four `clause_*` rows must go RED — that RED is the stone's
+//! acceptance signal."* Strike 2 landed and all four went red. This is the mirror they were
+//! replaced by.
 //!
-//! It asserts the DEFECT, so it is GREEN on the broken substrate. **When B2c lands, the four
-//! `clause_*` rows must go RED** — that RED is the stone's acceptance signal, and the fix's job is
-//! to delete them and replace them with the mirror of `control_*` (every container dispatching).
-//! A witness is committed rather than described in prose because a negative control that CAN be
-//! kept MUST be kept (`[[feedback_a_negative_control_that_can_be_kept_must_be_kept]]`), and it is
-//! NOT `#[ignore]`d, because "commit RED probes ignored" is precisely the convention that grew this
-//! repo's ignore pile (`[[feedback_a_house_convention_can_be_the_mechanism_that_built_the_pile]]`).
+//! ## The defect it closes
 //!
-//! ## ★ The control is the load-bearing half
+//! ```text
+//! no clause of :wat::core::reductions matched (3 args);
+//! clause 0 skipped (arg 2: expected :wat::core::Seqable<T>, got :wat::core::Vector)
+//! ```
 //!
-//! `control_*` calls the SAME body with the SAME `Seqable<T>` parameter through a plain `defn`.
-//! Those four must SUCCEED. Without them, the four failing rows are equally explained by
-//! "`Seqable<T>` parameters are broken everywhere" — which is false, and would send the fix at the
-//! wrong door entirely. The pair together says: the type is fine, the CHECKER is fine, and the
-//! defect is exactly `defclause` dispatch.
+//! B1a (`eab12e05`) taught the CHECKER that a concrete instantiation satisfies a parametric
+//! surface. `value_matches_type_by_name` was a SECOND DOOR that never learned it, so a
+//! surface-typed arm type-checked and then died at runtime. It now asks
+//! `satisfies_bare_surface` — the checker's own answer, over the `extend-type` edges
+//! `register_subtype` laid down. One question, one door.
+//!
+//! ## ★ The `control_*` rows are still load-bearing, in the opposite direction
+//!
+//! They call the SAME body with the SAME `Seqable<T>` parameter through a plain `defn`, which
+//! always worked. Keeping them green proves strike 2 fixed the *dispatcher* and did not, say,
+//! quietly widen `Seqable<T>` itself into something that accepts anything. Together the two halves
+//! now say: the checker agrees with the runtime, through both doors, for all four containers.
 //! `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
 
 use wat::freeze::call_beside_value;
-use wat::value::signal::RuntimeErrorKind;
-use wat::value::value::ClauseFailureReason;
 
-/// Every container, through a `defclause` arm declared `Seqable<T>`: `NoMatchingClause`, with the
-/// skip reason naming the surface as `expected` and the concrete container as `got`.
+/// Every container, through a `defclause` arm declared `Seqable<T>`: it must now DISPATCH and
+/// return the element count.
 ///
-/// Asserting the ARM (not merely "it failed") is what makes this a characterization and not a
-/// smoke test — each `ClauseFailureReason` predicts a different mechanism, and only
-/// `ArgTypeMismatch` at position 0 means *this* one.
-fn assert_clause_arm_refused(entry: &str, expected_got: &str) {
-    let err = call_beside_value(file!(), entry)
-        .expect_err("a Seqable<T>-typed defclause arm must fail to dispatch at HEAD");
-
-    let RuntimeErrorKind::NoMatchingClause {
-        name,
-        attempted_clauses,
-        ..
-    } = err.kind()
-    else {
-        panic!("expected NoMatchingClause for {entry}, got {:?}", err.kind());
-    };
-    assert_eq!(name, ":my::count-via-clause", "wrong defclause for {entry}");
-
-    let attempt = attempted_clauses
-        .first()
-        .unwrap_or_else(|| panic!("no clause attempt recorded for {entry}"));
-
-    let ClauseFailureReason::ArgTypeMismatch {
-        position,
-        expected,
-        got,
-    } = &attempt.failure_reason
-    else {
+/// Before strike 2 each of these returned `Err(NoMatchingClause)` with the skip reason naming the
+/// surface as `expected` and the concrete container as `got`.
+fn assert_clause_arm_dispatches(entry: &str, expected_count: i64) {
+    let v = call_beside_value(file!(), entry).unwrap_or_else(|e| {
         panic!(
-            "{entry}: expected the arm to be skipped on ARG TYPE (that is the door-1 mechanism); \
-             got {:?}",
-            attempt.failure_reason
-        );
+            "a Seqable<T>-typed defclause ARM must dispatch — the checker accepts this call, so a \
+             runtime refusal is the two doors disagreeing. Got: {e:?}"
+        )
+    });
+    let wat::Value::i64(n) = v else {
+        panic!("{entry}: expected an i64, got {v:?}");
     };
-
-    assert_eq!(*position, 0, "{entry}: the receiver is arg 0");
-    assert_eq!(
-        expected, ":wat::core::Seqable<T>",
-        "{entry}: the declared type must be the surface"
-    );
-    assert_eq!(got, expected_got, "{entry}: the value's resolved container");
+    assert_eq!(n, expected_count, "{entry}: wrong element count");
 }
 
 #[test]
-fn clause_arm_refuses_vector() {
-    assert_clause_arm_refused(":my::clause-vector", ":wat::core::Vector");
+fn clause_arm_dispatches_vector() {
+    assert_clause_arm_dispatches(":my::clause-vector", 3);
 }
 
 #[test]
-fn clause_arm_refuses_list() {
-    assert_clause_arm_refused(":my::clause-list", ":wat::core::List");
+fn clause_arm_dispatches_list() {
+    assert_clause_arm_dispatches(":my::clause-list", 3);
 }
 
 #[test]
-fn clause_arm_refuses_persistentvector() {
-    assert_clause_arm_refused(":my::clause-persistentvector", ":wat::core::PersistentVector");
+fn clause_arm_dispatches_persistentvector() {
+    assert_clause_arm_dispatches(":my::clause-persistentvector", 3);
 }
 
 #[test]
-fn clause_arm_refuses_stream() {
-    assert_clause_arm_refused(":my::clause-stream", ":wat::stream::Stream");
+fn clause_arm_dispatches_stream() {
+    assert_clause_arm_dispatches(":my::clause-stream", 2);
 }
 
 // ─── ★ THE CONTROL — the same Seqable<T> parameter on a plain `defn` MUST work ──────────────────
