@@ -8,8 +8,9 @@
 **Right now:** items 1–12 landed. `#wat.rete/Export` is
 the compiled program: one EDN tag, packed vectors, no
 facts / memories / source forms. `export` → `import` →
-`insert` + `fire-rules` is native-only. `(b)` is still
-item 13 — **not started.** Oracle cannot consume an
+`insert` + `fire-rules` is native-only. R67 is on the
+chronicle (this instance's first realization). `(b)` is
+still item 13 — **not started.** Oracle cannot consume an
 Export. Do not service-ify. Do not start 297.
 
 ### Completeness grid — 2026-08-17 — do not drop
