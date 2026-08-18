@@ -58,3 +58,16 @@
     (:wat::core::Option/expect
       (:wat::core::PersistentMap/get r "?count")
       "q-Rate: ?count")))
+
+(:wat::core::defn :user::run-first-count-native [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :tf)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
+     session (:wat::rete::insert session (:tf::Anchor :x 0))
+     session (:wat::rete::insert session (:tf::Rate :count 5))
+     fired   (:wat::rete::fire-rules session)
+     derived (:wat::rete::query fired (:tf::q-Rate))
+     r       (:wat::core::first derived)]
+    (:wat::core::Option/expect
+      (:wat::core::PersistentMap/get r "?count")
+      "q-Rate: ?count")))

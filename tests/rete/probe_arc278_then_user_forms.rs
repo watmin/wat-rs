@@ -84,6 +84,16 @@ fn userfn_head_item_compiles_and_fires() {
     assert!(matches!(r, Ok(Value::i64(5))), "expected count=5 (the seeded Rate); got {r:?}");
 }
 
+/// GREEN, widening (a), NATIVE: same rule through compiled `CompiledRhs::Call`.
+#[test]
+fn userfn_head_item_fires_via_native_kernel() {
+    let r = run(WORLD_USERFN, ":user::run-first-count-native");
+    assert!(
+        matches!(r, Ok(Value::i64(5))),
+        "expected count=5 via compiled fn-headed :then; got {r:?}"
+    );
+}
+
 /// RED: an impure fn composed of a core-namespaced op is refused at compile, naming the exact
 /// offending head and axis — `assert_eq!` (not a substring), same discipline as
 /// `probe_fence_names_the_head.rs`'s mutation-proven pins.

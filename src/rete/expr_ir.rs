@@ -15,6 +15,7 @@ use crate::runtime::{
 };
 use crate::span::Span;
 use crate::types::TypeDef;
+use crate::value::value::AggregateValue;
 
 /// A lowered rete expression. Children are nested (builder: "matches the precedent").
 #[derive(Clone, Debug)]
@@ -39,6 +40,13 @@ pub(crate) enum Expr {
     Field {
         recv: Box<Expr>,
         idx: usize,
+    },
+    /// `(:Type field…)` / kwargs — a fact constructor inside a rete-defn body
+    /// (fn-headed `:then` fallbacks, e.g. `(:tf::Rate :count 0)`).
+    Construct {
+        class: String,
+        names: Arc<Vec<String>>,
+        fields: Box<[Expr]>,
     },
     If {
         cond: Box<Expr>,
@@ -323,6 +331,22 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
             reason: "quote is data, not a where expression".into(),
         });
     }
+    if core == ":wat::core::kwargs-construct" || core == ":wat::core::aggregate-new" {
+        let type_kw = match items.get(1) {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            _ => {
+                return Err(LowerError::Unsupported {
+                    span: span.clone(),
+                    reason: "constructor needs a type keyword".into(),
+                });
+            }
+        };
+        return lower_construct(type_kw, &items[1..], span, cx)?
+            .ok_or_else(|| LowerError::Unsupported {
+                span: span.clone(),
+                reason: format!("unknown aggregate {type_kw}"),
+            });
+    }
 
     // Vocabulary rows win over `:Type/field` — `PersistentVector/length` contains `/`
     // but is a rete op, not a record accessor.
@@ -362,6 +386,10 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
             recv: Box::new(lower_expr(&items[1], cx)?),
             idx,
         });
+    }
+
+    if let Some(e) = lower_construct(head, items, span, cx)? {
+        return Ok(e);
     }
 
     // Named rete-defn.
@@ -732,6 +760,53 @@ fn field_index(sym: &SymbolTable, class: &str, field: &str) -> Option<usize> {
     }
 }
 
+fn lower_construct(
+    head: &str,
+    items: &[WatAST],
+    span: &Span,
+    cx: &mut LowerCx<'_>,
+) -> Result<Option<Expr>, LowerError> {
+    let Some(types) = cx.sym.types() else {
+        return Ok(None);
+    };
+    let Some(TypeDef::Aggregate(a)) = types.get(head) else {
+        return Ok(None);
+    };
+    let names = a.names_arc();
+    let class = head.strip_prefix(':').unwrap_or(head).to_string();
+    let args = &items[1..];
+    let is_kwargs = args.len() >= 2
+        && args.len().is_multiple_of(2)
+        && args
+            .iter()
+            .step_by(2)
+            .all(|a| matches!(a, WatAST::Keyword(_, _)));
+    let value_asts: Vec<&WatAST> = if is_kwargs {
+        args.iter().skip(1).step_by(2).collect()
+    } else {
+        args.iter().collect()
+    };
+    let mut fields = Vec::with_capacity(value_asts.len());
+    for v in value_asts {
+        fields.push(lower_expr(v, cx)?);
+    }
+    if fields.len() != names.len() {
+        return Err(LowerError::Unsupported {
+            span: span.clone(),
+            reason: format!(
+                "constructor {head} wants {} fields, got {}",
+                names.len(),
+                fields.len()
+            ),
+        });
+    }
+    Ok(Some(Expr::Construct {
+        class,
+        names,
+        fields: fields.into_boxed_slice(),
+    }))
+}
+
 // ── exec ─────────────────────────────────────────────────────────────────────
 
 pub(crate) fn exec_where<B: Bindings>(
@@ -814,6 +889,21 @@ fn exec(
                 )
                 .into()),
             }
+        }
+        Expr::Construct {
+            class,
+            names: field_names,
+            fields,
+        } => {
+            let mut vs = Vec::with_capacity(fields.len());
+            for f in fields.iter() {
+                vs.push(exec(f, frame, names, sym, span)?);
+            }
+            Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+                class.clone(),
+                Arc::clone(field_names),
+                Arc::new(vs),
+            ))))
         }
         Expr::If { cond, then_, else_ } => match exec(cond, frame, names, sym, span)? {
             Value::bool(true) => exec(then_, frame, names, sym, span),

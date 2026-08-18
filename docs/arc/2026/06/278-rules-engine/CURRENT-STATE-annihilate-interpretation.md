@@ -22,7 +22,7 @@ it. That is **not** the same as “native no longer interprets.”
 | `:when` cond populate (happy path) | Mostly. Fire `exec_compiled`. Cmp operands are `Expr`. | Defensive miss still calls `alpha_match_inner`. |
 | **leftover rematch** (fact-shaped + combinator minted leaves) | Yes. `SeedCmp` + `exec_compiled_under`. | **No** on that path. Combinator `:and`/`:or` leaves rematch compiled. No-alpha scan is the residual. |
 | `:then` `?var` / literal / fenced expr | Yes. `RhsOp::Expr` is a `Program`; fire `exec_value`. | **No**, for those shapes. |
-| `:then` fn-headed item | **No.** | **Yes.** `compile_rhs` → `None` → `build_insert_fact`. |
+| `:then` fn-headed item | Yes. `CompiledRhs::Call` + `Construct` in `expr_ir`. | **No** when `lower` succeeds. |
 | user acc fold | Yes. Setup `lower`s the fn; fire `exec_call`. `eval_inner` deleted. | **No.** |
 | built-in `acc::*` | Not an expression. Rust fold. | No walk. |
 
@@ -33,7 +33,7 @@ it. That is **not** the same as “native no longer interprets.”
 
 **Still interpreted on native fire:**
 - no-alpha WM-scan fallback (leaf with no minted alpha)
-- fn-headed `:then` (`build_insert_fact`)
+- defensive cond populate miss (`alpha_match_inner`)
 - `fire_once_session` / `alpha_pass` (old four-pass, not
   `fire_fixpoint_delta`)
 
@@ -77,8 +77,10 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
    `binding_extensions` / `exists_cond_under` rematch minted
    leaves via `exec_compiled_under`. No-alpha scan remains.
    Do not put the WM scan back.
-7. **Compile fn-headed `:then`.** Today `build_insert_fact`.
-   Next unfinished form on the live native mouth.
+7. **Compile fn-headed `:then`.** **landing.** `CompiledRhs::Call`
+   lowers the whole item; rete-defn bodies may `Construct` a
+   record. `LowerError` refuses. Gate:
+   `userfn_head_item_fires_via_native_kernel`.
 8. `(b)` ShadowNode — **only after native fire walks no
    `WatAST`.** Not yet.
 

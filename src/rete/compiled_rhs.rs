@@ -78,15 +78,15 @@ pub(crate) enum RhsOp {
 
 /// An insert-form compiled once, at setup, from the immutable rule set — the pre-resolved dual of
 /// `build_insert_fact`. Built by [`compile_rhs`]; run by [`exec_compiled_rhs`].
-pub(crate) struct CompiledRhs {
-    /// The record's class name, stripped of the leading `':'` ONCE, at compile time.
-    class: String,
-    /// Arc 296 G-1 — class A: the field names off the SAME `AggregateDef` `compile_rhs`
-    /// already resolves (`is_known_aggregate`) to prove this is a real aggregate type,
-    /// captured once here rather than looked up again per fact.
-    names: Arc<Vec<String>>,
-    /// One op per field, in written (declaration) order — kwargs already unwrapped to values.
-    ops: Vec<RhsOp>,
+pub(crate) enum CompiledRhs {
+    /// `(:Type field…)` constructor.
+    Record {
+        class: String,
+        names: Arc<Vec<String>>,
+        ops: Vec<RhsOp>,
+    },
+    /// Fn-headed `:then` item — the whole form is one `Program`.
+    Call(Arc<crate::rete::expr_ir::Program>),
 }
 
 /// Compile one `(:Type arg…)` fact-form (arc 278 Stone A: no more `:wat::rete::insert`
@@ -122,10 +122,15 @@ pub(crate) fn compile_rhs(
         WatAST::Keyword(k, _) => k.as_str(),
         _ => return Ok(None),
     };
-    // See this fn's doc — a non-aggregate head is a Stone B fn-call item; defer it whole.
     let names = match sym.types().and_then(|t| t.get(type_keyword)) {
         Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
-        _ => return Ok(None),
+        _ => {
+            // Widening (a) — fn-headed item. Lower the whole call. A LowerError
+            // refuses (STOP-3): do not walk build_insert_fact_call.
+            let program = crate::rete::expr_ir::lower(fact_form, sym)
+                .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+            return Ok(Some(CompiledRhs::Call(Arc::new(program))));
+        }
     };
     let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
 
@@ -173,7 +178,7 @@ pub(crate) fn compile_rhs(
         ops.push(op);
     }
 
-    Ok(Some(CompiledRhs { class, names, ops }))
+    Ok(Some(CompiledRhs::Record { class, names, ops }))
 }
 
 /// Execute a compiled RHS form against one token's bindings. Returns exactly what
@@ -195,31 +200,50 @@ pub(crate) fn exec_compiled_rhs(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
-    let mut fields: Vec<Value> = Vec::with_capacity(c.ops.len());
-    for op in &c.ops {
-        let v = match op {
-            RhsOp::Bind(key, ast_debug) => match bindings.get(key) {
-                Some(v) => v.clone(),
-                None => {
-                    // Byte-identical to `build_insert_fact`'s unbound-operand error: same op, same
-                    // `expected`, and a `got` rendered from the SAME `format!("{arg:?}")` — built
-                    // at compile time rather than here. The arm is reachable (no `:then`
-                    // validator exists), so the two paths must be indistinguishable.
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+    match c {
+        CompiledRhs::Call(program) => {
+            match crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)? {
+                v @ Value::Aggregate(_) => Ok(v),
+                other => Err(RuntimeError::new(
+                    program.span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
-                        got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(ast_debug.clone())))),
-                    }).into());
-                }
-            },
-            RhsOp::Lit(v) => v.clone(),
-            RhsOp::Expr(program) => {
-                crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)?
+                        expected: "the fn to return a fact (a Record/Struct) — the rule-compile fence should \
+                                   have refused a non-fact return type",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into()),
             }
-        };
-        fields.push(v);
+        }
+        CompiledRhs::Record { class, names, ops } => {
+            let mut fields: Vec<Value> = Vec::with_capacity(ops.len());
+            for op in ops {
+                let v = match op {
+                    RhsOp::Bind(key, ast_debug) => match bindings.get(key) {
+                        Some(v) => v.clone(),
+                        None => {
+                            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                                op: OP.into(),
+                                expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
+                                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(ast_debug.clone())))),
+                            }).into());
+                        }
+                    },
+                    RhsOp::Lit(v) => v.clone(),
+                    RhsOp::Expr(program) => {
+                        crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)?
+                    }
+                };
+                fields.push(v);
+            }
+            Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+                class.clone(),
+                names.clone(),
+                Arc::new(fields),
+            ))))
+        }
     }
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(c.class.clone(), c.names.clone(), Arc::new(fields)))))
 }
 
 #[cfg(test)]
