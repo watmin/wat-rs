@@ -111,6 +111,20 @@ GEN_FILE="$GRID_DIR/gen-$AXIS.sh"
 [ -f "$GEN_FILE" ] || { echo "run-axis: missing $GEN_FILE" >&2; exit 1; }
 [ "$#" -ge 1 ] || { echo "run-axis: need at least one SIZE" >&2; exit 1; }
 
+# GRID_SKIP_ORACLE=1 — native vs Clara only. Axes still *compile* a fire-rules-spec
+# form after the timed native fire so :oracle-derived can be emitted; that is
+# not the engine ratio (:native-ns is fire-only) but it is the bulk of wat-wall
+# on the slow axes. Replace the spec call with the already-fired native session.
+WAT_SRC="$WAT_FILE"
+ORACLE_TMP=""
+if [ -n "${GRID_SKIP_ORACLE:-}" ]; then
+  ORACLE_TMP="$(mktemp --suffix=.wat)"
+  perl -pe 's/\(:wat::rete::fire-rules-spec\s+staged\)/fired/g' "$WAT_FILE" > "$ORACLE_TMP"
+  WAT_SRC="$ORACLE_TMP"
+  echo "run-axis: GRID_SKIP_ORACLE=1 — fire-rules-spec not invoked (native vs Clara only)" >&2
+fi
+trap 'rm -f "$ORACLE_TMP"' EXIT
+
 for SIZE in "$@"; do
   SIZE_JSON="[$(echo "$SIZE" | tr -s ' ' ',')]"
 
@@ -141,7 +155,7 @@ for SIZE in "$@"; do
     # flagged it ("the grid timed `fire` and declared superiority on 2% of the runtime") and we
     # kept rediscovering it because the runner never captured the whole. Now it does, both sides.
     WAT_W0=$(date +%s%N)
-    WAT_OUT="$(echo "$SIZE_JSON" | guard "$WAT_BIN" "$WAT_FILE" 2>"$WAT_ERR")"
+    WAT_OUT="$(echo "$SIZE_JSON" | guard "$WAT_BIN" "$WAT_SRC" 2>"$WAT_ERR")"
     WAT_RC=$?
     WAT_W1=$(date +%s%N)
     set -e
@@ -201,7 +215,11 @@ for SIZE in "$@"; do
     #   native vs clara  MISMATCH  =>  the fast path is wrong
     #   oracle vs native MISMATCH  =>  a PORT bug
     # Absent the field this block is inert, so the 2-way axes are byte-for-byte unaffected.
-    ORACLE_DERIVED="$(echo "$WAT_LINE" | grep -oP ':oracle-derived\s+(?:#wat\.core/PersistentVector\s+)?\K\[[^]]*\]' || true)"
+    # GRID_SKIP_ORACLE rewrites spec→native so :oracle-derived would be a lie; do not score it.
+    ORACLE_DERIVED=""
+    if [ -z "${GRID_SKIP_ORACLE:-}" ]; then
+      ORACLE_DERIVED="$(echo "$WAT_LINE" | grep -oP ':oracle-derived\s+(?:#wat\.core/PersistentVector\s+)?\K\[[^]]*\]' || true)"
+    fi
     if [ -n "$ORACLE_DERIVED" ]; then
       HAS_ORACLE=1
       if [ "$ORACLE_DERIVED" != "$CLARA_DERIVED" ]; then
