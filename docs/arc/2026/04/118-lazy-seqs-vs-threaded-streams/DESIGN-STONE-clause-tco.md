@@ -49,25 +49,53 @@ The stone therefore tail-calls **only** clauses with no `:ensure`, and that excl
 delete a post-condition the author wrote and the checker promised — a correctness hole far worse
 than the stack one being fixed.
 
-## The change — the pieces already exist
+## ⛔ CORRECTION 2026-08-18 — the first plan was WRONG. This is the real one.
 
-Selection needs evaluated args; `emit_tail_call` **already evaluates args before signalling**. And
-`eval_call_to_defclause_with_vals` already takes evaluated values and picks the arm. So:
+**As drawn, this section said "one arm plus a seam — the pieces already exist," proposing that
+`eval_tail` select a clause and hand it to `emit_tail_call`. That cannot work**, and the reason is
+the same mistake as the claim this stone exists to fix: I read two function signatures and inferred
+a design without checking the type that flows between them.
 
-```
-1. split eval_call_to_defclause_with_vals (runtime.rs:8364) into
-       select_clause(&cs, &vals) -> Result<&Clause, …>     ← pure selection incl. :guard
-       the existing apply path                             ← unchanged for the non-tail case
-2. add an eval_tail arm (runtime.rs ~4334): head names a ClauseSet
-       → evaluate args
-       → select_clause
-       → if the selected clause has NO `:ensure`  → emit_tail_call(clause.function, vals)
-         if it HAS one                            → fall through to today's ordinary call
+```rust
+EvalSignal::TailCall { func: Arc<Function>, args, call_span }      // the signal carries a FUNCTION
+pub struct Clause { args: ArgSpec, guard, ensure_fn, body: Arc<WatAST> }   // a clause is NOT one
 ```
 
-No new signal variant, no new machinery. One arm plus a seam in a function that already does the
-work. `eval_call_to_defclause_with_vals` takes `sym` but **not** `env` — selection is
-environment-independent, which is what makes the split clean.
+A clause is a body evaluated in a scope built per call. `emit_tail_call` has no way to carry it, and
+`apply_function`'s trampoline has no way to resume it. Routing a clause into that signal would
+require either a second signal variant or a second trampoline in the clause dispatcher.
+
+### The real fix — synthesize the Function at REGISTRATION, not at dispatch
+
+The shapes ARE compatible: `Clause.args` is an `ArgSpec` whose `fixed_params` are `Identifier`
+binders, which is exactly what `Function` wants.
+
+```
+Function { name, type_params, params, param_types, ret_type,
+           rest_param, rest_param_type, body, closed_env, rete }   (value/environment.rs:46)
+Clause   { args: ArgSpec, return_type, guard, ensure_fn, body }    (value/value.rs:393)
+```
+
+So:
+
+```
+1. Clause gains `func: Arc<Function>` — built ONCE at registration, not per call.
+     params/param_types/rest ← args        ret_type ← return_type
+     body ← clause body                    closed_env ← None (clauses are top-level)
+   Four existing construction sites to copy: runtime.rs 874, 1205, 1652, 1859.
+2. eval_tail gains ONE arm: head resolves to a `wat__core__clauses` ClauseSet
+     → evaluate args → select the clause (guards included, unchanged)
+     → if it has NO `:ensure`  → emit_tail_call(clause.func.clone(), vals)
+       if it HAS one           → today's ordinary call, frame intact for the post-check
+```
+
+**`emit_tail_call` is unchanged. The signal is unchanged. `apply_function`'s trampoline is
+unchanged** — it already loops on `TailCall`, and a synthesized clause Function is just a Function.
+That is what makes this small; but the seam is at REGISTRATION, and I had its location wrong.
+
+⚠ **Cost of the synthesis:** one `Arc<Function>` per clause, built at load time. `Clause` already
+derives `Clone`, so this must not turn a cheap clone into a deep one — the `Arc` keeps it cheap, but
+that is a row to verify rather than assume.
 
 ## The four questions
 
