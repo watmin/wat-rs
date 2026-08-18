@@ -116,30 +116,52 @@ surface. Disqualified.
 > name-equality. The moment it asks satisfaction, overlap is possible and first-match-wins becomes
 > load-bearing semantics nobody ruled. `[[feedback_four_questions_cannot_see_a_shared_premise]]`
 
-## ⛔⛔ STOP-1 HAS FIRED — 2026-08-18, BEFORE ANY FIX WAS WRITTEN
+## ⛔ CORRECTED PREDICATE — the wall refuses UNREACHABLE arms, not OVERLAPPING ones
 
-The strike-1 census ran. **The corpus is NOT clean**, and the offenders refute this stone's own
-premise. Full evidence: `MEASURED-118.B2c-strike1-the-corpus-is-NOT-clean.md`.
+**2026-08-18. The ruling did not change; my specification of it did.** Full history:
+`MEASURED-118.B2c-strike1-the-corpus-is-NOT-clean.md` (both corrections).
 
-`wat/bracket.wat` has TWO `defclause`s — `thread-enter` and `process-work-forms` — that declare a
-**concrete `:wat::core::keyword` arm FIRST and a type-var `:W` wildcard arm SECOND**. `:W` matches
-any value (`is_type_var`), so the wildcard arm is a deliberate FALLBACK, and the pair is correct
-today only because dispatch is first-match-wins in declaration order.
+I first implemented "overlap" as **domain intersection**, ran the census, and reported that the
+corpus was dirty and STOP-1 had fired. That was wrong. Intersection is the SYMPTOM; the defect is
+**unreachability**:
 
-**That is clause specificity, in production, load-bearing for the thread-pool bracket machinery — and
-it is DOCUMENTED at `wat/bracket.wat:314-316`**, which names first-match-wins, calls the generic arm a
-"PERMISSIVE catch-all", cites `value_matches_type_by_name`'s line, and states that "ordering is
-load-bearing". ⚠ These sites are NOT violators and nothing about them is malformed; verified with a
-reversed-order control that the checker and runtime agree. They are correct code the ruling would
-outlaw.
-The "Out of scope" section below affirmatively rejected specificity as a hypothetical future want.
-It is not hypothetical. **The wall as ruled would refuse `wat/bracket.wat` and cannot be armed at
-zero offenders.**
+| shape | example | verdict |
+|---|---|---|
+| a later arm's domain is CONTAINED in an earlier one — it can never be selected | `:my::pick`: `[i64]` then `[i64]` | **DEAD CODE — REFUSE** |
+| a later arm's domain merely INTERSECTS an earlier one — it still fires for the rest | `bracket.wat`: `[keyword]` then `[:W]` | **FALLBACK — ALLOW** |
 
-⛔ **STRIKE 1 IS BLOCKED PENDING A BUILDER RULING.** Per STOP-1 the offenders are reported, not
-fixed, and no wall is armed over them. The three available shapes — rule specificity IN, rule it OUT
-and migrate the two sites, or rule that a type-var param is not a dispatch wildcard — are laid out in
-the MEASURED doc, each needing its own four questions. **Strike 2 is unaffected and independent.**
+**THE RULE.** *An arm is illegal iff some EARLIER arm subsumes it — accepts every value it accepts.*
+
+- **Guarded arms never subsume.** A `:guard` can fail (`ClauseFailureReason::GuardFalse` is a real
+  dispatch outcome), so an earlier guarded arm cannot render a later one unreachable.
+- **Arity must match**; different arities never interact.
+- **PAIRWISE only, and deliberately so.** Three arms whose first two JOINTLY exhaust the type
+  universe would leave a third provably dead, and this wall will not see it. That is undecidable in
+  general, and **refusing only what is PROVABLY dead is the correct bias for a wall.**
+
+★ **This is the redef rule, more exactly than the intersection version was.** An arm that can never
+fire is a definition with no effect — a second expression of the same thing. An arm governing
+DIFFERENT inputs is not a redefinition at all. Builder: *"you may only express something's def once
+and all other attempts must be identical."*
+
+**Arc 054's idempotent escape hatch is affirmatively NOT carried over, and the reason is structural.**
+054 exists because a FILE can legitimately be loaded twice (in-crate shims), so the same declaration
+arrives twice through no fault of the author. Clause arms inside ONE `defclause` form cannot arrive
+that way — they are written adjacently, by hand. A byte-identical duplicate arm has no legitimate
+source, so it is refused like any other unreachable arm rather than no-op'd.
+
+## ✅ STOP-1 DOES NOT FIRE — the corpus is clean
+
+```
+census over 1,457 files, corrected predicate
+   UNREACHABLE ARMS : 1     :my::pick — this stone's own witness, written to be refused
+   bracket.wat thread-enter       : arm0 subsumes arm1?  FALSE
+   bracket.wat process-work-forms : arm0 subsumes arm1?  FALSE
+```
+
+**The wall arms at zero offenders.** No migration, no new primitive, and **no specificity order** —
+first-match-wins remains the semantics, and `wat/bracket.wat`'s documented ordering dependence
+(`:314-316`) is untouched and stays correct.
 
 ## ⛔ THE ORDER IS LOAD-BEARING — the wall lands FIRST
 
@@ -160,7 +182,7 @@ already contain offenders it caused.
 **Strike 1**
 | # | assertion |
 |---|---|
-| 1 | a census of every `defclause` in the corpus reports **ZERO overlapping arm pairs** BEFORE the wall is armed — form-tree, never grep |
+| 1 | ✅ **DONE** — the corpus census reports **ZERO unreachable arms** (1 hit, and it is this stone's own witness) — form-tree, never grep |
 | 2 | the live defect goes RED: identical types + different bodies is refused, by name, at registration |
 | 3 | identical types + byte-identical bodies is a NO-OP (arc 054's rule, extended) |
 | 4 | a NON-VACUITY control: a normal multi-arm `defclause` (disjoint types) still registers and dispatches |
@@ -177,9 +199,9 @@ already contain offenders it caused.
 
 ## ⚠ STOP triggers
 
-- **STOP-1 — the strike-1 census finds overlapping arms in the corpus.** Do NOT arm the wall over
-  them and do NOT "fix" them silently. Report the list; each one is a live ambiguity whose disposition
-  is the builder's.
+- **STOP-1 — the strike-1 census finds UNREACHABLE arms in the corpus** (beyond this stone's own
+  witness). Do NOT arm the wall over them and do NOT "fix" them silently. Report the list; each is a
+  live ambiguity whose disposition is the builder's. ✅ **Ran; it does not fire.**
 - **STOP-2 — a concrete-binding satisfier stops dispatching.** Rows 7/8. The change must be ADDITIVE.
 - **STOP-3 — the floor goes red for any reason other than a line-number shift in a golden.**
 - **STOP-4 — `#[ignore]`/skipped moves off 19.**
@@ -190,7 +212,9 @@ already contain offenders it caused.
   different mechanism. Independent.
 - **Collapsing `reduce`/`reductions`' arms** — this stone's PAYOFF, not this stone. A
   `wat/seq.wat`-only follow-up once the door is open.
-- **Clause SPECIFICITY** (most-specific-wins) — affirmatively rejected by the ruling. If a verb later
-  needs a fast concrete path plus a generic fallback, that is a NEW ruling on whether the language
-  has specificity at all, not a quiet relaxation of this wall.
+- **Clause SPECIFICITY** (most-specific-wins) — affirmatively rejected, and under the corrected
+  predicate it is also UNNECESSARY. Specificity exists to break ties between arms that both match;
+  the reachability rule never creates such a tie, because an arm that could only ever lose a tie is
+  precisely an unreachable arm and is refused. A concrete-then-fallback pair (`bracket.wat`) is not a
+  tie at all — first-match-wins resolves it deterministically, as documented at `:314-316`.
 - **B3.** Its precondition is met and depends on neither door.

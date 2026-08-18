@@ -1,4 +1,47 @@
-# MEASURED — 118.B2c strike 1's census. ⛔ STOP-1 FIRES — but NOT on "violators".
+# MEASURED — 118.B2c strike 1's census. ⛔ STOP-1 DOES **NOT** FIRE. The corpus IS clean.
+
+> ## ⛔⛔ SECOND CORRECTION, 2026-08-18 — THE PREDICATE WAS WRONG, NOT THE RULING
+>
+> This document's whole premise was a mis-specification of the builder's ruling, and the measurement
+> below was taken with the wrong instrument.
+>
+> **I implemented "overlap" as DOMAIN INTERSECTION. The defect is UNREACHABILITY.**
+>
+> - Two arms whose domains merely INTERSECT — an earlier concrete arm and a later catch-all — are a
+>   FALLBACK. The later arm still fires for the rest of its domain. Deterministic, total, correct.
+>   That is `bracket.wat`.
+> - An arm whose domain is CONTAINED in an earlier one **can never be selected**. Dead code. That is
+>   `:my::pick`.
+>
+> Intersection is not containment. Re-measured with the corrected predicate (an arm is illegal iff
+> some EARLIER arm subsumes it; a guarded arm never subsumes, because a guard can fail):
+>
+> ```
+> UNREACHABLE ARMS across 1,457 files : 1
+>    :my::pick   — this stone's own witness, written to be refused
+> bracket.wat thread-enter       : arm0 subsumes arm1?  FALSE
+> bracket.wat process-work-forms : arm0 subsumes arm1?  FALSE
+> ```
+>
+> **The corpus is clean. The wall arms at zero offenders. No migration, no new primitive, and NO
+> SPECIFICITY ORDER** — first-match-wins stays the semantics; you simply cannot write an arm that
+> never wins. The three "shapes to rule" below are artifacts of the wrong predicate: options 1
+> (specificity) and 3 (type-vars stop matching) exist only to cope with problems intersection
+> invented. **The builder's original ruling stands, unamended.**
+>
+> ★ And the reachability rule IS the redef rule, more exactly than my version was: an arm that can
+> never fire is a definition with no effect. An arm governing DIFFERENT inputs is not a redefinition
+> at all.
+>
+> The error class: **I named the guard after the SYMPTOM I noticed (arms intersect) instead of the
+> PROPERTY that must hold (every arm is reachable)** — strictly tighter, and it outlawed correct
+> code. Same shape as the STOP-2 that made a rider ship an O(n²) regression.
+> `[[feedback_a_guard_drawn_too_tight_makes_the_honest_path_noncompliant]]`
+>
+> Everything below is preserved as it was written, including the count of 3 INTERSECTING pairs, which
+> is accurate for the question it asked and irrelevant to the question that matters.
+
+# (superseded) MEASURED — the census as first read: "STOP-1 fires"
 
 > ## ⛔ CORRECTION, 2026-08-18, same day, before any fix
 >
