@@ -554,28 +554,27 @@
 ;; 118.B2b — the three-call walk is GONE: every arm now delegates to ONE private `Stream<T>` walker
 ;; that pulls with `:wat::stream::next` (one force per cell, where the old bodies forced three).
 ;;
-;; ⛔ WHY THIS IS NOT ONE `Seqable<T>` CLAUSE like `remove`/`take-while`/`drop-while`/`take-nth`
-;; above — a SUBSTRATE GAP, measured, not a preference:
+;; ✅ 118.B2c + 118.B2d — TEN ARMS COLLAPSE TO TWO, one per ARITY, both over `Seqable<T>`.
+;;
+;; B2b left this verb with ten per-container arms and a comment explaining that it COULD NOT
+;; collapse, because a `defclause` ARM typed with a surface never dispatched:
 ;;
 ;;     no clause of :wat::core::reductions matched (3 args);
 ;;     clause 0 skipped (arg 2: expected :wat::core::Seqable<T>, got :wat::core::Vector)
 ;;
-;; A `defclause` ARM typed with a surface NEVER DISPATCHES. Stone B1a (`eab12e05`) taught the
-;; CHECKER that a concrete instantiation satisfies a parametric surface; the runtime clause
-;; selector is a SECOND DOOR that never learned it — `value_matches_type_by_name`'s `Parametric`
-;; arm (src/runtime.rs:8760) resolves the value to a `StreamContainer` and demands the declared
-;; head equal that container's canonical name, so `Seqable` can never match anything.
+;; Two doors were shut. `118.B2c` strike 2 taught the runtime clause selector to ask the CHECKER's
+;; own satisfaction question (`satisfies_bare_surface`) instead of enumerating concrete container
+;; heads; `118.B2d` made a GENERIC satisfier's surface param bind from the receiver, so
+;; `(Seqable/seq v)` on a `Vector<i64>` yields `Stream<i64>` rather than `Stream<T>`. This collapse
+;; is those two stones' payoff, and the first production code to walk through both.
 ;;
-;; This is the EXACT bug the arc-278 record-top fix closed twenty lines up in that same function
-;; ("the checker ACCEPTS a call passing a concrete record to a param declared as the top — and this
-;; arm then refused it… a program that type-checks and dies at runtime with `NoMatchingClause`").
-;; A surface is the container-top; same disagreement, one arm down. Drawn as its own stone:
-;; `DESIGN-STONE-118.B2c-a-surface-typed-clause-arm-never-dispatches.md`. Single-arity verbs are
-;; unaffected — they are plain `defn`s, which never reach this selector.
-;;
-;; So `reductions` keeps per-container arms, exactly mirroring `:wat::core::reduce` above (which
-;; B2 left in this same shape for this same reason). WHEN B2c LANDS these ten arms collapse to two
-;; — one per arity — with no other change.
+;; ⚠ `:wat::core::reduce` ABOVE IS DELIBERATELY *NOT* COLLAPSED, and the reason is measured, not
+;; taste. Its eager arms delegate to `:wat::core::foldl`, a NATIVE intrinsic (src/runtime.rs:6354);
+;; routing them through the interpreted walker instead costs **5.1x** (200k i64 sum, both block
+;; orderings, non-vacuity held: foldl ~103ms vs walk ~530ms —
+;; `wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`). `reductions` has no such
+;; native path — every one of its ten arms already delegated to `reductions-walk` — so this
+;; collapse is free and `reduce`'s would not be. The two verbs LOOK like the same shape and are not.
 ;;
 ;; ⚠ THE 2-ARITY EMPTY CASE — the old comment here was FALSE, and this is the measured record.
 ;; It claimed: *"an empty `coll` raises via `first`'s out-of-range failure rather than a silent
@@ -611,28 +610,11 @@
 
 (:wat::core::defclause :wat::core::reductions
   ;; 3-arity: explicit init.
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<U>
-    (:wat::core::reductions-walk f init (:wat::core::Seqable/seq coll)))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::List<T>] -> :wat::stream::Stream<U>
-    (:wat::core::reductions-walk f init (:wat::core::Seqable/seq coll)))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<U>
-    (:wat::core::reductions-walk f init (:wat::core::Seqable/seq coll)))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
-    (:wat::core::reductions-walk f init coll))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<U>
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
     (:wat::core::reductions-walk f init (:wat::core::Seqable/seq coll)))
   ;; 2-arity: no init — the first element seeds the accumulation. Empty raises, by name (above).
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
-    (:wat::core::reductions-seed f (:wat::core::Seqable/seq coll)))
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
-    (:wat::core::reductions-seed f (:wat::core::Seqable/seq coll)))
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
-    (:wat::core::reductions-seed f (:wat::core::Seqable/seq coll)))
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
-    (:wat::core::reductions-seed f coll))
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
     (:wat::core::reductions-seed f (:wat::core::Seqable/seq coll))))
-
 
 ;; ─── mapcat — STOP-1 (NOT built) ────────────────────────────────────────────────────────────────
 ;; `(mapcat f coll)` needs its concatenation step to be LAZY over `Stream` (never force the
