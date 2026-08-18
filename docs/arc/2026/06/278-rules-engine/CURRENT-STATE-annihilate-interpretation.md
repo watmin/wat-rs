@@ -77,9 +77,9 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
    `binding_extensions` / `exists_cond_under` rematch minted
    leaves via `exec_compiled_under`. No-alpha scan remains.
    Do not put the WM scan back.
-7. **Compile fn-headed `:then`.** **landing.** `CompiledRhs::Call`
-   lowers the whole item; rete-defn bodies may `Construct` a
-   record. `LowerError` refuses. Gate:
+7. **Compile fn-headed `:then`.** **landed (uncommitted).**
+   `CompiledRhs::Call` + `Expr::Construct` (kwargs-construct /
+   aggregate-new / bare `(:Type …)`). Gate:
    `userfn_head_item_fires_via_native_kernel`.
 8. `(b)` ShadowNode — **only after native fire walks no
    `WatAST`.** Not yet.
@@ -99,7 +99,7 @@ compiler item. Do not start it to dodge the hole.
 | Flip 5 user acc folds | this turn | **landed, uncommitted** — 8custom 3/3 green; `eval_inner` deleted |
 | Leftover rematch (fact-shaped) | `SeedCmp` / `exec_compiled_under` | **landed, uncommitted** |
 | Combinator leftover rematch (minted leaf) | `exec_compiled_under` | **landed, uncommitted** |
-| Fn-headed `:then` | `build_insert_fact` | **not compiled** |
+| Fn-headed `:then` | `CompiledRhs::Call` | **landed, uncommitted** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
 ## The endeavor, in one sentence
