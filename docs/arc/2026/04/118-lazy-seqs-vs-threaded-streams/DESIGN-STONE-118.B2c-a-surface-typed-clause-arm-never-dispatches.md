@@ -116,6 +116,26 @@ surface. Disqualified.
 > name-equality. The moment it asks satisfaction, overlap is possible and first-match-wins becomes
 > load-bearing semantics nobody ruled. `[[feedback_four_questions_cannot_see_a_shared_premise]]`
 
+## ⛔⛔ STOP-1 HAS FIRED — 2026-08-18, BEFORE ANY FIX WAS WRITTEN
+
+The strike-1 census ran. **The corpus is NOT clean**, and the offenders refute this stone's own
+premise. Full evidence: `MEASURED-118.B2c-strike1-the-corpus-is-NOT-clean.md`.
+
+`wat/bracket.wat` has TWO `defclause`s — `thread-enter` and `process-work-forms` — that declare a
+**concrete `:wat::core::keyword` arm FIRST and a type-var `:W` wildcard arm SECOND**. `:W` matches
+any value (`is_type_var`), so the wildcard arm is a deliberate FALLBACK, and the pair is correct
+today only because dispatch is first-match-wins in declaration order.
+
+**That is clause specificity, in production, load-bearing for the thread-pool bracket machinery.**
+The "Out of scope" section below affirmatively rejected specificity as a hypothetical future want.
+It is not hypothetical. **The wall as ruled would refuse `wat/bracket.wat` and cannot be armed at
+zero offenders.**
+
+⛔ **STRIKE 1 IS BLOCKED PENDING A BUILDER RULING.** Per STOP-1 the offenders are reported, not
+fixed, and no wall is armed over them. The three available shapes — rule specificity IN, rule it OUT
+and migrate the two sites, or rule that a type-var param is not a dispatch wildcard — are laid out in
+the MEASURED doc, each needing its own four questions. **Strike 2 is unaffected and independent.**
+
 ## ⛔ THE ORDER IS LOAD-BEARING — the wall lands FIRST
 
 **Strike 1 — the overlap wall, armed at zero offenders.** Under today's name-equality dispatch,
