@@ -39,8 +39,7 @@
 //! — `core-seqable.wat` only ever fed `Seqable/seq` into `into`, whose Stream clause is itself
 //! `Stream<T>`. `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
 
-use wat::check::error::{CheckErrorKind, CheckErrors};
-use wat::freeze::{startup_from_file, StartupError};
+use wat::freeze::startup_from_file;
 
 const WAS_NEG: &str = "tests/types/probe_stone_118_b2d_generic_satisfier.wat";
 const POS: &str = "tests/types/probe_stone_118_b2d_generic_satisfier_pos.wat";
