@@ -489,6 +489,8 @@ mod tests {
             guard: None,
             ensure_fn: None,
             body: Arc::new(nil_body),
+            // Checker-side fixture: never reaches the evaluator, so no compiled Function.
+            func: None,
         };
         let cs = Arc::new(ClauseSet {
             name: ":my::op".into(),

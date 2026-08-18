@@ -4335,6 +4335,50 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
                     let func = sym.get(other).expect("contains_key above").clone();
                     emit_tail_call(func, args, env, sym, list_span)
                 }
+                // Clause-TCO stone — a `defclause` head in TAIL position.
+                //
+                // The arm above misses it: a defclause registers a `ClauseSet` as a def-value,
+                // not an entry in `sym.functions`, so before this arm every clause head fell to
+                // `_ => eval_inner(...)` and recursed on the REAL STACK. Measured: a 200,000-deep
+                // tail-recursive `defclause` SIGSEGV'd while its byte-identical `defn` twin
+                // completed. Every `defclause` in wat was affected — arithmetic, `into`, `conj`,
+                // every user-written multi-arity verb.
+                //
+                // Selection routes through `select_defclause_clause` — the SAME door the ordinary
+                // path uses. Duplicating that loop would be the "N ways to do a thing" defect.
+                other
+                    if sym
+                        .def_value(other)
+                        .is_some_and(|v| matches!(v, Value::wat__core__clauses(_))) =>
+                {
+                    let Some(Value::wat__core__clauses(cs)) = sym.def_value(other) else {
+                        unreachable!("the guard above matched wat__core__clauses")
+                    };
+                    let cs = cs.clone();
+                    let vals = args
+                        .iter()
+                        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let (idx, _scope) = select_defclause_clause(&cs, &vals, &list_span, sym)?;
+                    let clause = &cs.clauses[idx];
+                    // ⚠ `:ensure` is a POST-condition — it runs AFTER the body, and a tail call
+                    // abandons the frame it would return into. An ensure-bearing clause therefore
+                    // takes the ordinary path, DELIBERATELY. Tail-calling it would silently delete
+                    // a post-condition the author wrote and the checker promised.
+                    if clause.ensure_fn.is_none() {
+                        if let Some(f) = &clause.func {
+                            return Err(EvalBreak::Signal(EvalSignal::TailCall {
+                                func: f.clone(),
+                                args: vals,
+                                call_span: list_span.clone(),
+                            }));
+                        }
+                    }
+                    // Ordinary path. It re-selects; that cost is paid ONLY by ensure-bearing
+                    // clauses (and by the checker-built clauses that carry no compiled Function),
+                    // and it keeps `:ensure` handling in exactly one place.
+                    eval_call_to_defclause_with_vals(cs, vals, &list_span, sym)
+                }
                 _ => eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
             }
         }
@@ -7834,6 +7878,9 @@ fn parse_defclause_clause(
         guard: guard_ast,
         ensure_fn: ensure_ast,
         body: Arc::new(body_ast),
+        // Filled in at ClauseSet assembly, where the set's NAME is in scope (the Function's
+        // name is what a call-stack frame shows).
+        func: None,
     })
 }
 
@@ -7976,7 +8023,29 @@ pub fn parse_defclause_form(
 
     let mut clauses = Vec::with_capacity(clause_items.len());
     for clause_form in clause_items {
-        let clause = parse_defclause_clause(clause_form, HEAD, shared_return.as_ref())?;
+        let mut clause = parse_defclause_clause(clause_form, HEAD, shared_return.as_ref())?;
+        // Clause-TCO stone — compile the clause to an ordinary `Function` ONCE, here, where the
+        // set name is in scope. `eval_tail` hands this to the existing TailCall signal, so a
+        // clause head tail-calls exactly like a `defn` head. Mirrors the extend-type method
+        // synthesis (this file, `register_extend_type_methods`), which is why extend-type
+        // methods already had TCO and defclause verbs did not.
+        clause.func = Some(Arc::new(Function {
+            name: Some(name.clone()),
+            params: clause.args.fixed_params.iter().map(|(n, _)| n.clone()).collect(),
+            type_params: vec![],
+            param_types: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
+            ret_type: clause.return_type.clone(),
+            rest_param: clause
+                .args
+                .rest_param
+                .as_ref()
+                .map(|(n, _)| crate::scope::env_key(n).into_owned()),
+            rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
+            body: FunctionBody::Wat(clause.body.clone()),
+            closed_env: None,
+            rete: None,
+            synthesized_for: None,
+        }));
         clauses.push(clause);
     }
 
@@ -8243,6 +8312,10 @@ pub(crate) fn parse_extend_type_form(
             guard: None,
             ensure_fn: None,
             body: Arc::new(body_ast),
+            // extend-type methods are registered as real Functions in `sym.functions`
+            // (see `register_extend_type_methods`), so they already tail-call and never
+            // dispatch through `eval_call_to_defclause_with_vals`.
+            func: None,
         };
         impl_clauses.insert(method_name, clause);
     }
@@ -8361,12 +8434,22 @@ fn eval_call_to_defclause(
 /// Stone 237.3: extended with :guard evaluation (before body) and :ensure
 /// post-condition check (after body). First-match-wins: arity + type +
 /// guard must all pass before the body executes.
-fn eval_call_to_defclause_with_vals(
-    cs: Arc<ClauseSet>,
-    vals: Vec<Value>,
+/// Clause-TCO stone — SELECTION ONLY: arity + runtime type match + `:guard` + arg binding.
+///
+/// Extracted from [`eval_call_to_defclause_with_vals`] so the TAIL path can pick a clause
+/// WITHOUT evaluating its body. ONE DOOR: both the ordinary call path and `eval_tail`'s clause
+/// arm select through here — duplicating this loop would be the "N ways to do a thing" defect
+/// this substrate keeps deleting.
+///
+/// Returns the winning clause's index plus the scope its args are bound into. `:guard` is
+/// evaluated HERE because a guard runs in clause-arg scope and therefore decides SELECTION;
+/// `:ensure` is deliberately NOT here — it is a POST-condition and belongs to the body path.
+fn select_defclause_clause(
+    cs: &Arc<ClauseSet>,
+    vals: &[Value],
     list_span: &Span,
     sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
+) -> Result<(usize, Environment), EvalBreak> {
     let called_arity = vals.len();
     // Stone 237.4 — structured per-clause failure reasons (replaces Vec<String>).
     let mut attempted: Vec<ClauseAttempt> = Vec::new();
@@ -8554,8 +8637,52 @@ fn eval_call_to_defclause_with_vals(
             }
         }
 
-        // 5. Body evaluation.
-        let result = eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned())?;
+        // 5. Selected — the caller decides whether to run the body or tail-call it.
+        return Ok((clause_idx, scope));
+    }
+
+    // No clause matched (arity + type + guard all fell through).
+    let called_args: Vec<ValueSnapshot> = vals.iter().map(ValueSnapshot::of).collect();
+    Err(RuntimeError::new(
+        list_span.clone(),
+        RuntimeErrorKind::NoMatchingClause {
+            name: cs.name.clone(),
+            called_arity,
+            called_args,
+            attempted_clauses: Box::new(attempted),
+        },
+    )
+    .into())
+}
+
+/// Core dispatch for defclause calls (args already evaluated): select, run the body,
+/// then check `:ensure`. Selection lives in [`select_defclause_clause`].
+fn eval_call_to_defclause_with_vals(
+    cs: Arc<ClauseSet>,
+    vals: Vec<Value>,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let (clause_idx, scope) = select_defclause_clause(&cs, &vals, list_span, sym)?;
+    let clause = &cs.clauses[clause_idx];
+
+    // Body evaluation.
+    //
+    // Clause-TCO stone — a clause with NO `:ensure` runs through `apply_function`, which
+    // evaluates the body in TAIL position and owns the trampoline that catches
+    // `EvalSignal::TailCall`. That is what actually makes clause recursion flat: without it the
+    // body is evaluated by `eval_inner`, so an `if`/`match` inside it never reaches `eval_tail`,
+    // the recursive call is an ordinary call, and the stack grows until it SIGSEGVs. Measured:
+    // adding only the `eval_tail` arm did NOT fix the 200k probe — this line is the other half.
+    //
+    // ⚠ An `:ensure` clause keeps the direct `eval_inner` path: a post-condition runs AFTER the
+    // body and needs the frame it returns into, which a tail call abandons.
+    if clause.ensure_fn.is_none() {
+        if let Some(f) = &clause.func {
+            return apply_function(f.clone(), vals, sym, list_span.clone()).map_err(Into::into);
+        }
+    }
+    let result = eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned())?;
 
         // 6. Stone 237.3 / 237.4 — :ensure post-condition check (after body).
         if let Some(ensure_ast) = &clause.ensure_fn {
@@ -8619,21 +8746,7 @@ fn eval_call_to_defclause_with_vals(
             }
         }
 
-        return Ok(result);
-    }
-
-    // No clause matched (arity + type + guard all fell through).
-    let called_args: Vec<ValueSnapshot> = vals.iter().map(ValueSnapshot::of).collect();
-    Err(RuntimeError::new(
-        list_span.clone(),
-        RuntimeErrorKind::NoMatchingClause {
-            name: cs.name.clone(),
-            called_arity,
-            called_args,
-            attempted_clauses: Box::new(attempted),
-        },
-    )
-    .into())
+    Ok(result)
 }
 
 /// Stone 237.2 — runtime type match for defclause dispatch.

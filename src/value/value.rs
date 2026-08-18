@@ -408,6 +408,18 @@ pub struct Clause {
     pub ensure_fn: Option<Arc<WatAST>>,
     /// Body expression. Evaluated in a scope binding the arg names.
     pub body: Arc<WatAST>,
+    /// Clause-TCO stone — the clause compiled as an ordinary `Function`, built ONCE at
+    /// registration (never per call). `eval_tail` hands this to the existing `TailCall`
+    /// signal so a clause head tail-calls exactly like a `defn` head; without it, clause
+    /// recursion consumes the real stack and SIGSEGVs at depth.
+    ///
+    /// `Option` because the checker builds `Clause` values that never reach the evaluator;
+    /// `Arc` because `Clause` derives `Clone` and a by-value `Function` would make every
+    /// clone deep.
+    ///
+    /// ⚠ A clause carrying `:ensure` is NEVER tail-called through this — a post-condition
+    /// runs AFTER the body and a tail call abandons the frame it would return into.
+    pub func: Option<Arc<crate::value::Function>>,
 }
 
 /// Stone 237.2 — multi-arity dispatcher container bound to a defclause name.
