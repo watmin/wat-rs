@@ -1161,51 +1161,6 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// Mirrors `wat/rete.wat:657-676`.
 /// Retained as the semantic reference; the keyed hash-join (P3) does not call it in the hot path.
 /// Called by the NegationNode filter (7-b) to check absence against the full alpha-memory.
-/// Seeded alpha-match of one fact under a token's left bindings.
-/// Oracle twin: `:wat::rete::any-fact-matches-under`.
-fn fact_matches_under(
-    cond: &WatAST,
-    fact: &Value,
-    seed: &crate::value::pmap::PMap,
-    sym: &SymbolTable,
-) -> bool {
-    let (fact_class, fact_fields) = match fact {
-        Value::Aggregate(a) if a.nature != Nature::Struct => {
-            (a.class.as_str(), a.fields.as_slice())
-        }
-        _ => return false,
-    };
-    let type_key = format!(":{fact_class}");
-    let field_names: Vec<String> = sym
-        .types()
-        .and_then(|t| match t.get(&type_key) {
-            Some(crate::types::TypeDef::Aggregate(a)) => {
-                Some(a.field_names().map(|s| s.to_string()).collect())
-            }
-            _ => None,
-        })
-        .unwrap_or_default();
-    let seed_pairs: Vec<(Value, Value)> =
-        seed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    crate::rete::matcher::alpha_match_inner_seeded(
-        cond,
-        fact_class,
-        fact_fields,
-        &field_names,
-        &seed_pairs,
-    )
-    .is_some()
-}
-
-fn any_fact_matches_under(
-    cond: &WatAST,
-    facts: &[Value],
-    seed: &crate::value::pmap::PMap,
-    sym: &SymbolTable,
-) -> bool {
-    facts.iter().any(|f| fact_matches_under(cond, f, seed, sym))
-}
-
 /// Binding maps that satisfy `cond` under `seed`. Fact: each matching WM fact.
 /// `:and`: backtrack across children. `:or`: concat arms. `:where`: keep or drop.
 fn binding_extensions(
@@ -1264,21 +1219,14 @@ fn binding_extensions(
                 Ok(vec![seed.clone()])
             }
         }
-        _ => match alpha_id_and_els(wm, cond) {
-            Some((alpha_id, els)) => {
-                let compiled = rematch_compiled(compiled_conds, alpha_id)?;
-                Ok(els
-                    .iter()
-                    .filter_map(|el| {
-                        fact_bindings_under(cond, &el.fact, seed, compiled, scratch)
-                    })
-                    .collect())
-            }
-            None => Ok(wm_fact_slice(wm)
+        _ => {
+            let (alpha_id, els) = minted_leaf_alpha(wm, cond)?;
+            let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+            Ok(els
                 .iter()
-                .filter_map(|f| fact_bindings_under_interp(cond, f, seed, sym))
-                .collect()),
-        },
+                .filter_map(|el| fact_bindings_under(cond, &el.fact, seed, compiled, scratch))
+                .collect())
+        }
     }
 }
 
@@ -1314,52 +1262,19 @@ fn fact_bindings_under(
     let pairs =
         crate::rete::compiled_cond::exec_compiled_under(compiled, fact_fields, scratch, seed)?;
     let pairs = crate::rete::matcher::attach_fact_bind(cond, fact, pairs);
+    // Unify with the seed. A Bind of `?c` compiles as a first-write (the cond
+    // in isolation does not know the left token already bound `?c`). Conflict
+    // is no match — same as `alpha_match_inner_seeded` / Clara join. Overwrite
+    // is how `where-not-and-bound` row 3 accepted Temp.c ≠ Cold.c.
     let mut pm = seed.clone();
     for (k, v) in pairs.iter() {
-        if pm.get(k) != Some(v) {
-            pm = pm.assoc(k.clone(), v.clone());
+        match pm.get(k) {
+            Some(existing) if existing != v => return None,
+            Some(_) => {}
+            None => pm = pm.assoc(k.clone(), v.clone()),
         }
     }
     Some(pm)
-}
-
-/// Oracle / combinator path — `alpha_match_inner_seeded` stays the interpreter.
-/// Native rematch does not call this.
-fn fact_bindings_under_interp(
-    cond: &WatAST,
-    fact: &Value,
-    seed: &crate::value::pmap::PMap,
-    sym: &SymbolTable,
-) -> Option<crate::value::pmap::PMap> {
-    let (fact_class, fact_fields) = match fact {
-        Value::Aggregate(a) if a.nature != Nature::Struct => {
-            (a.class.as_str(), a.fields.as_slice())
-        }
-        _ => return None,
-    };
-    let type_key = format!(":{fact_class}");
-    let field_names: Vec<String> = sym
-        .types()
-        .and_then(|t| match t.get(&type_key) {
-            Some(crate::types::TypeDef::Aggregate(a)) => {
-                Some(a.field_names().map(|s| s.to_string()).collect())
-            }
-            _ => None,
-        })
-        .unwrap_or_default();
-    let seed_pairs: Vec<(Value, Value)> =
-        seed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    let pairs = crate::rete::matcher::alpha_match_inner_seeded(
-        cond,
-        fact_class,
-        fact_fields,
-        &field_names,
-        &seed_pairs,
-    )?;
-    let pairs = crate::rete::matcher::attach_fact_bind(cond, fact, pairs);
-    Some(crate::value::pmap::PMap::from_pairs(
-        pairs.iter().map(|(k, v)| (k.clone(), v.clone())),
-    ))
 }
 
 /// Inner of `:not` / `:exists` holds under `seed`? A fact, or `:and` of facts
@@ -1419,6 +1334,63 @@ fn alpha_id_and_els<'a>(
 ) -> Option<(i64, &'a [Element])> {
     let id = alpha_id_for_cond(&wm.network, cond)?;
     Some((id, wm.alpha.get(&id).map(Vec::as_slice).unwrap_or(&[])))
+}
+
+/// Alpha ids `mint-leaf-alphas` created for fact-shaped leaves of a
+/// combinator cond. Those nodes have no `children` edge and are not
+/// `negated-alpha-id` / `exists-alpha-id` / `from-alpha-id` — the
+/// stratum slice must follow this list or it drops them (same class
+/// as forgetting `ref_alpha_of`).
+fn mint_leaf_alpha_ids(network: &Value, cond: &WatAST) -> Vec<i64> {
+    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+    match classify_rete_clause(cond) {
+        ReteClauseShape::And(kids) | ReteClauseShape::Or(kids) => kids
+            .iter()
+            .flat_map(|k| mint_leaf_alpha_ids(network, k))
+            .collect(),
+        ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
+            mint_leaf_alpha_ids(network, inner)
+        }
+        ReteClauseShape::Where(_) => Vec::new(),
+        _ => alpha_id_for_cond(network, cond).into_iter().collect(),
+    }
+}
+
+/// Fact-shaped combinator leaf. `mint-leaf-alphas` must have minted this
+/// cond, and the stratum slice must have kept it. A miss is a compile
+/// or slice hole — refuse, do not scan WM.
+fn minted_leaf_alpha<'a>(
+    wm: &'a WorkingMemory,
+    cond: &WatAST,
+) -> Result<(i64, &'a [Element]), EvalBreak> {
+    if let Some(hit) = alpha_id_and_els(wm, cond) {
+        return Ok(hit);
+    }
+    let known: Vec<String> = sorted_node_ids(&wm.network)
+        .into_iter()
+        .filter_map(|id| {
+            let node = get_node(&wm.network, id)?;
+            if kind_of(node) != "AlphaNode" {
+                return None;
+            }
+            let stored = alpha_cond_of(&wm.network, id)?;
+            Some(format!("{id}:{}", cond_text(&stored)))
+        })
+        .collect();
+    Err(RuntimeError::new(
+        cond.span().clone(),
+        RuntimeErrorKind::MalformedForm {
+            head: ":wat::rete::fire-rules'".into(),
+            reason: format!(
+                "fact-shaped combinator leaf has no minted alpha — \
+                 mint-leaf-alphas should have created one; WM scan is refused: {} \
+                 known-alphas=[{}]",
+                cond_text(cond),
+                known.join(" | ")
+            ),
+        },
+    )
+    .into())
 }
 
 fn token_exists_under(
@@ -1481,16 +1453,11 @@ fn exists_cond_under(
         ReteClauseShape::Exists(inner) => {
             exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)
         }
-        _ => match alpha_id_and_els(wm, cond) {
-            Some((leaf_id, els)) => {
-                let compiled = rematch_compiled(compiled_conds, leaf_id)?;
-                Ok(any_seeded_in_alpha(cond, seed, els, compiled, scratch))
-            }
-            None => {
-                let facts = wm_fact_slice(wm);
-                Ok(any_fact_matches_under(cond, &facts, seed, sym))
-            }
-        },
+        _ => {
+            let (leaf_id, els) = minted_leaf_alpha(wm, cond)?;
+            let compiled = rematch_compiled(compiled_conds, leaf_id)?;
+            Ok(any_seeded_in_alpha(cond, seed, els, compiled, scratch))
+        }
     }
 }
 
@@ -1503,13 +1470,6 @@ fn alpha_cond_of(network: &Value, alpha_id: i64) -> Option<WatAST> {
             _ => None,
         },
         _ => None,
-    }
-}
-
-fn wm_fact_slice(wm: &WorkingMemory) -> Vec<Value> {
-    match &wm.facts {
-        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-        _ => vec![],
     }
 }
 
@@ -4891,6 +4851,12 @@ fn fire_rules_stratified(
     // reference explicitly wherever it meets one of these three node kinds. Missing this would
     // silently slice the referenced alpha OUT of the sub-network, leaving it permanently empty
     // and making every negation vacuously pass (STOP-1 class bug — caught before shipping).
+    //
+    // `mint-leaf-alphas` is the same class one level down: a combinator inner
+    // (`:not` of `:and` of Wind+Temp) mints one dummy alpha for the wrapper
+    // (the reference field) plus an orphan AlphaNode per fact-shaped leaf.
+    // Those leaves have no children edge and no id field. Dropping them
+    // forced a WM-scan fallback; rematch now refuses. Follow the cond.
     let ref_alpha_of = |node: &Value| -> Option<i64> {
         let (fqdn, sf) = node_record(node)?;
         match node_kind_label(fqdn) {
@@ -4933,9 +4899,10 @@ fn fire_rules_stratified(
         let stratum_rules = Value::wat__core__PersistentVector(stratum_pv);
 
         // Backward closure: from this stratum's ProductionNode id(s), follow `rev_children`
-        // (upstream via the forward-graph edges) and `ref_alpha_of` (upstream via a
-        // Negation/Exists/Accumulate node's own tested alpha reference) until no new node
-        // is discovered.
+        // (upstream via the forward-graph edges), `ref_alpha_of` (upstream via a
+        // Negation/Exists/Accumulate node's own tested alpha reference), and
+        // `mint_leaf_alpha_ids` (orphan fact-shaped leaves of a combinator ref
+        // alpha) until no new node is discovered.
         while let Some(id) = frontier.pop() {
             if let Some(parents) = rev_children.get(&id) {
                 for &p in parents {
@@ -4948,6 +4915,15 @@ fn fire_rules_stratified(
                 if let Some(alpha_id) = ref_alpha_of(node) {
                     if active_ids.insert(alpha_id) {
                         frontier.push(alpha_id);
+                    }
+                }
+                if kind_of(node) == "AlphaNode" {
+                    if let Some(cond) = alpha_cond_of(&network, id) {
+                        for leaf_id in mint_leaf_alpha_ids(&network, &cond) {
+                            if leaf_id != id && active_ids.insert(leaf_id) {
+                                frontier.push(leaf_id);
+                            }
+                        }
                     }
                 }
             }
