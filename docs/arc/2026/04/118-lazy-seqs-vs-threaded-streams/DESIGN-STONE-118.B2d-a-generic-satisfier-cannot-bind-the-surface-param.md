@@ -88,6 +88,70 @@ method `Seqable<T>` has cannot have its result typed.
 `wat-tests/core/core-seq-walkers.wat` routes around it with `(map identity v)`, which is a better
 test anyway; the workaround costs that file nothing, but it is a workaround and it is named there.
 
+## ✅ GATE 3 — the four questions on the fix's shape. RULED: C.
+
+★ **THE GROUNDING THAT DECIDED IT.** `register_extend_type_surface_impls`
+(`src/runtime.rs:1167`) builds the satisfier's scheme, and for `self` it takes the extend-type
+target VERBATIM:
+
+```rust
+if i == 0 {
+    // self — already the concrete satisfier type; no substitution needed.
+    parse_type_expr(&ed.type_name)      // ":wat::core::Vector" — BARE, no <T>
+}
+…
+ret_type: rename(ret, &surface_type_subst)   // Stream<T>, T FREE (the binding is T -> T)
+type_params: vec![]                          // not quantified at all
+```
+
+**`T` occurs ONLY in the return, and the function is not quantified.** No call-site fix can bind a
+variable that appears nowhere in the inputs. That is not a preference between options — it
+disqualifies the whole call-site family.
+
+**A — widen path (2)'s guard to fire for satisfier receivers.**
+*Obvious? NO.* Path (2) is named and documented as the ABSTRACT case (*"the receiver IS this surface
+itself parametrized"*); widening it to concrete satisfiers makes its own comment false, and it is
+path (1)'s job. Worse, path (1) SUCCEEDS here and returns early, so A only works if path (1) also
+stops returning — it is really "make path 1 fall through sometimes." Disqualified.
+
+**B — post-hoc rename in path (1): bind the scheme's leftover free vars from the receiver's args.**
+*Obvious? YES.* *Simple? NO* — it must decide WHICH free vars are the surface's params versus ones
+the method itself introduced, and map them positionally to receiver args when the extend-type target
+is BARE, so no declared correspondence exists. It re-derives at every call site the information
+registration discarded, and adds a third place reasoning about surface instantiation. Disqualified.
+
+**C — fix the scheme at registration: when the surface binding is a VARIABLE, `self` must carry it.**
+*Obvious? YES* — the defect is one line: `param_types[0]` is the bare `ed.type_name` while the return
+says `Stream<T>`. *Simple? YES* — one site; it makes the scheme WELL-FORMED so ORDINARY unification
+does the rest. No new path, no call-site special case; paths (1) and (2) untouched. *Honest? YES* —
+it names the real defect instead of reaching around it, and the 4 concrete-binding satisfiers
+(measured) `rename` to a concrete type, so their schemes stay byte-identical. *Good UX? YES* —
+`(Seqable/seq v)` becomes usable in typed code, which is the point of the surface having a method.
+★ **RULED.**
+
+**D — do nothing; document that the result is only usable polymorphically.**
+*Obvious? YES. Simple? YES. Honest? NO* — it leaves the ONE method `Seqable<T>` has unable to have
+its result typed while the arc's direction is that `Seqable<T>` IS the sequence surface, and B2b
+already had to route around it with `(map identity v)`. Disqualified.
+
+⚠ **AND THIS EXPLAINS THE EARLIER REFUTATION.** Making the SOURCE target parametric
+(`extend-type :Vector<T>`) broke the registration KEY — lookup goes through the bare head. C keeps
+the source spelling bare and fixes only the SYNTHESISED scheme, so the key never moves. The
+experiment failed for a different reason than the one it was testing.
+
+## ⛔ C's OWN PRECONDITION — one grounding still open
+
+The checker reads `env` schemes (`satisfier_method_keys` → `env.get(&key)`), NOT the runtime
+`Function` directly. **Where the checker's `wat::core::Vector/seq` scheme is written has not yet been
+located** — `check.rs:15051`/`15083` are READERS. C must land wherever that scheme is built (possibly
+both places), and a fix applied only to `register_extend_type_surface_impls` may leave the checker
+unchanged.
+
+**Do not write C until that site is on the disk and read.** Two further items belong to the same
+pass: whether a satisfier whose type has NO type params (a plain struct extending `Holds<T>` with
+`T -> T`) would be given a parametric `self` it cannot honour, and whether `type_params` on the
+scheme actually drives per-call instantiation.
+
 ## What must be true before this is briefed
 
 1. **A disconfirming probe, committed** — the repro + control above as a `tests/types/` fixture,
