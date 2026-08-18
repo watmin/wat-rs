@@ -727,7 +727,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
 }
 
 ::wat_source_derive::wat_field_names_from!(SESSION_FIELDS, "wat/rete.wat", ":wat::rete::Session");
-fn session_names() -> Arc<Vec<String>> {
+pub(crate) fn session_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(SESSION_FIELDS))
         .clone()
@@ -746,7 +746,7 @@ fn node_kind_label(class_fqdn: &str) -> &str {
 
 /// Read the `class_fqdn` and `struct_form` from a node record Value.
 /// Returns `None` for non-record values (should never happen in a well-formed network).
-fn node_record(node: &Value) -> Option<(&str, &[Value])> {
+pub(crate) fn node_record(node: &Value) -> Option<(&str, &[Value])> {
     match node {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
             Some((a.class.as_str(), a.fields.as_slice()))
@@ -757,7 +757,7 @@ fn node_record(node: &Value) -> Option<(&str, &[Value])> {
 
 /// Return the node kind label ("AlphaNode" / "RootJoinNode" / "HashJoinNode" / "ProductionNode").
 /// Panics on a malformed node (should not happen in a well-formed network).
-fn kind_of(node: &Value) -> &str {
+pub(crate) fn kind_of(node: &Value) -> &str {
     let (fqdn, _) = node_record(node).expect("kind_of: node must be a Record");
     node_kind_label(fqdn)
 }
@@ -766,7 +766,7 @@ fn kind_of(node: &Value) -> &str {
 /// Mirrors `node-children-ids` (`wat/rete.wat:155`).
 /// Alpha/RootJoin/HashJoin → children (struct_form[2] for Alpha, [1] for Root/Hash).
 /// ProductionNode → empty (leaf node, no children).
-fn node_children(node: &Value) -> Vec<i64> {
+pub(crate) fn node_children(node: &Value) -> Vec<i64> {
     let (fqdn, sf) = match node_record(node) {
         Some(x) => x,
         None => return vec![],
@@ -851,7 +851,7 @@ fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -
 
 /// Get all node ids from a network PersistentMap, sorted ascending.
 /// The alpha/root-join/hash-join passes require ascending id order (topological).
-fn sorted_node_ids(network: &Value) -> Vec<i64> {
+pub(crate) fn sorted_node_ids(network: &Value) -> Vec<i64> {
     let mut ids: Vec<i64> = match network {
         Value::wat__core__PersistentMap(m) => m
             .keys()
@@ -865,7 +865,7 @@ fn sorted_node_ids(network: &Value) -> Vec<i64> {
 }
 
 /// Look up a node by id from the network PersistentMap.
-fn get_node(network: &Value, node_id: i64) -> Option<&Value> {
+pub(crate) fn get_node(network: &Value, node_id: i64) -> Option<&Value> {
     match network {
         Value::wat__core__PersistentMap(m) => m.get(&Value::i64(node_id)),
         _ => None,
@@ -1123,7 +1123,7 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// Rete control plane, specialized once at fire setup. The round loop
 /// matches this, never `classify_rete_clause`.
 #[derive(Clone)]
-enum CondDriver {
+pub(crate) enum CondDriver {
     Leaf(i64),
     And(Vec<CondDriver>),
     Or(Vec<CondDriver>),
@@ -2171,7 +2171,7 @@ fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Ve
 /// Built-in or user accumulate fold, specialized at setup. Fire does not
 /// read the `acc-form` AST.
 #[derive(Clone)]
-enum AccFold {
+pub(crate) enum AccFold {
     Count,
     Sum(Value),
     Min(Value),
@@ -3020,21 +3020,21 @@ fn exec_stashed_where(
 /// The intern holds a strong `Arc` — a Weak died the moment fire returned,
 /// which is the hole this item closes. Process-lifetime per unique network;
 /// the Session is a fact overlay, not the owner of the circuits.
-struct ReteArm {
-    node_ids: Vec<i64>,
-    compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
-    compiled_drivers: HashMap<i64, CondDriver>,
-    compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program>,
-    compiled_acc_folds: HashMap<i64, AccFold>,
-    compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>>,
-    alpha_tree: crate::rete::alpha_tree::AlphaTree,
-    feeding_alpha_of: HashMap<i64, i64>,
-    parents_of: HashMap<i64, Vec<i64>>,
-    beta_readers: HashSet<i64>,
-    compiled_max_slots: usize,
+pub(crate) struct ReteArm {
+    pub(crate) node_ids: Vec<i64>,
+    pub(crate) compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    pub(crate) compiled_drivers: HashMap<i64, CondDriver>,
+    pub(crate) compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program>,
+    pub(crate) compiled_acc_folds: HashMap<i64, AccFold>,
+    pub(crate) compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>>,
+    pub(crate) alpha_tree: crate::rete::alpha_tree::AlphaTree,
+    pub(crate) feeding_alpha_of: HashMap<i64, i64>,
+    pub(crate) parents_of: HashMap<i64, Vec<i64>>,
+    pub(crate) beta_readers: HashSet<i64>,
+    pub(crate) compiled_max_slots: usize,
 }
 
-fn network_identity(network: &Value) -> Option<u64> {
+pub(crate) fn network_identity(network: &Value) -> Option<u64> {
     match network {
         Value::wat__core__PersistentMap(m) => Some(m.rust_identity()),
         _ => None,
@@ -3057,14 +3057,14 @@ fn rete_arm_lookup(id: u64) -> Option<Arc<ReteArm>> {
         .cloned()
 }
 
-fn rete_arm_intern(id: u64, arm: &Arc<ReteArm>) {
+pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<ReteArm>) {
     arm_table()
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .insert(id, Arc::clone(arm));
 }
 
-fn rete_arm_get_or_build(
+pub(crate) fn rete_arm_get_or_build(
     network: &Value,
     rules: &Value,
     sym: &SymbolTable,

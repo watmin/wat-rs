@@ -5,12 +5,12 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–12 landed. The **round loop** is
-AST-free. The **arm** (`CondDriver`, `CompiledCond`,
-`Program`, `AccFold`) lives in a rust intern keyed by the
-network PMap's `rust_identity`. `insert` / clone share that
-id; a second `fire-rules` skips setup. `(b)` is item 13 —
-**not started.** Oracle stays interpreted. Do not service-ify.
+**Right now:** items 1–12 landed. `#wat.rete/Export` is
+the compiled program: one EDN tag, packed vectors, no
+facts / memories / source forms. `export` → `import` →
+`insert` + `fire-rules` is native-only. `(b)` is still
+item 13 — **not started.** Oracle cannot consume an
+Export. Do not service-ify. Do not start 297.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -196,6 +196,10 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
     Stratified slices still build (new `from_trie` map).
 13. `(b)` ShadowNode — **only after item 12.** Index the
     **armed** network. Not a way around persist.
+14. **`#wat.rete/Export`.** **landed (this turn).** The
+    compiled program as one EDN value. `export` / `import`.
+    Native fire. Oracle cannot consume it. Stratified
+    import is a named hole.
 
 Keyed `?g` gather is native speed on the same bag, not a
 compiler item. Do not start it to dodge the hole.
@@ -218,7 +222,8 @@ compiler item. Do not start it to dodge the hole.
 | Defensive populate miss | `ef50a360` | local, not pushed |
 | Four-pass `fire_once_session` / `alpha_pass` | `8d126df6` | local, not pushed |
 | Rete driver (AST-free fire) | `d774185c` | local, not pushed |
-| Persist the arm across `fire-rules` | this turn | **landed (this turn)** |
+| Persist the arm across `fire-rules` | `3f415317` | local, not pushed |
+| `#wat.rete/Export` (compiled program on the wire) | this turn | **landed (this turn)** |
 | `(b)` ShadowNode | after item 12 | **not started** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
@@ -438,17 +443,39 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — item 12 landed; `(b)` is next
+## NOW — Export is the residual; `(b)` still waits
+
+`(:wat::rete::export session)` → `#wat.rete/Export`.
+`(:wat::rete::import export)` → slim Session + interned
+arm. No facts, no memories, no WatAST. Native fire only.
+Gate: `probe_arc278_export` (import fires the same Hit;
+EDN write/read/import fires; Export EDN < Session EDN).
+
+Interior is plain EDN vectors (`[:bind 0 0]`, `[:slot 1]`),
+not `#wat.core/PersistentVector` per op. ABI is an FNV-1a
+of TypeEnv field-order + `RETE_OPS` names; import refuses
+a miss. Topology children stay PersistentVector (fire
+reads that arm).
+
+Stratified (negation-over-derived) import is a **named
+hole**: imported sessions have empty rules AST, so
+`fire-rules` takes the unstratified path. Do not claim
+strat-neg survives Export yet.
+
+`(b)` ShadowNode still waits — index the armed network.
+Do not start keyed gather. Do not start 297 (protobuf
+codec). The Export *is* the record 297 will pack later.
+
+## NOW — item 12 landed (still true)
 
 The round loop is AST-free. The arm is interned by the
 network's `rust_identity`. `insert` overlays facts and
 shares the id. A second `fire-rules` does not re-`lower`
 / re-`classify`. Stratified slices still build (ephemeral
-`from_trie`). Do not EDN the circuits.
+`from_trie`).
 
-Next: `(b)` ShadowNode — index the **armed** network.
-Do not start keyed gather. Do not build the service —
-the beats above are how to *say* the loop.
+Next fire-path item: `(b)` ShadowNode. Export is a
+different door and it is open.
 
 Ruled 2026-08-17 (do not drop): **armed Session before
 ShadowNode.** Indexing a setup we still re-run is the

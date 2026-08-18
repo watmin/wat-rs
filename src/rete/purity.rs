@@ -2182,6 +2182,8 @@ mod completeness_gate {
     ":wat::rete::cond-has-deferred-constraint?",
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",
+    ":wat::rete::export",
+    ":wat::rete::import",
     ":wat::rete::deterministic?",
     ":wat::rete::eval-insert",
     ":wat::rete::eval-test",

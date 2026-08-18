@@ -20169,6 +20169,24 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::rete::collect-rules <ns: keyword>) → PersistentVector<Rule>. The ns arg is an
     // ordinary (undefined) keyword value → unifies normally; no infer_list bypass needed.
     env.register(
+        ":wat::rete::export".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Export".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::rete::import".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Export".into())],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
         ":wat::rete::collect-rules".into(),
         TypeScheme {
             type_params: vec![],

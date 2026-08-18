@@ -119,6 +119,26 @@ impl AlphaTree {
         AlphaTree { roots }
     }
 
+    /// Import-time tree: every alpha of a class is a candidate. Correct
+    /// (a superset); unpruned. The residual does not carry WatAST, so
+    /// `build` cannot re-derive discriminators. `(b)` indexes later.
+    pub(crate) fn unpruned(alpha_by_type: &HashMap<String, Vec<i64>>) -> Self {
+        let mut roots = HashMap::with_capacity(alpha_by_type.len());
+        for (class, alpha_ids) in alpha_by_type {
+            roots.insert(
+                class.clone(),
+                Arc::new(Node {
+                    dim: 0,
+                    children: HashMap::new(),
+                    wildcard: None,
+                    range_children: Vec::new(),
+                    leaves: alpha_ids.clone(),
+                }),
+            );
+        }
+        AlphaTree { roots }
+    }
+
     /// Walk `class`'s tree for a fact's field values, returning the **candidate set** of alpha
     /// ids the caller must still run `alpha_match_inner` on. A superset of the alphas that
     /// actually match — never a subset. Unknown class (no alpha of that type at all): empty.

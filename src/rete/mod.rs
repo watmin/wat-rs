@@ -70,3 +70,5 @@ pub(crate) mod expr_ir;
 // and the generic per-class shapes `check.rs`/`runtime.rs`/`purity.rs` iterate. See the
 // module doc for the full contract (one list, three readers — STOP-2).
 pub(crate) mod vocabulary;
+// `#wat.rete/Export` — compiled program as one EDN value. Native fire only.
+pub(crate) mod export;

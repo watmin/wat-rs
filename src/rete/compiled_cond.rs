@@ -149,6 +149,39 @@ impl CompiledCond {
         self.n_slots
     }
 
+    pub(crate) fn ops(&self) -> &[Op] {
+        &self.ops
+    }
+    pub(crate) fn slot_keys(&self) -> &[Value] {
+        &self.slot_keys
+    }
+    pub(crate) fn output_slots(&self) -> &[usize] {
+        &self.output_slots
+    }
+    pub(crate) fn seed_reads(&self) -> &[(Value, usize)] {
+        &self.seed_reads
+    }
+    pub(crate) fn fact_bind(&self) -> Option<&Value> {
+        self.fact_bind.as_ref()
+    }
+    pub(crate) fn from_parts(
+        ops: Vec<Op>,
+        slot_keys: Arc<[Value]>,
+        output_slots: Arc<[usize]>,
+        n_slots: usize,
+        seed_reads: Arc<[(Value, usize)]>,
+        fact_bind: Option<Value>,
+    ) -> Self {
+        CompiledCond {
+            ops,
+            slot_keys,
+            output_slots,
+            n_slots,
+            seed_reads,
+            fact_bind,
+        }
+    }
+
     /// `?var`s this cond binds, including `(?p <- :Type …)`.
     pub(crate) fn bind_keys(&self) -> Vec<Value> {
         let mut ks = Vec::with_capacity(self.slot_keys.len() + 1);

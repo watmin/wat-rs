@@ -5543,6 +5543,8 @@ fn dispatch_keyword_head_value(
         ":wat::rete::collect-rules" => {
             crate::rete::collect::eval_collect_rules(args, list_span, env, sym)
         }
+        ":wat::rete::export" => crate::rete::export::eval_export(args, list_span, env, sym),
+        ":wat::rete::import" => crate::rete::export::eval_import(args, list_span, env, sym),
         // Arc 278 Stone 6a — the rete condition fence: two orthogonal classifiers, each default-deny
         // + transitive over user-fn bodies. A rete condition must be (pure AND deterministic).
         //   pure?          = effect-free (no IO/mutation). Uuid/v4 IS pure (does no IO).

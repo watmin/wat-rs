@@ -199,6 +199,26 @@
    next-id           <- :wat::core::i64
    query-memory      <- :wat::core::PersistentMap])
 
+;; Export — the compiled program as one EDN value. Not a Session.
+;; No facts, no memories, no source forms. Native fire only.
+;;   v:       format version (1).
+;;   abi:     TypeEnv field-order + RETE_OPS fingerprint. Import refuses a miss.
+;;   classes: interned fact-class FQDNs (colon-free).
+;;   fields:  per-class declared field names (parallel to classes).
+;;   nodes:   packed topology (kind, id, edges). No WatAST.
+;;   conds / drivers / progs / folds / rhs: packed circuits.
+(:wat::core::defrecord :wat::rete::Export
+  [v       <- :wat::core::i64
+   abi     <- :wat::core::String
+   classes <- :wat::core::PersistentVector<wat::core::String>
+   fields  <- :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::String>>
+   nodes   <- :wat::core::PersistentVector
+   conds   <- :wat::core::PersistentVector
+   drivers <- :wat::core::PersistentVector
+   progs   <- :wat::core::PersistentVector
+   folds   <- :wat::core::PersistentVector
+   rhs     <- :wat::core::PersistentVector])
+
 ;; ─── P12a: explain substrate ────────────────────────────────────────────────
 
 ;; Support — the producing support record for one derived fact.
