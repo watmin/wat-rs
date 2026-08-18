@@ -1,6 +1,8 @@
 # DESIGN-STONE — THE ONE EXPRESSION CORE: the Op set, drawn
 
-> **Status: DRAWN 2026-08-06. `where` WIRED 2026-08-17 (`30725034`).**
+> **Status: DRAWN 2026-08-06. `where` WIRED 2026-08-17 (`30725034`).
+> Flips 3–5 (`cond` / `rhs` / user acc folds) LANDED 2026-08-17
+> (uncommitted; differentials green). Next: `(b)` ShadowNode.**
 > Live breadcrumb: **`CURRENT-STATE-annihilate-interpretation.md`**.
 > Step 1 of #49's ruled shape (`ONE CORE, THREE ADJACENT FLIPS`,
 > `DESIGN-STONE-compiled-where.md`). The builder ruled the layout the same day:

@@ -80,6 +80,10 @@ pub(crate) struct Program {
     /// A literal `fn` compiled inside a `where` shares the parent's slot
     /// numbering; foldl writes `[acc, x]` here rather than at 0..n.
     pub(crate) params: Box<[u16]>,
+    /// Slot → binder name (`?x`, `acc`, …). Unbound-slot errors use this so
+    /// `exec` and `eval_inner` raise the same `UnboundSymbol` kind (flip 4
+    /// RHS differential). Missing entries render as `slot N`.
+    pub(crate) names: Box<[Option<Arc<str>>]>,
     /// Source span of the original expr — exec errors name this, not rust-caller.
     pub(crate) span: Span,
 }
@@ -163,8 +167,19 @@ pub(crate) fn lower(expr: &WatAST, sym: &SymbolTable) -> Result<Program, LowerEr
         root,
         reads: Arc::from(reads),
         params: Box::from([]),
+        names: slot_names(&cx),
         span: expr.span().clone(),
     })
+}
+
+fn slot_names(cx: &LowerCx<'_>) -> Box<[Option<Arc<str>>]> {
+    let mut names = vec![None; cx.next as usize];
+    for (name, &slot) in &cx.slots {
+        if let Some(slot_name) = names.get_mut(slot as usize) {
+            *slot_name = Some(Arc::from(name.as_str()));
+        }
+    }
+    names.into_boxed_slice()
 }
 
 fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
@@ -608,6 +623,7 @@ fn lower_fn(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
             root: body_e,
             reads: Arc::from([]),
             params: param_slots.into_boxed_slice(),
+            names: slot_names(cx),
             span: body.span().clone(),
         }),
         args: Box::from([]),
@@ -635,8 +651,49 @@ fn lower_rete_defn(
         root,
         reads: Arc::from([]),
         params: params.into_boxed_slice(),
+        names: slot_names(&cx),
         span: body.span().clone(),
     }))
+}
+
+/// Flip 5 — lower a named rete-defn (user acc fold) onto the one core.
+/// The callee is in the closed language; this is a call boundary, not a hatch.
+pub(crate) fn lower_named_rete_fn(
+    head: &str,
+    sym: &SymbolTable,
+) -> Result<Arc<Program>, LowerError> {
+    let func = match sym.get(head) {
+        Some(f) => f,
+        None => {
+            return Err(LowerError::Unsupported {
+                span: crate::rust_caller_span!(),
+                reason: format!("unknown rete-defn {head}"),
+            });
+        }
+    };
+    if func.rete.is_none() {
+        return Err(LowerError::Unsupported {
+            span: crate::rust_caller_span!(),
+            reason: format!("{head} is not a rete-defn"),
+        });
+    }
+    match &func.body {
+        FunctionBody::Wat(body) => lower_rete_defn(func.as_ref(), body, sym),
+        _ => Err(LowerError::Unsupported {
+            span: crate::rust_caller_span!(),
+            reason: format!("{head} has no wat body"),
+        }),
+    }
+}
+
+/// Apply a compiled rete-defn to concrete args (user acc fold: the gathered PV).
+pub(crate) fn exec_call(
+    program: &Program,
+    args: &[Value],
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    exec_program_on(program, args, None, sym, span)
 }
 
 fn option_result_tag(tag: &str) -> Option<String> {
@@ -683,13 +740,7 @@ pub(crate) fn exec_where<B: Bindings>(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<bool, EvalBreak> {
-    let mut frame: Vec<Option<Value>> = vec![None; program.frame_len as usize];
-    for (k, slot) in program.reads.iter() {
-        if let Some(v) = bindings.get(k) {
-            frame[*slot as usize] = Some(v.clone());
-        }
-    }
-    match exec(&program.root, &mut frame, sym, span)? {
+    match exec_value(program, bindings, sym, span)? {
         Value::bool(b) => Ok(b),
         other => Err(RuntimeError::new(
             span.clone(),
@@ -703,9 +754,27 @@ pub(crate) fn exec_where<B: Bindings>(
     }
 }
 
+/// Prologue (token bindings → slots) + eval. `where` requires bool;
+/// `compiled_rhs` takes the `Value` as a fact field.
+pub(crate) fn exec_value<B: Bindings>(
+    program: &Program,
+    bindings: &B,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    let mut frame: Vec<Option<Value>> = vec![None; program.frame_len as usize];
+    for (k, slot) in program.reads.iter() {
+        if let Some(v) = bindings.get(k) {
+            frame[*slot as usize] = Some(v.clone());
+        }
+    }
+    exec(&program.root, &mut frame, &program.names, sym, span)
+}
+
 fn exec(
     e: &Expr,
     frame: &mut [Option<Value>],
+    names: &[Option<Arc<str>>],
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -715,14 +784,14 @@ fn exec(
             .get(*s as usize)
             .and_then(|o| o.clone())
             .ok_or_else(|| {
-                RuntimeError::new(
-                    span.clone(),
-                    RuntimeErrorKind::UnboundSymbol(format!("slot {s}")),
-                )
-                .into()
+                let name = names
+                    .get(*s as usize)
+                    .and_then(|n| n.as_ref().map(|a| a.to_string()))
+                    .unwrap_or_else(|| format!("slot {s}"));
+                RuntimeError::new(span.clone(), RuntimeErrorKind::UnboundSymbol(name)).into()
             }),
         Expr::Field { recv, idx } => {
-            let v = exec(recv, frame, sym, span)?;
+            let v = exec(recv, frame, names, sym, span)?;
             match v {
                 Value::Aggregate(a) => a.fields.get(*idx).cloned().ok_or_else(|| {
                     RuntimeError::new(
@@ -746,9 +815,9 @@ fn exec(
                 .into()),
             }
         }
-        Expr::If { cond, then_, else_ } => match exec(cond, frame, sym, span)? {
-            Value::bool(true) => exec(then_, frame, sym, span),
-            Value::bool(false) => exec(else_, frame, sym, span),
+        Expr::If { cond, then_, else_ } => match exec(cond, frame, names, sym, span)? {
+            Value::bool(true) => exec(then_, frame, names, sym, span),
+            Value::bool(false) => exec(else_, frame, names, sym, span),
             other => Err(RuntimeError::new(
                 span.clone(),
                 RuntimeErrorKind::BadCondition {
@@ -760,7 +829,7 @@ fn exec(
         Expr::And(xs) => {
             let mut acc = true;
             for x in xs.iter() {
-                match exec(x, frame, sym, span)? {
+                match exec(x, frame, names, sym, span)? {
                     Value::bool(b) => {
                         if !b {
                             return Ok(Value::bool(false));
@@ -784,7 +853,7 @@ fn exec(
         }
         Expr::Or(xs) => {
             for x in xs.iter() {
-                match exec(x, frame, sym, span)? {
+                match exec(x, frame, names, sym, span)? {
                     Value::bool(true) => return Ok(Value::bool(true)),
                     Value::bool(false) => {}
                     other => {
@@ -804,16 +873,16 @@ fn exec(
         }
         Expr::Let { binds, body } => {
             for (slot, e) in binds.iter() {
-                let v = exec(e, frame, sym, span)?;
+                let v = exec(e, frame, names, sym, span)?;
                 frame[*slot as usize] = Some(v);
             }
-            exec(body, frame, sym, span)
+            exec(body, frame, names, sym, span)
         }
         Expr::Match { scrutinee, arms } => {
-            let v = exec(scrutinee, frame, sym, span)?;
+            let v = exec(scrutinee, frame, names, sym, span)?;
             for (pat, body) in arms.iter() {
                 if pat_matches(pat, &v, frame) {
-                    return exec(body, frame, sym, span);
+                    return exec(body, frame, names, sym, span);
                 }
             }
             Err(RuntimeError::new(
@@ -827,11 +896,11 @@ fn exec(
         Expr::Call { op, args } => {
             let row = &RETE_OPS[*op as usize];
             if row.core_name == ":wat::core::foldl" {
-                return exec_foldl(args, frame, sym, span);
+                return exec_foldl(args, frame, names, sym, span);
             }
             let mut vs = Vec::with_capacity(args.len());
             for a in args.iter() {
-                vs.push(exec(a, frame, sym, span)?);
+                vs.push(exec(a, frame, names, sym, span)?);
             }
             apply_core(row.core_name, &vs, span)
         }
@@ -839,13 +908,13 @@ fn exec(
             let row = &RETE_OPS[*op as usize];
             let mut vs = Vec::with_capacity(args.len());
             for a in args.iter() {
-                vs.push(exec(a, frame, sym, span)?);
+                vs.push(exec(a, frame, names, sym, span)?);
             }
             match apply_core(row.core_name, &vs, span) {
-                Ok(Value::f64(x)) if !x.is_finite() => exec(fallback, frame, sym, span),
+                Ok(Value::f64(x)) if !x.is_finite() => exec(fallback, frame, names, sym, span),
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
-                    None => exec(fallback, frame, sym, span),
+                    None => exec(fallback, frame, names, sym, span),
                 },
                 Ok(v) => Ok(v),
                 Err(EvalBreak::Diagnostic(e))
@@ -854,7 +923,7 @@ fn exec(
                         RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
                     ) =>
                 {
-                    exec(fallback, frame, sym, span)
+                    exec(fallback, frame, names, sym, span)
                 }
                 Err(EvalBreak::Diagnostic(e))
                     if matches!(
@@ -862,7 +931,7 @@ fn exec(
                         RuntimeErrorKind::MalformedForm { head, .. } if head.as_str() == row.core_name
                     ) =>
                 {
-                    exec(fallback, frame, sym, span)
+                    exec(fallback, frame, names, sym, span)
                 }
                 Err(e) => Err(e),
             }
@@ -874,7 +943,7 @@ fn exec(
             }
             let mut vs = Vec::with_capacity(args.len());
             for a in args.iter() {
-                vs.push(exec(a, frame, sym, span)?);
+                vs.push(exec(a, frame, names, sym, span)?);
             }
             exec_program_on(program, &vs, None, sym, span)
         }
@@ -906,12 +975,13 @@ fn exec_program_on(
             inner[i] = Some(v.clone());
         }
     }
-    exec(&program.root, &mut inner, sym, span)
+    exec(&program.root, &mut inner, &program.names, sym, span)
 }
 
 fn exec_foldl(
     args: &[Expr],
     frame: &mut [Option<Value>],
+    names: &[Option<Arc<str>>],
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -939,8 +1009,8 @@ fn exec_foldl(
             .into());
         }
     };
-    let mut acc = exec(&args[1], frame, sym, span)?;
-    let coll = exec(&args[2], frame, sym, span)?;
+    let mut acc = exec(&args[1], frame, names, sym, span)?;
+    let coll = exec(&args[2], frame, names, sym, span)?;
     let items: Vec<Value> = match &coll {
         Value::Vec(xs) => xs.iter().cloned().collect(),
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),

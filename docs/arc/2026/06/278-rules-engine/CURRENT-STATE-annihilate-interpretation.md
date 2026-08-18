@@ -5,43 +5,111 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** leftover rematch is on exists/not, HashJoin, and
-accumulate `:from`. Clara mouths 1–7 locked. Compiler unification
-is **unparked**. The list (do not drop an item):
+**Right now:** the compiler is **not complete.** `(b)` does not
+start. Oracle (`fire-rules-spec`) stays interpreted on purpose.
+Native (`fire-rules` in Rust) must compile every rete form —
+**no** rete form may be interpreted on the native fire path.
+
+### Completeness grid — 2026-08-17 — do not drop
+
+The “final” compiler is `src/rete/expr_ir.rs` (built for `:where`).
+`compiled_cond` and `compiled_rhs` sit on it. User folds sit on
+it. That is **not** the same as “native no longer interprets.”
+
+| Native surface | On `expr_ir`? | Interpreted on native fire? |
+|---|---|---|
+| `:where` (TestNode) | Yes. Setup `lower`; fire `exec_where`. | **No.** |
+| `:when` cond populate (happy path) | Mostly. Fire `exec_compiled`. Cmp operands are `Expr`. | Defensive miss still calls `alpha_match_inner`. |
+| **leftover rematch** (fact-shaped + combinator minted leaves) | Yes. `SeedCmp` + `exec_compiled_under`. | **No** on that path. Combinator `:and`/`:or` leaves rematch compiled. No-alpha scan is the residual. |
+| `:then` `?var` / literal / fenced expr | Yes. `RhsOp::Expr` is a `Program`; fire `exec_value`. | **No**, for those shapes. |
+| `:then` fn-headed item | **No.** | **Yes.** `compile_rhs` → `None` → `build_insert_fact`. |
+| user acc fold | Yes. Setup `lower`s the fn; fire `exec_call`. `eval_inner` deleted. | **No.** |
+| built-in `acc::*` | Not an expression. Rust fold. | No walk. |
+
+**Fact-shaped leftover rematch is compiled** (`SeedCmp` /
+`exec_compiled_under`). Populate skips `SeedCmp`; rematch fills
+`seed_reads` from the token. Gate:
+`leftover_seed_cmp_populate_skips_rematch_enforces`.
+
+**Still interpreted on native fire:**
+- no-alpha WM-scan fallback (leaf with no minted alpha)
+- fn-headed `:then` (`build_insert_fact`)
+- `fire_once_session` / `alpha_pass` (old four-pass, not
+  `fire_fixpoint_delta`)
+
+Fn-headed `:then` is the next unfinished compile on the live
+native mouth. Smaller corpus, still a rete form, still a walk.
+
+Rust copies of `eval_test_core` / `alpha_match_inner` /
+`build_insert_fact` are **oracles for differentials**, not a
+legal fire path.
+
+The list (do not drop an item) — **compiler complete before `(b)`:**
 
 1. One `Expr` core — drawn.
 2. Wire `where` — **done** (`30725034`).
-3. Flip `compiled_cond`.
-4. Flip `compiled_rhs`.
-5. Flip **user acc folds** (`user-reduce` / 8-custom: today
-   `eval_inner` of `(user-fn __acc__)` per token). Same `Expr`
-   core. `CallUser` + `foldl` already exist. This is a **perf
-   flip**, builder 2026-08-17: *as much perf as we can get — do
-   not forget this item.* Grid: we beat Clara at `[10 25]`–
-   `[40 100]` and the ratio **narrows with size**. Compile it
-   so the curve stays flat.
-6. `(b)` ShadowNode — after 3–5 sit on `Expr`.
+3. Flip `compiled_cond` — **landed (this turn, uncommitted).**
+   `Op::Cmp` operands are `Expr` (`Slot` / `Lit`). A `:field`
+   operand is prologue (`Bind` into a slot, shared with
+   `?v <- :field` in the same sequential scope; `:or`/`:not`
+   clone `field_slots` so a sibling cannot inherit a hidden
+   Bind). Lists stay uncompiled (`Fail`), matching
+   `resolve_operand` — do not outrun the interpreter. Gate
+   green: `compiled_cond_bindings_identical_to_interpreter_at_50_100`
+   (10 000 pairs, 200 Some/Some identical) and
+   `compiled_cond_failure_path_allocates_no_binding_keys_at_50_100`
+   (`match:key-alloc = 0`). Bind / BindCheck / Or / Not / Fail
+   stay driver-level. No `Expr::FactField`. No third sibling IR.
+4. Flip `compiled_rhs` — **landed (this turn, uncommitted).**
+   `RhsOp::Expr` is `Arc<Program>`, not `WatAST`. `lower` once
+   at setup; `exec_value` per derived fact. A fenced `List`
+   that does not lower is `Err` (fire refuses). Gate green:
+   `compiled_rhs_result_identical_to_interpreter`.
+   Fn-headed `:then` is item 7, still `build_insert_fact`.
+5. Flip **user acc folds** — **landed, old form torn down.**
+   Setup lowers the user-fn head once. Fire is `exec_call`
+   only. A `LowerError` refuses the fire. The
+   `(user-fn __acc__)` / `eval_inner` arm is **deleted**.
+   A fenced `:then` `List` that does not lower is `Err`, not
+   `build_insert_fact`.
+6. **Compile leftover rematch** — fact-shaped **and**
+   combinator leaf-alpha path **landed (uncommitted).**
+   `binding_extensions` / `exists_cond_under` rematch minted
+   leaves via `exec_compiled_under`. No-alpha scan remains.
+   Do not put the WM scan back.
+7. **Compile fn-headed `:then`.** Today `build_insert_fact`.
+   Next unfinished form on the live native mouth.
+8. `(b)` ShadowNode — **only after native fire walks no
+   `WatAST`.** Not yet.
 
 Keyed `?g` gather is native speed on the same bag, not a
-compiler flip.
+compiler item. Do not start it to dodge the hole.
 
 **Tree — do not invent a cleaner one:**
 
 | What | Where | Status |
 |---|---|---|
 | Compiled `where` | `30725034` | local, not pushed |
-| Oracle bag + leftover rematch + `where-join-left` + `where-accum-from-left` | this commit | local, not pushed |
-| Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed, not alg) |
+| Oracle bag + leftover rematch + `where-join-left` + `where-accum-from-left` | `54f4adb4` | local, not pushed |
+| User folds on the compiler list | `f228b033` | local, not pushed |
+| Flip 3 `compiled_cond` onto `Expr` | this turn | **landed, uncommitted** — differential green |
+| Flip 4 `compiled_rhs` | this turn | **landed, uncommitted** — differential green |
+| Flip 5 user acc folds | this turn | **landed, uncommitted** — 8custom 3/3 green; `eval_inner` deleted |
+| Leftover rematch (fact-shaped) | `SeedCmp` / `exec_compiled_under` | **landed, uncommitted** |
+| Combinator leftover rematch (minted leaf) | `exec_compiled_under` | **landed, uncommitted** |
+| Fn-headed `:then` | `build_insert_fact` | **not compiled** |
+| Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
 ## The endeavor, in one sentence
 
 **Annihilate all interpretation in wat-rete.** Every rete expression
 becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 
-**That is the endeavor, not the live wall.** Compiled `where` landed
-(`30725034`). Node-share fire is 5 ms. The live wall is exists/not
-over the **wrong bag**, then over an **unkeyed** alpha. Do not
-reopen the compiler because this sentence names it.
+**That is the endeavor.** Compiled `where` / cond populate /
+fenced `:then` / user folds sit on `expr_ir` (uncommitted).
+**The compiler is not complete.** Leftover rematch still
+interprets on native fire. Fn-headed `:then` still interprets.
+`(b)` does not start. Keyed gather is speed, not this hole.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -110,10 +178,15 @@ alphas / `exists-cond-under`. `spec_equals` green.
 2. **Wire only `where`.** **Done.** Differential against `eval_test_core`
    — same `bool`, same `Err`. `eval_test_core` is not deleted.
 3. **Flip `cond`, then `rhs`, then user acc folds, one at a time.**
-   `cond`/`rhs` already have a green interpreter differential.
-   User folds: `accumulate_value`'s `other` arm (`eval_inner`).
-   Gate: `user-reduce` `[10 25]` / `[40 100]` native fire, and
-   `probe_arc278_8custom_native_differential`. Not started.
+   Flip 3 **landed**: `compiled_cond::Op::Cmp` operands are `Expr`.
+   Bind/BindCheck/Or/Not/Fail stay driver. `:field` → prologue Bind.
+   Lists still `Fail` (interpreter `resolve_operand` cannot eval a
+   list; do not compile them on one side only). Gate stays
+   `compiled_cond_bindings_identical_to_interpreter_at_50_100`.
+   Flip 4 is `RhsOp::Expr(WatAST)` → `Expr`. Flip 5 is user folds:
+   `accumulate_value`'s `other` arm (`eval_inner`). Gate:
+   `user-reduce` `[10 25]` / `[40 100]` native fire, and
+   `probe_arc278_8custom_native_differential`.
 
 There is **no `Interp` arm.** `BRIEF-compiled-where.md` still describes
 `Op::Interp` and a third sibling `compiled_where.rs`. **That brief is
@@ -205,9 +278,11 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 `(foldl ?f 0 xs)` is a `LowerError` (HOF settled). No numeric
 ceiling until one is derived. Cardinality DoS is a later stone.
 
-**Compiler unification is UNPARKED.** Order: `cond`, `rhs`, **user
-acc folds**. Do not drop the third flip. Keyed gather is a
-separate speed stone.
+**Compiler unification is IN FLIGHT and NOT COMPLETE.**
+`:where`, cond populate, fenced `:then`, user folds sit on
+`expr_ir`. Leftover rematch and fn-headed `:then` still
+interpret on native. `(b)` waits. Keyed gather is a separate
+speed stone.
 
 `(b)` — index the compiled predicates (discrimination tree; lab
 `ShadowNode`, *"only go down paths that are actually possible"*) —
@@ -215,7 +290,50 @@ separate speed stone.
 `Expr`. Alpha already has this tree (`alpha_tree.rs`). `(b)` is the
 same idea on `where` circuits.
 
-## NOW — true up the oracle (exists/not is a data problem)
+## Measured 2026-08-17 — flips 3–5 vs `f228b033` (same machine)
+
+Clock A (`accum_fire_phase_census`, quiet re-run). Flip 3
+changed Cmp operands, not the filter wall:
+
+| Size | before | after | |
+|---|---|---|---|
+| 25×50 | 11.4 ms | 11.4 ms | same |
+| 50×100 | 70 ms | 74 ms | noise |
+| 100×200 | 527 ms | 517 ms | same |
+| 200×200 | 1952 ms | 1994 ms | same |
+
+Filter is still 79–89% at the top rungs. That is leftover
+rematch + unkeyed alpha, not the compiler. The CURRENT-STATE
+70/215 ms row is **pre-leftover-rematch**. Do not cite it as
+today's fire.
+
+Clock `user-reduce` `run-axis.sh` GRID_RUNS=3 (`:native-ns`):
+
+| Size | before (`eval_inner`) | after (`exec_call`) | |
+|---|---|---|---|
+| [10 25] | 769 µs | 551 µs | 1.4× |
+| [20 50] | 3.39 ms | 1.85 ms | 1.8× |
+| [40 100] | 11.2 ms | 7.22 ms | 1.5× |
+
+Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
+longer the wall; gather/filter is. `:wat-wall` includes
+`fire-rules-spec` — do not read the wall as native fire.
+
+## NOW — leftover rematch class compiled (minted leaves); next is fn-headed `:then`
+
+Fact-shaped and combinator leftover rematch sit on
+`exec_compiled_under`. `where-not-and` / `-bound` / `-not` /
+`where-not-or` spec == native 8/8 each. Do not put the WM
+scan back. No-alpha scan is the residual of this class.
+
+**Still walks `WatAST` on native fire:** fn-headed `:then`,
+no-alpha scan, old `fire_once_session`. Next on the live
+mouth: fn-headed `:then`. Do not start `(b)`.
+
+Do not compile cond list operands until `resolve_operand`
+does too. Do not switch Cmp onto `apply_core`.
+
+## Earlier this session — leftover rematch (exists/not is a data problem)
 
 This is **not** a creative compiler strike. `DESIGN-STONE-7-exists.md`
 already specified the gather: `token-element-compatible?` over the
@@ -340,13 +458,16 @@ re-timed** after the alpha probe):
 
 ## What shipped — local, not pushed
 
-`30725034` (compiled `where`) plus **this commit** (oracle bag +
-leftover rematch). Do not push until asked. `origin/main` never
-`origin/grok`.
+`30725034` (compiled `where`) + `54f4adb4` (oracle bag + leftover
+rematch) + `f228b033` (user folds on the list) + **this turn**
+(flip 3 `compiled_cond` onto `Expr`). Do not push until asked.
+`origin/main` never `origin/grok`.
 
 - **`where` compiled** (`30725034`).
 - **Exists/not / join / `:from` rematch** the left token. Families
   `where-join-left`, `where-accum-from-left`. Clara 1–7 locked.
+- **Flips 3–5 landed** (this turn, uncommitted). Cmp / RHS
+  expr / user acc folds sit on `Expr`. Next is `(b)`.
 - Query maps / fact-bind / clippy `--all-targets`: on `origin/main`.
 
 ## What a new self must not do
@@ -364,9 +485,12 @@ leftover rematch). Do not push until asked. `origin/main` never
 - Push `origin/main`, never `origin/grok`. Do not push until asked.
 - Do not police termination as a fifth *axis*. The load refusal is
   the wall.
-- Compiler flips are `cond`, then `rhs`, then **user acc folds**.
-  Do not drop user folds. Do not start `(b)` until those three
-  sit on `Expr`. Keyed gather is not a compiler dep.
+- Do not start `(b)` until the completeness grid at the top is
+  all **No** in the “interpreted on native fire?” column.
+  Leftover rematch is the live hole. Fn-headed `:then` is next.
+  Keyed gather is not a compiler dep and does not close the hole.
+- Do not treat “sits on `Expr`” as “native no longer interprets.”
+  Rematch still walks `WatAST`.
 - Do not revert cut 1 back to `wm_fact_slice` for fact-shaped
   inners. Do not fold leftover `?v < ?m` into the alpha probe.
   Do not refuse leading `:exists`.
@@ -378,19 +502,19 @@ leftover rematch). Do not push until asked. `origin/main` never
 
 ## Read order
 
-1. **This file** — especially **NOW**.
-2. Dirty code: `wat/rete.wat` `token-exists-under` (just after
-   `token-element-compatible?`) and `src/rete/kernel.rs`
-   `token_exists_under`. Filter-pass Negation/Exists arms.
-   Leading-exists seed.
-3. `DESIGN-STONE-keyed-gather.md` — **cut 2**. Line numbers in
-   that stone are stale; the algorithm and the three contract
-   clauses are not.
-4. `DESIGN-STONE-7-exists.md` — original gather (we returned to
-   it). Leading-exists raise is stale; Clara made it legal.
-5. `DESIGN-STONE-the-one-expression-core.md` — parked until
-   oracle is sane. `where` is already wired.
-6. `src/rete/expr_ir.rs` — compiled `where` (landed in `30725034`).
+1. **This file** — the **completeness grid** at the top, then
+   **NOW** (leftover rematch is the live hole).
+2. The hole: `src/rete/kernel.rs` `fact_bindings_under` →
+   `alpha_match_inner_seeded`. Callers: join extend, exists/not,
+   accumulate `:from` gather.
+3. `src/rete/expr_ir.rs` — the one compiler. `compiled_cond.rs`
+   / `compiled_rhs.rs` sit on it. User folds: `exec_call`.
+4. Alg (done, do not reopen): `wat/rete.wat` `token-exists-under`
+   and `token_exists_under`. Clara families stay locked.
+5. `DESIGN-STONE-the-one-expression-core.md` — the draw. This
+   file wins if they disagree.
+6. `DESIGN-STONE-keyed-gather.md` — speed, **not** the hole,
+   **not** before the compiler is complete.
 7. `wat-scripts/perf/grid/run-axis.sh` — the timer.
 8. `wat-scripts/perf/grid/REMAINING-CLARA-MOUTHS.md` — expressivity
    is closed; do not reopen it as “the next mouth.”

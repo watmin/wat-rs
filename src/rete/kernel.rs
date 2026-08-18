@@ -1212,8 +1212,10 @@ fn binding_extensions(
     cond: &WatAST,
     wm: &WorkingMemory,
     seed: &crate::value::pmap::PMap,
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
-) -> Vec<crate::value::pmap::PMap> {
+) -> Result<Vec<crate::value::pmap::PMap>, EvalBreak> {
     use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
     match classify_rete_clause(cond) {
         ReteClauseShape::And(kids) => {
@@ -1221,47 +1223,109 @@ fn binding_extensions(
             for kid in kids {
                 let mut next = Vec::new();
                 for ext in &exts {
-                    next.extend(binding_extensions(kid, wm, ext, sym));
+                    next.extend(binding_extensions(
+                        kid,
+                        wm,
+                        ext,
+                        compiled_conds,
+                        scratch,
+                        sym,
+                    )?);
                 }
                 exts = next;
                 if exts.is_empty() {
                     break;
                 }
             }
-            exts
+            Ok(exts)
         }
         ReteClauseShape::Or(kids) => {
             let mut out = Vec::new();
             for kid in kids {
-                out.extend(binding_extensions(kid, wm, seed, sym));
+                out.extend(binding_extensions(
+                    kid,
+                    wm,
+                    seed,
+                    compiled_conds,
+                    scratch,
+                    sym,
+                )?);
             }
-            out
+            Ok(out)
         }
         ReteClauseShape::Where(expr) => match crate::rete::expr_ir::exec_test(expr, seed, sym) {
-            Ok(true) => vec![seed.clone()],
-            _ => vec![],
+            Ok(true) => Ok(vec![seed.clone()]),
+            _ => Ok(vec![]),
         },
         ReteClauseShape::Not(inner) => {
-            if exists_cond_under(inner, wm, seed, sym) {
-                vec![]
+            if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)? {
+                Ok(vec![])
             } else {
-                vec![seed.clone()]
+                Ok(vec![seed.clone()])
             }
         }
-        _ => match alpha_els_for_cond(wm, cond) {
-            Some(els) => els
+        _ => match alpha_id_and_els(wm, cond) {
+            Some((alpha_id, els)) => {
+                let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+                Ok(els
+                    .iter()
+                    .filter_map(|el| {
+                        fact_bindings_under(cond, &el.fact, seed, compiled, scratch)
+                    })
+                    .collect())
+            }
+            None => Ok(wm_fact_slice(wm)
                 .iter()
-                .filter_map(|el| fact_bindings_under(cond, &el.fact, seed, sym))
-                .collect(),
-            None => wm_fact_slice(wm)
-                .iter()
-                .filter_map(|f| fact_bindings_under(cond, f, seed, sym))
-                .collect(),
+                .filter_map(|f| fact_bindings_under_interp(cond, f, seed, sym))
+                .collect()),
         },
     }
 }
 
+fn rematch_compiled(
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    alpha_id: i64,
+) -> Result<&crate::rete::compiled_cond::CompiledCond, EvalBreak> {
+    compiled_conds.get(&alpha_id).ok_or_else(|| {
+        RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::fire-rules'".into(),
+                reason: format!(
+                    "alpha {alpha_id} has no compiled rematch — setup should have compiled every alpha"
+                ),
+            },
+        )
+        .into()
+    })
+}
+
 fn fact_bindings_under(
+    cond: &WatAST,
+    fact: &Value,
+    seed: &crate::value::pmap::PMap,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+    scratch: &mut Vec<Option<Value>>,
+) -> Option<crate::value::pmap::PMap> {
+    let fact_fields = match fact {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
+        _ => return None,
+    };
+    let pairs =
+        crate::rete::compiled_cond::exec_compiled_under(compiled, fact_fields, scratch, seed)?;
+    let pairs = crate::rete::matcher::attach_fact_bind(cond, fact, pairs);
+    let mut pm = seed.clone();
+    for (k, v) in pairs.iter() {
+        if pm.get(k) != Some(v) {
+            pm = pm.assoc(k.clone(), v.clone());
+        }
+    }
+    Some(pm)
+}
+
+/// Oracle / combinator path — `alpha_match_inner_seeded` stays the interpreter.
+/// Native rematch does not call this.
+fn fact_bindings_under_interp(
     cond: &WatAST,
     fact: &Value,
     seed: &crate::value::pmap::PMap,
@@ -1319,10 +1383,11 @@ fn any_seeded_in_alpha(
     cond: &WatAST,
     tok: &crate::value::pmap::PMap,
     els: &[Element],
-    sym: &SymbolTable,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+    scratch: &mut Vec<Option<Value>>,
 ) -> bool {
     els.iter()
-        .any(|el| fact_bindings_under(cond, &el.fact, tok, sym).is_some())
+        .any(|el| fact_bindings_under(cond, &el.fact, tok, compiled, scratch).is_some())
 }
 
 fn cond_text(cond: &WatAST) -> String {
@@ -1348,9 +1413,12 @@ fn alpha_id_for_cond(network: &Value, cond: &WatAST) -> Option<i64> {
     None
 }
 
-fn alpha_els_for_cond<'a>(wm: &'a WorkingMemory, cond: &WatAST) -> Option<&'a [Element]> {
+fn alpha_id_and_els<'a>(
+    wm: &'a WorkingMemory,
+    cond: &WatAST,
+) -> Option<(i64, &'a [Element])> {
     let id = alpha_id_for_cond(&wm.network, cond)?;
-    Some(wm.alpha.get(&id).map(Vec::as_slice).unwrap_or(&[]))
+    Some((id, wm.alpha.get(&id).map(Vec::as_slice).unwrap_or(&[])))
 }
 
 fn token_exists_under(
@@ -1358,18 +1426,17 @@ fn token_exists_under(
     tok: &crate::value::pmap::PMap,
     wm: &WorkingMemory,
     alpha_id: i64,
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
-) -> bool {
+) -> Result<bool, EvalBreak> {
     if exists_uses_alpha_probe(cond) {
         let empty: [Element; 0] = [];
-        let els = wm
-            .alpha
-            .get(&alpha_id)
-            .map(Vec::as_slice)
-            .unwrap_or(&empty);
-        any_seeded_in_alpha(cond, tok, els, sym)
+        let els = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&empty);
+        let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+        Ok(any_seeded_in_alpha(cond, tok, els, compiled, scratch))
     } else {
-        exists_cond_under(cond, wm, tok, sym)
+        exists_cond_under(cond, wm, tok, compiled_conds, scratch, sym)
     }
 }
 
@@ -1377,22 +1444,51 @@ fn exists_cond_under(
     cond: &WatAST,
     wm: &WorkingMemory,
     seed: &crate::value::pmap::PMap,
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
-) -> bool {
+) -> Result<bool, EvalBreak> {
     use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
     match classify_rete_clause(cond) {
-        ReteClauseShape::And(_) => !binding_extensions(cond, wm, seed, sym).is_empty(),
-        ReteClauseShape::Or(kids) => kids.iter().any(|k| exists_cond_under(k, wm, seed, sym)),
-        ReteClauseShape::Where(expr) => {
-            crate::rete::expr_ir::exec_test(expr, seed, sym).unwrap_or(false)
+        ReteClauseShape::And(_) => Ok(!binding_extensions(
+            cond,
+            wm,
+            seed,
+            compiled_conds,
+            scratch,
+            sym,
+        )?
+        .is_empty()),
+        ReteClauseShape::Or(kids) => {
+            for k in kids {
+                if exists_cond_under(k, wm, seed, compiled_conds, scratch, sym)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         }
-        ReteClauseShape::Not(inner) => !exists_cond_under(inner, wm, seed, sym),
-        ReteClauseShape::Exists(inner) => exists_cond_under(inner, wm, seed, sym),
-        _ => match alpha_els_for_cond(wm, cond) {
-            Some(els) => any_seeded_in_alpha(cond, seed, els, sym),
+        ReteClauseShape::Where(expr) => {
+            Ok(crate::rete::expr_ir::exec_test(expr, seed, sym).unwrap_or(false))
+        }
+        ReteClauseShape::Not(inner) => Ok(!exists_cond_under(
+            inner,
+            wm,
+            seed,
+            compiled_conds,
+            scratch,
+            sym,
+        )?),
+        ReteClauseShape::Exists(inner) => {
+            exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)
+        }
+        _ => match alpha_id_and_els(wm, cond) {
+            Some((leaf_id, els)) => {
+                let compiled = rematch_compiled(compiled_conds, leaf_id)?;
+                Ok(any_seeded_in_alpha(cond, seed, els, compiled, scratch))
+            }
             None => {
                 let facts = wm_fact_slice(wm);
-                any_fact_matches_under(cond, &facts, seed, sym)
+                Ok(any_fact_matches_under(cond, &facts, seed, sym))
             }
         },
     }
@@ -1492,13 +1588,17 @@ fn join_extend(
     el: &Element,
     alpha_id: i64,
     cond: Option<&WatAST>,
-    sym: &SymbolTable,
-) -> Option<Token> {
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    scratch: &mut Vec<Option<Value>>,
+) -> Result<Option<Token>, EvalBreak> {
     let (el_fact, el_b) = element_fact_bindings(el);
     if let Some(cond) = cond {
-        fact_bindings_under(cond, el_fact, &tok.bindings, sym)?;
+        let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+        if fact_bindings_under(cond, el_fact, &tok.bindings, compiled, scratch).is_none() {
+            return Ok(None);
+        }
     }
-    Some(extend_token(tok, el_fact, el_b, alpha_id))
+    Ok(Some(extend_token(tok, el_fact, el_b, alpha_id)))
 }
 
 fn keyed_join(
@@ -1506,10 +1606,11 @@ fn keyed_join(
     right_elements: &[Element],
     alpha_id: i64,
     cond: Option<&WatAST>,
-    sym: &SymbolTable,
-) -> Vec<Token> {
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    scratch: &mut Vec<Option<Value>>,
+) -> Result<Vec<Token>, EvalBreak> {
     if left_tokens.is_empty() || right_elements.is_empty() {
-        return vec![];
+        return Ok(vec![]);
     }
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
@@ -1568,23 +1669,35 @@ fn keyed_join(
             .collect();
         if let Some(bucket) = index.get(&probe_key) {
             for &el_idx in bucket {
-                if let Some(new_tok) =
-                    join_extend(tok, &right_elements[el_idx], alpha_id, cond, sym)
-                {
+                if let Some(new_tok) = join_extend(
+                    tok,
+                    &right_elements[el_idx],
+                    alpha_id,
+                    cond,
+                    compiled_conds,
+                    scratch,
+                )? {
                     out.push(new_tok);
                 }
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// `hash-join-pass` / `cross-join-node` — propagate tokens from a left-parent to
 /// its HashJoinNode children, in ascending node-id order (topological).
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
 /// Mirrors `wat/rete.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
-fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) {
+fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
     let node_ids = sorted_node_ids(&wm.network);
+    let compiled_conds = compile_alpha_conds_leftover_as_seed(wm, &node_ids, sym);
+    let max_slots = compiled_conds
+        .values()
+        .map(|c| c.n_slots())
+        .max()
+        .unwrap_or(0);
+    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(max_slots);
 
     for node_id in &node_ids {
         // Group C: use &Value ref from wm.network; borrow ends after node_children (NLL).
@@ -1630,12 +1743,20 @@ fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) {
             };
             let cond = alpha_cond_of(&wm.network, alpha_id);
             // Delegate to the shared keyed_join helper (P3 keyed index+probe).
-            let new_tokens = keyed_join(&tokens, elements, alpha_id, cond.as_ref(), sym);
+            let new_tokens = keyed_join(
+                &tokens,
+                elements,
+                alpha_id,
+                cond.as_ref(),
+                &compiled_conds,
+                &mut match_scratch,
+            )?;
             for new_tok in new_tokens {
                 wm.beta.entry(*child_id).or_default().push(new_tok);
             }
         }
     }
+    Ok(())
 }
 
 // ── Pass 4: Production pass ───────────────────────────────────────────────────
@@ -1778,7 +1899,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     // Four passes (alpha → root-join → hash-join → production).
     alpha_pass(&mut wm, sym);
     root_join_pass(&mut wm);
-    hash_join_pass(&mut wm, sym);
+    hash_join_pass(&mut wm, sym)?;
     production_pass(&mut wm, sym)?;
 
     harvest_query_memory(&mut wm);
@@ -2196,6 +2317,7 @@ fn accumulate_value(
     acc_form: &WatAST,
     gathered: &[&Element],
     sym: &SymbolTable,
+    compiled_fold: Option<&crate::rete::expr_ir::Program>,
 ) -> Result<Option<Value>, EvalBreak> {
     // Head keyword name (e.g. ":wat::rete::acc::count").
     let items = match acc_form {
@@ -2314,53 +2436,36 @@ fn accumulate_value(
                 crate::value::pmap::PMap::from_trie(pm),
             ))
         }
-        // 8-custom: the head is a USER fold fn name. Gather the ?var values into a PV<i64>,
-        // then eval `(user-fn __acc__)` with `__acc__` bound to the PV — the proven
-        // `eval_test_core` mechanism (matcher.rs:871), here yielding any Value (not just bool).
+        // Flip 5: the old form is gone. Gather the ?var values into a PV<i64>,
+        // then `exec_call` the Program lowered at setup. No `eval_inner`.
         user_fn => {
             let var = var_key();
-            // Gather the bound ?var values into a PV<i64>, in gather order (no dedup —
-            // mirrors the oracle's acc::gather-vals; the fold fn sees every value).
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
                 pv.push_back_mut(Value::i64(acc_var_i64(el, &var)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
-
-            // Build the call AST `(user-fn __acc__)` once, head spelled exactly as it appeared.
             let span = match acc_form {
                 WatAST::List(_, s) => s.clone(),
                 _ => crate::rust_caller_span!(),
             };
-            let head_ast = match items.first() {
-                Some(WatAST::Keyword(k, s)) => WatAST::Keyword(k.clone(), s.clone()),
-                Some(WatAST::Symbol(s, sp)) => WatAST::Symbol(s.clone(), sp.clone()),
-                // unreachable: `head` was extracted from items.first() as Keyword/Symbol above.
-                _ => return Ok(None),
-            };
-            let acc_var_name = "__acc__".to_string();
-            let call = WatAST::List(
-                vec![
-                    head_ast,
-                    WatAST::Symbol(
-                        crate::scope::Identifier::bare(acc_var_name.clone()),
-                        span.clone(),
-                    ),
-                ],
-                span,
-            );
-
-            // Child env binding the synthetic var → the gathered PV; eval the call.
-            let base = crate::runtime::Environment::new();
-            let env = base
-                .child()
-                .bind_unknown_span(
-                    acc_var_name,
-                    crate::runtime::TrackedValue::from(gathered_pv),
+            let Some(program) = compiled_fold else {
+                return Err(RuntimeError::new(
+                    span,
+                    RuntimeErrorKind::MalformedForm {
+                        head: user_fn.into(),
+                        reason: "user acc fold has no compiled Program — setup should have refused"
+                            .into(),
+                    },
                 )
-                .build();
-            let _ = user_fn; // head name already embedded in `call`
-            Some(crate::runtime::eval_inner(&call, &env, sym)?.value_owned())
+                .into());
+            };
+            Some(crate::rete::expr_ir::exec_call(
+                program,
+                &[gathered_pv],
+                sym,
+                &span,
+            )?)
         }
     })
 }
@@ -2810,6 +2915,30 @@ pub(crate) fn build_alpha_index(
     (alpha_by_type, alpha_cond)
 }
 
+/// Leftover-as-seed compile of every alpha. Populate skips `SeedCmp`; rematch
+/// requires it. One compile — no local/strict split at fire setup.
+fn compile_alpha_conds_leftover_as_seed(
+    wm: &WorkingMemory,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> HashMap<i64, crate::rete::compiled_cond::CompiledCond> {
+    let (alpha_by_type, alpha_cond) = build_alpha_index(wm, node_ids);
+    let mut compiled_conds = HashMap::with_capacity(alpha_cond.len());
+    for (class, ids) in &alpha_by_type {
+        let field_names = class_field_names(sym, class);
+        for aid in ids {
+            if let Some(cond) = alpha_cond.get(aid) {
+                if let Some(compiled) =
+                    crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
+                {
+                    compiled_conds.insert(*aid, compiled);
+                }
+            }
+        }
+    }
+    compiled_conds
+}
+
 /// Declared field names for a fact class (colon-free), read from the frozen type registry.
 /// Shared by the per-round `field_names_cache` lookup below and
 /// `alpha_tree::AlphaTree::build` (setup-time tree construction needs the exact same declared
@@ -2824,6 +2953,51 @@ pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
             _ => None,
         })
         .unwrap_or_default()
+}
+
+/// Flip 5 — lower each AccumulateNode whose acc-form head is a user rete-defn.
+/// Built-in `:wat::rete::acc::*` heads are skipped. A `LowerError` refuses
+/// the fire (same door as `compile_test_programs`). The old
+/// `(user-fn __acc__)` / `eval_inner` arm is gone.
+fn compile_user_fold_programs(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, Arc<crate::rete::expr_ir::Program>>, EvalBreak> {
+    let mut out = HashMap::new();
+    for node_id in node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "AccumulateNode" {
+            continue;
+        }
+        let (_, sf) = match node_record(node) {
+            Some(p) => p,
+            None => continue,
+        };
+        let acc_form = match &sf[2] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        let items = match acc_form {
+            WatAST::List(items, _) => items.as_slice(),
+            _ => continue,
+        };
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            Some(WatAST::Symbol(s, _)) => s.as_str(),
+            _ => continue,
+        };
+        if head.starts_with(":wat::rete::acc::") {
+            continue;
+        }
+        let program = crate::rete::expr_ir::lower_named_rete_fn(head, sym)
+            .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+        out.insert(*node_id, program);
+    }
+    Ok(out)
 }
 
 /// Compile every TestNode's `:expr` once, beside `compiled_conds`.
@@ -2956,23 +3130,19 @@ fn fire_fixpoint_delta(
     // waste a match call, never drop a derivation.
     let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
 
-    // DESIGN-STONE-compiled-conditions.md — compile each alpha's condition ONCE here, beside the
-    // tree, from the SAME (alpha_by_type, alpha_cond) index. `alpha_match_inner` remains the sole
-    // authority on what a condition means; `compile_condition` never fails for anything
-    // `build_alpha_index` put in `alpha_cond` (see its doc), so the `None` arm below is a
-    // defensive fallback to the interpreter, never a path real conditions take.
+    // DESIGN-STONE-compiled-conditions.md — compile each alpha ONCE here, leftover-as-seed.
+    // Populate skips SeedCmp; rematch requires it. `compile_condition_local` never fails for
+    // anything `build_alpha_index` put in `alpha_cond` (see its doc), so the `None` arm
+    // below is a defensive populate fallback, never a rematch door.
     let mut compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond> =
         HashMap::with_capacity(alpha_cond.len());
     for (class, ids) in &alpha_by_type {
         let cclass_field_names = class_field_names(sym, class);
         for aid in ids {
             if let Some(cond) = alpha_cond.get(aid) {
-                let compiled = if crate::rete::matcher::cond_has_deferred_constraint(cond) {
+                if let Some(compiled) =
                     crate::rete::compiled_cond::compile_condition_local(cond, &cclass_field_names)
-                } else {
-                    crate::rete::compiled_cond::compile_condition(cond, &cclass_field_names)
-                };
-                if let Some(compiled) = compiled {
+                {
                     compiled_conds.insert(*aid, compiled);
                 }
             }
@@ -2991,6 +3161,10 @@ fn fire_fixpoint_delta(
 
     // Compiled `where`: lower each TestNode once. The filter loop never reads `:expr`.
     let compiled_wheres = compile_test_programs(&wm.network, &node_ids, sym)?;
+
+    // Flip 5 — user acc folds: lower each AccumulateNode's user-fn head once.
+    // Built-in `:wat::rete::acc::*` heads are not here. A miss refuses the fire.
+    let compiled_user_folds = compile_user_fold_programs(&wm.network, &node_ids, sym)?;
 
     // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
     // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
@@ -3086,10 +3260,11 @@ fn fire_fixpoint_delta(
                     .collect(),
                 _ => vec![],
             };
-            let compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> = rhs
-                .iter()
-                .map(|f| crate::rete::compiled_rhs::compile_rhs(f, sym))
-                .collect();
+            let mut compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> =
+                Vec::with_capacity(rhs.len());
+            for f in &rhs {
+                compiled.push(crate::rete::compiled_rhs::compile_rhs(f, sym)?);
+            }
             compiled_rhs_cache.insert(rname.to_string(), compiled);
             rule_rhs_cache.insert(rname.to_string(), rhs);
         }
@@ -3389,8 +3564,9 @@ fn fire_fixpoint_delta(
                                         el,
                                         alpha_id,
                                         join_cond.as_ref(),
-                                        sym,
-                                    ) {
+                                        &compiled_conds,
+                                        &mut match_scratch,
+                                    )? {
                                         new_tokens.push(new_tok);
                                     }
                                 }
@@ -3471,8 +3647,9 @@ fn fire_fixpoint_delta(
                                         el,
                                         alpha_id,
                                         join_cond.as_ref(),
-                                        sym,
-                                    ) {
+                                        &compiled_conds,
+                                        &mut match_scratch,
+                                    )? {
                                         new_tokens.push(new_tok);
                                     }
                                 }
@@ -3497,8 +3674,9 @@ fn fire_fixpoint_delta(
                                         el,
                                         alpha_id,
                                         join_cond.as_ref(),
-                                        sym,
-                                    ) {
+                                        &compiled_conds,
+                                        &mut match_scratch,
+                                    )? {
                                         new_tokens.push(new_tok);
                                     }
                                 }
@@ -3624,10 +3802,11 @@ fn fire_fixpoint_delta(
             });
             phase_end("  ├ accum:index", __ix);
             let from_cond = alpha_cond_of(&wm.network, from_alpha_id);
-            let from_keys = from_cond
-                .as_ref()
-                .map(cond_bind_keys)
-                .unwrap_or_default();
+            let from_compiled = match from_cond.as_ref() {
+                Some(_) => Some(rematch_compiled(&compiled_conds, from_alpha_id)?),
+                None => None,
+            };
+            let from_keys = from_cond.as_ref().map(cond_bind_keys).unwrap_or_default();
             let operand_keys = acc_operand_keys(&acc_form);
             let __fd = phase_start();
             for tok in new_tokens {
@@ -3636,22 +3815,28 @@ fn fire_fixpoint_delta(
                 // Gather the token-compatible :from elements (shared ?var agreement), in
                 // alpha-memory insertion order (matches the wat foldl over from-els) — the
                 // bucket's indices were pushed in that same order.
-                let gathered: Vec<&Element> = bucket
-                    .iter()
-                    .map(|&i| &from_elements[i])
-                    .filter(|el| {
-                        census_gather_visit();
-                        match from_cond.as_ref() {
-                            Some(cond) => {
-                                fact_bindings_under(cond, &el.fact, &tok.bindings, sym).is_some()
-                            }
-                            None => {
-                                let (_, el_b) = element_fact_bindings(el);
-                                token_element_compatible(&tok.bindings, el_b)
-                            }
+                let mut gathered: Vec<&Element> = Vec::new();
+                for &i in bucket {
+                    let el = &from_elements[i];
+                    census_gather_visit();
+                    let ok = match (from_cond.as_ref(), from_compiled) {
+                        (Some(cond), Some(compiled)) => fact_bindings_under(
+                            cond,
+                            &el.fact,
+                            &tok.bindings,
+                            compiled,
+                            &mut match_scratch,
+                        )
+                        .is_some(),
+                        _ => {
+                            let (_, el_b) = element_fact_bindings(el);
+                            token_element_compatible(&tok.bindings, el_b)
                         }
-                    })
-                    .collect();
+                    };
+                    if ok {
+                        gathered.push(el);
+                    }
+                }
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
@@ -3695,7 +3880,12 @@ fn fire_fixpoint_delta(
                         .collect()
                 };
                 for (group_bindings, group_els) in groups {
-                    if let Some(aggregate) = accumulate_value(&acc_form, &group_els, sym)? {
+                    if let Some(aggregate) = accumulate_value(
+                        &acc_form,
+                        &group_els,
+                        sym,
+                        compiled_user_folds.get(node_id).map(|p| p.as_ref()),
+                    )? {
                         let new_bindings = group_bindings.assoc(result_var.clone(), aggregate);
                         let new_tok = Token {
                             matches: tok.matches.clone(),
@@ -3773,7 +3963,14 @@ fn fire_fixpoint_delta(
                         .collect()
                 } else {
                     let empty = crate::value::pmap::PMap::new();
-                    binding_extensions(&cond, &wm, &empty, sym)
+                    binding_extensions(
+                        &cond,
+                        &wm,
+                        &empty,
+                        &compiled_conds,
+                        &mut match_scratch,
+                        sym,
+                    )?
                 };
                 for ext in exts {
                     if !seen.insert(ext.clone()) {
@@ -3844,8 +4041,15 @@ fn fire_fixpoint_delta(
                     None => continue,
                 };
                 for tok in new_tokens {
-                    let any_compat =
-                        token_exists_under(&cond, &tok.bindings, &wm, alpha_id, sym);
+                    let any_compat = token_exists_under(
+                        &cond,
+                        &tok.bindings,
+                        &wm,
+                        alpha_id,
+                        &compiled_conds,
+                        &mut match_scratch,
+                        sym,
+                    )?;
                     // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
                     let pass = if is_exists { any_compat } else { !any_compat };
                     if pass {
@@ -3901,7 +4105,14 @@ fn fire_fixpoint_delta(
                     _ => continue,
                 };
                 let cond = alpha_cond_of(&wm.network, alpha_id);
-                let joined = keyed_join(&new_tokens, elements, alpha_id, cond.as_ref(), sym);
+                let joined = keyed_join(
+                    &new_tokens,
+                    elements,
+                    alpha_id,
+                    cond.as_ref(),
+                    &compiled_conds,
+                    &mut match_scratch,
+                )?;
                 if joined.is_empty() {
                     continue;
                 }
@@ -3978,8 +4189,15 @@ fn fire_fixpoint_delta(
                             None => continue,
                         };
                         for tok in new_tokens {
-                            let any_compat =
-                                token_exists_under(&cond, &tok.bindings, &wm, alpha_id, sym);
+                            let any_compat = token_exists_under(
+                                &cond,
+                                &tok.bindings,
+                                &wm,
+                                alpha_id,
+                                &compiled_conds,
+                                &mut match_scratch,
+                                sym,
+                            )?;
                             let pass = if is_exists { any_compat } else { !any_compat };
                             if pass {
                                 if beta_readers.contains(&filter_id) {
@@ -4016,8 +4234,14 @@ fn fire_fixpoint_delta(
                                     _ => continue,
                                 };
                                 let cond = alpha_cond_of(&wm.network, alpha_id);
-                                let joined =
-                                    keyed_join(&parent_toks, elements, alpha_id, cond.as_ref(), sym);
+                                let joined = keyed_join(
+                                    &parent_toks,
+                                    elements,
+                                    alpha_id,
+                                    cond.as_ref(),
+                                    &compiled_conds,
+                                    &mut match_scratch,
+                                )?;
                                 if joined.is_empty() {
                                     continue;
                                 }
@@ -4075,8 +4299,10 @@ fn fire_fixpoint_delta(
                                         &tok.bindings,
                                         &wm,
                                         alpha_id,
+                                        &compiled_conds,
+                                        &mut match_scratch,
                                         sym,
-                                    );
+                                    )?;
                                     let pass = if is_exists { any_compat } else { !any_compat };
                                     if pass {
                                         if beta_readers.contains(&gc_id) {
@@ -5392,7 +5618,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym);
+        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
         production_pass(&mut wm, sym).expect("production_pass should succeed");
 
         // Find the HashJoinNode (the parent of the ProductionNode) in the network.
@@ -5649,7 +5875,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym);
+        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -5761,7 +5987,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym);
+        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
@@ -5839,7 +6065,7 @@ mod tests {
         let sym = world.symbols();
         alpha_pass(&mut wm, sym);
         root_join_pass(&mut wm);
-        hash_join_pass(&mut wm, sym);
+        hash_join_pass(&mut wm, sym).expect("hash_join_pass");
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);

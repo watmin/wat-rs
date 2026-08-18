@@ -60,7 +60,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, compare_values, CmpKind, ReteClauseShape};
+use crate::rete::expr_ir::Expr;
+use crate::rete::matcher::{
+    classify_constraint_head, classify_rete_clause, compare_values, Bindings, CmpKind,
+    ReteClauseShape,
+};
 use crate::runtime::Value;
 
 // ─── The compiled program ──────────────────────────────────────────────────────
@@ -70,23 +74,14 @@ use crate::runtime::Value;
 // declare its own identical `CmpKind`; two enums meant two places a new comparison had to be added,
 // which is the duplication the ONE DOOR exists to delete.
 
-/// A resolved operand: exactly the three shapes `resolve_operand` distinguishes at runtime
-/// (`?var` from bindings, `:field` from the fact, or a bare literal) — but resolved to an index
-/// or a built `Value` once, at compile time, instead of re-classified from the `WatAST` and
-/// (for `?var`) re-allocated as a `Value::String` key on every call.
-#[derive(Clone, Debug)]
-pub(crate) enum Operand {
-    /// `?var`, already bound earlier in this condition — read scratch slot `usize`.
-    Slot(usize),
-    /// `:field` — read the fact's field at this declaration-order index.
-    Field(usize),
-    /// A bare literal, built once.
-    Lit(Value),
-}
-
 /// One instruction. Execution is a straight walk over a `[Op]` slice with short-circuit AND
 /// (the first `Op` that fails to hold ends the whole match), mirroring `eval_clauses`'s
 /// left-to-right fold exactly — `Or`/`Not` are the only ops that recurse into a sub-sequence.
+///
+/// Flip 3 (CURRENT-STATE): `Cmp` operands are the one `Expr` core. Bind / BindCheck / Or /
+/// Not / Fail stay driver-level. A `:field` operand is prologue — a (possibly hidden) Bind
+/// into a slot — so `Expr` never grows a cond-only FactField arm. Lists stay uncompiled
+/// (`None` → `Fail`), matching `resolve_operand`; widening both sides together is later.
 #[derive(Clone, Debug)]
 pub(crate) enum Op {
     /// `(?v <- :field)`, first occurrence of `?v` in its scope: write the field's value into
@@ -97,8 +92,15 @@ pub(crate) enum Op {
     /// slot's existing value (the runtime conflict check `eval_clause`'s `Bind` arm performs
     /// when `existing` is `Some`).
     BindCheck { field_idx: usize, slot: usize },
-    /// `(:wat::core::<op> a b)` — both operands resolved, per `resolve_operand`'s rules.
-    Cmp { op: CmpKind, lhs: Operand, rhs: Operand },
+    /// `(:wat::rete::core::<ty>::<op> a b)` — both operands are `Expr` (Slot / Lit after
+    /// prologue field binds). The comparison itself stays `CmpKind` so it cannot drift
+    /// from `eval_clause` / `compare_values`.
+    Cmp { op: CmpKind, lhs: Expr, rhs: Expr },
+    /// Same comparison as [`Op::Cmp`], but one operand is a leftover `?var` not bound
+    /// by this condition (a join / exists / not / accumulate-`:from` seed). Populate
+    /// ([`exec_compiled`]) skips it so the fact still enters alpha; rematch
+    /// ([`exec_compiled_under`]) fills the seed slot and runs the compare.
+    SeedCmp { op: CmpKind, lhs: Expr, rhs: Expr },
     /// `(:wat::rete::or c1 c2 …)` — each branch is its OWN op sequence, tried against a scratch
     /// clone of the current slots (never the live slots): mirrors `eval_clause`'s `Or`, which
     /// always returns the pre-`or` bindings unchanged even on a successful branch.
@@ -130,9 +132,12 @@ pub(crate) struct CompiledCond {
     /// bound never does, matching `eval_clause`'s discard of branch-local binds.
     output_slots: Arc<[usize]>,
     /// Total scratch slots this program needs (>= `output_slots.len()`; larger when an
-    /// `or`/`not` branch binds its own scratch-only vars). The caller's reusable scratch buffer
-    /// must be at least this long.
+    /// `or`/`not` branch binds its own scratch-only vars, or a leftover `?var` occupies a
+    /// seed slot). The caller's reusable scratch buffer must be at least this long.
     n_slots: usize,
+    /// Leftover `?var` keys this rematch reads from the token seed, in first-seen order.
+    /// Not in `output_slots` — a leftover is the left token's bind, not this cond's.
+    seed_reads: Arc<[(Value, usize)]>,
 }
 
 impl CompiledCond {
@@ -148,6 +153,7 @@ struct Ctx<'a> {
     field_names: &'a [String],
     next_slot: usize,
     defer_unbound: bool,
+    seed_reads: Vec<(Value, usize)>,
 }
 
 /// Compile one alpha condition (`(:ClassName clause…)`, exactly what `alpha_cond` stores) into a
@@ -159,13 +165,19 @@ struct Ctx<'a> {
 /// this is actually called with in `kernel.rs`. Kept as `Option` (rather than assuming the
 /// invariant) so a caller can fall back to `alpha_match_inner` instead of panicking if that
 /// invariant is ever violated.
+///
+/// Strict: an unbound constraint `?var` is [`Op::Fail`]. Fire setup uses
+/// [`compile_condition_local`] (leftover-as-seed). This entry is the populate
+/// differential against `alpha_match_inner`.
+#[cfg(test)]
 pub(crate) fn compile_condition(cond: &WatAST, field_names: &[String]) -> Option<CompiledCond> {
     compile_condition_opts(cond, field_names, false)
 }
 
-/// Same as [`compile_condition`], but a constraint whose `?var` is not bound
-/// in this condition is skipped (deferred to beta), not compiled as `Op::Fail`.
-/// Used only for `:exists` / `:not` alphas that mention a left-bound var.
+/// Same as [`compile_condition`], but an unbound constraint `?var` becomes a
+/// seed slot + [`Op::SeedCmp`] (not omitted, not [`Op::Fail`]). Populate skips
+/// `SeedCmp`; rematch fills the slot from the token and runs the compare.
+/// One compile for every alpha at fire setup.
 pub(crate) fn compile_condition_local(
     cond: &WatAST,
     field_names: &[String],
@@ -185,20 +197,40 @@ fn compile_condition_opts(
         field_names,
         next_slot: 0,
         defer_unbound,
+        seed_reads: Vec::new(),
     };
     let mut scope: HashMap<String, usize> = HashMap::new();
+    let mut field_slots: HashMap<usize, usize> = HashMap::new();
     let mut order: Vec<(String, usize)> = Vec::new();
     let mut ops: Vec<Op> = Vec::new();
-    compile_seq(clauses, &mut ctx, &mut scope, &mut order, &mut ops);
+    compile_seq(
+        clauses,
+        &mut ctx,
+        &mut scope,
+        &mut field_slots,
+        &mut order,
+        &mut ops,
+    );
 
     let slot_keys: Arc<[Value]> = order
         .iter()
         .map(|(name, _)| Value::String(Arc::new(name.clone())))
         .collect::<Vec<_>>()
         .into();
-    let output_slots: Arc<[usize]> = order.iter().map(|(_, slot)| *slot).collect::<Vec<_>>().into();
+    let output_slots: Arc<[usize]> = order
+        .iter()
+        .map(|(_, slot)| *slot)
+        .collect::<Vec<_>>()
+        .into();
+    let seed_reads: Arc<[(Value, usize)]> = ctx.seed_reads.into();
 
-    Some(CompiledCond { ops, slot_keys, output_slots, n_slots: ctx.next_slot })
+    Some(CompiledCond {
+        ops,
+        slot_keys,
+        output_slots,
+        n_slots: ctx.next_slot,
+        seed_reads,
+    })
 }
 
 /// Compile a clause LIST in the caller's own scope — the top-level condition body, or an `and`'s
@@ -208,11 +240,12 @@ fn compile_seq(
     clauses: &[WatAST],
     ctx: &mut Ctx,
     scope: &mut HashMap<String, usize>,
+    field_slots: &mut HashMap<usize, usize>,
     order: &mut Vec<(String, usize)>,
     ops: &mut Vec<Op>,
 ) {
     for clause in clauses {
-        compile_one(clause, ctx, scope, order, ops);
+        compile_one(clause, ctx, scope, field_slots, order, ops);
     }
 }
 
@@ -223,61 +256,85 @@ fn compile_one(
     clause: &WatAST,
     ctx: &mut Ctx,
     scope: &mut HashMap<String, usize>,
+    field_slots: &mut HashMap<usize, usize>,
     order: &mut Vec<(String, usize)>,
     ops: &mut Vec<Op>,
 ) {
     match classify_rete_clause(clause) {
-        ReteClauseShape::Bind { var, field } => match ctx.field_names.iter().position(|n| n == field) {
-            // Field not declared on this class: read_fact_field would return None on every
-            // fact of this class — a compile-time-provable, permanent failure.
-            None => ops.push(Op::Fail),
-            Some(field_idx) => {
-                if let Some(&slot) = scope.get(var) {
-                    ops.push(Op::BindCheck { field_idx, slot });
-                } else {
-                    let slot = ctx.next_slot;
-                    ctx.next_slot += 1;
-                    scope.insert(var.to_string(), slot);
-                    order.push((var.to_string(), slot));
-                    ops.push(Op::Bind { field_idx, slot });
+        ReteClauseShape::Bind { var, field } => {
+            match ctx.field_names.iter().position(|n| n == field) {
+                // Field not declared on this class: read_fact_field would return None on every
+                // fact of this class — a compile-time-provable, permanent failure.
+                None => ops.push(Op::Fail),
+                Some(field_idx) => {
+                    if let Some(&slot) = scope.get(var) {
+                        field_slots.entry(field_idx).or_insert(slot);
+                        ops.push(Op::BindCheck { field_idx, slot });
+                    } else {
+                        let slot = ctx.next_slot;
+                        ctx.next_slot += 1;
+                        scope.insert(var.to_string(), slot);
+                        order.push((var.to_string(), slot));
+                        field_slots.entry(field_idx).or_insert(slot);
+                        ops.push(Op::Bind { field_idx, slot });
+                    }
                 }
             }
-        },
+        }
         ReteClauseShape::Constraint { op, lhs, rhs } => {
             // The ONE DOOR (`matcher::classify_constraint_head`) — the constraint vocabulary is
             // written down once, in `matcher.rs`, and read here rather than re-listed. A `None`
             // means this file and the grammar disagree, which is our bug, not the caller's.
-            let (cmp, _spelling) = classify_constraint_head(op)
-                .unwrap_or_else(|| unreachable!("classify_rete_clause admitted a Constraint head the ONE DOOR rejects: {op}"));
+            let (cmp, _spelling) = classify_constraint_head(op).unwrap_or_else(|| {
+                unreachable!(
+                    "classify_rete_clause admitted a Constraint head the ONE DOOR rejects: {op}"
+                )
+            });
             // An operand that cannot be resolved AT ALL (an unbound `?var` — statically proven
             // unbound by this point in the scope, since nothing earlier in this exact walk
             // recorded it; or a `:field` this class does not declare) makes `resolve_operand`
             // return None on every call, which makes the whole Constraint (and hence the whole
             // match) fail. Compile that permanently, at build time, instead of re-discovering it
-            // on every fact.
-            match (
-                compile_operand(lhs, scope, ctx.field_names),
-                compile_operand(rhs, scope, ctx.field_names),
-            ) {
-                (Some(lhs), Some(rhs)) => ops.push(Op::Cmp { op: cmp, lhs, rhs }),
-                _ if ctx.defer_unbound
-                    && (operand_is_qvar(lhs) || operand_is_qvar(rhs)) => {}
+            // on every fact. A `:field` becomes a prologue Bind + `Expr::Slot` so Cmp sits
+            // on the one core.
+            let lhs_e = compile_operand_expr(lhs, scope, field_slots, ctx, ops);
+            let rhs_e = compile_operand_expr(rhs, scope, field_slots, ctx, ops);
+            match (lhs_e, rhs_e) {
+                (Some(lhs), Some(rhs)) => {
+                    if expr_reads_seed(&lhs, &ctx.seed_reads)
+                        || expr_reads_seed(&rhs, &ctx.seed_reads)
+                    {
+                        ops.push(Op::SeedCmp { op: cmp, lhs, rhs });
+                    } else {
+                        ops.push(Op::Cmp { op: cmp, lhs, rhs });
+                    }
+                }
                 _ => ops.push(Op::Fail),
             }
         }
-        ReteClauseShape::And(subs) => compile_seq(subs, ctx, scope, order, ops),
+        ReteClauseShape::And(subs) => compile_seq(subs, ctx, scope, field_slots, order, ops),
         ReteClauseShape::Or(subs) => {
             // Each branch compiles against its OWN clone of the current scope (so a bind made by
             // one branch is never visible to a sibling), and its binds are recorded into a
             // throwaway `order` (discarded — an Or's successful branch's bindings never survive
             // the Or, exactly like `eval_clause`'s `Or` arm returning the pre-`or` `entry`).
+            // `field_slots` is cloned the same way: a hidden `:field` Bind in one arm must
+            // not satisfy a sibling that never wrote that slot.
             let branches: Vec<Vec<Op>> = subs
                 .iter()
                 .map(|sub| {
                     let mut sub_scope = scope.clone();
+                    let mut sub_fields = field_slots.clone();
                     let mut scratch_order = Vec::new();
                     let mut sub_ops = Vec::new();
-                    compile_one(sub, ctx, &mut sub_scope, &mut scratch_order, &mut sub_ops);
+                    compile_one(
+                        sub,
+                        ctx,
+                        &mut sub_scope,
+                        &mut sub_fields,
+                        &mut scratch_order,
+                        &mut sub_ops,
+                    );
                     sub_ops
                 })
                 .collect();
@@ -285,9 +342,17 @@ fn compile_one(
         }
         ReteClauseShape::Not(sub) => {
             let mut sub_scope = scope.clone();
+            let mut sub_fields = field_slots.clone();
             let mut scratch_order = Vec::new();
             let mut sub_ops = Vec::new();
-            compile_one(sub, ctx, &mut sub_scope, &mut scratch_order, &mut sub_ops);
+            compile_one(
+                sub,
+                ctx,
+                &mut sub_scope,
+                &mut sub_fields,
+                &mut scratch_order,
+                &mut sub_ops,
+            );
             ops.push(Op::Not(sub_ops));
         }
         ReteClauseShape::Where(_)
@@ -298,33 +363,69 @@ fn compile_one(
     }
 }
 
-/// Resolve one operand AST node to an [`Operand`] at compile time — the same three shapes
+/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes
 /// `resolve_operand` distinguishes at runtime (`?var` from the scope-so-far, `:field` from the
-/// class's declared fields, or a bare literal). Returns `None` exactly when `resolve_operand`
-/// would unconditionally return `None` for every fact of this class: an unbound `?var` (nothing
-/// earlier in this scope's walk bound it) or a field name this class does not declare.
-fn operand_is_qvar(operand: &WatAST) -> bool {
-    matches!(operand, WatAST::Symbol(ident, _) if ident.as_str().starts_with('?'))
+/// class's declared fields, or a bare literal). `:field` is prologue (a Bind into a slot,
+/// reused if this condition already bound that field), so the Cmp itself only sees `Expr`.
+/// Returns `None` exactly when `resolve_operand` would unconditionally return `None` for every
+/// fact of this class: an unbound `?var` (strict compile), an unknown field, or a nested list
+/// (lists are `where`-territory on both sides; do not compile them here alone).
+/// Leftover-as-seed (`defer_unbound`): an unbound `?var` allocates a seed slot and
+/// returns `Expr::Slot` so the Constraint arm can emit [`Op::SeedCmp`].
+fn expr_reads_seed(e: &Expr, seed_reads: &[(Value, usize)]) -> bool {
+    match e {
+        Expr::Slot(i) => seed_reads.iter().any(|(_, slot)| *slot == *i as usize),
+        _ => false,
+    }
 }
 
-fn compile_operand(operand: &WatAST, scope: &HashMap<String, usize>, field_names: &[String]) -> Option<Operand> {
+fn expr_slot(slot: usize) -> Option<Expr> {
+    u16::try_from(slot).ok().map(Expr::Slot)
+}
+
+fn compile_operand_expr(
+    operand: &WatAST,
+    scope: &mut HashMap<String, usize>,
+    field_slots: &mut HashMap<usize, usize>,
+    ctx: &mut Ctx<'_>,
+    ops: &mut Vec<Op>,
+) -> Option<Expr> {
     match operand {
         WatAST::Symbol(ident, _) => {
             let name = ident.as_str();
             if name.starts_with('?') {
-                scope.get(name).map(|&slot| Operand::Slot(slot))
+                if let Some(slot) = scope.get(name).copied() {
+                    expr_slot(slot)
+                } else if ctx.defer_unbound {
+                    let slot = ctx.next_slot;
+                    ctx.next_slot += 1;
+                    scope.insert(name.to_string(), slot);
+                    ctx.seed_reads
+                        .push((Value::String(Arc::new(name.to_string())), slot));
+                    expr_slot(slot)
+                } else {
+                    None
+                }
             } else {
                 None
             }
         }
         WatAST::Keyword(k, _) => {
             let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
-            field_names.iter().position(|n| n == field_name).map(Operand::Field)
+            let field_idx = ctx.field_names.iter().position(|n| n == field_name)?;
+            if let Some(&slot) = field_slots.get(&field_idx) {
+                return expr_slot(slot);
+            }
+            let slot = ctx.next_slot;
+            ctx.next_slot += 1;
+            field_slots.insert(field_idx, slot);
+            ops.push(Op::Bind { field_idx, slot });
+            expr_slot(slot)
         }
-        WatAST::IntLit(n, _) => Some(Operand::Lit(Value::i64(*n))),
-        WatAST::FloatLit(x, _) => Some(Operand::Lit(Value::f64(*x))),
-        WatAST::BoolLit(b, _) => Some(Operand::Lit(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Some(Operand::Lit(Value::String(Arc::new(s.clone())))),
+        WatAST::IntLit(n, _) => Some(Expr::Lit(Value::i64(*n))),
+        WatAST::FloatLit(x, _) => Some(Expr::Lit(Value::f64(*x))),
+        WatAST::BoolLit(b, _) => Some(Expr::Lit(Value::bool(*b))),
+        WatAST::StringLit(s, _) => Some(Expr::Lit(Value::String(Arc::new(s.clone())))),
         _ => None,
     }
 }
@@ -357,10 +458,38 @@ pub(crate) fn exec_compiled(
     scratch.clear();
     scratch.resize(compiled.n_slots, None);
 
-    if !exec_ops(&compiled.ops, scratch, fact_fields) {
+    if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
         return None;
     }
+    materialize(compiled, scratch)
+}
 
+/// Rematch a compiled condition under a token seed. Writes `seed_reads` into
+/// scratch, then runs every op including [`Op::SeedCmp`]. An unbound seed
+/// slot fails the compare (same as `resolve_operand` returning `None`).
+/// Does not increment `match:calls`.
+pub(crate) fn exec_compiled_under(
+    compiled: &CompiledCond,
+    fact_fields: &[Value],
+    scratch: &mut Vec<Option<Value>>,
+    seed: &impl Bindings,
+) -> Option<Arc<[(Value, Value)]>> {
+    crate::rete::kernel::census_count("rematch:compiled");
+    scratch.clear();
+    scratch.resize(compiled.n_slots, None);
+    for (key, slot) in compiled.seed_reads.iter() {
+        scratch[*slot] = seed.get(key).cloned();
+    }
+    if !exec_ops(&compiled.ops, scratch, fact_fields, false) {
+        return None;
+    }
+    materialize(compiled, scratch)
+}
+
+fn materialize(
+    compiled: &CompiledCond,
+    scratch: &[Option<Value>],
+) -> Option<Arc<[(Value, Value)]>> {
     let mut out: Vec<(Value, Value)> = Vec::with_capacity(compiled.output_slots.len());
     for (i, &slot) in compiled.output_slots.iter().enumerate() {
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
@@ -382,16 +511,24 @@ pub(crate) fn exec_compiled(
     Some(out.into())
 }
 
-fn exec_ops(ops: &[Op], slots: &mut [Option<Value>], fact_fields: &[Value]) -> bool {
+fn exec_ops(
+    ops: &[Op],
+    slots: &mut [Option<Value>],
+    fact_fields: &[Value],
+    skip_seed: bool,
+) -> bool {
     for op in ops {
-        if !exec_op(op, slots, fact_fields) {
+        if skip_seed && matches!(op, Op::SeedCmp { .. }) {
+            continue;
+        }
+        if !exec_op(op, slots, fact_fields, skip_seed) {
             return false;
         }
     }
     true
 }
 
-fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value]) -> bool {
+fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_seed: bool) -> bool {
     match op {
         Op::Fail => false,
         Op::Bind { field_idx, slot } => match fact_fields.get(*field_idx) {
@@ -414,8 +551,8 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value]) -> bool 
             },
             None => false,
         },
-        Op::Cmp { op, lhs, rhs } => {
-            match (read_operand(lhs, slots, fact_fields), read_operand(rhs, slots, fact_fields)) {
+        Op::Cmp { op, lhs, rhs } | Op::SeedCmp { op, lhs, rhs } => {
+            match (eval_cmp_operand(lhs, slots), eval_cmp_operand(rhs, slots)) {
                 (Some(a), Some(b)) => eval_cmp(*op, &a, &b),
                 _ => false,
             }
@@ -423,7 +560,7 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value]) -> bool 
         Op::Or(branches) => {
             for branch in branches {
                 let mut clone: Vec<Option<Value>> = slots.to_vec();
-                if exec_ops(branch, &mut clone, fact_fields) {
+                if exec_ops(branch, &mut clone, fact_fields, skip_seed) {
                     return true;
                 }
             }
@@ -431,16 +568,18 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value]) -> bool 
         }
         Op::Not(sub) => {
             let mut clone: Vec<Option<Value>> = slots.to_vec();
-            !exec_ops(sub, &mut clone, fact_fields)
+            !exec_ops(sub, &mut clone, fact_fields, skip_seed)
         }
     }
 }
 
-fn read_operand(operand: &Operand, slots: &[Option<Value>], fact_fields: &[Value]) -> Option<Value> {
+fn eval_cmp_operand(operand: &Expr, slots: &[Option<Value>]) -> Option<Value> {
     match operand {
-        Operand::Slot(i) => slots.get(*i).and_then(|o| o.clone()),
-        Operand::Field(i) => fact_fields.get(*i).cloned(),
-        Operand::Lit(v) => Some(v.clone()),
+        Expr::Lit(v) => Some(v.clone()),
+        Expr::Slot(i) => slots.get(*i as usize).and_then(|o| o.clone()),
+        // Flip 3 emits only Slot / Lit. Any other arm is a compiler bug — fail
+        // closed, same as an unresolved operand.
+        _ => None,
     }
 }
 
@@ -456,5 +595,78 @@ fn eval_cmp(op: CmpKind, a: &Value, b: &Value) -> bool {
         CmpKind::Gt => matches!(compare_values(a, b), Some(std::cmp::Ordering::Greater)),
         CmpKind::Le => matches!(compare_values(a, b), Some(o) if o != std::cmp::Ordering::Greater),
         CmpKind::Ge => matches!(compare_values(a, b), Some(o) if o != std::cmp::Ordering::Less),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rete::matcher::alpha_match_inner_seeded;
+    use crate::value::pmap::PMap;
+
+    fn qvar(name: &str) -> Value {
+        Value::String(Arc::new(name.to_string()))
+    }
+
+    #[test]
+    fn leftover_seed_cmp_populate_skips_rematch_enforces() {
+        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))")
+            .expect("parse leftover cond");
+        let fields = vec!["kph".to_string()];
+        let compiled = compile_condition_local(&ast, &fields).expect("compile leftover-as-seed");
+        assert!(
+            compiled.seed_reads.iter().any(|(k, _)| *k == qvar("?c")),
+            "leftover ?c must be a seed slot, not omitted and not an output bind"
+        );
+        assert!(
+            !compiled.slot_keys.iter().any(|k| *k == qvar("?c")),
+            "leftover ?c must not leak into this cond's binds"
+        );
+
+        let fact = [Value::i64(20)];
+        let mut scratch = Vec::new();
+        assert!(
+            exec_compiled(&compiled, &fact, &mut scratch).is_some(),
+            "populate skips SeedCmp so the fact enters alpha"
+        );
+
+        let seed_ok = PMap::from_pairs([(qvar("?c"), Value::i64(10))]);
+        let rematch_ok = exec_compiled_under(&compiled, &fact, &mut scratch, &seed_ok);
+        assert!(rematch_ok.is_some(), "20 > 10 holds under seed");
+
+        let seed_fail = PMap::from_pairs([(qvar("?c"), Value::i64(30))]);
+        assert!(
+            exec_compiled_under(&compiled, &fact, &mut scratch, &seed_fail).is_none(),
+            "20 > 30 fails under seed"
+        );
+        assert!(
+            exec_compiled_under(&compiled, &fact, &mut scratch, &PMap::new()).is_none(),
+            "unbound leftover seed is no match"
+        );
+
+        let seed_pairs = vec![(qvar("?c"), Value::i64(10))];
+        let interp = alpha_match_inner_seeded(&ast, "wjl::Wind", &fact, &fields, &seed_pairs);
+        assert_eq!(
+            interp.is_some(),
+            rematch_ok.is_some(),
+            "compiled rematch verdict must match the interpreter oracle"
+        );
+    }
+
+    #[test]
+    fn leftover_strict_compile_is_still_fail() {
+        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))")
+            .expect("parse leftover cond");
+        let fields = vec!["kph".to_string()];
+        let compiled = compile_condition(&ast, &fields).expect("strict compile");
+        assert!(
+            compiled.seed_reads.is_empty(),
+            "strict compile must not seed leftover ?vars"
+        );
+        let mut scratch = Vec::new();
+        assert!(
+            exec_compiled(&compiled, &[Value::i64(20)], &mut scratch).is_none(),
+            "strict populate still Fails an unbound constraint ?var"
+        );
     }
 }

@@ -78,6 +78,9 @@ fn classify_cond_variant(variant: &str) -> Lands {
         // the operands. The comparison itself is core.
         "BindCheck" => Lands::Core,
         "Cmp" => Lands::Core,
+        // Leftover rematch compare — same expression as Cmp; populate skips it,
+        // rematch fills the seed slot. The compare is core; when it runs is driver.
+        "SeedCmp" => Lands::Core,
         "Or" => Lands::Core,
         "Not" => Lands::Core,
         // "this clause can never hold" — a constant. Core.
@@ -94,7 +97,7 @@ fn every_compiled_cond_variant_lands_in_core_or_driver() {
     // Frozen by NAME, not by count — a renamed or added variant must fail loudly here rather than
     // silently shrink the thing being checked
     // (`[[feedback_a_gate_freezes_names_never_a_count]]`).
-    let variants = ["Bind", "BindCheck", "Cmp", "Or", "Not", "Fail"];
+    let variants = ["Bind", "BindCheck", "Cmp", "SeedCmp", "Or", "Not", "Fail"];
 
     let driver: Vec<&str> =
         variants.iter().copied().filter(|v| classify_cond_variant(v) == Lands::Driver).collect();

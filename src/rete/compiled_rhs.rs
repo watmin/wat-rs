@@ -31,19 +31,13 @@
 //! ## Arc 278 Stone B (DESIGN-STONE-then-is-a-vector-of-singular-facts.md § "Stone B") — the
 //! third `RhsOp`, and what it does NOT claim
 //!
-//! Widening (b) (a value-position operand may be a fenced EXPRESSION, not only `?var`/literal)
-//! adds `RhsOp::Expr`, still compiled per RULE, still capturing its `WatAST` once. What is
-//! irreducible — the walk that turns that captured expression into a `Value` — still runs per
-//! fact, because the result genuinely depends on the token's bindings; this is not a regression
-//! from the contract above, it is the same shape `where`'s own (still-interpreted)
-//! `eval_test_core` already has today. A TRUE compiled expression TREE (no per-fact dispatch at
-//! all) is `#49a`'s `DESIGN-STONE-compiled-where` to build; `RhsOp::Expr` reuses
-//! `crate::rete::matcher::eval_rhs_expr` rather than inventing a second one, so compiled and
-//! interpreted can never independently drift, but it is a captured-AST-plus-shared-evaluator, not
-//! a dispatch-free IR. Widening (a) (an item's head may be a fn) is NOT represented in the
-//! compiled path at all — `compile_rhs` returns `None` for a fn-headed item, deferring the whole
-//! form to `build_insert_fact` (see `compile_rhs`'s own doc, and `BRIEF-then-user-forms.md`
-//! STOP-3).
+//! Flip 4 (CURRENT-STATE): widening (b) is a compiled `Program` on the one
+//! `Expr` core — `lower` once at setup, `exec_value` per derived fact. The
+//! interpreter (`build_insert_fact` / `eval_rhs_expr`) remains the other half
+//! of the differential. A `LowerError` falls the whole form back to
+//! `build_insert_fact` (same door as a fn-headed item). Widening (a) (an
+//! item's head may be a fn) is still not represented — `compile_rhs` returns
+//! `None` for a fn-headed item (`BRIEF-then-user-forms.md` STOP-3).
 
 use std::sync::Arc;
 
@@ -73,18 +67,13 @@ pub(crate) enum RhsOp {
     Bind(Value, String),
     /// A literal value, built once at compile time.
     Lit(Value),
-    /// Arc 278 Stone B, widening (b) — a value-position operand that is a CALL FORM. The
-    /// freeze-time wat fence (`then-item-fence`, `wat/rete.wat`) has already proven it pure ∧
-    /// deterministic and rete-namespaced-or-composed before `compile_rhs` ever sees it; this op
-    /// captures the `WatAST` ONCE (no re-parsing, no re-shape-detection per fact — the
-    /// irreducible remainder is the VALUE computation, which genuinely depends on the token's
-    /// bindings, exactly as a `where` predicate's does). Executed via
-    /// [`crate::rete::matcher::eval_rhs_expr`] — the SAME routine [`crate::rete::matcher::resolve_rhs_value`]
-    /// (the interpreted path) uses, so the two surfaces cannot independently drift ("shared
-    /// kernel, two surfaces", `DESIGN-STONE-where-admits-only-rete-ops.md`). This is NOT a full
-    /// expression-tree compiler (that is `#49a`'s `DESIGN-STONE-compiled-where`'s to build) — see
-    /// this file's module doc and `BRIEF-then-user-forms.md`'s STOP-3.
-    Expr(WatAST),
+    /// Flip 4 — a value-position call form, lowered once onto the one `Expr` core.
+    /// The freeze-time wat fence (`then-item-fence`) has already proven it pure ∧
+    /// deterministic and rete-namespaced-or-composed. `lower` failing returns
+    /// `None` for the whole form (same door as a fn-headed item): the fire path
+    /// falls back to `build_insert_fact`. Executed via `exec_value` — prologue
+    /// is token bindings → slots; the `Value` becomes the field.
+    Expr(Arc<crate::rete::expr_ir::Program>),
 }
 
 /// An insert-form compiled once, at setup, from the immutable rule set — the pre-resolved dual of
@@ -116,23 +105,27 @@ pub(crate) struct CompiledRhs {
 /// falling the whole form back to the interpreter silently" — reported here, in this doc comment
 /// and the rider's own report, not silently): every fn-headed `:then` item runs interpreted.
 ///
-/// Returns `None` whenever `build_insert_fact` would either raise an error for this form (a
+/// Returns `Ok(None)` whenever `build_insert_fact` would either raise an error for this form (a
 /// static, compile-time-provable property — the fallback then raises the identical error at
 /// fire time) or contains a value-position node this stone's op model does not represent: a bare
-/// non-`?` symbol, a `:field` keyword reference, or a Vector/Map/Set literal. Never panics.
-pub(crate) fn compile_rhs(fact_form: &WatAST, sym: &SymbolTable) -> Option<CompiledRhs> {
+/// non-`?` symbol, a `:field` keyword reference, or a Vector/Map/Set literal. A fenced `List`
+/// that `lower` refuses is `Err` — the old form is gone; fire does not walk the WatAST.
+pub(crate) fn compile_rhs(
+    fact_form: &WatAST,
+    sym: &SymbolTable,
+) -> Result<Option<CompiledRhs>, EvalBreak> {
     let fact_items = match fact_form {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
-        _ => return None,
+        _ => return Ok(None),
     };
     let type_keyword = match &fact_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
-        _ => return None,
+        _ => return Ok(None),
     };
     // See this fn's doc — a non-aggregate head is a Stone B fn-call item; defer it whole.
     let names = match sym.types().and_then(|t| t.get(type_keyword)) {
         Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
-        _ => return None,
+        _ => return Ok(None),
     };
     let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
 
@@ -162,19 +155,25 @@ pub(crate) fn compile_rhs(fact_form: &WatAST, sym: &SymbolTable) -> Option<Compi
             WatAST::FloatLit(x, _) => RhsOp::Lit(Value::f64(*x)),
             WatAST::BoolLit(b, _) => RhsOp::Lit(Value::bool(*b)),
             WatAST::StringLit(s, _) => RhsOp::Lit(Value::String(Arc::new(s.clone()))),
-            // Arc 278 Stone B, widening (b) — a call form: capture the AST once (see `RhsOp::Expr`).
-            WatAST::List(..) => RhsOp::Expr(arg.clone()),
+            // Flip 4 — a fenced call form MUST lower. A LowerError is a fire
+            // refuse, not a walk of the WatAST. `None` below is only the
+            // unrepresentable shapes (fn-headed item, `:field`, Vector/Map/Set).
+            WatAST::List(..) => {
+                let program = crate::rete::expr_ir::lower(arg, sym)
+                    .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+                RhsOp::Expr(Arc::new(program))
+            }
             // A bare non-`?` symbol, a `:field` keyword (RHS has no current fact), or a
             // Vector/Map/Set literal — `resolve_operand` would return `None` for these too, and
             // this stone's op model does not represent them either: fall back to
             // `build_insert_fact` for the WHOLE form, which raises the identical error at fire
             // time rather than miscompiling it.
-            _ => return None,
+            _ => return Ok(None),
         };
         ops.push(op);
     }
 
-    Some(CompiledRhs { class, names, ops })
+    Ok(Some(CompiledRhs { class, names, ops }))
 }
 
 /// Execute a compiled RHS form against one token's bindings. Returns exactly what
@@ -187,9 +186,9 @@ pub(crate) fn compile_rhs(fact_form: &WatAST, sym: &SymbolTable) -> Option<Compi
 /// binds exits 0 (`validate_and_reorder_then` validates the SHAPE — insert head, fact type, field names, positional arity — but never inspects the value-position OPERANDS, so an unbound `?var` and a nested form both pass), so this
 /// surfaces at fire time rather than at compile time. Never panics.
 ///
-/// Arc 278 Stone B — takes `sym` now: an `RhsOp::Expr` (widening (b)) runs through
-/// [`crate::rete::matcher::eval_rhs_expr`], which needs it (the same SymbolTable a fenced
-/// expression's rete-namespaced ops / composed user fns dispatch through).
+/// Flip 4 — `RhsOp::Expr` is a compiled `Program`. `sym` is still required
+/// (`CallUser` / accessors). The interpreter (`build_insert_fact`) remains
+/// the other half of the differential.
 pub(crate) fn exec_compiled_rhs(
     c: &CompiledRhs,
     bindings: &crate::value::pmap::PMap,
@@ -214,9 +213,9 @@ pub(crate) fn exec_compiled_rhs(
                 }
             },
             RhsOp::Lit(v) => v.clone(),
-            // Arc 278 Stone B, widening (b) — the SAME routine the interpreted path
-            // (`resolve_rhs_value`) uses; see `RhsOp::Expr`'s doc.
-            RhsOp::Expr(ast) => crate::rete::matcher::eval_rhs_expr(ast, bindings, sym)?,
+            RhsOp::Expr(program) => {
+                crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)?
+            }
         };
         fields.push(v);
     }
@@ -303,14 +302,9 @@ mod tests {
         for (src, binds) in cases {
             let ast = crate::parse_one!(*src).unwrap_or_else(|e| panic!("parse {src}: {e:?}"));
             let compiled = match compile_rhs(&ast, &sym) {
-                Some(c) => c,
-                // A form the op model still rejects (a bare non-`?` symbol, a `:field` keyword,
-                // or a Vector/Map/Set value) has no case above ANY MORE — every case here now
-                // compiles. The fallback path stays exercised by widening (a)'s own probe
-                // (`tests/rete/probe_arc278_then_user_forms*`), which reaches it via a fn-headed
-                // item; asserting it here too would need a THIRD registered symbol just to prove
-                // a no-op branch, so it is not duplicated in this low-level unit test.
-                None => panic!("{src} unexpectedly failed to compile — a case here regressed"),
+                Ok(Some(c)) => c,
+                Ok(None) => panic!("{src} unexpectedly failed to compile — a case here regressed"),
+                Err(e) => panic!("{src} lower refused a fenced then-expr: {e:?}"),
             };
             match (exec_compiled_rhs(&compiled, binds, &sym), crate::rete::matcher::build_insert_fact(&ast, binds, &sym)) {
                 (Ok(a), Ok(b)) => assert_eq!(
