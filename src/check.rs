@@ -14882,16 +14882,30 @@ pub(crate) fn assignable(
         // surface's declared params (already positionally == `eargs`) against the actual's own
         // args. `e` is already fully `reduce`d (this fn's top), so `eargs` needs no re-walk.
         //
-        // Deliberately gated on `eargs` still containing a Var: this arm's existing tenants —
-        // `Dialable` / `TypedCapability` / `Handle` (293.W.2f just above) — are BAKED
-        // per-instance with fully CONCRETE args (e.g. `TypedCapability<Echo::Op,Echo::Reply>`,
-        // never a bare `S`/`R`; confirmed live at
-        // tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32), so their `e` is always
-        // fully resolved before reaching here — the exact-string arm above already decides
-        // them, byte-identical, and this branch is unreached for their calls. It is reachable
-        // ONLY for a still-polymorphic surface dispatch, which the swap-gate (arm 4's comment,
-        // 14814-14822) has no opinion about — there is nothing concrete yet to swap.
-        else if eargs.iter().any(|t| matches!(t, TypeExpr::Var(_))) {
+        // Stone 118.B1a — this branch was ALSO gated on `eargs` still containing a Var. That
+        // gate is REMOVED, because it excluded a legitimate case while protecting nothing.
+        //
+        // Why it protected nothing: this is an `else if` on the exact-string arm above. The
+        // tenants the old comment named — `Dialable` / `TypedCapability` / `Handle` (293.W.2f) —
+        // are baked per-instance with fully CONCRETE args (`TypedCapability<Echo::Op,Echo::Reply>`,
+        // never a bare `S`/`R`; live at tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32),
+        // so the arm above DECIDES AND RETURNS for them and this branch is unreachable for their
+        // calls either way. `else` is what protects them, never the Var test.
+        //
+        // What it excluded: a CONCRETE instantiation of a parametric surface over a BUILTIN —
+        // `Vector<i64>` against `Seqable<wat::core::i64>`. A builtin's name can never string-match
+        // a surface's, so the arm above MUST fail for it; and once an earlier parameter has pinned
+        // `T`, `eargs` holds no Var, so the old gate skipped it too and satisfaction fell through
+        // to `false`. Measured: `[s <- Seqable<T>]` accepted a Vector while
+        // `[probe <- :T  s <- Seqable<T>]` rejected the same Vector — the position of an unrelated
+        // parameter decided it (`118-lazy-seqs-vs-threaded-streams/MEASURED-118.B2-blocked-the-var-gate.md`).
+        //
+        // ★ SOUNDNESS LIVES IN THE GUARDS BELOW, NOT IN THE GATE — and specifically the swap-gate
+        // (arm 4's comment, 14814-14822) is enforced by UNIFY on the args: two different concrete
+        // instantiations do not unify, so `Vector<String>` is still refused against
+        // `Seqable<i64>`, and a family with no extend-type edge is refused by
+        // `satisfies_bare_surface`. Both are negative-control rows of 118.B1a's gate.
+        else {
             let bare = crate::types::parametric_head_fqdn(eh);
             if let Some(crate::types::TypeDef::Surface(surf)) = types.get(&bare) {
                 if surf.type_params.len() == eargs.len()

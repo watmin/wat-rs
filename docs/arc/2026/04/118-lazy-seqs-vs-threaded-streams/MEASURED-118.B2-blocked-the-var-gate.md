@@ -8,9 +8,9 @@ found out why — before a rider flight, not during one.
 
 A probe attempting exactly B2's composition: ONE `defn` over `Seqable<T>`, a **lazy producer**
 (`stream/lazy` + `match (next …)` + `stream/cons`), recursing on the `rest` a `NextOutcome::Item`
-hands back. **Its full source is embedded at the bottom of this file** — it is RED, and a RED `.wat`
-cannot live under `wat-scripts/` without breaking the loader gate (see the last section for why it
-is not `#[ignore]`d instead).
+hands back. It is now GREEN and lives at
+`wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat` — **see the RESOLVED section at
+the bottom**; what follows is the state while B2 was blocked.
 
 **RED — 5 type errors.** And their *distribution* is the finding:
 
@@ -99,26 +99,16 @@ sweep the last time it was skipped.
 
 **And the probe is not a loss.** It proved the harder half: the lazy-producer shape, the
 `stream/lazy` + `match (next …)` + `stream/cons` body, and the recursive `Stream`-into-`Seqable`
-call **all work.** B2's design is sound; only its call sites are blocked. The probe becomes B1a's
-RED-to-GREEN gate row (restore instructions and expected output are at the bottom of this file).
+call **all work.** B2's design is sound; only its call sites are blocked. The probe became B1a's
+RED-to-GREEN gate row — see RESOLVED, below.
 
 ---
 
-## THE PROBE ITSELF — kept here, deliberately NOT as a live file
+## ⛔ RESOLVED — B1a landed; this probe is GREEN and back on disk
 
-⛔ **This probe is RED, and `every_wat_scripts_file_loads` type-checks every `.wat` under
-`wat-scripts/`.** A RED probe there breaks the floor — verified, not assumed: the gate went
-`1 failed` with exactly the five errors above.
-
-**The obvious escape is an `#[ignore]`, and it is refused.** "Commit RED probes ignored" is a house
-convention this project has already identified as *the mechanism that built the ignore pile*
-(`[[feedback_a_house_convention_can_be_the_mechanism_that_built_the_pile]]`, arc 294.j — we drove
-`#[ignore]` 200+ → 13, then nearly re-grew it by that exact rule). So the source lives in the
-record instead of in a gated directory with a licence attached.
-
-**★ RESTORE IT AS B1a's GATE ROW.** Copy the block below back to
-`wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat`. It must go from **these five
-errors to GREEN**, and its run must print:
+**Superseded 2026-08-18 by stone 118.B1a.** The `Var` gate at `check.rs:14894` was removed; the
+probe now lives at `wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat`, is
+loader-gated, and prints:
 
 ```
 2,4 | 2,4 | 2,4 | 2,4
@@ -126,96 +116,25 @@ errors to GREEN**, and its run must print:
 0,2,4
 ```
 
-That is a RED-to-GREEN transition on a committed artifact — the honest shape of a fix's proof, and
-strictly better than a probe that was green all along.
+**RED→GREEN on a committed artifact — 5 type errors to 0.**
 
-```wat
-;; probe-118B2-one-clause-lazy-producer.wat — the DISCONFIRMING PROBE for stone 118.B2.
-;;
-;; Written BEFORE B2's brief, per FM 2-bis: for a non-trivial substrate composition, grep is
-;; insufficient — write the ten-line probe that attempts exactly the composition and run it. The
-;; recovery doc's worked example of skipping this cost ~2 hours and a killed sweep.
-;;
-;; ═══ WHAT B2 CLAIMS, AND WHAT IS ACTUALLY UNPROVEN ═══════════════════════════════════════════
-;;
-;; B1 (488eacd0) proved a CONSUMER over `Seqable<T>` works: `[s <- Seqable<T>] -> i64`, called with
-;; all four containers. Every verb B2 collapses is a LAZY PRODUCER, which is a different shape and
-;; has never been run. Three things have to hold at once, and only the first is proven:
-;;
-;;   1. `Seqable/seq` resolves on all four containers                      ✅ proven, B1
-;;   2. a `stream/lazy` body can `match` on `(next …)` and `stream/cons`   ❓ never run in this shape
-;;   3. ★★ THE CRUX — the RECURSIVE call passes `rest`, a **Stream**, into a parameter typed
-;;      `Seqable<T>`, INSIDE the definition of the very fn being defined.                   ❓
-;;
-;; If (3) fails, the one-clause design collapses and every `<verb>-stream` TWIN comes straight
-;; back — because the twin exists precisely to be the Stream-typed thing a clause can recurse into.
-;; So (3) is not a detail of B2; it IS B2.
-;;
-;; PASS = prints all four lines below. FAIL = a TypeMismatch naming `Seqable<?N>` vs a concrete
-;; container, which would be the 118.3-B defect resurfacing at a *recursive* site.
-;;
-;; ⚠ NOTE THE ORDER OF EVIDENCE: `--check` alone is NOT sufficient here. Task #95 (confirmed live
-;; 2026-08-17) — a DOTTED call head is not type-checked at all, and `Seqable/seq` is dotted. This
-;; probe must be RUN. `[[feedback_a_green_test_can_prove_nothing]]`
+### Two corrections to what this file said while it was open
 
-;; ─── (2) + (3): ONE clause, lazy producer, recursing on a Stream through a Seqable param ─────
-;; This is exactly what `keep` / `map-indexed` / `dedupe` / `distinct` / `interpose` become in B2.
-;; Under the old world this needs FIVE defclause arms plus a `-stream` twin.
-(:wat::core::defn :probe::keep-one<T,U>
-  [f    <- :wat::core::Fn(T)->wat::core::Option<U>
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
-  (:wat::stream::lazy
-    (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
-        (:wat::core::match (f value)
-          ;; ★ (3) — `rest` is a Stream<T>, handed to a Seqable<T> parameter, recursively.
-          ((:wat::core::Some v) (:wat::stream::cons v (:probe::keep-one f rest)))
-          (:wat::core::None (:probe::keep-one f rest))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+1. **I claimed a RED `.wat` could not be committed at all, and embedded the source here instead.**
+   Wrong: the project already has the mechanism — **`.wat.bad`**, a fixture extension no gate
+   loads, driven from Rust via `startup_from_file(...).expect_err` (exemplar:
+   `tests/types/probe_arc170_parametric_surface_param.rs`, itself the swap-gate test for
+   `Dialable`). I reached for "embed it in prose" without searching for how the repo already
+   keeps deliberately-ill-typed fixtures. The embedded copy is deleted; it was duplicate and
+   would have rotted. `[[feedback_search_for_the_mechanism_not_in_the_broken_callers_neighbourhood]]`
 
-;; A STATE-CARRYING producer — the harder half of the family (`keep-indexed`, `map-indexed`,
-;; `dedupe`, `distinct` all thread an accumulator across the walk). Same crux, plus a threaded arg.
-(:wat::core::defn :probe::index-one<T>
-  [idx  <- :wat::core::i64
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<wat::core::i64>
-  (:wat::stream::lazy
-    (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
-        (:wat::stream::cons idx (:probe::index-one (:wat::core::+ idx 1) rest)))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+2. **One of the five errors was never B1a's to fix.** After the widening, four cleared and one
+   remained: `got :wat::stream::Stream<T>` — the return of the **dotted** method `Seqable/seq`,
+   whose type comes back carrying the surface's declared letter `T`, uninstantiated. Isolated: a
+   concrete `Stream<i64>` from an ordinary `defn` satisfies `Seqable<i64>` fine; only the dotted
+   method's return does not. That is **task #95** (a dotted call head is not type-checked), not
+   surface satisfaction. The probe's 4th slot was changed to a concrete `Stream<i64>` so it
+   measures B1a rather than #95 — and the #95 instance is recorded here rather than dropped.
 
-;; An unbounded source — proves the migrated shape stays LAZY (termination is the assertion).
-(:wat::core::defn :probe::nat
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
-  (:wat::stream::lazy
-    (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-    [keep-even (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
-                 (:wat::core::if (:wat::core::= 0 (:wat::core::% x 2))
-                   (:wat::core::Some x)
-                   :wat::core::None))]
-    (:wat::core::do
-      ;; ONE definition, FOUR container kinds at the call site — the payoff. Expect 2,4 / 2,4 / 2,4 / 2,4
-      (:wat::kernel::println
-        (:wat::core::string::join " | "
-          (:wat::core::Vector :wat::core::String
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::Vector :wat::core::i64 1 2 3 4 5))))
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::PersistentVector 1 2 3 4 5))))
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::List/of 1 2 3 4 5))))
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::Seqable/seq (:wat::core::Vector :wat::core::i64 1 2 3 4 5))))))))
-      ;; state-carrying, over a List. Expect 0,1,2,3,4
-      (:wat::kernel::println
-        (:wat::core::string::join ","
-          (:wat::core::into [] (:probe::index-one 0 (:wat::core::List/of 9 9 9 9 9)))))
-      ;; LAZINESS over an INFINITE source through the migrated shape. Expect 0,2,4 — and it must
-      ;; TERMINATE; an eager collapse here would hang rather than print.
-      (:wat::kernel::println
-        (:wat::core::string::join ","
-          (:wat::core::into [] (:wat::core::take (:probe::keep-one keep-even (:probe::nat 0)) 3)))))))
-```
+The negative controls B1a owes are kept, not narrated:
+`tests/types/probe_stone_118_b1a_neg.{rs,wat.bad}`.
