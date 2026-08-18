@@ -509,8 +509,12 @@ pub(crate) fn eval_vec_foldl(
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
     use crate::collection::seq_container::StreamContainer;
+    // Stone 118.B6 — `mappable()` OR `Stream`. `mappable()`'s `Stream => false` arm still carries
+    // arc 118's own note that streaming HOFs were "a later strike. ○ gap"; this closes foldl's half
+    // of it WITHOUT widening that table, because `mappable()` also gates map/filter/foldr and
+    // moving it would ripple across the whole HOF family in one commit (118.B6 STOP-2).
     match StreamContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match container {
+        Some(container) if container.mappable() || matches!(container, StreamContainer::Stream) => match container {
             StreamContainer::Vector => {
                 let Value::Vec(xs) = coll else {
                     unreachable!("of_value⇒Vector")
@@ -541,19 +545,47 @@ pub(crate) fn eval_vec_foldl(
                 }
                 Ok(acc)
             }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple
-            | StreamContainer::WatAstList
-            | StreamContainer::HashSet
-            | StreamContainer::Stream => {
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream")
+            // Stone 118.B6 — the lazy arm. Eager containers keep their DIRECT iterators above;
+            // nothing beats walking memory you already hold, and the native side is under no
+            // uniformity requirement because the SPECIFICATION lives in wat
+            // (`:wat::core::foldl-spec`, wat/seq.wat), not in a second Rust body.
+            //
+            // Iterative, not recursive: the accumulator threads through a loop, so fold depth is
+            // bounded by iteration and a long stream cannot exhaust the Rust stack (tasks #58/#86 —
+            // that death is a silent SIGSEGV).
+            StreamContainer::Stream => {
+                let Some(mut cur) = crate::stream::value_as_stream(&coll) else {
+                    unreachable!("of_value⇒Stream")
+                };
+                loop {
+                    let realized = crate::stream::realize(&cur, sym, call_span)?;
+                    match realized.as_ref() {
+                        crate::stream::Stream::Empty => return Ok(acc),
+                        crate::stream::Stream::Cons { head, tail } => {
+                            acc = apply_function(
+                                func.clone(),
+                                vec![acc, head.clone()],
+                                sym,
+                                call_span.clone(),
+                            )?;
+                            cur = Arc::clone(tail);
+                        }
+                        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+                            unreachable!("crate::stream::realize always returns Empty|Cons")
+                        }
+                    }
+                }
+            }
+            // gate excludes these — named arms, genuinely dead, compiler-forced:
+            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet => {
+                unreachable!("the gate excludes Tuple/WatAstList/HashSet")
             }
         },
         _ => Err(RuntimeError::new(
             args[2].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldl".into(),
-                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
+                expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
                 got: Box::new(ValueSnapshot::of(&coll)),
             },
         )

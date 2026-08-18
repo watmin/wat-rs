@@ -860,8 +860,14 @@ pub(crate) fn infer_foldl(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
-            Some((_coll_head, elem_ty)) => {
+        // ── Stone 118.B6 — foldl walks any SEQABLE, `Stream` included ───────────────────────
+        // Routed through `extract_lazyable_elem` — the EXISTING extractor whose own doc names it
+        // "the `Seqable` set" — rather than minting a `foldable()` row beside `mappable()`. A new
+        // predicate would be a SECOND answer to "is this a seqable?", and `extract_seq_elem`'s tail
+        // comment ("No other containers pass the cap gate today") would have quietly become false.
+        // Nothing else's gate moves: map/filter/foldr keep `mappable` exactly (118.B6 STOP-2).
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
                 // Accumulator type: unify a fresh Acc var against init's inferred type.
                 let acc_var = fresh.fresh();
                 if let Some(init_ty) = init_ty_opt {
@@ -903,7 +909,7 @@ pub(crate) fn infer_foldl(
                 local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#3".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
                     got: format_type(&reduced)
                 }});
             }

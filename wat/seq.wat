@@ -224,6 +224,45 @@
       nil
       coll)))
 
+;; ─── foldl-spec — THE WAT ORACLE for the native `:wat::core::foldl` ───────────────────────────
+;;
+;; Stone 118.B6. `:wat::core::foldl` is a Rust intrinsic (`eval_vec_foldl`,
+;; src/collection/transform.rs). THIS is its SPECIFICATION: the same fold written in wat, as
+;; obviously as it can be written — pull one element, apply `f`, recur on the rest. Correct and
+;; slow, on purpose.
+;;
+;; ★ THE RELATIONSHIP, and it is the point of the whole stone. Builder, 2026-08-18: *"we should be
+;; striving to build correct-but-slow wat-oracles that are references for wat-native to satisfy
+;; fast-and-correct.... we build wat-oracles that guide the rust code... the wat-native using rust
+;; provided intrinsics must be faster than wat-oracle."* This is the same shape as
+;; `:wat::rete::insert-all-spec` (wat/rete.wat:1508), whose sibling comment states it exactly:
+;; *"the native kernel is the fast impl, the spec keeps it honest."*
+;;
+;; ⚠ SO ITS SLOWNESS IS THE DESIGN, NOT A DEFECT. Measured ~5x the native on 200k i64
+;; (`wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`). A first cut of B6 read that
+;; ratio as an argument AGAINST routing folds through wat and built two RUST implementations
+;; instead, calling one an "oracle" — two variants of one thing in one language, neither able to
+;; specify the other. The differential is only meaningful because this side is INDEPENDENT.
+;;
+;; ⚠ AND IT MUST STAY A HAND-WRITTEN FOLD. Do NOT "simplify" it by delegating to
+;; `:wat::core::foldl` (or to `reduce`, which delegates there): a spec that calls its subject
+;; proves nothing. `[[feedback_a_green_test_can_prove_nothing]]`
+;;
+;; Its only caller is `wat-tests/core/core-foldl-spec.wat`. Zero production callers is the CORRECT
+;; state for a spec — an inventory entry WITH a disposition, not an offender (task #48).
+(:wat::core::defn :wat::core::foldl-spec<T,U>
+  [f    <- :wat::core::Fn(U,T)->U
+   init <- :U
+   coll <- :wat::core::Seqable<T>] -> :U
+  (:wat::core::foldl-spec-walk f init (:wat::core::Seqable/seq coll)))
+
+(:wat::core::defn :wat::core::foldl-spec-walk<T,U>
+  [f <- :wat::core::Fn(U,T)->U acc <- :U s <- :wat::stream::Stream<T>] -> :U
+  (:wat::core::match (:wat::stream::next s)
+    ((:wat::stream::NextOutcome::Item value rest)
+      (:wat::core::foldl-spec-walk f (f acc value) rest))
+    (:wat::stream::NextOutcome::Exhausted acc)))
+
 ;; ─── reduce — proper clojure reduce (2-arity + 3-arity), no early-exit (see STOP note above) ──
 ;;
 ;; 118.B2 — `reduce-stream` (the Stream-input walk `foldl` cannot do; foldl is Vector/List/
