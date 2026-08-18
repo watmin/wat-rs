@@ -40,13 +40,46 @@ the fork was **re-posed and re-ruled** because its premise had expired (below). 
 
 ```
 B1  mint Seqable<T> + 4 extend-types              ✅ LANDED 488eacd0
-B2  collapse each verb to ONE Seqable clause,     ← THE FRONTIER
+B1a widen surface satisfaction to CONCRETE        ← THE FRONTIER. B2 CANNOT START WITHOUT IT.
+    instantiations (check.rs:14894's Var gate)
+B2  collapse each verb to ONE Seqable clause,
     body walking with `next`; the 7 twins AND
     `seqable->stream` die here
 B3  delete BOTH memos. measure.
 B4  close the three doors (first/rest/empty? on Stream → unrepresentable)
 B5  `into` absorbs the drain; stream->pvec / stream->vec deleted
 ```
+
+## ⛔ B1a — WHY B2 CANNOT START. Measured, not predicted.
+
+`MEASURED-118.B2-blocked-the-var-gate.md`. The disconfirming probe for B2's composition came back
+**RED, 5 errors**, and their distribution is the finding: **all five are EXTERNAL call sites; the
+RECURSIVE call inside the definition produced ZERO.** So B2's design is *sound* — the lazy-producer
+body, `match (next …)`, and handing a `Stream` to a `Seqable<T>` parameter recursively all work.
+
+Isolated to one variable:
+
+```
+:d::a<T> [s <- Seqable<T>]                called with Vector<i64>  →  GREEN
+:d::b<T> [probe <- :T  s <- Seqable<T>]   called with Vector<i64>  →  RED
+```
+
+**Whether an earlier parameter already pinned `T`.** Once it does, the param type is the CONCRETE
+`Seqable<wat::core::i64>`, and 118.3-B's fix is **`Var`-gated** —
+`check.rs:14894`, `else if eargs.iter().any(|t| matches!(t, TypeExpr::Var(_)))`. Inside a definition
+`T` is still a Var, so recursion checks; at an external call site it is resolved, the gate misses,
+and the exact-string arm above can never match a **builtin** against a surface name.
+
+**★ Every verb B2 collapses takes `f`/`sep`/`idx` BEFORE the collection — so every one pins `T`
+first. B2 is blocked completely, not partially.**
+
+⚠ **B1a's load-bearing row is NOT the `Seqable` case.** The gate's own comment (`:14885-14893`) says
+its tenants — `Dialable` / `TypedCapability` / `Handle` — are baked concrete and currently resolve
+on the string arm. Widening reaches them. **Proving them observationally unchanged is the stone.**
+
+⚠ **THE `Var`-GATE LIMITATION WAS ALREADY ON THE RECORD AND I PRUNED IT FROM THIS SEAM** an hour
+before walking into it. Curare prunes what went STALE; that line was LIVE. **A line removed from the
+breadcrumb is a fact the next self pays to re-learn.**
 
 **The split is chosen so NO BODY IS WRITTEN TWICE.** An earlier sketch migrated the 8 walkers to
 `next` and *then* collapsed them into `Seqable` clauses — the same bodies, two stones.
