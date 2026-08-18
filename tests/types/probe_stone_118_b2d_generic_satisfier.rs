@@ -17,14 +17,18 @@
 //! receiver. Path (2) holds exactly the needed machinery but is guarded to fire only when the
 //! receiver IS the surface.
 //!
-//! ## ⚠ THIS FILE IS A WITNESS, AND IT INVERTS WHEN THE FIX LANDS
+//! ## ✅ THIS FILE WAS A WITNESS AND IT INVERTED, EXACTLY AS ITS HEADER PROMISED
 //!
-//! `defect_*` asserts the BROKEN behaviour, so it is GREEN on the broken substrate. **When B2d
-//! lands, `defect_surface_method_return_loses_the_instantiation` must go RED** — that RED is the
-//! stone's acceptance, and the fix's job is to move that fixture from `.wat.bad` to a passing
-//! `.wat`. Kept rather than described in prose
-//! (`[[feedback_a_negative_control_that_can_be_kept_must_be_kept]]`), and deliberately NOT
-//! `#[ignore]`d (`[[feedback_a_house_convention_can_be_the_mechanism_that_built_the_pile]]`).
+//! It was committed asserting the BROKEN behaviour — `_neg.wat.bad`, green on the broken substrate —
+//! with the header stating *"when B2d lands it must go RED, and the fix's job is to move that
+//! fixture from `.wat.bad` to a passing `.wat`."* That is precisely what happened.
+//!
+//! ## THE FIX
+//!
+//! Path (1) now binds the surface's params from the RECEIVER's args when the arities line up (the
+//! same guard path (2) already applies). **No new state, and `rename` is the signal**: a satisfier
+//! that bound CONCRETELY leaves no surface param in its scheme, so the rename is the identity and
+//! those schemes are byte-identical. The safety is structural rather than a guard to maintain.
 //!
 //! ## ★ The positive half is load-bearing
 //!
@@ -38,27 +42,23 @@
 use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_from_file, StartupError};
 
-const NEG: &str = "tests/types/probe_stone_118_b2d_generic_satisfier_neg.wat.bad";
+const WAS_NEG: &str = "tests/types/probe_stone_118_b2d_generic_satisfier.wat";
 const POS: &str = "tests/types/probe_stone_118_b2d_generic_satisfier_pos.wat";
 
+/// ★ THE STONE. `Seqable/seq` on a `Vector<i64>` now yields `Stream<i64>`, so its result can be
+/// handed to a consumer wanting a concrete element type.
+///
+/// This fixture was `_neg.wat.bad` and asserted the DEFECT. It inverted when B2d landed; that
+/// inversion is the acceptance signal, and the file moved to a plain `.wat` that must check clean.
 #[test]
-fn defect_surface_method_return_loses_the_instantiation() {
-    let err = startup_from_file(NEG).expect_err(
-        "Seqable/seq on a Vector<i64> yields Stream<T> (T free), which cannot satisfy a concrete \
-         Seqable<i64> parameter — if this now PASSES, door 2 is fixed and this witness must be \
-         retired into the positive fixture",
-    );
-    let StartupError::Check(CheckErrors(errs)) = &err else {
-        panic!("expected a type-check error, got {err:?}");
-    };
-
-    // The arm, named exactly: a CONCRETE surface instantiation was expected, and what arrived was
-    // the method's return with its type param still free. Asserting `got` is what distinguishes
-    // "the instantiation was lost" from any other satisfaction failure.
-    wat::assert_check_error_present!(errs,
-        CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::core::Seqable<wat::core::i64>"
-            && got == ":wat::stream::Stream<T>");
+fn surface_method_return_carries_the_receivers_instantiation() {
+    startup_from_file(WAS_NEG).unwrap_or_else(|e| {
+        panic!(
+            "Seqable/seq on a Vector<i64> must yield Stream<i64>. A failure here means the surface \
+             method's return has lost the receiver's instantiation again — the ONE method \
+             Seqable<T> has cannot then have its result typed. Got: {e:?}"
+        )
+    });
 }
 
 #[test]

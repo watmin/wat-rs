@@ -4940,7 +4940,63 @@ fn infer_list(
                                     for key in satisfier_method_keys(&recv, method_name) {
                                         if let Some(scheme) = env.get(&key) {
                                             let ret = scheme.ret.clone();
-                                            let params = scheme.params.get(1..).unwrap_or(&[]).to_vec();
+                                            let params =
+                                                scheme.params.get(1..).unwrap_or(&[]).to_vec();
+                                            // ── Stone 118.B2d — A GENERIC SATISFIER LEAVES THE
+                                            // SURFACE'S PARAM UNBOUND, SO BIND IT FROM THE RECEIVER
+                                            //
+                                            // Path (1) above assumes `extend-type` already
+                                            // substituted the surface's `<T>` to a CONCRETE binding
+                                            // ("e.g. T=i64 for (extend-type :IntBox :Holds<i64>)").
+                                            // That holds for a MONOMORPHIC satisfier. It does NOT
+                                            // hold when a GENERIC container satisfies the surface:
+                                            // `(extend-type :wat::core::Vector :wat::core::Seqable<T>)`
+                                            // binds `T -> T`, a VARIABLE, so the stored scheme's
+                                            // return stays `Stream<T>` with `T` free and nothing
+                                            // ever instantiated it. `(Seqable/seq v)` on a
+                                            // `Vector<i64>` therefore yielded `Stream<T>` and could
+                                            // not be handed to any consumer wanting a concrete
+                                            // element type — the ONE method `Seqable<T>` has could
+                                            // not have its result typed.
+                                            //
+                                            // ★ NO NEW STATE IS NEEDED, AND `rename` IS THE SIGNAL.
+                                            // A satisfier that bound CONCRETELY leaves no surface
+                                            // param in its scheme, so this `rename` is the identity
+                                            // and those schemes are byte-identical — the safety is
+                                            // structural, not a guard someone has to maintain. Only
+                                            // a scheme that still MENTIONS the surface's params can
+                                            // move, and that is exactly the broken class (measured:
+                                            // 8 rows, all Seqable —
+                                            // MEASURED-118.B2d-the-blast-radius-is-exactly-seqable.md).
+                                            //
+                                            // The arity guard is the same one path (2) below
+                                            // already applies, for the same reason: the positional
+                                            // zip is only meaningful when the counts line up. A
+                                            // hypothetical `Map<K,V>` satisfying `Seqable<T>` fails
+                                            // it and falls through untouched rather than binding
+                                            // `T := K`.
+                                            if let TypeExpr::Parametric {
+                                                args: recv_args, ..
+                                            } = &recv
+                                            {
+                                                if recv_args.len() == s.type_params.len()
+                                                    && !s.type_params.is_empty()
+                                                {
+                                                    let mapping: HashMap<String, TypeExpr> = s
+                                                        .type_params
+                                                        .iter()
+                                                        .cloned()
+                                                        .zip(recv_args.iter().cloned())
+                                                        .collect();
+                                                    return Some((
+                                                        rename(&ret, &mapping),
+                                                        params
+                                                            .iter()
+                                                            .map(|t| rename(t, &mapping))
+                                                            .collect(),
+                                                    ));
+                                                }
+                                            }
                                             return Some((ret, params));
                                         }
                                     }
