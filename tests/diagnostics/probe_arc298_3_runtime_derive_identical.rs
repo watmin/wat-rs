@@ -413,6 +413,20 @@ fn probe_macro_abort() {
     wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__macro_abort.edn");
 }
 
+// ─── 32. ReteDefnRecursive ───────────────────────────────────────────────────
+
+#[test]
+fn probe_rete_defn_recursive() {
+    let err = make(RuntimeErrorKind::ReteDefnRecursive {
+        name: ":probe::countdown".into(),
+        head: ":probe::countdown".into(),
+    });
+    wat::assert_edn_matches_file!(
+        write(&err),
+        "probe_arc298_3_runtime_derive_identical__rete_defn_recursive.edn"
+    );
+}
+
 // ─── Silence unused import warnings ──────────────────────────────────────────
 
 #[allow(dead_code)]

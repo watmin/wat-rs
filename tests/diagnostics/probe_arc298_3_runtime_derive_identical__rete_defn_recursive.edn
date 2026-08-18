@@ -1,0 +1,10 @@
+#wat.runtime/ReteDefnRecursive {
+  :name ":probe::countdown"
+  :head ":probe::countdown"
+  :span #wat.core/Span {
+    :file "test.wat"
+    :line 1
+    :col 0
+    :end #wat.core.Option/None []
+  }
+}

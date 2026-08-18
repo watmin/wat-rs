@@ -25,10 +25,12 @@ use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
 use crate::rete::matcher::Bindings;
-use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
+use crate::runtime::{
+    EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+};
 use crate::span::Span;
-use crate::value::value::AggregateValue;
 use crate::types::Nature;
+use crate::value::value::AggregateValue;
 
 // ─── Native token (P11) ───────────────────────────────────────────────────────
 
@@ -50,7 +52,7 @@ use crate::types::Nature;
 #[derive(Clone)]
 pub(crate) struct Token {
     /// The condition-labeled edges: (supporting fact, alpha_id that accepted it).
-    pub(crate) matches:  Vec<(Value, i64)>,
+    pub(crate) matches: Vec<(Value, i64)>,
     /// Bound variables accumulated across matched conditions. `PMap` — array below the
     /// promotion threshold, trie above it. `extend_token` folds an Element's bindings in via
     /// `PMap::extend` (one clone of the backing storage, not one clone per key).
@@ -78,7 +80,7 @@ pub(crate) struct Token {
 #[derive(Clone)]
 pub(crate) struct Element {
     /// The fact that matched the AlphaNode's condition.
-    pub(crate) fact:     Value,
+    pub(crate) fact: Value,
     /// Bound variables produced by the alpha match. Read-only forever after construction —
     /// see the struct doc. Lookup is a linear scan (fine: elements bind 1-2 vars in practice).
     pub(crate) bindings: Arc<[(Value, Value)]>,
@@ -92,21 +94,21 @@ pub(crate) struct Element {
 /// restructure — held as-is (passthroughs).
 pub(crate) struct WorkingMemory {
     /// Passthrough — immutable input: node-id → Node network.
-    pub(crate) network:    Value,
+    pub(crate) network: Value,
     /// Passthrough — immutable input: ordered rule vector.
-    pub(crate) rules:      Value,
+    pub(crate) rules: Value,
     /// Mutable mirror of `alpha-memory`  (node-id → [native Element]).
-    pub(crate) alpha:      HashMap<i64, Vec<Element>>,
+    pub(crate) alpha: HashMap<i64, Vec<Element>>,
     /// Mutable mirror of `beta-memory`   (node-id → [native Token]).
-    pub(crate) beta:       HashMap<i64, Vec<Token>>,
+    pub(crate) beta: HashMap<i64, Vec<Token>>,
     /// Mutable mirror of `production-memory` (node-id → [Record]).
     pub(crate) production: HashMap<i64, Vec<Value>>,
     /// Passthrough — the asserted fact PersistentVector.
-    pub(crate) facts:      Value,
+    pub(crate) facts: Value,
     /// Passthrough — monotonically increasing fact/node id counter.
-    pub(crate) next_id:    i64,
+    pub(crate) next_id: i64,
     /// QueryNode name → binding maps (survives fire; beta does not).
-    pub(crate) query:      HashMap<String, Vec<crate::value::pmap::PMap>>,
+    pub(crate) query: HashMap<String, Vec<crate::value::pmap::PMap>>,
 }
 
 // ─── Memory conversion helpers ────────────────────────────────────────────────
@@ -125,11 +127,14 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
                 let node_id = match k {
                     Value::i64(n) => *n,
                     other => {
-                        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
                                 expected: "node-id key :wat::core::i64",
                                 got: Box::new(ValueSnapshot::of(other)),
-                            })
+                            },
+                        )
                         .into());
                     }
                 };
@@ -138,11 +143,14 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
                         pv.iter().cloned().collect::<Vec<Value>>()
                     }
                     other => {
-                        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
                                 expected: "memory value :wat::core::PersistentVector",
                                 got: Box::new(ValueSnapshot::of(other)),
-                            })
+                            },
+                        )
                         .into());
                     }
                 };
@@ -150,11 +158,14 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
             }
             Ok(out)
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (a session memory)",
                 got: Box::new(ValueSnapshot::of(other)),
-            })
+            },
+        )
         .into()),
     }
 }
@@ -195,11 +206,17 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
     let struct_form = match tok {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::rete::Token (a wat::core::Record)",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Token (a wat::core::Record)",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
     let matches_vec = match &struct_form[0] {
@@ -211,40 +228,67 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
                         let es = elems.as_slice();
                         let alpha_id = match &es[1] {
                             Value::i64(n) => *n,
-                            other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                                    op: OP.into(),
-                                    expected: "match alpha-id :wat::core::i64",
-                                    got: Box::new(ValueSnapshot::of(other)),
-                                }).into()),
+                            other => {
+                                return Err(RuntimeError::new(
+                                    crate::rust_caller_span!(),
+                                    RuntimeErrorKind::TypeMismatch {
+                                        op: OP.into(),
+                                        expected: "match alpha-id :wat::core::i64",
+                                        got: Box::new(ValueSnapshot::of(other)),
+                                    },
+                                )
+                                .into())
+                            }
                         };
                         out.push((es[0].clone(), alpha_id));
                     }
-                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "match entry :wat::core::Tuple",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        }).into()),
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: OP.into(),
+                                expected: "match entry :wat::core::Tuple",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into())
+                    }
                 }
             }
             out
         }
-        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "token matches :wat::core::PersistentVector",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "token matches :wat::core::PersistentVector",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     // Decode bindings: PM → PMap. `Token.bindings` IS a `PMap` now (DESIGN-STONE-token-bindings-
     // promoting) — no conversion at this boundary, just take the value directly.
     let bindings = match &struct_form[1] {
         Value::wat__core__PersistentMap(m) => m.clone(),
-        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "token bindings :wat::core::PersistentMap",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "token bindings :wat::core::PersistentMap",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
-    Ok(Token { matches: matches_vec, bindings })
+    Ok(Token {
+        matches: matches_vec,
+        bindings,
+    })
 }
 
 /// Encode a native `Token` → Value Token Record (lossless round-trip with `value_token_to_native`).
@@ -277,11 +321,17 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
-                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                            op: op.into(),
-                            expected: "node-id key :wat::core::i64",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        }).into()),
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "node-id key :wat::core::i64",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into())
+                    }
                 };
                 let tokens = match v {
                     Value::wat__core__PersistentVector(pv) => {
@@ -291,21 +341,31 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
                         }
                         ts
                     }
-                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                            op: op.into(),
-                            expected: "beta-memory value :wat::core::PersistentVector",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        }).into()),
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "beta-memory value :wat::core::PersistentVector",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into())
+                    }
                 };
                 out.insert(node_id, tokens);
             }
             Ok(out)
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (beta-memory)",
                 got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
+            },
+        )
+        .into()),
     }
 }
 
@@ -332,24 +392,38 @@ fn value_to_element(el: &Value) -> Result<Element, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (alpha decode)";
     let struct_form = match el {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::rete::Element (a wat::core::Record)",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Element (a wat::core::Record)",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     let fact = struct_form[0].clone();
     // Value-boundary decode: PM -> array. One-time per element at session decode (to_transient),
     // not the matcher's hot read path — see DESIGN-STONE-element-bindings-array read-order §3.
     let bindings: Arc<[(Value, Value)]> = match &struct_form[1] {
-        Value::wat__core__PersistentMap(m) => {
-            m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>().into()
+        Value::wat__core__PersistentMap(m) => m
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>()
+            .into(),
+        other => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "element bindings :wat::core::PersistentMap",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
         }
-        other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "element bindings :wat::core::PersistentMap",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
     };
     Ok(Element { fact, bindings })
 }
@@ -381,11 +455,17 @@ fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
-                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                            op: op.into(),
-                            expected: "node-id key :wat::core::i64",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        }).into()),
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "node-id key :wat::core::i64",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into())
+                    }
                 };
                 let elements = match v {
                     Value::wat__core__PersistentVector(pv) => {
@@ -395,21 +475,31 @@ fn pm_to_alpha(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Element>
                         }
                         es
                     }
-                    other => return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                            op: op.into(),
-                            expected: "alpha-memory value :wat::core::PersistentVector",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        }).into()),
+                    other => {
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "alpha-memory value :wat::core::PersistentVector",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into())
+                    }
                 };
                 out.insert(node_id, elements);
             }
             Ok(out)
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (alpha-memory)",
                 got: Box::new(ValueSnapshot::of(other)),
-            }).into()),
+            },
+        )
+        .into()),
     }
 }
 
@@ -446,45 +536,54 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     let agg = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
         other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::rete::Session (a wat::core::Record)",
                     got: Box::new(ValueSnapshot::of(other)),
-                })
+                },
+            )
             .into());
         }
     };
     if agg.class.as_str() != "wat::rete::Session" {
-        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::rete::Session",
                 got: Box::new(ValueSnapshot::of(session)),
-            })
+            },
+        )
         .into());
     }
     let sf = agg.fields.as_slice();
     // Declaration order: network(0) rules(1) alpha-memory(2) beta-memory(3)
     //                    production-memory(4) facts(5) next-id(6)
-    let network    = sf[0].clone();
-    let rules      = sf[1].clone();
-    let alpha_pm   = &sf[2];
-    let beta_pm    = &sf[3];
-    let prod_pm    = &sf[4];
-    let facts      = sf[5].clone();
-    let next_id    = match &sf[6] {
+    let network = sf[0].clone();
+    let rules = sf[1].clone();
+    let alpha_pm = &sf[2];
+    let beta_pm = &sf[3];
+    let prod_pm = &sf[4];
+    let facts = sf[5].clone();
+    let next_id = match &sf[6] {
         Value::i64(n) => *n,
         other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "next-id :wat::core::i64",
                     got: Box::new(ValueSnapshot::of(other)),
-                })
+                },
+            )
             .into());
         }
     };
 
-    let alpha      = pm_to_alpha(OP, alpha_pm)?;
-    let beta       = pm_to_beta(OP, beta_pm)?;
+    let alpha = pm_to_alpha(OP, alpha_pm)?;
+    let beta = pm_to_beta(OP, beta_pm)?;
     let production = pm_to_hashmap(OP, prod_pm)?;
     let query = if sf.len() > 7 {
         pm_to_query_memory(OP, &sf[7])?
@@ -492,7 +591,16 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         HashMap::new()
     };
 
-    Ok(WorkingMemory { network, rules, alpha, beta, production, facts, next_id, query })
+    Ok(WorkingMemory {
+        network,
+        rules,
+        alpha,
+        beta,
+        production,
+        facts,
+        next_id,
+        query,
+    })
 }
 
 fn pm_to_query_memory(
@@ -566,15 +674,16 @@ fn pm_to_query_memory(
     }
 }
 
-fn query_memory_to_pm(
-    query: HashMap<String, Vec<crate::value::pmap::PMap>>,
-) -> Value {
+fn query_memory_to_pm(query: HashMap<String, Vec<crate::value::pmap::PMap>>) -> Value {
     let pairs = query.into_iter().map(|(name, maps)| {
         let mut pv = rpds::VectorSync::new_sync();
         for m in maps {
             pv.push_back_mut(Value::wat__core__PersistentMap(m));
         }
-        (Value::String(Arc::new(name)), Value::wat__core__PersistentVector(pv))
+        (
+            Value::String(Arc::new(name)),
+            Value::wat__core__PersistentVector(pv),
+        )
     });
     Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs))
 }
@@ -620,7 +729,8 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
 ::wat_source_derive::wat_field_names_from!(SESSION_FIELDS, "wat/rete.wat", ":wat::rete::Session");
 fn session_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(SESSION_FIELDS)).clone()
+    N.get_or_init(|| crate::value::value::names_arc_from_static(SESSION_FIELDS))
+        .clone()
 }
 
 // ─── Fire kernel (P2) — four-pass native fire-once ───────────────────────────
@@ -663,20 +773,27 @@ fn node_children(node: &Value) -> Vec<i64> {
     };
     let kind = node_kind_label(fqdn);
     let pv = match kind {
-        "AlphaNode"    => &sf[2], // AlphaNode: id(0), tests(1), children(2)
+        "AlphaNode" => &sf[2],    // AlphaNode: id(0), tests(1), children(2)
         "RootJoinNode" => &sf[1], // RootJoinNode: id(0), children(1), binding-keys(2)
         "HashJoinNode" => &sf[1], // HashJoinNode: id(0), children(1), binding-keys(2)
-        "TestNode"      => &sf[2], // TestNode:      id(0), expr(1), children(2)
-        "NegationNode"  => &sf[2], // NegationNode:  id(0), negated-alpha-id(1), children(2)
-        "ExistsNode"    => &sf[2], // ExistsNode:    id(0), exists-alpha-id(1), children(2)
+        "TestNode" => &sf[2],     // TestNode:      id(0), expr(1), children(2)
+        "NegationNode" => &sf[2], // NegationNode:  id(0), negated-alpha-id(1), children(2)
+        "ExistsNode" => &sf[2],   // ExistsNode:    id(0), exists-alpha-id(1), children(2)
         // AccumulateNode: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4)
         "AccumulateNode" => &sf[4],
-        _ => return vec![],        // ProductionNode / QueryNode: no children
+        _ => return vec![], // ProductionNode / QueryNode: no children
     };
     match pv {
-        Value::wat__core__PersistentVector(v) => v.iter().filter_map(|x| {
-            if let Value::i64(n) = x { Some(*n) } else { None }
-        }).collect(),
+        Value::wat__core__PersistentVector(v) => v
+            .iter()
+            .filter_map(|x| {
+                if let Value::i64(n) = x {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .collect(),
         _ => vec![],
     }
 }
@@ -723,7 +840,11 @@ fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -
     let mut new_fields = sf.to_vec();
     new_fields[child_idx] = Value::wat__core__PersistentVector(new_pv);
     match node {
-        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record(a.class.clone(), a.names.clone(), Arc::new(new_fields)))),
+        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record(
+            a.class.clone(),
+            a.names.clone(),
+            Arc::new(new_fields),
+        ))),
         other => other.clone(),
     }
 }
@@ -732,9 +853,11 @@ fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -
 /// The alpha/root-join/hash-join passes require ascending id order (topological).
 fn sorted_node_ids(network: &Value) -> Vec<i64> {
     let mut ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m.keys().into_iter().filter_map(|k| {
-            if let Value::i64(n) = k { Some(n) } else { None }
-        }).collect(),
+        Value::wat__core__PersistentMap(m) => m
+            .keys()
+            .into_iter()
+            .filter_map(|k| if let Value::i64(n) = k { Some(n) } else { None })
+            .collect(),
         _ => vec![],
     };
     ids.sort_unstable();
@@ -752,30 +875,38 @@ fn get_node(network: &Value, node_id: i64) -> Option<&Value> {
 // ── Element / Token builders ──────────────────────────────────────────────────
 
 // Group A: constant-string Arcs — hoisted to module-level statics (pointer bump vs alloc per call).
-static ELEMENT_CLASS_FQDN:   OnceLock<Arc<String>> = OnceLock::new();
-static TOKEN_CLASS_FQDN:     OnceLock<Arc<String>> = OnceLock::new();
+static ELEMENT_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
+static TOKEN_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
 // P12a — explain substrate.
-static SUPPORT_CLASS_FQDN:   OnceLock<Arc<String>> = OnceLock::new();
+static SUPPORT_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
 static EXPLAINED_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
 
 #[inline]
 fn element_class_fqdn() -> Arc<String> {
-    ELEMENT_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Element".to_string())).clone()
+    ELEMENT_CLASS_FQDN
+        .get_or_init(|| Arc::new("wat::rete::Element".to_string()))
+        .clone()
 }
 
 #[inline]
 fn token_class_fqdn() -> Arc<String> {
-    TOKEN_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Token".to_string())).clone()
+    TOKEN_CLASS_FQDN
+        .get_or_init(|| Arc::new("wat::rete::Token".to_string()))
+        .clone()
 }
 
 #[inline]
 fn support_class_fqdn() -> Arc<String> {
-    SUPPORT_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Support".to_string())).clone()
+    SUPPORT_CLASS_FQDN
+        .get_or_init(|| Arc::new("wat::rete::Support".to_string()))
+        .clone()
 }
 
 #[inline]
 fn explained_class_fqdn() -> Arc<String> {
-    EXPLAINED_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Explained".to_string())).clone()
+    EXPLAINED_CLASS_FQDN
+        .get_or_init(|| Arc::new("wat::rete::Explained".to_string()))
+        .clone()
 }
 
 // Arc 296 G-1 — class C: field names read from the same `wat/rete.wat` declarations that
@@ -785,23 +916,31 @@ fn explained_class_fqdn() -> Arc<String> {
 ::wat_source_derive::wat_field_names_from!(TOKEN_FIELDS, "wat/rete.wat", ":wat::rete::Token");
 ::wat_source_derive::wat_field_names_from!(ELEMENT_FIELDS, "wat/rete.wat", ":wat::rete::Element");
 ::wat_source_derive::wat_field_names_from!(SUPPORT_FIELDS, "wat/rete.wat", ":wat::rete::Support");
-::wat_source_derive::wat_field_names_from!(EXPLAINED_FIELDS, "wat/rete.wat", ":wat::rete::Explained");
+::wat_source_derive::wat_field_names_from!(
+    EXPLAINED_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::Explained"
+);
 
 fn token_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(TOKEN_FIELDS)).clone()
+    N.get_or_init(|| crate::value::value::names_arc_from_static(TOKEN_FIELDS))
+        .clone()
 }
 fn element_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(ELEMENT_FIELDS)).clone()
+    N.get_or_init(|| crate::value::value::names_arc_from_static(ELEMENT_FIELDS))
+        .clone()
 }
 fn support_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(SUPPORT_FIELDS)).clone()
+    N.get_or_init(|| crate::value::value::names_arc_from_static(SUPPORT_FIELDS))
+        .clone()
 }
 fn explained_names() -> Arc<Vec<String>> {
     static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(EXPLAINED_FIELDS)).clone()
+    N.get_or_init(|| crate::value::value::names_arc_from_static(EXPLAINED_FIELDS))
+        .clone()
 }
 
 /// Build a native `Element` — a fact paired with the bindings its alpha match produced.
@@ -865,10 +1004,7 @@ fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &crate::val
 /// `activate-alpha` + `activate-fact` — for one AlphaNode, test every fact via
 /// `alpha_match_inner`; push `Element(fact, bindings)` into `alpha[alpha-id]` on match.
 /// Mirrors `wat/rete.wat:513-537` + `wat/rete.wat:489-508`.
-fn alpha_pass(
-    wm: &mut WorkingMemory,
-    sym: &SymbolTable,
-) {
+fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) {
     let node_ids = sorted_node_ids(&wm.network);
     // Collect facts into a Vec for iteration (wm.facts is a passthrough PV).
     let facts: Vec<Value> = match &wm.facts {
@@ -919,10 +1055,12 @@ fn alpha_pass(
                 .unwrap_or_default();
 
             if let Some(bindings) = crate::rete::matcher::alpha_match_inner(
-                &cond_ast, fact_class, fact_fields, &field_names,
+                &cond_ast,
+                fact_class,
+                fact_fields,
+                &field_names,
             ) {
-                let bindings =
-                    crate::rete::matcher::attach_fact_bind(&cond_ast, fact, bindings);
+                let bindings = crate::rete::matcher::attach_fact_bind(&cond_ast, fact, bindings);
                 let el = make_element(fact.clone(), bindings);
                 wm.alpha.entry(*node_id).or_default().push(el);
             }
@@ -970,7 +1108,7 @@ fn root_join_pass(wm: &mut WorkingMemory) {
                 let (fact, bindings) = element_fact_bindings(el);
                 // Support edge: (fact, alpha-id). Mirrors seed-token (wat:544-551).
                 let tok = Token {
-                    matches:  vec![(fact.clone(), *node_id)],
+                    matches: vec![(fact.clone(), *node_id)],
                     bindings: seed_token_bindings(bindings),
                 };
                 wm.beta.entry(*child_id).or_default().push(tok);
@@ -985,9 +1123,11 @@ fn root_join_pass(wm: &mut WorkingMemory) {
 /// Mirrors `wat/rete.wat:629-650`. Returns -1 if not found.
 fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
     let node_ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m.keys().into_iter().filter_map(|k| {
-            if let Value::i64(n) = k { Some(n) } else { None }
-        }).collect(),
+        Value::wat__core__PersistentMap(m) => m
+            .keys()
+            .into_iter()
+            .filter_map(|k| if let Value::i64(n) = k { Some(n) } else { None })
+            .collect(),
         _ => return -1,
     };
     for node_id in &node_ids {
@@ -1035,7 +1175,8 @@ fn fact_matches_under(
             _ => None,
         })
         .unwrap_or_default();
-    let seed_pairs: Vec<(Value, Value)> = seed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let seed_pairs: Vec<(Value, Value)> =
+        seed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
     crate::rete::matcher::alpha_match_inner_seeded(
         cond,
         fact_class,
@@ -1086,17 +1227,10 @@ fn binding_extensions(
             }
             out
         }
-        ReteClauseShape::Where(expr) => {
-            match crate::rete::matcher::eval_test_core(
-                expr,
-                seed,
-                &crate::runtime::Environment::new(),
-                sym,
-            ) {
-                Ok(true) => vec![seed.clone()],
-                _ => vec![],
-            }
-        }
+        ReteClauseShape::Where(expr) => match crate::rete::expr_ir::exec_test(expr, seed, sym) {
+            Ok(true) => vec![seed.clone()],
+            _ => vec![],
+        },
         ReteClauseShape::Not(inner) => {
             if exists_cond_under(inner, facts, seed, sym) {
                 vec![]
@@ -1133,7 +1267,8 @@ fn fact_bindings_under(
             _ => None,
         })
         .unwrap_or_default();
-    let seed_pairs: Vec<(Value, Value)> = seed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let seed_pairs: Vec<(Value, Value)> =
+        seed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
     let pairs = crate::rete::matcher::alpha_match_inner_seeded(
         cond,
         fact_class,
@@ -1158,16 +1293,10 @@ fn exists_cond_under(
     use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
     match classify_rete_clause(cond) {
         ReteClauseShape::And(_) => !binding_extensions(cond, facts, seed, sym).is_empty(),
-        ReteClauseShape::Or(kids) => kids
-            .iter()
-            .any(|k| exists_cond_under(k, facts, seed, sym)),
-        ReteClauseShape::Where(expr) => crate::rete::matcher::eval_test_core(
-            expr,
-            seed,
-            &crate::runtime::Environment::new(),
-            sym,
-        )
-        .unwrap_or(false),
+        ReteClauseShape::Or(kids) => kids.iter().any(|k| exists_cond_under(k, facts, seed, sym)),
+        ReteClauseShape::Where(expr) => {
+            crate::rete::expr_ir::exec_test(expr, seed, sym).unwrap_or(false)
+        }
         ReteClauseShape::Not(inner) => !exists_cond_under(inner, facts, seed, sym),
         ReteClauseShape::Exists(inner) => exists_cond_under(inner, facts, seed, sym),
         _ => any_fact_matches_under(cond, facts, seed, sym),
@@ -1238,7 +1367,10 @@ fn extend_token(
             .filter(|(k, v)| tok.bindings.get(k) != Some(v))
             .map(|(k, v)| (k.clone(), v.clone())),
     );
-    Token { matches: new_matches, bindings: new_bindings }
+    Token {
+        matches: new_matches,
+        bindings: new_bindings,
+    }
 }
 
 /// Seed a brand-new `Token`'s bindings `PMap` from a root Element's array bindings.
@@ -1278,8 +1410,14 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
         // Binding keys are Value::String (variable names like "?loc").
         // Sort by their string content for a stable canonical order.
         keys.sort_by(|a, b| {
-            let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
-            let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+            let a_str = match a {
+                Value::String(s) => s.as_str(),
+                _ => "",
+            };
+            let b_str = match b {
+                Value::String(s) => s.as_str(),
+                _ => "",
+            };
             a_str.cmp(b_str)
         });
         keys
@@ -1291,9 +1429,12 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
         let (_, el_bindings) = element_fact_bindings(el);
         let key: Vec<Value> = join_keys
             .iter()
-            .map(|k| el_bindings.get(k)
-                .cloned()
-                .expect("keyed_join: join key missing from element bindings"))
+            .map(|k| {
+                el_bindings
+                    .get(k)
+                    .cloned()
+                    .expect("keyed_join: join key missing from element bindings")
+            })
             .collect();
         index.entry(key).or_default().push(i);
     }
@@ -1303,9 +1444,12 @@ fn keyed_join(left_tokens: &[Token], right_elements: &[Element], alpha_id: i64) 
     for tok in left_tokens {
         let probe_key: Vec<Value> = join_keys
             .iter()
-            .map(|k| tok.bindings.get(k)
-                .cloned()
-                .expect("keyed_join: join key missing from token bindings"))
+            .map(|k| {
+                tok.bindings
+                    .get(k)
+                    .cloned()
+                    .expect("keyed_join: join key missing from token bindings")
+            })
             .collect();
         if let Some(bucket) = index.get(&probe_key) {
             for &el_idx in bucket {
@@ -1398,9 +1542,11 @@ fn d_beta_from_parents(
 
 fn node_parents(child_id: i64, network: &Value) -> Vec<i64> {
     let node_ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m.keys().into_iter().filter_map(|k| {
-            if let Value::i64(n) = k { Some(n) } else { None }
-        }).collect(),
+        Value::wat__core__PersistentMap(m) => m
+            .keys()
+            .into_iter()
+            .filter_map(|k| if let Value::i64(n) = k { Some(n) } else { None })
+            .collect(),
         _ => return vec![],
     };
     let mut out = Vec::new();
@@ -1446,14 +1592,12 @@ fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), Eval
         };
 
         // Find the rule by name (linear scan, mirrors rule-by-name wat:804-821).
-        let rule = rules.iter().find(|r| {
-            match node_record(r) {
-                Some((_, rsf)) => match &rsf[0] {
-                    Value::String(n) => n.as_str() == rule_name,
-                    _ => false,
-                },
-                None => false,
-            }
+        let rule = rules.iter().find(|r| match node_record(r) {
+            Some((_, rsf)) => match &rsf[0] {
+                Value::String(n) => n.as_str() == rule_name,
+                _ => false,
+            },
+            None => false,
         });
         let rule = match rule {
             Some(r) => r,
@@ -1462,9 +1606,13 @@ fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), Eval
         // Rule: name(0), lhs(1), rhs(2). RHS is PV<WatAST>.
         let (_, rule_sf) = node_record(rule).unwrap();
         let rhs_forms: Vec<WatAST> = match &rule_sf[2] {
-            Value::wat__core__PersistentVector(pv) => pv.iter().filter_map(|v| {
-                match v { Value::wat__WatAST(ast) => Some((**ast).clone()), _ => None }
-            }).collect(),
+            Value::wat__core__PersistentVector(pv) => pv
+                .iter()
+                .filter_map(|v| match v {
+                    Value::wat__WatAST(ast) => Some((**ast).clone()),
+                    _ => None,
+                })
+                .collect(),
             _ => continue,
         };
 
@@ -1568,13 +1716,17 @@ pub(crate) fn eval_fire_once_native(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::fire-once'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    const OP: &str = ":wat::rete::fire-once'"; // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-        }).into());
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
     }
 
     // Evaluate the session argument, then delegate to the pure single-pass fn.
@@ -1786,8 +1938,14 @@ fn gather_join_keys(
     // Binding keys are Value::String (variable names like "?loc").
     // Sort by their string content for a stable canonical order.
     keys.sort_by(|a, b| {
-        let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
-        let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+        let a_str = match a {
+            Value::String(s) => s.as_str(),
+            _ => "",
+        };
+        let b_str = match b {
+            Value::String(s) => s.as_str(),
+            _ => "",
+        };
         a_str.cmp(b_str)
     });
     keys
@@ -1855,7 +2013,9 @@ fn cond_bind_keys(cond: &WatAST) -> Vec<Value> {
             kids.iter().flat_map(cond_bind_keys).collect()
         }
         ReteClauseShape::Exists(inner) => cond_bind_keys(inner),
-        ReteClauseShape::Not(_) | ReteClauseShape::Where(_) | ReteClauseShape::Constraint { .. } => {
+        ReteClauseShape::Not(_)
+        | ReteClauseShape::Where(_)
+        | ReteClauseShape::Constraint { .. } => {
             vec![]
         }
         ReteClauseShape::Unrecognized => match cond {
@@ -1877,17 +2037,16 @@ fn acc_operand_keys(acc_form: &WatAST) -> Vec<Value> {
         .iter()
         .skip(1)
         .filter_map(|kid| match kid {
-            WatAST::Symbol(s, _) if s.as_str().starts_with('?') => Some(string_bind_key(s.as_str())),
+            WatAST::Symbol(s, _) if s.as_str().starts_with('?') => {
+                Some(string_bind_key(s.as_str()))
+            }
             WatAST::Keyword(k, _) if k.starts_with('?') => Some(string_bind_key(k)),
             _ => None,
         })
         .collect()
 }
 
-fn project_group_keys(
-    el_bindings: &Arc<[(Value, Value)]>,
-    keys: &[Value],
-) -> Vec<(Value, Value)> {
+fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Vec<(Value, Value)> {
     let mut out = Vec::with_capacity(keys.len());
     for k in keys {
         if let Some(pair) = el_bindings.iter().find(|(ek, _)| **ek == *k) {
@@ -1915,7 +2074,11 @@ fn project_group_keys(
 ///
 /// Returns `Ok(Some(value))` on a produced aggregate, `Ok(None)` to drop the token (empty
 /// min/max/mean), `Err` if a custom fn's evaluation breaks.
-fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable) -> Result<Option<Value>, EvalBreak> {
+fn accumulate_value(
+    acc_form: &WatAST,
+    gathered: &[&Element],
+    sym: &SymbolTable,
+) -> Result<Option<Value>, EvalBreak> {
     // Head keyword name (e.g. ":wat::rete::acc::count").
     let items = match acc_form {
         WatAST::List(items, _) => items.as_slice(),
@@ -1950,7 +2113,13 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             for el in gathered {
                 let v = acc_var_i64(el, &var);
                 acc = Some(match acc {
-                    Some(cur) => if v < cur { v } else { cur },
+                    Some(cur) => {
+                        if v < cur {
+                            v
+                        } else {
+                            cur
+                        }
+                    }
                     None => v,
                 });
             }
@@ -1962,7 +2131,13 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             for el in gathered {
                 let v = acc_var_i64(el, &var);
                 acc = Some(match acc {
-                    Some(cur) => if v > cur { v } else { cur },
+                    Some(cur) => {
+                        if v > cur {
+                            v
+                        } else {
+                            cur
+                        }
+                    }
                     None => v,
                 });
             }
@@ -2011,10 +2186,15 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
                     Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
                     _ => rpds::VectorSync::new_sync(),
                 };
-                pm.insert_mut(k, Value::wat__core__PersistentVector(pv.push_back(fact.clone())));
+                pm.insert_mut(
+                    k,
+                    Value::wat__core__PersistentVector(pv.push_back(fact.clone())),
+                );
             }
             // Never wrap a built trie directly — choose the arm by size.
-            Some(Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(pm)))
+            Some(Value::wat__core__PersistentMap(
+                crate::value::pmap::PMap::from_trie(pm),
+            ))
         }
         // 8-custom: the head is a USER fold fn name. Gather the ?var values into a PV<i64>,
         // then eval `(user-fn __acc__)` with `__acc__` bound to the PV — the proven
@@ -2044,7 +2224,10 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             let call = WatAST::List(
                 vec![
                     head_ast,
-                    WatAST::Symbol(crate::scope::Identifier::bare(acc_var_name.clone()), span.clone()),
+                    WatAST::Symbol(
+                        crate::scope::Identifier::bare(acc_var_name.clone()),
+                        span.clone(),
+                    ),
                 ],
                 span,
             );
@@ -2053,7 +2236,10 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
             let base = crate::runtime::Environment::new();
             let env = base
                 .child()
-                .bind_unknown_span(acc_var_name, crate::runtime::TrackedValue::from(gathered_pv))
+                .bind_unknown_span(
+                    acc_var_name,
+                    crate::runtime::TrackedValue::from(gathered_pv),
+                )
                 .build();
             let _ = user_fn; // head name already embedded in `call`
             Some(crate::runtime::eval_inner(&call, &env, sym)?.value_owned())
@@ -2088,43 +2274,43 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Element], sym: &SymbolTable)
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RoundCensus {
     /// 0-based round index within this fire.
-    pub(crate) round:               usize,
+    pub(crate) round: usize,
     /// Facts entering this round (the previous round's derivations; round 0 = the input facts).
-    pub(crate) delta_facts_in:      usize,
+    pub(crate) delta_facts_in: usize,
     /// Distinct node-ids holding alpha elements, and the total element count across them.
-    pub(crate) alpha_nodes:         usize,
-    pub(crate) alpha_elements:      usize,
+    pub(crate) alpha_nodes: usize,
+    pub(crate) alpha_elements: usize,
     /// Distinct node-ids holding beta tokens, and the total token count across them.
-    pub(crate) beta_nodes:          usize,
-    pub(crate) beta_tokens:         usize,
+    pub(crate) beta_nodes: usize,
+    pub(crate) beta_tokens: usize,
     /// Σ over every beta token of `matches.len()` — the per-token support-chain edges. This is the
     /// real memory driver (a Token owns its `Vec<(Value, i64)>`), so it separates "N× more tokens"
     /// from "same tokens carrying N× longer chains".
-    pub(crate) beta_token_matches:  usize,
+    pub(crate) beta_token_matches: usize,
     /// The per-round delta (new-this-round tokens), same two measures.
-    pub(crate) d_beta_nodes:        usize,
-    pub(crate) d_beta_tokens:       usize,
+    pub(crate) d_beta_nodes: usize,
+    pub(crate) d_beta_tokens: usize,
     /// The P6 persistent join indexes, summed across every HashJoinNode.
-    pub(crate) left_idx_tokens:     usize,
-    pub(crate) right_idx_elements:  usize,
+    pub(crate) left_idx_tokens: usize,
+    pub(crate) right_idx_elements: usize,
     /// Derived facts retained in production-memory, and the size of the `seen` dedup set.
-    pub(crate) production_facts:    usize,
-    pub(crate) seen_facts:          usize,
+    pub(crate) production_facts: usize,
+    pub(crate) seen_facts: usize,
     /// Σ over every node of `children.len()` — the compiled network's EDGE count.
     ///
     /// Counted here because nothing else ever counted it: the compile-time census
     /// (`probe-node-share-dedup.wat`) counts NODES, and a shared node reached by N duplicate
     /// edges is indistinguishable from a shared node reached once if nodes are all you count.
-    pub(crate) network_edges:       usize,
+    pub(crate) network_edges: usize,
     /// Per-node beta occupancy as `(node-id, kind, tokens)`, ascending by id — the breakdown that
     /// distinguishes "one shared join holds M tokens" from "N tails each hold their own copy".
-    pub(crate) beta_by_node:        Vec<(i64, &'static str, usize)>,
+    pub(crate) beta_by_node: Vec<(i64, &'static str, usize)>,
     /// The same, for the per-round DELTA. Load-bearing since the beta-readers guard: a node whose
     /// `wm.beta` is deliberately not materialised is invisible in `beta_by_node`, but every token
     /// it produced still passes through `d_beta`. Summed across rounds this equals what
     /// `beta_by_node` reported before the guard, by construction (both were pushed by the same
     /// unconditional statement pair).
-    pub(crate) d_beta_by_node:      Vec<(i64, &'static str, usize)>,
+    pub(crate) d_beta_by_node: Vec<(i64, &'static str, usize)>,
 }
 
 #[cfg(test)]
@@ -2194,16 +2380,16 @@ pub(crate) fn with_fire_census<R>(f: impl FnOnce() -> R) -> (R, Vec<RoundCensus>
 #[cfg(test)]
 fn census_kind(kind: &str) -> &'static str {
     match kind {
-        "AlphaNode"      => "Alpha",
-        "RootJoinNode"   => "RootJoin",
-        "HashJoinNode"   => "HashJoin",
-        "TestNode"       => "Test",
-        "NegationNode"   => "Negation",
-        "ExistsNode"     => "Exists",
+        "AlphaNode" => "Alpha",
+        "RootJoinNode" => "RootJoin",
+        "HashJoinNode" => "HashJoin",
+        "TestNode" => "Test",
+        "NegationNode" => "Negation",
+        "ExistsNode" => "Exists",
         "AccumulateNode" => "Accumulate",
         "ProductionNode" => "Production",
-        "QueryNode"      => "Query",
-        _                => "?",
+        "QueryNode" => "Query",
+        _ => "?",
     }
 }
 
@@ -2297,7 +2483,9 @@ pub(crate) fn phase_start() -> PhaseMark {
 
 #[cfg(not(test))]
 #[inline(always)]
-pub(crate) fn phase_start() -> PhaseMark { PhaseMark }
+pub(crate) fn phase_start() -> PhaseMark {
+    PhaseMark
+}
 
 #[cfg(test)]
 #[inline]
@@ -2422,8 +2610,11 @@ pub(crate) fn with_beta_traffic<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, u64, 
     let prior = BETA_TRAFFIC.with(|c| c.borrow_mut().replace(HashMap::new()));
     let out = f();
     let recorded = BETA_TRAFFIC.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
-    let mut rows: Vec<(i64, u64, u64)> =
-        recorded.unwrap_or_default().into_iter().map(|(id, (w, r))| (id, w, r)).collect();
+    let mut rows: Vec<(i64, u64, u64)> = recorded
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id, (w, r))| (id, w, r))
+        .collect();
     rows.sort_by_key(|&(id, _, _)| id);
     (out, rows)
 }
@@ -2451,8 +2642,11 @@ pub(crate) fn with_phase_census_counted<R>(
     let prior = PHASE_NANOS.with(|c| c.borrow_mut().replace(HashMap::new()));
     let out = f();
     let recorded = PHASE_NANOS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
-    let mut rows: Vec<(&'static str, u64, u64)> =
-        recorded.unwrap_or_default().into_iter().map(|(n, (ns, k))| (n, ns, k)).collect();
+    let mut rows: Vec<(&'static str, u64, u64)> = recorded
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(n, (ns, k))| (n, ns, k))
+        .collect();
     rows.sort_by_key(|&(_, ns, _)| std::cmp::Reverse(ns));
     (out, rows)
 }
@@ -2473,8 +2667,13 @@ pub(crate) fn build_alpha_index(
     let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
     for node_id in node_ids {
         // Group C: use &Value ref — no clone needed; only reads wm.network here.
-        let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
-        if kind_of(node) != "AlphaNode" { continue; }
+        let node = match get_node(&wm.network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "AlphaNode" {
+            continue;
+        }
         let (_, sf) = node_record(node).unwrap();
         let cond_ast: WatAST = match &sf[1] {
             Value::wat__core__PersistentVector(pv) => match pv.first() {
@@ -2509,6 +2708,60 @@ pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Compile every TestNode's `:expr` once, beside `compiled_conds`.
+/// Compile-condition already refused anything `lower` cannot take; a miss here
+/// is a bug in that fence, not a fire-time interpreter door.
+fn compile_test_programs(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, crate::rete::expr_ir::Program>, EvalBreak> {
+    let mut out = HashMap::new();
+    for node_id in node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "TestNode" {
+            continue;
+        }
+        let (_, sf) = match node_record(node) {
+            Some(p) => p,
+            None => continue,
+        };
+        let expr = match &sf[1] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        let program = crate::rete::expr_ir::lower(expr, sym)
+            .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+        out.insert(*node_id, program);
+    }
+    Ok(out)
+}
+
+/// Native TestNode filter: the stashed circuit only. No re-`lower`, no `eval_inner`.
+fn exec_stashed_where(
+    programs: &HashMap<i64, crate::rete::expr_ir::Program>,
+    node_id: i64,
+    bindings: &impl Bindings,
+    sym: &SymbolTable,
+) -> Result<bool, EvalBreak> {
+    let Some(program) = programs.get(&node_id) else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::fire-rules'".into(),
+                reason: format!(
+                    "TestNode {node_id} has no compiled where — compile-condition should have refused"
+                ),
+            },
+        )
+        .into());
+    };
+    crate::rete::expr_ir::exec_where(program, bindings, sym, &program.span)
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -2528,7 +2781,11 @@ pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
 /// P6: the hash-join delta step uses persistent per-node `left_idx`/`right_idx`/`join_keys`
 /// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
 /// probe cost per match instead of O(W) rebuild per round per node.
-fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&mut HashMap<Value, (String, Token)>>) -> Result<Value, EvalBreak> {
+fn fire_fixpoint_delta(
+    session: &Value,
+    sym: &SymbolTable,
+    mut support: Option<&mut HashMap<Value, (String, Token)>>,
+) -> Result<Value, EvalBreak> {
     let __in = phase_start();
     let mut wm = to_transient(session)?;
     phase_end("IN: to_transient", __in);
@@ -2563,7 +2820,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // left_idx[J]:  key → Vec<Token>   (all left tokens seen so far for J)
     // right_idx[J]: key → Vec<Element> (all right elements seen so far for J)
     // join_keys[J]: the sorted shared-variable list (cached lazily on first use)
-    let mut left_idx:  HashMap<i64, HashMap<Vec<Value>, Vec<Token>>> = HashMap::new();
+    let mut left_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Token>>> = HashMap::new();
     let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Element>>> = HashMap::new();
     let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
 
@@ -2592,7 +2849,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         let cclass_field_names = class_field_names(sym, class);
         for aid in ids {
             if let Some(cond) = alpha_cond.get(aid) {
-                if let Some(compiled) = crate::rete::compiled_cond::compile_condition(cond, &cclass_field_names) {
+                if let Some(compiled) =
+                    crate::rete::compiled_cond::compile_condition(cond, &cclass_field_names)
+                {
                     compiled_conds.insert(*aid, compiled);
                 }
             }
@@ -2602,8 +2861,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
     // `resize` back up never reallocates after this point — the failure path it guards allocates
     // nothing (row 2 of the DESIGN-STONE's scorecard).
-    let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
+    let compiled_max_slots = compiled_conds
+        .values()
+        .map(|c| c.n_slots())
+        .max()
+        .unwrap_or(0);
     let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(compiled_max_slots);
+
+    // Compiled `where`: lower each TestNode once. The filter loop never reads `:expr`.
+    let compiled_wheres = compile_test_programs(&wm.network, &node_ids, sym)?;
 
     // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
     // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
@@ -2613,11 +2879,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     let mut parents_of: HashMap<i64, Vec<i64>> = HashMap::new();
     for node_id in &node_ids {
         // Group C: use &Value ref — no clone; only reads wm.network here.
-        let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+        let node = match get_node(&wm.network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
         let is_alpha = kind_of(node) == "AlphaNode";
         for child in node_children(node) {
-            if is_alpha { feeding_alpha_of.insert(child, *node_id); }
-            else {
+            if is_alpha {
+                feeding_alpha_of.insert(child, *node_id);
+            } else {
                 parents_of.entry(child).or_default().push(*node_id);
             }
         }
@@ -2644,7 +2914,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     let beta_readers: std::collections::HashSet<i64> = {
         let mut readers = std::collections::HashSet::new();
         for node_id in &node_ids {
-            let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+            let node = match get_node(&wm.network, *node_id) {
+                Some(n) => n,
+                None => continue,
+            };
             for child in node_children(node) {
                 let child_kind = get_node(&wm.network, child).map(kind_of).unwrap_or("");
                 if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
@@ -2672,19 +2945,30 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     // remains the sole authority on what an insert-form means; `compile_rhs` returning `None` for
     // a given form (an entry left absent below) is a defensive per-FORM fallback to the
     // interpreter, never a path a compilable rule's forms take.
-    let mut compiled_rhs_cache: HashMap<String, Vec<Option<crate::rete::compiled_rhs::CompiledRhs>>> =
-        HashMap::new();
+    let mut compiled_rhs_cache: HashMap<
+        String,
+        Vec<Option<crate::rete::compiled_rhs::CompiledRhs>>,
+    > = HashMap::new();
     for r in &rules {
         if let Some((_, rsf)) = node_record(r) {
-            let rname = match &rsf[0] { Value::String(s) => s.as_str(), _ => continue };
+            let rname = match &rsf[0] {
+                Value::String(s) => s.as_str(),
+                _ => continue,
+            };
             let rhs: Vec<WatAST> = match &rsf[2] {
-                Value::wat__core__PersistentVector(pv) => pv.iter().filter_map(|v| {
-                    match v { Value::wat__WatAST(ast) => Some((**ast).clone()), _ => None }
-                }).collect(),
+                Value::wat__core__PersistentVector(pv) => pv
+                    .iter()
+                    .filter_map(|v| match v {
+                        Value::wat__WatAST(ast) => Some((**ast).clone()),
+                        _ => None,
+                    })
+                    .collect(),
                 _ => vec![],
             };
-            let compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> =
-                rhs.iter().map(|f| crate::rete::compiled_rhs::compile_rhs(f, sym)).collect();
+            let compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> = rhs
+                .iter()
+                .map(|f| crate::rete::compiled_rhs::compile_rhs(f, sym))
+                .collect();
             compiled_rhs_cache.insert(rname.to_string(), compiled);
             rule_rhs_cache.insert(rname.to_string(), rhs);
         }
@@ -2699,7 +2983,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         let __pre = phase_start();
         // Per-round delta sets (new elements/tokens created THIS round).
         let mut d_alpha: HashMap<i64, Vec<Element>> = HashMap::new();
-        let mut d_beta:  HashMap<i64, Vec<Token>> = HashMap::new();
+        let mut d_beta: HashMap<i64, Vec<Token>> = HashMap::new();
 
         // Round-scoped gather-index cache, shared by the accumulate pass and the
         // Negation/Exists filter pass: `gather_index` is a pure function of (alpha memory,
@@ -2759,13 +3043,18 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // DESIGN-STONE-compiled-conditions.md — the compiled executor replaces
                     // `alpha_match_inner` here, inside the SAME phase mark, so `alpha:match`
                     // stays an apples-to-apples timing comparison before/after this stone.
-                    Some(compiled) => {
-                        crate::rete::compiled_cond::exec_compiled(compiled, fact_fields, &mut match_scratch)
-                    }
+                    Some(compiled) => crate::rete::compiled_cond::exec_compiled(
+                        compiled,
+                        fact_fields,
+                        &mut match_scratch,
+                    ),
                     // Defensive fallback only — see the comment where `compiled_conds` is built.
                     None => match alpha_cond.get(aid) {
                         Some(cond_ast) => crate::rete::matcher::alpha_match_inner(
-                            cond_ast, fact_class, fact_fields, field_names,
+                            cond_ast,
+                            fact_class,
+                            fact_fields,
+                            field_names,
                         ),
                         None => None,
                     },
@@ -2822,7 +3111,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     let (fact, bindings) = element_fact_bindings(el);
                     // Seed native Token: one matches edge (fact, alpha_id).
                     let tok = Token {
-                        matches:  vec![(fact.clone(), *node_id)],
+                        matches: vec![(fact.clone(), *node_id)],
                         bindings: seed_token_bindings(bindings),
                     };
                     if beta_readers.contains(child_id) {
@@ -2885,20 +3174,29 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 let first_keying = if !join_keys_cache.contains_key(child_id) {
                     let sample_tok = wm.beta.get(node_id).and_then(|v| v.first());
                     // READ #1 of 2: one sample token, to derive this join's keys.
-                    if sample_tok.is_some() { beta_read(*node_id, 1); }
-                    let sample_el  = wm.alpha.get(&alpha_id).and_then(|v| v.first());
+                    if sample_tok.is_some() {
+                        beta_read(*node_id, 1);
+                    }
+                    let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
                             let (_, el_b) = element_fact_bindings(el);
-                            let mut keys: Vec<Value> = tok.bindings
+                            let mut keys: Vec<Value> = tok
+                                .bindings
                                 .iter()
                                 .map(|(k, _)| k)
                                 .filter(|k| el_b.get(k).is_some())
                                 .cloned()
                                 .collect();
                             keys.sort_by(|a, b| {
-                                let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
-                                let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+                                let a_str = match a {
+                                    Value::String(s) => s.as_str(),
+                                    _ => "",
+                                };
+                                let b_str = match b {
+                                    Value::String(s) => s.as_str(),
+                                    _ => "",
+                                };
                                 a_str.cmp(b_str)
                             });
                             join_keys_cache.insert(*child_id, keys);
@@ -2929,8 +3227,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // this round's new elements — the catch-up covers historical AND current-round facts.
                 if first_keying {
                     // Clone to avoid split-borrow conflicts with later wm.beta/d_beta mutations.
-                    let all_right: Vec<Element> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
-                    let all_left:  Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
+                    let all_right: Vec<Element> =
+                        wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
+                    let all_left: Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
                     // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
                     beta_read(*node_id, all_left.len() as u64);
                     // Build right_idx[J] from ALL cumulative right elements.
@@ -2979,11 +3278,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         beta_written(*child_id, new_tokens.len() as u64);
                         let beta = wm.beta.entry(*child_id).or_default();
                         beta.reserve(new_tokens.len());
-                        for t in &new_tokens { beta.push(t.clone()); }
+                        for t in &new_tokens {
+                            beta.push(t.clone());
+                        }
                     }
                     let delta = d_beta.entry(*child_id).or_default();
                     delta.reserve(new_tokens.len());
-                    for new_tok in new_tokens { delta.push(new_tok); }
+                    for new_tok in new_tokens {
+                        delta.push(new_tok);
+                    }
                     phase_end("  ├ hj:catchup:emit", __cem);
                     continue; // Skip incremental steps 2–5 for this round.
                 }
@@ -2991,7 +3294,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // Group C: borrow dl/dr slices — no Vec alloc per node per round.
                 // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
                 let dl: &[Token] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
-                let dr: &[Element] = d_alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or_default();
+                let dr: &[Element] = d_alpha
+                    .get(&alpha_id)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
 
                 // Skip if nothing new on either side.
                 if dl.is_empty() && dr.is_empty() {
@@ -3069,11 +3375,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     beta_written(*child_id, new_tokens.len() as u64);
                     let beta = wm.beta.entry(*child_id).or_default();
                     beta.reserve(new_tokens.len());
-                    for t in &new_tokens { beta.push(t.clone()); }
+                    for t in &new_tokens {
+                        beta.push(t.clone());
+                    }
                 }
                 let delta = d_beta.entry(*child_id).or_default();
                 delta.reserve(new_tokens.len());
-                for new_tok in new_tokens { delta.push(new_tok); }
+                for new_tok in new_tokens {
+                    delta.push(new_tok);
+                }
                 phase_end("  ├ hj:step6-emit", __s6);
             }
         }
@@ -3091,8 +3401,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // min/max/mean on an empty gather → no value → drop the token.
         // Runs BEFORE the filter-pass so a :where on the result-var sees the binding.
         for node_id in &node_ids {
-            let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
-            if kind_of(node) != "AccumulateNode" { continue; }
+            let node = match get_node(&wm.network, *node_id) {
+                Some(n) => n,
+                None => continue,
+            };
+            if kind_of(node) != "AccumulateNode" {
+                continue;
+            }
             // AccumulateNode struct_form: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4).
             let (_, sf) = node_record(node).expect("accumulate-pass: node must be a Record");
             let result_var = match &sf[1] {
@@ -3118,14 +3433,19 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     bindings: crate::value::pmap::PMap::new(),
                 }];
             }
-            if new_tokens.is_empty() { continue; }
+            if new_tokens.is_empty() {
+                continue;
+            }
             // Derive the join-key tuple first (cheap: elements[0] + a sample-bindings
             // intersection) so the cache can be probed BEFORE paying for a snapshot clone or an
             // index build. Reads wm.alpha through a borrow, no clone yet.
             let __ix = phase_start();
             let join_keys = gather_join_keys(
                 &new_tokens[0].bindings,
-                wm.alpha.get(&from_alpha_id).map(Vec::as_slice).unwrap_or(&[]),
+                wm.alpha
+                    .get(&from_alpha_id)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]),
             );
             // Round-scoped cache keyed on (alpha_id, join_keys) — NOT alpha_id alone (see the
             // cache declaration above). First reader of this pair snapshots :from and builds the
@@ -3181,7 +3501,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 // One fold of the whole gather when the token already holds every
                 // `:from` bind (or the `:from` binds none). Otherwise group by the
                 // leftover binds; empty gather + leftover keys is not a bag-wide 0.
-                let groups: Vec<(crate::value::pmap::PMap, Vec<&Element>)> = if group_keys.is_empty()
+                let groups: Vec<(crate::value::pmap::PMap, Vec<&Element>)> = if group_keys
+                    .is_empty()
                 {
                     vec![(tok.bindings.clone(), gathered)]
                 } else if gathered.is_empty() {
@@ -3244,9 +3565,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // Passing tokens are pushed to wm.beta[node_id] (cumulative) and d_beta[node_id]
         // (new-this-round, consumed by production in step 4).
         for node_id in &node_ids {
-            let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+            let node = match get_node(&wm.network, *node_id) {
+                Some(n) => n,
+                None => continue,
+            };
             let kind = kind_of(node);
-            if kind != "TestNode" && kind != "NegationNode" && kind != "ExistsNode" { continue; }
+            if kind != "TestNode" && kind != "NegationNode" && kind != "ExistsNode" {
+                continue;
+            }
             let (_, sf) = node_record(node).expect("filter-pass: node must be a Record");
             // Clone the new-this-round tokens at EVERY parent to avoid a simultaneous
             // borrow conflict (reading d_beta[parent] while writing d_beta[*node_id]).
@@ -3292,19 +3618,16 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 }
                 continue;
             }
-            if new_tokens.is_empty() { continue; }
+            if new_tokens.is_empty() {
+                continue;
+            }
             if kind == "TestNode" {
-                // TestNode struct_form: id(0), expr(1), children(2).
-                let expr: WatAST = match &sf[1] {
-                    Value::wat__WatAST(ast) => (**ast).clone(),
-                    _ => continue, // malformed TestNode: skip
-                };
                 // DESIGN-STONE-compiled-where Step 0 — capture the FIRST (expr, tokens) this loop
-                // handles, so the decomposition benchmark times the PRODUCTION inputs instead of a
-                // hand-fabricated stand-in (`feedback_feasibility_probe_must_exercise_the_exact_
-                // mechanism`). `#[cfg(test)]`, so production never pays the branch.
+                // handles. Census only; production never reads `:expr`.
                 #[cfg(test)]
-                capture_where_sample(&expr, &new_tokens);
+                if let Value::wat__WatAST(ast) = &sf[1] {
+                    capture_where_sample(ast.as_ref(), &new_tokens);
+                }
                 for tok in new_tokens {
                     // ★ THE COUNTERS THAT DECIDE THE FILTER STONE'S SHAPE (task #49).
                     //
@@ -3321,7 +3644,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     // A timer cannot answer this (it would measure mostly itself at ~75ns/pair
                     // against a sub-µs body); a counter can, exactly.
                     census_count("filter:test-evals");
-                    if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
+                    if exec_stashed_where(&compiled_wheres, *node_id, &tok.bindings, sym)? {
                         census_count("filter:test-pass");
                         if beta_readers.contains(node_id) {
                             beta_written(*node_id, 1);
@@ -3412,7 +3735,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 }
                 if beta_readers.contains(child_id) {
                     beta_written(*child_id, joined.len() as u64);
-                    wm.beta.entry(*child_id).or_default().extend(joined.iter().cloned());
+                    wm.beta
+                        .entry(*child_id)
+                        .or_default()
+                        .extend(joined.iter().cloned());
                 }
                 d_beta.entry(*child_id).or_default().extend(joined);
                 after_join_frontier.push(*child_id);
@@ -3442,10 +3768,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         None => continue,
                     };
                     let fkind = kind_of(filter_node);
-                    if fkind != "TestNode"
-                        && fkind != "NegationNode"
-                        && fkind != "ExistsNode"
-                    {
+                    if fkind != "TestNode" && fkind != "NegationNode" && fkind != "ExistsNode" {
                         continue;
                     }
                     let new_tokens: Vec<Token> = match d_beta.get(&hj_id) {
@@ -3453,22 +3776,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         _ => continue,
                     };
                     if fkind == "TestNode" {
-                        let (_, sf) = match node_record(filter_node) {
-                            Some(p) => p,
-                            None => continue,
-                        };
-                        let expr: WatAST = match &sf[1] {
-                            Value::wat__WatAST(ast) => (**ast).clone(),
-                            _ => continue,
-                        };
                         for tok in new_tokens {
                             census_count("filter:test-evals");
-                            if crate::rete::matcher::eval_test_core(
-                                &expr,
-                                &tok.bindings,
-                                &crate::runtime::Environment::new(),
-                                sym,
-                            )? {
+                            if exec_stashed_where(&compiled_wheres, filter_id, &tok.bindings, sym)?
+                            {
                                 census_count("filter:test-pass");
                                 if beta_readers.contains(&filter_id) {
                                     beta_written(filter_id, 1);
@@ -3496,8 +3807,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         };
                         let facts = wm_fact_slice(&wm);
                         for tok in new_tokens {
-                            let any_compat =
-                                exists_cond_under(&cond, &facts, &tok.bindings, sym);
+                            let any_compat = exists_cond_under(&cond, &facts, &tok.bindings, sym);
                             let pass = if is_exists { any_compat } else { !any_compat };
                             if pass {
                                 if beta_readers.contains(&filter_id) {
@@ -3539,7 +3849,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                                 }
                                 if beta_readers.contains(&gc_id) {
                                     beta_written(gc_id, joined.len() as u64);
-                                    wm.beta.entry(gc_id).or_default().extend(joined.iter().cloned());
+                                    wm.beta
+                                        .entry(gc_id)
+                                        .or_default()
+                                        .extend(joined.iter().cloned());
                                 }
                                 d_beta.entry(gc_id).or_default().extend(joined);
                                 next_frontier.push(gc_id);
@@ -3552,20 +3865,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                                 continue;
                             }
                             if gkind == "TestNode" {
-                                let (_, gsf) = match node_record(gc) {
-                                    Some(p) => p,
-                                    None => continue,
-                                };
-                                let expr: WatAST = match &gsf[1] {
-                                    Value::wat__WatAST(ast) => (**ast).clone(),
-                                    _ => continue,
-                                };
                                 for tok in parent_toks {
                                     census_count("filter:test-evals");
-                                    if crate::rete::matcher::eval_test_core(
-                                        &expr,
+                                    if exec_stashed_where(
+                                        &compiled_wheres,
+                                        gc_id,
                                         &tok.bindings,
-                                        &crate::runtime::Environment::new(),
                                         sym,
                                     )? {
                                         census_count("filter:test-pass");
@@ -3592,9 +3897,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                                 };
                                 let facts = wm_fact_slice(&wm);
                                 for tok in parent_toks {
-                                    let any_compat = exists_cond_under(
-                                        &cond, &facts, &tok.bindings, sym,
-                                    );
+                                    let any_compat =
+                                        exists_cond_under(&cond, &facts, &tok.bindings, sym);
                                     let pass = if is_exists { any_compat } else { !any_compat };
                                     if pass {
                                         if beta_readers.contains(&gc_id) {
@@ -3669,11 +3973,17 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             for tok in new_tokens {
                 for (form_idx, form) in rhs_forms.iter().enumerate() {
                     // tok.bindings is a native PMap — pass directly (no intermediate clone).
-                    let compiled = compiled_rhs_forms.and_then(|v| v.get(form_idx)).and_then(|o| o.as_ref());
+                    let compiled = compiled_rhs_forms
+                        .and_then(|v| v.get(form_idx))
+                        .and_then(|o| o.as_ref());
                     let derived = match compiled {
                         Some(c) => {
                             let __prhs = phase_start();
-                            let derived = crate::rete::compiled_rhs::exec_compiled_rhs(c, &tok.bindings, sym)?;
+                            let derived = crate::rete::compiled_rhs::exec_compiled_rhs(
+                                c,
+                                &tok.bindings,
+                                sym,
+                            )?;
                             phase_end("  ├ prod:compiled-rhs", __prhs);
                             derived
                         }
@@ -3700,9 +4010,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     if seen.insert(derived.clone()) {
                         // P12a: record the support index (first-producer-wins; or_insert_with).
                         if let Some(ref mut idx) = support {
-                            idx.entry(derived.clone()).or_insert_with(|| (rule_name.to_string(), tok.clone()));
+                            idx.entry(derived.clone())
+                                .or_insert_with(|| (rule_name.to_string(), tok.clone()));
                         }
-                        wm.production.entry(*node_id).or_default().push(derived.clone());
+                        wm.production
+                            .entry(*node_id)
+                            .or_default()
+                            .push(derived.clone());
                         next_delta.push(derived);
                     }
                     phase_end("  ├ prod:dedup-store", __pd);
@@ -3762,20 +4076,29 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 d_beta_by_node.push((*node_id, kind, toks.len()));
             }
             rounds.push(RoundCensus {
-                round:              round_no,
-                delta_facts_in:     delta_facts.len(),
-                alpha_nodes:        wm.alpha.values().filter(|v| !v.is_empty()).count(),
-                alpha_elements:     wm.alpha.values().map(Vec::len).sum(),
-                beta_nodes:         beta_by_node.len(),
+                round: round_no,
+                delta_facts_in: delta_facts.len(),
+                alpha_nodes: wm.alpha.values().filter(|v| !v.is_empty()).count(),
+                alpha_elements: wm.alpha.values().map(Vec::len).sum(),
+                beta_nodes: beta_by_node.len(),
                 beta_tokens,
                 beta_token_matches,
-                d_beta_nodes:       d_beta.values().filter(|v| !v.is_empty()).count(),
-                d_beta_tokens:      d_beta.values().map(Vec::len).sum(),
-                left_idx_tokens:    left_idx.values().flat_map(|m| m.values()).map(Vec::len).sum(),
-                right_idx_elements: right_idx.values().flat_map(|m| m.values()).map(Vec::len).sum(),
-                production_facts:   wm.production.values().map(Vec::len).sum(),
-                seen_facts:         seen.len(),
-                network_edges:      node_ids.iter()
+                d_beta_nodes: d_beta.values().filter(|v| !v.is_empty()).count(),
+                d_beta_tokens: d_beta.values().map(Vec::len).sum(),
+                left_idx_tokens: left_idx
+                    .values()
+                    .flat_map(|m| m.values())
+                    .map(Vec::len)
+                    .sum(),
+                right_idx_elements: right_idx
+                    .values()
+                    .flat_map(|m| m.values())
+                    .map(Vec::len)
+                    .sum(),
+                production_facts: wm.production.values().map(Vec::len).sum(),
+                seen_facts: seen.len(),
+                network_edges: node_ids
+                    .iter()
                     .filter_map(|id| get_node(&wm.network, *id))
                     .map(|n| node_children(n).len())
                     .sum(),
@@ -3822,14 +4145,28 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // census shared one bucket set across both and a design doc then claimed it "separates
         // elements from tokens" — it separated only the totals.
         fn ebucket(n: usize) -> &'static str {
-            match n { 0=>"elem-card:0", 1=>"elem-card:1", 2=>"elem-card:2",
-                      3=>"elem-card:3", 4=>"elem-card:4", 5=>"elem-card:5",
-                      6..=7=>"elem-card:6-7", _=>"elem-card:8+" }
+            match n {
+                0 => "elem-card:0",
+                1 => "elem-card:1",
+                2 => "elem-card:2",
+                3 => "elem-card:3",
+                4 => "elem-card:4",
+                5 => "elem-card:5",
+                6..=7 => "elem-card:6-7",
+                _ => "elem-card:8+",
+            }
         }
         fn tbucket(n: usize) -> &'static str {
-            match n { 0=>"tok-card:0", 1=>"tok-card:1", 2=>"tok-card:2",
-                      3=>"tok-card:3", 4=>"tok-card:4", 5=>"tok-card:5",
-                      6..=7=>"tok-card:6-7", _=>"tok-card:8+" }
+            match n {
+                0 => "tok-card:0",
+                1 => "tok-card:1",
+                2 => "tok-card:2",
+                3 => "tok-card:3",
+                4 => "tok-card:4",
+                5 => "tok-card:5",
+                6..=7 => "tok-card:6-7",
+                _ => "tok-card:8+",
+            }
         }
         for els in wm.alpha.values() {
             for el in els {
@@ -3960,10 +4297,7 @@ fn rule_consumes(lhs: &[WatAST]) -> Vec<String> {
 /// For each rule: `required = max(stratum[n]+1 for n in negated, default 0)`; for each produced
 /// type `p`: `stratum[p] = max(stratum[p], required)`. Returns `true` iff any stratum rose.
 /// Mirrors `stratify-sweep` (`wat/rete.wat:1599-1646`).
-fn native_stratify_sweep(
-    rule_parts: &[RuleDeps],
-    type_strata: &mut HashMap<String, i64>,
-) -> bool {
+fn native_stratify_sweep(rule_parts: &[RuleDeps], type_strata: &mut HashMap<String, i64>) -> bool {
     let mut changed = false;
     for (produced, negated, consumed) in rule_parts {
         let mut required = 0i64;
@@ -4006,10 +4340,14 @@ fn native_stratify_fix(
             return Ok(type_strata);
         }
         if remaining <= 0 {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
-                    head: ":wat::rete::fire-rules'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-                    reason: "stratify: negation cycle detected — rule set is not stratifiable".into(),
-                })
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+                    reason: "stratify: negation cycle detected — rule set is not stratifiable"
+                        .into(),
+                },
+            )
             .into());
         }
         remaining -= 1;
@@ -4026,9 +4364,21 @@ fn native_stratify(rule_parts: &[RuleDeps]) -> Result<HashMap<String, i64>, Eval
 /// A single rule's stratum given the final type-strata:
 /// `max(max strata[p] for produced p, max strata[n]+1 for negated n)`.
 /// Mirrors `rule-stratum` (`wat/rete.wat:1671-1702`).
-fn native_rule_stratum(produced: &[String], negated: &[String], type_strata: &HashMap<String, i64>) -> i64 {
-    let from_p = produced.iter().map(|p| *type_strata.get(p).unwrap_or(&0)).max().unwrap_or(0);
-    let from_n = negated.iter().map(|n| *type_strata.get(n).unwrap_or(&0) + 1).max().unwrap_or(0);
+fn native_rule_stratum(
+    produced: &[String],
+    negated: &[String],
+    type_strata: &HashMap<String, i64>,
+) -> i64 {
+    let from_p = produced
+        .iter()
+        .map(|p| *type_strata.get(p).unwrap_or(&0))
+        .max()
+        .unwrap_or(0);
+    let from_n = negated
+        .iter()
+        .map(|n| *type_strata.get(n).unwrap_or(&0) + 1)
+        .max()
+        .unwrap_or(0);
     from_p.max(from_n)
 }
 
@@ -4075,7 +4425,12 @@ fn fire_rules_stratified(
     let (network, next_id, class, names) = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
-            (sf[0].clone(), sf[6].clone(), a.class.clone(), a.names.clone())
+            (
+                sf[0].clone(),
+                sf[6].clone(),
+                a.class.clone(),
+                a.names.clone(),
+            )
         }
         _ => (
             Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()),
@@ -4135,8 +4490,14 @@ fn fire_rules_stratified(
     let ref_alpha_of = |node: &Value| -> Option<i64> {
         let (fqdn, sf) = node_record(node)?;
         match node_kind_label(fqdn) {
-            "NegationNode" | "ExistsNode" => match &sf[1] { Value::i64(n) => Some(*n), _ => None },
-            "AccumulateNode" => match &sf[3] { Value::i64(n) => Some(*n), _ => None },
+            "NegationNode" | "ExistsNode" => match &sf[1] {
+                Value::i64(n) => Some(*n),
+                _ => None,
+            },
+            "AccumulateNode" => match &sf[3] {
+                Value::i64(n) => Some(*n),
+                _ => None,
+            },
             _ => None,
         }
     };
@@ -4252,7 +4613,10 @@ fn fire_rules_stratified(
 
         // acc_derived := value-dedup union across strata (mirrors `merge-facts`, R18 — NOT concat).
         let acc_derived_pv: rpds::VectorSync<Value> = acc_derived.iter().cloned().collect();
-        let merged = merge_facts(&Value::wat__core__PersistentVector(acc_derived_pv), &new_derived);
+        let merged = merge_facts(
+            &Value::wat__core__PersistentVector(acc_derived_pv),
+            &new_derived,
+        );
         acc_derived = match merged {
             Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
             _ => acc_derived,
@@ -4268,7 +4632,10 @@ fn fire_rules_stratified(
     for d in &acc_derived {
         prod_pv.push_back_mut(d.clone());
     }
-    let prod_pm = crate::value::pmap::PMap::from_pairs([(Value::i64(0), Value::wat__core__PersistentVector(prod_pv))]);
+    let prod_pm = crate::value::pmap::PMap::from_pairs([(
+        Value::i64(0),
+        Value::wat__core__PersistentVector(prod_pv),
+    )]);
 
     // Oracle fire-stratified does a throwaway fire-once on the ORIGINAL network + closed
     // facts so QueryNodes (absent from per-stratum slices) fill query-memory.
@@ -4287,13 +4654,13 @@ fn fire_rules_stratified(
                 a.class.clone(),
                 a.names.clone(),
                 Arc::new(vec![
-                    sf[0].clone(),                                             // network (original)
-                    sf[1].clone(),                                             // rules (original)
+                    sf[0].clone(),                                                    // network (original)
+                    sf[1].clone(), // rules (original)
                     Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()), // alpha-memory
                     Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()), // beta-memory
-                    Value::wat__core__PersistentMap(prod_pm),                  // production-memory
-                    input_facts,                                               // facts = input
-                    sf[6].clone(),                                             // next-id (original)
+                    Value::wat__core__PersistentMap(prod_pm), // production-memory
+                    input_facts,                              // facts = input
+                    sf[6].clone(),                            // next-id (original)
                     qmem,
                 ]),
             ))))
@@ -4320,13 +4687,17 @@ pub(crate) fn eval_fire_rules_native(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::fire-rules'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    const OP: &str = ":wat::rete::fire-rules'"; // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-        }).into());
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
     }
 
     // Evaluate the session argument.
@@ -4368,8 +4739,10 @@ pub(crate) fn eval_fire_rules_native(
         parts.push((r.clone(), produced, negated, consumed));
     }
 
-    let pn_only: Vec<RuleDeps> =
-        parts.iter().map(|(_, p, n, c)| (p.clone(), n.clone(), c.clone())).collect();
+    let pn_only: Vec<RuleDeps> = parts
+        .iter()
+        .map(|(_, p, n, c)| (p.clone(), n.clone(), c.clone()))
+        .collect();
     let type_strata = native_stratify(&pn_only)?;
 
     let mut max_s: i64 = 0;
@@ -4411,13 +4784,17 @@ pub(crate) fn eval_insert_native(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::insert'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    const OP: &str = ":wat::rete::insert'"; // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        }).into());
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
 
     // Evaluate both arguments (mirrors eval_fire_rules_native's session eval).
@@ -4427,11 +4804,15 @@ pub(crate) fn eval_insert_native(
     let agg = match &session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
         other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::rete::Session (a wat::core::Record)",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into());
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Session (a wat::core::Record)",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
 
@@ -4439,28 +4820,44 @@ pub(crate) fn eval_insert_native(
     // decision this function exists to enforce. STOP-2 if the lookup fails: no positional
     // fallback, fail loudly instead.
     let type_key = format!(":{}", agg.class);
-    let types = sym.types().ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: "insert' requires the type registry".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-    }))?;
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "insert' requires the type registry".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+            },
+        )
+    })?;
     let record_def = match types.get(&type_key) {
         Some(crate::types::TypeDef::Aggregate(a)) if a.nature != Nature::Struct => a,
         _ => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("record class :{} is not registered in the TypeEnv", agg.class),
-            }).into());
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "record class :{} is not registered in the TypeEnv",
+                        agg.class
+                    ),
+                },
+            )
+            .into());
         }
     };
     let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
     let facts_idx = match record_def.field_names().position(|n| n == "facts") {
         Some(i) => i,
         None => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::UnknownField {
-                record_class: agg.class.clone(),
-                field: "facts".to_string(),
-                available,
-            }).into());
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::UnknownField {
+                    record_class: agg.class.clone(),
+                    field: "facts".to_string(),
+                    available,
+                },
+            )
+            .into());
         }
     };
 
@@ -4472,7 +4869,11 @@ pub(crate) fn eval_insert_native(
     let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
     new_fields[facts_idx] = new_facts;
 
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), agg.names.clone(), Arc::new(new_fields)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+        agg.class.clone(),
+        agg.names.clone(),
+        Arc::new(new_fields),
+    ))))
 }
 
 // ── Public entry: native insert-all' ───────────────────────────────────────────
@@ -4498,13 +4899,17 @@ pub(crate) fn eval_insert_all_native(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::insert-all'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    const OP: &str = ":wat::rete::insert-all'"; // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        }).into());
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
 
     // Evaluate both arguments (mirrors eval_insert_native's session/fact eval).
@@ -4514,39 +4919,59 @@ pub(crate) fn eval_insert_all_native(
     let agg = match &session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
         other => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::rete::Session (a wat::core::Record)",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into());
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Session (a wat::core::Record)",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
 
     // Resolve `facts` BY NAME through the class's RecordDef.field_names — the one contract
     // decision this function exists to enforce (STOP-2). No positional fallback.
     let type_key = format!(":{}", agg.class);
-    let types = sym.types().ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: "insert-all' requires the type registry".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-    }))?;
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "insert-all' requires the type registry".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+            },
+        )
+    })?;
     let record_def = match types.get(&type_key) {
         Some(crate::types::TypeDef::Aggregate(a)) if a.nature != Nature::Struct => a,
         _ => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("record class :{} is not registered in the TypeEnv", agg.class),
-            }).into());
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "record class :{} is not registered in the TypeEnv",
+                        agg.class
+                    ),
+                },
+            )
+            .into());
         }
     };
     let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
     let facts_idx = match record_def.field_names().position(|n| n == "facts") {
         Some(i) => i,
         None => {
-            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::UnknownField {
-                record_class: agg.class.clone(),
-                field: "facts".to_string(),
-                available,
-            }).into());
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::UnknownField {
+                    record_class: agg.class.clone(),
+                    field: "facts".to_string(),
+                    available,
+                },
+            )
+            .into());
         }
     };
 
@@ -4559,7 +4984,11 @@ pub(crate) fn eval_insert_all_native(
     let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
     new_fields[facts_idx] = new_facts;
 
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record(agg.class.clone(), agg.names.clone(), Arc::new(new_fields)))))
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+        agg.class.clone(),
+        agg.names.clone(),
+        Arc::new(new_fields),
+    ))))
 }
 
 // ── Public entry: native fire-rules-explain' ─────────────────────────────────
@@ -4579,13 +5008,17 @@ pub(crate) fn eval_fire_rules_explain(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::fire-rules-explain'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    const OP: &str = ":wat::rete::fire-rules-explain'"; // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     if args.len() != 1 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-        }).into());
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
     }
 
     // Evaluate the session argument (mirrors eval_fire_rules_native).
@@ -4602,10 +5035,7 @@ pub(crate) fn eval_fire_rules_explain(
         let support_value = Value::Aggregate(Arc::new(AggregateValue::record(
             (*support_class_fqdn()).clone(),
             support_names(),
-            Arc::new(vec![
-                Value::String(Arc::new(rule_name)),
-                token_value,
-            ]),
+            Arc::new(vec![Value::String(Arc::new(rule_name)), token_value]),
         )));
         support_pm.insert_mut(derived_fact, support_value);
     }
@@ -4629,12 +5059,12 @@ pub(crate) fn eval_fire_rules_explain(
 #[cfg(test)]
 mod tests {
     use super::{to_persistent, to_transient};
-    use std::sync::Arc;
     use crate::freeze::{eval_in_frozen, startup_from_source};
     use crate::load::InMemoryLoader;
     use crate::runtime::{Environment, Value};
     use crate::types::Nature;
     use crate::value::value::AggregateValue;
+    use std::sync::Arc;
 
     /// The cold-and-windy world: Temperature + WindSpeed + ColdAndWindy records + the rule.
     const WORLD: &str = "\
@@ -4684,20 +5114,25 @@ mod tests {
 
         let wm = to_transient(&fired).expect("to_transient should succeed on a valid Session");
         let back = to_persistent(wm);
-        assert_eq!(back, fired, "round-trip identity: to_persistent(to_transient(fired)) == fired");
+        assert_eq!(
+            back, fired,
+            "round-trip identity: to_persistent(to_transient(fired)) == fired"
+        );
     }
 
     /// Round-trip a freshly-compiled (empty-memory) `Session`.
     /// `to_persistent(to_transient(compiled)) == compiled`.
     #[test]
     fn round_trip_empty_session() {
-        let compiled = ev(
-            "(:wat::rete::compile (:wat::rete::collect-rules :weather))",
-        );
+        let compiled = ev("(:wat::rete::compile (:wat::rete::collect-rules :weather))");
 
-        let wm = to_transient(&compiled).expect("to_transient should succeed on a compiled Session");
+        let wm =
+            to_transient(&compiled).expect("to_transient should succeed on a compiled Session");
         let back = to_persistent(wm);
-        assert_eq!(back, compiled, "round-trip identity: to_persistent(to_transient(compiled)) == compiled");
+        assert_eq!(
+            back, compiled,
+            "round-trip identity: to_persistent(to_transient(compiled)) == compiled"
+        );
     }
 
     /// `to_transient` on a non-Session value → TypeMismatch, not panic.
@@ -4705,7 +5140,10 @@ mod tests {
     fn type_mismatch_not_panic() {
         let not_a_session = Value::i64(42);
         let result = to_transient(&not_a_session);
-        assert!(result.is_err(), "to_transient on a non-Session value must return Err");
+        assert!(
+            result.is_err(),
+            "to_transient on a non-Session value must return Err"
+        );
     }
 
     /// `to_transient` on a wrong record class → TypeMismatch.
@@ -4719,7 +5157,10 @@ mod tests {
             Arc::new(vec![Value::i64(15), Value::String(Arc::new("Oslo".into()))]),
         )));
         let result = to_transient(&wrong);
-        assert!(result.is_err(), "to_transient on a non-Session record must return Err");
+        assert!(
+            result.is_err(),
+            "to_transient on a non-Session record must return Err"
+        );
     }
 
     /// P11 guiding-light probe: the native `Token`'s `matches` vec carries the expected
@@ -4734,10 +5175,10 @@ mod tests {
     #[test]
     fn guiding_light_matches_carry_support_chain() {
         use super::{
-            alpha_pass, root_join_pass, hash_join_pass, production_pass,
-            sorted_node_ids, get_node, kind_of,
+            alpha_pass, get_node, hash_join_pass, kind_of, production_pass, root_join_pass,
+            sorted_node_ids,
         };
-        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
         use crate::runtime::Environment;
 
@@ -4762,8 +5203,7 @@ mod tests {
         );
 
         // Convert to a native WorkingMemory (empty memories — pre-fire).
-        let mut wm = to_transient(&session_with_facts)
-            .expect("to_transient should succeed");
+        let mut wm = to_transient(&session_with_facts).expect("to_transient should succeed");
 
         // Clear memories (re-run-from-scratch, same as fire_once_session).
         wm.alpha.clear();
@@ -4780,29 +5220,43 @@ mod tests {
         // Find the HashJoinNode (the parent of the ProductionNode) in the network.
         // A production-reaching token lives in beta[hash_join_node_id].
         let node_ids = sorted_node_ids(&wm.network);
-        let hash_join_id = node_ids.iter().find(|&&id| {
-            get_node(&wm.network, id)
-                .map(|n| kind_of(n) == "HashJoinNode")
-                .unwrap_or(false)
-        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+        let hash_join_id = node_ids
+            .iter()
+            .find(|&&id| {
+                get_node(&wm.network, id)
+                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .unwrap_or(false)
+            })
+            .copied()
+            .expect("network must contain a HashJoinNode for the 2-condition rule");
 
         // Collect the alpha node ids for membership checks.
-        let alpha_ids_in_network: std::collections::HashSet<i64> = node_ids.iter().filter(|&&id| {
-            get_node(&wm.network, id)
-                .map(|n| kind_of(n) == "AlphaNode")
-                .unwrap_or(false)
-        }).copied().collect();
+        let alpha_ids_in_network: std::collections::HashSet<i64> = node_ids
+            .iter()
+            .filter(|&&id| {
+                get_node(&wm.network, id)
+                    .map(|n| kind_of(n) == "AlphaNode")
+                    .unwrap_or(false)
+            })
+            .copied()
+            .collect();
 
         // Retrieve the tokens at the HashJoinNode.
-        let tokens = wm.beta.get(&hash_join_id)
+        let tokens = wm
+            .beta
+            .get(&hash_join_id)
             .expect("beta[hash_join_id] must be non-empty after the four passes");
 
-        assert!(!tokens.is_empty(), "at least one production-reaching token must exist");
+        assert!(
+            !tokens.is_empty(),
+            "at least one production-reaching token must exist"
+        );
 
         // Each token must carry exactly 2 edges (one per condition: Temperature + WindSpeed).
         for tok in tokens {
             assert_eq!(
-                tok.matches.len(), 2,
+                tok.matches.len(),
+                2,
                 "a 2-condition rule token must carry exactly 2 (fact, alpha_id) edges; got: {:?}",
                 tok.matches.iter().map(|(_, aid)| aid).collect::<Vec<_>>()
             );
@@ -4830,7 +5284,10 @@ mod tests {
             // The two edges must reference DIFFERENT alpha nodes (each condition is distinct).
             let (_, alpha0) = &tok.matches[0];
             let (_, alpha1) = &tok.matches[1];
-            assert_ne!(alpha0, alpha1, "the two edges must reference different alpha node ids");
+            assert_ne!(
+                alpha0, alpha1,
+                "the two edges must reference different alpha node ids"
+            );
 
             // The two facts must be of DIFFERENT types (Temperature != WindSpeed).
             let class0 = match &tok.matches[0].0 {
@@ -4841,7 +5298,10 @@ mod tests {
                 Value::Aggregate(a) if a.nature != Nature::Struct => a.class.clone(),
                 _ => panic!("fact[1] must be a Record"),
             };
-            assert_ne!(class0, class1, "the two supporting facts must be of different types");
+            assert_ne!(
+                class0, class1,
+                "the two supporting facts must be of different types"
+            );
         }
     }
 
@@ -4877,10 +5337,8 @@ mod tests {
     ///   tests/probe_arc278_3a_root_join.rs::seeded_token_carries_bindings_and_support
     #[test]
     fn root_join_seeds_one_token_per_element() {
-        use super::{
-            alpha_pass, root_join_pass,
-        };
-        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use super::{alpha_pass, root_join_pass};
+        use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
         use crate::runtime::Environment;
 
@@ -4921,16 +5379,21 @@ mod tests {
 
         // (1) Exactly one beta node (the RootJoinNode) is seeded.
         assert_eq!(
-            wm.beta.len(), 1,
+            wm.beta.len(),
+            1,
             "root_join_seeds_one_token_per_element (3a): exactly 1 beta node seeded; got {}",
             wm.beta.len()
         );
 
         // (2) That node holds exactly one Token.
-        let (root_join_id, tokens) = wm.beta.iter().next()
+        let (root_join_id, tokens) = wm
+            .beta
+            .iter()
+            .next()
             .expect("beta must have exactly one entry");
         assert_eq!(
-            tokens.len(), 1,
+            tokens.len(),
+            1,
             "root_join_seeds_one_token_per_element (3a): one Element → one Token; got {}",
             tokens.len()
         );
@@ -4939,7 +5402,8 @@ mod tests {
         // (3) Token's matches vec has exactly 1 edge (the one supporting fact).
         let tok = &tokens[0];
         assert_eq!(
-            tok.matches.len(), 1,
+            tok.matches.len(),
+            1,
             "root_join_seeds_one_token_per_element (3a): Token's support chain has 1 entry; got {}",
             tok.matches.len()
         );
@@ -4966,10 +5430,9 @@ mod tests {
     #[test]
     fn hash_join_produces_one_token_on_same_loc() {
         use super::{
-            alpha_pass, root_join_pass, hash_join_pass,
-            sorted_node_ids, get_node, kind_of,
+            alpha_pass, get_node, hash_join_pass, kind_of, root_join_pass, sorted_node_ids,
         };
-        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
         use crate::runtime::Environment;
 
@@ -5012,34 +5475,62 @@ mod tests {
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
-        let hash_join_id = node_ids.iter().find(|&&id| {
-            get_node(&wm.network, id)
-                .map(|n| kind_of(n) == "HashJoinNode")
-                .unwrap_or(false)
-        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+        let hash_join_id = node_ids
+            .iter()
+            .find(|&&id| {
+                get_node(&wm.network, id)
+                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .unwrap_or(false)
+            })
+            .copied()
+            .expect("network must contain a HashJoinNode for the 2-condition rule");
 
-        let tokens = wm.beta.get(&hash_join_id)
+        let tokens = wm
+            .beta
+            .get(&hash_join_id)
             .map(Vec::as_slice)
             .unwrap_or_default();
 
         // join_produces_one_token_on_matching_loc: same loc → exactly 1 joined Token.
         assert_eq!(
-            tokens.len(), 1,
+            tokens.len(),
+            1,
             "hash_join_produces_one_token_on_same_loc (3b): Oslo+Oslo → 1 joined Token; got {}",
             tokens.len()
         );
 
         // joined_token_unifies_both_conditions: ?t=15, ?w=45, ?loc="Oslo".
         let tok = &tokens[0];
-        let qt = tok.bindings.get(&Value::String(Arc::new("?t".to_string()))).cloned();
-        let qw = tok.bindings.get(&Value::String(Arc::new("?w".to_string()))).cloned();
-        let ql = tok.bindings.get(&Value::String(Arc::new("?loc".to_string()))).cloned();
-        assert_eq!(qt, Some(Value::i64(15)),
-            "hash_join_produces_one_token_on_same_loc (3b): ?t must be 15; got {:?}", qt);
-        assert_eq!(qw, Some(Value::i64(45)),
-            "hash_join_produces_one_token_on_same_loc (3b): ?w must be 45; got {:?}", qw);
-        assert_eq!(ql, Some(Value::String(Arc::new("Oslo".to_string()))),
-            "hash_join_produces_one_token_on_same_loc (3b): ?loc must be \"Oslo\"; got {:?}", ql);
+        let qt = tok
+            .bindings
+            .get(&Value::String(Arc::new("?t".to_string())))
+            .cloned();
+        let qw = tok
+            .bindings
+            .get(&Value::String(Arc::new("?w".to_string())))
+            .cloned();
+        let ql = tok
+            .bindings
+            .get(&Value::String(Arc::new("?loc".to_string())))
+            .cloned();
+        assert_eq!(
+            qt,
+            Some(Value::i64(15)),
+            "hash_join_produces_one_token_on_same_loc (3b): ?t must be 15; got {:?}",
+            qt
+        );
+        assert_eq!(
+            qw,
+            Some(Value::i64(45)),
+            "hash_join_produces_one_token_on_same_loc (3b): ?w must be 45; got {:?}",
+            qw
+        );
+        assert_eq!(
+            ql,
+            Some(Value::String(Arc::new("Oslo".to_string()))),
+            "hash_join_produces_one_token_on_same_loc (3b): ?loc must be \"Oslo\"; got {:?}",
+            ql
+        );
     }
 
     /// P11/3b — `hash_join_drops_on_mismatched_loc`:
@@ -5052,10 +5543,9 @@ mod tests {
     #[test]
     fn hash_join_drops_on_mismatched_loc() {
         use super::{
-            alpha_pass, root_join_pass, hash_join_pass,
-            sorted_node_ids, get_node, kind_of,
+            alpha_pass, get_node, hash_join_pass, kind_of, root_join_pass, sorted_node_ids,
         };
-        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
         use crate::runtime::Environment;
 
@@ -5097,11 +5587,15 @@ mod tests {
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
-        let hash_join_id = node_ids.iter().find(|&&id| {
-            get_node(&wm.network, id)
-                .map(|n| kind_of(n) == "HashJoinNode")
-                .unwrap_or(false)
-        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+        let hash_join_id = node_ids
+            .iter()
+            .find(|&&id| {
+                get_node(&wm.network, id)
+                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .unwrap_or(false)
+            })
+            .copied()
+            .expect("network must contain a HashJoinNode for the 2-condition rule");
 
         let token_count = wm.beta.get(&hash_join_id).map(Vec::len).unwrap_or(0);
 
@@ -5125,10 +5619,9 @@ mod tests {
     #[test]
     fn hash_join_no_cross_loc_leakage() {
         use super::{
-            alpha_pass, root_join_pass, hash_join_pass,
-            sorted_node_ids, get_node, kind_of,
+            alpha_pass, get_node, hash_join_pass, kind_of, root_join_pass, sorted_node_ids,
         };
-        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::freeze::{eval_in_frozen, startup_from_source};
         use crate::load::InMemoryLoader;
         use crate::runtime::Environment;
 
@@ -5172,11 +5665,15 @@ mod tests {
 
         // Find the HashJoinNode.
         let node_ids = sorted_node_ids(&wm.network);
-        let hash_join_id = node_ids.iter().find(|&&id| {
-            get_node(&wm.network, id)
-                .map(|n| kind_of(n) == "HashJoinNode")
-                .unwrap_or(false)
-        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+        let hash_join_id = node_ids
+            .iter()
+            .find(|&&id| {
+                get_node(&wm.network, id)
+                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .unwrap_or(false)
+            })
+            .copied()
+            .expect("network must contain a HashJoinNode for the 2-condition rule");
 
         let token_count = wm.beta.get(&hash_join_id).map(Vec::len).unwrap_or(0);
 
@@ -5187,16 +5684,28 @@ mod tests {
         );
 
         // Verify the two tokens are the correct same-loc pairs (Oslo×Oslo, Bergen×Bergen).
-        let tokens = wm.beta.get(&hash_join_id).expect("beta[hash_join_id] must be non-empty");
-        let locs: std::collections::HashSet<String> = tokens.iter().map(|tok| {
-            match tok.bindings.get(&Value::String(Arc::new("?loc".to_string()))) {
-                Some(Value::String(s)) => s.as_str().to_string(),
-                _ => panic!("joined token must have ?loc bound to a String"),
-            }
-        }).collect();
+        let tokens = wm
+            .beta
+            .get(&hash_join_id)
+            .expect("beta[hash_join_id] must be non-empty");
+        let locs: std::collections::HashSet<String> = tokens
+            .iter()
+            .map(|tok| {
+                match tok
+                    .bindings
+                    .get(&Value::String(Arc::new("?loc".to_string())))
+                {
+                    Some(Value::String(s)) => s.as_str().to_string(),
+                    _ => panic!("joined token must have ?loc bound to a String"),
+                }
+            })
+            .collect();
         assert_eq!(
             locs,
-            ["Oslo", "Bergen"].into_iter().map(String::from).collect::<std::collections::HashSet<String>>(),
+            ["Oslo", "Bergen"]
+                .into_iter()
+                .map(String::from)
+                .collect::<std::collections::HashSet<String>>(),
             "joined tokens must be exactly the Oslo and Bergen same-loc pairs"
         );
     }
@@ -5275,7 +5784,11 @@ mod tests {
 
     /// Sum the tokens held by every beta node of a given kind in a census row.
     fn tokens_of_kind(row: &super::RoundCensus, kind: &str) -> usize {
-        row.beta_by_node.iter().filter(|(_, k, _)| *k == kind).map(|(_, _, t)| *t).sum()
+        row.beta_by_node
+            .iter()
+            .filter(|(_, k, _)| *k == kind)
+            .map(|(_, _, t)| *t)
+            .sum()
     }
 
     /// Tokens PRODUCED by nodes of `kind` across the whole fire, read off the per-round delta.
@@ -5433,9 +5946,8 @@ mod tests {
     fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64, u64)> {
         let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("accum-axis world should freeze");
-        let staged = format!(
-            "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w})"
-        );
+        let staged =
+            format!("(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w})");
         let src = format!("(:wat::rete::fire-rules {staged})");
         let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
         let t0 = std::time::Instant::now();
@@ -5455,10 +5967,13 @@ mod tests {
         // third instrument-boundary error in this file today and all three were mine. The four
         // outer marks (IN/SETUP/ROUND LOOP/OUT) are what partition the fire, and their sum matches
         // the grid's own :wat-ns to ~1% — that agreement is the cross-check.
-        rows.push(("WHOLE EVAL (compile+seed+fire)", t0.elapsed().as_nanos() as u64, 1));
+        rows.push((
+            "WHOLE EVAL (compile+seed+fire)",
+            t0.elapsed().as_nanos() as u64,
+            1,
+        ));
         rows
     }
-
 
     /// Render an instrument-subtracted phase table for ANY axis.
     ///
@@ -5502,50 +6017,81 @@ mod tests {
             let mut order: Vec<&'static str> = Vec::new();
             for _ in 0..RUNS {
                 let rows = census(a, b);
-                assert!(!rows.is_empty(), "{label}: census recorded NOTHING at {a}/{b}");
+                assert!(
+                    !rows.is_empty(),
+                    "{label}: census recorded NOTHING at {a}/{b}"
+                );
                 for (name, ns, k) in rows {
-                    if !samples.contains_key(name) { order.push(name); }
+                    if !samples.contains_key(name) {
+                        order.push(name);
+                    }
                     samples.entry(name).or_default().push(ns);
                     pairs.insert(name, k);
                 }
             }
-            let missing: Vec<&str> =
-                required.iter().copied().filter(|p| !samples.contains_key(p)).collect();
-            assert!(missing.is_empty(), "{label}: phase(s) {missing:?} never recorded at {a}/{b}");
+            let missing: Vec<&str> = required
+                .iter()
+                .copied()
+                .filter(|p| !samples.contains_key(p))
+                .collect();
+            assert!(
+                missing.is_empty(),
+                "{label}: phase(s) {missing:?} never recorded at {a}/{b}"
+            );
 
             let stat = |xs: &[u64]| -> (f64, u64, u64) {
                 let sum: u64 = xs.iter().sum();
-                (sum as f64 / xs.len() as f64,
-                 *xs.iter().min().expect("non-empty"),
-                 *xs.iter().max().expect("non-empty"))
+                (
+                    sum as f64 / xs.len() as f64,
+                    *xs.iter().min().expect("non-empty"),
+                    *xs.iter().max().expect("non-empty"),
+                )
             };
             let net_of = |k: &str, xs: &[u64]| -> f64 {
                 stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair
             };
-            let total_mean: f64 =
-                top.iter().filter_map(|k| samples.get(k).map(|xs| stat(xs).0)).sum();
+            let total_mean: f64 = top
+                .iter()
+                .filter_map(|k| samples.get(k).map(|xs| stat(xs).0))
+                .sum();
             assert!(total_mean > 0.0, "{label}: phase total is zero at {a}/{b}");
-            let total_net: f64 =
-                top.iter().filter_map(|k| samples.get(k).map(|xs| net_of(k, xs))).sum();
+            let total_net: f64 = top
+                .iter()
+                .filter_map(|k| samples.get(k).map(|xs| net_of(k, xs)))
+                .sum();
             let instrument: f64 = pairs.values().map(|k| *k as f64 * cal_ns_per_pair).sum();
 
             table.push_str(&format!(
                 "\n  {a}/{b}  ({} facts)   FIRE {:.2} ms raw / {:.2} net   \
                  instrument {:.2} ms across {} pairs\n",
-                facts(a, b), total_mean / 1e6, total_net / 1e6,
-                instrument / 1e6, pairs.values().sum::<u64>(),
+                facts(a, b),
+                total_mean / 1e6,
+                total_net / 1e6,
+                instrument / 1e6,
+                pairs.values().sum::<u64>(),
             ));
             for phase in &order {
-                if *phase == "WHOLE EVAL (compile+seed+fire)" { continue; }
+                if *phase == "WHOLE EVAL (compile+seed+fire)" {
+                    continue;
+                }
                 let xs = samples.get(phase).expect("discovered, so present");
                 let (mean, lo, hi) = stat(xs);
                 let net = net_of(phase, xs);
-                let flag = if net <= 0.0 { "  ⚠ BELOW ITS OWN INSTRUMENT" } else { "" };
+                let flag = if net <= 0.0 {
+                    "  ⚠ BELOW ITS OWN INSTRUMENT"
+                } else {
+                    ""
+                };
                 table.push_str(&format!(
                     "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [{:.2}–{:.2}]  {}x{}\n",
-                    phase, mean / 1e6, net / 1e6, 100.0 * net / total_net,
-                    lo as f64 / 1e6, hi as f64 / 1e6,
-                    *pairs.get(phase).unwrap_or(&0), flag,
+                    phase,
+                    mean / 1e6,
+                    net / 1e6,
+                    100.0 * net / total_net,
+                    lo as f64 / 1e6,
+                    hi as f64 / 1e6,
+                    *pairs.get(phase).unwrap_or(&0),
+                    flag,
                 ));
             }
         }
@@ -5570,7 +6116,6 @@ mod tests {
         });
         rows
     }
-
 
     /// ★ STEP 0 of DESIGN-STONE-compiled-where — the DECOMPOSITION, before anything is built.
     ///
@@ -5639,7 +6184,10 @@ mod tests {
             .iter()
             .map(|t| {
                 crate::rete::matcher::eval_test_core(
-                    &expr, &t.bindings, &Environment::new(), &world.symbols,
+                    &expr,
+                    &t.bindings,
+                    &Environment::new(),
+                    &world.symbols,
                 )
                 .expect("the captured predicate must evaluate on the captured bindings")
             })
@@ -5661,20 +6209,37 @@ mod tests {
         let mut c_ns: Vec<u128> = Vec::with_capacity(REPS);
         let mut d_ns: Vec<u128> = Vec::with_capacity(REPS);
         let mut e_ns: Vec<u128> = Vec::with_capacity(REPS);
+        let mut f_ns: Vec<u128> = Vec::with_capacity(REPS);
         let empty = Environment::new();
+        let program = crate::rete::expr_ir::lower(&expr, &world.symbols)
+            .unwrap_or_else(|e| panic!("captured where must lower: {e:?}"));
+        let compiled_verdicts: Vec<bool> = tokens
+            .iter()
+            .map(|t| {
+                crate::rete::expr_ir::exec_where(&program, &t.bindings, &world.symbols, &program.span)
+                    .expect("compiled where must exec on captured bindings")
+            })
+            .collect();
+        assert_eq!(
+            compiled_verdicts, verdicts,
+            "compiled exec_where must agree with eval_test_core on the captured tokens"
+        );
 
         // Arm D's input — the SAME predicate with its two `?k` reads replaced by the literal they
         // would resolve to. Identical node count, identical operators, ZERO name lookups: the
         // identity control that separates "the interpreter's per-node dispatch" from "resolving a
         // ?var through the Environment" inside the walk.
-        let const_src =
-            "(:wat::core::= 7 (:wat::core::i64::- 9 \
+        let const_src = "(:wat::core::= 7 (:wat::core::i64::- 9 \
                (:wat::core::i64::* (:wat::core::i64::/ 9 50) 50)))";
-        let const_expr = crate::parse_one!(const_src).expect("parse the var-free control predicate");
+        let const_expr =
+            crate::parse_one!(const_src).expect("parse the var-free control predicate");
         // The control must actually EVALUATE, or arm D measures an error path, not a walk.
         assert!(
             crate::rete::matcher::eval_test_core(
-                &const_expr, &tokens[0].bindings, &empty, &world.symbols,
+                &const_expr,
+                &tokens[0].bindings,
+                &empty,
+                &world.symbols,
             )
             .is_ok(),
             "the var-free control predicate did not evaluate — arm D would be timing a failure"
@@ -5691,7 +6256,8 @@ mod tests {
             let t = Instant::now();
             for i in 0..evals_per_round {
                 let e = crate::rete::matcher::build_test_env(
-                    &tokens[i % tokens.len()].bindings, &empty,
+                    &tokens[i % tokens.len()].bindings,
+                    &empty,
                 );
                 black_box(&e);
             }
@@ -5701,7 +6267,10 @@ mod tests {
             let t = Instant::now();
             for i in 0..evals_per_round {
                 let v = crate::rete::matcher::eval_test_core(
-                    &expr, &tokens[i % tokens.len()].bindings, &empty, &world.symbols,
+                    &expr,
+                    &tokens[i % tokens.len()].bindings,
+                    &empty,
+                    &world.symbols,
                 );
                 black_box(&v);
             }
@@ -5719,7 +6288,10 @@ mod tests {
             let t = Instant::now();
             for i in 0..evals_per_round {
                 let v = crate::rete::matcher::eval_test_core(
-                    &const_expr, &tokens[i % tokens.len()].bindings, &empty, &world.symbols,
+                    &const_expr,
+                    &tokens[i % tokens.len()].bindings,
+                    &empty,
+                    &world.symbols,
                 );
                 black_box(&v);
             }
@@ -5739,6 +6311,19 @@ mod tests {
                 black_box(v);
             }
             e_ns.push(t.elapsed().as_nanos());
+
+            // F — the native fire path: lower-once (outside this loop) + exec_where.
+            let t = Instant::now();
+            for i in 0..evals_per_round {
+                let v = crate::rete::expr_ir::exec_where(
+                    &program,
+                    &tokens[i % tokens.len()].bindings,
+                    &world.symbols,
+                    &program.span,
+                );
+                black_box(&v);
+            }
+            f_ns.push(t.elapsed().as_nanos());
         }
         let median = |mut v: Vec<u128>| -> f64 {
             v.sort_unstable();
@@ -5749,6 +6334,7 @@ mod tests {
         let c = median(c_ns);
         let d = median(d_ns);
         let e = median(e_ns);
+        let f = median(f_ns);
         let walk = b - a;
         let walk_novars = d - a;
         let lookups = walk - walk_novars;
@@ -5768,6 +6354,7 @@ mod tests {
              \x20 C  token clone             ({:>6} x)  {:>8.3} ms\n\
              \x20 D  env + walk, VAR-FREE    ({evals_per_round:>6} x)  {:>8.3} ms\n\
              \x20 E  hand-written Rust       ({evals_per_round:>6} x)  {:>8.3} ms   <- THE FLOOR\n\
+             \x20 F  compiled exec_where     ({evals_per_round:>6} x)  {:>8.3} ms   {:>6.1} ns/eval\n\
              \x20 ---------------------------------------------------------------------------\n\
              \x20 the walk        B-A   {:>8.3} ms  {:>5.1}% of B   {:>6.1} ns/eval\n\
              \x20   of which:\n\
@@ -5778,22 +6365,40 @@ mod tests {
              \x20 ---------------------------------------------------------------------------\n\
              \x20 RECONSTRUCTION  B+C = {:>6.3} ms  vs a measured `filter` of \
              {FILTER_MS_MEASURED_IN_FIRE} ms  ({:>4.0}% accounted)\n\
-             \x20 HEADROOM        B-E = {:>6.3} ms is what a PERFECT compile could remove\n",
-            tokens.len(), tokens.len(),
-            a / 1e6, b / 1e6, N, c / 1e6, d / 1e6, e / 1e6,
-            walk / 1e6, 100.0 * walk / b, walk / evals_per_round as f64,
-            lookups / 1e6, 100.0 * lookups / walk,
-            walk_novars / 1e6, 100.0 * walk_novars / walk,
-            a / 1e6, 100.0 * a / b, a / evals_per_round as f64,
+             \x20 HEADROOM        B-E = {:>6.3} ms is what a PERFECT compile could remove\n\
+             \x20 COMPILED vs B   B/F = {:>5.2}x    F-E leftover {:>6.1} ns/eval\n",
+            tokens.len(),
+            tokens.len(),
+            a / 1e6,
+            b / 1e6,
+            N,
             c / 1e6,
-            (b + c) / 1e6, 100.0 * ((b + c) / 1e6) / FILTER_MS_MEASURED_IN_FIRE,
+            d / 1e6,
+            e / 1e6,
+            f / 1e6,
+            f / evals_per_round as f64,
+            walk / 1e6,
+            100.0 * walk / b,
+            walk / evals_per_round as f64,
+            lookups / 1e6,
+            100.0 * lookups / walk,
+            walk_novars / 1e6,
+            100.0 * walk_novars / walk,
+            a / 1e6,
+            100.0 * a / b,
+            a / evals_per_round as f64,
+            c / 1e6,
+            (b + c) / 1e6,
+            100.0 * ((b + c) / 1e6) / FILTER_MS_MEASURED_IN_FIRE,
             (b - e) / 1e6,
+            b / f,
+            (f - e) / evals_per_round as f64,
         );
 
         // Non-vacuity on the INSTRUMENT itself: a zero reading means the optimiser removed the
         // arm, and every share above would be an artifact.
         assert!(
-            a > 0.0 && b > 0.0 && c > 0.0 && d > 0.0 && e > 0.0 && b > a && b > e,
+            a > 0.0 && b > 0.0 && c > 0.0 && d > 0.0 && e > 0.0 && f > 0.0 && b > a && b > e,
             "an arm measured zero, or the orderings that MUST hold do not — the loop was \
              optimised away and the shares above are artifacts \
              (A={a}ns B={b}ns C={c}ns D={d}ns E={e}ns)"
@@ -5820,8 +6425,9 @@ mod tests {
         );
         let mut worst_waste = 0.0f64;
         for (n, m) in [(10i64, 200i64), (25, 200), (50, 200)] {
-            let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
-                .expect("node-share world should freeze");
+            let world =
+                startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
+                    .expect("node-share world should freeze");
             let src = format!(
                 "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m}))"
             );
@@ -5831,7 +6437,12 @@ mod tests {
                     .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
                     .value_owned()
             });
-            let get = |k: &str| rows.iter().find(|(a, _)| *a == k).map(|(_, v)| *v).unwrap_or(0);
+            let get = |k: &str| {
+                rows.iter()
+                    .find(|(a, _)| *a == k)
+                    .map(|(_, v)| *v)
+                    .unwrap_or(0)
+            };
             let evals = get("filter:test-evals");
             let passes = get("filter:test-pass");
             let envs = get("filter:test-env-builds");
@@ -5867,13 +6478,22 @@ mod tests {
     /// The node-share phase table, at the GRID's own ladder ([10|25|50] x 200).
     #[test]
     fn node_share_fire_phase_census() {
-        const TOP: [&str; 4] =
-            ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
+        const TOP: [&str; 4] = [
+            "IN: to_transient",
+            "SETUP: indexes",
+            "ROUND LOOP",
+            "OUT: to_persistent",
+        ];
         // Floor only — the table discovers the rest. node-share has no accumulate/filter, so its
         // required set is deliberately smaller than accum's; asserting accum's list here would
         // fail on phases this axis never reaches.
         const REQUIRED: [&str; 6] = [
-            "SETUP: indexes", "ROUND LOOP", "alpha", "root-join", "hash-join", "production",
+            "SETUP: indexes",
+            "ROUND LOOP",
+            "alpha",
+            "root-join",
+            "hash-join",
+            "production",
         ];
         let table = render_phase_table(
             "node-share fire",
@@ -5892,12 +6512,18 @@ mod tests {
         // so that is what gets checked, with a non-vacuity guard on the total.
         let rows = node_share_phase_census(50, 200);
         let ns_of = |name: &str| -> u64 {
-            rows.iter().find(|(n, _, _)| *n == name).map(|(_, ns, _)| *ns).unwrap_or(0)
+            rows.iter()
+                .find(|(n, _, _)| *n == name)
+                .map(|(_, ns, _)| *ns)
+                .unwrap_or(0)
         };
         let round_loop = ns_of("ROUND LOOP");
         let filter = ns_of("filter");
-        assert!(round_loop > 0, "ROUND LOOP recorded 0ns at 50/200 — the fire never ran, and a\n\
-                                 table of zeroes would still have rendered every row:\n{table}");
+        assert!(
+            round_loop > 0,
+            "ROUND LOOP recorded 0ns at 50/200 — the fire never ran, and a\n\
+                                 table of zeroes would still have rendered every row:\n{table}"
+        );
         assert!(
             filter * 2 > round_loop,
             "expected `filter` to dominate node-share's fire (it read 89.5% at 50/200 on\n\
@@ -5949,8 +6575,16 @@ mod tests {
     #[test]
     fn gather_index_is_built_once_per_alpha_and_keyset() {
         let rows = accum_count_census(200, 200);
-        let builds = rows.iter().find(|(n, _)| *n == "accum:index-builds").map(|(_, c)| *c).unwrap_or(0);
-        let elements = rows.iter().find(|(n, _)| *n == "accum:index-elements").map(|(_, c)| *c).unwrap_or(0);
+        let builds = rows
+            .iter()
+            .find(|(n, _)| *n == "accum:index-builds")
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
+        let elements = rows
+            .iter()
+            .find(|(n, _)| *n == "accum:index-elements")
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
 
         assert!(
             builds > 0,
@@ -6001,8 +6635,9 @@ mod tests {
     }
 
     fn one_rule_fold_ns(rule: &str, g: i64, w: i64) -> u64 {
-        let world = startup_from_source(&one_rule_world(rule), None, Arc::new(InMemoryLoader::new()))
-            .expect("one-rule world should freeze");
+        let world =
+            startup_from_source(&one_rule_world(rule), None, Arc::new(InMemoryLoader::new()))
+                .expect("one-rule world should freeze");
         let src = format!(
             "(:wat::rete::fire-rules (:one::seed (:wat::rete::compile (:wat::rete::collect-rules :one)) {g} {w}))"
         );
@@ -6012,7 +6647,10 @@ mod tests {
                 .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
                 .value_owned()
         });
-        rows.iter().find(|(n, _)| *n == "  └ accum:fold").map(|(_, ns)| *ns).unwrap_or(0)
+        rows.iter()
+            .find(|(n, _)| *n == "  └ accum:fold")
+            .map(|(_, ns)| *ns)
+            .unwrap_or(0)
     }
 
     /// Diagnostic — the fold WITH a per-element binding lookup vs WITHOUT one.
@@ -6039,7 +6677,10 @@ mod tests {
         }
         let mean = |xs: &[u64]| xs.iter().sum::<u64>() as f64 / xs.len() as f64;
         let (c, s) = (mean(&counts), mean(&sums));
-        assert!(c > 0.0 && s > 0.0, "one or both folds recorded nothing — the instrument never fired");
+        assert!(
+            c > 0.0 && s > 0.0,
+            "one or both folds recorded nothing — the instrument never fired"
+        );
 
         println!(
             "\nfold cost, {elements} elements gathered, mean of {RUNS}\n                 count (NO per-element lookup)  {:>7.2} ms\n                 sum   (ONE lookup per element) {:>7.2} ms\n                 delta = the lookup             {:>7.2} ms   ({:.0} ns/element)\n",
@@ -6072,8 +6713,12 @@ mod tests {
 
     /// Returns (alpha:match ns, alpha:element ns, alpha total ns) for one bind-world at `n` facts.
     fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> (u64, u64, u64) {
-        let world = startup_from_source(&bind_world(reading_cond), None, Arc::new(InMemoryLoader::new()))
-            .expect("bind world should freeze");
+        let world = startup_from_source(
+            &bind_world(reading_cond),
+            None,
+            Arc::new(InMemoryLoader::new()),
+        )
+        .expect("bind world should freeze");
         let src = format!(
             "(:wat::rete::fire-rules (:bnd::seed (:wat::rete::compile (:wat::rete::collect-rules :bnd)) {n}))"
         );
@@ -6083,8 +6728,17 @@ mod tests {
                 .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
                 .value_owned()
         });
-        let get = |k: &str| rows.iter().find(|(n2, _)| *n2 == k).map(|(_, ns)| *ns).unwrap_or(0);
-        (get("  ├ alpha:match"), get("  ├ alpha:element"), get("alpha"))
+        let get = |k: &str| {
+            rows.iter()
+                .find(|(n2, _)| *n2 == k)
+                .map(|(_, ns)| *ns)
+                .unwrap_or(0)
+        };
+        (
+            get("  ├ alpha:match"),
+            get("  ├ alpha:element"),
+            get("alpha"),
+        )
     }
 
     /// Diagnostic — one bind vs two binds on the same condition, same facts.
@@ -6099,14 +6753,21 @@ mod tests {
         let (mut m2, mut e2, mut a2) = (0u64, 0u64, 0u64);
         for _ in 0..RUNS {
             let (m, e, a) = bind_world_alpha_ns(ONE, n);
-            m1 += m; e1 += e; a1 += a;
+            m1 += m;
+            e1 += e;
+            a1 += a;
             let (m, e, a) = bind_world_alpha_ns(TWO, n);
-            m2 += m; e2 += e; a2 += a;
+            m2 += m;
+            e2 += e;
+            a2 += a;
         }
         let r = RUNS as f64;
         let (m1, e1, a1) = (m1 as f64 / r, e1 as f64 / r, a1 as f64 / r);
         let (m2, e2, a2) = (m2 as f64 / r, e2 as f64 / r, a2 as f64 / r);
-        assert!(m1 > 0.0 && m2 > 0.0, "alpha:match recorded nothing — the instrument never fired");
+        assert!(
+            m1 > 0.0 && m2 > 0.0,
+            "alpha:match recorded nothing — the instrument never fired"
+        );
 
         println!(
             "\nalpha cost per BINDING — {n} facts, mean of {RUNS}\n                 1 bind : match {:>7.2} ms   element {:>6.2} ms   alpha {:>7.2} ms\n                 2 binds: match {:>7.2} ms   element {:>6.2} ms   alpha {:>7.2} ms\n                 delta  : match {:>7.2} ms ({:>4.0} ns/fact)   element {:>6.2} ms   alpha {:>7.2} ms\n",
@@ -6165,7 +6826,10 @@ mod tests {
         }
         let map_ns = t2.elapsed().as_nanos() as f64 / N as f64 - interned_ns; // subtract the clone (c) also pays
 
-        assert!(fresh_ns > 0.0 && map_ns > 0.0, "microbenchmark recorded nothing");
+        assert!(
+            fresh_ns > 0.0 && map_ns > 0.0,
+            "microbenchmark recorded nothing"
+        );
 
         println!(
             "\nbind cost apportioned — {N} iterations each (RATIOS, not absolutes)\n                 (a) fresh key   Value::String(Arc::new(var.to_string()))  {fresh_ns:>6.1} ns\n                 (b) interned    an Arc refcount bump                      {interned_ns:>6.1} ns\n                 (c) map         get + insert, key supplied                {map_ns:>6.1} ns\n                 ---------------------------------------------------------------\n                 interning would save (a)-(b) = {:>5.1} ns of the ~163 ns in-engine bind\n                 the map itself is {:>5.1} ns and is untouched by interning\n",
@@ -6226,8 +6890,15 @@ mod tests {
             "the operation census counted NOTHING — the counters were never reached, so any \
              rate derived from them would be an artifact"
         );
-        let calls = rows.iter().find(|(n, _)| *n == "compiled:calls").map(|(_, c)| *c).unwrap_or(0);
-        assert!(calls > 0, "compiled:calls is zero — exec_compiled was never entered");
+        let calls = rows
+            .iter()
+            .find(|(n, _)| *n == "compiled:calls")
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
+        assert!(
+            calls > 0,
+            "compiled:calls is zero — exec_compiled was never entered"
+        );
 
         let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");
         for (name, n) in &rows {
@@ -6260,46 +6931,76 @@ mod tests {
         const N: usize = 50_000;
 
         println!("\nBINDING KEY COST — Value::String (today) vs Value::i64 (an interned-id floor)");
-        println!("  {N} iterations; rpds::HashTrieMapSync in BOTH columns — only the KEY type differs\n");
-        println!("  {:>4}  {:>21}  {:>21}", "n", "build (str / i64)", "lookup (str / i64)");
+        println!(
+            "  {N} iterations; rpds::HashTrieMapSync in BOTH columns — only the KEY type differs\n"
+        );
+        println!(
+            "  {:>4}  {:>21}  {:>21}",
+            "n", "build (str / i64)", "lookup (str / i64)"
+        );
 
         for n in [1usize, 2, 3, 5, 8] {
             let sk: Vec<(Value, Value)> = (0..n)
-                .map(|i| (Value::String(Arc::new(format!("?v{i}"))), Value::i64(i as i64))).collect();
+                .map(|i| {
+                    (
+                        Value::String(Arc::new(format!("?v{i}"))),
+                        Value::i64(i as i64),
+                    )
+                })
+                .collect();
             let ik: Vec<(Value, Value)> = (0..n)
-                .map(|i| (Value::i64(i as i64), Value::i64(i as i64))).collect();
+                .map(|i| (Value::i64(i as i64), Value::i64(i as i64)))
+                .collect();
 
             let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
                 let mut m = rpds::HashTrieMapSync::new_sync();
-                for (k, v) in &sk { m = m.insert(k.clone(), v.clone()); }
+                for (k, v) in &sk {
+                    m = m.insert(k.clone(), v.clone());
+                }
                 sink.push(m);
             }
             let bs = t.elapsed().as_nanos() as f64 / N as f64;
-            let ms = sink[0].clone(); drop(sink);
+            let ms = sink[0].clone();
+            drop(sink);
 
             let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
                 let mut m = rpds::HashTrieMapSync::new_sync();
-                for (k, v) in &ik { m = m.insert(k.clone(), v.clone()); }
+                for (k, v) in &ik {
+                    m = m.insert(k.clone(), v.clone());
+                }
                 sink.push(m);
             }
             let bi = t.elapsed().as_nanos() as f64 / N as f64;
-            let mi = sink[0].clone(); drop(sink);
+            let mi = sink[0].clone();
+            drop(sink);
 
             let ps = sk[n / 2].0.clone();
             let pi = ik[n / 2].0.clone();
             let t = Instant::now();
-            for _ in 0..N { black_box(ms.get(black_box(&ps))); }
+            for _ in 0..N {
+                black_box(ms.get(black_box(&ps)));
+            }
             let ls = t.elapsed().as_nanos() as f64 / N as f64;
             let t = Instant::now();
-            for _ in 0..N { black_box(mi.get(black_box(&pi))); }
+            for _ in 0..N {
+                black_box(mi.get(black_box(&pi)));
+            }
             let li = t.elapsed().as_nanos() as f64 / N as f64;
 
-            println!("  {:>4}  {:>9.1} /{:>9.1}  {:>9.1} /{:>9.1}   build {:>4.1}x  lookup {:>4.1}x",
-                     n, bs, bi, ls, li, bs / bi, ls / li);
+            println!(
+                "  {:>4}  {:>9.1} /{:>9.1}  {:>9.1} /{:>9.1}   build {:>4.1}x  lookup {:>4.1}x",
+                n,
+                bs,
+                bi,
+                ls,
+                li,
+                bs / bi,
+                ls / li
+            );
         }
         println!();
     }
@@ -6337,16 +7038,26 @@ mod tests {
         const N: usize = 20_000;
 
         fn keys(n: usize) -> Vec<(Value, Value)> {
-            (0..n).map(|i| (Value::String(Arc::new(format!("?v{i}"))), Value::i64(i as i64)))
-                  .collect()
+            (0..n)
+                .map(|i| {
+                    (
+                        Value::String(Arc::new(format!("?v{i}"))),
+                        Value::i64(i as i64),
+                    )
+                })
+                .collect()
         }
 
         println!("\nBINDING REPRESENTATION — rpds HAMT (A) vs persistent array map (B)");
         println!("  {N} iterations per cell; ns/op; keys are real Value::String\n");
-        println!("  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
-                 "n", "build", "lookup", "clone", "extend", "drop");
-        println!("  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
-                 "", "A / B", "A / B", "A / B", "A / B", "A / B");
+        println!(
+            "  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
+            "n", "build", "lookup", "clone", "extend", "drop"
+        );
+        println!(
+            "  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
+            "", "A / B", "A / B", "A / B", "A / B", "A / B"
+        );
 
         for n in SIZES {
             let kv = keys(n);
@@ -6358,7 +7069,9 @@ mod tests {
             let t = Instant::now();
             for _ in 0..N {
                 let mut m = rpds::HashTrieMapSync::new_sync();
-                for (k, v) in &kv { m = m.insert(k.clone(), v.clone()); }
+                for (k, v) in &kv {
+                    m = m.insert(k.clone(), v.clone());
+                }
                 sink_a.push(m);
             }
             let build_a = t.elapsed().as_nanos() as f64 / N as f64;
@@ -6367,7 +7080,9 @@ mod tests {
             let t = Instant::now();
             for _ in 0..N {
                 let mut v = Vec::with_capacity(n);
-                for (k, val) in &kv { v.push((k.clone(), val.clone())); }
+                for (k, val) in &kv {
+                    v.push((k.clone(), val.clone()));
+                }
                 sink_b.push(Arc::new(v));
             }
             let build_b = t.elapsed().as_nanos() as f64 / N as f64;
@@ -6377,29 +7092,42 @@ mod tests {
 
             // ── lookup (hit, mid-map) ──
             let t = Instant::now();
-            for _ in 0..N { black_box(ma.get(black_box(&probe))); }
+            for _ in 0..N {
+                black_box(ma.get(black_box(&probe)));
+            }
             let look_a = t.elapsed().as_nanos() as f64 / N as f64;
             let t = Instant::now();
             for _ in 0..N {
-                black_box(mb.iter().find(|(k, _)| k == black_box(&probe)).map(|(_, v)| v));
+                black_box(
+                    mb.iter()
+                        .find(|(k, _)| k == black_box(&probe))
+                        .map(|(_, v)| v),
+                );
             }
             let look_b = t.elapsed().as_nanos() as f64 / N as f64;
 
             // ── clone ──
             let mut ca: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
-            for _ in 0..N { ca.push(ma.clone()); }
+            for _ in 0..N {
+                ca.push(ma.clone());
+            }
             let clone_a = t.elapsed().as_nanos() as f64 / N as f64;
             let mut cb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
             let t = Instant::now();
-            for _ in 0..N { cb.push(Arc::clone(&mb)); }
+            for _ in 0..N {
+                cb.push(Arc::clone(&mb));
+            }
             let clone_b = t.elapsed().as_nanos() as f64 / N as f64;
-            drop(ca); drop(cb);
+            drop(ca);
+            drop(cb);
 
             // ── extend (extend_token: derive a new map with one more binding) ──
             let mut ea: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
-            for _ in 0..N { ea.push(ma.insert(extra.0.clone(), extra.1.clone())); }
+            for _ in 0..N {
+                ea.push(ma.insert(extra.0.clone(), extra.1.clone()));
+            }
             let ext_a = t.elapsed().as_nanos() as f64 / N as f64;
             let mut eb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
             let t = Instant::now();
@@ -6409,12 +7137,15 @@ mod tests {
                 eb.push(Arc::new(v));
             }
             let ext_b = t.elapsed().as_nanos() as f64 / N as f64;
-            drop(ea); drop(eb);
+            drop(ea);
+            drop(eb);
 
             // ── drop (the sinks built above) ──
-            let t = Instant::now(); drop(sink_a);
+            let t = Instant::now();
+            drop(sink_a);
             let drop_a = t.elapsed().as_nanos() as f64 / N as f64;
-            let t = Instant::now(); drop(sink_b);
+            let t = Instant::now();
+            drop(sink_b);
             let drop_b = t.elapsed().as_nanos() as f64 / N as f64;
 
             println!("  {:>4}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}",
@@ -6441,7 +7172,12 @@ mod tests {
     #[test]
     fn binding_cardinality_distribution() {
         fn dist(label: &str, rows: &[(&'static str, u64)]) -> String {
-            let get = |k: &str| rows.iter().find(|(n, _)| *n == k).map(|(_, c)| *c).unwrap_or(0);
+            let get = |k: &str| {
+                rows.iter()
+                    .find(|(n, _)| *n == k)
+                    .map(|(_, c)| *c)
+                    .unwrap_or(0)
+            };
             let els = get("bind-card:ELEMENTS");
             let toks = get("bind-card:TOKENS");
             let total = els + toks;
@@ -6451,20 +7187,33 @@ mod tests {
                 return out;
             }
             for (kind, tot, pfx) in [("ELEMENT", els, "elem-card:"), ("TOKEN", toks, "tok-card:")] {
-                if tot == 0 { continue; }
+                if tot == 0 {
+                    continue;
+                }
                 out.push_str(&format!("    {kind}S ({tot})\n"));
-                for suf in ["0","1","2","3","4","5","6-7","8+"] {
+                for suf in ["0", "1", "2", "3", "4", "5", "6-7", "8+"] {
                     let key = format!("{pfx}{suf}");
-                    let n = rows.iter().find(|(nm, _)| *nm == key).map(|(_, c)| *c).unwrap_or(0);
-                    if n == 0 { continue; }
-                    out.push_str(&format!("      {:<6} {:>9}  {:>5.1}%\n",
-                        suf, n, 100.0 * n as f64 / tot as f64));
+                    let n = rows
+                        .iter()
+                        .find(|(nm, _)| *nm == key)
+                        .map(|(_, c)| *c)
+                        .unwrap_or(0);
+                    if n == 0 {
+                        continue;
+                    }
+                    out.push_str(&format!(
+                        "      {:<6} {:>9}  {:>5.1}%\n",
+                        suf,
+                        n,
+                        100.0 * n as f64 / tot as f64
+                    ));
                 }
             }
             out
         }
 
-        let mut report = String::from("\nBINDING CARDINALITY — the premise under the small-vec stone");
+        let mut report =
+            String::from("\nBINDING CARDINALITY — the premise under the small-vec stone");
 
         // Shape A — accumulate: conditions bind ?g / ?g,?v; tokens carry the group key.
         let rows_accum = accum_count_census(60, 60);
@@ -6499,12 +7248,21 @@ mod tests {
         });
         report.push_str(&dist("2-cond join, 3 distinct vars (N=400)", &rows_join));
 
-        let counted: u64 = rows_accum.iter().chain(rows_join.iter())
-            .filter(|(n, _)| n.starts_with("bind-card:") || n.starts_with("elem-card:") || n.starts_with("tok-card:"))
-            .map(|(_, c)| *c).sum();
-        assert!(counted > 0,
+        let counted: u64 = rows_accum
+            .iter()
+            .chain(rows_join.iter())
+            .filter(|(n, _)| {
+                n.starts_with("bind-card:")
+                    || n.starts_with("elem-card:")
+                    || n.starts_with("tok-card:")
+            })
+            .map(|(_, c)| *c)
+            .sum();
+        assert!(
+            counted > 0,
             "the binding census counted NOTHING — the walk never ran, so an all-zero table \
-             would be an artifact, not a distribution");
+             would be an artifact, not a distribution"
+        );
 
         println!("{report}");
     }
@@ -6522,8 +7280,12 @@ mod tests {
         // The four OUTER marks partition the whole fire; everything else nests inside one of
         // them. The total is the outer four ONLY — summing a parent with its children is what
         // made the first version of this table report 124% coverage.
-        const TOP: [&str; 4] =
-            ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
+        const TOP: [&str; 4] = [
+            "IN: to_transient",
+            "SETUP: indexes",
+            "ROUND LOOP",
+            "OUT: to_persistent",
+        ];
         // ★ 2026-08-01 — this list is now a FLOOR, not the table's contents.
         //
         // It used to BE the table: `for phase in PHASES`. So when `alpha:candidates` was added to
@@ -6541,13 +7303,25 @@ mod tests {
             "SETUP: indexes",
             "ROUND LOOP",
             "alpha",
-            "  ├ alpha:fieldnames", "  ├ alpha:match", "  ├ alpha:element", "  └ alpha:push",
-            "root-join", "hash-join",
-            "accumulate", "  ├ accum:snapshot", "  ├ accum:index", "  └ accum:fold",
-            "filter", "production",
+            "  ├ alpha:fieldnames",
+            "  ├ alpha:match",
+            "  ├ alpha:element",
+            "  └ alpha:push",
+            "root-join",
+            "hash-join",
+            "accumulate",
+            "  ├ accum:snapshot",
+            "  ├ accum:index",
+            "  └ accum:fold",
+            "filter",
+            "production",
             "OUT: to_persistent",
-            "  ├ out:alpha", "  ├ out:beta", "  └ out:production",
-            "  ├ round:preamble", "  └ round:epilogue", "  └ round:drop-memories",
+            "  ├ out:alpha",
+            "  ├ out:beta",
+            "  └ out:production",
+            "  ├ round:preamble",
+            "  └ round:epilogue",
+            "  └ round:drop-memories",
         ];
 
         // ── The instrument declares its own cost ─────────────────────────────────────────────
@@ -6607,8 +7381,11 @@ mod tests {
             }
             // The floor: every phase we KNOW must exist still does. Discovery adds rows; this
             // stops one from silently disappearing.
-            let missing: Vec<&str> =
-                REQUIRED_PHASES.iter().copied().filter(|p| !samples.contains_key(p)).collect();
+            let missing: Vec<&str> = REQUIRED_PHASES
+                .iter()
+                .copied()
+                .filter(|p| !samples.contains_key(p))
+                .collect();
             assert!(
                 missing.is_empty(),
                 "phase(s) {missing:?} never recorded at G={g} W={w} — their marks were not reached, \
@@ -6630,15 +7407,18 @@ mod tests {
                 .iter()
                 .filter_map(|k| samples.get(k).map(|xs| stat(xs).0))
                 .sum();
-            assert!(total_mean > 0.0, "phase census total is zero at G={g} W={w}");
+            assert!(
+                total_mean > 0.0,
+                "phase census total is zero at G={g} W={w}"
+            );
             // The denominator must be net too, or every share is computed against a total that
             // includes ~20ms of clock reads and each row's percentage is quietly deflated.
             let total_net: f64 = TOP
                 .iter()
                 .filter_map(|k| {
-                    samples.get(k).map(|xs| {
-                        stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair
-                    })
+                    samples
+                        .get(k)
+                        .map(|xs| stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair)
                 })
                 .sum();
 
@@ -6654,8 +7434,7 @@ mod tests {
             // Cross-checked against a no-sub-marks control build (2026-08-01): fire 78.5ms
             // instrumented vs 58.2ms bare, alpha 40.8 vs 23.5 — i.e. alpha's TRUE share is ~40%,
             // not the ~55% its raw row shows. Read parents with that correction in hand.
-            let total_instrument: f64 =
-                pairs.values().map(|k| *k as f64 * cal_ns_per_pair).sum();
+            let total_instrument: f64 = pairs.values().map(|k| *k as f64 * cal_ns_per_pair).sum();
             table.push_str(&format!(
                 "\n  G={g} W={w}  ({} facts)   FIRE {:.2} ms (the four outer marks)   \
                  whole eval {:.2} ms   → seed+compile ≈ {:.2} ms\n\
@@ -6672,7 +7451,9 @@ mod tests {
                 if *phase == "WHOLE EVAL (compile+seed+fire)" {
                     continue; // reported in the header line above, not as a row inside the fire
                 }
-                let xs = samples.get(phase).expect("discovered from samples, so present");
+                let xs = samples
+                    .get(phase)
+                    .expect("discovered from samples, so present");
                 let (mean, lo, hi) = stat(xs);
                 // ★ SUBTRACT THE INSTRUMENT. Each row cost (pairs x cal_ns_per_pair) in clock
                 // reads that landed INSIDE its own measurement. Warning the reader to "treat
@@ -6682,7 +7463,11 @@ mod tests {
                 let k = *pairs.get(phase).unwrap_or(&0);
                 let inst = k as f64 * cal_ns_per_pair;
                 let net = mean - inst;
-                let flag = if net <= 0.0 { "  ⚠ BELOW ITS OWN INSTRUMENT" } else { "" };
+                let flag = if net <= 0.0 {
+                    "  ⚠ BELOW ITS OWN INSTRUMENT"
+                } else {
+                    ""
+                };
                 table.push_str(&format!(
                     "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [{:.2}–{:.2}]  {}x{}\n",
                     phase,
@@ -6913,9 +7698,8 @@ mod tests {
 
     /// Fire a depth×width cascade through the native path; return the per-phase nanosecond rows.
     fn depth_split_phases(depth: i64, width: i64) -> Vec<(&'static str, u64)> {
-        let world =
-            startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
-                .expect("depth-split world should freeze");
+        let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("depth-split world should freeze");
         let src = format!(
             "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width}))"
         );
@@ -6976,10 +7760,17 @@ mod tests {
                 "\n    total written {tot_w}, total read {tot_r}\n    \
                  write-only nodes: {dead_n}  —  tokens cloned into them and never read: {dead_w} \
                  ({:.1}% of all beta writes)\n",
-                if tot_w > 0 { dead_w as f64 * 100.0 / tot_w as f64 } else { 0.0 },
+                if tot_w > 0 {
+                    dead_w as f64 * 100.0 / tot_w as f64
+                } else {
+                    0.0
+                },
             ));
             // The instrument must have seen traffic at all, or its zeros mean nothing.
-            assert!(tot_w > 0, "{label}: recorded no beta writes — the instrument is not armed.{out}");
+            assert!(
+                tot_w > 0,
+                "{label}: recorded no beta writes — the instrument is not armed.{out}"
+            );
 
             // ★ THE GUARD'S INVARIANT — and this is the DANGEROUS direction.
             //
@@ -7031,9 +7822,8 @@ mod tests {
         // the table text. A `contains` over a rendered table would survive a renamed verdict, a
         // reordered column, or a chance substring, and would be asserting the FORMATTER rather
         // than the measurement.
-        let readers = |rows: &[(i64, u64, u64)]| -> usize {
-            rows.iter().filter(|&&(_, _, r)| r > 0).count()
-        };
+        let readers =
+            |rows: &[(i64, u64, u64)]| -> usize { rows.iter().filter(|&&(_, _, r)| r > 0).count() };
 
         // Control 1: SOMETHING must read a beta, or a zero elsewhere proves nothing rather than
         // proving the store is dead (a green that cannot go red is a claim with nothing behind it).
@@ -7072,12 +7862,18 @@ mod tests {
             shallow.iter().chain(deep.iter()).map(|(n, _)| *n).collect();
 
         let sum = |rows: &[(&'static str, u64)]| -> u64 {
-            rows.iter().filter(|(n, _)| n.starts_with("  ")).map(|(_, ns)| *ns).sum()
+            rows.iter()
+                .filter(|(n, _)| n.starts_with("  "))
+                .map(|(_, ns)| *ns)
+                .sum()
         };
         let (s_tot, d_tot) = (sum(&shallow), sum(&deep));
 
         let get = |rows: &[(&'static str, u64)], name: &str| -> u64 {
-            rows.iter().find(|(n, _)| *n == name).map(|(_, ns)| *ns).unwrap_or(0)
+            rows.iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, ns)| *ns)
+                .unwrap_or(0)
         };
 
         let mut table = String::from(
@@ -7100,7 +7896,11 @@ mod tests {
             s_tot as f64 / 1e6,
             d_tot as f64 / 1e6,
             (d_tot as f64 - s_tot as f64) / 1e6,
-            if s_tot > 0 { d_tot as f64 / s_tot as f64 } else { 0.0 }
+            if s_tot > 0 {
+                d_tot as f64 / s_tot as f64
+            } else {
+                0.0
+            }
         ));
 
         println!("{table}");
@@ -7113,10 +7913,10 @@ mod tests {
 
     // ── AlphaTree (DESIGN-STONE-alpha-discrimination-tree.md) ────────────────────────────────
 
-    use std::collections::HashMap;
+    use super::{build_alpha_index, class_field_names, session_facts, sorted_node_ids};
     use crate::ast::WatAST;
     use crate::rete::alpha_tree::AlphaTree;
-    use super::{build_alpha_index, class_field_names, session_facts, sorted_node_ids};
+    use std::collections::HashMap;
 
     /// Like `depth_split_phases`, but returns the fired session (seed + every derived fact) and
     /// the frozen world (for `.symbols()`) instead of the phase census — the alpha-tree tests
@@ -7235,9 +8035,8 @@ mod tests {
     /// to keep passing on a claim it no longer supports.)
     #[test]
     fn fanout_rhs_key_alloc_census() {
-        let world =
-            startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
-                .expect("fanout census world should freeze");
+        let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("fanout census world should freeze");
         let src = "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
                    (:wat::rete::collect-rules :fan)) 100 20))";
         let ast = crate::parse_one!(src).expect("parse the fire driver");
@@ -7246,7 +8045,12 @@ mod tests {
                 .unwrap_or_else(|e| panic!("fanout count census fire raised: {e:?}"))
                 .value_owned()
         });
-        let get = |n: &str| rows.iter().find(|(k, _)| *k == n).map(|(_, c)| *c).unwrap_or(0);
+        let get = |n: &str| {
+            rows.iter()
+                .find(|(k, _)| *k == n)
+                .map(|(_, c)| *c)
+                .unwrap_or(0)
+        };
         let table = format!(
             "\n  FANOUT RHS ALLOCATION CENSUS — keys=100 x fanout=20, 40,000 derived Pairs\n\
              \n  match:key-alloc (RHS + alpha, both compiled — expect 0)  {:>10}\n\
@@ -7290,9 +8094,8 @@ mod tests {
     /// instead of from the cascade's per-fact rate.
     #[test]
     fn fanout_per_call_alpha_census() {
-        let world =
-            startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
-                .expect("fanout census world should freeze");
+        let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("fanout census world should freeze");
         let src = "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
                    (:wat::rete::collect-rules :fan)) 100 20))";
         let ast = crate::parse_one!(src).expect("parse the fire driver");
@@ -7311,10 +8114,17 @@ mod tests {
         // quietly understated every share. A wrong number that looks plausible is worse than one
         // that reads 209%. These four are the actual brackets around a fire; everything else is a
         // component of one of them.
-        const FIRE_PHASES: [&str; 4] =
-            ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"];
-        let fire: u64 =
-            rows.iter().filter(|(n, _)| FIRE_PHASES.contains(n)).map(|(_, ns)| *ns).sum();
+        const FIRE_PHASES: [&str; 4] = [
+            "IN: to_transient",
+            "SETUP: indexes",
+            "ROUND LOOP",
+            "OUT: to_persistent",
+        ];
+        let fire: u64 = rows
+            .iter()
+            .filter(|(n, _)| FIRE_PHASES.contains(n))
+            .map(|(_, ns)| *ns)
+            .sum();
         let mut table = String::from(
             "\n  FANOUT PER-CALL CENSUS — keys=100 x fanout=20 (R4's 40,000-pair cell), D=1\n\
              \n  phase                                 ms   % of fire\n\
@@ -7324,7 +8134,11 @@ mod tests {
             table.push_str(&format!(
                 "  {n:<32} {:>8.3} {:>10.1}%\n",
                 *ns as f64 / 1e6,
-                if fire > 0 { *ns as f64 * 100.0 / fire as f64 } else { 0.0 }
+                if fire > 0 {
+                    *ns as f64 * 100.0 / fire as f64
+                } else {
+                    0.0
+                }
             ));
         }
         table.push_str(&format!(
@@ -7386,7 +8200,10 @@ mod tests {
     }
 
     fn kv(i: usize) -> (Value, Value) {
-        (Value::String(Arc::new(format!("?v{i}"))), Value::i64(i as i64))
+        (
+            Value::String(Arc::new(format!("?v{i}"))),
+            Value::i64(i as i64),
+        )
     }
 
     #[test]
@@ -7418,9 +8235,8 @@ mod tests {
 
             // Each child contributes one shared key (skipped) + one new key — the real shape:
             // a join key already bound by the parent, plus the element's own variable.
-            let el: Vec<Vec<(Value, Value)>> = (0..FANOUT)
-                .map(|f| vec![kv(0), kv(1000 + f)])
-                .collect();
+            let el: Vec<Vec<(Value, Value)>> =
+                (0..FANOUT).map(|f| vec![kv(0), kv(1000 + f)]).collect();
 
             // Faithfulness gate FIRST: the twin must produce the same logical binding set, or
             // the timings below are comparing two different computations.
@@ -7435,13 +8251,18 @@ mod tests {
                     a.len()
                 );
                 for (k, v) in a.iter() {
-                    assert_eq!(t.get(k), Some(v), "card {c}: key {k:?} disagrees between reps");
+                    assert_eq!(
+                        t.get(k),
+                        Some(v),
+                        "card {c}: key {k:?} disagrees between reps"
+                    );
                 }
             }
 
             let mut warm = 0usize;
             for e in &el {
-                warm += bindings_extend_trie(&trie, e).size() + bindings_extend_array(&arr, e).len();
+                warm +=
+                    bindings_extend_trie(&trie, e).size() + bindings_extend_array(&arr, e).len();
             }
             black_box(warm);
 
@@ -7474,13 +8295,20 @@ mod tests {
             let t0 = std::time::Instant::now();
             for _ in 0..REPS * FANOUT {
                 black_box(
-                    black_box(&arr).iter().find(|(k, _)| k == black_box(&probe)).map(|(_, v)| v),
+                    black_box(&arr)
+                        .iter()
+                        .find(|(k, _)| k == black_box(&probe))
+                        .map(|(_, v)| v),
                 );
             }
             let get_arr = t0.elapsed().as_nanos() as f64 / (REPS * FANOUT) as f64;
 
-            if ext_arr < ext_trie { extend_array_wins += 1; }
-            if get_arr < get_trie { get_array_wins += 1; }
+            if ext_arr < ext_trie {
+                extend_array_wins += 1;
+            }
+            if get_arr < get_trie {
+                get_array_wins += 1;
+            }
 
             table.push_str(&format!(
                 "  {c:>4}  {ext_trie:>10.1}ns  {ext_arr:>11.1}ns  {:>6.2}x  {get_trie:>10.1}ns  {get_arr:>10.1}ns  {:>6.2}x\n",
@@ -7495,12 +8323,19 @@ mod tests {
              \x20 DOMINANCE (array wins EVERY cardinality on extend): {}\n",
             cards.len(),
             cards.len(),
-            if extend_array_wins == cards.len() { "YES" } else { "NO — a threshold, so R60's cut stands" },
+            if extend_array_wins == cards.len() {
+                "YES"
+            } else {
+                "NO — a threshold, so R60's cut stands"
+            },
         ));
         println!("{table}");
 
         // The probe must have measured something; a zero here means it timed nothing.
-        assert!(extend_array_wins + get_array_wins < usize::MAX, "unreachable");
+        assert!(
+            extend_array_wins + get_array_wins < usize::MAX,
+            "unreachable"
+        );
     }
 
     /// The one committed instrument for row 1 and row 2 of the EXPECTATIONS scorecard: fires
@@ -7530,7 +8365,13 @@ mod tests {
         let (alpha_by_type, alpha_cond) = build_alpha_index(&wm, &node_ids);
         let tree = AlphaTree::build(&alpha_by_type, &alpha_cond, world.symbols());
         let facts = all_facts_of(&fired);
-        AlphaTreeFixture { world, tree, alpha_by_type, alpha_cond, facts }
+        AlphaTreeFixture {
+            world,
+            tree,
+            alpha_by_type,
+            alpha_cond,
+            facts,
+        }
     }
 
     /// Row 1 / STOP-2 — the ONE contract decision, as a test: for every fact the `[50 100]`
@@ -7540,8 +8381,13 @@ mod tests {
     /// STOP-2, rather than relaxed or special-cased.
     #[test]
     fn alpha_tree_candidate_set_is_superset_of_true_matches_at_50_100() {
-        let AlphaTreeFixture { world, tree, alpha_by_type, alpha_cond, facts } =
-            alpha_tree_fixture_50_100();
+        let AlphaTreeFixture {
+            world,
+            tree,
+            alpha_by_type,
+            alpha_cond,
+            facts,
+        } = alpha_tree_fixture_50_100();
         let sym = world.symbols();
         assert!(
             !facts.is_empty(),
@@ -7570,14 +8416,21 @@ mod tests {
                 .flatten()
                 .filter(|aid| {
                     let cond = &alpha_cond[aid];
-                    crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names)
-                        .is_some()
+                    crate::rete::matcher::alpha_match_inner(
+                        cond,
+                        fact_class,
+                        fact_fields,
+                        field_names,
+                    )
+                    .is_some()
                 })
                 .copied()
                 .collect();
 
-            let candidate_set: std::collections::HashSet<i64> =
-                tree.candidates(fact_class, fact_fields).into_iter().collect();
+            let candidate_set: std::collections::HashSet<i64> = tree
+                .candidates(fact_class, fact_fields)
+                .into_iter()
+                .collect();
 
             let missing: Vec<i64> = true_set.difference(&candidate_set).copied().collect();
             assert!(
@@ -7605,8 +8458,16 @@ mod tests {
     /// nothing — the trap-door row 1/5/6 would not catch) cannot read as success.
     #[test]
     fn alpha_tree_discriminates_candidates_to_about_one_at_50_100() {
-        let AlphaTreeFixture { tree, alpha_by_type, facts, .. } = alpha_tree_fixture_50_100();
-        assert!(!facts.is_empty(), "the [50 100] cascade fixture produced no facts");
+        let AlphaTreeFixture {
+            tree,
+            alpha_by_type,
+            facts,
+            ..
+        } = alpha_tree_fixture_50_100();
+        assert!(
+            !facts.is_empty(),
+            "the [50 100] cascade fixture produced no facts"
+        );
 
         let mut n = 0u64;
         let mut with_tree_total = 0u64;
@@ -7628,7 +8489,10 @@ mod tests {
             *with_tree_hist.entry(with_tree).or_default() += 1;
             n += 1;
         }
-        assert!(n > 0, "no Aggregate (non-Struct) facts were checked — the test measured nothing");
+        assert!(
+            n > 0,
+            "no Aggregate (non-Struct) facts were checked — the test measured nothing"
+        );
 
         let mean_with = with_tree_total as f64 / n as f64;
         let mean_without = without_tree_total as f64 / n as f64;
@@ -7698,10 +8562,18 @@ mod tests {
     fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
         use crate::rete::compiled_cond::exec_compiled;
 
-        let AlphaTreeFixture { world, alpha_by_type, alpha_cond, facts, .. } =
-            alpha_tree_fixture_50_100();
+        let AlphaTreeFixture {
+            world,
+            alpha_by_type,
+            alpha_cond,
+            facts,
+            ..
+        } = alpha_tree_fixture_50_100();
         let sym = world.symbols();
-        assert!(!facts.is_empty(), "the [50 100] cascade fixture produced no facts");
+        assert!(
+            !facts.is_empty(),
+            "the [50 100] cascade fixture produced no facts"
+        );
 
         let compiled = compile_all(&alpha_by_type, &alpha_cond, sym);
         let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
@@ -7725,8 +8597,12 @@ mod tests {
             // tree would have pruned too.
             for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
                 let cond = &alpha_cond[aid];
-                let interpreted =
-                    crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names);
+                let interpreted = crate::rete::matcher::alpha_match_inner(
+                    cond,
+                    fact_class,
+                    fact_fields,
+                    field_names,
+                );
                 let via_compiled = exec_compiled(&compiled[aid], fact_fields, &mut scratch);
 
                 match (&interpreted, &via_compiled) {
@@ -7749,7 +8625,10 @@ mod tests {
             }
         }
 
-        assert!(checked > 0, "no (fact, alpha) pairs were checked — the differential measured nothing");
+        assert!(
+            checked > 0,
+            "no (fact, alpha) pairs were checked — the differential measured nothing"
+        );
         assert!(
             matched_checked > 0,
             "every pair agreed None/None — the array-equality assertion (the actual STOP-1 \
@@ -7772,10 +8651,18 @@ mod tests {
     fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
         use crate::rete::compiled_cond::exec_compiled;
 
-        let AlphaTreeFixture { world, alpha_by_type, alpha_cond, facts, .. } =
-            alpha_tree_fixture_50_100();
+        let AlphaTreeFixture {
+            world,
+            alpha_by_type,
+            alpha_cond,
+            facts,
+            ..
+        } = alpha_tree_fixture_50_100();
         let sym = world.symbols();
-        assert!(!facts.is_empty(), "the [50 100] cascade fixture produced no facts");
+        assert!(
+            !facts.is_empty(),
+            "the [50 100] cascade fixture produced no facts"
+        );
 
         let compiled = compile_all(&alpha_by_type, &alpha_cond, sym);
 
@@ -7814,14 +8701,20 @@ mod tests {
                 for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
                     interp_calls += 1;
                     let _ = crate::rete::matcher::alpha_match_inner(
-                        &alpha_cond[aid], fact_class, fact_fields, field_names,
+                        &alpha_cond[aid],
+                        fact_class,
+                        fact_fields,
+                        field_names,
                     );
                 }
             }
         });
 
         let get = |rows: &[(&'static str, u64)], name: &str| -> u64 {
-            rows.iter().find(|(n, _)| *n == name).map(|(_, c)| *c).unwrap_or(0)
+            rows.iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, c)| *c)
+                .unwrap_or(0)
         };
         let compiled_key_allocs = get(&compiled_rows, "match:key-alloc");
         let interp_key_allocs = get(&interp_rows, "match:key-alloc");
@@ -7835,7 +8728,10 @@ mod tests {
             100.0 * fails as f64 / calls.max(1) as f64
         );
 
-        assert!(calls > 0 && fails > 0, "the corpus produced no failing calls — row 2 would be vacuous");
+        assert!(
+            calls > 0 && fails > 0,
+            "the corpus produced no failing calls — row 2 would be vacuous"
+        );
         assert_eq!(
             compiled_key_allocs, 0,
             "STOP-3: the compiled path allocated {compiled_key_allocs} binding key(s) on this \

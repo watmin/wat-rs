@@ -1,12 +1,19 @@
 # DESIGN-STONE — THE ONE EXPRESSION CORE: the Op set, drawn
 
-> **Status: DRAWN 2026-08-06.** Step 1 of #49's ruled shape (`ONE CORE, THREE ADJACENT FLIPS`,
+> **Status: DRAWN 2026-08-06. Rulings amended 2026-08-17.**
+> Live breadcrumb: **`CURRENT-STATE-annihilate-interpretation.md`**.
+> Step 1 of #49's ruled shape (`ONE CORE, THREE ADJACENT FLIPS`,
 > `DESIGN-STONE-compiled-where.md`). The builder ruled the layout the same day:
 > **nesting — "matches the precedent"**. A sub-expression is a CHILD NODE, never a jump offset.
 >
 > This stone draws the set. It does **not** build it. Everything below is derived from the disk
 > this session — the 75-row `RETE_OPS` table, `dispatch_rete_op`, `eval_test_core`,
 > `compiled_cond::Op`, `RhsOp`, and a corpus census of all 173 `where` predicates.
+>
+> **2026-08-17.** STOP-2 (frame) is RULED: copied captures. A lambda is a `Program`;
+> capture is slots filled earlier, not a parent pointer. Named recursion is refused
+> at rete-defn load (`ReteDefnRecursive`). The fifth-axis termination proposal stays
+> retracted. HOF fn-arg-as-runtime-`Program` vs lexical-callee is still OPEN.
 
 ## What the vocabulary actually is — 75 rows, and only SEVEN are lazy
 
@@ -195,10 +202,14 @@ One is a frontier you can measure; the other is a fact you cannot observe.
   scrutinee's declared type — grounded as possible, not yet drawn.
   *(This is the file I had not read, and it is the whole reason the hatch got drawn.
   `[[feedback_ground_the_substrate_not_just_the_chronicle]]` — applied to a doc comment.)*
-- **STOP-2 — the frame model across a closure is genuinely NEW.** `compiled_cond` has no closures;
-  `Lambda` does. A `fn` handed to `foldl` may reference the enclosing frame, so the capture model
-  (flat frame + copied captures vs a parent pointer) is an open decision, not a detail. The corpus
-  exercises it: `foldl` ×4, `fn` ×4.
+- **✅ STOP-2 RULED 2026-08-17 — copied captures.** A lambda is a compiled `Program`, the
+  same kind as a rete-defn. Capture is concrete values written into slots at creation
+  (Minamide's `(code, env)`), not a parent pointer into a live interpreter frame.
+  The four live `foldl`s (`where-collection`, `user-reduce`) have **no frees** — they
+  do not force the representation; the ruling is for the form we will compile, not
+  because the corpus demanded it. HOF *callee identity* (may a `Program` arrive as a
+  value at `foldl`?) is a **different** open question — see
+  `CURRENT-STATE-annihilate-interpretation.md`.
 - **✅ STOP-3 RESOLVED, and the first answer was wrong (2026-08-06).** I wrote *"call the
   interpreter for the callee body — cheap, honest"* and defended it as a call boundary. The builder
   cut it: *"this `CallUser` screams 'we did not achieve totality, a user can surprise us'."*
@@ -341,9 +352,12 @@ TERMINATION"* — was the honest position I should have left standing rather tha
 
 1. **`CallUser` calls a compiled `Program`.** The callee is in the closed language. That correction
    stands on its own — it was never a termination argument.
-2. **The lowerer must handle a BACK-EDGE.** Recursion is admitted, so lowering must compile a
-   recursive callee rather than inline it. Every compiler does this; it is a design note for #49,
-   not a language restriction. Inlining becomes a per-callee optimisation gated on *not* recursive.
+2. **~~The lowerer must handle a BACK-EDGE.~~ SUPERSEDED 2026-08-17.** Recursion in
+   `:wat::rete::core::defn` is **refused at load**. The fifth axis stays retracted (`pure?`
+   still admits a cycle — a cycle is not impure). The wall is the declaration, eBPF-shaped,
+   not a new axis and not a runtime budget. `lower()` therefore never sees a named recursive
+   rete-defn; inlining is always legal for an admitted callee. See
+   `CURRENT-STATE-annihilate-interpretation.md`.
 3. **The rete surface RAISES #58's PRIORITY without changing its ownership.** What is genuinely
    different here is not the defect but the **exposure**: the engine invokes a predicate on facts
    the author never chose — and R25's chaos engine is line-rate, adversarial input by design. A

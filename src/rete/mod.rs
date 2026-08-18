@@ -62,6 +62,9 @@ pub(crate) mod compiled_cond;
 // the reference implementation and the differential's other half; this is the mechanism that stops
 // the RHS's static program being re-derived dynamically.
 pub(crate) mod compiled_rhs;
+// DESIGN-STONE-the-one-expression-core — one Expr DAG, three adjacent flips.
+// This module is the core. `where` is the first consumer. No Interp arm.
+pub(crate) mod expr_ir;
 // Arc 278 #55 (S3b+S4) slice one — THE ONE table of rete-namespaced vocabulary ops
 // (`RETE_OPS`), the module-set admission test (`RETE_MODULES` / `rete_vocabulary_admitted`),
 // and the generic per-class shapes `check.rs`/`runtime.rs`/`purity.rs` iterate. See the

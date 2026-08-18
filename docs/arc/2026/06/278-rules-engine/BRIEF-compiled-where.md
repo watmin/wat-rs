@@ -1,5 +1,16 @@
 # BRIEF — compile the `where` predicate (`src/rete/compiled_where.rs`)
 
+> ⛔ **STALE as of 2026-08-17. Do not execute this brief.**
+>
+> The builder cut `Op::Interp` on sight. A third sibling compiler was refused in
+> favor of **one core** (`src/rete/expr_ir.rs`) and three adjacent flips.
+> Live breadcrumb: **`CURRENT-STATE-annihilate-interpretation.md`**.
+> Design: `DESIGN-STONE-the-one-expression-core.md` + `DESIGN-STONE-compiled-where.md`
+> (the three-step plan and Step 0 numbers are still load-bearing; the `Interp` arm
+> and the `compiled_where.rs` sketch in *this* file are not).
+>
+> Kept on disk so the hatch's refusal has a document to point at.
+
 Design: `DESIGN-STONE-compiled-where.md` (read its Step-0 table and the probe results first).
 Prior art to mirror: `src/rete/compiled_cond.rs` — same shape, same contract style, one arm different.
 

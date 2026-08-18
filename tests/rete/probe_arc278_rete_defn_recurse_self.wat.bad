@@ -1,0 +1,13 @@
+;; Arc 278 #87 — SELF-RECURSIVE rete-defn must be refused at LOAD.
+;;
+;; eBPF-shaped: a user expression may not fault the fire loop. `total?` does not
+;; include termination; this file is the wall that does. `:probe::countdown` is
+;; otherwise law-A clean (rete `if` + rete i64). The cycle is the only refuse.
+
+(:wat::rete::core::defn :probe::countdown [n <- :wat::core::i64] -> :wat::core::i64
+  (:wat::rete::core::if (:wat::rete::core::i64::> n 0)
+    (:probe::countdown (:wat::rete::core::i64::- n 1 :undefined 0))
+    0))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println 1))

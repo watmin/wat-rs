@@ -26,7 +26,13 @@ is the EXECUTION.
 > derived from the 75-row `RETE_OPS` table, `dispatch_rete_op`, `eval_test_core`, and a census
 > of all 173 corpus `where` predicates. **There is NO interpreter escape hatch** — `lower()` is
 > total or it refuses (the builder cut the `Interp(WatAST)` arm on sight; the stone records why).
-> Three STOPs remain — the closure frame, `CallUser`, and result-vs-value — read them before briefing.
+>
+> **2026-08-17.** The endeavor is now: annihilate all interpretation in wat-rete.
+> Live breadcrumb: **`CURRENT-STATE-annihilate-interpretation.md`**.
+> STOP-1 (match grammar) and STOP-3 (`CallUser` lowers) closed the same day as the draw.
+> STOP-2 (frame) ruled 2026-08-17: copied captures. STOP-4 (eval returns `Result`) stands.
+> Do **not** follow `BRIEF-compiled-where.md` — it still specifies `Op::Interp` and a
+> third sibling `compiled_where.rs`. The module is `src/rete/expr_ir.rs`.
 
 ### THE THREE STEPS — do not collapse them
 

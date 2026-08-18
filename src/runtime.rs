@@ -2485,6 +2485,13 @@ pub fn register_runtime_defs(
                 )
                 .into());
             }
+            crate::rete::purity::ReteDefnCheckOutcome::Recursive { name, head, span } => {
+                return Err(RuntimeError::new(
+                    span,
+                    RuntimeErrorKind::ReteDefnRecursive { name, head },
+                )
+                .into());
+            }
         }
     }
     Ok(())
@@ -5566,6 +5573,8 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
         // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
         ":wat::rete::eval-test" => crate::rete::matcher::eval_test(args, list_span, env, sym),
+        // #49 — rule-compile refuse: lower the where expr or raise. Returns nil on success.
+        ":wat::rete::lower" => crate::rete::expr_ir::eval_lower(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),

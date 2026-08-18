@@ -514,6 +514,16 @@ pub enum RuntimeErrorKind {
         axis: &'static str,
         head: String,
     },
+    /// Arc 278 #87 — a `(:wat::rete::core::defn …)` declaration's body (transitively)
+    /// calls itself, or participates in a cycle of rete-defns. eBPF-shaped: a static
+    /// refusal at LOAD, never a runtime budget. Once the fn is in the network every
+    /// fire must complete; a user expression may not hang or blow the fire loop.
+    /// `name` is the declared helper; `head` is the callee that closed the cycle
+    /// (equal to `name` for self-recursion). Not an axis — a cycle is still pure.
+    ReteDefnRecursive {
+        name: String,
+        head: String,
+    },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError.
@@ -752,6 +762,13 @@ impl RuntimeErrorKind {
                  (a rete-defn's body is checked ONCE, at ITS OWN declaration, against Pure ∧ \
                  Deterministic ∧ Total ∧ Law A; nothing calling {} needs to re-derive this)",
                 prefix, name, head, axis, name
+            ),
+            RuntimeErrorKind::ReteDefnRecursive { name, head } => write!(
+                f,
+                "{}(:wat::rete::core::defn {} ...): declaration refused — recursive callee '{}' \
+                 (a rete-defn may not recurse; a user expression may not fault the fire loop — \
+                 fold over a finite collection)",
+                prefix, name, head
             ),
         }
     }

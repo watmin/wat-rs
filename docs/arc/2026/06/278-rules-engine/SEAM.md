@@ -9,8 +9,11 @@
 > source into facts, and a diagnostic that names the cause instead of the call site — did not
 > exist in June and all three landed today.
 >
-> **What 278 holds when you return:** rete is ONE optimization from done — compiled `where`
-> forms (#49). The arc: prove the compiler in rete, then compile all of wat. Still open: **#92**
+> **What 278 holds when you return:** rete is ONE optimization from done — compiled exprs
+> (`#49` / annihilate interpretation). Live breadcrumb:
+> **`CURRENT-STATE-annihilate-interpretation.md`**. Expressivity (Clara-pure mouths) is
+> closed. Named rete-defn recursion is refused at load. `expr_ir.rs` is unbuilt. The arc:
+> prove the compiler in rete, then compile all of wat. Still open: **#92**
 > (invert the decode; a PREREQUISITE to symbol-heads, not an alternative), **#93**, **#91**,
 > **#90**, and the grid's untested FEATURE INTERACTIONS — #94 lived in one such seam and the
 > others are unswept.

@@ -73,7 +73,10 @@ the body checked at the definition against:
 
 1. **Law A** — composes only rete primitives and other rete-defns
 2. **Pure ∧ deterministic ∧ total** — the other three axes the fence already measures
-3. *(later, #87)* **no recursion** and **the bound** — see NOT IN SCOPE
+3. **no recursion** — **SHIPPED 2026-08-17** (`ReteDefnRecursive` at
+   `apply_rete_defn_contracts`; probes `tests/rete/probe_arc278_rete_defn_recurse*`).
+   The depth/nodes/`fold_nesting` *numbers* remain NOT IN SCOPE (builder sets them;
+   do not derive from the corpus). See `CURRENT-STATE-annihilate-interpretation.md`.
 
 The four checks already exist as Rust walks in `purity.rs` (`is_pure_expr` / `is_deterministic_expr`
 / `is_total_expr` / `is_rete_primitive_expr`). **This stone runs them one phase earlier, at the
@@ -225,11 +228,10 @@ by the gate. It moves from raise-at-freeze to value-at-registration.
 
 ## NOT IN SCOPE — deliberately
 
-- **The bound** (`depth`/`nodes`/`fold_nesting`, #87). A declaration is its natural home — computed
-  once at the definition instead of re-derived per call site — but it hangs on the marker AFTER the
-  marker exists. Land the declaration, then hang the bound. Adjacent, then flip.
-- **The no-recursion rule** (#86/#87). Same reasoning: it belongs at the declaration, and it lands
-  with the bound it enables.
+- **The numeric bound** (`depth`/`nodes`/`fold_nesting`). A declaration is its natural home —
+  computed once at the definition instead of re-derived per call site — but the *numbers* are
+  the builder's. Do not take them from the corpus. Recursion (the back-edge) is no longer
+  in this list: it shipped 2026-08-17 as a load refusal, without waiting on the numbers.
 
 ---
 

@@ -20258,6 +20258,15 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    env.register(
+        ":wat::rete::lower".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::nil".into()),
+            rest_param_type: None,
+        },
+    );
     // BRIEF-the-fence-names-the-head — a third sibling beside pure?/deterministic?, additive only
     // (STOP-1: those two are UNCHANGED). Same walk, surfacing the violation instead of discarding
     // it. `:wat::rete::AxisViolation` and `:wat::rete::Axis` are declared via `defrecord`/`defenum`

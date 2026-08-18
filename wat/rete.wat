@@ -795,6 +795,9 @@
                                         (:wat::core::if (:wat::core::and is-pure is-det is-total)
                                           :wat::rete::Axis::RetePrimitive
                                           (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                        ;; #49 — lower at rule-compile. A form that cannot lower never
+                        ;; enters the network. Fire only executes the circuit.
+                        _lowered  (:wat::rete::lower expr)
                         ;; mint the TestNode
                         network0  (:wat::rete::CompileState/network state0)
                         next-id0  (:wat::rete::CompileState/next-id state0)

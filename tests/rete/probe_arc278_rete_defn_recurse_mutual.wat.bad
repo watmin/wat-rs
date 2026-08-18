@@ -1,0 +1,11 @@
+;; Arc 278 #87 — MUTUAL rete-defn cycle must be refused at LOAD.
+;; Each body is otherwise law-A clean. The cycle is a↔b.
+
+(:wat::rete::core::defn :probe::a [n <- :wat::core::i64] -> :wat::core::i64
+  (:probe::b n))
+
+(:wat::rete::core::defn :probe::b [n <- :wat::core::i64] -> :wat::core::i64
+  (:probe::a n))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println 1))

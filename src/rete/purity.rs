@@ -1560,14 +1560,21 @@ pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -
 /// leaves the decision of "raise at boot" vs "reply on a wire" to its caller, instead of
 /// deciding it here by returning something that IS itself a raise.
 pub(crate) enum ReteDefnCheckOutcome {
-    /// Every declared rete-defn in this registration batch proved all four axes;
-    /// `Function::rete` has been stamped for each.
+    /// Every declared rete-defn in this registration batch proved all four axes
+    /// and has no call-graph cycle; `Function::rete` has been stamped for each.
     Ok,
     /// The 400-class sibling of `RequestMalformed`: a declared rete-defn's body failed
     /// `axis`, at `head` — located (`span`), structured, never prose standing in for it.
     AxisViolation {
         name: String,
         axis: &'static str,
+        head: String,
+        span: Span,
+    },
+    /// #87 — the body (transitively) calls itself. Not an axis: a cycle is still
+    /// pure ∧ det ∧ total ∧ rete. eBPF-shaped static refusal at LOAD.
+    Recursive {
+        name: String,
         head: String,
         span: Span,
     },
@@ -1616,17 +1623,9 @@ pub(crate) fn apply_rete_defn_contracts(
         for axis in Axis::ALL {
             // SEED `seen` WITH THE NAME BEING DECLARED. A self-call inside the very body we are
             // proving would otherwise reach `classify_fn` while this name is still `rete: None`
-            // (the stamp happens below, after all four axes pass) and be denied for calling
-            // ITSELF — a chicken-and-egg that refuses every self-recursive rete-defn, with the
-            // diagnostic naming the fn as its own offending head.
-            //
-            // This is PARITY, not new leniency: `classify_fn`'s own cycle guard is
-            // `if seen.contains(fqdn) { return Ok(()) } // back-edge — no new violation from the
-            // recursive call`, and pre-#88 a self-recursive fn was admitted by exactly that rule
-            // (`self_recursive_pure_fn_is_pure` / `..._is_deterministic` passed at HEAD). Seeding
-            // reproduces it at the declaration site. Bounding recursion is #87's ruling to make,
-            // explicitly NOT IN SCOPE here — so #88 must not forbid, by accident, what the stone
-            // deferred on purpose.
+            // (the stamp happens below, after all four axes pass) and be denied on law A for
+            // calling ITSELF — which would LIE ("is not a rete primitive" about a rete-defn).
+            // The four axes stay silent on cycles; #87's refusal is the walk AFTER this loop.
             //
             // AND SEED IT WITH EVERY OTHER DECLARED NAME, for the same reason one step out.
             // `declared` is a HashSet, so `for name in declared` runs in ARBITRARY, run-varying
@@ -1652,11 +1651,125 @@ pub(crate) fn apply_rete_defn_contracts(
                 };
             }
         }
+        if let Some((head, span)) = rete_defn_cycle(name, body_ast.as_ref(), sym) {
+            return ReteDefnCheckOutcome::Recursive {
+                name: name.clone(),
+                head,
+                span,
+            };
+        }
         let mut declared_func = (*func).clone();
         declared_func.rete = Some(crate::value::ReteContract::default());
         sym.register_function(name.clone(), Arc::new(declared_func));
     }
     ReteDefnCheckOutcome::Ok
+}
+
+/// #87 — a rete-defn may not recurse. Gray-node DFS over named `FunctionBody::Wat`
+/// callees reachable from `root_name`'s body. A back-edge is a cycle. Natives and
+/// rete primitives have no Wat body and are not followed. `pure?` is unchanged:
+/// this walk is a LOAD refusal, not a fifth axis.
+fn rete_defn_cycle(root_name: &str, body: &WatAST, sym: &SymbolTable) -> Option<(String, Span)> {
+    let mut gray: HashSet<String> = HashSet::new();
+    gray.insert(root_name.to_string());
+    let mut black: HashSet<String> = HashSet::new();
+    walk_rete_defn_callees(body, &mut gray, &mut black, sym)
+}
+
+fn walk_rete_defn_callees(
+    ast: &WatAST,
+    gray: &mut HashSet<String>,
+    black: &mut HashSet<String>,
+    sym: &SymbolTable,
+) -> Option<(String, Span)> {
+    match ast {
+        WatAST::List(items, list_span) => {
+            let head = match items.first() {
+                Some(WatAST::Keyword(k, _)) => Some(k.as_str()),
+                Some(WatAST::Symbol(id, _)) => Some(id.as_str()),
+                _ => None,
+            };
+            if let Some(head) = head {
+                if matches!(head, ":wat::core::quote" | ":wat::core::quasiquote" | ":wat::holon::literal") {
+                    return None;
+                }
+                let core = crate::rete::vocabulary::resolve_core_name(head);
+                if core == ":wat::core::fn" {
+                    if let Some(i) = items
+                        .iter()
+                        .position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->"))
+                    {
+                        for e in items.get(i + 2..).unwrap_or(&[]) {
+                            if let Some(hit) = walk_rete_defn_callees(e, gray, black, sym) {
+                                return Some(hit);
+                            }
+                        }
+                    }
+                    return None;
+                }
+                if core == ":wat::core::match" {
+                    if let Some(scrut) = items.get(1) {
+                        if let Some(hit) = walk_rete_defn_callees(scrut, gray, black, sym) {
+                            return Some(hit);
+                        }
+                    }
+                    for arm in items.get(2..).unwrap_or(&[]) {
+                        if let WatAST::List(parts, _) = arm {
+                            for e in parts.iter().skip(1) {
+                                if let Some(hit) = walk_rete_defn_callees(e, gray, black, sym) {
+                                    return Some(hit);
+                                }
+                            }
+                        }
+                    }
+                    return None;
+                }
+                if let Some(func) = sym.get(head) {
+                    if let FunctionBody::Wat(callee_body) = &func.body {
+                        if gray.contains(head) {
+                            return Some((head.to_string(), list_span.clone()));
+                        }
+                        if !black.contains(head) {
+                            gray.insert(head.to_string());
+                            if let Some(hit) =
+                                walk_rete_defn_callees(callee_body.as_ref(), gray, black, sym)
+                            {
+                                return Some(hit);
+                            }
+                            gray.remove(head);
+                            black.insert(head.to_string());
+                        }
+                    }
+                }
+            }
+            for a in items.iter().skip(1) {
+                if let Some(hit) = walk_rete_defn_callees(a, gray, black, sym) {
+                    return Some(hit);
+                }
+            }
+            None
+        }
+        WatAST::Vector(elems, _) | WatAST::Set(elems, _) => {
+            for e in elems {
+                if let Some(hit) = walk_rete_defn_callees(e, gray, black, sym) {
+                    return Some(hit);
+                }
+            }
+            None
+        }
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                if let Some(hit) = walk_rete_defn_callees(k, gray, black, sym) {
+                    return Some(hit);
+                }
+                if let Some(hit) = walk_rete_defn_callees(v, gray, black, sym) {
+                    return Some(hit);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 // ─── WAT surfaces ───────────────────────────────────────────────────────────────

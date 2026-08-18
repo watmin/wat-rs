@@ -35,6 +35,8 @@ pub enum FunctionBody {
 /// `#87` hangs the bound (`depth` / `nodes` / `fold_nesting`) here — adding a field to THIS
 /// struct costs nothing, where a second field on [`Function`] would re-cascade across every
 /// construction site a second time. Empty today; `Some(ReteContract {})` is itself the marker.
+/// Recursion is refused at declaration (`apply_rete_defn_contracts` → `ReteDefnRecursive`);
+/// it does not live on this struct.
 #[derive(Clone, Debug, Default)]
 pub struct ReteContract {}
 

@@ -65,3 +65,9 @@ A field-only `(:Type …)` does not put the record on a binding.
 Clara | wat-oracle | wat-native on the query families
 (`where-query-compat`, `where-query-params`, `where-fact-bind`).
 `where-query-compat` prints binding maps (sorted scalars), not just `n=`.
+
+## This list is empty. Next endeavor is not a mouth.
+
+2026-08-17: all five items above are locked. Do not invent a sixth mouth.
+The next work is **annihilate interpretation** — compile every rete expr.
+Breadcrumb: `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`.
