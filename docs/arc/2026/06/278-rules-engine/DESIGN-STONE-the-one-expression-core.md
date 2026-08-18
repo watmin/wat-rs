@@ -7,9 +7,11 @@
 > **nesting — "matches the precedent"**. A sub-expression is a CHILD NODE, never a jump offset.
 >
 > This stone drew the set. **`src/rete/expr_ir.rs` now exists** — `where` only.
-> `cond` / `rhs` / user-folds are **parked** until the oracle exists/not path
-> is rete-sane. Everything below is the draw; if a line here disagrees with
-> CURRENT-STATE, CURRENT-STATE wins.
+> Flips, in order: `cond`, `rhs`, **user acc folds** (8-custom /
+> `user-reduce` — on the list, a perf flip, do not drop). Oracle
+> leftover rematch unparked them (`54f4adb4`). Everything below is
+> the draw; if a line here disagrees with CURRENT-STATE,
+> CURRENT-STATE wins.
 >
 > **2026-08-17.** STOP-2 (frame) is RULED: copied captures. A lambda is a `Program`;
 > capture is slots filled earlier, not a parent pointer. Named recursion is refused

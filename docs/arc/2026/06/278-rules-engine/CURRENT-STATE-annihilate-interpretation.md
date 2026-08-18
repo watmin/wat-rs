@@ -7,10 +7,23 @@
 
 **Right now:** leftover rematch is on exists/not, HashJoin, and
 accumulate `:from`. Clara mouths 1–7 locked. Compiler unification
-is **unparked**: flip `compiled_cond`, then `compiled_rhs`. That is
-the three-step list (`DESIGN-STONE-compiled-where.md`). User acc
-folds are a **fourth surface** of the same `Expr` core, not a
-required flip. `(b)` ShadowNode after cond/rhs sit on `Expr`.
+is **unparked**. The list (do not drop an item):
+
+1. One `Expr` core — drawn.
+2. Wire `where` — **done** (`30725034`).
+3. Flip `compiled_cond`.
+4. Flip `compiled_rhs`.
+5. Flip **user acc folds** (`user-reduce` / 8-custom: today
+   `eval_inner` of `(user-fn __acc__)` per token). Same `Expr`
+   core. `CallUser` + `foldl` already exist. This is a **perf
+   flip**, builder 2026-08-17: *as much perf as we can get — do
+   not forget this item.* Grid: we beat Clara at `[10 25]`–
+   `[40 100]` and the ratio **narrows with size**. Compile it
+   so the curve stays flat.
+6. `(b)` ShadowNode — after 3–5 sit on `Expr`.
+
+Keyed `?g` gather is native speed on the same bag, not a
+compiler flip.
 
 **Tree — do not invent a cleaner one:**
 
@@ -78,7 +91,7 @@ residual they never finished specializing. Arc 170's
 `ClosurePackage` (`prologue` + `entry_form`) is the same pair, built
 for process-spawn, not rete.
 
-## The build — one core, three adjacent flips
+## The build — one core, four adjacent flips
 
 Drawn: `DESIGN-STONE-the-one-expression-core.md`.
 Wired for **`where` only** (2026-08-17). `src/rete/expr_ir.rs` exists.
@@ -96,8 +109,11 @@ alphas / `exists-cond-under`. `spec_equals` green.
    offsets. The enum discriminant *is* the jump table.
 2. **Wire only `where`.** **Done.** Differential against `eval_test_core`
    — same `bool`, same `Err`. `eval_test_core` is not deleted.
-3. **Flip `cond`, then `rhs`, one at a time.** Each already has a
-   green interpreter differential. Not started.
+3. **Flip `cond`, then `rhs`, then user acc folds, one at a time.**
+   `cond`/`rhs` already have a green interpreter differential.
+   User folds: `accumulate_value`'s `other` arm (`eval_inner`).
+   Gate: `user-reduce` `[10 25]` / `[40 100]` native fire, and
+   `probe_arc278_8custom_native_differential`. Not started.
 
 There is **no `Interp` arm.** `BRIEF-compiled-where.md` still describes
 `Op::Interp` and a third sibling `compiled_where.rs`. **That brief is
@@ -189,9 +205,9 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 `(foldl ?f 0 xs)` is a `LowerError` (HOF settled). No numeric
 ceiling until one is derived. Cardinality DoS is a later stone.
 
-**Compiler unification is UNPARKED.** The three steps are: one
-core (drawn), wire `where` (done), flip `cond` then `rhs`. User
-acc folds are not a step on that list. Keyed gather is speed.
+**Compiler unification is UNPARKED.** Order: `cond`, `rhs`, **user
+acc folds**. Do not drop the third flip. Keyed gather is a
+separate speed stone.
 
 `(b)` — index the compiled predicates (discrimination tree; lab
 `ShadowNode`, *"only go down paths that are actually possible"*) —
@@ -348,9 +364,9 @@ leftover rematch). Do not push until asked. `origin/main` never
 - Push `origin/main`, never `origin/grok`. Do not push until asked.
 - Do not police termination as a fifth *axis*. The load refusal is
   the wall.
-- Compiler flips are `cond` then `rhs`. Do not invent a third flip
-  named “user folds.” Do not start `(b)` until cond/rhs are on
-  `Expr`. Keyed gather is not a compiler dep.
+- Compiler flips are `cond`, then `rhs`, then **user acc folds**.
+  Do not drop user folds. Do not start `(b)` until those three
+  sit on `Expr`. Keyed gather is not a compiler dep.
 - Do not revert cut 1 back to `wm_fact_slice` for fact-shaped
   inners. Do not fold leftover `?v < ?m` into the alpha probe.
   Do not refuse leading `:exists`.

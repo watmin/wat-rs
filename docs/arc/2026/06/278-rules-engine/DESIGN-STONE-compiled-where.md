@@ -34,11 +34,14 @@ is the EXECUTION.
 > Do **not** follow `BRIEF-compiled-where.md` — it still specifies `Op::Interp` and a
 > third sibling `compiled_where.rs`. The module is `src/rete/expr_ir.rs`.
 >
-> **Step 2 is done** (`30725034`, local, not pushed): `where` is wired;
-> native TestNode stashes `Program` and calls `exec_where`. The
-> "compiled_where | to write" row below is stale. **Step 3
-> (`cond`, then `rhs`) is PARKED** until the oracle exists/not path
-> is rete-sane. Do not flip them because this stone lists them next.
+> **Step 2 is done** (`30725034`): `where` is wired; native TestNode
+> stashes `Program` and calls `exec_where`. The "compiled_where |
+> to write" row below is stale. **Step 3 is UNPARKED** (oracle
+> leftover rematch landed `54f4adb4`). Flip `cond`, then `rhs`,
+> then **user acc folds** (8-custom / `user-reduce` — `eval_inner`
+> per token today). Builder 2026-08-17: that fold is a perf flip,
+> on the list, do not forget it. Live breadcrumb:
+> `CURRENT-STATE-annihilate-interpretation.md`.
 
 ### THE THREE STEPS — do not collapse them
 
@@ -49,8 +52,11 @@ is the EXECUTION.
    opcode in ONE table.
 2. **WIRE ONLY `where` TO IT.** Differential against `eval_test_core`, exactly as its two siblings
    were built.
-3. **THEN FLIP `cond`, THEN `rhs` — ONE AT A TIME.** Never together. If a flip diverges, it
-   diverges alone.
+3. **THEN FLIP `cond`, THEN `rhs`, THEN USER ACC FOLDS — ONE AT A TIME.**
+   Never together. If a flip diverges, it diverges alone. User folds
+   are the 8-custom arm (`accumulate_value` / `accumulate-pass-for-token`):
+   a rete-defn over the gathered PV, today `eval_inner`. Same `Expr`
+   core. Required for the annihilate-interpretation perf bar.
 
 ### WHY THIS IS CHEAP, and the fact that makes it so
 
