@@ -1240,7 +1240,7 @@ fn rematch_compiled(
             RuntimeErrorKind::MalformedForm {
                 head: ":wat::rete::fire-rules'".into(),
                 reason: format!(
-                    "alpha {alpha_id} has no compiled rematch — setup should have compiled every alpha"
+                    "alpha {alpha_id} has no compiled cond — setup should have compiled every fact-shaped alpha"
                 ),
             },
         )
@@ -2900,9 +2900,9 @@ fn compile_alpha_conds_leftover_as_seed(
 }
 
 /// Declared field names for a fact class (colon-free), read from the frozen type registry.
-/// Shared by the per-round `field_names_cache` lookup below and
-/// `alpha_tree::AlphaTree::build` (setup-time tree construction needs the exact same declared
-/// field order the round loop indexes fact fields by — one reader of the registry, not two).
+/// Shared by cond compile at fire setup and `alpha_tree::AlphaTree::build`
+/// (setup-time tree construction needs the exact same declared field order
+/// the compiled ops index fact fields by — one reader of the registry, not two).
 pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
     let type_key = format!(":{}", class);
     sym.types()
@@ -3091,21 +3091,34 @@ fn fire_fixpoint_delta(
     let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
 
     // DESIGN-STONE-compiled-conditions.md — compile each alpha ONCE here, leftover-as-seed.
-    // Populate skips SeedCmp; rematch requires it. `compile_condition_local` never fails for
-    // anything `build_alpha_index` put in `alpha_cond` (see its doc), so the `None` arm
-    // below is a defensive populate fallback, never a rematch door.
+    // Populate skips SeedCmp; rematch requires it. A miss is a setup hole — refuse,
+    // do not walk `alpha_match_inner` at fire. `alpha_pattern` already admitted
+    // every `alpha_cond` entry; `compile_condition_local` returning None is a
+    // compiler bug, not a populate door.
     let mut compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond> =
         HashMap::with_capacity(alpha_cond.len());
     for (class, ids) in &alpha_by_type {
         let cclass_field_names = class_field_names(sym, class);
         for aid in ids {
-            if let Some(cond) = alpha_cond.get(aid) {
-                if let Some(compiled) =
-                    crate::rete::compiled_cond::compile_condition_local(cond, &cclass_field_names)
-                {
-                    compiled_conds.insert(*aid, compiled);
-                }
-            }
+            let Some(cond) = alpha_cond.get(aid) else {
+                continue;
+            };
+            let compiled = crate::rete::compiled_cond::compile_condition_local(
+                cond,
+                &cclass_field_names,
+            )
+            .ok_or_else(|| {
+                RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::rete::fire-rules'".into(),
+                        reason: format!(
+                            "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
+                        ),
+                    },
+                )
+            })?;
+            compiled_conds.insert(*aid, compiled);
         }
     }
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
@@ -3184,10 +3197,6 @@ fn fire_fixpoint_delta(
         readers
     };
 
-    // Group B: field_names_cache — hoisted BEFORE the round loop (fact-class → field names).
-    // Computed once per fact-class encountered across ALL rounds; never recomputed in later rounds.
-    let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
-
     // A8 instrument: the round counter the census stamps its rows with (test-only).
     #[cfg(test)]
     let mut round_no: usize = 0;
@@ -3265,8 +3274,8 @@ fn fire_fixpoint_delta(
             };
             // DESIGN-STONE-alpha-discrimination-tree.md — the candidate set replaces
             // `alpha_by_type.get(fact_class)`'s "every alpha of this type." It is a SUPERSET of
-            // the alphas that will actually match (never a subset); `alpha_match_inner` below is
-            // unchanged and remains the sole authority on whether each candidate truly holds.
+            // the alphas that will actually match (never a subset); `exec_compiled` is the
+            // fire-path authority. A missing compiled cond refuses — do not interpret.
             //
             // ★ MARKED 2026-08-01. `alpha`'s named children summed to 23.5 of its 37.2 ms on the
             // accum cell — 37% of the phase that dominates our WEAKEST grid axis had no mark, and
@@ -3280,52 +3289,24 @@ fn fire_fixpoint_delta(
                 continue; // no alpha matches this fact's type
             }
 
-            // Group B: field_names from cache (fact-class → field names, computed once per class).
-            //
             // ⚠ The `alpha:*` sub-marks below fire PER FACT (and per fact×alpha), not once per node
             // per round like the `accum:*` ones. `Instant::now()` is ~20-25ns, so eight calls
             // against a ~1.5µs/fact phase is a material share of what it measures. Read the
             // instrument's own cost off the census table's calibration line before apportioning,
             // and treat these as PROPORTIONS rather than absolute times.
-            let __afn = phase_start();
-            let field_names: &Vec<String> = field_names_cache
-                .entry(fact_class.to_string())
-                .or_insert_with(|| class_field_names(sym, fact_class));
-            phase_end("  ├ alpha:fieldnames", __afn);
 
             for aid in &alphas {
                 let __am = phase_start();
-                let matched = match compiled_conds.get(aid) {
-                    // DESIGN-STONE-compiled-conditions.md — the compiled executor replaces
-                    // `alpha_match_inner` here, inside the SAME phase mark, so `alpha:match`
-                    // stays an apples-to-apples timing comparison before/after this stone.
-                    Some(compiled) => crate::rete::compiled_cond::exec_compiled(
-                        compiled,
-                        fact_fields,
-                        &mut match_scratch,
-                    ),
-                    // Defensive fallback only — see the comment where `compiled_conds` is built.
-                    None => match alpha_cond.get(aid) {
-                        Some(cond_ast) => {
-                            if crate::rete::matcher::cond_has_deferred_constraint(cond_ast) {
-                                crate::rete::matcher::alpha_match_inner_local(
-                                    cond_ast,
-                                    fact_class,
-                                    fact_fields,
-                                    field_names,
-                                )
-                            } else {
-                                crate::rete::matcher::alpha_match_inner(
-                                    cond_ast,
-                                    fact_class,
-                                    fact_fields,
-                                    field_names,
-                                )
-                            }
-                        }
-                        None => None,
-                    },
-                };
+                // DESIGN-STONE-compiled-conditions.md — the compiled executor replaces
+                // `alpha_match_inner` here, inside the SAME phase mark, so `alpha:match`
+                // stays an apples-to-apples timing comparison before/after this stone.
+                // A miss is a setup hole. Do not walk the interpreter.
+                let compiled = rematch_compiled(&compiled_conds, *aid)?;
+                let matched = crate::rete::compiled_cond::exec_compiled(
+                    compiled,
+                    fact_fields,
+                    &mut match_scratch,
+                );
                 phase_end("  ├ alpha:match", __am);
                 if let Some(bindings) = matched {
                     let bindings = match alpha_cond.get(aid) {

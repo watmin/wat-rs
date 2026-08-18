@@ -669,4 +669,29 @@ mod tests {
             "strict populate still Fails an unbound constraint ?var"
         );
     }
+
+    #[test]
+    fn local_compile_is_some_whenever_alpha_pattern_holds() {
+        // Setup refuses a None from compile_condition_local for any alpha_cond
+        // entry. build_alpha_index only inserts when alpha_pattern holds, so
+        // these shapes must compile. A None here is the populate-interp hatch
+        // coming back.
+        let cases = [
+            "(:wjl::Wind (?w <- :kph))",
+            "(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w 30))",
+            "(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))",
+            "(?p <- :wjl::Wind (?w <- :kph))",
+        ];
+        for src in cases {
+            let ast = crate::parse_one!(src).unwrap_or_else(|_| panic!("parse {src}"));
+            assert!(
+                crate::rete::matcher::alpha_pattern(&ast).is_some(),
+                "alpha_pattern must hold for {src}"
+            );
+            assert!(
+                compile_condition_local(&ast, &["kph".to_string()]).is_some(),
+                "compile_condition_local must not return None for {src}"
+            );
+        }
+    }
 }

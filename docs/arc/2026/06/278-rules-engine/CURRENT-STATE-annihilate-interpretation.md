@@ -19,7 +19,7 @@ it. That is **not** the same as “native no longer interprets.”
 | Native surface | On `expr_ir`? | Interpreted on native fire? |
 |---|---|---|
 | `:where` (TestNode) | Yes. Setup `lower`; fire `exec_where`. | **No.** |
-| `:when` cond populate (happy path) | Mostly. Fire `exec_compiled`. Cmp operands are `Expr`. | Defensive miss still calls `alpha_match_inner`. |
+| `:when` cond populate (happy path) | Yes. Fire `exec_compiled`. Cmp operands are `Expr`. | **No.** A missing compiled cond refuses. `alpha_match_inner` is oracle-only on this path. |
 | **leftover rematch** (fact-shaped + combinator minted leaves) | Yes. `SeedCmp` + `exec_compiled_under`. | **No.** Combinator `:and`/`:or` leaves rematch compiled. WM-scan is refused. The stratum slice keeps `mint-leaf-alphas` orphans. |
 | `:then` `?var` / literal / fenced expr | Yes. `RhsOp::Expr` is a `Program`; fire `exec_value`. | **No**, for those shapes. |
 | `:then` fn-headed item | Yes. `CompiledRhs::Call` + `Construct` in `expr_ir`. | **No** when `lower` succeeds. |
@@ -32,9 +32,14 @@ it. That is **not** the same as “native no longer interprets.”
 `leftover_seed_cmp_populate_skips_rematch_enforces`.
 
 **Still interpreted on native fire:**
-- defensive cond populate miss (`alpha_match_inner`)
 - `fire_once_session` / `alpha_pass` (old four-pass, not
   `fire_fixpoint_delta`)
+
+Defensive populate miss is **closed.** Setup compiles every
+`alpha_cond` entry leftover-as-seed and refuses a `None`.
+Populate is `exec_compiled` only — no `alpha_match_inner`.
+Gate: `local_compile_is_some_whenever_alpha_pattern_holds`.
+`alpha_pass` still interprets; that is the old four-pass.
 
 No-alpha WM-scan is **closed.** Fire refuses a missing leaf
 alpha. `mint-leaf-alphas` does mint Wind/Temp; the live hole
@@ -50,8 +55,8 @@ went n=0 native / n=1 spec the moment leaves stayed in the
 slice. Merge now rejects a conflict. Same contract as
 `alpha_match_inner_seeded`.
 
-Next unfinished compile: defensive populate miss, then the
-old four-pass. Not `(b)`.
+Next unfinished compile: old `fire_once_session` / `alpha_pass`.
+Not `(b)`.
 
 Rust copies of `eval_test_core` / `alpha_match_inner` /
 `build_insert_fact` are **oracles for differentials**, not a
@@ -100,6 +105,8 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
    `where-not-and` 8/8, `-bound` 8/8, `-not` 8/8,
    `where-not-or` 8/8, `where-exists` 18/18.
 9. Defensive cond populate miss (`alpha_match_inner`).
+   **landed (this turn).** Setup refuses a compile `None`.
+   Populate is `exec_compiled` only.
 10. Old `fire_once_session` / `alpha_pass`.
 11. `(b)` ShadowNode — **only after native fire walks no
    `WatAST`.** Not yet.
@@ -121,7 +128,8 @@ compiler item. Do not start it to dodge the hole.
 | Combinator leftover rematch (minted leaf) | `51ff6560` | local, not pushed |
 | Fn-headed `:then` | `dbc2fb2a` | local, not pushed |
 | Completeness grid on disk | `7e3a7eec` | local, not pushed |
-| No-alpha WM-scan refuse + slice keeps minted leaves | this turn | **landed, uncommitted** |
+| No-alpha WM-scan refuse + slice keeps minted leaves | `9441f39a` | local, not pushed |
+| Defensive populate miss | this turn | **landed, uncommitted** — `exec_compiled` only |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
 ## The endeavor, in one sentence
@@ -132,9 +140,8 @@ becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 **That is the endeavor.** Compiled `where` / cond populate /
 fenced `:then` / user folds / leftover rematch / fn-headed
 `:then` sit on `expr_ir`. **The compiler is not complete.**
-Defensive populate miss and `fire_once_session` still walk
-`WatAST`. `(b)` does not start. Keyed gather is speed, not
-this hole.
+`fire_once_session` / `alpha_pass` still walk `WatAST`.
+`(b)` does not start. Keyed gather is speed, not this hole.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -344,22 +351,17 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — no-alpha WM-scan closed; next is defensive populate miss
+## NOW — populate miss closed; next is `fire_once_session`
 
-Fact-shaped and combinator leftover rematch sit on
-`exec_compiled_under`. Fn-headed `:then` is `CompiledRhs::Call`.
-WM-scan is refused. The refuse fired on `where-not-and`
-because the stratum slice kept only the dummy `:and` alpha
-(`negated-alpha-id`) and dropped Wind/Temp (minted, orphan,
-`children = []`). `mint-leaf-alphas` was never the miss —
-`exists-uses-alpha-probe?` returns false for `:and`,
-`cond-children` is 2, compile-time `render-dag` shows three
-alphas. Slice now follows `mint_leaf_alpha_ids`. Do not put
-the WM scan back.
+`fire_fixpoint_delta` populate is `exec_compiled` only.
+Setup refuses a `compile_condition_local` `None`. The
+`alpha_match_inner` / `_local` arm is deleted on this path.
+`alpha_match_inner` stays the oracle (differentials, old
+four-pass). Do not put the interp hatch back.
 
-**Still walks `WatAST` on native fire:** defensive populate
-miss (`alpha_match_inner`), old `fire_once_session`. Next on
-the live mouth: the populate miss. Do not start `(b)`.
+**Still walks `WatAST` on native fire:** old
+`fire_once_session` / `alpha_pass`. Next on the live mouth:
+that four-pass. Do not start `(b)`.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.
