@@ -139,19 +139,68 @@ already had to route around it with `(map identity v)`. Disqualified.
 the source spelling bare and fixes only the SYNTHESISED scheme, so the key never moves. The
 experiment failed for a different reason than the one it was testing.
 
-## ⛔ C's OWN PRECONDITION — one grounding still open
+## ✅ THE SCHEME-WRITER IS FOUND — and it is ONE DOOR
 
-The checker reads `env` schemes (`satisfier_method_keys` → `env.get(&key)`), NOT the runtime
-`Function` directly. **Where the checker's `wat::core::Vector/seq` scheme is written has not yet been
-located** — `check.rs:15051`/`15083` are READERS. C must land wherever that scheme is built (possibly
-both places), and a fix applied only to `register_extend_type_surface_impls` may leave the checker
-unchanged.
+```
+register_extend_type_surface_impls  (src/runtime.rs:1167)
+  builds Function { param_types[0] = BARE ed.type_name, ret = Stream<T>, type_params: vec![] }
+    → sym.functions
+      → CheckEnv::from_symbols        (src/check/env.rs:149)   replays every function
+        → derive_scheme_from_function (src/check.rs:15453)     type_params: func.type_params.clone()
+          → TypeScheme               → satisfier_method_keys → env.get(key) → path (1)
+```
 
-**Do not write C until that site is on the disk and read.** Two further items belong to the same
-pass: whether a satisfier whose type has NO type params (a plain struct extending `Holds<T>` with
-`T -> T`) would be given a parametric `self` it cannot honour, and whether `type_params` on the
-scheme actually drives per-call instantiation.
+**The checker's `wat::core::Vector/seq` scheme is DERIVED from the runtime `Function`.** There is no
+second writer. A fix at registration reaches both tiers, and `derive_scheme_from_function` carries
+`type_params` through intact.
 
+`instantiate` (`src/check.rs:15326`) is also exactly the machinery C assumed: non-empty
+`type_params` → a fresh unification var per param → `rename` over BOTH params and ret. With
+`self: Vector<T>` and `type_params: ["T"]`, unifying against a `Vector<i64>` receiver would bind
+`T := i64` and the return would come back `Stream<i64>` — no special path at all.
+
+## ⛔⛔ TWO FINDINGS THAT MAKE C, AS RULED, NOT YET BUILDABLE
+
+**(1) Path (1) never instantiates.** It clones the stored scheme verbatim:
+
+```rust
+if let Some(scheme) = env.get(&key) {
+    let ret = scheme.ret.clone();                  // RAW — no instantiate
+    let params = scheme.params.get(1..)…;          // never unified against the receiver
+    return Some((ret, params));
+}
+```
+
+So a well-formed scheme alone changes nothing: path (1) would still hand back `Stream<T>`. C needs a
+SECOND edit — instantiate the scheme and unify `params[0]` against the actual receiver. That is small
+and uses existing machinery, but it means C is **two sites**, and the four questions were answered as
+though it were one. Simple is still YES; Obvious is weaker than scored.
+
+**(2) ★ THE GUARD C NEEDS CANNOT BE ASKED.** C must only parametrize `self` when the satisfier type
+really has type params — otherwise a plain struct extending `Holds<T>` with `T -> T` gets a
+`Foo<T>` it cannot honour. The natural guard is "does this type's `TypeDef` declare type params?"
+**`:wat::core::Vector` is not registered as a `TypeDef` at all** (`register_builtin_types` has no
+entry for it), and the builtin containers are precisely the 8 satisfiers in the broken class. The
+guard has nothing to read.
+
+Answering it by consulting a known-parametric head list would re-introduce the hardcoded enumeration
+that door 1 (`B2c` strike 2) just removed from the dispatcher. That is a step backwards and should
+not be taken quietly.
+
+## WHERE THAT LEAVES THE RULING
+
+**C is not refuted, but its cost is now two sites plus an unavailable guard, and the four questions
+were scored without either.** A synthesis is visible and worth posing properly rather than drifting
+into: registration already KNOWS the binding was a variable (`surface_type_subst` maps `T -> T`), and
+that fact could be recorded rather than re-derived — after which path (1) binds the surface's params
+from the receiver's args, guarded on that recorded fact. That is closer to option B, but with the
+principled guard B lacked (B's objection was that it had to GUESS which free vars were the surface's;
+registration knows).
+
+**Do not build until this is re-posed.** The grounding that was missing has now been done, and it
+moved the answer — which is the reason the gate existed.
+
+## What must be true before this is briefed
 ## What must be true before this is briefed
 
 1. **A disconfirming probe, committed** — the repro + control above as a `tests/types/` fixture,
