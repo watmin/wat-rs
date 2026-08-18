@@ -1,8 +1,15 @@
 # DESIGN STONE — 118.B3 · delete BOTH memos. The stone the whole arc was aimed at.
 
 **Route B, stone 3 of 5.** B1 (`488eacd0`) minted `Seqable<T>`; B1a (`eab12e05`) made a concrete
-instantiation satisfiable; B2 (`b4a8f86b`) collapsed six verbs and deleted the seven twins, leaving
-**zero three-call Stream walkers in the corpus.** That was the precondition. It is now met.
+instantiation satisfiable; B2 (`b4a8f86b`) collapsed six verbs and deleted the seven twins.
+
+> ⛔ **CORRECTED 2026-08-18.** This paragraph used to end *"…leaving zero three-call Stream walkers
+> in the corpus. That was the precondition. It is now met."* **That was false when written.** It came
+> from the third of three bad greps, before the form-tree census existed; B2 left FIVE verbs
+> untouched (six census units — `reductions` has two Stream arms), and `wat/seq.wat` said so in its
+> own comment the whole time. **B2b (`DESIGN-STONE-118.B2b-migrate-the-six.md`) is what actually met
+> the precondition**, verified by the census over all 491 corpus files returning zero.
+> `[[feedback_three_boundary_errors_need_a_reader_not_a_fourth_pattern]]`
 
 ## What it does
 
