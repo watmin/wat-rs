@@ -5,11 +5,12 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** compiler items 1–10 are landed. Native
-`fire-rules` / `fire-once'` compile every rete form —
-**no** rete form is interpreted on those mouths. Oracle
-(`fire-rules-spec` / `fire-once`) stays interpreted on
-purpose. `(b)` ShadowNode is the next stone.
+**Right now:** items 1–10 killed the **interpreter** on
+native fire. That is **not** AST-free fire. `(b)` does
+**not** start. Item 11 is the rete **driver** — specialize
+`classify` / leaf id / fact-bind / acc head / nested
+`:where` once at setup. The round loop supplies Values,
+opcodes, and ids. Oracle stays interpreted.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -17,15 +18,42 @@ The “final” compiler is `src/rete/expr_ir.rs` (built for `:where`).
 `compiled_cond` and `compiled_rhs` sit on it. User folds sit on
 it. That is **not** the same as “native no longer interprets.”
 
-| Native surface | On `expr_ir`? | Interpreted on native fire? |
+| Native surface | Interpreter at fire? | `WatAST` at fire? |
 |---|---|---|
-| `:where` (TestNode) | Yes. Setup `lower`; fire `exec_where`. | **No.** |
-| `:when` cond populate (happy path) | Yes. Fire `exec_compiled`. Cmp operands are `Expr`. | **No.** A missing compiled cond refuses. `alpha_match_inner` is oracle-only on this path. |
-| **leftover rematch** (fact-shaped + combinator minted leaves) | Yes. `SeedCmp` + `exec_compiled_under`. | **No.** Combinator `:and`/`:or` leaves rematch compiled. WM-scan is refused. The stratum slice keeps `mint-leaf-alphas` orphans. |
-| `:then` `?var` / literal / fenced expr | Yes. `RhsOp::Expr` is a `Program`; fire `exec_value`. | **No**, for those shapes. |
-| `:then` fn-headed item | Yes. `CompiledRhs::Call` + `Construct` in `expr_ir`. | **No** when `lower` succeeds. |
-| user acc fold | Yes. Setup `lower`s the fn; fire `exec_call`. `eval_inner` deleted. | **No.** |
-| built-in `acc::*` | Not an expression. Rust fold. | No walk. |
+| `:where` (TestNode) | **No.** Stashed `Program`, `exec_where`. | Setup `lower` only. |
+| `:when` cond populate | **No.** `exec_compiled`. Miss refuses. | `attach_fact_bind` still reads the cond. |
+| leftover rematch | **No.** `SeedCmp` / `exec_compiled_under`. | **Yes.** `classify_rete_clause`, `cond_text` leaf lookup, combinator `:where` re-`lower`s via `exec_test`. |
+| `:then` | **No.** `CompiledRhs::Call` / `exec_value`. Miss refuses. | Setup only. |
+| user acc fold | **No.** `exec_call`. | Acc **head** still read off `acc-form` to pick the fold. |
+| built-in `acc::*` | No walk of an expr. | Same head / `?var` read. |
+
+**No interpreter ≠ AST-free.** Items 1–10 closed `eval_inner` /
+`alpha_match_inner` / `build_insert_fact` / `eval_test_core` on
+native `fire-rules'` / `fire-once'`. Fire still asks the quoted
+`:when` four control-plane questions the circuit does not
+answer. That is item 11. `(b)` waits on item 11.
+
+### Item 11 — compile the rete driver (AST-free **fire**)
+
+Setup may read `WatAST` (once): `lower`, `compile_condition_local`,
+this driver, acc fold. The **round loop** may not.
+
+Session/network still *stores* forms (oracle + compile-all).
+AST-free is a **working-set** property, not “delete the form
+from the record.”
+
+| Fire still asks the AST | Compiled stand-in |
+|---|---|
+| `classify_rete_clause` in `binding_extensions` / `exists_cond_under` | Driver enum: `And` / `Or` / `Not` / `Exists` / `Where(Program)` / `Leaf(alpha_id)` |
+| `exec_test(expr)` on a combinator `:where` | Stash `Program` (TestNode already does) |
+| `attach_fact_bind` | `?p` slot on `CompiledCond` (`alpha_pattern` already has it) |
+| `cond_text` / `alpha_id_for_cond` | The id. Do not stringify the form per rematch |
+| `acc-form` head + `acc_operand_keys` | `AccFold::Count` / `Sum` / … / `User(Program)` |
+| `cond_bind_keys` | `Vec` of keys next to the join / accum |
+
+No third sibling IR. `classify` stays the one grammar; fire
+stops re-deriving it. Do not start `(b)`. Do not start keyed
+gather to dodge this.
 
 **Fact-shaped leftover rematch is compiled** (`SeedCmp` /
 `exec_compiled_under`). Populate skips `SeedCmp`; rematch fills
@@ -58,9 +86,8 @@ went n=0 native / n=1 spec the moment leaves stayed in the
 slice. Merge now rejects a conflict. Same contract as
 `alpha_match_inner_seeded`.
 
-Compiler items 1–10 are landed. `(b)` is next — only after
-you confirm native fire walks no `WatAST`. Keyed gather is
-speed, not this hole.
+Items 1–10 landed (no interpreter). Item 11 is live
+(AST-free fire). `(b)` is item 12. Keyed gather is speed.
 
 Rust copies of `eval_test_core` / `alpha_match_inner` /
 `build_insert_fact` are **oracles for differentials**, not a
@@ -112,11 +139,18 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
    **landed (this turn).** Setup refuses a compile `None`.
    Populate is `exec_compiled` only.
 10. Old `fire_once_session` / `alpha_pass`.
-    **landed (this turn).** `alpha_pass` is `exec_compiled`.
+    **landed** (`8d126df6`). `alpha_pass` is `exec_compiled`.
     `production_pass` is `exec_compiled_rhs`. Delta
     `build_insert_fact` fallback deleted.
-11. `(b)` ShadowNode — **only after native fire walks no
-   `WatAST`.** Ready to start when this commit is green.
+11. **Compile the rete driver — AST-free fire.**
+    **Not started.** Specialize classify / leaf id /
+    fact-bind / acc head / nested `:where` at setup.
+    Round loop: Values, opcodes, ids. No `classify`,
+    no `exec_test`, no `cond_text`, no `attach_fact_bind`.
+    Gate: combinator families spec == native, and a
+    grep of the round loop that names no `WatAST` walk.
+12. `(b)` ShadowNode — **only after item 11.** Index the
+    compiled predicates. Not a way around the driver.
 
 Keyed `?g` gather is native speed on the same bag, not a
 compiler item. Do not start it to dodge the hole.
@@ -137,7 +171,9 @@ compiler item. Do not start it to dodge the hole.
 | Completeness grid on disk | `7e3a7eec` | local, not pushed |
 | No-alpha WM-scan refuse + slice keeps minted leaves | `9441f39a` | local, not pushed |
 | Defensive populate miss | `ef50a360` | local, not pushed |
-| Four-pass `fire_once_session` / `alpha_pass` | this turn | **landed, uncommitted** — compiled cond + rhs |
+| Four-pass `fire_once_session` / `alpha_pass` | `8d126df6` | local, not pushed |
+| Rete driver (AST-free fire) | this turn | **ruling locked; impl next** |
+| `(b)` ShadowNode | after item 11 | **not started** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
 ## The endeavor, in one sentence
@@ -145,12 +181,10 @@ compiler item. Do not start it to dodge the hole.
 **Annihilate all interpretation in wat-rete.** Every rete expression
 becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 
-**That is the endeavor.** Compiled `where` / cond populate /
-fenced `:then` / user folds / leftover rematch / fn-headed
-`:then` sit on `expr_ir`. Four-pass populate and `:then`
-are compiled. **The compiler list (1–10) is landed.**
-`(b)` is the next stone. Keyed gather is speed, not this
-hole. Oracle stays interpreted.
+**That is the endeavor.** Items 1–10 compiled the
+*expressions*. Fire still walks the cond tree as data.
+**Item 11 is the driver.** `(b)` does not start. Keyed
+gather is speed. Oracle stays interpreted.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -319,17 +353,16 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 `(foldl ?f 0 xs)` is a `LowerError` (HOF settled). No numeric
 ceiling until one is derived. Cardinality DoS is a later stone.
 
-**Compiler unification is IN FLIGHT and NOT COMPLETE.**
-`:where`, cond populate, fenced `:then`, user folds sit on
-`expr_ir`. Leftover rematch and fn-headed `:then` still
-interpret on native. `(b)` waits. Keyed gather is a separate
-speed stone.
+**Expressions sit on `expr_ir`. The driver does not.**
+Fire still classifies the cond AST, stringifies leaves,
+re-`lower`s combinator `:where`, and reads acc heads.
+That is item 11. `(b)` waits on it. Keyed gather is speed.
 
 `(b)` — index the compiled predicates (discrimination tree; lab
 `ShadowNode`, *"only go down paths that are actually possible"*) —
-**after** the oracle true-up and after the remaining mouths sit on
-`Expr`. Alpha already has this tree (`alpha_tree.rs`). `(b)` is the
-same idea on `where` circuits.
+**after item 11.** Alpha already has this tree (`alpha_tree.rs`).
+`(b)` is the same idea on compiled `where` **and** the compiled
+driver. Indexing a walk is the mask class.
 
 ## Measured 2026-08-17 — flips 3–5 vs `f228b033` (same machine)
 
@@ -360,19 +393,18 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — four-pass compiled; `(b)` is next
+## NOW — no interpreter; item 11 is AST-free fire; `(b)` waits
 
-`fire_once_session` populate is `exec_compiled`. Production
-is `exec_compiled_rhs`. The same refuse sits on
-`fire_fixpoint_delta`'s `:then` (no `build_insert_fact`
-hatch). `alpha_match_inner` / `build_insert_fact` stay
-oracles for differentials and the wat `fire-once` /
-`fire-rules-spec` mouth.
+Items 1–10 closed the interpreter verbs on native
+`fire-rules'` / `fire-once'`. Fire still walks `WatAST` as
+the rete **driver**: `classify_rete_clause`, `cond_text`,
+`attach_fact_bind`, `exec_test` (re-`lower`) on combinator
+`:where`, `acc-form` head. That is not `(b)`. That is
+item 11. Do not start ShadowNode. Do not start keyed gather.
 
-**Still walks `WatAST` on native fire:** none on
-`fire-rules'` / `fire-once'`. Next stone is `(b)`
-ShadowNode. Do not start keyed gather to dodge a hole
-that is closed.
+Ruled 2026-08-17 (do not drop): **no interpreter ≠
+AST-free.** `(b)` only after the round loop walks no
+`WatAST`. Setup may read the form once.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.
