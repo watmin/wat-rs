@@ -95,7 +95,30 @@ this cost the stone nothing beyond finding it.
 census is zero. These two are what stand between here and *every* verb being one definition over any
 seqable — the actual end state route B is aimed at.
 
-Door 1 is drawn as its own stone (`DESIGN-STONE-118.B2c-a-surface-typed-clause-arm-never-dispatches.md`)
-because its shape is settled and its precedent is in the same function. **Door 2 is NOT drawn** — it
-lives in the checker's surface-method instantiation, it has no precedent to copy, and drawing it from
-a single repro would be designing this tier from reading. It needs its own lair study first.
+Both are now drawn, each as its own stone:
+
+- **Door 1** → `DESIGN-STONE-118.B2c-a-surface-typed-clause-arm-never-dispatches.md`. Runtime clause
+  selector; precedent is twenty lines up in the same function.
+- **Door 2** → `DESIGN-STONE-118.B2d-a-generic-satisfier-cannot-bind-the-surface-param.md`. Checker;
+  the mechanism is now characterized (see below), and **one obvious hypothesis was refuted by
+  running it** before it could reach a stone.
+
+**AMENDED 2026-08-18, after the lair study door 2 was waiting on.** This file first said door 2 was
+"NOT drawn — it needs its own lair study." The study is done. Two things came out of it:
+
+**(a) The mechanism, from the checker's own comment.** Path (1) of the parametric-surface member
+resolution (`src/check.rs:4926`) assumes the satisfier bound the surface's `T` to a CONCRETE type at
+`extend-type` time — *"e.g. `T=i64` for `(extend-type :IntBox :Holds<i64> …)`"*. `Seqable<T>` is
+satisfied by GENERIC containers, so the binding is `T → T`, a variable; the stored scheme's return
+stays `Stream<T>` and nothing instantiates it from the receiver. Path (2) has exactly the machinery
+needed but is guarded to fire only when the receiver IS the surface. **The missing case: a satisfier
+whose surface binding is itself a type variable, called on a concrete receiver.**
+
+**(b) A REFUTED hypothesis, recorded so nobody re-derives it.** The obvious story — *the extend-type
+target head is bare (`:wat::core::Vector`, not `Vector<T>`), so there is nothing to bind `T` from* —
+was tested by rewriting all four targets parametrically and rebuilding. **The type error did not
+move**, AND the parametric spelling broke registration outright (`satisfier_method_keys` resolves via
+the bare head; `register_extend_type_surface_impls` keys on `ed.type_name`), giving
+`unknown function: type ':wat::core::Vector' does not implement surface method 'seq'`. Reverted and
+re-verified. Cost: one 32-second rebuild, instead of a wrong mechanism inscribed in a stone.
+`[[feedback_a_design_sentence_is_not_the_disk]]` It needs its own lair study first.
