@@ -318,6 +318,21 @@ fn pack_expr(e: &Expr) -> Value {
             xs.extend(fields.iter().map(pack_expr));
             pv(xs)
         }
+        Expr::Variant {
+            type_path,
+            variant_name,
+            names,
+            fields,
+        } => {
+            let mut xs = vec![
+                kw(":variant"),
+                Value::String(Arc::new(type_path.clone())),
+                Value::String(Arc::new(variant_name.clone())),
+                pv(names.iter().map(|n| Value::String(Arc::new(n.clone())))),
+            ];
+            xs.extend(fields.iter().map(pack_expr));
+            pv(xs)
+        }
         Expr::If { cond, then_, else_ } => {
             pv([kw(":if"), pack_expr(cond), pack_expr(then_), pack_expr(else_)])
         }
@@ -451,6 +466,42 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             }
             Ok(Expr::Construct {
                 class,
+                names: Arc::new(ns),
+                fields: fields.into_boxed_slice(),
+            })
+        }
+        ":variant" => {
+            let type_path = expect_str(
+                items
+                    .get(1)
+                    .ok_or_else(|| malformed(IMPORT_OP, "variant missing type"))?,
+                IMPORT_OP,
+            )?
+            .to_string();
+            let variant_name = expect_str(
+                items
+                    .get(2)
+                    .ok_or_else(|| malformed(IMPORT_OP, "variant missing name"))?,
+                IMPORT_OP,
+            )?
+            .to_string();
+            let names_pv = expect_seq(
+                items
+                    .get(3)
+                    .ok_or_else(|| malformed(IMPORT_OP, "variant missing names"))?,
+                IMPORT_OP,
+            )?;
+            let mut ns = Vec::new();
+            for n in names_pv.iter() {
+                ns.push(expect_str(n, IMPORT_OP)?.to_string());
+            }
+            let mut fields = Vec::new();
+            for x in items.iter().skip(4) {
+                fields.push(unpack_expr(x)?);
+            }
+            Ok(Expr::Variant {
+                type_path,
+                variant_name,
                 names: Arc::new(ns),
                 fields: fields.into_boxed_slice(),
             })
@@ -1288,7 +1339,7 @@ pub(crate) fn eval_export(
     let rhs = map_str(&arm.compiled_rhs, |items| {
         pv(items.iter().map(pack_rhs))
     });
-    let deps = pack_deps(&rule_deps_from_rules(rules));
+    let deps = pack_deps(&rule_deps_from_rules(rules, sym));
     let abi = abi_of(&classes.names, &classes.fields);
     let class_pv = pv(classes
         .names
@@ -1317,12 +1368,13 @@ pub(crate) fn eval_export(
 }
 
 fn pack_deps(deps: &[RuleDep]) -> Value {
-    pv(deps.iter().map(|(name, produced, negated, consumed)| {
+    pv(deps.iter().map(|(name, produced, negated, consumed, bag)| {
         pv([
             Value::String(Arc::new(name.clone())),
             pv(produced.iter().map(|s| Value::String(Arc::new(s.clone())))),
             pv(negated.iter().map(|s| Value::String(Arc::new(s.clone())))),
             pv(consumed.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(bag.iter().map(|s| Value::String(Arc::new(s.clone())))),
         ])
     }))
 }
@@ -1343,11 +1395,17 @@ fn unpack_deps(v: &Value) -> Result<Vec<RuleDep>, EvalBreak> {
         if p.len() < 4 {
             return Err(malformed(IMPORT_OP, "deps row needs name + 3 lists"));
         }
+        let bag = if p.len() >= 5 {
+            unpack_string_list(&p[4])?
+        } else {
+            Vec::new()
+        };
         out.push((
             expect_str(&p[0], IMPORT_OP)?.to_string(),
             unpack_string_list(&p[1])?,
             unpack_string_list(&p[2])?,
             unpack_string_list(&p[3])?,
+            bag,
         ));
     }
     Ok(out)

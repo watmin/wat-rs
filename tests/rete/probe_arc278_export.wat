@@ -22,6 +22,25 @@
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s0)) (:exp::q-Hit)))))
 
+(:wat::core::defn :user::cool-export [] -> :wat::rete::Export
+  (:wat::rete::export
+    (:wat::rete::compile-all
+      (:wat::core::PersistentVector (:exp::cool))
+      (:wat::core::PersistentVector (:exp::q-Hit)))))
+
+(:wat::core::defn :user::import-one [e <- :wat::rete::Export] -> :wat::rete::Session
+  (:wat::rete::import e))
+
+(:wat::core::defn :user::spec-on-import [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    s1 (:wat::rete::import (:wat::rete::export s0))]
+    (:wat::core::length
+      (:wat::rete::query
+        (:wat::rete::fire-rules-spec (:exp::seed s1))
+        (:exp::q-Hit)))))
+
 (:wat::core::defn :user::import-hits [] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:exp::cool))

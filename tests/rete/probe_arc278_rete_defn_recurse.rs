@@ -47,11 +47,11 @@ fn mutual_recursive_rete_defns_refused_at_load() {
     };
     let rendered = format!("{re:?}");
     assert!(
-        rendered.contains("#wat.runtime/ReteDefnRecursive"),
+        rendered.contains("#wat.runtime/ReteDefnRecursive"), // rune:lint(loose-assert) — Debug of RuntimeError wraps span; tag is the contract
         "expected ReteDefnRecursive, got: {rendered}"
     );
     assert!(
-        rendered.contains(":probe::a") || rendered.contains(":probe::b"),
+        rendered.contains(":probe::a") || rendered.contains(":probe::b"), // rune:lint(loose-assert) — cycle names either helper; Debug wrap varies
         "diagnostic must name a helper on the cycle; got: {rendered}"
     );
 }

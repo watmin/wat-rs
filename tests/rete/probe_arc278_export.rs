@@ -1,12 +1,35 @@
 //! `#wat.rete/Export` — compiled program from source; import fires native.
 
-use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use std::sync::Arc;
+
+use wat::freeze::{call_beside_value, startup_beside};
+use wat::runtime::{apply_function, Value};
+use wat::AggregateValue;
 
 #[test]
 fn source_session_derives_one_hit() {
     let v = call_beside_value(file!(), ":user::source-hits").expect("source fire");
     assert_eq!(v, Value::i64(1), "Temp 10 is cool, Temp 30 is not");
+}
+
+#[test]
+fn spec_refuses_imported_export() {
+    let panicked = std::panic::catch_unwind(|| {
+        call_beside_value(file!(), ":user::spec-on-import")
+    });
+    match panicked {
+        Err(_) => {}
+        Ok(Ok(v)) => panic!(
+            "oracle must refuse an Export, not return {v:?} (silent empty is the lie)"
+        ),
+        Ok(Err(e)) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("oracle cannot consume") || msg.contains("Export"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span line; wall name is the contract
+                "refuse must name the wall, got {msg}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -57,6 +80,41 @@ fn imported_strat_neg_matches_source() {
         }
         other => panic!("expected [bad ok] counts, got {other:?}"),
     }
+}
+
+#[test]
+fn import_refuses_abi_mismatch() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = match exp {
+        Value::Aggregate(a) => {
+            let mut fields = a.fields.as_ref().clone();
+            fields[1] = Value::String(Arc::new("v1:deadbeefdeadbeef".into()));
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.clone(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    };
+    let import = world
+        .symbols()
+        .get(":user::import-one")
+        .expect("import-one")
+        .clone();
+    let err = apply_function(
+        import,
+        vec![tampered],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect_err("tampered ABI must refuse");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("ABI mismatch"), // rune:lint(loose-assert) — refuse wraps rust_caller_span; ABI mismatch is the contract
+        "import must name ABI mismatch, got {msg}"
+    );
 }
 
 #[test]

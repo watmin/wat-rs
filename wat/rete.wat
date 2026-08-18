@@ -2751,9 +2751,57 @@
       (:wat::core::PersistentVector)
       rhs)))
 
-;; rule-negates — extract negated type-FQDNs (colon-free) from a Rule's LHS.
-;; Only (:wat::rete::not <fact-form>) conditions create negative dependency edges;
-;; positive conditions, :where, :exists, and accumulate are all ignored here.
+;; type-name-of — colon-stripped fact-type head, or None for engine forms / ?var.
+(:wat::core::defn :wat::rete::type-name-of
+  [form <- :wat::WatAST] -> :wat::core::Option<wat::core::String>
+  (:wat::core::let [ch (:wat::core::ast->children form)]
+    (:wat::core::if (:wat::core::empty? ch)
+      :wat::core::None
+      (:wat::core::let [raw (:wat::core::ast-name (:wat::core::first ch))
+                        n   (:wat::core::string::length raw)
+                        q?  (:wat::core::if (:wat::core::i64::>= n 1)
+                              (:wat::core::= (:wat::core::string::subs raw 0 1) "?")
+                              false)
+                        rete? (:wat::core::if (:wat::core::i64::>= n 12)
+                                (:wat::core::= (:wat::core::string::subs raw 0 12) ":wat::rete::")
+                                false)]
+        (:wat::core::if (:wat::core::if q? true rete?)
+          :wat::core::None
+          (:wat::core::Some
+            (:wat::core::if (:wat::core::= (:wat::core::string::subs raw 0 1) ":")
+              (:wat::core::string::subs raw 1 n)
+              raw)))))))
+
+;; negated-types-under — leaves under :not, including :and/:or combinators.
+(:wat::core::defn :wat::rete::negated-types-under
+  [form <- :wat::WatAST] -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::let [ch (:wat::core::ast->children form)
+                    hd (:wat::core::if (:wat::core::empty? ch)
+                         ""
+                         (:wat::core::ast-name (:wat::core::first ch)))]
+    (:wat::core::if (:wat::core::if (:wat::core::= hd ":wat::rete::and")
+                      true
+                      (:wat::core::= hd ":wat::rete::or"))
+      (:wat::core::foldl
+        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                         kid <- :wat::WatAST]
+          -> :wat::core::PersistentVector<wat::core::String>
+          (:wat::core::foldl
+            (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::String>
+                             t <- :wat::core::String]
+              -> :wat::core::PersistentVector<wat::core::String>
+              (:wat::core::PersistentVector/conj a t))
+            acc
+            (:wat::rete::negated-types-under kid)))
+        (:wat::core::PersistentVector)
+        (:wat::core::rest ch))
+      (:wat::core::if (:wat::core::= hd ":wat::rete::not")
+        (:wat::rete::negated-types-under (:wat::core::second ch))
+        (:wat::core::match (:wat::rete::type-name-of form)
+          ((:wat::core::Some n) (:wat::core::PersistentVector n))
+          (:wat::core::None (:wat::core::PersistentVector)))))))
+
+;; rule-negates — :not of a fact AND :not of :and/:or. Leaves, not "wat::rete::and".
 (:wat::core::defn :wat::rete::rule-negates
   [rule <- :wat::rete::Rule]
   -> :wat::core::PersistentVector<wat::core::String>
@@ -2762,19 +2810,18 @@
       (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
                        form <- :wat::WatAST]
         -> :wat::core::PersistentVector<wat::core::String>
-        (:wat::core::let [form-ch (:wat::core::ast->children form)
-                          head    (:wat::core::first form-ch)
-                          hd-nm   (:wat::core::ast-name head)]
-          (:wat::core::if (:wat::core::= hd-nm ":wat::rete::not")
-            ;; second child of (:not <fact-form>) is the negated fact pattern
-            (:wat::core::let [fact-form (:wat::core::second form-ch)
-                              fact-ch   (:wat::core::ast->children fact-form)
-                              type-hd   (:wat::core::first fact-ch)
-                              raw-nm    (:wat::core::ast-name type-hd)
-                              type-nm   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-nm 0 1) ":")
-                                          (:wat::core::string::subs raw-nm 1 (:wat::core::string::length raw-nm))
-                                          raw-nm)]
-              (:wat::core::PersistentVector/conj acc type-nm))
+        (:wat::core::let [ch (:wat::core::ast->children form)
+                          hd (:wat::core::if (:wat::core::empty? ch)
+                               ""
+                               (:wat::core::ast-name (:wat::core::first ch)))]
+          (:wat::core::if (:wat::core::= hd ":wat::rete::not")
+            (:wat::core::foldl
+              (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::String>
+                               t <- :wat::core::String]
+                -> :wat::core::PersistentVector<wat::core::String>
+                (:wat::core::PersistentVector/conj a t))
+              acc
+              (:wat::rete::negated-types-under (:wat::core::second ch)))
             acc)))
       (:wat::core::PersistentVector)
       lhs)))
@@ -2791,10 +2838,9 @@
 ;; Only the second was implemented, so a rule consuming a fact produced in a HIGHER stratum
 ;; was left in a LOWER one, fired to fixpoint before its input existed, and never re-fired.
 ;;
-;; Engine forms :not / :where are NOT positive reads. Native `rule_consumes`
-;; (kernel.rs) also walks `:exists` inner and accumulate `:from`. This wat
-;; walk still skips those two by prefix — the oracle stratifier's hole;
-;; Export / native fire use the Rust walk. Do not "fix" Rust back to this.
+;; Engine forms :not / :where are NOT positive reads. :exists inner and
+;; accumulate :from ARE — lockstep with native `rule_consumes`. A `?n`
+;; accumulate head is not a type.
 (:wat::core::defn :wat::rete::rule-consumes
   [rule <- :wat::rete::Rule]
   -> :wat::core::PersistentVector<wat::core::String>
@@ -2803,20 +2849,40 @@
       (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
                        form <- :wat::WatAST]
         -> :wat::core::PersistentVector<wat::core::String>
-        (:wat::core::let [form-ch (:wat::core::ast->children form)
-                          head    (:wat::core::first form-ch)
-                          hd-nm   (:wat::core::ast-name head)]
-          ;; TOTAL prefix test: `subs` is PARTIAL, so the length guard comes FIRST — a head
-          ;; shorter than the prefix (":nc::Item" is 9) must answer false, never raise.
-          (:wat::core::if (:wat::core::if (:wat::core::i64::>= (:wat::core::string::length hd-nm) 12)
-                            (:wat::core::= (:wat::core::string::subs hd-nm 0 12) ":wat::rete::")
-                            false)
-            acc
-            (:wat::core::let [raw-nm  hd-nm
-                              type-nm (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-nm 0 1) ":")
-                                        (:wat::core::string::subs raw-nm 1 (:wat::core::string::length raw-nm))
-                                        raw-nm)]
-              (:wat::core::PersistentVector/conj acc type-nm)))))
+        (:wat::core::let [ch (:wat::core::ast->children form)
+                          hd (:wat::core::if (:wat::core::empty? ch)
+                               ""
+                               (:wat::core::ast-name (:wat::core::first ch)))
+                          n  (:wat::core::string::length hd)
+                          q? (:wat::core::if (:wat::core::i64::>= n 1)
+                               (:wat::core::= (:wat::core::string::subs hd 0 1) "?")
+                               false)]
+          (:wat::core::if (:wat::core::= hd ":wat::rete::exists")
+            (:wat::core::match (:wat::rete::type-name-of (:wat::core::second ch))
+              ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
+              (:wat::core::None acc))
+            (:wat::core::if (:wat::core::if q?
+                              (:wat::core::if (:wat::core::i64::>= (:wat::core::length ch) 5)
+                                (:wat::core::= (:wat::core::ast-name
+                                                 (:wat::core::Option/expect
+                                                   (:wat::core::get ch 3)
+                                                   "rule-consumes: acc :from"))
+                                  ":from")
+                                false)
+                              false)
+              (:wat::core::match (:wat::rete::type-name-of
+                                   (:wat::core::Option/expect
+                                     (:wat::core::get ch 4)
+                                     "rule-consumes: acc :from inner"))
+                ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
+                (:wat::core::None acc))
+              (:wat::core::if (:wat::core::if (:wat::core::i64::>= n 12)
+                                (:wat::core::= (:wat::core::string::subs hd 0 12) ":wat::rete::")
+                                false)
+                acc
+                (:wat::core::match (:wat::rete::type-name-of form)
+                  ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
+                  (:wat::core::None acc)))))))
       (:wat::core::PersistentVector)
       lhs)))
 
@@ -3059,10 +3125,40 @@
 ;; fire-fixpoint — the per-stratum logic is unchanged, only the ordering is fixed.
 ;; Restores Session.facts = input only (same invariant as before): retract-then-fire
 ;; recomputes the full closure from the reduced input, so consequences vanish transitively.
+;;
+;; Query-only compile-all (empty rules, QueryNodes, no ProductionNode) is legal —
+;; the oracle walks QueryNodes. An imported Export of production rules has empty
+;; rules AND ProductionNodes (no AST) — refuse that, do not silently harvest 0.
+(:wat::core::defn :wat::rete::network-has-production?
+  [net <- :wat::core::PersistentMap]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool
+                     k   <- :wat::core::i64]
+      -> :wat::core::bool
+      (:wat::core::if acc
+        true
+        (:wat::core::let [node (:wat::core::Option/expect
+                                  (:wat::core::PersistentMap/get net k)
+                                  "network-has-production?: node")]
+          (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode"))))
+    false
+    (:wat::core::PersistentMap/keys net)))
+
 (:wat::core::defn :wat::rete::fire-rules-spec
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [input (:wat::rete::Session/facts session)
+                    rules (:wat::rete::Session/rules session)
+                    net   (:wat::rete::Session/network session)
+                    _export (:wat::core::Option/expect
+                              (:wat::core::if
+                                (:wat::core::if (:wat::core::empty? rules)
+                                  (:wat::rete::network-has-production? net)
+                                  false)
+                                :wat::core::None
+                                (:wat::core::Some nil))
+                              "fire-rules-spec: oracle cannot consume an Export — empty rules, live network")
                     fired (:wat::rete::fire-stratified session)]
     (:wat::rete::Session
       :network (:wat::rete::Session/network           fired)

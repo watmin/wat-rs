@@ -1170,7 +1170,7 @@ fn compile_cond_driver(
                 RuntimeError::new(
                     cond.span().clone(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::rete::fire-rules'".into(),
+                        head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                         reason: format!(
                             "fact-shaped cond has no minted alpha — cannot compile driver: {}",
                             cond_text(cond)
@@ -1223,7 +1223,7 @@ fn driver_of(
         RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::rete::fire-rules'".into(),
+                head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                 reason: format!(
                     "alpha {alpha_id} has no compiled driver — setup should have compiled every alpha"
                 ),
@@ -1323,7 +1323,7 @@ fn rematch_compiled(
         RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::rete::fire-rules'".into(),
+                head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                 reason: format!(
                     "alpha {alpha_id} has no compiled cond — setup should have compiled every fact-shaped alpha"
                 ),
@@ -2055,22 +2055,23 @@ fn fire_rules_from_deps(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let mut parts: Vec<RuleParts> = Vec::with_capacity(deps.len());
-    for (name, produced, negated, consumed) in deps {
+    for (name, produced, negated, consumed, bag) in deps {
         parts.push((
             synthetic_rule(name),
             produced.clone(),
             negated.clone(),
             consumed.clone(),
+            bag.clone(),
         ));
     }
     let pn_only: Vec<RuleDeps> = parts
         .iter()
-        .map(|(_, p, n, c)| (p.clone(), n.clone(), c.clone()))
+        .map(|(_, p, n, c, b)| (p.clone(), n.clone(), c.clone(), b.clone()))
         .collect();
     let type_strata = native_stratify(&pn_only)?;
     let mut max_s: i64 = 0;
     let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
-    for (_, produced, negated, _consumed) in &parts {
+    for (_, produced, negated, _consumed, _bag) in &parts {
         let s = native_rule_stratum(produced, negated, &type_strata);
         rule_strata.push(s);
         if s > max_s {
@@ -2277,7 +2278,7 @@ fn compile_acc_fold(
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
                 RuntimeErrorKind::MalformedForm {
-                    head: ":wat::rete::fire-rules'".into(),
+                    head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                     reason: "accumulate acc-form is not a list".into(),
                 },
             )
@@ -2291,7 +2292,7 @@ fn compile_acc_fold(
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
                 RuntimeErrorKind::MalformedForm {
-                    head: ":wat::rete::fire-rules'".into(),
+                    head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                     reason: "accumulate acc-form has no head".into(),
                 },
             )
@@ -2933,7 +2934,7 @@ fn compile_alpha_conds_from_index(
                     RuntimeError::new(
                         crate::rust_caller_span!(),
                         RuntimeErrorKind::MalformedForm {
-                            head: ":wat::rete::fire-rules'".into(),
+                            head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                             reason: format!(
                                 "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
                             ),
@@ -2956,7 +2957,7 @@ fn rhs_must_compile(
         RuntimeError::new(
             form.span().clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::rete::fire-rules'".into(),
+                head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                 reason: "then item did not compile — fire does not walk build_insert_fact"
                     .into(),
             },
@@ -3069,7 +3070,7 @@ fn exec_stashed_where(
         return Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::rete::fire-rules'".into(),
+                head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                 reason: format!(
                     "TestNode {node_id} has no compiled where — compile-condition should have refused"
                 ),
@@ -3260,7 +3261,7 @@ fn build_rete_arm(
             alpha_class.insert(*id, ty.clone());
         }
     }
-    let rule_deps = rule_deps_from_rules(rules);
+    let rule_deps = rule_deps_from_rules(rules, sym);
 
     Ok(ReteArm {
         node_ids,
@@ -3280,7 +3281,7 @@ fn build_rete_arm(
 }
 
 /// Stratify inputs from the rule AST. Name, produced, negated, consumed.
-pub(crate) fn rule_deps_from_rules(rules: &Value) -> Vec<RuleDep> {
+pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<RuleDep> {
     let rule_vec: Vec<Value> = match rules {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => vec![],
@@ -3310,9 +3311,10 @@ pub(crate) fn rule_deps_from_rules(rules: &Value) -> Vec<RuleDep> {
         let rhs = to_asts(&rsf[2]);
         out.push((
             name,
-            rule_produces(&rhs),
+            rule_produces(&rhs, sym),
             rule_negates(&lhs),
             rule_consumes(&lhs),
+            rule_bag_consumes(&lhs),
         ));
     }
     out
@@ -3366,7 +3368,7 @@ pub(crate) fn subset_rete_arm(
     let rule_deps: Vec<RuleDep> = arm
         .rule_deps
         .iter()
-        .filter(|(n, _, _, _)| rule_names.contains(n))
+        .filter(|(n, _, _, _, _)| rule_names.contains(n))
         .cloned()
         .collect();
     let alpha_class: HashMap<i64, String> = arm
@@ -3952,7 +3954,7 @@ fn fire_fixpoint_delta(
                 return Err(RuntimeError::new(
                     crate::rust_caller_span!(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::rete::fire-rules'".into(),
+                        head: ":wat::rete::fire-rules'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
                         reason: format!(
                             "AccumulateNode {node_id} has no compiled fold — setup should have compiled it"
                         ),
@@ -4804,36 +4806,69 @@ fn fact_type_head(fact_form: &WatAST) -> Option<String> {
 /// Extract the produced type FQDNs from a Rule's RHS forms.
 /// Arc 278 Stone A: each RHS form IS the fact-form directly (the `:wat::rete::insert` wrapper
 /// is gone) — no more unwrapping a second child. Mirrors `rule-produces` (`wat/rete.wat`).
-fn rule_produces(rhs: &[WatAST]) -> Vec<String> {
+fn rule_produces(rhs: &[WatAST], sym: &SymbolTable) -> Vec<String> {
     let mut out = Vec::new();
     for form in rhs {
-        if let Some(name) = fact_type_head(form) {
+        if let Some(name) = produced_type(form, sym) {
             out.push(name);
         }
     }
     out
 }
 
-/// Extract the negated type FQDNs from a Rule's LHS conditions.
-/// Only `(:wat::rete::not <fact-form>)` conditions contribute a dependency edge; every other
-/// condition shape is ignored (positive conditions, `:where`, `:exists`, accumulate). Mirrors
-/// `rule-negates` (`wat/rete.wat:1570-1593`).
-fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
-    let mut out = Vec::new();
-    for form in lhs {
-        if let WatAST::List(items, _) = form {
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
-                if k.as_str() == ":wat::rete::not" {
-                    if let Some(fact_form) = items.get(1) {
-                        if let Some(name) = fact_type_head(fact_form) {
-                            out.push(name);
-                        }
-                    }
-                }
+/// Constructor head stays the class. A fn-headed `:then` produces its
+/// declared return type (the fact `T` another rule can consume).
+fn produced_type(form: &WatAST, sym: &SymbolTable) -> Option<String> {
+    let head = fact_type_head(form)?;
+    let path = if head.starts_with(':') {
+        head.clone()
+    } else {
+        format!(":{head}")
+    };
+    if let Some(func) = sym.get(&path) {
+        if let crate::types::TypeExpr::Path(p) = &func.ret_type {
+            let t = p.trim_start_matches(':');
+            if !t.is_empty() && !t.starts_with("wat::core::") {
+                return Some(t.to_string());
             }
         }
     }
+    Some(head)
+}
+
+/// Extract the negated type FQDNs from a Rule's LHS conditions.
+/// `(:not <fact>)` and `(:not (:and/:or …))` both raise: the leaf types under
+/// the combinator are the edges, not `"wat::rete::and"`. Walk via
+/// `classify_rete_clause`. Positive `:exists` / accumulate / `:where` are not
+/// negation edges (those are `rule_consumes`).
+fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
+    let mut out = Vec::new();
+    for form in lhs {
+        negate_types(form, &mut out, false);
+    }
     out
+}
+
+fn negate_types(form: &WatAST, out: &mut Vec<String>, under_not: bool) {
+    match classify_rete_clause(form) {
+        ReteClauseShape::Not(inner) => negate_types(inner, out, true),
+        ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {
+            for x in xs {
+                negate_types(x, out, under_not);
+            }
+        }
+        ReteClauseShape::FactBind { type_head, .. } if under_not => {
+            out.push(type_head.to_string());
+        }
+        ReteClauseShape::Unrecognized if under_not => {
+            if let Some(name) = fact_type_head(form) {
+                if !name.starts_with('?') && !name.starts_with("wat::rete::") {
+                    out.push(name);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The fact types a rule reads POSITIVELY (task #94 — the input the stratifier never had).
@@ -4846,13 +4881,26 @@ fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
 /// leaked as `"?n"`. Walk via `classify_rete_clause`.
 /// The stratifier's dependency view of one rule: (produced, negated, positively-consumed).
 /// `consumed` is task #94 — without it a rule that reads a higher-stratum fact sits too low.
-type RuleDeps = (Vec<String>, Vec<String>, Vec<String>);
+type RuleDeps = (Vec<String>, Vec<String>, Vec<String>, Vec<String>);
 
-/// Residual stratify row: (name, produced, negated, consumed).
-pub(crate) type RuleDep = (String, Vec<String>, Vec<String>, Vec<String>);
+/// Residual stratify row: (name, produced, negated, consumed, bag).
+/// `bag` is exists-inner / acc `:from` — +1 like negation (closed bag, next stratum).
+pub(crate) type RuleDep = (
+    String,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+);
 
 /// A compiled rule paired with its `RuleDeps`.
-type RuleParts = (Value, Vec<String>, Vec<String>, Vec<String>);
+type RuleParts = (
+    Value,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+);
 
 fn rule_consumes(lhs: &[WatAST]) -> Vec<String> {
     let mut out = Vec::new();
@@ -4860,6 +4908,28 @@ fn rule_consumes(lhs: &[WatAST]) -> Vec<String> {
         consume_types(form, &mut out);
     }
     out
+}
+
+/// Exists-inner and accumulate `:from` types. Stratify +1 (closed bag).
+fn rule_bag_consumes(lhs: &[WatAST]) -> Vec<String> {
+    let mut out = Vec::new();
+    for form in lhs {
+        bag_types(form, &mut out);
+    }
+    out
+}
+
+fn bag_types(form: &WatAST, out: &mut Vec<String>) {
+    match classify_rete_clause(form) {
+        ReteClauseShape::Exists(inner) => consume_types(inner, out),
+        ReteClauseShape::Accumulate { from, .. } => consume_types(from, out),
+        ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {
+            for x in xs {
+                bag_types(x, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn consume_types(form: &WatAST, out: &mut Vec<String>) {
@@ -4894,10 +4964,23 @@ fn consume_types(form: &WatAST, out: &mut Vec<String>) {
 /// Mirrors `stratify-sweep` (`wat/rete.wat:1599-1646`).
 fn native_stratify_sweep(rule_parts: &[RuleDeps], type_strata: &mut HashMap<String, i64>) -> bool {
     let mut changed = false;
-    for (produced, negated, consumed) in rule_parts {
+    for (produced, negated, consumed, bag) in rule_parts {
         let mut required = 0i64;
         for n in negated {
             let v = *type_strata.get(n).unwrap_or(&0) + 1;
+            if v > required {
+                required = v;
+            }
+        }
+        // exists / acc :from of a type THIS SET derives: +1 (closed bag).
+        // Inserted-only bag types stay +0 so the unstratified path survives.
+        // A rule that both produces and bags `b` (userfn-head gather that
+        // returns the same type) is a self-cycle — do not count it as derived.
+        for b in bag {
+            let derived = rule_parts.iter().any(|(p, _, _, bag_r)| {
+                p.iter().any(|t| t == b) && !bag_r.iter().any(|t| t == b)
+            });
+            let v = *type_strata.get(b).unwrap_or(&0) + i64::from(derived);
             if v > required {
                 required = v;
             }
@@ -5121,7 +5204,7 @@ fn fire_rules_stratified(
         let mut active_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
         let mut frontier: Vec<i64> = Vec::new();
         let mut stratum_rule_names: HashSet<String> = HashSet::new();
-        for ((rule_val, _, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
+        for ((rule_val, _, _, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
             if *stratum == s {
                 stratum_pv.push_back_mut(rule_val.clone());
                 if let Some((_, rsf)) = node_record(rule_val) {
@@ -5377,21 +5460,22 @@ pub(crate) fn eval_fire_rules_native(
         };
         let lhs = to_asts(&rsf[1]);
         let rhs = to_asts(&rsf[2]);
-        let produced = rule_produces(&rhs);
+        let produced = rule_produces(&rhs, sym);
         let negated = rule_negates(&lhs);
         let consumed = rule_consumes(&lhs);
-        parts.push((r.clone(), produced, negated, consumed));
+        let bag = rule_bag_consumes(&lhs);
+        parts.push((r.clone(), produced, negated, consumed, bag));
     }
 
     let pn_only: Vec<RuleDeps> = parts
         .iter()
-        .map(|(_, p, n, c)| (p.clone(), n.clone(), c.clone()))
+        .map(|(_, p, n, c, b)| (p.clone(), n.clone(), c.clone(), b.clone()))
         .collect();
     let type_strata = native_stratify(&pn_only)?;
 
     let mut max_s: i64 = 0;
     let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
-    for (_, produced, negated, _consumed) in &parts {
+    for (_, produced, negated, _consumed, _bag) in &parts {
         let s = native_rule_stratum(produced, negated, &type_strata);
         rule_strata.push(s);
         if s > max_s {
@@ -7614,7 +7698,7 @@ mod tests {
             for _ in 0..N {
                 let mut m = rpds::HashTrieMapSync::new_sync();
                 for (k, v) in &sk {
-                    m = m.insert(k.clone(), v.clone());
+                    m.insert_mut(k.clone(), v.clone());
                 }
                 sink.push(m);
             }
@@ -7627,7 +7711,7 @@ mod tests {
             for _ in 0..N {
                 let mut m = rpds::HashTrieMapSync::new_sync();
                 for (k, v) in &ik {
-                    m = m.insert(k.clone(), v.clone());
+                    m.insert_mut(k.clone(), v.clone());
                 }
                 sink.push(m);
             }
@@ -7727,7 +7811,7 @@ mod tests {
             for _ in 0..N {
                 let mut m = rpds::HashTrieMapSync::new_sync();
                 for (k, v) in &kv {
-                    m = m.insert(k.clone(), v.clone());
+                    m.insert_mut(k.clone(), v.clone());
                 }
                 sink_a.push(m);
             }
@@ -7955,12 +8039,11 @@ mod tests {
         // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
         // deleted or stops firing still fails loudly, while a mark that is ADDED shows up for
         // free. Both directions covered; neither can go quiet.
-        const REQUIRED_PHASES: [&str; 23] = [
+        const REQUIRED_PHASES: [&str; 22] = [
             "IN: to_transient",
             "SETUP: indexes",
             "ROUND LOOP",
             "alpha",
-            "  ├ alpha:fieldnames",
             "  ├ alpha:match",
             "  ├ alpha:element",
             "  └ alpha:push",

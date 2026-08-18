@@ -60,11 +60,11 @@ fn pair_i64(v: Value) -> (i64, i64) {
 fn fixture_does_not_compile_the_program() {
     let src = fixture_wat();
     assert!(
-        !src.contains(":wat::rete::compile-all"),
+        !src.contains(":wat::rete::compile-all"), // rune:lint(loose-assert) — targeted absence over the fixture source
         "disk-program fixture must not compile-all — the program is datamancer.rete.edn"
     );
     assert!(
-        !src.contains(":wat::rete::defrule"),
+        !src.contains(":wat::rete::defrule"), // rune:lint(loose-assert) — targeted absence over the fixture source
         "disk-program fixture must not carry the rule source"
     );
 }
@@ -73,11 +73,11 @@ fn fixture_does_not_compile_the_program() {
 fn practice_on_disk_program_deduces_datamancer() {
     let txt = edn_from_disk();
     assert!(
-        txt.contains("#wat.rete/Export"),
+        txt.contains("#wat.rete/Export"), // rune:lint(loose-assert) — targeted tag presence over a large pretty Export
         "datamancer.rete.edn must be the compiled program (one tag)"
     );
     assert!(
-        !txt.contains("Symbol(Identifier"),
+        !txt.contains("Symbol(Identifier"), // rune:lint(loose-assert) — targeted absence of Debug(WatAST) over a large pretty Export
         "Export must not ship Debug of WatAST — rbind is the slot name, not a span"
     );
     let (who, hollow) = pair_i64(call_with_edn(":user::practice", &txt));

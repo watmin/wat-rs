@@ -2192,6 +2192,7 @@ mod completeness_gate {
     ":wat::rete::fire-rules-explain'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::insert'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::insert-all'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::lower",
     ":wat::rete::primitive?",
     ":wat::rete::pure?",
     ":wat::rete::step-payload'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed

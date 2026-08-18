@@ -6,18 +6,12 @@
 > **this file wins** and the stone is stale.
 
 **Right now:** items 1–12 landed. `#wat.rete/Export` is
-the compiled program: one EDN tag, packed vectors, no
-facts / memories / source forms. The first rete.edn on
-disk is `tests/rete/datamancer.rete.edn`. Read it, import,
-insert beats, fire — the residual deduces Datamancer
-(or Hollow, if there was a gap and no read of the log).
-Gate: `practice_on_disk_program_deduces_datamancer` /
-`impostor_on_disk_program_is_hollow`. `rule_consumes`
-walks `:exists` inner and accumulate `:from` (it used
-to leak `"?n"` and drop Artifact). R67 is on the
-chronicle. `(b)` is still item 13 — **not started.**
-Oracle cannot consume an Export. Do not service-ify.
-Do not start 297.
+the compiled program. Circumspicere-before-shadow is
+**closed** — see `CIRCUMSPICERE-before-shadow.md`. `(b)`
+ShadowNode may start only when the builder says so. ABI
+is a contract hash (format + classes + `RETE_OPS`), not
+a Merkle of the circuit. Do not start 297. Do not spray
+derived-inners onto every Clara grid axis.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -201,8 +195,10 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
     (Weak died at fire return). Overlay = child Session
     (facts + query-memory). Rewind = drop the child.
     Stratified slices still build (new `from_trie` map).
-13. `(b)` ShadowNode — **only after item 12.** Index the
-    **armed** network. Not a way around persist.
+13. `(b)` ShadowNode — **only after item 12 and the three
+    derived-inner / harvest gates.** Index the armed
+    network. Not a way around persist. Not a way around
+    a suite that never saw acc-over-derived.
 14. **`#wat.rete/Export`.** **landed (this turn).** The
     compiled program as one EDN value. `export` / `import`.
     Native fire. Oracle cannot consume it. Stratify

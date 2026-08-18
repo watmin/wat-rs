@@ -14,8 +14,8 @@ use crate::runtime::{
     EvalBreak, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
-use crate::types::TypeDef;
-use crate::value::value::AggregateValue;
+use crate::types::{EnumVariant, TypeDef};
+use crate::value::value::{AggregateValue, EnumValue};
 
 /// A lowered rete expression. Children are nested (builder: "matches the precedent").
 #[derive(Clone, Debug)]
@@ -45,6 +45,13 @@ pub(crate) enum Expr {
     /// (fn-headed `:then` fallbacks, e.g. `(:tf::Rate :count 0)`).
     Construct {
         class: String,
+        names: Arc<Vec<String>>,
+        fields: Box<[Expr]>,
+    },
+    /// `(:ns::Type::Variant field…)` — tagged or unit enum constructor.
+    Variant {
+        type_path: String,
+        variant_name: String,
         names: Arc<Vec<String>>,
         fields: Box<[Expr]>,
     },
@@ -240,7 +247,10 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     }
 }
 
-fn keyword_value(k: &str, _sym: &SymbolTable) -> Value {
+fn keyword_value(k: &str, sym: &SymbolTable) -> Value {
+    if let Some(ev) = sym.unit_variant(k) {
+        return Value::Enum(Arc::new(ev.clone()));
+    }
     Value::wat__core__keyword(Arc::new(k.to_string()))
 }
 
@@ -769,42 +779,83 @@ fn lower_construct(
     let Some(types) = cx.sym.types() else {
         return Ok(None);
     };
-    let Some(TypeDef::Aggregate(a)) = types.get(head) else {
-        return Ok(None);
-    };
-    let names = a.names_arc();
-    let class = head.strip_prefix(':').unwrap_or(head).to_string();
-    let args = &items[1..];
-    let is_kwargs = args.len() >= 2
-        && args.len().is_multiple_of(2)
-        && args
-            .iter()
-            .step_by(2)
-            .all(|a| matches!(a, WatAST::Keyword(_, _)));
-    let value_asts: Vec<&WatAST> = if is_kwargs {
-        args.iter().skip(1).step_by(2).collect()
-    } else {
-        args.iter().collect()
-    };
-    let mut fields = Vec::with_capacity(value_asts.len());
-    for v in value_asts {
-        fields.push(lower_expr(v, cx)?);
+    if let Some(TypeDef::Aggregate(a)) = types.get(head) {
+        let names = a.names_arc();
+        let class = head.strip_prefix(':').unwrap_or(head).to_string();
+        let args = &items[1..];
+        let is_kwargs = args.len() >= 2
+            && args.len().is_multiple_of(2)
+            && args
+                .iter()
+                .step_by(2)
+                .all(|a| matches!(a, WatAST::Keyword(_, _)));
+        let value_asts: Vec<&WatAST> = if is_kwargs {
+            args.iter().skip(1).step_by(2).collect()
+        } else {
+            args.iter().collect()
+        };
+        let mut fields = Vec::with_capacity(value_asts.len());
+        for v in value_asts {
+            fields.push(lower_expr(v, cx)?);
+        }
+        if fields.len() != names.len() {
+            return Err(LowerError::Unsupported {
+                span: span.clone(),
+                reason: format!(
+                    "constructor {head} wants {} fields, got {}",
+                    names.len(),
+                    fields.len()
+                ),
+            });
+        }
+        return Ok(Some(Expr::Construct {
+            class,
+            names,
+            fields: fields.into_boxed_slice(),
+        }));
     }
-    if fields.len() != names.len() {
-        return Err(LowerError::Unsupported {
-            span: span.clone(),
-            reason: format!(
-                "constructor {head} wants {} fields, got {}",
-                names.len(),
-                fields.len()
-            ),
-        });
+
+    // Enum variant constructor `:ns::Type::Variant` (unit or tagged).
+    if let Some((enum_path, variant)) = head.rsplit_once("::") {
+        if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
+            let found = e.variants.iter().find(|v| match v {
+                EnumVariant::Unit(n) => n == variant,
+                EnumVariant::Tagged { name, .. } => name == variant,
+            });
+            let Some(found) = found else {
+                return Ok(None);
+            };
+            let (arity, names) = match found {
+                EnumVariant::Unit(_) => (0usize, Arc::new(Vec::new())),
+                EnumVariant::Tagged { fields, .. } => (
+                    fields.len(),
+                    e.variant_names_arc(variant)
+                        .unwrap_or_else(|| Arc::new(Vec::new())),
+                ),
+            };
+            let args = &items[1..];
+            if args.len() != arity {
+                return Err(LowerError::Unsupported {
+                    span: span.clone(),
+                    reason: format!(
+                        "constructor {head} wants {arity} fields, got {}",
+                        args.len()
+                    ),
+                });
+            }
+            let mut fields = Vec::with_capacity(args.len());
+            for a in args {
+                fields.push(lower_expr(a, cx)?);
+            }
+            return Ok(Some(Expr::Variant {
+                type_path: enum_path.to_string(),
+                variant_name: variant.to_string(),
+                names,
+                fields: fields.into_boxed_slice(),
+            }));
+        }
     }
-    Ok(Some(Expr::Construct {
-        class,
-        names,
-        fields: fields.into_boxed_slice(),
-    }))
+    Ok(None)
 }
 
 // ── exec ─────────────────────────────────────────────────────────────────────
@@ -904,6 +955,23 @@ fn exec(
                 Arc::clone(field_names),
                 Arc::new(vs),
             ))))
+        }
+        Expr::Variant {
+            type_path,
+            variant_name,
+            names: field_names,
+            fields,
+        } => {
+            let mut vs = Vec::with_capacity(fields.len());
+            for f in fields.iter() {
+                vs.push(exec(f, frame, names, sym, span)?);
+            }
+            Ok(Value::Enum(Arc::new(EnumValue {
+                type_path: type_path.clone(),
+                variant_name: variant_name.clone(),
+                names: Arc::clone(field_names),
+                fields: vs,
+            })))
         }
         Expr::If { cond, then_, else_ } => match exec(cond, frame, names, sym, span)? {
             Value::bool(true) => exec(then_, frame, names, sym, span),
