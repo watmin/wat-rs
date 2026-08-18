@@ -5,12 +5,11 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–10 killed the **interpreter** on
-native fire. That is **not** AST-free fire. `(b)` does
-**not** start. Item 11 is the rete **driver** — specialize
-`classify` / leaf id / fact-bind / acc head / nested
-`:where` once at setup. The round loop supplies Values,
-opcodes, and ids. Oracle stays interpreted.
+**Right now:** items 1–11 landed. Native fire's **round
+loop** does not classify, stringify, re-`lower`, or
+`attach_fact_bind` a cond AST. Setup still reads `WatAST`
+once (compile-all stores forms; oracle needs them). `(b)`
+is next. Oracle stays interpreted.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -143,12 +142,12 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
     `production_pass` is `exec_compiled_rhs`. Delta
     `build_insert_fact` fallback deleted.
 11. **Compile the rete driver — AST-free fire.**
-    **Not started.** Specialize classify / leaf id /
-    fact-bind / acc head / nested `:where` at setup.
-    Round loop: Values, opcodes, ids. No `classify`,
-    no `exec_test`, no `cond_text`, no `attach_fact_bind`.
-    Gate: combinator families spec == native, and a
-    grep of the round loop that names no `WatAST` walk.
+    **landed (this turn).** `CondDriver` (`And`/`Or`/`Not`/
+    `Exists`/`Where(Program)`/`Leaf(id)`). `CompiledCond`
+    carries `fact_bind`. `AccFold` at setup. Slice follows
+    `driver_leaf_ids`. Gate: `where-not-and` 8/8,
+    `-bound` 8/8, `where-exists` 18/18, `where-not-where`
+    4/4, `where-accum-from-left` 7/7.
 12. `(b)` ShadowNode — **only after item 11.** Index the
     compiled predicates. Not a way around the driver.
 
@@ -172,7 +171,7 @@ compiler item. Do not start it to dodge the hole.
 | No-alpha WM-scan refuse + slice keeps minted leaves | `9441f39a` | local, not pushed |
 | Defensive populate miss | `ef50a360` | local, not pushed |
 | Four-pass `fire_once_session` / `alpha_pass` | `8d126df6` | local, not pushed |
-| Rete driver (AST-free fire) | this turn | **ruling locked; impl next** |
+| Rete driver (AST-free fire) | this turn | **landed, uncommitted** |
 | `(b)` ShadowNode | after item 11 | **not started** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
@@ -393,18 +392,16 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — no interpreter; item 11 is AST-free fire; `(b)` waits
+## NOW — item 11 landed; `(b)` is next
 
-Items 1–10 closed the interpreter verbs on native
-`fire-rules'` / `fire-once'`. Fire still walks `WatAST` as
-the rete **driver**: `classify_rete_clause`, `cond_text`,
-`attach_fact_bind`, `exec_test` (re-`lower`) on combinator
-`:where`, `acc-form` head. That is not `(b)`. That is
-item 11. Do not start ShadowNode. Do not start keyed gather.
+The round loop matches `CondDriver`, rematches `Leaf(id)`,
+`exec_where`s a stashed `Program`, attaches `?p` from
+`CompiledCond.fact_bind`, folds `AccFold`. Setup still
+reads the stored form (once). Session still *holds* AST
+for the oracle. Do not start keyed gather.
 
-Ruled 2026-08-17 (do not drop): **no interpreter ≠
-AST-free.** `(b)` only after the round loop walks no
-`WatAST`. Setup may read the form once.
+`(b)` ShadowNode may start. Index the compiled driver and
+the `where` circuits. Do not index a walk.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.

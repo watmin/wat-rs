@@ -1039,12 +1039,7 @@ fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak
             ) else {
                 continue;
             };
-            let bindings = match alpha_cond.get(aid) {
-                Some(cond_ast) => {
-                    crate::rete::matcher::attach_fact_bind(cond_ast, fact, bindings)
-                }
-                None => bindings,
-            };
+            let bindings = crate::rete::compiled_cond::attach_fact(compiled, fact, bindings);
             let el = make_element(fact.clone(), bindings);
             wm.alpha.entry(*aid).or_default().push(el);
         }
@@ -1135,19 +1130,129 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// Mirrors `wat/rete.wat:657-676`.
 /// Retained as the semantic reference; the keyed hash-join (P3) does not call it in the hot path.
 /// Called by the NegationNode filter (7-b) to check absence against the full alpha-memory.
-/// Binding maps that satisfy `cond` under `seed`. Fact: each matching WM fact.
-/// `:and`: backtrack across children. `:or`: concat arms. `:where`: keep or drop.
-fn binding_extensions(
+/// Rete control plane, specialized once at fire setup. The round loop
+/// matches this, never `classify_rete_clause`.
+#[derive(Clone)]
+enum CondDriver {
+    Leaf(i64),
+    And(Vec<CondDriver>),
+    Or(Vec<CondDriver>),
+    Not(Box<CondDriver>),
+    Exists(Box<CondDriver>),
+    Where(Arc<crate::rete::expr_ir::Program>),
+}
+
+fn compile_cond_driver(
     cond: &WatAST,
+    network: &Value,
+    sym: &SymbolTable,
+) -> Result<CondDriver, EvalBreak> {
+    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+    match classify_rete_clause(cond) {
+        ReteClauseShape::And(kids) => {
+            let mut out = Vec::with_capacity(kids.len());
+            for k in kids {
+                out.push(compile_cond_driver(k, network, sym)?);
+            }
+            Ok(CondDriver::And(out))
+        }
+        ReteClauseShape::Or(kids) => {
+            let mut out = Vec::with_capacity(kids.len());
+            for k in kids {
+                out.push(compile_cond_driver(k, network, sym)?);
+            }
+            Ok(CondDriver::Or(out))
+        }
+        ReteClauseShape::Not(inner) => Ok(CondDriver::Not(Box::new(compile_cond_driver(
+            inner, network, sym,
+        )?))),
+        ReteClauseShape::Exists(inner) => Ok(CondDriver::Exists(Box::new(compile_cond_driver(
+            inner, network, sym,
+        )?))),
+        ReteClauseShape::Where(expr) => {
+            let program = crate::rete::expr_ir::lower(expr, sym)
+                .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+            Ok(CondDriver::Where(Arc::new(program)))
+        }
+        _ => {
+            let id = alpha_id_for_cond(network, cond).ok_or_else(|| {
+                RuntimeError::new(
+                    cond.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::rete::fire-rules'".into(),
+                        reason: format!(
+                            "fact-shaped cond has no minted alpha — cannot compile driver: {}",
+                            cond_text(cond)
+                        ),
+                    },
+                )
+            })?;
+            Ok(CondDriver::Leaf(id))
+        }
+    }
+}
+
+fn compile_all_cond_drivers(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, CondDriver>, EvalBreak> {
+    let mut out = HashMap::new();
+    for id in node_ids {
+        let Some(node) = get_node(network, *id) else {
+            continue;
+        };
+        if kind_of(node) != "AlphaNode" {
+            continue;
+        }
+        let Some(cond) = alpha_cond_of(network, *id) else {
+            continue;
+        };
+        out.insert(*id, compile_cond_driver(&cond, network, sym)?);
+    }
+    Ok(out)
+}
+
+fn driver_leaf_ids(d: &CondDriver) -> Vec<i64> {
+    match d {
+        CondDriver::Leaf(id) => vec![*id],
+        CondDriver::And(ks) | CondDriver::Or(ks) => {
+            ks.iter().flat_map(driver_leaf_ids).collect()
+        }
+        CondDriver::Not(inner) | CondDriver::Exists(inner) => driver_leaf_ids(inner),
+        CondDriver::Where(_) => Vec::new(),
+    }
+}
+
+fn driver_of(
+    drivers: &HashMap<i64, CondDriver>,
+    alpha_id: i64,
+) -> Result<&CondDriver, EvalBreak> {
+    drivers.get(&alpha_id).ok_or_else(|| {
+        RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::fire-rules'".into(),
+                reason: format!(
+                    "alpha {alpha_id} has no compiled driver — setup should have compiled every alpha"
+                ),
+            },
+        )
+        .into()
+    })
+}
+
+/// Binding maps that satisfy a compiled combinator driver under `seed`.
+fn binding_extensions(
+    driver: &CondDriver,
     wm: &WorkingMemory,
     seed: &crate::value::pmap::PMap,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
 ) -> Result<Vec<crate::value::pmap::PMap>, EvalBreak> {
-    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
-    match classify_rete_clause(cond) {
-        ReteClauseShape::And(kids) => {
+    match driver {
+        CondDriver::And(kids) => {
             let mut exts = vec![seed.clone()];
             for kid in kids {
                 let mut next = Vec::new();
@@ -1168,7 +1273,7 @@ fn binding_extensions(
             }
             Ok(exts)
         }
-        ReteClauseShape::Or(kids) => {
+        CondDriver::Or(kids) => {
             let mut out = Vec::new();
             for kid in kids {
                 out.extend(binding_extensions(
@@ -1182,23 +1287,38 @@ fn binding_extensions(
             }
             Ok(out)
         }
-        ReteClauseShape::Where(expr) => match crate::rete::expr_ir::exec_test(expr, seed, sym) {
-            Ok(true) => Ok(vec![seed.clone()]),
-            _ => Ok(vec![]),
-        },
-        ReteClauseShape::Not(inner) => {
+        CondDriver::Where(program) => {
+            match crate::rete::expr_ir::exec_where(
+                program,
+                seed,
+                sym,
+                &crate::rust_caller_span!(),
+            ) {
+                Ok(true) => Ok(vec![seed.clone()]),
+                _ => Ok(vec![]),
+            }
+        }
+        CondDriver::Not(inner) => {
             if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)? {
                 Ok(vec![])
             } else {
                 Ok(vec![seed.clone()])
             }
         }
-        _ => {
-            let (alpha_id, els) = minted_leaf_alpha(wm, cond)?;
-            let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+        CondDriver::Exists(inner) => {
+            if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)? {
+                Ok(vec![seed.clone()])
+            } else {
+                Ok(vec![])
+            }
+        }
+        CondDriver::Leaf(alpha_id) => {
+            let empty: [Element; 0] = [];
+            let els = wm.alpha.get(alpha_id).map(Vec::as_slice).unwrap_or(&empty);
+            let compiled = rematch_compiled(compiled_conds, *alpha_id)?;
             Ok(els
                 .iter()
-                .filter_map(|el| fact_bindings_under(cond, &el.fact, seed, compiled, scratch))
+                .filter_map(|el| fact_bindings_under(&el.fact, seed, compiled, scratch))
                 .collect())
         }
     }
@@ -1223,7 +1343,6 @@ fn rematch_compiled(
 }
 
 fn fact_bindings_under(
-    cond: &WatAST,
     fact: &Value,
     seed: &crate::value::pmap::PMap,
     compiled: &crate::rete::compiled_cond::CompiledCond,
@@ -1235,7 +1354,7 @@ fn fact_bindings_under(
     };
     let pairs =
         crate::rete::compiled_cond::exec_compiled_under(compiled, fact_fields, scratch, seed)?;
-    let pairs = crate::rete::matcher::attach_fact_bind(cond, fact, pairs);
+    let pairs = crate::rete::compiled_cond::attach_fact(compiled, fact, pairs);
     // Unify with the seed. A Bind of `?c` compiles as a first-write (the cond
     // in isolation does not know the left token already bound `?c`). Conflict
     // is no match — same as `alpha_match_inner_seeded` / Clara join. Overwrite
@@ -1251,32 +1370,14 @@ fn fact_bindings_under(
     Some(pm)
 }
 
-/// Inner of `:not` / `:exists` holds under `seed`? A fact, or `:and` of facts
-/// (Clara `[:not [:and [Wind] [Temp]]]`).
-/// Fact-shaped `:exists` / `:not` inner — the bag is already in that
-/// node's alpha. Combinator / `:where` inners stay on `exists_cond_under`
-/// (where-not-where is eval-test; leftover `?v < ?m` is a where).
-fn exists_uses_alpha_probe(cond: &WatAST) -> bool {
-    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
-    !matches!(
-        classify_rete_clause(cond),
-        ReteClauseShape::And(_)
-            | ReteClauseShape::Or(_)
-            | ReteClauseShape::Not(_)
-            | ReteClauseShape::Exists(_)
-            | ReteClauseShape::Where(_)
-    )
-}
-
 fn any_seeded_in_alpha(
-    cond: &WatAST,
     tok: &crate::value::pmap::PMap,
     els: &[Element],
     compiled: &crate::rete::compiled_cond::CompiledCond,
     scratch: &mut Vec<Option<Value>>,
 ) -> bool {
     els.iter()
-        .any(|el| fact_bindings_under(cond, &el.fact, tok, compiled, scratch).is_some())
+        .any(|el| fact_bindings_under(&el.fact, tok, compiled, scratch).is_some())
 }
 
 fn cond_text(cond: &WatAST) -> String {
@@ -1302,102 +1403,36 @@ fn alpha_id_for_cond(network: &Value, cond: &WatAST) -> Option<i64> {
     None
 }
 
-fn alpha_id_and_els<'a>(
-    wm: &'a WorkingMemory,
-    cond: &WatAST,
-) -> Option<(i64, &'a [Element])> {
-    let id = alpha_id_for_cond(&wm.network, cond)?;
-    Some((id, wm.alpha.get(&id).map(Vec::as_slice).unwrap_or(&[])))
-}
-
-/// Alpha ids `mint-leaf-alphas` created for fact-shaped leaves of a
-/// combinator cond. Those nodes have no `children` edge and are not
-/// `negated-alpha-id` / `exists-alpha-id` / `from-alpha-id` — the
-/// stratum slice must follow this list or it drops them (same class
-/// as forgetting `ref_alpha_of`).
-fn mint_leaf_alpha_ids(network: &Value, cond: &WatAST) -> Vec<i64> {
-    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
-    match classify_rete_clause(cond) {
-        ReteClauseShape::And(kids) | ReteClauseShape::Or(kids) => kids
-            .iter()
-            .flat_map(|k| mint_leaf_alpha_ids(network, k))
-            .collect(),
-        ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
-            mint_leaf_alpha_ids(network, inner)
-        }
-        ReteClauseShape::Where(_) => Vec::new(),
-        _ => alpha_id_for_cond(network, cond).into_iter().collect(),
-    }
-}
-
-/// Fact-shaped combinator leaf. `mint-leaf-alphas` must have minted this
-/// cond, and the stratum slice must have kept it. A miss is a compile
-/// or slice hole — refuse, do not scan WM.
-fn minted_leaf_alpha<'a>(
-    wm: &'a WorkingMemory,
-    cond: &WatAST,
-) -> Result<(i64, &'a [Element]), EvalBreak> {
-    if let Some(hit) = alpha_id_and_els(wm, cond) {
-        return Ok(hit);
-    }
-    let known: Vec<String> = sorted_node_ids(&wm.network)
-        .into_iter()
-        .filter_map(|id| {
-            let node = get_node(&wm.network, id)?;
-            if kind_of(node) != "AlphaNode" {
-                return None;
-            }
-            let stored = alpha_cond_of(&wm.network, id)?;
-            Some(format!("{id}:{}", cond_text(&stored)))
-        })
-        .collect();
-    Err(RuntimeError::new(
-        cond.span().clone(),
-        RuntimeErrorKind::MalformedForm {
-            head: ":wat::rete::fire-rules'".into(),
-            reason: format!(
-                "fact-shaped combinator leaf has no minted alpha — \
-                 mint-leaf-alphas should have created one; WM scan is refused: {} \
-                 known-alphas=[{}]",
-                cond_text(cond),
-                known.join(" | ")
-            ),
-        },
-    )
-    .into())
-}
-
 fn token_exists_under(
-    cond: &WatAST,
+    driver: &CondDriver,
     tok: &crate::value::pmap::PMap,
     wm: &WorkingMemory,
-    alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
 ) -> Result<bool, EvalBreak> {
-    if exists_uses_alpha_probe(cond) {
-        let empty: [Element; 0] = [];
-        let els = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&empty);
-        let compiled = rematch_compiled(compiled_conds, alpha_id)?;
-        Ok(any_seeded_in_alpha(cond, tok, els, compiled, scratch))
-    } else {
-        exists_cond_under(cond, wm, tok, compiled_conds, scratch, sym)
+    match driver {
+        CondDriver::Leaf(alpha_id) => {
+            let empty: [Element; 0] = [];
+            let els = wm.alpha.get(alpha_id).map(Vec::as_slice).unwrap_or(&empty);
+            let compiled = rematch_compiled(compiled_conds, *alpha_id)?;
+            Ok(any_seeded_in_alpha(tok, els, compiled, scratch))
+        }
+        other => exists_cond_under(other, wm, tok, compiled_conds, scratch, sym),
     }
 }
 
 fn exists_cond_under(
-    cond: &WatAST,
+    driver: &CondDriver,
     wm: &WorkingMemory,
     seed: &crate::value::pmap::PMap,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
 ) -> Result<bool, EvalBreak> {
-    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
-    match classify_rete_clause(cond) {
-        ReteClauseShape::And(_) => Ok(!binding_extensions(
-            cond,
+    match driver {
+        CondDriver::And(_) => Ok(!binding_extensions(
+            driver,
             wm,
             seed,
             compiled_conds,
@@ -1405,7 +1440,7 @@ fn exists_cond_under(
             sym,
         )?
         .is_empty()),
-        ReteClauseShape::Or(kids) => {
+        CondDriver::Or(kids) => {
             for k in kids {
                 if exists_cond_under(k, wm, seed, compiled_conds, scratch, sym)? {
                     return Ok(true);
@@ -1413,10 +1448,14 @@ fn exists_cond_under(
             }
             Ok(false)
         }
-        ReteClauseShape::Where(expr) => {
-            Ok(crate::rete::expr_ir::exec_test(expr, seed, sym).unwrap_or(false))
-        }
-        ReteClauseShape::Not(inner) => Ok(!exists_cond_under(
+        CondDriver::Where(program) => Ok(crate::rete::expr_ir::exec_where(
+            program,
+            seed,
+            sym,
+            &crate::rust_caller_span!(),
+        )
+        .unwrap_or(false)),
+        CondDriver::Not(inner) => Ok(!exists_cond_under(
             inner,
             wm,
             seed,
@@ -1424,13 +1463,14 @@ fn exists_cond_under(
             scratch,
             sym,
         )?),
-        ReteClauseShape::Exists(inner) => {
+        CondDriver::Exists(inner) => {
             exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)
         }
-        _ => {
-            let (leaf_id, els) = minted_leaf_alpha(wm, cond)?;
-            let compiled = rematch_compiled(compiled_conds, leaf_id)?;
-            Ok(any_seeded_in_alpha(cond, seed, els, compiled, scratch))
+        CondDriver::Leaf(leaf_id) => {
+            let empty: [Element; 0] = [];
+            let els = wm.alpha.get(leaf_id).map(Vec::as_slice).unwrap_or(&empty);
+            let compiled = rematch_compiled(compiled_conds, *leaf_id)?;
+            Ok(any_seeded_in_alpha(seed, els, compiled, scratch))
         }
     }
 }
@@ -1521,16 +1561,13 @@ fn join_extend(
     tok: &Token,
     el: &Element,
     alpha_id: i64,
-    cond: Option<&WatAST>,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
 ) -> Result<Option<Token>, EvalBreak> {
     let (el_fact, el_b) = element_fact_bindings(el);
-    if let Some(cond) = cond {
-        let compiled = rematch_compiled(compiled_conds, alpha_id)?;
-        if fact_bindings_under(cond, el_fact, &tok.bindings, compiled, scratch).is_none() {
-            return Ok(None);
-        }
+    let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+    if fact_bindings_under(el_fact, &tok.bindings, compiled, scratch).is_none() {
+        return Ok(None);
     }
     Ok(Some(extend_token(tok, el_fact, el_b, alpha_id)))
 }
@@ -1539,7 +1576,6 @@ fn keyed_join(
     left_tokens: &[Token],
     right_elements: &[Element],
     alpha_id: i64,
-    cond: Option<&WatAST>,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
 ) -> Result<Vec<Token>, EvalBreak> {
@@ -1607,7 +1643,6 @@ fn keyed_join(
                     tok,
                     &right_elements[el_idx],
                     alpha_id,
-                    cond,
                     compiled_conds,
                     scratch,
                 )? {
@@ -1675,13 +1710,10 @@ fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalB
                 Some(els) => els.as_slice(),
                 None => continue, // no right-side elements → skip
             };
-            let cond = alpha_cond_of(&wm.network, alpha_id);
-            // Delegate to the shared keyed_join helper (P3 keyed index+probe).
             let new_tokens = keyed_join(
                 &tokens,
                 elements,
                 alpha_id,
-                cond.as_ref(),
                 &compiled_conds,
                 &mut match_scratch,
             )?;
@@ -2171,62 +2203,6 @@ fn acc_var_i64(el: &Element, var: &Value) -> i64 {
     }
 }
 
-fn string_bind_key(name: &str) -> Value {
-    Value::String(Arc::new(name.to_string()))
-}
-
-/// `?var` names a condition binds — mirrors `cond-bind-keys` in `wat/rete.wat`.
-fn cond_bind_keys(cond: &WatAST) -> Vec<Value> {
-    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
-    match classify_rete_clause(cond) {
-        ReteClauseShape::Bind { var, .. } => vec![string_bind_key(var)],
-        ReteClauseShape::FactBind { var, clauses, .. } => {
-            let mut ks = vec![string_bind_key(var)];
-            ks.extend(clauses.iter().flat_map(cond_bind_keys));
-            ks
-        }
-        ReteClauseShape::Accumulate { var, from, .. } => {
-            let mut ks = vec![string_bind_key(var)];
-            ks.extend(cond_bind_keys(from));
-            ks
-        }
-        ReteClauseShape::And(kids) | ReteClauseShape::Or(kids) => {
-            kids.iter().flat_map(cond_bind_keys).collect()
-        }
-        ReteClauseShape::Exists(inner) => cond_bind_keys(inner),
-        ReteClauseShape::Not(_)
-        | ReteClauseShape::Where(_)
-        | ReteClauseShape::Constraint { .. } => {
-            vec![]
-        }
-        ReteClauseShape::Unrecognized => match cond {
-            WatAST::List(items, _) if items.len() > 1 => {
-                items[1..].iter().flat_map(cond_bind_keys).collect()
-            }
-            _ => vec![],
-        },
-    }
-}
-
-/// `?var` args of the acc-form (`max ?v` → [?v]; count → []).
-fn acc_operand_keys(acc_form: &WatAST) -> Vec<Value> {
-    let items = match acc_form {
-        WatAST::List(items, _) => items.as_slice(),
-        _ => return vec![],
-    };
-    items
-        .iter()
-        .skip(1)
-        .filter_map(|kid| match kid {
-            WatAST::Symbol(s, _) if s.as_str().starts_with('?') => {
-                Some(string_bind_key(s.as_str()))
-            }
-            WatAST::Keyword(k, _) if k.starts_with('?') => Some(string_bind_key(k)),
-            _ => None,
-        })
-        .collect()
-}
-
 fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Vec<(Value, Value)> {
     let mut out = Vec::with_capacity(keys.len());
     for k in keys {
@@ -2235,6 +2211,112 @@ fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Ve
         }
     }
     out
+}
+
+/// Built-in or user accumulate fold, specialized at setup. Fire does not
+/// read the `acc-form` AST.
+enum AccFold {
+    Count,
+    Sum(Value),
+    Min(Value),
+    Max(Value),
+    Mean(Value),
+    Distinct(Value),
+    All,
+    GroupBy(Value),
+    User { var: Value, program: Arc<crate::rete::expr_ir::Program> },
+}
+
+impl AccFold {
+    fn operand_keys(&self) -> Vec<Value> {
+        match self {
+            AccFold::Count | AccFold::All => Vec::new(),
+            AccFold::Sum(k)
+            | AccFold::Min(k)
+            | AccFold::Max(k)
+            | AccFold::Mean(k)
+            | AccFold::Distinct(k)
+            | AccFold::GroupBy(k)
+            | AccFold::User { var: k, .. } => vec![k.clone()],
+        }
+    }
+}
+
+fn compile_acc_fold(
+    acc_form: &WatAST,
+    compiled_user: Option<Arc<crate::rete::expr_ir::Program>>,
+) -> Result<AccFold, EvalBreak> {
+    let items = match acc_form {
+        WatAST::List(items, _) => items.as_slice(),
+        _ => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::fire-rules'".into(),
+                    reason: "accumulate acc-form is not a list".into(),
+                },
+            )
+            .into());
+        }
+    };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        Some(WatAST::Symbol(s, _)) => s.as_str(),
+        _ => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::fire-rules'".into(),
+                    reason: "accumulate acc-form has no head".into(),
+                },
+            )
+            .into());
+        }
+    };
+    let var_key = || -> Result<Value, EvalBreak> {
+        let name = match items.get(1) {
+            Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
+            Some(WatAST::Keyword(k, _)) => k.as_str().to_string(),
+            _ => {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: format!("accumulate: value-fold {head} missing ?var arg"),
+                    },
+                )
+                .into());
+            }
+        };
+        Ok(Value::String(Arc::new(name)))
+    };
+    Ok(match head {
+        ":wat::rete::acc::count" => AccFold::Count,
+        ":wat::rete::acc::sum" => AccFold::Sum(var_key()?),
+        ":wat::rete::acc::min" => AccFold::Min(var_key()?),
+        ":wat::rete::acc::max" => AccFold::Max(var_key()?),
+        ":wat::rete::acc::mean" => AccFold::Mean(var_key()?),
+        ":wat::rete::acc::distinct" => AccFold::Distinct(var_key()?),
+        ":wat::rete::acc::all" => AccFold::All,
+        ":wat::rete::acc::group-by" => AccFold::GroupBy(var_key()?),
+        _ => {
+            let Some(program) = compiled_user else {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: "user acc fold has no compiled Program — setup should have refused"
+                            .into(),
+                    },
+                )
+                .into());
+            };
+            AccFold::User {
+                var: var_key()?,
+                program,
+            }
+        }
+    })
 }
 
 /// Compute the aggregate `Value` for an `acc-form` over the gathered elements.
@@ -2256,44 +2338,21 @@ fn project_group_keys(el_bindings: &Arc<[(Value, Value)]>, keys: &[Value]) -> Ve
 /// Returns `Ok(Some(value))` on a produced aggregate, `Ok(None)` to drop the token (empty
 /// min/max/mean), `Err` if a custom fn's evaluation breaks.
 fn accumulate_value(
-    acc_form: &WatAST,
+    fold: &AccFold,
     gathered: &[&Element],
     sym: &SymbolTable,
-    compiled_fold: Option<&crate::rete::expr_ir::Program>,
 ) -> Result<Option<Value>, EvalBreak> {
-    // Head keyword name (e.g. ":wat::rete::acc::count").
-    let items = match acc_form {
-        WatAST::List(items, _) => items.as_slice(),
-        _ => return Ok(None),
-    };
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        Some(WatAST::Symbol(s, _)) => s.as_str(),
-        _ => return Ok(None),
-    };
-    // The ?var symbol name (value-folds), built as the binding key Value::String("?v").
-    let var_key = || -> Value {
-        let name = match items.get(1) {
-            Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
-            Some(WatAST::Keyword(k, _)) => k.as_str().to_string(),
-            _ => panic!("accumulate: value-fold {head} missing ?var arg"),
-        };
-        Value::String(Arc::new(name))
-    };
-
-    Ok(match head {
-        ":wat::rete::acc::count" => Some(Value::i64(gathered.len() as i64)),
-        ":wat::rete::acc::sum" => {
-            let var = var_key();
-            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, &var)).sum();
+    Ok(match fold {
+        AccFold::Count => Some(Value::i64(gathered.len() as i64)),
+        AccFold::Sum(var) => {
+            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var)).sum();
             Some(Value::i64(s))
         }
-        ":wat::rete::acc::min" => {
-            let var = var_key();
+        AccFold::Min(var) => {
             // None seed; first element sets it, subsequent narrow with `<`. Empty → None.
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, &var);
+                let v = acc_var_i64(el, var);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v < cur {
@@ -2307,11 +2366,10 @@ fn accumulate_value(
             }
             acc.map(Value::i64)
         }
-        ":wat::rete::acc::max" => {
-            let var = var_key();
+        AccFold::Max(var) => {
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, &var);
+                let v = acc_var_i64(el, var);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v > cur {
@@ -2325,31 +2383,26 @@ fn accumulate_value(
             }
             acc.map(Value::i64)
         }
-        ":wat::rete::acc::mean" => {
-            // Composition: (/ sum count). Empty (count 0) → None.
-            let var = var_key();
+        AccFold::Mean(var) => {
             let n = gathered.len() as i64;
             if n == 0 {
                 None
             } else {
-                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, &var)).sum();
+                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var)).sum();
                 Some(Value::i64(s / n))
             }
         }
-        ":wat::rete::acc::distinct" => {
-            // Dedup the ?var values, preserving first-seen (insertion) order. Empty → [].
-            let var = var_key();
+        AccFold::Distinct(var) => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                let v = Value::i64(acc_var_i64(el, &var));
+                let v = Value::i64(acc_var_i64(el, var));
                 if !pv.iter().any(|x| *x == v) {
                     pv.push_back_mut(v);
                 }
             }
             Some(Value::wat__core__PersistentVector(pv))
         }
-        ":wat::rete::acc::all" => {
-            // PV of each element's fact, in gather order. Empty → [].
+        AccFold::All => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
                 let (fact, _) = element_fact_bindings(el);
@@ -2357,13 +2410,11 @@ fn accumulate_value(
             }
             Some(Value::wat__core__PersistentVector(pv))
         }
-        ":wat::rete::acc::group-by" => {
-            // PM: ?var value (i64) → PV<fact>, conj in gather order. Empty → {}.
-            let var = var_key();
+        AccFold::GroupBy(var) => {
             let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
             for el in gathered {
                 let (fact, _) = element_fact_bindings(el);
-                let k = Value::i64(acc_var_i64(el, &var));
+                let k = Value::i64(acc_var_i64(el, var));
                 let pv = match pm.get(&k) {
                     Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
                     _ => rpds::VectorSync::new_sync(),
@@ -2373,40 +2424,21 @@ fn accumulate_value(
                     Value::wat__core__PersistentVector(pv.push_back(fact.clone())),
                 );
             }
-            // Never wrap a built trie directly — choose the arm by size.
             Some(Value::wat__core__PersistentMap(
                 crate::value::pmap::PMap::from_trie(pm),
             ))
         }
-        // Flip 5: the old form is gone. Gather the ?var values into a PV<i64>,
-        // then `exec_call` the Program lowered at setup. No `eval_inner`.
-        user_fn => {
-            let var = var_key();
+        AccFold::User { var, program } => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, &var)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, var)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
-            let span = match acc_form {
-                WatAST::List(_, s) => s.clone(),
-                _ => crate::rust_caller_span!(),
-            };
-            let Some(program) = compiled_fold else {
-                return Err(RuntimeError::new(
-                    span,
-                    RuntimeErrorKind::MalformedForm {
-                        head: user_fn.into(),
-                        reason: "user acc fold has no compiled Program — setup should have refused"
-                            .into(),
-                    },
-                )
-                .into());
-            };
             Some(crate::rete::expr_ir::exec_call(
                 program,
                 &[gathered_pv],
                 sym,
-                &span,
+                &crate::rust_caller_span!(),
             )?)
         }
     })
@@ -3111,6 +3143,7 @@ fn fire_fixpoint_delta(
     // DESIGN-STONE-compiled-conditions.md — compile each alpha ONCE here, leftover-as-seed.
     // Populate skips SeedCmp; rematch requires it. A miss is a setup hole — refuse.
     let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
+    let compiled_drivers = compile_all_cond_drivers(&wm.network, &node_ids, sym)?;
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
     // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
     // `resize` back up never reallocates after this point — the failure path it guards allocates
@@ -3128,6 +3161,26 @@ fn fire_fixpoint_delta(
     // Flip 5 — user acc folds: lower each AccumulateNode's user-fn head once.
     // Built-in `:wat::rete::acc::*` heads are not here. A miss refuses the fire.
     let compiled_user_folds = compile_user_fold_programs(&wm.network, &node_ids, sym)?;
+    let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(&wm.network, *node_id) else {
+            continue;
+        };
+        if kind_of(node) != "AccumulateNode" {
+            continue;
+        }
+        let Some((_, sf)) = node_record(node) else {
+            continue;
+        };
+        let acc_form = match &sf[2] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        compiled_acc_folds.insert(
+            *node_id,
+            compile_acc_fold(acc_form, compiled_user_folds.get(node_id).cloned())?,
+        );
+    }
 
     // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
     // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
@@ -3295,12 +3348,7 @@ fn fire_fixpoint_delta(
                 );
                 phase_end("  ├ alpha:match", __am);
                 if let Some(bindings) = matched {
-                    let bindings = match alpha_cond.get(aid) {
-                        Some(cond_ast) => {
-                            crate::rete::matcher::attach_fact_bind(cond_ast, fact, bindings)
-                        }
-                        None => bindings,
-                    };
+                    let bindings = crate::rete::compiled_cond::attach_fact(compiled, fact, bindings);
                     let __mk = phase_start();
                     let el = make_element(fact.clone(), bindings);
                     phase_end("  ├ alpha:element", __mk);
@@ -3399,7 +3447,6 @@ fn fire_fixpoint_delta(
                     continue;
                 }
                 let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
-                let join_cond = alpha_cond_of(&wm.network, alpha_id);
 
                 // Step 1: Ensure join_keys[J] is cached.
                 // Compute from a sample token at P and a sample element at A (if both exist).
@@ -3490,7 +3537,6 @@ fn fire_fixpoint_delta(
                                         tok,
                                         el,
                                         alpha_id,
-                                        join_cond.as_ref(),
                                         &compiled_conds,
                                         &mut match_scratch,
                                     )? {
@@ -3573,7 +3619,6 @@ fn fire_fixpoint_delta(
                                         tok,
                                         el,
                                         alpha_id,
-                                        join_cond.as_ref(),
                                         &compiled_conds,
                                         &mut match_scratch,
                                     )? {
@@ -3600,7 +3645,6 @@ fn fire_fixpoint_delta(
                                         tok,
                                         el,
                                         alpha_id,
-                                        join_cond.as_ref(),
                                         &compiled_conds,
                                         &mut match_scratch,
                                     )? {
@@ -3671,9 +3715,17 @@ fn fire_fixpoint_delta(
                 Value::String(s) => Value::String(s.clone()),
                 _ => continue, // malformed: skip
             };
-            let acc_form: WatAST = match &sf[2] {
-                Value::wat__WatAST(ast) => (**ast).clone(),
-                _ => continue, // malformed: skip
+            let Some(acc_fold) = compiled_acc_folds.get(node_id) else {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::rete::fire-rules'".into(),
+                        reason: format!(
+                            "AccumulateNode {node_id} has no compiled fold — setup should have compiled it"
+                        ),
+                    },
+                )
+                .into());
             };
             let from_alpha_id: i64 = match &sf[3] {
                 Value::i64(n) => *n,
@@ -3728,13 +3780,11 @@ fn fire_fixpoint_delta(
                 (elements, idx)
             });
             phase_end("  ├ accum:index", __ix);
-            let from_cond = alpha_cond_of(&wm.network, from_alpha_id);
-            let from_compiled = match from_cond.as_ref() {
-                Some(_) => Some(rematch_compiled(&compiled_conds, from_alpha_id)?),
-                None => None,
-            };
-            let from_keys = from_cond.as_ref().map(cond_bind_keys).unwrap_or_default();
-            let operand_keys = acc_operand_keys(&acc_form);
+            let from_compiled = rematch_compiled(&compiled_conds, from_alpha_id).ok();
+            let from_keys = from_compiled
+                .map(|c| c.bind_keys())
+                .unwrap_or_default();
+            let operand_keys = acc_fold.operand_keys();
             let __fd = phase_start();
             for tok in new_tokens {
                 let key = key_of(&tok.bindings, &join_keys);
@@ -3746,16 +3796,15 @@ fn fire_fixpoint_delta(
                 for &i in bucket {
                     let el = &from_elements[i];
                     census_gather_visit();
-                    let ok = match (from_cond.as_ref(), from_compiled) {
-                        (Some(cond), Some(compiled)) => fact_bindings_under(
-                            cond,
+                    let ok = match from_compiled {
+                        Some(compiled) => fact_bindings_under(
                             &el.fact,
                             &tok.bindings,
                             compiled,
                             &mut match_scratch,
                         )
                         .is_some(),
-                        _ => {
+                        None => {
                             let (_, el_b) = element_fact_bindings(el);
                             token_element_compatible(&tok.bindings, el_b)
                         }
@@ -3807,12 +3856,7 @@ fn fire_fixpoint_delta(
                         .collect()
                 };
                 for (group_bindings, group_els) in groups {
-                    if let Some(aggregate) = accumulate_value(
-                        &acc_form,
-                        &group_els,
-                        sym,
-                        compiled_user_folds.get(node_id).map(|p| p.as_ref()),
-                    )? {
+                    if let Some(aggregate) = accumulate_value(acc_fold, &group_els, sym)? {
                         let new_bindings = group_bindings.assoc(result_var.clone(), aggregate);
                         let new_tok = Token {
                             matches: tok.matches.clone(),
@@ -3873,12 +3917,9 @@ fn fire_fixpoint_delta(
                     Value::i64(n) => *n,
                     _ => continue,
                 };
-                let cond = match alpha_cond_of(&wm.network, alpha_id) {
-                    Some(c) => c,
-                    None => continue,
-                };
+                let driver = driver_of(&compiled_drivers, alpha_id)?;
                 let mut seen = std::collections::HashSet::new();
-                let exts: Vec<crate::value::pmap::PMap> = if exists_uses_alpha_probe(&cond) {
+                let exts: Vec<crate::value::pmap::PMap> = if matches!(driver, CondDriver::Leaf(_)) {
                     wm.alpha
                         .get(&alpha_id)
                         .into_iter()
@@ -3891,7 +3932,7 @@ fn fire_fixpoint_delta(
                 } else {
                     let empty = crate::value::pmap::PMap::new();
                     binding_extensions(
-                        &cond,
+                        driver,
                         &wm,
                         &empty,
                         &compiled_conds,
@@ -3963,16 +4004,12 @@ fn fire_fixpoint_delta(
                     Value::i64(n) => *n,
                     _ => continue, // malformed Negation/Exists node: skip
                 };
-                let cond = match alpha_cond_of(&wm.network, alpha_id) {
-                    Some(c) => c,
-                    None => continue,
-                };
+                let driver = driver_of(&compiled_drivers, alpha_id)?;
                 for tok in new_tokens {
                     let any_compat = token_exists_under(
-                        &cond,
+                        driver,
                         &tok.bindings,
                         &wm,
-                        alpha_id,
                         &compiled_conds,
                         &mut match_scratch,
                         sym,
@@ -4031,12 +4068,10 @@ fn fire_fixpoint_delta(
                     Some(els) if !els.is_empty() => els.as_slice(),
                     _ => continue,
                 };
-                let cond = alpha_cond_of(&wm.network, alpha_id);
                 let joined = keyed_join(
                     &new_tokens,
                     elements,
                     alpha_id,
-                    cond.as_ref(),
                     &compiled_conds,
                     &mut match_scratch,
                 )?;
@@ -4111,16 +4146,12 @@ fn fire_fixpoint_delta(
                         if new_tokens.is_empty() {
                             continue;
                         }
-                        let cond = match alpha_cond_of(&wm.network, alpha_id) {
-                            Some(c) => c,
-                            None => continue,
-                        };
+                        let driver = driver_of(&compiled_drivers, alpha_id)?;
                         for tok in new_tokens {
                             let any_compat = token_exists_under(
-                                &cond,
+                                driver,
                                 &tok.bindings,
                                 &wm,
-                                alpha_id,
                                 &compiled_conds,
                                 &mut match_scratch,
                                 sym,
@@ -4160,12 +4191,10 @@ fn fire_fixpoint_delta(
                                     Some(els) if !els.is_empty() => els.as_slice(),
                                     _ => continue,
                                 };
-                                let cond = alpha_cond_of(&wm.network, alpha_id);
                                 let joined = keyed_join(
                                     &parent_toks,
                                     elements,
                                     alpha_id,
-                                    cond.as_ref(),
                                     &compiled_conds,
                                     &mut match_scratch,
                                 )?;
@@ -4216,16 +4245,12 @@ fn fire_fixpoint_delta(
                                     Value::i64(n) => *n,
                                     _ => continue,
                                 };
-                                let cond = match alpha_cond_of(&wm.network, alpha_id) {
-                                    Some(c) => c,
-                                    None => continue,
-                                };
+                                let driver = driver_of(&compiled_drivers, alpha_id)?;
                                 for tok in parent_toks {
                                     let any_compat = token_exists_under(
-                                        &cond,
+                                        driver,
                                         &tok.bindings,
                                         &wm,
-                                        alpha_id,
                                         &compiled_conds,
                                         &mut match_scratch,
                                         sym,
@@ -4836,6 +4861,8 @@ fn fire_rules_stratified(
         }
     };
 
+    let slice_drivers = compile_all_cond_drivers(&network, &all_ids, sym)?;
+
     let mut acc_facts: Value = input_facts.clone();
     let mut acc_derived: Vec<Value> = Vec::new();
 
@@ -4882,8 +4909,8 @@ fn fire_rules_stratified(
                     }
                 }
                 if kind_of(node) == "AlphaNode" {
-                    if let Some(cond) = alpha_cond_of(&network, id) {
-                        for leaf_id in mint_leaf_alpha_ids(&network, &cond) {
+                    if let Some(d) = slice_drivers.get(&id) {
+                        for leaf_id in driver_leaf_ids(d) {
                             if leaf_id != id && active_ids.insert(leaf_id) {
                                 frontier.push(leaf_id);
                             }

@@ -1459,6 +1459,8 @@ pub(crate) fn eval_lower(
 }
 
 /// Fire-path: lower (already proved at rule-compile) and exec.
+/// Oracle / differential helper. Native rematch uses a stashed `Program`.
+#[allow(dead_code)]
 pub(crate) fn exec_test<B: Bindings>(
     expr: &WatAST,
     bindings: &B,

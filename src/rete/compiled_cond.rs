@@ -138,12 +138,25 @@ pub(crate) struct CompiledCond {
     /// Leftover `?var` keys this rematch reads from the token seed, in first-seen order.
     /// Not in `output_slots` — a leftover is the left token's bind, not this cond's.
     seed_reads: Arc<[(Value, usize)]>,
+    /// `(?p <- :Type …)` — the fact itself, not a field. Set at compile from
+    /// `alpha_pattern`; fire attaches without walking the cond AST.
+    fact_bind: Option<Value>,
 }
 
 impl CompiledCond {
     /// The scratch-buffer length `exec_compiled` needs for this program.
     pub(crate) fn n_slots(&self) -> usize {
         self.n_slots
+    }
+
+    /// `?var`s this cond binds, including `(?p <- :Type …)`.
+    pub(crate) fn bind_keys(&self) -> Vec<Value> {
+        let mut ks = Vec::with_capacity(self.slot_keys.len() + 1);
+        if let Some(k) = &self.fact_bind {
+            ks.push(k.clone());
+        }
+        ks.extend(self.slot_keys.iter().cloned());
+        ks
     }
 }
 
@@ -223,6 +236,9 @@ fn compile_condition_opts(
         .collect::<Vec<_>>()
         .into();
     let seed_reads: Arc<[(Value, usize)]> = ctx.seed_reads.into();
+    let fact_bind = pat
+        .fact_var
+        .map(|v| Value::String(Arc::new(v.to_string())));
 
     Some(CompiledCond {
         ops,
@@ -230,7 +246,25 @@ fn compile_condition_opts(
         output_slots,
         n_slots: ctx.next_slot,
         seed_reads,
+        fact_bind,
     })
+}
+
+/// Put the matched fact on `?p` when this cond is `(?p <- :Type …)`.
+pub(crate) fn attach_fact(
+    compiled: &CompiledCond,
+    fact: &Value,
+    bindings: Arc<[(Value, Value)]>,
+) -> Arc<[(Value, Value)]> {
+    match &compiled.fact_bind {
+        Some(key) => {
+            let mut out: Vec<(Value, Value)> = Vec::with_capacity(bindings.len() + 1);
+            out.push((key.clone(), fact.clone()));
+            out.extend(bindings.iter().map(|(k, v)| (k.clone(), v.clone())));
+            out.into()
+        }
+        None => bindings,
+    }
 }
 
 /// Compile a clause LIST in the caller's own scope — the top-level condition body, or an `and`'s
