@@ -1241,6 +1241,7 @@ fn binding_extensions(
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
+    gather_cache: &mut GatherCache,
 ) -> Result<Vec<crate::value::pmap::PMap>, EvalBreak> {
     match driver {
         CondDriver::And(kids) => {
@@ -1255,6 +1256,7 @@ fn binding_extensions(
                         compiled_conds,
                         scratch,
                         sym,
+                        gather_cache,
                     )?);
                 }
                 exts = next;
@@ -1274,6 +1276,7 @@ fn binding_extensions(
                     compiled_conds,
                     scratch,
                     sym,
+                    gather_cache,
                 )?);
             }
             Ok(out)
@@ -1290,27 +1293,29 @@ fn binding_extensions(
             }
         }
         CondDriver::Not(inner) => {
-            if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)? {
+            if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym, gather_cache)? {
                 Ok(vec![])
             } else {
                 Ok(vec![seed.clone()])
             }
         }
         CondDriver::Exists(inner) => {
-            if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)? {
+            if exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym, gather_cache)? {
                 Ok(vec![seed.clone()])
             } else {
                 Ok(vec![])
             }
         }
         CondDriver::Leaf(alpha_id) => {
-            let empty: [Element; 0] = [];
-            let els = wm.alpha.get(alpha_id).map(Vec::as_slice).unwrap_or(&empty);
             let compiled = rematch_compiled(compiled_conds, *alpha_id)?;
-            Ok(els
-                .iter()
-                .filter_map(|el| fact_bindings_under(&el.fact, seed, compiled, scratch))
-                .collect())
+            Ok(seeded_bindings_keyed(
+                gather_cache,
+                wm,
+                *alpha_id,
+                seed,
+                compiled,
+                scratch,
+            ))
         }
     }
 }
@@ -1361,15 +1366,7 @@ fn fact_bindings_under(
     Some(pm)
 }
 
-fn any_seeded_in_alpha(
-    tok: &crate::value::pmap::PMap,
-    els: &[Element],
-    compiled: &crate::rete::compiled_cond::CompiledCond,
-    scratch: &mut Vec<Option<Value>>,
-) -> bool {
-    els.iter()
-        .any(|el| fact_bindings_under(&el.fact, tok, compiled, scratch).is_some())
-}
+
 
 fn cond_text(cond: &WatAST) -> String {
     wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(cond))
@@ -1401,15 +1398,29 @@ fn token_exists_under(
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
+    gather_cache: &mut GatherCache,
 ) -> Result<bool, EvalBreak> {
     match driver {
         CondDriver::Leaf(alpha_id) => {
-            let empty: [Element; 0] = [];
-            let els = wm.alpha.get(alpha_id).map(Vec::as_slice).unwrap_or(&empty);
             let compiled = rematch_compiled(compiled_conds, *alpha_id)?;
-            Ok(any_seeded_in_alpha(tok, els, compiled, scratch))
+            Ok(any_seeded_keyed(
+                gather_cache,
+                wm,
+                *alpha_id,
+                tok,
+                compiled,
+                scratch,
+            ))
         }
-        other => exists_cond_under(other, wm, tok, compiled_conds, scratch, sym),
+        other => exists_cond_under(
+            other,
+            wm,
+            tok,
+            compiled_conds,
+            scratch,
+            sym,
+            gather_cache,
+        ),
     }
 }
 
@@ -1420,6 +1431,7 @@ fn exists_cond_under(
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
     sym: &SymbolTable,
+    gather_cache: &mut GatherCache,
 ) -> Result<bool, EvalBreak> {
     match driver {
         CondDriver::And(_) => Ok(!binding_extensions(
@@ -1429,11 +1441,12 @@ fn exists_cond_under(
             compiled_conds,
             scratch,
             sym,
+            gather_cache,
         )?
         .is_empty()),
         CondDriver::Or(kids) => {
             for k in kids {
-                if exists_cond_under(k, wm, seed, compiled_conds, scratch, sym)? {
+                if exists_cond_under(k, wm, seed, compiled_conds, scratch, sym, gather_cache)? {
                     return Ok(true);
                 }
             }
@@ -1453,15 +1466,27 @@ fn exists_cond_under(
             compiled_conds,
             scratch,
             sym,
+            gather_cache,
         )?),
-        CondDriver::Exists(inner) => {
-            exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym)
-        }
+        CondDriver::Exists(inner) => exists_cond_under(
+            inner,
+            wm,
+            seed,
+            compiled_conds,
+            scratch,
+            sym,
+            gather_cache,
+        ),
         CondDriver::Leaf(leaf_id) => {
-            let empty: [Element; 0] = [];
-            let els = wm.alpha.get(leaf_id).map(Vec::as_slice).unwrap_or(&empty);
             let compiled = rematch_compiled(compiled_conds, *leaf_id)?;
-            Ok(any_seeded_in_alpha(seed, els, compiled, scratch))
+            Ok(any_seeded_keyed(
+                gather_cache,
+                wm,
+                *leaf_id,
+                seed,
+                compiled,
+                scratch,
+            ))
         }
     }
 }
@@ -2214,6 +2239,73 @@ fn build_gather_index(elements: &[Element], join_keys: &[Value]) -> GatherIndex 
     index
 }
 
+/// Get-or-build the round-scoped gather index for `alpha_id` under `sample`'s shared keys.
+/// Acc, Negation, and Exists all miss through here so one pair is built once per round.
+fn ensure_gather(
+    cache: &mut GatherCache,
+    wm: &WorkingMemory,
+    alpha_id: i64,
+    sample: &crate::value::pmap::PMap,
+) -> Vec<Value> {
+    let empty: [Element; 0] = [];
+    let els = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&empty);
+    let join_keys = gather_join_keys(sample, els);
+    let cache_key = (alpha_id, join_keys.clone());
+    cache.entry(cache_key).or_insert_with(|| {
+        let elements: Vec<Element> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
+        census_count("accum:index-builds");
+        census_count_n("accum:index-elements", elements.len() as u64);
+        let idx = build_gather_index(&elements, &join_keys);
+        (elements, idx)
+    });
+    join_keys
+}
+
+/// Exists/Not Leaf: probe the token's bucket. Empty bucket is absence (contract clause 2).
+fn any_seeded_keyed(
+    cache: &mut GatherCache,
+    wm: &WorkingMemory,
+    alpha_id: i64,
+    seed: &crate::value::pmap::PMap,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+    scratch: &mut Vec<Option<Value>>,
+) -> bool {
+    let join_keys = ensure_gather(cache, wm, alpha_id, seed);
+    let key = key_of(seed, &join_keys);
+    let (elements, index) = cache
+        .get(&(alpha_id, join_keys))
+        .expect("ensure_gather just inserted");
+    let bucket = index.get(&key).map_or(&[][..], |v| v.as_slice());
+    bucket.iter().any(|&i| {
+        census_gather_visit();
+        fact_bindings_under(&elements[i].fact, seed, compiled, scratch).is_some()
+    })
+}
+
+/// Leftover rematch / combinator Leaf: every matching binding in the token's bucket.
+fn seeded_bindings_keyed(
+    cache: &mut GatherCache,
+    wm: &WorkingMemory,
+    alpha_id: i64,
+    seed: &crate::value::pmap::PMap,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+    scratch: &mut Vec<Option<Value>>,
+) -> Vec<crate::value::pmap::PMap> {
+    let join_keys = ensure_gather(cache, wm, alpha_id, seed);
+    let key = key_of(seed, &join_keys);
+    let (elements, index) = cache
+        .get(&(alpha_id, join_keys))
+        .expect("ensure_gather just inserted");
+    let bucket = index.get(&key).map_or(&[][..], |v| v.as_slice());
+    bucket
+        .iter()
+        .filter_map(|&i| {
+            census_gather_visit();
+            fact_bindings_under(&elements[i].fact, seed, compiled, scratch)
+        })
+        .collect()
+}
+
 // ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
 
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
@@ -2618,9 +2710,8 @@ fn census_kind(kind: &str) -> &'static str {
 
 // Test-only instrument: one element EXAMINED by an Accumulate / Negation / Exists gather.
 //
-// The gathers are the un-keyed twin of the keyed joins (`keyed_join`, and P6's per-node
-// `left_idx`/`right_idx`): each token walks the node's whole cumulative element memory, so the
-// cost is O(tokens × elements) where a hash probe would be O(1) + bucket.
+// The gathers share `gather_cache` with the keyed joins' shape: each token probes its
+// join-key bucket. Acc, Negation, and Exists Leaf all miss through `ensure_gather`.
 //
 // Counting the EXAMINATIONS — rather than the wall-clock — is what makes the keyed-gather gate
 // honest. A timing wall can pass for reasons that have nothing to do with the mechanism (a wall
@@ -4173,6 +4264,7 @@ fn fire_fixpoint_delta(
                         compiled_conds,
                         &mut match_scratch,
                         sym,
+                        &mut gather_cache,
                     )?
                 };
                 for ext in exts {
@@ -4228,12 +4320,10 @@ fn fire_fixpoint_delta(
                 }
             } else {
                 // NegationNode / ExistsNode struct_form: id(0), <kind>-alpha-id(1), children(2).
-                // Same gather (token_element_compatible over wm.alpha[alpha_id]); the verdict
-                // inverts by kind: NegationNode passes iff ZERO compatible, ExistsNode passes
-                // iff ≥1 compatible. The check is against the FULL cumulative wm.alpha (not a
-                // delta): the alpha pass (step 1) populated it before this filter-pass, so it is
-                // complete for base-fact filtering (the v1 scope). ExistsNode binds nothing and
-                // passes the token at most ONCE (no multiplicity — the difference from a join).
+                // Same gather as Acc: probe gather_cache for the token's join-key bucket.
+                // Verdict inverts by kind: NegationNode passes iff ZERO compatible, ExistsNode
+                // iff ≥1. The index is over FULL cumulative wm.alpha (step 1 ran first).
+                // ExistsNode binds nothing and passes the token at most ONCE (no multiplicity).
                 let is_exists = kind == "ExistsNode";
                 let alpha_id: i64 = match &sf[1] {
                     Value::i64(n) => *n,
@@ -4248,6 +4338,7 @@ fn fire_fixpoint_delta(
                         compiled_conds,
                         &mut match_scratch,
                         sym,
+                        &mut gather_cache,
                     )?;
                     // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
                     let pass = if is_exists { any_compat } else { !any_compat };
@@ -4390,6 +4481,7 @@ fn fire_fixpoint_delta(
                                 compiled_conds,
                                 &mut match_scratch,
                                 sym,
+                                &mut gather_cache,
                             )?;
                             let pass = if is_exists { any_compat } else { !any_compat };
                             if pass {
@@ -4489,6 +4581,7 @@ fn fire_fixpoint_delta(
                                         compiled_conds,
                                         &mut match_scratch,
                                         sym,
+                                        &mut gather_cache,
                                     )?;
                                     let pass = if is_exists { any_compat } else { !any_compat };
                                     if pass {

@@ -645,8 +645,10 @@ rematch) + `f228b033` (user folds on the list) + **this turn**
 - Push `origin/main`, never `origin/grok`. Do not push until asked.
 - Do not police termination as a fifth *axis*. The load refusal is
   the wall.
-- Do not start keyed gather to dodge `(b)`. The arm is persisted.
-  `(b)` is item 13. Keyed gather is speed.
+- Keyed gather is **landed** (Acc + Negation/Exists Leaf share
+  `gather_cache` / `ensure_gather`). Do not persist the index
+  across rounds. Do not start keyed gather *again* to dodge `(b)`.
+  `(b)` is item 13. Persist-across-rounds is a later speed stone.
 - Do not treat “sits on `Expr`” as “native no longer interprets.”
   The completeness grid at the top is the scoreboard.
 - Do not revert cut 1 back to `wm_fact_slice` for fact-shaped
