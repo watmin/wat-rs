@@ -126,7 +126,12 @@ premise. Full evidence: `MEASURED-118.B2c-strike1-the-corpus-is-NOT-clean.md`.
 any value (`is_type_var`), so the wildcard arm is a deliberate FALLBACK, and the pair is correct
 today only because dispatch is first-match-wins in declaration order.
 
-**That is clause specificity, in production, load-bearing for the thread-pool bracket machinery.**
+**That is clause specificity, in production, load-bearing for the thread-pool bracket machinery — and
+it is DOCUMENTED at `wat/bracket.wat:314-316`**, which names first-match-wins, calls the generic arm a
+"PERMISSIVE catch-all", cites `value_matches_type_by_name`'s line, and states that "ordering is
+load-bearing". ⚠ These sites are NOT violators and nothing about them is malformed; verified with a
+reversed-order control that the checker and runtime agree. They are correct code the ruling would
+outlaw.
 The "Out of scope" section below affirmatively rejected specificity as a hypothetical future want.
 It is not hypothetical. **The wall as ruled would refuse `wat/bracket.wat` and cannot be armed at
 zero offenders.**

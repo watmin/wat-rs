@@ -1,4 +1,28 @@
-# MEASURED — 118.B2c strike 1's census. ⛔ STOP-1 FIRES. The corpus is NOT clean.
+# MEASURED — 118.B2c strike 1's census. ⛔ STOP-1 FIRES — but NOT on "violators".
+
+> ## ⛔ CORRECTION, 2026-08-18, same day, before any fix
+>
+> **This document first called `wat/bracket.wat`'s two sites "offenders" and the commit called them
+> "violators". BOTH LABELS ARE WRONG, and the record said so all along.** `wat/bracket.wat:314-316`
+> documents the design precisely, names the mechanism, and cites the runtime line:
+>
+> > *"The `:wat::core::keyword` clause is declared FIRST — defclause dispatch is first-match-wins and
+> > a Fn/generic-`W` clause is a PERMISSIVE catch-all at runtime (`value_matches_type_by_name`,
+> > runtime.rs:6604-6606), so ordering is load-bearing: the keyword clause must be checked before the
+> > generic one or it would never fire."*
+>
+> Verified this session, with a reversed-order control: **both the checker and the runtime are
+> first-match-wins in declaration order, and they AGREE** — no type-safety hole, nothing malformed,
+> nothing broken. This is a deliberate, understood, documented design by someone who read the
+> dispatcher before writing it.
+>
+> What the census actually found is **code the ruling would OUTLAW** — which is a fact about the
+> ruling, not a defect in the code. `[[feedback_a_superseded_design_looks_exactly_like_a_broken_check]]`
+> ★ And the sharper version: **the record DID discriminate, in a comment naming the exact mechanism,
+> and I labelled it a violation without reading it.**
+>
+> The count below (3 pairs) is accurate. Every use of "offender"/"violator" for the `bracket.wat`
+> rows is not.
 
 **Run 2026-08-18** over **1,457 corpus `.wat` files** with
 `wat-scripts/scratch-pad/census-defclause-arm-overlap.wat` (form tree, recursive — a `defclause` can
@@ -15,10 +39,10 @@ sit inside a `do`). **71 distinct `defclause`s · 219 arm rows.**
   overlapping pairs where an arm carries a :guard (NOT auto-flagged) ... 4
 ```
 
-`:my::pick` is **this stone's own witness**, committed hours earlier to characterise the defect. It is
-not a corpus offender; it is the thing the wall is supposed to refuse.
+`:my::pick` is **this stone's own witness**, committed hours earlier to characterise the defect — the
+one row here that IS an ambiguity, and the thing the wall is supposed to refuse.
 
-**That leaves TWO, both in `wat/bracket.wat`, and they are the same shape.**
+**The other TWO are `wat/bracket.wat`, they are the same shape, and they are CORRECT.**
 
 ## ⛔ THE FINDING — the corpus ALREADY USES first-match-wins AS SPECIFICITY
 
@@ -36,6 +60,11 @@ declared FIRST and the wildcard arm is the FALLBACK** — this is *specific case
 and it is correct today for exactly one reason: dispatch is first-match-wins in declaration order.
 `:wat::bracket::process-work-forms` is the same pattern with one parameter.
 
+★ **AND THE ORDERING DEPENDENCE IS DOCUMENTED IN THE SOURCE** (`wat/bracket.wat:314-316`, quoted in
+the correction at the top). This is not incidental reliance that happens to work — it is a design
+whose author read `value_matches_type_by_name`, cited its line number, and wrote down that ordering
+is load-bearing.
+
 **This refutes the premise the ruling rests on.** `DESIGN-STONE-118.B2c` affirmatively rejected
 clause specificity, saying: *"If a verb later needs a fast concrete path plus a generic fallback,
 that is a NEW ruling on whether the language has specificity at all."* The census says **two verbs
@@ -52,6 +81,11 @@ each one is a live ambiguity whose disposition is the builder's."* The list is a
 is not taken.
 
 The shapes available, stated without preference:
+
+⚠ **A LIMIT OF THIS INSTRUMENT, now visible:** the census cannot tell a DELIBERATE documented
+fallback from an ACCIDENTAL ambiguity. It reports both identically, and I read both as the second.
+If a wall is ever built, it needs that distinction — either specificity makes it moot, or deliberate
+fallbacks need an explicit marker.
 
 1. **Rule specificity IN** — most-specific-wins becomes language semantics, `bracket.wat` is already
    conformant, and the wall narrows to refusing only *equally*-specific overlaps (which is exactly the
