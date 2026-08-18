@@ -35,7 +35,7 @@ entirely** — `reduce` collapses AND stays fast, and `reduce-walk` dies.
 1. **Widen `foldl` to any seqable, natively.** `value_as_stream` (`src/stream/mod.rs:244`) plus
    `realize` already do native seqable walking — this is the same machinery `:wat::core::drop` uses
    (`eval_vec_drop`). No new traversal primitive is invented.
-2. **Retain today's eager-only implementation under a second name**, unchanged.
+2. **Retain today's eager-only implementation as `:wat::core::foldl'`**, unchanged.
 3. **Bind them with a differential test**: the two must agree on every eager input, always.
 
 ★ **NO CALL-SITE MIGRATION.** The widened `foldl` accepts a strict SUPERSET of today's domain, so all
@@ -43,37 +43,43 @@ entirely** — `reduce` collapses AND stays fast, and `reduce-walk` dies.
 IMPLEMENTATION to a second name, not of the callers. This is a zero-churn change, and any brief that
 proposes a 551-site codemod has misread the stone.
 
-## ⛔ THE ONE CONTRACT DECISION — the second name, and it is NOT free
+## THE NAMING — settled, and it needed a correction from the builder
 
-The repo already has this exact pattern, and its convention runs the OTHER way
-(`src/runtime.rs:5563`):
+**`foldl` is the user's door and therefore the NATIVE, performant form. `foldl'` is machinery — the
+retained eager implementation, whose only caller is its own differential test.**
 
-> *"rete dual-impl: **unprimed is the wat ORACLE, primed the native kernel**; never collapsed"*
+> ⛔ **CORRECTED 2026-08-18.** This section first claimed the name was a hard contract decision,
+> because the rete comment (`src/runtime.rs:5563`) reads *"unprimed is the wat ORACLE, primed the
+> native kernel"* and I took `foldl'`-as-oracle to invert it. **That was a misreading, and the
+> builder caught it:** *"the user interface is the native form... what the users use is the
+> performant form.... rete users never call the primed forms directly.. a macro does for them."*
+>
+> **The prime is a claim about AUDIENCE, not about implementation language.** Verified on the disk:
+> `insert-all'` occurs in the entire corpus exactly ONCE — inside the public `insert-all`'s own body
+> (`wat/rete.wat:1527`); every other occurrence is prose about it, and the grid axes all call the
+> unprimed verb. The rete sentence states two facts at once (who calls it, what it is written in) and
+> I latched onto the wrong half.
+>
+> **Unprimed = the door a user knocks on. Primed = what the substrate calls on their behalf.** On
+> that axis `foldl` / `foldl'` is exactly consistent with `insert-all` / `insert-all'`, and there was
+> never a conflict to rule.
+> `[[feedback_an_adjacent_implementation_is_not_the_subject]]`
 
-There, the pair is **wat oracle vs native kernel** — two different LANGUAGES, and the prime marks the
-native one. Here BOTH implementations are native; the pair is **narrow-and-old vs wide-and-new**. So
-`foldl'` would make the prime mean a third thing, and a reader arriving from `insert-all'` would read
-it backwards.
-
-Three spellings, and this is the builder's to rule:
-
-- **(a) `:wat::core::foldl'`** — the builder's sketch. Shortest, but inverts the rete meaning of the
-  prime and puts two conflicting conventions in one substrate.
-- **(b) `:wat::core::foldl-eager`** — says what it IS. No convention collision. Longer, and it is a
-  new naming shape for "retained reference implementation".
-- **(c) invert to match rete** — make the ORACLE unprimed and the shipping verb primed. **Rejected
-  here on sight**: `foldl` is the public name at 551 sites; the shipping verb must keep it.
-
-⚠ Whatever is chosen, the choice and its relationship to the rete convention goes in a comment at
-BOTH sites, or the next reader re-derives this. `[[feedback_a_comment_can_ship_a_gap_as_a_law]]`
+★ **AND THE PRINCIPLE IS LOAD-BEARING FOR THIS STONE, not just its naming.** Builder: *"the user
+interface is the native form... what the users use is the performant form."* **A user must not have
+to opt in to speed.** That is precisely why the widened native takes the UNPRIMED name and the 551
+existing call sites inherit the fast path by doing nothing — and it is the reason option H (below)
+is wrong twice over: it would leave the fast path reachable only from inside one function, with no
+way to prove it.
 
 ## The four questions
 
 **G — widen `foldl` natively; retain the eager impl under a second name; differential-test them.**
 *Obvious? YES* — "foldl handles any seqable; the second name is the old eager path, kept so we can
 prove they agree." *Simple? YES* — one widened fn, one retained binding, one test; the traversal
-machinery exists. *Honest? YES*, provided the retained name's zero-non-test callers are stated as a
-DISPOSITION and not left to look like rot (task #48: an oracle's only legitimate caller is its test).
+machinery exists. *Honest? YES*, provided `foldl'`'s zero-non-test callers are stated as a DISPOSITION and not left to
+look like rot (task #48: an oracle's only legitimate caller is its test — and the prime already
+announces "not a user door", which is exactly what makes that honest rather than suspicious).
 *Good UX? YES* — strictly more accepting for every caller, and it unblocks `reduce`. ★ **RULED.**
 
 **H — widen `foldl` and keep the eager fast path INSIDE it; no second name.**
@@ -89,11 +95,11 @@ stays uncollapsable, and `reduce-walk` remains an interpreted duplicate of a nat
 
 | file:line | what |
 |---|---|
-| `src/collection/transform.rs:474` | `eval_vec_foldl` — the impl to RETAIN under the second name, and the one to widen |
+| `src/collection/transform.rs:474` | `eval_vec_foldl` — the impl to RETAIN as `foldl'`, and the one to widen |
 | `src/stream/mod.rs:244` | `value_as_stream` — the native seqable walker to use; `eval_vec_drop` is the worked caller |
 | `src/collection/seq_container.rs:214` | `mappable()` — ⛔ **DO NOT widen globally** (STOP-2) |
-| `src/runtime.rs:6354` | the `:wat::core::foldl` dispatch arm; the second name needs its own |
-| `src/check.rs:2383, 4382, 19326` | `infer_foldl` wiring + scheme registration; the second name needs its own scheme |
+| `src/runtime.rs:6354` | the `:wat::core::foldl` dispatch arm; `foldl'` needs its own. `:wat::rete::insert-all'` (`:5563`) is the worked exemplar for a primed native |
+| `src/check.rs:2383, 4382, 19326` | `infer_foldl` wiring + scheme registration; `foldl'` needs its own scheme |
 | `wat/seq.wat` `reduce` | the PAYOFF — out of scope here, see the cut below |
 
 ## ACCEPTANCE
