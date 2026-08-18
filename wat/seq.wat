@@ -268,66 +268,40 @@
 ;; 118.B2 — `reduce-stream` (the Stream-input walk `foldl` cannot do; foldl is Vector/List/
 ;; PersistentVector-only) is DELETED as a named twin: its walk migrates inline into `reduce`'s
 ;; own Stream arms below, over `:wat::stream::next` — one force per element, tail-recursive.
-;; reduce-walk — the Stream walker. PLAIN `defn`, and today that is LOAD-BEARING.
+;; ✅ 118.B6 + 118.B7 — `reduce` IS TWO CLAUSES NOW, one per arity, both over `Seqable<T>`.
 ;;
-;; ⚠ THIS IS A WORKAROUND FOR A SUBSTRATE GAP, NOT A PATTERN TO COPY. `eval_tail`
-;; (src/runtime.rs ~4334) emits a tail call only when the head is in `sym.functions`; a
-;; `defclause` head resolves to a `ClauseSet` and falls through to ordinary recursion. That is a
-;; MISSING FEATURE, not a property of the language — every other tail-carrying form (if/match/let/
-;; do/and/or/ann-form) already has a tail-aware sibling and clause heads were simply never given
-;; one. The fix is drawn: `118-lazy-seqs-vs-threaded-streams/DESIGN-STONE-clause-tco.md`. WHEN IT
-;; LANDS, this walker becomes a choice rather than a necessity — do not read its existence as
-;; doctrine that clause bodies must delegate.
+;; It was EIGHT: three eager arms per arity delegating to the native `foldl`, plus a Stream arm per
+;; arity that had to walk in wat because `foldl` REFUSED a Stream (`mappable()`'s "later strike.
+;; ○ gap"). Three stones removed the three reasons it could not collapse:
+;;   118.B2c  a `defclause` arm typed with a SURFACE now dispatches at runtime
+;;   118.B2d  a generic satisfier's surface param binds from the receiver
+;;   118.B6   the native `foldl` walks any seqable — so there is nothing left to hand-walk
 ;;
-;; Measured 2026-08-18, two programs with byte-identical bodies over a 200,000-element Stream:
-;;     recursing into the `reduce` DEFCLAUSE  -> SIGSEGV (stack exhausted)
-;;     recursing into a plain `defn`          -> completes, sum 19999900000
-;; Stone B2 inlined this recursion into the defclause arm (it had always delegated to the
-;; `reduce-stream` twin) and shipped a stack-overflow regression that the floor did not catch,
-;; because nothing in 4714 tests reduces a large Stream. That is the same silent-SIGSEGV class as
-;; tasks #58/#86. The twin was carrying THREE properties, not one: a shared body (the crutch, dead),
-;; walk state, and a tail-callable head. Only the first was a crutch — and the third stops being one
-;; the moment clause heads get TCO.
-(:wat::core::defn :wat::core::reduce-walk<T,U>
-  [f <- :wat::core::Fn(U,T)->U acc <- :U s <- :wat::stream::Stream<T>] -> :U
-  (:wat::core::match (:wat::stream::next s)
-    ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::reduce-walk f (f acc value) rest))
-    (:wat::stream::NextOutcome::Exhausted acc)))
+;; ⚠ AND IT COST NOTHING, which was the whole point of doing B6 first. The 3-arity body is
+;; `(foldl f init coll)` — the value handed over is still a concrete Vector/List/PersistentVector,
+;; so `foldl` takes its DIRECT iterator exactly as before. There is NO `(Seqable/seq coll)`
+;; normalisation here, deliberately: that would force every eager reduce onto the lazy path for a
+;; Stream it never needed. Measured before/after in
+;; `wat-scripts/scratch-pad/bench-118B7-reduce-collapse.wat`.
+;;
+;; ⛔ `reduce-walk` IS GONE. It existed for exactly one reason — `foldl` could not walk a Stream —
+;; and it carried a long comment calling itself "A WORKAROUND FOR A SUBSTRATE GAP, NOT A PATTERN TO
+;; COPY" and naming the clause-TCO stone that would free it. Both the gap and the TCO stone are
+;; closed, so the workaround dies with them rather than lingering as a name nobody calls.
+;; A name dies in the stone that removes its last caller.
 
 (:wat::core::defclause :wat::core::reduce
-  ;; 3-arity: explicit init — Vector/List/PersistentVector delegate straight to `foldl` (the
-  ;; EXACT primitive `:wat::seq::reduce`/`fold` delegated to before this arc — behavior-
-  ;; preserving); Stream walks with `:wat::stream::next` (118.B2 — see comment above).
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Vector<T>] -> :U
+  ;; 3-arity: explicit init. Straight to the native `foldl` — no normalisation, no walker.
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Seqable<T>] -> :U
     (:wat::core::foldl f init coll))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::List<T>] -> :U
-    (:wat::core::foldl f init coll))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::PersistentVector<T>] -> :U
-    (:wat::core::foldl f init coll))
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::stream::Stream<T>] -> :U
-    (:wat::core::reduce-walk f init coll))
-  ;; 2-arity: no init — first element seeds the fold, `f` reduces T,T->T. An empty `coll` raises
-  ;; (via `first`'s out-of-range failure) rather than calling a 0-arity `(f)` the way real
-  ;; clojure does — wat `fn` values are fixed-arity, so that edge is out of scope; an honest,
-  ;; located failure instead of a silent 0-arity dispatch.
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Vector<T>] -> :T
-    (:wat::core::foldl f (:wat::core::first coll) (:wat::core::rest coll)))
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::List<T>] -> :T
-    (:wat::core::foldl f (:wat::core::first coll) (:wat::core::rest coll)))
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::PersistentVector<T>] -> :T
-    (:wat::core::foldl f (:wat::core::first coll) (:wat::core::rest coll)))
-  ;; 2-arity over a Stream: seed from ONE `next` (was `(first coll)`+`(rest coll)` — two forces of
-  ;; the same cell, which the memo hides today and B3 would turn into user code running twice).
-  ;; Empty raises, preserving the documented contract — `first` on an exhausted Stream returns a
-  ;; bare `nil` rather than raising, so the old form did not actually honour it for Streams.
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::stream::Stream<T>] -> :T
-    (:wat::core::match (:wat::stream::next coll)
+  ;; 2-arity: no init — the first element seeds the fold. Empty raises, by name.
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Seqable<T>] -> :T
+    (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
-        (:wat::core::reduce-walk f value rest))
+        (:wat::core::foldl f value rest))
       (:wat::stream::NextOutcome::Exhausted
         (:wat::kernel::assertion-failed!
-          "reduce: the 2-arity form needs at least one element to seed the fold; got an empty Stream"
+          "reduce: the 2-arity form needs at least one element to seed the fold; got an empty collection"
           :wat::core::None :wat::core::None)))))
 
 ;; count — the clojure surface name over the KEPT `length` primitive (unchanged: an infinite/

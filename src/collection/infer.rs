@@ -668,7 +668,24 @@ fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut Infe
             if head == "wat::core::Vector"
                 || head == "wat::core::List"
                 || head == "wat::core::PersistentVector"
-                || head == "wat::stream::Stream" =>
+                || head == "wat::stream::Stream"
+                // ── Stone 118.B7 — `Seqable<T>` ITSELF ────────────────────────────────────────
+                //
+                // The four heads above are the CONCRETE containers. `Seqable<T>` is the SURFACE
+                // that names exactly them (`wat/seq.wat`, stone 118.B1), and this function's own
+                // doc already calls its head-set "the `Seqable` set" — so a value STATICALLY typed
+                // `Seqable<T>` belongs here by definition.
+                //
+                // ★ AND IT COSTS NOTHING AT RUNTIME. `Seqable<T>` is a static type; the value that
+                // actually arrives is always one of the four concrete containers, so
+                // `StreamContainer::of_value` classifies it and `foldl` takes its DIRECT iterator
+                // for the eager ones. Without this arm, a wat verb whose parameter is declared
+                // `Seqable<T>` could not pass that parameter to `foldl`/`map`/`take` at all — it
+                // would have to normalise through `(Seqable/seq coll)` first, forcing every eager
+                // container onto the lazy path and paying for a Stream it never needed. That is
+                // exactly the tax stone 118.B6 removed; this arm is what stops it coming back in
+                // through the front door when a verb collapses onto the surface.
+                || head == "wat::core::Seqable" =>
         {
             Some(args.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh()))
         }
@@ -676,7 +693,8 @@ fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut Infe
             if p == ":wat::core::Vector"
                 || p == ":wat::core::List"
                 || p == ":wat::core::PersistentVector"
-                || p == ":wat::stream::Stream" =>
+                || p == ":wat::stream::Stream"
+                || p == ":wat::core::Seqable" =>
         {
             Some(fresh.fresh())
         }
