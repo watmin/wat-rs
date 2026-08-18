@@ -5,11 +5,12 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–11 landed. Native fire's **round
-loop** does not classify, stringify, re-`lower`, or
-`attach_fact_bind` a cond AST. Setup still reads `WatAST`
-once (compile-all stores forms; oracle needs them). `(b)`
-is next. Oracle stays interpreted.
+**Right now:** items 1–11 landed. The **round loop** is
+AST-free. The **arm** (`CondDriver`, `CompiledCond`,
+`Program`, `AccFold`) is still built at the start of every
+`fire-rules` and thrown away when fire returns. That
+rebuild is the next target. `(b)` does **not** start.
+Oracle stays interpreted. Do not service-ify.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -17,20 +18,20 @@ The “final” compiler is `src/rete/expr_ir.rs` (built for `:where`).
 `compiled_cond` and `compiled_rhs` sit on it. User folds sit on
 it. That is **not** the same as “native no longer interprets.”
 
-| Native surface | Interpreter at fire? | `WatAST` at fire? |
+| Native surface | Interpreter at fire? | `WatAST` on the **round loop**? |
 |---|---|---|
-| `:where` (TestNode) | **No.** Stashed `Program`, `exec_where`. | Setup `lower` only. |
-| `:when` cond populate | **No.** `exec_compiled`. Miss refuses. | `attach_fact_bind` still reads the cond. |
-| leftover rematch | **No.** `SeedCmp` / `exec_compiled_under`. | **Yes.** `classify_rete_clause`, `cond_text` leaf lookup, combinator `:where` re-`lower`s via `exec_test`. |
-| `:then` | **No.** `CompiledRhs::Call` / `exec_value`. Miss refuses. | Setup only. |
-| user acc fold | **No.** `exec_call`. | Acc **head** still read off `acc-form` to pick the fold. |
-| built-in `acc::*` | No walk of an expr. | Same head / `?var` read. |
+| `:where` (TestNode) | **No.** Stashed `Program`, `exec_where`. | **No.** `lower` at fire **setup**. |
+| `:when` cond populate | **No.** `exec_compiled`. Miss refuses. | **No.** `fact_bind` on `CompiledCond`. |
+| leftover rematch | **No.** `SeedCmp` / `exec_compiled_under`. | **No.** `CondDriver` / `Leaf(id)`. |
+| `:then` | **No.** `CompiledRhs`. Miss refuses. | **No** on the token loop. `fire_once` harvest still `compile_rhs` once per that pass. |
+| user / builtin acc | **No.** `AccFold` / `exec_call`. | **No** on the fold. Head read at setup. |
 
-**No interpreter ≠ AST-free.** Items 1–10 closed `eval_inner` /
-`alpha_match_inner` / `build_insert_fact` / `eval_test_core` on
-native `fire-rules'` / `fire-once'`. Fire still asks the quoted
-`:when` four control-plane questions the circuit does not
-answer. That is item 11. `(b)` waits on item 11.
+**No interpreter ≠ AST-free ≠ armed Session.** Items 1–10
+closed the interpreter verbs. Item 11 (`d774185c`) compiled
+the driver. Setup still re-derives that arm from stored AST
+**every `fire-rules`**. The Session keeps the DAG
+(`network` / `rules` / `next-id`) and drops the circuits.
+That is item 12.
 
 ### Item 11 — compile the rete driver (AST-free **fire**)
 
@@ -50,9 +51,48 @@ from the record.”
 | `acc-form` head + `acc_operand_keys` | `AccFold::Count` / `Sum` / … / `User(Program)` |
 | `cond_bind_keys` | `Vec` of keys next to the join / accum |
 
-No third sibling IR. `classify` stays the one grammar; fire
-stops re-deriving it. Do not start `(b)`. Do not start keyed
-gather to dodge this.
+Item 11 **landed** (`d774185c`). `classify` stays the one
+grammar; fire setup still calls it. Do not start `(b)`.
+Do not start keyed gather.
+
+### Item 12 — persist the arm (do not rebuild at `fire-rules`)
+
+**Not started. This is the next strike.** Compaction:
+do not put `(b)` or keyed gather here.
+
+`compile-all` already returns a Session whose `network` is
+a persistent map — `insert` shares that pointer and writes
+a new `facts` vector. Drop the child, the compiled DAG is
+unmoved. That **is** the overlay / rewind / `with` clause.
+
+What does **not** share: `CondDriver`, `CompiledCond`,
+`Program`, `AccFold`. They live in `fire_fixpoint_delta`
+locals and die when fire returns. A second fire on the
+same network pays setup again. Facts did not change the
+rules. We threw the arm away.
+
+**Arm once. Fire many. Overlay facts. Drop the child.**
+
+Service-shaped (do **not** build a service this item):
+
+| Beat | On disk today |
+|---|---|
+| on-connect | A Session for that identity |
+| install-rules × N | Accumulate `Rule` / `Query` (the vectors `compile-all` takes) |
+| compile | `compile-all` → base Session. Empty facts. **Item 12 puts the arm here.** |
+| insert + **one** `fire-rules` | Overlay facts. Query-memory parks. |
+| query × N | `query-read`. No compile. |
+| on-disconnect | Drop the identity Session |
+
+`query` is a read. Harvest is fire-time. Stratified extra
+`fire_once_session` is a slice hole, not query-time compile.
+Wire shipping (EDN) is a different hole.
+
+Item 12 is: the arm lives **next to** `network`, `Arc`-shared
+so `insert` / clone is a fact overlay, not a memcpy. Fire
+skips setup when the arm is present. Oracle still reads
+forms. Do not put circuits on the wire as a second EDN.
+Do not start `(b)` to index a setup we still re-run.
 
 **Fact-shaped leftover rematch is compiled** (`SeedCmp` /
 `exec_compiled_under`). Populate skips `SeedCmp`; rematch fills
@@ -85,14 +125,14 @@ went n=0 native / n=1 spec the moment leaves stayed in the
 slice. Merge now rejects a conflict. Same contract as
 `alpha_match_inner_seeded`.
 
-Items 1–10 landed (no interpreter). Item 11 is live
-(AST-free fire). `(b)` is item 12. Keyed gather is speed.
+Items 1–11 landed. Item 12 is persist the arm.
+`(b)` is item 13. Keyed gather is speed.
 
 Rust copies of `eval_test_core` / `alpha_match_inner` /
 `build_insert_fact` are **oracles for differentials**, not a
 legal fire path.
 
-The list (do not drop an item) — **compiler complete before `(b)`:**
+The list (do not drop an item) — **arm persisted before `(b)`:**
 
 1. One `Expr` core — drawn.
 2. Wire `where` — **done** (`30725034`).
@@ -142,14 +182,18 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
     `production_pass` is `exec_compiled_rhs`. Delta
     `build_insert_fact` fallback deleted.
 11. **Compile the rete driver — AST-free fire.**
-    **landed (this turn).** `CondDriver` (`And`/`Or`/`Not`/
-    `Exists`/`Where(Program)`/`Leaf(id)`). `CompiledCond`
-    carries `fact_bind`. `AccFold` at setup. Slice follows
-    `driver_leaf_ids`. Gate: `where-not-and` 8/8,
-    `-bound` 8/8, `where-exists` 18/18, `where-not-where`
-    4/4, `where-accum-from-left` 7/7.
-12. `(b)` ShadowNode — **only after item 11.** Index the
-    compiled predicates. Not a way around the driver.
+    **landed** (`d774185c`). `CondDriver` / `fact_bind` /
+    `AccFold`. Slice follows `driver_leaf_ids`. Gate:
+    `where-not-and` 8/8, `-bound` 8/8, `where-exists` 18/18,
+    `where-not-where` 4/4, `where-accum-from-left` 7/7.
+12. **Persist the arm.** **Not started. Next.**
+    `CondDriver` / `CompiledCond` / `Program` / `AccFold`
+    live on the compiled Session, shared under `insert`.
+    `fire-rules` does not re-`lower` / re-`classify` when
+    the arm is present. Overlay = child Session (facts +
+    query-memory). Rewind = drop the child.
+13. `(b)` ShadowNode — **only after item 12.** Index the
+    **armed** network. Not a way around persist.
 
 Keyed `?g` gather is native speed on the same bag, not a
 compiler item. Do not start it to dodge the hole.
@@ -171,8 +215,9 @@ compiler item. Do not start it to dodge the hole.
 | No-alpha WM-scan refuse + slice keeps minted leaves | `9441f39a` | local, not pushed |
 | Defensive populate miss | `ef50a360` | local, not pushed |
 | Four-pass `fire_once_session` / `alpha_pass` | `8d126df6` | local, not pushed |
-| Rete driver (AST-free fire) | this turn | **landed, uncommitted** |
-| `(b)` ShadowNode | after item 11 | **not started** |
+| Rete driver (AST-free fire) | `d774185c` | local, not pushed |
+| Persist the arm across `fire-rules` | this turn | **ruling locked; not started** |
+| `(b)` ShadowNode | after item 12 | **not started** |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
 ## The endeavor, in one sentence
@@ -180,10 +225,11 @@ compiler item. Do not start it to dodge the hole.
 **Annihilate all interpretation in wat-rete.** Every rete expression
 becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 
-**That is the endeavor.** Items 1–10 compiled the
-*expressions*. Fire still walks the cond tree as data.
-**Item 11 is the driver.** `(b)` does not start. Keyed
-gather is speed. Oracle stays interpreted.
+**That is the endeavor.** Items 1–11 compiled expressions
+and the driver. The arm dies at the end of `fire-rules`.
+**Item 12 is persist the arm.** `(b)` does not start.
+Keyed gather is speed. Oracle stays interpreted. Do not
+service-ify this item.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -352,16 +398,15 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 `(foldl ?f 0 xs)` is a `LowerError` (HOF settled). No numeric
 ceiling until one is derived. Cardinality DoS is a later stone.
 
-**Expressions sit on `expr_ir`. The driver does not.**
-Fire still classifies the cond AST, stringifies leaves,
-re-`lower`s combinator `:where`, and reads acc heads.
-That is item 11. `(b)` waits on it. Keyed gather is speed.
+**Expressions and the driver sit on `expr_ir` / `CondDriver`
+for one fire, then die.** That is item 12. `(b)` waits on
+the arm living on the Session. Keyed gather is speed.
 
 `(b)` — index the compiled predicates (discrimination tree; lab
 `ShadowNode`, *"only go down paths that are actually possible"*) —
-**after item 11.** Alpha already has this tree (`alpha_tree.rs`).
-`(b)` is the same idea on compiled `where` **and** the compiled
-driver. Indexing a walk is the mask class.
+**after item 12.** Alpha already has this tree (`alpha_tree.rs`).
+`(b)` indexes the **armed** `where` circuits and the driver.
+Indexing a setup we still re-run is the mask class.
 
 ## Measured 2026-08-17 — flips 3–5 vs `f228b033` (same machine)
 
@@ -392,16 +437,23 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — item 11 landed; `(b)` is next
+## NOW — item 12: persist the arm; `(b)` waits
 
-The round loop matches `CondDriver`, rematches `Leaf(id)`,
-`exec_where`s a stashed `Program`, attaches `?p` from
-`CompiledCond.fact_bind`, folds `AccFold`. Setup still
-reads the stored form (once). Session still *holds* AST
-for the oracle. Do not start keyed gather.
+The round loop is AST-free. Setup still re-derives
+`CondDriver` / `CompiledCond` / `Program` / `AccFold` at
+the start of **every** `fire-rules` and drops them on
+return. The DAG on the Session is already a persistent
+overlay (`insert` shares `network`). The arm is not.
 
-`(b)` ShadowNode may start. Index the compiled driver and
-the `where` circuits. Do not index a walk.
+Next: put the arm next to `network`. Fire skips setup
+when it is present. Child Session = fact overlay.
+Rewind = drop the child. Do not start `(b)`. Do not
+start keyed gather. Do not build the service — the
+beats above are how to *say* the loop.
+
+Ruled 2026-08-17 (do not drop): **armed Session before
+ShadowNode.** Indexing a setup we still re-run is the
+mask class.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.
