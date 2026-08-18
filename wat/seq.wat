@@ -44,6 +44,52 @@
 ;; walks the whole input (exactly like the `foldl`/`:wat::seq::reduce` it replaces; no
 ;; regression, just not a new capability).
 
+;; ═══ 118.B1 — `Seqable<T>`: the type the twins were a workaround for ═══════════════════════════
+;;
+;; Clojure has exactly one `filter`, one `map`, one `reduce`, because it calls `seq` — the universal
+;; coercion every collection implements — and walks the result. wat could not write that, because
+;; "any seqable" had no name in the surface language: the concept lived ONLY inside the Rust checker
+;; as `extract_lazyable_elem` (`src/collection/infer.rs:665`), a hardcoded match on four heads. So a
+;; wat verb accepting several containers had one option — a `defclause` with one arm per concrete
+;; container — and since those arms would each duplicate the body, the corpus grew the `<verb>-stream`
+;; TWIN. Builder, 2026-07-31: *"The twins are a workaround for the missing type, not a pattern."*
+;;
+;; This IS that type. It is `ISeq`.
+;;
+;; The four heads below are exactly `extract_lazyable_elem`'s hardcoded set — deliberately, because
+;; B2 deletes that function and this becomes the single definition of what a sequence verb accepts.
+;;
+;; ⚠ HISTORY, so nobody re-derives it: arc 278 ruled this route a flat NO on Simple, over three
+;; blockers (no `:nature` admits a builtin · nothing satisfies a surface · no ad-hoc unions). ALL
+;; THREE are dead — refuted or dissolved by stone 118.3-B (`a15f4ea9`), and annotated per-claim in
+;; `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md`. The route was re-posed and
+;; ruled in `118-lazy-seqs-vs-threaded-streams/DECISIONS-118.B-four-questioned.md`.
+;;
+;; ★ `seq` returns a `Stream<T>` and stays LAZY. It is NOT `as-vec`: a materializing coercion would
+;; invert this arc's entire purpose. The exploratory probe used `as-vec` only to prove satisfaction.
+;;
+;; ADDITIVE AS OF B1: nothing below consumes it yet, `extract_lazyable_elem` is untouched, and no
+;; twin has died. B2 collapses each verb to ONE clause over `Seqable<T>` walking with
+;; `:wat::stream::next`, and deletes the twins and `seqable->stream` in the same motion — a name
+;; dies in the stone that removes its last caller.
+(:wat::core::defsurface :wat::core::Seqable<T> :nature :wat::core::Struct
+  :features [(seq [self <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>)])
+
+;; The four impls. Each delegates to the native normaliser, which already steps its source BY
+;; POSITION (O(n) total) rather than by repeated `rest` (which REBUILDS an eager container per step,
+;; O(n^2) — the arc-278 Strike-1 fix). Stream's arm is the identity case and stays lazy.
+(:wat::core::extend-type :wat::core::Vector :wat::core::Seqable<T>
+  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+
+(:wat::core::extend-type :wat::core::PersistentVector :wat::core::Seqable<T>
+  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+
+(:wat::core::extend-type :wat::core::List :wat::core::Seqable<T>
+  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+
+(:wat::core::extend-type :wat::stream::Stream :wat::core::Seqable<T>
+  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+
 ;; ─── filter — NATIVE now (Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a) ─────────────
 ;;
 ;; `:wat::core::filter` used to live here as five wat `defclause` arms (Vector<T> / List<T> /
