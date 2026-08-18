@@ -31,25 +31,50 @@ HEAD's original distinct    n=4000   rc=0     out=4000
 **B2 did not cause this.** The corrected B2 form restores the original algorithm, so it inherits the
 same defect — it does not introduce it.
 
-## The mechanism, isolated to one variable
+## ★★ THE MECHANISM — TWO designs, each harmless ALONE, catastrophic TOGETHER
 
-Two runs, **identical 8,000-cell chain length**; the only difference is whether the `seen` set grows:
+⚠ **This section replaces an earlier draft that named retention as "the" mechanism. That was a story
+told before the discriminating runs existed.** Both halves are now measured.
+
+**Half 1 — `HashSet/conj` FULL-CLONES the set.** `src/collection/eval.rs:613`:
+
+```rust
+let mut out: HashSet<Value> = (**s).clone();   // std::collections::HashSet, behind an Arc
+out.insert(item.clone());
+```
+
+`Value::wat__std__HashSet(Arc<HashSet<Value>>)` (`value.rs:114`) is **not** a persistent
+structurally-shared set. Its own comment says the strategy outright: *"clone-then-new-Arc."* So
+building an n-element set by `conj` allocates O(n²) entries in total.
+
+**Half 2 — the `forced: OnceLock` memo retains every forced cell** (`src/stream/mod.rs:66`, `:124`).
+
+### Each one alone is survivable — measured
 
 ```
-8000 elements, ALL IDENTICAL   (seen stays size 1)     rc=0     out=1     survives
-8000 elements, ALL DISTINCT    (seen grows to 8000)    rc=137             OOM
+EAGER foldl+conj, n=8000, no stream at all        rc=0   471ms    ← half 1 alone: FINE
 ```
 
-**The growing `HashSet` is the bomb, not the cell chain.** `distinct` threads
-`seen <- HashSet<T>` and `conj`s one element per step. Each `conj` yields a *new* set, and the
-`forced: OnceLock` memo (`src/stream/mod.rs:66`/`:124`) retains **every lazy cell** — so all *n*
-intermediate sets stay reachable. That is O(n²) memory: at n=8,000 roughly 32M retained element
-slots, which is the 2 GB.
+Because in a fold each intermediate set is freed the moment the next replaces it. Peak is **one**
+set: O(n). The clone costs time, not peak memory.
 
-⚠ Not yet measured: whether `HashSet/conj` copies eagerly (`hashset_conj_inner`,
-`src/collection/eval.rs:599`) or shares structurally. Either way the *retention* of n distinct sets
-is sufficient to explain the curve — but the constant differs, and that is a decomposition nobody
-has run. `[[feedback_measure_the_decomposition_never_read_it]]`
+```
+LAZY distinct, n=8000,  memo OFF (throwaway build)  rc=0   out=8000
+LAZY distinct, n=16000, memo OFF                    rc=0   out=16000
+LAZY distinct, n=8000,  memo ON  (shipping)         rc=137 OOM >2 GB
+```
+
+Half 2 alone is the familiar ~297 B/element overhead.
+
+### Together
+
+The lazy walk creates n cells; the memo keeps **all n alive**; each holds a **fully independent
+copy** of the `seen` set. n live cells × an average n/2-entry copy = **O(n²) LIVE memory.** At
+n=8,000 that is ~32M retained entries — the 2 GB.
+
+**Neither file is wrong when you read it alone.** A structure-sharing set would make the retention
+cheap; a non-retaining walk would make the cloning transient. The defect exists only in the product,
+which is why code review of either side finds nothing.
 
 ## Why nothing caught it
 
@@ -58,9 +83,9 @@ the quadratic term dominates, so 4714 green tests say nothing about this. `NISI 
 
 ## What it predicts about B3
 
-**B3 (delete both memos) should fix this outright**, because the retention — not the algorithm — is
-what turns O(n) work into O(n²) memory. That is a **prediction**; B3 measures it with this file's
-instrument. It also raises the stakes on B3: this is not only a slope, it is a hard OOM in a verb a
+**B3 (delete both memos) fixes this — MEASURED, not predicted.** The memo-off rows above show
+n=8,000 and n=16,000 both completing. Deleting the memo returns peak memory to the eager fold's
+O(n); the clone remains an O(n²) *time* cost, which is a separate and much less urgent question. It also raises the stakes on B3: this is not only a slope, it is a hard OOM in a verb a
 user can reach with eight thousand items.
 
 ## The standing instrument, and it is now mandatory
@@ -75,3 +100,13 @@ Verified both ways this session: a normal run completes under the cap, and a run
 SIGKILLed (rc=137) at 512M rather than taking the machine with it. **`MemorySwapMax=0` is the
 load-bearing half** — without it the process swaps instead of dying, and a swapping box cannot be
 killed interactively. That is what "couldn't kill it before swap filled" looks like from the outside.
+
+## ★ THE CLASS, and it is bigger than `distinct`
+
+The shape is **"a growing collection threaded through a lazy walk."** `distinct` threads a
+`HashSet`. Anything else that accumulates a container across stream cells has the same product of
+the same two halves. **Nobody has censused for it.** That census is owed, and it is not part of B2.
+
+Also unresolved and now sharper: `HashSet/conj`'s full clone is O(n²) *time* for every HashSet
+accumulation in the language, lazy or not — the eager fold above survives on memory but still pays
+32M inserts to build 8,000 entries. That is its own finding, independent of this tier.
