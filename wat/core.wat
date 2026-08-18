@@ -1403,8 +1403,34 @@
 ;; `Vector/get` is the associative, nil-safe form. `nth` is Clojure's positional idiom: the i-th
 ;; element returned as `T`, RAISING on out-of-range — "there IS an i-th element; give it or
 ;; fail." Sugar over `Option/expect (Vector/get …)`.
-(:wat::core::defn :wat::core::nth<T> [v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
-  (:wat::core::Option/expect   (:wat::core::get v i) "nth: index out of range"))
+;;
+;; ── B4-i widens nth to Seqable<T> (arc 118) ─────────────────────────────────────────────────
+;;
+;; The header's argument above is unchanged: nth's CONTRACT still reads as total, its FUNCTION is
+;; still partial. What widens is the set of receivers. Three O(1) arms, once per container that
+;; has `get` (byte-identical modulo receiver type — the "eager indexable container" gap the 294
+;; seam already records for `reduce`'s three eager arms; not collapsed here), plus one O(n)
+;; `Seqable<T>` arm that walks with `:wat::stream::next` — the only receiver this arm actually
+;; reaches at O(n) is Stream, since Vector/PersistentVector/List all resolve to an earlier, O(1)
+;; arm first. Stream has no O(1) nth (`seq_container.rs:65`); walking it here is the honest cost,
+;; not a regression.
+(:wat::core::defclause :wat::core::nth
+  ([v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
+    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
+  ([v <- :wat::core::PersistentVector<T> i <- :wat::core::i64] -> :T
+    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
+  ([v <- :wat::core::List<T> i <- :wat::core::i64] -> :T
+    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
+  ([coll <- :wat::core::Seqable<T> i <- :wat::core::i64] -> :T
+    (:wat::core::nth-walk (:wat::core::Seqable/seq coll) i)))
+
+(:wat::core::defn :wat::core::nth-walk<T>
+  [s <- :wat::stream::Stream<T> i <- :wat::core::i64] -> :T
+  (:wat::core::match (:wat::stream::next s)
+    ((:wat::stream::NextOutcome::Item value rest)
+      (:wat::core::if (:wat::core::<= i 0) value (:wat::core::nth-walk rest (:wat::core::- i 1))))
+    (:wat::stream::NextOutcome::Exhausted
+      (:wat::kernel::assertion-failed! "nth: index out of range" :wat::core::None :wat::core::None))))
 
 ;; ─── format — opinionated named-template printf (arc 279) ────────────────────
 ;;
