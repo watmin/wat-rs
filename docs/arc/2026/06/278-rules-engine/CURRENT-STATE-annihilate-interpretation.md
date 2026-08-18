@@ -5,10 +5,11 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** the compiler is **not complete.** `(b)` does not
-start. Oracle (`fire-rules-spec`) stays interpreted on purpose.
-Native (`fire-rules` in Rust) must compile every rete form —
-**no** rete form may be interpreted on the native fire path.
+**Right now:** compiler items 1–10 are landed. Native
+`fire-rules` / `fire-once'` compile every rete form —
+**no** rete form is interpreted on those mouths. Oracle
+(`fire-rules-spec` / `fire-once`) stays interpreted on
+purpose. `(b)` ShadowNode is the next stone.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -31,15 +32,17 @@ it. That is **not** the same as “native no longer interprets.”
 `seed_reads` from the token. Gate:
 `leftover_seed_cmp_populate_skips_rematch_enforces`.
 
-**Still interpreted on native fire:**
-- `fire_once_session` / `alpha_pass` (old four-pass, not
-  `fire_fixpoint_delta`)
+**Still interpreted on native fire:** none on the native
+mouths. Oracle (`fire-once` / `fire-rules-spec`) stays
+interpreted on purpose.
 
-Defensive populate miss is **closed.** Setup compiles every
-`alpha_cond` entry leftover-as-seed and refuses a `None`.
-Populate is `exec_compiled` only — no `alpha_match_inner`.
-Gate: `local_compile_is_some_whenever_alpha_pattern_holds`.
-`alpha_pass` still interprets; that is the old four-pass.
+`fire_once_session` / `alpha_pass` is **closed.** Populate
+is `exec_compiled`. Production is `exec_compiled_rhs`. A
+cond or `:then` that does not compile refuses — no
+`alpha_match_inner`, no `build_insert_fact`. Live
+`fire-rules` still harvests query-memory through this
+single-pass (full network, closed facts). Do not put the
+walk back.
 
 No-alpha WM-scan is **closed.** Fire refuses a missing leaf
 alpha. `mint-leaf-alphas` does mint Wind/Temp; the live hole
@@ -55,8 +58,9 @@ went n=0 native / n=1 spec the moment leaves stayed in the
 slice. Merge now rejects a conflict. Same contract as
 `alpha_match_inner_seeded`.
 
-Next unfinished compile: old `fire_once_session` / `alpha_pass`.
-Not `(b)`.
+Compiler items 1–10 are landed. `(b)` is next — only after
+you confirm native fire walks no `WatAST`. Keyed gather is
+speed, not this hole.
 
 Rust copies of `eval_test_core` / `alpha_match_inner` /
 `build_insert_fact` are **oracles for differentials**, not a
@@ -108,8 +112,11 @@ The list (do not drop an item) — **compiler complete before `(b)`:**
    **landed (this turn).** Setup refuses a compile `None`.
    Populate is `exec_compiled` only.
 10. Old `fire_once_session` / `alpha_pass`.
+    **landed (this turn).** `alpha_pass` is `exec_compiled`.
+    `production_pass` is `exec_compiled_rhs`. Delta
+    `build_insert_fact` fallback deleted.
 11. `(b)` ShadowNode — **only after native fire walks no
-   `WatAST`.** Not yet.
+   `WatAST`.** Ready to start when this commit is green.
 
 Keyed `?g` gather is native speed on the same bag, not a
 compiler item. Do not start it to dodge the hole.
@@ -129,7 +136,8 @@ compiler item. Do not start it to dodge the hole.
 | Fn-headed `:then` | `dbc2fb2a` | local, not pushed |
 | Completeness grid on disk | `7e3a7eec` | local, not pushed |
 | No-alpha WM-scan refuse + slice keeps minted leaves | `9441f39a` | local, not pushed |
-| Defensive populate miss | this turn | **landed, uncommitted** — `exec_compiled` only |
+| Defensive populate miss | `ef50a360` | local, not pushed |
+| Four-pass `fire_once_session` / `alpha_pass` | this turn | **landed, uncommitted** — compiled cond + rhs |
 | Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **not started** (speed; after the compiler) |
 
 ## The endeavor, in one sentence
@@ -139,9 +147,10 @@ becomes a compiled circuit. Fire supplies only concrete typed `Value`s.
 
 **That is the endeavor.** Compiled `where` / cond populate /
 fenced `:then` / user folds / leftover rematch / fn-headed
-`:then` sit on `expr_ir`. **The compiler is not complete.**
-`fire_once_session` / `alpha_pass` still walk `WatAST`.
-`(b)` does not start. Keyed gather is speed, not this hole.
+`:then` sit on `expr_ir`. Four-pass populate and `:then`
+are compiled. **The compiler list (1–10) is landed.**
+`(b)` is the next stone. Keyed gather is speed, not this
+hole. Oracle stays interpreted.
 
 Clara **pure** mouths are locked. What Clara has and we cut
 (`insert!` / `retract!` / salience / untyped maps) stays cut — that
@@ -351,17 +360,19 @@ Ratio vs Clara still narrows (7.5 → 2.6). The fold is no
 longer the wall; gather/filter is. `:wat-wall` includes
 `fire-rules-spec` — do not read the wall as native fire.
 
-## NOW — populate miss closed; next is `fire_once_session`
+## NOW — four-pass compiled; `(b)` is next
 
-`fire_fixpoint_delta` populate is `exec_compiled` only.
-Setup refuses a `compile_condition_local` `None`. The
-`alpha_match_inner` / `_local` arm is deleted on this path.
-`alpha_match_inner` stays the oracle (differentials, old
-four-pass). Do not put the interp hatch back.
+`fire_once_session` populate is `exec_compiled`. Production
+is `exec_compiled_rhs`. The same refuse sits on
+`fire_fixpoint_delta`'s `:then` (no `build_insert_fact`
+hatch). `alpha_match_inner` / `build_insert_fact` stay
+oracles for differentials and the wat `fire-once` /
+`fire-rules-spec` mouth.
 
-**Still walks `WatAST` on native fire:** old
-`fire_once_session` / `alpha_pass`. Next on the live mouth:
-that four-pass. Do not start `(b)`.
+**Still walks `WatAST` on native fire:** none on
+`fire-rules'` / `fire-once'`. Next stone is `(b)`
+ShadowNode. Do not start keyed gather to dodge a hole
+that is closed.
 
 Do not compile cond list operands until `resolve_operand`
 does too. Do not switch Cmp onto `apply_core`.

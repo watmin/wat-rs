@@ -1001,81 +1001,55 @@ fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &crate::val
 
 // ── Pass 1: Alpha pass ────────────────────────────────────────────────────────
 
-/// `activate-alpha` + `activate-fact` — for one AlphaNode, test every fact via
-/// `alpha_match_inner`; push `Element(fact, bindings)` into `alpha[alpha-id]` on match.
-/// Mirrors `wat/rete.wat:513-537` + `wat/rete.wat:489-508`.
-fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) {
+/// `activate-alpha` + `activate-fact` — type-index each fact, `exec_compiled`
+/// against that type's alphas. Mirrors `wat/rete.wat:513-537` + `wat/rete.wat:489-508`.
+/// A missing compiled cond refuses — do not walk `alpha_match_inner`.
+fn alpha_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
     let node_ids = sorted_node_ids(&wm.network);
-    // Collect facts into a Vec for iteration (wm.facts is a passthrough PV).
+    let (alpha_by_type, alpha_cond) = build_alpha_index(wm, &node_ids);
+    let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
+    let max_slots = compiled_conds
+        .values()
+        .map(|c| c.n_slots())
+        .max()
+        .unwrap_or(0);
+    let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(max_slots);
+
     let facts: Vec<Value> = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-        _ => return,
+        _ => return Ok(()),
     };
 
-    for node_id in &node_ids {
-        // Group C: use &Value ref from wm.network; borrow ends after cond_ast extraction (NLL).
-        // wm.alpha mutations below are on a different field — no conflict.
-        let node = match get_node(&wm.network, *node_id) {
-            Some(n) => n,
-            None => continue,
-        };
-        if kind_of(node) != "AlphaNode" {
-            continue;
-        }
-        // AlphaNode: id(0), tests(1), children(2) — tests[0] is the single condition WatAST.
-        let (_, sf) = node_record(node).unwrap();
-        let tests_pv = &sf[1]; // PV<WatAST>
-        let cond_ast: WatAST = match tests_pv {
-            Value::wat__core__PersistentVector(pv) => match pv.first() {
-                Some(Value::wat__WatAST(ast)) => (**ast).clone(),
-                _ => continue, // AlphaNode has no tests → skip
-            },
+    for fact in &facts {
+        let (fact_class, fact_fields) = match fact {
+            Value::Aggregate(a) if a.nature != Nature::Struct => {
+                (a.class.as_str(), a.fields.as_slice())
+            }
             _ => continue,
         };
-
-        for fact in &facts {
-            // Resolve fact class + fields.
-            let (fact_class, fact_fields) = match fact {
-                Value::Aggregate(a) if a.nature != Nature::Struct => {
-                    (a.class.as_str(), a.fields.as_slice())
+        let Some(aids) = alpha_by_type.get(fact_class) else {
+            continue;
+        };
+        for aid in aids {
+            let compiled = rematch_compiled(&compiled_conds, *aid)?;
+            let Some(bindings) = crate::rete::compiled_cond::exec_compiled(
+                compiled,
+                fact_fields,
+                &mut match_scratch,
+            ) else {
+                continue;
+            };
+            let bindings = match alpha_cond.get(aid) {
+                Some(cond_ast) => {
+                    crate::rete::matcher::attach_fact_bind(cond_ast, fact, bindings)
                 }
-                _ => continue,
+                None => bindings,
             };
-
-            // Get field names from the type registry (mirrors eval_alpha_match:131-143).
-            let type_key = format!(":{}", fact_class);
-            let field_names: Vec<String> = sym
-                .types()
-                .and_then(|t| match t.get(&type_key) {
-                    Some(crate::types::TypeDef::Aggregate(a)) => {
-                        Some(a.field_names().map(|s| s.to_string()).collect())
-                    }
-                    _ => None,
-                })
-                .unwrap_or_default();
-
-            let matched = if crate::rete::matcher::cond_has_deferred_constraint(&cond_ast) {
-                crate::rete::matcher::alpha_match_inner_local(
-                    &cond_ast,
-                    fact_class,
-                    fact_fields,
-                    &field_names,
-                )
-            } else {
-                crate::rete::matcher::alpha_match_inner(
-                    &cond_ast,
-                    fact_class,
-                    fact_fields,
-                    &field_names,
-                )
-            };
-            if let Some(bindings) = matched {
-                let bindings = crate::rete::matcher::attach_fact_bind(&cond_ast, fact, bindings);
-                let el = make_element(fact.clone(), bindings);
-                wm.alpha.entry(*node_id).or_default().push(el);
-            }
+            let el = make_element(fact.clone(), bindings);
+            wm.alpha.entry(*aid).or_default().push(el);
         }
     }
+    Ok(())
 }
 
 // ── Pass 2: Root-join pass ────────────────────────────────────────────────────
@@ -1651,7 +1625,7 @@ fn keyed_join(
 /// Mirrors `wat/rete.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
 fn hash_join_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
     let node_ids = sorted_node_ids(&wm.network);
-    let compiled_conds = compile_alpha_conds_leftover_as_seed(wm, &node_ids, sym);
+    let compiled_conds = compile_alpha_conds_leftover_as_seed(wm, &node_ids, sym)?;
     let max_slots = compiled_conds
         .values()
         .map(|c| c.n_slots())
@@ -1762,8 +1736,7 @@ fn node_parents(child_id: i64, network: &Value) -> Vec<i64> {
 }
 
 /// `production-pass` / `fire-production` — for each ProductionNode, find its parent's beta tokens,
-/// for each token × each RHS insert-form, build the derived fact via `build_insert_fact`,
-/// push to `production[prod_id]`.
+/// for each token × each compiled `:then` form, `exec_compiled_rhs`, push to `production[prod_id]`.
 /// Mirrors `wat/rete.wat:867-881` + `wat/rete.wat:828-865`.
 fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), EvalBreak> {
     let node_ids = sorted_node_ids(&wm.network);
@@ -1826,11 +1799,20 @@ fn production_pass(wm: &mut WorkingMemory, sym: &SymbolTable) -> Result<(), Eval
             continue;
         }
 
-        // For each token × each RHS insert-form → build derived fact → push to production[prod_id].
+        let mut compiled_rhs: Vec<crate::rete::compiled_rhs::CompiledRhs> =
+            Vec::with_capacity(rhs_forms.len());
+        for form in &rhs_forms {
+            compiled_rhs.push(rhs_must_compile(form, sym)?);
+        }
+
         // tok.bindings is a native PMap — pass directly (no intermediate clone).
         for tok in &tokens {
-            for form in &rhs_forms {
-                let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings, sym)?;
+            for compiled in &compiled_rhs {
+                let derived = crate::rete::compiled_rhs::exec_compiled_rhs(
+                    compiled,
+                    &tok.bindings,
+                    sym,
+                )?;
                 wm.production.entry(*node_id).or_default().push(derived);
             }
         }
@@ -1857,7 +1839,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     wm.production.clear();
 
     // Four passes (alpha → root-join → hash-join → production).
-    alpha_pass(&mut wm, sym);
+    alpha_pass(&mut wm, sym)?;
     root_join_pass(&mut wm);
     hash_join_pass(&mut wm, sym)?;
     production_pass(&mut wm, sym)?;
@@ -2876,27 +2858,63 @@ pub(crate) fn build_alpha_index(
 }
 
 /// Leftover-as-seed compile of every alpha. Populate skips `SeedCmp`; rematch
-/// requires it. One compile — no local/strict split at fire setup.
+/// requires it. A miss is a setup hole — refuse, do not walk `alpha_match_inner`.
+fn compile_alpha_conds_from_index(
+    alpha_by_type: &HashMap<String, Vec<i64>>,
+    alpha_cond: &HashMap<i64, WatAST>,
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, crate::rete::compiled_cond::CompiledCond>, EvalBreak> {
+    let mut compiled_conds = HashMap::with_capacity(alpha_cond.len());
+    for (class, ids) in alpha_by_type {
+        let field_names = class_field_names(sym, class);
+        for aid in ids {
+            let Some(cond) = alpha_cond.get(aid) else {
+                continue;
+            };
+            let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
+                .ok_or_else(|| {
+                    RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: ":wat::rete::fire-rules'".into(),
+                            reason: format!(
+                                "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
+                            ),
+                        },
+                    )
+                })?;
+            compiled_conds.insert(*aid, compiled);
+        }
+    }
+    Ok(compiled_conds)
+}
+
 fn compile_alpha_conds_leftover_as_seed(
     wm: &WorkingMemory,
     node_ids: &[i64],
     sym: &SymbolTable,
-) -> HashMap<i64, crate::rete::compiled_cond::CompiledCond> {
+) -> Result<HashMap<i64, crate::rete::compiled_cond::CompiledCond>, EvalBreak> {
     let (alpha_by_type, alpha_cond) = build_alpha_index(wm, node_ids);
-    let mut compiled_conds = HashMap::with_capacity(alpha_cond.len());
-    for (class, ids) in &alpha_by_type {
-        let field_names = class_field_names(sym, class);
-        for aid in ids {
-            if let Some(cond) = alpha_cond.get(aid) {
-                if let Some(compiled) =
-                    crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
-                {
-                    compiled_conds.insert(*aid, compiled);
-                }
-            }
-        }
-    }
-    compiled_conds
+    compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)
+}
+
+/// A `:then` item that `compile_rhs` cannot represent. Refuse — do not walk
+/// `build_insert_fact` on native fire.
+fn rhs_must_compile(
+    form: &WatAST,
+    sym: &SymbolTable,
+) -> Result<crate::rete::compiled_rhs::CompiledRhs, EvalBreak> {
+    crate::rete::compiled_rhs::compile_rhs(form, sym)?.ok_or_else(|| {
+        RuntimeError::new(
+            form.span().clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::fire-rules'".into(),
+                reason: "then item did not compile — fire does not walk build_insert_fact"
+                    .into(),
+            },
+        )
+        .into()
+    })
 }
 
 /// Declared field names for a fact class (colon-free), read from the frozen type registry.
@@ -3091,36 +3109,8 @@ fn fire_fixpoint_delta(
     let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
 
     // DESIGN-STONE-compiled-conditions.md — compile each alpha ONCE here, leftover-as-seed.
-    // Populate skips SeedCmp; rematch requires it. A miss is a setup hole — refuse,
-    // do not walk `alpha_match_inner` at fire. `alpha_pattern` already admitted
-    // every `alpha_cond` entry; `compile_condition_local` returning None is a
-    // compiler bug, not a populate door.
-    let mut compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond> =
-        HashMap::with_capacity(alpha_cond.len());
-    for (class, ids) in &alpha_by_type {
-        let cclass_field_names = class_field_names(sym, class);
-        for aid in ids {
-            let Some(cond) = alpha_cond.get(aid) else {
-                continue;
-            };
-            let compiled = crate::rete::compiled_cond::compile_condition_local(
-                cond,
-                &cclass_field_names,
-            )
-            .ok_or_else(|| {
-                RuntimeError::new(
-                    crate::rust_caller_span!(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::rete::fire-rules'".into(),
-                        reason: format!(
-                            "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
-                        ),
-                    },
-                )
-            })?;
-            compiled_conds.insert(*aid, compiled);
-        }
-    }
+    // Populate skips SeedCmp; rematch requires it. A miss is a setup hole — refuse.
+    let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
     // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
     // `resize` back up never reallocates after this point — the failure path it guards allocates
@@ -3205,14 +3195,10 @@ fn fire_fixpoint_delta(
     // Eliminates the O(rules) linear scan per production node per round.
     let mut rule_rhs_cache: HashMap<String, Vec<WatAST>> = HashMap::new();
     // DESIGN-STONE-compiled-rhs.md — compile each rule's :then insert-form(s) ONCE here, from the
-    // SAME rhs forms `rule_rhs_cache` just extracted, parallel by index. `build_insert_fact`
-    // remains the sole authority on what an insert-form means; `compile_rhs` returning `None` for
-    // a given form (an entry left absent below) is a defensive per-FORM fallback to the
-    // interpreter, never a path a compilable rule's forms take.
-    let mut compiled_rhs_cache: HashMap<
-        String,
-        Vec<Option<crate::rete::compiled_rhs::CompiledRhs>>,
-    > = HashMap::new();
+    // SAME rhs forms `rule_rhs_cache` just extracted, parallel by index. A form that
+    // `compile_rhs` cannot represent refuses — fire does not walk `build_insert_fact`.
+    let mut compiled_rhs_cache: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> =
+        HashMap::new();
     for r in &rules {
         if let Some((_, rsf)) = node_record(r) {
             let rname = match &rsf[0] {
@@ -3229,10 +3215,10 @@ fn fire_fixpoint_delta(
                     .collect(),
                 _ => vec![],
             };
-            let mut compiled: Vec<Option<crate::rete::compiled_rhs::CompiledRhs>> =
+            let mut compiled: Vec<crate::rete::compiled_rhs::CompiledRhs> =
                 Vec::with_capacity(rhs.len());
             for f in &rhs {
-                compiled.push(crate::rete::compiled_rhs::compile_rhs(f, sym)?);
+                compiled.push(rhs_must_compile(f, sym)?);
             }
             compiled_rhs_cache.insert(rname.to_string(), compiled);
             rule_rhs_cache.insert(rname.to_string(), rhs);
@@ -4310,32 +4296,29 @@ fn fire_fixpoint_delta(
             seen.reserve(new_tokens.len().saturating_mul(rhs_forms.len()));
 
             // DESIGN-STONE-compiled-rhs.md — the compiled program for this rule's :then forms,
-            // parallel by index to `rhs_forms`. `None` for the whole rule (no cache entry) or
-            // `None` per-form is the defensive fallback to `build_insert_fact`; see the comment
-            // where `compiled_rhs_cache` is built.
-            let compiled_rhs_forms = compiled_rhs_cache.get(rule_name);
+            // parallel by index to `rhs_forms`. A miss is a setup hole — refuse.
+            let compiled_rhs_forms = compiled_rhs_cache.get(rule_name).ok_or_else(|| {
+                RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::rete::fire-rules'".into(),
+                        reason: format!(
+                            "rule {rule_name} has no compiled :then — setup should have compiled every item"
+                        ),
+                    },
+                )
+            })?;
 
             for tok in new_tokens {
-                for (form_idx, form) in rhs_forms.iter().enumerate() {
+                for compiled in compiled_rhs_forms {
                     // tok.bindings is a native PMap — pass directly (no intermediate clone).
-                    let compiled = compiled_rhs_forms
-                        .and_then(|v| v.get(form_idx))
-                        .and_then(|o| o.as_ref());
-                    let derived = match compiled {
-                        Some(c) => {
-                            let __prhs = phase_start();
-                            let derived = crate::rete::compiled_rhs::exec_compiled_rhs(
-                                c,
-                                &tok.bindings,
-                                sym,
-                            )?;
-                            phase_end("  ├ prod:compiled-rhs", __prhs);
-                            derived
-                        }
-                        // Defensive fallback only — see the comment where `compiled_rhs_cache` is
-                        // built. `build_insert_fact`'s own four `prod:*` marks still fire here.
-                        None => crate::rete::matcher::build_insert_fact(form, &tok.bindings, sym)?,
-                    };
+                    let __prhs = phase_start();
+                    let derived = crate::rete::compiled_rhs::exec_compiled_rhs(
+                        compiled,
+                        &tok.bindings,
+                        sym,
+                    )?;
+                    phase_end("  ├ prod:compiled-rhs", __prhs);
                     // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
                     // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
                     // function. This mark brackets the dedup-and-store block. One pair per
@@ -5573,7 +5556,7 @@ mod tests {
 
         // Run the four passes (but do NOT call fire_once_session — that clears beta before returning).
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym);
+        alpha_pass(&mut wm, sym).expect("alpha_pass");
         root_join_pass(&mut wm);
         hash_join_pass(&mut wm, sym).expect("hash_join_pass");
         production_pass(&mut wm, sym).expect("production_pass should succeed");
@@ -5734,7 +5717,7 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym);
+        alpha_pass(&mut wm, sym).expect("alpha_pass");
         root_join_pass(&mut wm);
         // (no hash-join needed: single-condition rule has no HashJoinNode)
 
@@ -5830,7 +5813,7 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym);
+        alpha_pass(&mut wm, sym).expect("alpha_pass");
         root_join_pass(&mut wm);
         hash_join_pass(&mut wm, sym).expect("hash_join_pass");
 
@@ -5942,7 +5925,7 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym);
+        alpha_pass(&mut wm, sym).expect("alpha_pass");
         root_join_pass(&mut wm);
         hash_join_pass(&mut wm, sym).expect("hash_join_pass");
 
@@ -6020,7 +6003,7 @@ mod tests {
         wm.production.clear();
 
         let sym = world.symbols();
-        alpha_pass(&mut wm, sym);
+        alpha_pass(&mut wm, sym).expect("alpha_pass");
         root_join_pass(&mut wm);
         hash_join_pass(&mut wm, sym).expect("hash_join_pass");
 
