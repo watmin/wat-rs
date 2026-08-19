@@ -1,5 +1,9 @@
 ;; The source of datamancer.rete.edn.
 ;; Beats are what happened. Rules are the practice. The residual is the diary.
+;;
+;; Regen the residual (from the wat-rs crate root). Tests do not invoke :user::main;
+;; the CLI does:
+;;   cargo run --release --bin wat -- tests/rete/datamancer.src.wat
 
 (:wat::core::defrecord :dm::Beat      [t <- :wat::core::i64  kind <- :wat::core::String])
 (:wat::core::defrecord :dm::Artifact  [kind <- :wat::core::String  name <- :wat::core::String])
@@ -127,3 +131,11 @@
       (:wat::core::string::length (:wat::edn::write s0))
       (:wat::core::string::length (:wat::edn::write exp))
       (:wat::core::string::length (:wat::edn::write-pretty exp)))))
+
+;; Writes tests/rete/datamancer.rete.edn. Invoked only by the wat CLI, never by probes.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::io::write-file
+    "tests/rete/datamancer.rete.edn"
+    (:wat::core::string::concat
+      ";; The compiled program. Native fire only.\n;; Beats in, Datamancer or Hollow out.\n"
+      (:user::export-edn))))
