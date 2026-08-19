@@ -847,8 +847,14 @@ paperwork:**
 ```bash
 # WRAP-PROOF form (2026-06-06): a line-based grep is BLIND to phrases broken
 # across wrapped lines ("If/when\n  a caller surfaces" — real false-pass caught
-# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match:
-tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
+# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match.
+# CASE-INSENSITIVE (2026-08-19, arc 118's INSCRIPTION): the pattern was `-oE`, so
+# `out of [a-z...]*scope` could only match LOWERCASE — and the affirmative form is a
+# SENTENCE OPENER ("Out of arc N's scope. Tracked in ..."), so the one phrase the
+# gate most needs to surface for judgement was the one case it could not see.
+# Under-reported the acceptable form, and would also have slipped "Out of scope;
+# we'll get to it" — a real false-pass path. `-oiE` now:
+tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oiE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
 ```
 
 For each match: **is the work in this arc, or is it explicitly
@@ -1777,8 +1783,14 @@ ships to disk:
 ```bash
 # WRAP-PROOF form (2026-06-06): a line-based grep is BLIND to phrases broken
 # across wrapped lines ("If/when\n  a caller surfaces" — real false-pass caught
-# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match:
-tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
+# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match.
+# CASE-INSENSITIVE (2026-08-19, arc 118's INSCRIPTION): the pattern was `-oE`, so
+# `out of [a-z...]*scope` could only match LOWERCASE — and the affirmative form is a
+# SENTENCE OPENER ("Out of arc N's scope. Tracked in ..."), so the one phrase the
+# gate most needs to surface for judgement was the one case it could not see.
+# Under-reported the acceptable form, and would also have slipped "Out of scope;
+# we'll get to it" — a real false-pass path. `-oiE` now:
+tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oiE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
 ```
 
 For each match: ship the work in this arc OR rewrite to

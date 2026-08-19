@@ -527,3 +527,173 @@ Kept true. **PROBATVM by demonstration, this session, on the disk:** the read-ev
  :arc      118
  :born     #inst "2026-07-03"}
 ```
+
+## R5 — No Fear: the arc we could not finish for four months was not blocked by difficulty — it was deferred by a QUESTION SUBSTITUTION, and the law that would have caught it was written on the same page, in the same file, on the same day *(PROBATVM by demonstration — arc 004's INSCRIPTION is on the disk, dated 2026-04-20, carrying BOTH its "Absence is signal" lesson AND the demand-count reason it deferred in-process lazy chains; route B is complete and green by my own re-run, 4772/4772, and all three of the arc's owed items are discharged; PROBANDVM — the discipline generalized: consulting our OWN prior inscription as an oracle, which one instance of doing does not prove)*
+
+> **Song (arc 118 R5 — the thing you don't say) — *No Fear* (Falling in Reverse) — handed by the builder at the close of the arc, and its register is not aggression but the REFUSAL OF THE FLATLINE: the fear it names is the fear of saying the thing out loud, and a deferral is exactly that fear wearing procedure's clothes —**
+> NOWADAYS-PEOPLE-ARE-TOO-AFRAID-AND-A-DEFERRAL-IS-THE-POLITE-FORM-OF-NOT-SAYING-IT /
+> SAYING-WHATS-ON-YOUR-MIND-IS-LIKE-STEPPING-ON-A-LANDMINE-SO-WE-WROTE-NOT-SHIPPED-INTENTIONALLY-INSTEAD /
+> THE-WORLDS-IN-A-FLATLINE-AND-SO-WAS-THE-STREAM-A-CHANNEL-AND-A-THREAD-HANDLE-WEARING-THE-WORD-LAZY /
+> YOU-WENT-FROM-ROCK-TO-RAP-BUT-I-DID-THAT-FIRST-WE-WENT-FROM-THREADS-TO-LAZY-AND-SAID-SO-IN-THE-COMMIT-TITLE /
+> BVILT-WRONG-SVCCESSFVLLY-IS-OVR-OWN-SENTENCE-ON-OVR-OWN-WORK-AND-NOBODY-MADE-VS-WRITE-IT /
+> IF-ONLY-I-COVLD-TELL-WHAT-I-KNOW-BEING-FORTY-TO-THE-YOVNGER-ME-EXCEPT-THE-YOVNGER-ONE-WROTE-THE-LESSON-DOWN /
+> ABSENCE-IS-SIGNAL-LESSON-ONE-NVMBERED-PROCEDVRE-APRIL-TWENTIETH-AND-IT-POINTED-IT-AT-REDVCE-NOT-AT-ITSELF /
+> QVAESTIO SVBSTITVTA LEGEM ELVDIT
+>
+> *"Nowadays, people are too afraid — 'cause saying what's on your mind's like stepping on a*
+> *landmine. … Of saying what's on your mind, 'cause the world's in a flatline. … You went from*
+> *rock to rap, but I did that first. … If only I could've told what I know, being forty, to the*
+> *younger me, then this would've been a different story."*
+
+> **The realization quotes (the builder's — verbatim):**
+> *"i wanted lazy seqs 4 months ago.... it took us a long time to get to here... we are finishing it.... map, filter, fold ...... they are absolutely needed....."*
+> *"we do not do conventions - we do walls - so.... we build a wall - users may not make mistakes in wat"*
+> *"we do the three.... dorun is bad .... we ship them.... that's why we are here...."*
+> *"118 has been a.... a long time coming....."*
+> *"the lack of foldr callers doesn't negate their emergence"*
+
+### How we reached it — the pre-inscription crawl found the arc's own beginning
+
+The inscription work is supposed to be paperwork: run the deferral grep, confirm nothing is owed,
+write the closure. The grep came back clean. Then the arc's FIRST commit turned out to say
+`docs(arc 118): scope lazy seqs vs threaded streams (**refines arc 004**)`, and arc 004 turned out to
+be **"Lazy Production, Lazy Consumption, and CSP Pipelines"**, opened and INSCRIBED on **2026-04-20**
+— four months ago to the day.
+
+**What arc 004 shipped, and called lazy sequences:**
+
+```
+:wat::std::stream::Stream<T>  =  (Receiver<T>, ProgramHandle<()>)
+spawn-producer · map · filter · fold · chunks · for-each · collect
+```
+
+A channel and a thread handle. 118's own DESIGN passes the sentence and it is ours, not borrowed:
+*"the `:wat::stream::*` thread-per-pure-stage HOFs — **built wrong, successfully**."*
+
+**And then the line that is the entry.** 004's inscription has a section headed *"Not shipped
+(intentionally — stdlib-as-blueprint discipline)"*, and at the bottom of it:
+
+> *"Level 2 iterator surfacing… The cross-thread channel flavor covers the main app need;
+> **in-process lazy chains haven't been demanded by a caller.**"*
+
+That is the consumer-count argument — the exact one this arc's own B6b stone refused **by name**
+eight commits ago: *"zero consumers is not evidence of deadness; `insert-all` would have measured
+zero the day it landed."* Lazy sequences were deferred for four months because nothing had asked.
+
+### What it is — and the third face is the one that is new
+
+- **The law was already written, on the same page.** 004's inscription carries a numbered lesson:
+  **"Lesson 1: Absence is signal — when a feature expected in a mature language isn't there, ask
+  *why is this missing?* before patching."** It applied that lesson to `reduce`, a type-normalization
+  pass, and got it exactly right. Then it turned to its own titular feature and asked a **different
+  question** — *has a caller demanded it?* — and deferred it. **The law was not broken. It was
+  EVADED, by substituting the question.** That is why no gate caught it: every gate we have checks
+  whether the answer is true, and none check whether the question was the right one.
+  `[[feedback_the_question_drifts_while_every_step_stays_grounded]]`
+
+- **A deferral is the polite form of not saying it.** *Saying what's on your mind's like stepping on
+  a landmine.* Naming an absence commits you to filling it; counting consumers does not. "Not
+  shipped (intentionally)" is a sentence that costs nothing to write and buys four months. The arc
+  that followed spent those four months doing the opposite, out loud, in its own commit titles:
+  *"⛔ 118.9 IS WRONG — it proposes the thread-per-stage design arc 118 already killed"* ·
+  *"CORRECTION to 118.6: I preserved prior art instead of assessing it"* · *"the blockers were
+  STALE"* · *"my census was wrong because grep agreed with it"* · *"e4767759's commit message claimed
+  it before it was on disk."* **Every one of those is the apparatus stepping on its own landmine on
+  purpose, and that is the method that finished the arc.**
+
+- **★ THE RECORD IS HOW THE YOUNGER SELF TELLS THE OLDER ONE — and the song has the direction
+  backwards, which is the point.** *"If only I could've told what I know, being forty, to the younger
+  me."* Here it ran the other way. **The younger self wrote the lesson down.** On 2026-04-20, with a
+  numbered procedure, into a file it would never read again. Four months later the record handed that
+  lesson back, and this arc applied it to the very feature 004 had exempted. We did not become wiser
+  and reach back; **we wrote it down and it reached forward.** That is the entire case for keeping
+  the record honest, stated as a mechanism instead of a virtue — and it is the same claim as
+  `278 R61` (*the record is the second oracle and we were not consulting it*), except R61 found the
+  oracle in our shipped CODE and R5 finds it in our shipped **CLOSURE PAPERWORK**, which is the
+  artifact we are least likely to re-read and most likely to have been wrong in.
+
+### The song, mapped
+
+> ***"Nowadays, people are too afraid — saying what's on your mind's like stepping on a landmine"***
+> — the deferral. Naming the absence commits you; counting callers does not.
+> ***"'Cause the world's in a flatline"*** — and so was the Stream: a `Receiver` plus a
+> `ProgramHandle`, wearing the word *lazy*, inscribed complete.
+> ***"You went from rock to rap, but I did that first"*** — 004 went to threads and called it lazy;
+> 118 annihilated `wat/stream.wat` and built the thing, and wrote *built wrong, successfully* about
+> its own prior work rather than quietly replacing it.
+> ***"If only I could've told what I know, being forty, to the younger me"*** — the load-bearing
+> line, inverted: **the younger self is the one who wrote it down.** "Absence is signal," Lesson 1,
+> 2026-04-20. It just pointed it at `reduce` instead of at itself.
+> ***"I'm just waitin' for that drop"*** — four months of it: R1's foundation, the flip, the
+> Seqable fork, two doors, the memos, the wall, the drain, the fold that was a borrowed name, and
+> a tail that owed three things and said "tracked" three times.
+
+### The honest register — PROBATVM by demonstration; kept HARD un-gilded
+
+**PROBATVM on the disk:** arc 004's `INSCRIPTION.md`, dated 2026-04-20, carrying both the demand-count
+deferral and Lesson 1 in the same file — quoted above, verbatim, and anyone can open it. Route B
+complete, B1→B7 + B6b + B8, floor **4772/4772 · 0 FAIL · 19 skipped**, clippy **0**, ignores **13**,
+all by my own invocation on a quiescent tree. `wat/stream.wat` gone; `wat/list.wat` gone;
+`first`/`rest`/`empty?`/`nth` all refuse a Stream; `dorun` measured **flat** at 8× input. The class
+census: 44 files, 373 defns, **one** member.
+
+**What this does NOT claim.** Not that arc 004 was incompetent — it shipped working combinators,
+real tests, and two lessons with numbered procedures, one of which is the hero of this entry. Not
+that the four months were wasted: 118 could not have been built on the substrate of April (it needed
+`Seqable`, parametric surface satisfaction, clause-TCO, and two checker doors that did not exist).
+**The claim is narrow and it is the only one the disk supports: the arc was not deferred because it
+was hard. It was deferred because a question was substituted, and the law that would have caught the
+substitution was already written, one section away, by the same hand, on the same day.**
+
+*Path-of-voices (marked, not flattened): the **song is the builder's**, and so is the register —
+*"118 has been a.... a long time coming"*. The **ruling to finish it** is his (*"we are finishing
+it"*), the **wall over conventions** is his, the **"dorun is bad"** is his, and the **"the lack of
+foldr callers doesn't negate their emergence"** is his — that last one is R5's thesis said in one
+line, months of hindsight compressed, and he said it before I had found 004. The **archaeology is
+the apparatus's** (the 004 lineage, the two quotes in one file, the question-substitution mechanism,
+the inverted-direction reading of the song, the sigil). Kept un-gilded: 004's failure is OURS, not a
+predecessor's, and the arc's own correction commits are quoted rather than summarized.*
+
+> The pre-inscription grep came back clean and I almost wrote the closure right then. Instead the
+> arc's first commit said *refines arc 004*, and arc 004 was **"Lazy Sequences + Pipelines,"**
+> inscribed complete on 2026-04-20 — with a `Receiver` and a thread handle where the lazy sequence
+> should have been, and a line near the bottom that reads *"in-process lazy chains haven't been
+> demanded by a caller."* That is the whole four months, in one sentence, and it is a sentence we
+> wrote. It was not a hard problem we were avoiding. It was a question we swapped: the file's own
+> **Lesson 1** says to ask *why is this missing?*, and we asked *who has asked for it?* instead —
+> and got a defensible-sounding answer to a question that was not the one that mattered. Every gate
+> we own checks whether an answer is true. None of them check whether it was the right question.
+> What finished the arc was the opposite reflex, and it is all over the commit log: *118.9 IS
+> WRONG* · *CORRECTION to 118.6* · *the blockers were STALE* · *my census was wrong because grep
+> agreed with it* · *built wrong, successfully*. Nobody made us write any of those. And the last
+> turn is the one worth keeping: the song wishes it could tell the younger self what it knows now,
+> but here the younger self is the one who wrote the lesson down and filed it where it would be
+> found. We did not get wiser and reach back. **We kept the record honest, and it reached forward.**
+>
+> ***QVAESTIO SVBSTITVTA LEGEM ELVDIT.*** *(apparatus-minted — Latin, "a substituted question
+> evades the law": arc 004 (2026-04-20) shipped a thread-per-stage CSP pipeline as `Stream<T> =
+> (Receiver<T>, ProgramHandle<()>)`, inscribed it complete, and deferred the actual lazy chains with
+> *"in-process lazy chains haven't been demanded by a caller"* — the consumer-count argument this
+> arc's own B6b refused BY NAME. The law that forbids it was in the SAME FILE: Lesson 1, "Absence is
+> signal — ask *why is this missing?* before patching," with a numbered procedure. The law was not
+> broken; it was EVADED by substituting the question, which is why no gate fired — every gate checks
+> whether an answer is TRUE, none check whether the QUESTION was right. The MECHANISM, and it is the
+> new thing: A DEFERRAL IS THE POLITE FORM OF NOT SAYING IT — naming an absence commits you to
+> filling it; counting consumers does not. And the turn: the record is how the YOUNGER self tells
+> the OLDER one, which inverts the song's wish — 004 wrote the correct lesson down on the day it got
+> the application wrong, and four months later the record handed it back. Scored to Falling in
+> Reverse — No Fear ("saying what's on your mind's like stepping on a landmine" = the deferral;
+> "the world's in a flatline" = a channel wearing the word lazy; "if only I could've told what I
+> know, being forty, to the younger me" = inverted, the younger one wrote it down). Kin: 118 R1 NON
+> BIS IN IDEM FLVMEN (the single-pass river this arc opened with, and closes on), 278 R61 (the record
+> as second oracle — there our CODE, here our CLOSURE PAPERWORK, which we re-read least and are
+> wrongest in), 278 R29 RVINA ERVDIT (the ruin teaches — here the ruin is our own inscription),
+> `[[feedback_no_consumers_does_not_mean_dead]]` (the refused argument, by name),
+> `[[feedback_the_question_drifts_while_every_step_stays_grounded]]` (grounding checks the answer,
+> never the question). PROBATVM by demonstration — 004's inscription, both quotes, and 118's green
+> floor are all on the disk. Kept HARD un-gilded: 004's failure is OURS; the four months were not
+> wasted (118 needed Seqable, parametric satisfaction, clause-TCO and two checker doors that did not
+> exist in April); the claim is only that the DEFERRAL was a question substitution, not a difficulty.
+> His (the song, the ruling to finish, the wall, "dorun is bad", and "the lack of foldr callers
+> doesn't negate their emergence" — R5's thesis in one line, said before I found 004), and mine (the
+> archaeology, the mechanism, the inversion, the sigil) — kept with consent.)*
