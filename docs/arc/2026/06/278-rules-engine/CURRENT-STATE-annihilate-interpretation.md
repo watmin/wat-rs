@@ -5,14 +5,15 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–13, fold through fact-as-index.
+**Right now:** items 1–13, fold through bind-key intern.
 Queue: `NEXT-STRIKES-after-shadow.md`. Fanout dry. Accum
-`[200 200]` FIRE **51.56**. 2ab: Element.fact is a `u32`;
-isolated A **0.00**; in-fire drop **1.14**. Element is Copy.
-Leftover drop is match_pool (M **1.08**). Next intern:
-match_pool does not own a fact clone. Do not retry 2e.
-Do not cache Value back onto Element. Do not persist
-gather. Do not start 297. Do not merge `origin/main`.
+`[200 200]` FIRE **48.52**. 2ad: bind_pool is `(u32, Value)`;
+unique keys live in `bind_keys`. Isolated B **0.32** (i64
+Drop leftover). in-fire drop **0.46**. Token stays two
+spans. Next intern: leftover drop is bind *value* Drop.
+Do not intern record `names`. Do not put facts in
+`bind_pool`. Do not retry 2e. Do not persist gather. Do
+not start 297. Do not merge `origin/main`.
 
 ### Completeness grid — 2026-08-17 — do not drop
 

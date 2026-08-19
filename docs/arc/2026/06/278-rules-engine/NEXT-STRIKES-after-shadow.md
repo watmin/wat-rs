@@ -109,7 +109,9 @@ on this cell. Persist is still ~0 on a cold fire.
 | **2z** | `DESIGN-STONE-seen-pv-walk.md` — PV walk vs Vec on leftover `setup:seen`. | P−V **0.38**. D+V worse. No intern. Isolated P 1.67 vs in-fire 4.30 is fire context. | **LANDED** |
 | **2aa** | `DESIGN-STONE-drop-memories-split.md` — four clears. | A **1.06** (fact Arc). M 0.95. B 0.78. T 0.00. D 2.75. | **LANDED** |
 | **2ab** | `DESIGN-STONE-fact-as-index.md` — Element.fact is a `u32`. | Isolated A 1.06 → **0.00**. drop 3.63 → **1.14**. FIRE 57.92 → **51.56**. | **LANDED** |
-| **2ac** | match_pool does not own a fact clone (M ≥ 1). Index, like Element. Do not fatten Token. | — | **NEXT to draw** |
+| **2ac** | `DESIGN-STONE-match-pool-fact-as-index.md` — match_pool is `(u32, i64)`. | Isolated M 1.08 → **0.00**. D 1.84 → **0.77**. in-fire drop 1.14 → 1.18 (wash). FIRE 51.56 → **53.83** (alpha instrument). root-join 0.14 → **0.03**. | **LANDED** |
+| **2ad** | `DESIGN-STONE-bind-key-intern.md` — bind keys are a fire-scoped `u32`. | Isolated B 0.78 → **0.32** (value Drop leftover). drop 1.18 → **0.46**. FIRE 53.83 → **48.52**. | **LANDED** |
+| **2ae** | leftover isolated drop is bind *value* Drop (B **0.32**). Do not intern `names`. | — | **NEXT to draw** |
 | 3 | `DESIGN-STONE-persist-gather-across-rounds.md` — P6 for gathers; append `d_alpha`. | ~0 on a cold fire (index is first-round hash). | after a census names a multi-round cell |
 | 4 | `DESIGN-STONE-where-dim-reuse.md` — `(b)`: do not `exec_where` a proven `(= dim lit)`. | node-share polish (already 3.18 ms) | after the accum wall |
 | 5 | `DESIGN-STONE-where-range-edges.md` — populate `range_children`. | chaos-engine / `where-numeric`; not this grid | after 4 |

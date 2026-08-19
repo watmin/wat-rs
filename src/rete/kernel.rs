@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_rete_clause, Bindings, ReteClauseShape};
+use crate::rete::matcher::{classify_rete_clause, BindView, Bindings, ReteClauseShape};
 use crate::runtime::{
     EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
@@ -133,7 +133,10 @@ pub(crate) struct WorkingMemory {
     /// Fire-scoped pair buffer. `Element.binds` and `Token.binds` are
     /// spans into this vec. Append-only during fire
     /// (`DESIGN-STONE-bind-pool`, `DESIGN-STONE-token-bind-pool`).
-    pub(crate) bind_pool: Vec<(Value, Value)>,
+    pub(crate) bind_pool: Vec<(u32, Value)>,
+    /// Unique bind-variable keys. `bind_pool` stores ids
+    /// (`DESIGN-STONE-bind-key-intern`).
+    pub(crate) bind_keys: Vec<Value>,
     /// Input fact count. `Element.fact < n_input` indexes `facts`.
     pub(crate) n_input: u32,
     /// Derived facts, append-only across rounds. Not cleared at
@@ -141,7 +144,7 @@ pub(crate) struct WorkingMemory {
     pub(crate) derived_facts: Vec<Value>,
     /// Fire-scoped match edges. `Token.matches` is a span into this vec
     /// (`DESIGN-STONE-match-pool`).
-    pub(crate) match_pool: Vec<(Value, i64)>,
+    pub(crate) match_pool: Vec<(u32, i64)>,
 }
 
 // ─── Memory conversion helpers ────────────────────────────────────────────────
@@ -237,8 +240,11 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
 /// Each `Tuple` is `Value::Tuple(Arc<Vec<Value>>)` with two elements: `[fact, Value::i64(alpha_id)]`.
 fn value_token_to_native(
     tok: &Value,
-    pool: &mut Vec<(Value, Value)>,
-    match_pool: &mut Vec<(Value, i64)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
+    match_pool: &mut Vec<(u32, i64)>,
+    derived: &mut Vec<Value>,
+    n_input: u32,
 ) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
     let struct_form = match tok {
@@ -258,7 +264,7 @@ fn value_token_to_native(
     // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
     let matches_vec = match &struct_form[0] {
         Value::wat__core__PersistentVector(pv) => {
-            let mut out: Vec<(Value, i64)> = Vec::with_capacity(pv.len());
+            let mut out: Vec<(u32, i64)> = Vec::with_capacity(pv.len());
             for entry in pv.iter() {
                 match entry {
                     Value::Tuple(elems) => {
@@ -277,7 +283,9 @@ fn value_token_to_native(
                                 .into())
                             }
                         };
-                        out.push((es[0].clone(), alpha_id));
+                        let idx = n_input + derived.len() as u32;
+                        derived.push(es[0].clone());
+                        out.push((idx, alpha_id));
                     }
                     other => {
                         return Err(RuntimeError::new(
@@ -329,7 +337,11 @@ fn value_token_to_native(
             off: match_off as u32,
             len: (match_pool.len() - match_off) as u16,
         },
-        binds: span_from_pairs(pool, bindings.iter().map(|(k, v)| (k.clone(), v.clone()))),
+        binds: span_from_pairs(
+            keys,
+            pool,
+            bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
+        ),
     })
 }
 
@@ -338,12 +350,19 @@ fn value_token_to_native(
 /// Produces the same shape `make_token` did: `struct_form = [PV<Tuple(fact,i64)>, PM bindings]`.
 fn native_token_to_value(
     tok: Token,
-    pool: &[(Value, Value)],
-    match_pool: &[(Value, i64)],
+    keys: &[Value],
+    pool: &[(u32, Value)],
+    match_pool: &[(u32, i64)],
+    facts: &Value,
+    derived: &[Value],
+    n_input: u32,
 ) -> Value {
     let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-    for (fact, alpha_id) in match_slice(match_pool, tok.matches) {
-        let tuple = Value::Tuple(Arc::new(vec![fact.clone(), Value::i64(*alpha_id)]));
+    for (fact_idx, alpha_id) in match_slice(match_pool, tok.matches) {
+        let tuple = Value::Tuple(Arc::new(vec![
+            fact_at(facts, derived, n_input, *fact_idx).clone(),
+            Value::i64(*alpha_id),
+        ]));
         matches_pv.push_back_mut(tuple);
     }
     Value::Aggregate(Arc::new(AggregateValue::record(
@@ -351,7 +370,7 @@ fn native_token_to_value(
         token_names(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches_pv),
-            Value::wat__core__PersistentMap(pmap_from_span(tok.binds, pool)),
+            Value::wat__core__PersistentMap(pmap_from_span(tok.binds, keys, pool)),
         ]),
     )))
 }
@@ -362,8 +381,11 @@ fn native_token_to_value(
 fn pm_to_beta(
     op: &'static str,
     pm: &Value,
-    pool: &mut Vec<(Value, Value)>,
-    match_pool: &mut Vec<(Value, i64)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
+    match_pool: &mut Vec<(u32, i64)>,
+    derived: &mut Vec<Value>,
+    n_input: u32,
 ) -> Result<HashMap<i64, Vec<Token>>, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
@@ -387,7 +409,9 @@ fn pm_to_beta(
                     Value::wat__core__PersistentVector(pv) => {
                         let mut ts: Vec<Token> = Vec::with_capacity(pv.len());
                         for tv in pv.iter() {
-                            ts.push(value_token_to_native(tv, pool, match_pool)?);
+                            ts.push(value_token_to_native(
+                                tv, keys, pool, match_pool, derived, n_input,
+                            )?);
                         }
                         ts
                     }
@@ -422,14 +446,20 @@ fn pm_to_beta(
 /// Encode a native beta map (`HashMap<i64, Vec<Token>>`) back to a Value PersistentMap.
 fn beta_to_pm(
     beta: HashMap<i64, Vec<Token>>,
-    pool: &[(Value, Value)],
-    match_pool: &[(Value, i64)],
+    keys: &[Value],
+    pool: &[(u32, Value)],
+    match_pool: &[(u32, i64)],
+    facts: &Value,
+    derived: &[Value],
+    n_input: u32,
 ) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, tokens) in beta {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for tok in tokens {
-            pv.push_back_mut(native_token_to_value(tok, pool, match_pool));
+            pv.push_back_mut(native_token_to_value(
+                tok, keys, pool, match_pool, facts, derived, n_input,
+            ));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
@@ -444,7 +474,8 @@ fn beta_to_pm(
 ///   struct_form[1] = PM    — the bindings
 fn value_to_element(
     el: &Value,
-    pool: &mut Vec<(Value, Value)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
     derived: &mut Vec<Value>,
     n_input: u32,
 ) -> Result<Element, EvalBreak> {
@@ -484,7 +515,7 @@ fn value_to_element(
             .into())
         }
     };
-    Ok(push_element(pool, fact_idx, bindings))
+    Ok(push_element(keys, pool, fact_idx, bindings))
 }
 
 /// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
@@ -495,18 +526,13 @@ fn value_to_element(
 /// (DESIGN-STONE-element-bindings-array read-order §3); it is not the matcher's hot read path.
 fn native_element_to_value(
     el: Element,
-    pool: &[(Value, Value)],
+    keys: &[Value],
+    pool: &[(u32, Value)],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
 ) -> Value {
-    let pairs = {
-        let o = el.binds.off as usize;
-        &pool[o..o + el.binds.len as usize]
-    };
-    let pm = crate::value::pmap::PMap::from_pairs(
-        pairs.iter().map(|(k, v)| (k.clone(), v.clone())),
-    );
+    let pm = pmap_from_span(el.binds, keys, pool);
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
         element_names(),
@@ -523,7 +549,8 @@ fn native_element_to_value(
 fn pm_to_alpha(
     op: &'static str,
     pm: &Value,
-    pool: &mut Vec<(Value, Value)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
     derived: &mut Vec<Value>,
     n_input: u32,
 ) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
@@ -549,7 +576,7 @@ fn pm_to_alpha(
                     Value::wat__core__PersistentVector(pv) => {
                         let mut es: Vec<Element> = Vec::with_capacity(pv.len());
                         for ev in pv.iter() {
-                            es.push(value_to_element(ev, pool, derived, n_input)?);
+                            es.push(value_to_element(ev, keys, pool, derived, n_input)?);
                         }
                         es
                     }
@@ -584,7 +611,8 @@ fn pm_to_alpha(
 /// Encode a native alpha map (`HashMap<i64, Vec<Element>>`) back to a Value PersistentMap.
 fn alpha_to_pm(
     alpha: HashMap<i64, Vec<Element>>,
-    pool: &[(Value, Value)],
+    keys: &[Value],
+    pool: &[(u32, Value)],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -593,7 +621,9 @@ fn alpha_to_pm(
     for (node_id, elements) in alpha {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for el in elements {
-            pv.push_back_mut(native_element_to_value(el, pool, facts, derived, n_input));
+            pv.push_back_mut(native_element_to_value(
+                el, keys, pool, facts, derived, n_input,
+            ));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
@@ -667,14 +697,30 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     };
 
     let mut bind_pool = Vec::new();
+    let mut bind_keys = Vec::new();
     let mut match_pool = Vec::new();
     let n_input = match &facts {
         Value::wat__core__PersistentVector(pv) => pv.len() as u32,
         _ => 0,
     };
     let mut derived_facts = Vec::new();
-    let alpha = pm_to_alpha(OP, alpha_pm, &mut bind_pool, &mut derived_facts, n_input)?;
-    let beta = pm_to_beta(OP, beta_pm, &mut bind_pool, &mut match_pool)?;
+    let alpha = pm_to_alpha(
+        OP,
+        alpha_pm,
+        &mut bind_keys,
+        &mut bind_pool,
+        &mut derived_facts,
+        n_input,
+    )?;
+    let beta = pm_to_beta(
+        OP,
+        beta_pm,
+        &mut bind_keys,
+        &mut bind_pool,
+        &mut match_pool,
+        &mut derived_facts,
+        n_input,
+    )?;
     let production = pm_to_hashmap(OP, prod_pm)?;
     let query = if sf.len() > 7 {
         pm_to_query_memory(OP, &sf[7])?
@@ -692,6 +738,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         next_id,
         query,
         bind_pool,
+        bind_keys,
         n_input,
         derived_facts,
         match_pool,
@@ -798,6 +845,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     let __oa = phase_start();
     let alpha_pm = alpha_to_pm(
         wm.alpha,
+        &wm.bind_keys,
         &wm.bind_pool,
         &wm.facts,
         &wm.derived_facts,
@@ -805,7 +853,15 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     );
     phase_end("  ├ out:alpha", __oa);
     let __ob = phase_start();
-    let beta_pm = beta_to_pm(wm.beta, &wm.bind_pool, &wm.match_pool);
+    let beta_pm = beta_to_pm(
+        wm.beta,
+        &wm.bind_keys,
+        &wm.bind_pool,
+        &wm.match_pool,
+        &wm.facts,
+        &wm.derived_facts,
+        wm.n_input,
+    );
     phase_end("  ├ out:beta", __ob);
     let __op = phase_start();
     let prod_pm = hashmap_to_pm(wm.production);
@@ -1050,19 +1106,13 @@ fn explained_names() -> Arc<Vec<String>> {
 /// lives in `native_element_to_value`, the encoder called at the one boundary — `to_persistent`
 /// — where an Element must actually become a Value.)
 fn push_element(
-    pool: &mut Vec<(Value, Value)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
     fact: u32,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> Element {
-    let off = pool.len();
-    pool.extend(pairs);
-    Element {
-        fact,
-        binds: BindSpan {
-            off: off as u32,
-            len: (pool.len() - off) as u16,
-        },
-    }
+    let binds = span_from_pairs(keys, pool, pairs);
+    Element { fact, binds }
 }
 
 fn make_element(fact: u32, off: u32, len: u16) -> Element {
@@ -1095,36 +1145,57 @@ fn make_token(
 /// A native `Element` cannot be malformed — the two `panic!` arms this used to have (for a
 /// non-Record Value or a non-PersistentMap bindings field) are gone; the one place a malformed
 /// Value could arrive is now `value_to_element`, which returns a `Result` like `value_to_token`.
-fn element_fact_bindings<'a>(
-    el: &Element,
-    pool: &'a [(Value, Value)],
-) -> &'a [(Value, Value)] {
-    pool_slice(pool, el.binds)
+fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
+    if let Some(i) = keys.iter().position(|x| x == k) {
+        return i as u32;
+    }
+    let i = keys.len() as u32;
+    keys.push(k.clone());
+    i
 }
 
-fn pool_slice(pool: &[(Value, Value)], span: BindSpan) -> &[(Value, Value)] {
+fn bind_view<'a>(keys: &'a [Value], pool: &'a [(u32, Value)], span: BindSpan) -> BindView<'a> {
+    BindView {
+        keys,
+        pairs: pool_slice(pool, span),
+    }
+}
+
+fn element_fact_bindings<'a>(
+    el: &Element,
+    keys: &'a [Value],
+    pool: &'a [(u32, Value)],
+) -> BindView<'a> {
+    bind_view(keys, pool, el.binds)
+}
+
+fn pool_slice(pool: &[(u32, Value)], span: BindSpan) -> &[(u32, Value)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]
 }
 
 fn span_from_pairs(
-    pool: &mut Vec<(Value, Value)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> BindSpan {
     let off = pool.len();
-    pool.extend(pairs);
+    for (k, v) in pairs {
+        let id = intern_key(keys, &k);
+        pool.push((id, v));
+    }
     BindSpan {
         off: off as u32,
         len: (pool.len() - off) as u16,
     }
 }
 
-fn match_slice(pool: &[(Value, i64)], span: BindSpan) -> &[(Value, i64)] {
+fn match_slice(pool: &[(u32, i64)], span: BindSpan) -> &[(u32, i64)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]
 }
 
-fn push_match(pool: &mut Vec<(Value, i64)>, fact: Value, alpha_id: i64) -> BindSpan {
+fn push_match(pool: &mut Vec<(u32, i64)>, fact: u32, alpha_id: i64) -> BindSpan {
     let off = pool.len() as u32;
     pool.push((fact, alpha_id));
     BindSpan { off, len: 1 }
@@ -1134,8 +1205,16 @@ fn empty_span() -> BindSpan {
     BindSpan { off: 0, len: 0 }
 }
 
-fn pmap_from_span(span: BindSpan, pool: &[(Value, Value)]) -> crate::value::pmap::PMap {
-    crate::value::pmap::PMap::from_pairs(pool_slice(pool, span).iter().cloned())
+fn pmap_from_span(
+    span: BindSpan,
+    keys: &[Value],
+    pool: &[(u32, Value)],
+) -> crate::value::pmap::PMap {
+    crate::value::pmap::PMap::from_pairs(
+        bind_view(keys, pool, span)
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone())),
+    )
 }
 
 /// Destructure a Value Token Record: (matches pv, bindings map). Panics on malformed.
@@ -1188,6 +1267,7 @@ fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
                 fact_fields,
                 &mut match_scratch,
                 &mut wm.bind_pool,
+                &mut wm.bind_keys,
                 fact,
             ) else {
                 continue;
@@ -1236,11 +1316,10 @@ fn root_join_pass(wm: &mut WorkingMemory) {
             }
             // Seed one native Token per Element into beta[child_id].
             for el in elements {
-                // Support edge: (fact, alpha-id). Mirrors seed-token (wat:544-551).
+                // Support edge: (fact idx, alpha-id). Mirrors seed-token (wat:544-551).
                 // Share the Element span — no PMap (`DESIGN-STONE-token-bind-pool`).
-                let fact = fact_at(&wm.facts, &wm.derived_facts, wm.n_input, el.fact).clone();
                 let tok = Token {
-                    matches: push_match(&mut wm.match_pool, fact, *node_id),
+                    matches: push_match(&mut wm.match_pool, el.fact, *node_id),
                     binds: seed_token_binds(el),
                             };
                 wm.beta.entry(*child_id).or_default().push(tok);
@@ -1674,9 +1753,9 @@ fn alpha_cond_of(network: &Value, alpha_id: i64) -> Option<WatAST> {
     }
 }
 
-fn token_element_compatible<B: Bindings + ?Sized>(
+fn token_element_compatible<B: Bindings + ?Sized, E: Bindings + ?Sized>(
     tok_bindings: &B,
-    el_bindings: &[(Value, Value)],
+    el_bindings: &E,
 ) -> bool {
     for (k, e_val) in el_bindings.iter() {
         if let Some(t_val) = tok_bindings.get(k) {
@@ -1703,22 +1782,22 @@ fn token_element_compatible<B: Bindings + ?Sized>(
 /// Mirrors `wat/rete.wat:682-702`.
 fn extend_token(
     tok: &Token,
-    el_fact: &Value,
+    el_fact: u32,
     el_span: BindSpan,
     alpha_id: i64,
-    pool: &mut Vec<(Value, Value)>,
-    match_pool: &mut Vec<(Value, i64)>,
+    pool: &mut Vec<(u32, Value)>,
+    match_pool: &mut Vec<(u32, i64)>,
 ) -> Token {
-    // Concat left edges + the new fact. Do not hold a slice across push
-    // (`DESIGN-STONE-match-pool`).
+    // Concat left edges + the new fact idx. Do not hold a slice across push
+    // (`DESIGN-STONE-match-pool`, `DESIGN-STONE-match-pool-fact-as-index`).
     let mo = tok.matches.off as usize;
     let mn = tok.matches.len as usize;
     let mstart = match_pool.len();
     for i in 0..mn {
-        let e = match_pool[mo + i].clone();
+        let e = match_pool[mo + i];
         match_pool.push(e);
     }
-    match_pool.push((el_fact.clone(), alpha_id));
+    match_pool.push((el_fact, alpha_id));
     // Concat left + right-only into the bind pool. Do not hold a slice across push
     // (`DESIGN-STONE-token-bind-pool`).
     let lo = tok.binds.off as usize;
@@ -1763,16 +1842,15 @@ fn token_assoc(
     tok: &Token,
     k: Value,
     v: Value,
-    pool: &mut Vec<(Value, Value)>,
+    keys: &mut Vec<Value>,
+    pool: &mut Vec<(u32, Value)>,
 ) -> Token {
-    let pairs: Vec<(Value, Value)> = pool_slice(pool, tok.binds)
-        .iter()
-        .map(|(ek, ev)| (ek.clone(), ev.clone()))
-        .collect();
+    let kid = intern_key(keys, &k);
+    let pairs: Vec<(u32, Value)> = pool_slice(pool, tok.binds).to_vec();
     let start = pool.len();
     let mut found = false;
     for (ek, ev) in pairs {
-        if ek == k {
+        if ek == kid {
             pool.push((ek, v.clone()));
             found = true;
         } else {
@@ -1780,7 +1858,7 @@ fn token_assoc(
         }
     }
     if !found {
-        pool.push((k, v));
+        pool.push((kid, v));
     }
     Token {
         matches: tok.matches,
@@ -1807,20 +1885,20 @@ fn join_extend(
     alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(Value, Value)>,
-    match_pool: &mut Vec<(Value, i64)>,
+    pool: &mut Vec<(u32, Value)>,
+    match_pool: &mut Vec<(u32, i64)>,
+    bind_keys: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
 ) -> Result<Option<Token>, EvalBreak> {
-    let el_fact = fact_at(facts, derived, n_input, el.fact);
     let compiled = rematch_compiled(compiled_conds, alpha_id)?;
     // No leftover SeedCmp: the keyed bucket is the join (same contract as
     // fold-the-wall). Rematch cannot reject a member (`DESIGN-STONE-join-extend-no-leftover`).
     if compiled.has_seed_cmp()
         && fact_bindings_under(
-            el_fact,
-            pool_slice(pool, tok.binds),
+            fact_at(facts, derived, n_input, el.fact),
+            &bind_view(bind_keys, pool, tok.binds),
             compiled,
             scratch,
         )
@@ -1830,7 +1908,7 @@ fn join_extend(
     }
     Ok(Some(extend_token(
         tok,
-        el_fact,
+        el.fact,
         el.binds,
         alpha_id,
         pool,
@@ -1845,8 +1923,9 @@ fn keyed_join(
     alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(Value, Value)>,
-    match_pool: &mut Vec<(Value, i64)>,
+    pool: &mut Vec<(u32, Value)>,
+    match_pool: &mut Vec<(u32, i64)>,
+    bind_keys: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -1857,12 +1936,12 @@ fn keyed_join(
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
     let join_keys: Vec<Value> = {
-        let sample_tok_bindings = pool_slice(pool, left_tokens[0].binds);
-        let sample_el_bindings = element_fact_bindings(&right_elements[0], pool);
+        let sample_tok_bindings = bind_view(bind_keys, pool, left_tokens[0].binds);
+        let sample_el_bindings = element_fact_bindings(&right_elements[0], bind_keys, pool);
         let mut keys: Vec<Value> = sample_tok_bindings
             .iter()
             .map(|(k, _)| k.clone())
-            .filter(|k| Bindings::get(sample_el_bindings, k).is_some())
+            .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
             .collect();
         // Binding keys are Value::String (variable names like "?loc").
         // Sort by their string content for a stable canonical order.
@@ -1883,11 +1962,11 @@ fn keyed_join(
     // Step 2: index RIGHT (elements) by join-key-value tuple.
     let mut index: HashMap<Vec<Value>, Vec<usize>> = HashMap::new();
     for (i, el) in right_elements.iter().enumerate() {
-        let el_bindings = element_fact_bindings(el, pool);
+        let el_bindings = element_fact_bindings(el, bind_keys, pool);
         let key: Vec<Value> = join_keys
             .iter()
             .map(|k| {
-                Bindings::get(el_bindings, k)
+                Bindings::get(&el_bindings, k)
                     .cloned()
                     .expect("keyed_join: join key missing from element bindings")
             })
@@ -1901,7 +1980,7 @@ fn keyed_join(
         let probe_key: Vec<Value> = join_keys
             .iter()
             .map(|k| {
-                Bindings::get(pool_slice(pool, tok.binds), k)
+                Bindings::get(&bind_view(bind_keys, pool, tok.binds), k)
                     .cloned()
                     .expect("keyed_join: join key missing from token bindings")
             })
@@ -1916,6 +1995,7 @@ fn keyed_join(
                     scratch,
                     pool,
                     match_pool,
+                    bind_keys,
                     facts,
                     derived,
                     n_input,
@@ -1987,6 +2067,7 @@ fn hash_join_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak
                 &mut match_scratch,
                 &mut wm.bind_pool,
                 &mut wm.match_pool,
+                &wm.bind_keys,
                 &wm.facts,
                 &wm.derived_facts,
                 wm.n_input,
@@ -2078,13 +2159,13 @@ fn production_pass(wm: &mut WorkingMemory, arm: &ReteArm, sym: &SymbolTable) -> 
             if ts.is_empty() {
                 continue;
             }
-            let first = pool_slice(&wm.bind_pool, ts[0].binds);
+            let first = bind_view(&wm.bind_keys, &wm.bind_pool, ts[0].binds);
             let slot_tables: Vec<Vec<Option<usize>>> = compiled_rhs
                 .iter()
-                .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, first))
+                .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                 .collect();
             for tok in ts {
-                let pairs = pool_slice(&wm.bind_pool, tok.binds);
+                let pairs = bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds);
                 for (compiled, slots) in compiled_rhs.iter().zip(&slot_tables) {
                     let derived = crate::rete::compiled_rhs::exec_compiled_rhs_at(
                         compiled, pairs, slots, sym,
@@ -2115,6 +2196,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     wm.beta.clear();
     wm.production.clear();
     wm.bind_pool.clear();
+    wm.bind_keys.clear();
     wm.match_pool.clear();
     wm.derived_facts.clear();
 
@@ -2155,7 +2237,7 @@ fn harvest_query_memory(wm: &mut WorkingMemory) {
         let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
         for pid in node_parents(node_id, &wm.network) {
             if let Some(ts) = wm.beta.get(&pid) {
-                maps.extend(ts.iter().map(|t| pmap_from_span(t.binds, &wm.bind_pool)));
+                maps.extend(ts.iter().map(|t| pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_pool)));
             }
         }
         wm.query.insert(qname, maps);
@@ -2456,16 +2538,17 @@ fn key_of<B: Bindings + ?Sized>(bindings: &B, join_keys: &[Value]) -> Vec<Value>
 fn gather_join_keys<B: Bindings + ?Sized>(
     sample_bindings: &B,
     elements: &[Element],
-    pool: &[(Value, Value)],
+    bind_keys: &[Value],
+    pool: &[(u32, Value)],
 ) -> Vec<Value> {
     if elements.is_empty() {
         return Vec::new();
     }
-    let sample_el_bindings = element_fact_bindings(&elements[0], pool);
+    let sample_el_bindings = element_fact_bindings(&elements[0], bind_keys, pool);
     let mut keys: Vec<Value> = sample_bindings
         .iter()
         .map(|(k, _)| k)
-        .filter(|k| Bindings::get(sample_el_bindings, k).is_some())
+        .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
         .cloned()
         .collect();
     // Binding keys are Value::String (variable names like "?loc").
@@ -2522,14 +2605,15 @@ fn alpha_elements(alpha: &HashMap<i64, Vec<Element>>, alpha_id: i64) -> &[Elemen
 fn build_gather_index(
     elements: &[Element],
     join_keys: &[Value],
-    pool: &[(Value, Value)],
+    bind_keys: &[Value],
+    pool: &[(u32, Value)],
 ) -> GatherIndex {
     if join_keys.len() == 1 {
         let jk = &join_keys[0];
         let mut index: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, pool);
-            if let Some(v) = Bindings::get(el_bindings, jk) {
+            let el_bindings = element_fact_bindings(el, bind_keys, pool);
+            if let Some(v) = Bindings::get(&el_bindings, jk) {
                 index.entry(v.clone()).or_default().push(i);
             }
         }
@@ -2537,8 +2621,8 @@ fn build_gather_index(
     } else {
         let mut index: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, pool);
-            let key = key_of(el_bindings, join_keys);
+            let el_bindings = element_fact_bindings(el, bind_keys, pool);
+            let key = key_of(&el_bindings, join_keys);
             index.entry(key).or_default().push(i);
         }
         GatherIndex::Nary(index)
@@ -2554,12 +2638,12 @@ fn ensure_gather<B: Bindings + ?Sized>(
     sample: &B,
 ) -> Vec<Value> {
     let els = alpha_elements(&wm.alpha, alpha_id);
-    let join_keys = gather_join_keys(sample, els, &wm.bind_pool);
+    let join_keys = gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_pool);
     let cache_key = (alpha_id, join_keys.clone());
     cache.entry(cache_key).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);
-        build_gather_index(els, &join_keys, &wm.bind_pool)
+        build_gather_index(els, &join_keys, &wm.bind_keys, &wm.bind_pool)
     });
     join_keys
 }
@@ -2627,9 +2711,9 @@ fn seeded_bindings_keyed(
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
 /// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
 /// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-fn acc_var_i64(el: &Element, var: &Value, pool: &[(Value, Value)]) -> i64 {
-    let bindings = element_fact_bindings(el, pool);
-    match Bindings::get(bindings, var) {
+fn acc_var_i64(el: &Element, var: &Value, bind_keys: &[Value], pool: &[(u32, Value)]) -> i64 {
+    let bindings = element_fact_bindings(el, bind_keys, pool);
+    match Bindings::get(&bindings, var) {
         Some(Value::i64(n)) => *n,
         Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
         None => panic!("accumulate: var {var:?} unbound in element bindings"),
@@ -2643,16 +2727,17 @@ fn operand_slot(
     elements: &[Element],
     bucket: &[usize],
     var: &Value,
-    pool: &[(Value, Value)],
+    bind_keys: &[Value],
+    pool: &[(u32, Value)],
 ) -> Option<usize> {
     let &i = bucket.first()?;
-    let pairs = element_fact_bindings(&elements[i], pool);
-    pairs.iter().position(|(k, _)| k == var)
+    pool_slice(pool, elements[i].binds)
+        .iter()
+        .position(|(id, _)| bind_keys.get(*id as usize) == Some(var))
 }
 
-fn slot_i64(el: &Element, slot: usize, pool: &[(Value, Value)]) -> i64 {
-    let pairs = element_fact_bindings(el, pool);
-    match pairs.get(slot) {
+fn slot_i64(el: &Element, slot: usize, pool: &[(u32, Value)]) -> i64 {
+    match pool_slice(pool, el.binds).get(slot) {
         Some((_, Value::i64(n))) => *n,
         Some((_, other)) => panic!("accumulate: slot bound to non-i64 {other:?}"),
         None => panic!("accumulate: slot {slot} missing in element bindings"),
@@ -2668,7 +2753,8 @@ fn fold_bucket(
     elements: &[Element],
     bucket: &[usize],
     sym: &SymbolTable,
-    pool: &[(Value, Value)],
+    pool: &[(u32, Value)],
+    bind_keys: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -2676,7 +2762,7 @@ fn fold_bucket(
     match fold {
         AccFold::Count => Ok(Some(Value::i64(bucket.len() as i64))),
         AccFold::Sum(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
+            let Some(slot) = operand_slot(elements, bucket, var, bind_keys, pool) else {
                 return Ok(Some(Value::i64(0)));
             };
             let s: i64 = bucket
@@ -2689,7 +2775,7 @@ fn fold_bucket(
             Ok(Some(Value::i64(s)))
         }
         AccFold::Min(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
+            let Some(slot) = operand_slot(elements, bucket, var, bind_keys, pool) else {
                 return Ok(None);
             };
             let mut acc: Option<i64> = None;
@@ -2704,7 +2790,7 @@ fn fold_bucket(
             Ok(acc.map(Value::i64))
         }
         AccFold::Max(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
+            let Some(slot) = operand_slot(elements, bucket, var, bind_keys, pool) else {
                 return Ok(None);
             };
             let mut acc: Option<i64> = None;
@@ -2719,7 +2805,7 @@ fn fold_bucket(
             Ok(acc.map(Value::i64))
         }
         AccFold::Mean(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, pool) else {
+            let Some(slot) = operand_slot(elements, bucket, var, bind_keys, pool) else {
                 return Ok(None);
             };
             let n = bucket.len() as i64;
@@ -2737,19 +2823,18 @@ fn fold_bucket(
         | AccFold::GroupBy(_)
         | AccFold::User { .. } => {
             let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
-            accumulate_value(fold, &gathered, sym, pool, facts, derived, n_input)
+            accumulate_value(fold, &gathered, sym, pool, bind_keys, facts, derived, n_input)
         }
     }
 }
 
-fn project_group_keys(el_bindings: &[(Value, Value)], keys: &[Value]) -> Vec<(Value, Value)> {
-    let mut out = Vec::with_capacity(keys.len());
-    for k in keys {
-        if let Some(pair) = el_bindings.iter().find(|(ek, _)| ek == k) {
-            out.push((pair.0.clone(), pair.1.clone()));
-        }
-    }
-    out
+fn project_group_keys<B: Bindings + ?Sized>(
+    el_bindings: &B,
+    keys: &[Value],
+) -> Vec<(Value, Value)> {
+    keys.iter()
+        .filter_map(|k| el_bindings.get(k).map(|v| (k.clone(), v.clone())))
+        .collect()
 }
 
 /// Built-in or user accumulate fold, specialized at setup. Fire does not
@@ -2877,11 +2962,13 @@ fn compile_acc_fold(
 ///
 /// Returns `Ok(Some(value))` on a produced aggregate, `Ok(None)` to drop the token (empty
 /// min/max/mean), `Err` if a custom fn's evaluation breaks.
+#[allow(clippy::too_many_arguments)]
 fn accumulate_value(
     fold: &AccFold,
     gathered: &[&Element],
     sym: &SymbolTable,
-    pool: &[(Value, Value)],
+    pool: &[(u32, Value)],
+    bind_keys: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -2889,14 +2976,14 @@ fn accumulate_value(
     Ok(match fold {
         AccFold::Count => Some(Value::i64(gathered.len() as i64)),
         AccFold::Sum(var) => {
-            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, pool)).sum();
+            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, bind_keys, pool)).sum();
             Some(Value::i64(s))
         }
         AccFold::Min(var) => {
             // None seed; first element sets it, subsequent narrow with `<`. Empty → None.
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, var, pool);
+                let v = acc_var_i64(el, var, bind_keys, pool);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v < cur {
@@ -2913,7 +3000,7 @@ fn accumulate_value(
         AccFold::Max(var) => {
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, var, pool);
+                let v = acc_var_i64(el, var, bind_keys, pool);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v > cur {
@@ -2932,14 +3019,14 @@ fn accumulate_value(
             if n == 0 {
                 None
             } else {
-                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, pool)).sum();
+                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, bind_keys, pool)).sum();
                 Some(Value::i64(s / n))
             }
         }
         AccFold::Distinct(var) => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                let v = Value::i64(acc_var_i64(el, var, pool));
+                let v = Value::i64(acc_var_i64(el, var, bind_keys, pool));
                 if !pv.iter().any(|x| *x == v) {
                     pv.push_back_mut(v);
                 }
@@ -2957,7 +3044,7 @@ fn accumulate_value(
             let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
             for el in gathered {
                 let fact = fact_at(facts, derived, n_input, el.fact);
-                let k = Value::i64(acc_var_i64(el, var, pool));
+                let k = Value::i64(acc_var_i64(el, var, bind_keys, pool));
                 let pv = match pm.get(&k) {
                     Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
                     _ => rpds::VectorSync::new_sync(),
@@ -2974,7 +3061,7 @@ fn accumulate_value(
         AccFold::User { var, program } => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var, pool)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, var, bind_keys, pool)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
             Some(crate::rete::expr_ir::exec_call(
@@ -3085,14 +3172,14 @@ thread_local! {
 /// the same parent delta by construction on a shared-prefix axis, and overwriting would make the
 /// captured sample depend on node iteration order).
 #[cfg(test)]
-fn capture_where_sample(expr: &WatAST, tokens: &[Token], pool: &[(Value, Value)]) {
+fn capture_where_sample(expr: &WatAST, tokens: &[Token], keys: &[Value], pool: &[(u32, Value)]) {
     WHERE_SAMPLE.with(|c| {
         if let Some(slot @ None) = c.borrow_mut().as_mut() {
             *slot = Some((
                 expr.clone(),
                 tokens
                     .iter()
-                    .map(|t| pmap_from_span(t.binds, pool))
+                    .map(|t| pmap_from_span(t.binds, keys, pool))
                     .collect(),
             ));
         }
@@ -3628,8 +3715,8 @@ fn dispatch_where_tests(
     if use_tree {
         let span = crate::rust_caller_span!();
         for tok in tokens {
-            let binds = pool_slice(&sink.wm.bind_pool, tok.binds);
-            let cands = sink.where_tree.candidates(binds, &span);
+            let binds = bind_view(&sink.wm.bind_keys, &sink.wm.bind_pool, tok.binds);
+            let cands = sink.where_tree.candidates(&binds, &span);
             let cand_set: HashSet<i64> = cands.into_iter().collect();
             for &tid in tids {
                 // Uncovered ids are not in the tree — always eval.
@@ -3638,7 +3725,7 @@ fn dispatch_where_tests(
                     continue;
                 }
                 census_count("filter:test-evals");
-                if exec_stashed_where(sink.compiled_wheres, tid, binds, sink.sym)? {
+                if exec_stashed_where(sink.compiled_wheres, tid, &binds, sink.sym)? {
                     census_count("filter:test-pass");
                     if sink.beta_readers.contains(&tid) {
                         beta_written(tid, 1);
@@ -3655,7 +3742,7 @@ fn dispatch_where_tests(
                 if exec_stashed_where(
                     sink.compiled_wheres,
                     tid,
-                    pool_slice(&sink.wm.bind_pool, tok.binds),
+                    &bind_view(&sink.wm.bind_keys, &sink.wm.bind_pool, tok.binds),
                     sink.sym,
                 )? {
                     census_count("filter:test-pass");
@@ -4086,6 +4173,7 @@ fn alpha_activate_fact(
             fact_fields,
             match_scratch,
             &mut wm.bind_pool,
+            &mut wm.bind_keys,
             fact,
         );
         phase_end("  ├ alpha:match", __am);
@@ -4130,6 +4218,7 @@ fn fire_fixpoint_delta(
     wm.beta.clear();
     wm.production.clear();
     wm.bind_pool.clear();
+    wm.bind_keys.clear();
     wm.match_pool.clear();
     wm.derived_facts.clear();
 
@@ -4286,10 +4375,9 @@ fn fire_fixpoint_delta(
                 }
                 for &ei in new_idxs {
                     let el = &wm.alpha[node_id][ei];
-                    // Seed native Token: one matches edge (fact, alpha_id).
-                    let fact = fact_at(&wm.facts, &wm.derived_facts, wm.n_input, el.fact).clone();
+                    // Seed native Token: one matches edge (fact idx, alpha_id).
                     let tok = Token {
-                        matches: push_match(&mut wm.match_pool, fact, *node_id),
+                        matches: push_match(&mut wm.match_pool, el.fact, *node_id),
                         binds: seed_token_binds(el),
                                     };
                     if beta_readers.contains(child_id) {
@@ -4358,11 +4446,11 @@ fn fire_fixpoint_delta(
                     let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
-                            let el_b = element_fact_bindings(el, &wm.bind_pool);
-                            let mut keys: Vec<Value> = pool_slice(&wm.bind_pool, tok.binds)
+                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            let mut keys: Vec<Value> = bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds)
                                 .iter()
                                 .map(|(k, _)| k.clone())
-                                .filter(|k| Bindings::get(el_b, k).is_some())
+                                .filter(|k| Bindings::get(&el_b, k).is_some())
                                 .collect();
                             keys.sort_by(|a, b| {
                                 let a_str = match a {
@@ -4413,8 +4501,8 @@ fn fire_fixpoint_delta(
                     {
                         let ridx = right_idx.entry(*child_id).or_default();
                         for el in &all_right {
-                            let el_b = element_fact_bindings(el, &wm.bind_pool);
-                            let k = key_of(el_b, jk);
+                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            let k = key_of(&el_b, jk);
                             ridx.entry(k).or_default().push(*el);
                         }
                     }
@@ -4434,7 +4522,7 @@ fn fire_fixpoint_delta(
                     let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in &all_left {
-                            let k = key_of(pool_slice(&wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -4445,6 +4533,7 @@ fn fire_fixpoint_delta(
                                         &mut match_scratch,
                                         &mut wm.bind_pool,
                                         &mut wm.match_pool,
+                                        &wm.bind_keys,
                                         &wm.facts,
                                         &wm.derived_facts,
                                         wm.n_input,
@@ -4461,7 +4550,7 @@ fn fire_fixpoint_delta(
                     {
                         let lidx = left_idx.entry(*child_id).or_default();
                         for tok in all_left {
-                            let k = key_of(pool_slice(&wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
                             lidx.entry(k).or_default().push(tok);
                         }
                     }
@@ -4509,8 +4598,8 @@ fn fire_fixpoint_delta(
                     let right_mem = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
                     for &ei in dr {
                         let el = &right_mem[ei];
-                        let el_b = element_fact_bindings(el, &wm.bind_pool);
-                        let k = key_of(el_b, jk);
+                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                        let k = key_of(&el_b, jk);
                         ridx.entry(k).or_default().push(*el);
                     }
                 }
@@ -4523,7 +4612,7 @@ fn fire_fixpoint_delta(
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in dl {
-                            let k = key_of(pool_slice(&wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -4534,6 +4623,7 @@ fn fire_fixpoint_delta(
                                         &mut match_scratch,
                                         &mut wm.bind_pool,
                                         &mut wm.match_pool,
+                                        &wm.bind_keys,
                                         &wm.facts,
                                         &wm.derived_facts,
                                         wm.n_input,
@@ -4556,8 +4646,8 @@ fn fire_fixpoint_delta(
                             wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
                         for &ei in dr {
                             let el = &right_mem[ei];
-                            let el_b = element_fact_bindings(el, &wm.bind_pool);
-                            let k = key_of(el_b, jk);
+                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            let k = key_of(&el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -4568,6 +4658,7 @@ fn fire_fixpoint_delta(
                                         &mut match_scratch,
                                         &mut wm.bind_pool,
                                         &mut wm.match_pool,
+                                        &wm.bind_keys,
                                         &wm.facts,
                                         &wm.derived_facts,
                                         wm.n_input,
@@ -4587,7 +4678,7 @@ fn fire_fixpoint_delta(
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
                     for tok in dl {
-                        let k = key_of(pool_slice(&wm.bind_pool, tok.binds), jk);
+                        let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
                         lidx.entry(k).or_default().push(*tok);
                     }
                 }
@@ -4677,7 +4768,7 @@ fn fire_fixpoint_delta(
                 &mut gather_cache,
                 &wm,
                 from_alpha_id,
-                pool_slice(&wm.bind_pool, new_tokens[0].binds),
+                &bind_view(&wm.bind_keys, &wm.bind_pool, new_tokens[0].binds),
             );
             phase_end("  ├ accum:index", __ix);
             // No clone — indices name this round's wm.alpha[id] (step 1 is done).
@@ -4697,12 +4788,12 @@ fn fire_fixpoint_delta(
             let operand_keys = acc_fold.operand_keys();
             let __fd = phase_start();
             for tok in new_tokens {
-                let key = key_of(pool_slice(&wm.bind_pool, tok.binds), &join_keys);
+                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), &join_keys);
                 let bucket: &[usize] = index.bucket(&key);
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
-                        Bindings::get(pool_slice(&wm.bind_pool, tok.binds), k).is_none()
+                        Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), k).is_none()
                             && !operand_keys.iter().any(|o| o == *k)
                     })
                     .cloned()
@@ -4718,6 +4809,7 @@ fn fire_fixpoint_delta(
                             bucket,
                             sym,
                             &wm.bind_pool,
+                            &wm.bind_keys,
                             &wm.facts,
                             &wm.derived_facts,
                             wm.n_input,
@@ -4727,6 +4819,7 @@ fn fire_fixpoint_delta(
                             &tok,
                             result_var.clone(),
                             aggregate,
+                            &mut wm.bind_keys,
                             &mut wm.bind_pool,
                         );
                         if beta_readers.contains(node_id) {
@@ -4753,16 +4846,16 @@ fn fire_fixpoint_delta(
                                     wm.n_input,
                                     el.fact,
                                 ),
-                                pool_slice(&wm.bind_pool, tok.binds),
+                                &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
                                 compiled,
                                 &mut match_scratch,
                             )
                             .is_some(),
                             None => {
-                                let el_b = element_fact_bindings(el, &wm.bind_pool);
+                                let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
                                 token_element_compatible(
-                                    pool_slice(&wm.bind_pool, tok.binds),
-                                    el_b,
+                                    &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                                    &el_b,
                                 )
                             }
                         };
@@ -4779,15 +4872,15 @@ fn fire_fixpoint_delta(
                 let groups: Vec<(crate::value::pmap::PMap, Vec<&Element>)> = if group_keys
                     .is_empty()
                 {
-                    vec![(pmap_from_span(tok.binds, &wm.bind_pool), gathered)]
+                    vec![(pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_pool), gathered)]
                 } else if gathered.is_empty() {
                     Vec::new()
                 } else {
                     let mut order: Vec<Vec<(Value, Value)>> = Vec::new();
                     let mut buckets: HashMap<Vec<(Value, Value)>, Vec<&Element>> = HashMap::new();
                     for el in gathered {
-                        let el_b = element_fact_bindings(el, &wm.bind_pool);
-                        let proj = project_group_keys(el_b, &group_keys);
+                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                        let proj = project_group_keys(&el_b, &group_keys);
                         buckets
                             .entry(proj.clone())
                             .or_insert_with(|| {
@@ -4799,7 +4892,7 @@ fn fire_fixpoint_delta(
                     order
                         .into_iter()
                         .map(|proj| {
-                            let mut nb = pmap_from_span(tok.binds, &wm.bind_pool);
+                            let mut nb = pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_pool);
                             for (k, v) in &proj {
                                 nb = nb.assoc(k.clone(), v.clone());
                             }
@@ -4815,6 +4908,7 @@ fn fire_fixpoint_delta(
                             &group_els,
                             sym,
                             &wm.bind_pool,
+                            &wm.bind_keys,
                             &wm.facts,
                             &wm.derived_facts,
                             wm.n_input,
@@ -4824,6 +4918,7 @@ fn fire_fixpoint_delta(
                         let new_tok = Token {
                             matches: tok.matches,
                             binds: span_from_pairs(
+                                &mut wm.bind_keys,
                                 &mut wm.bind_pool,
                                 new_bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
                             ),
@@ -4892,8 +4987,10 @@ fn fire_fixpoint_delta(
                         .into_iter()
                         .flatten()
                         .map(|el| {
-                            let eb = element_fact_bindings(el, &wm.bind_pool);
-                            crate::value::pmap::PMap::from_pairs(eb.iter().cloned())
+                            let eb = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            crate::value::pmap::PMap::from_pairs(
+                                eb.iter().map(|(k, v)| (k.clone(), v.clone())),
+                            )
                         })
                         .collect()
                 } else {
@@ -4915,6 +5012,7 @@ fn fire_fixpoint_delta(
                     let tok = Token {
                         matches: empty_span(),
                         binds: span_from_pairs(
+                            &mut wm.bind_keys,
                             &mut wm.bind_pool,
                             ext.iter().map(|(k, v)| (k.clone(), v.clone())),
                         ),
@@ -4938,7 +5036,7 @@ fn fire_fixpoint_delta(
                 // handles. Census only; production never reads `:expr`.
                 #[cfg(test)]
                 if let Value::wat__WatAST(ast) = &sf[1] {
-                    capture_where_sample(ast.as_ref(), &new_tokens, &wm.bind_pool);
+                    capture_where_sample(ast.as_ref(), &new_tokens, &wm.bind_keys, &wm.bind_pool);
                 }
                 // Siblings that share this TestNode's parent set see the same token
                 // stream — dispatch once through the where-tree (b).
@@ -4986,7 +5084,7 @@ fn fire_fixpoint_delta(
                 for tok in new_tokens {
                     let any_compat = token_exists_under(
                         driver,
-                        pool_slice(&wm.bind_pool, tok.binds),
+                        &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
                         &wm,
                         compiled_conds,
                         &mut match_scratch,
@@ -5055,6 +5153,7 @@ fn fire_fixpoint_delta(
                     &mut match_scratch,
                     &mut wm.bind_pool,
                     &mut wm.match_pool,
+                    &wm.bind_keys,
                     &wm.facts,
                     &wm.derived_facts,
                     wm.n_input,
@@ -5147,7 +5246,7 @@ fn fire_fixpoint_delta(
                         for tok in new_tokens {
                             let any_compat = token_exists_under(
                                 driver,
-                                pool_slice(&wm.bind_pool, tok.binds),
+                                &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
                                 &wm,
                                 compiled_conds,
                                 &mut match_scratch,
@@ -5225,6 +5324,7 @@ fn fire_fixpoint_delta(
                                     &mut match_scratch,
                                     &mut wm.bind_pool,
                                     &mut wm.match_pool,
+                                    &wm.bind_keys,
                                     &wm.facts,
                                     &wm.derived_facts,
                                     wm.n_input,
@@ -5259,7 +5359,7 @@ fn fire_fixpoint_delta(
                             for tok in &parent_toks {
                                 let any_compat = token_exists_under(
                                     driver,
-                                    pool_slice(&wm.bind_pool, tok.binds),
+                                    &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
                                     &wm,
                                     compiled_conds,
                                     &mut match_scratch,
@@ -5327,13 +5427,13 @@ fn fire_fixpoint_delta(
                 // upper bound for this parent's tokens × RHS forms.
                 seen_ids.reserve(ts.len().saturating_mul(compiled_rhs_forms.len()));
 
-                let first = pool_slice(&wm.bind_pool, ts[0].binds);
+                let first = bind_view(&wm.bind_keys, &wm.bind_pool, ts[0].binds);
                 let slot_tables: Vec<Vec<Option<usize>>> = compiled_rhs_forms
                     .iter()
-                    .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, first))
+                    .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                     .collect();
                 for tok in ts {
-                    let pairs = pool_slice(&wm.bind_pool, tok.binds);
+                    let pairs = bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds);
                     for (compiled, slots) in compiled_rhs_forms.iter().zip(&slot_tables) {
                     let __prhs = phase_start();
                     let derived = crate::rete::compiled_rhs::exec_compiled_rhs_at(
@@ -5362,7 +5462,15 @@ fn fire_fixpoint_delta(
                             idx.entry(derived.clone()).or_insert_with(|| {
                                 (
                                     rule_name.to_string(),
-                                    native_token_to_value(*tok, &wm.bind_pool, &wm.match_pool),
+                                    native_token_to_value(
+                                        *tok,
+                                        &wm.bind_keys,
+                                        &wm.bind_pool,
+                                        &wm.match_pool,
+                                        &wm.facts,
+                                        &wm.derived_facts,
+                                        wm.n_input,
+                                    ),
                                 )
                             });
                         }
@@ -5526,7 +5634,7 @@ fn fire_fixpoint_delta(
         }
         for els in wm.alpha.values() {
             for el in els {
-                let b = element_fact_bindings(el, &wm.bind_pool);
+                let b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
                 census_count(ebucket(b.len()));
                 census_count("bind-card:ELEMENTS");
             }
@@ -5547,6 +5655,7 @@ fn fire_fixpoint_delta(
     wm.beta.clear();
     // Pairs last — Element spans must not dangle (`DESIGN-STONE-bind-pool`).
     wm.bind_pool.clear();
+    wm.bind_keys.clear();
     wm.match_pool.clear();
     phase_end("  └ round:drop-memories", __drop);
     phase_end("ROUND LOOP", __rounds);
@@ -6568,7 +6677,7 @@ pub(crate) fn eval_fire_rules_explain(
 
 #[cfg(test)]
 mod tests {
-    use super::{match_slice, pool_slice, to_persistent, to_transient};
+    use super::{bind_view, match_slice, to_persistent, to_transient};
     use crate::rete::matcher::Bindings;
     use crate::freeze::{eval_in_frozen, startup_from_source};
     use crate::load::InMemoryLoader;
@@ -6775,13 +6884,14 @@ mod tests {
             );
 
             // Both alpha_ids must reference actual AlphaNode ids in the network.
-            for (fact, alpha_id) in edges {
+            for (fact_idx, alpha_id) in edges {
                 assert!(
                     alpha_ids_in_network.contains(alpha_id),
                     "alpha_id {alpha_id} in matches must be an AlphaNode id in the network; \
                      known alpha ids: {alpha_ids_in_network:?}"
                 );
                 // The fact must be a Record (Temperature or WindSpeed).
+                let fact = super::fact_at(&wm.facts, &wm.derived_facts, wm.n_input, *fact_idx);
                 match fact {
                     Value::Aggregate(a) if a.nature != Nature::Struct => {
                         let cls = a.class.as_ref();
@@ -6803,11 +6913,11 @@ mod tests {
             );
 
             // The two facts must be of DIFFERENT types (Temperature != WindSpeed).
-            let class0 = match &edges[0].0 {
+            let class0 = match super::fact_at(&wm.facts, &wm.derived_facts, wm.n_input, edges[0].0) {
                 Value::Aggregate(a) if a.nature != Nature::Struct => a.class.clone(),
                 _ => panic!("fact[0] must be a Record"),
             };
-            let class1 = match &edges[1].0 {
+            let class1 = match super::fact_at(&wm.facts, &wm.derived_facts, wm.n_input, edges[1].0) {
                 Value::Aggregate(a) if a.nature != Nature::Struct => a.class.clone(),
                 _ => panic!("fact[1] must be a Record"),
             };
@@ -6924,7 +7034,7 @@ mod tests {
 
         // (4) Token carries ?t = 25 in its bindings.
         let qt_key = Value::String(Arc::new("?t".to_string()));
-        let qt_val = Bindings::get(pool_slice(&wm.bind_pool, tok.binds), &qt_key).cloned();
+        let qt_val = Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), &qt_key).cloned();
         assert_eq!(
             qt_val,
             Some(Value::i64(25)),
@@ -7018,17 +7128,17 @@ mod tests {
         // joined_token_unifies_both_conditions: ?t=15, ?w=45, ?loc="Oslo".
         let tok = &tokens[0];
         let qt = Bindings::get(
-            pool_slice(&wm.bind_pool, tok.binds),
+            &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
             &Value::String(Arc::new("?t".to_string())),
         )
         .cloned();
         let qw = Bindings::get(
-            pool_slice(&wm.bind_pool, tok.binds),
+            &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
             &Value::String(Arc::new("?w".to_string())),
         )
         .cloned();
         let ql = Bindings::get(
-            pool_slice(&wm.bind_pool, tok.binds),
+            &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
             &Value::String(Arc::new("?loc".to_string())),
         )
         .cloned();
@@ -7215,7 +7325,7 @@ mod tests {
             .iter()
             .map(|tok| {
                 match Bindings::get(
-                    pool_slice(&wm.bind_pool, tok.binds),
+                    &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
                     &Value::String(Arc::new("?loc".to_string())),
                 ) {
                     Some(Value::String(s)) => s.as_str().to_string(),
@@ -10340,11 +10450,11 @@ mod tests {
         filter_raw /= r;
         hash_raw /= r;
         out_raw /= r;
-        for i in 0..4 {
-            kid_raw[i] /= r;
+        for x in &mut kid_raw {
+            *x /= r;
         }
-        for i in 0..2 {
-            pk_raw[i] /= r;
+        for x in &mut pk_raw {
+            *x /= r;
         }
         let net = |raw: f64, pairs: u64| raw - pairs as f64 * cal;
         let kid_net: [f64; 4] = std::array::from_fn(|i| net(kid_raw[i], kid_pairs[i]));
@@ -10694,13 +10804,15 @@ mod tests {
             })
             .collect();
 
-        fn build_alpha(facts: &[Value], gkey: &Value, vkey: &Value) -> (Vec<super::Element>, Vec<(Value, Value)>) {
+        fn build_alpha(facts: &[Value], gkey: &Value, vkey: &Value) -> (Vec<super::Element>, Vec<(u32, Value)>) {
+            let mut keys = Vec::new();
             let mut pool = Vec::new();
             let mut alpha = Vec::with_capacity(facts.len());
             for i in 0..facts.len() {
                 let g = Value::i64((i / 200) as i64);
                 let v = Value::i64((i % 200) as i64);
                 let binds = super::span_from_pairs(
+                    &mut keys,
                     &mut pool,
                     [(gkey.clone(), g), (vkey.clone(), v)],
                 );
@@ -10734,7 +10846,8 @@ mod tests {
                 pool.clear();
                 black_box(pool.len());
             });
-            let mut match_pool: Vec<(Value, i64)> = facts.iter().map(|f| (f.clone(), 1i64)).collect();
+            let mut match_pool: Vec<(u32, i64)> =
+                (0..N).map(|i| (i as u32, 1i64)).collect();
             m += time_ns(|| {
                 match_pool.clear();
                 black_box(match_pool.len());
@@ -10750,7 +10863,8 @@ mod tests {
                 black_box(tokens.len());
             });
             let (mut alpha, mut pool) = build_alpha(&facts, &gkey, &vkey);
-            let mut match_pool: Vec<(Value, i64)> = facts.iter().map(|f| (f.clone(), 1i64)).collect();
+            let mut match_pool: Vec<(u32, i64)> =
+                (0..N).map(|i| (i as u32, 1i64)).collect();
             let mut tokens: Vec<super::Token> = (0..N)
                 .map(|_| super::Token {
                     matches: super::empty_span(),
@@ -10804,12 +10918,14 @@ mod tests {
         let gkey = Value::String(Arc::new("?g".into()));
         let vkey = Value::String(Arc::new("?v".into()));
         let join_keys = [gkey.clone()];
-        let mut pool: Vec<(Value, Value)> = Vec::new();
+        let mut keys = Vec::new();
+        let mut pool: Vec<(u32, Value)> = Vec::new();
         let mut els: Vec<super::Element> = Vec::with_capacity(N);
         for i in 0..N {
             let g = Value::i64((i / 200) as i64);
             let v = Value::i64((i % 200) as i64);
             let binds = super::span_from_pairs(
+                &mut keys,
                 &mut pool,
                 [(gkey.clone(), g), (vkey.clone(), v)],
             );
@@ -10825,7 +10941,7 @@ mod tests {
             t0.elapsed().as_nanos() as f64
         }
 
-        black_box(super::build_gather_index(&els, &join_keys, &pool));
+        black_box(super::build_gather_index(&els, &join_keys, &keys, &pool));
 
         let mut k = 0.0;
         let mut v = 0.0;
@@ -10835,15 +10951,15 @@ mod tests {
         for _ in 0..RUNS {
             k += time_ns(|| {
                 for el in &els {
-                    let pairs = super::element_fact_bindings(el, &pool);
-                    black_box(super::key_of(pairs, &join_keys));
+                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    black_box(super::key_of(&pairs, &join_keys));
                 }
             });
             v += time_ns(|| {
                 let mut idx: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
-                    let pairs = super::element_fact_bindings(el, &pool);
-                    let key = super::key_of(pairs, &join_keys);
+                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    let key = super::key_of(&pairs, &join_keys);
                     idx.entry(key).or_default().push(i);
                 }
                 black_box(idx.len());
@@ -10851,21 +10967,21 @@ mod tests {
             u += time_ns(|| {
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
-                    let pairs = super::element_fact_bindings(el, &pool);
-                    if let Some(val) = Bindings::get(pairs, &gkey) {
+                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    if let Some(val) = Bindings::get(&pairs, &gkey) {
                         idx.entry(val.clone()).or_default().push(i);
                     }
                 }
                 black_box(idx.len());
             });
             b += time_ns(|| {
-                black_box(super::build_gather_index(&els, &join_keys, &pool));
+                black_box(super::build_gather_index(&els, &join_keys, &keys, &pool));
             });
             s += time_ns(|| {
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
-                    let pairs = super::element_fact_bindings(el, &pool);
-                    if let Some(val) = Bindings::get(pairs, &gkey) {
+                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    if let Some(val) = Bindings::get(&pairs, &gkey) {
                         idx.entry(val.clone()).or_default().push(i);
                     }
                 }
@@ -10918,25 +11034,22 @@ mod tests {
         let k = Value::String(Arc::new("?k".into()));
         let l = Value::String(Arc::new("?l".into()));
         let r = Value::String(Arc::new("?r".into()));
-        let names = Arc::new(vec!["key".into(), "id".into()]);
-        let fact = Value::Aggregate(Arc::new(AggregateValue::record(
-            "fan::Left".into(),
-            names,
-            Arc::new(vec![Value::i64(1), Value::i64(2)]),
-        )));
         let join_keys = [k.clone()];
 
-        let mut bind_pool: Vec<(Value, Value)> = Vec::new();
-        let mut match_pool: Vec<(Value, i64)> = Vec::new();
+        let mut keys = Vec::new();
+        let mut bind_pool: Vec<(u32, Value)> = Vec::new();
+        let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
+            &mut keys,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (l.clone(), Value::i64(2))],
         );
         let right_binds = super::span_from_pairs(
+            &mut keys,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (r.clone(), Value::i64(3))],
         );
-        let left_matches = super::push_match(&mut match_pool, fact.clone(), 1);
+        let left_matches = super::push_match(&mut match_pool, 0, 1);
         let tok = super::Token {
             matches: left_matches,
             binds: left_binds,
@@ -10959,13 +11072,13 @@ mod tests {
             let mut mp = match_pool.clone();
             black_box(super::extend_token(
                 &tok,
-                &fact,
+                0,
                 right_binds,
                 2,
                 &mut bp,
                 &mut mp,
             ));
-            black_box(super::key_of(super::pool_slice(&bind_pool, left_binds), &join_keys));
+            black_box(super::key_of(&super::bind_view(&keys, &bind_pool, left_binds), &join_keys));
             black_box(idx.get(&vec![Value::i64(1)]));
         }
 
@@ -11003,10 +11116,10 @@ mod tests {
                 let mo = left_matches.off as usize;
                 let mn = left_matches.len as usize;
                 for i in 0..mn {
-                    let e = mp[mo + i].clone();
+                    let e = mp[mo + i];
                     mp.push(e);
                 }
-                mp.push((fact.clone(), 2));
+                mp.push((0, 2));
                 black_box(mp.len());
             });
 
@@ -11017,7 +11130,7 @@ mod tests {
             e += time_ns(N, || {
                 black_box(super::extend_token(
                     &tok,
-                    &fact,
+                    0,
                     right_binds,
                     2,
                     &mut bp,
@@ -11027,7 +11140,7 @@ mod tests {
 
             kk += time_ns(N, || {
                 black_box(super::key_of(
-                    super::pool_slice(&bind_pool, left_binds),
+                    &super::bind_view(&keys, &bind_pool, left_binds),
                     &join_keys,
                 ));
             });
@@ -11092,17 +11205,20 @@ mod tests {
             names,
             Arc::new(vec![Value::i64(1), Value::i64(3)]),
         )));
-        let mut bind_pool: Vec<(Value, Value)> = Vec::new();
-        let mut match_pool: Vec<(Value, i64)> = Vec::new();
+        let mut keys = Vec::new();
+        let mut bind_pool: Vec<(u32, Value)> = Vec::new();
+        let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
+            &mut keys,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (l.clone(), Value::i64(2))],
         );
         let right_binds = super::span_from_pairs(
+            &mut keys,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (r.clone(), Value::i64(3))],
         );
-        let left_matches = super::push_match(&mut match_pool, fact.clone(), 1);
+        let left_matches = super::push_match(&mut match_pool, 0, 1);
         let tok = super::Token {
             matches: left_matches,
             binds: left_binds,
@@ -11147,7 +11263,7 @@ mod tests {
             let mut mp = match_pool.clone();
             black_box(super::extend_token(
                 &tok,
-                &fact,
+                0,
                 el.binds,
                 2,
                 &mut bp,
@@ -11164,6 +11280,7 @@ mod tests {
                     &mut scratch,
                     &mut bp,
                     &mut mp,
+                    &keys,
                     &facts_pv,
                     &derived,
                     0,
@@ -11198,7 +11315,7 @@ mod tests {
             e += time_ns(N, || {
                 black_box(super::extend_token(
                     &tok,
-                    &fact,
+                    0,
                     el.binds,
                     2,
                     &mut bp,
@@ -11221,6 +11338,7 @@ mod tests {
                         &mut scratch,
                         &mut bp,
                         &mut mp,
+                        &keys,
                         &facts_pv,
                         &derived,
                         0,
@@ -11235,7 +11353,7 @@ mod tests {
             for _ in 0..G_N {
                 black_box(super::extend_token(
                     &tok,
-                    &fact,
+                    0,
                     el.binds,
                     2,
                     &mut bp,
@@ -11732,17 +11850,31 @@ mod tests {
                     field_names,
                 );
                 let mut pool = Vec::new();
-                let via_compiled =
-                    exec_compiled(&compiled[aid], fact_fields, &mut scratch, &mut pool, fact);
+                let mut bkeys = Vec::new();
+                let via_compiled = exec_compiled(
+                    &compiled[aid],
+                    fact_fields,
+                    &mut scratch,
+                    &mut pool,
+                    &mut bkeys,
+                    fact,
+                );
 
                 match (interpreted.as_ref(), via_compiled.as_ref()) {
                     (None, None) => {}
                     (Some(i), Some((off, len))) => {
                         matched_checked += 1;
-                        let c = &pool[*off as usize..*off as usize + *len as usize];
+                        let span = super::BindSpan {
+                            off: *off,
+                            len: *len,
+                        };
+                        let c: Vec<(Value, Value)> = super::bind_view(&bkeys, &pool, span)
+                            .iter()
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect();
                         assert_eq!(
                             i.as_ref(),
-                            c,
+                            c.as_slice(),
                             "STOP-1: bindings array diverged.\n  fact: {fact:?}\n  alpha id: {aid}\n  \
                              interpreted: {i:?}\n  compiled: {c:?}"
                         );
@@ -11814,6 +11946,7 @@ mod tests {
                         &compiled[aid],
                         fact_fields,
                         &mut scratch,
+                        &mut Vec::new(),
                         &mut Vec::new(),
                         fact,
                     )

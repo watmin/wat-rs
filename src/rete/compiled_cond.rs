@@ -530,7 +530,8 @@ pub(crate) fn exec_compiled(
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(Value, Value)>,
+    pool: &mut Vec<(u32, Value)>,
+    keys: &mut Vec<Value>,
     fact: &Value,
 ) -> Option<(u32, u16)> {
     // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's call counter, parallel to
@@ -544,18 +545,28 @@ pub(crate) fn exec_compiled(
     if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
         return None;
     }
-    materialize_into(compiled, scratch, pool, fact)
+    materialize_into(compiled, scratch, pool, keys, fact)
+}
+
+fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
+    if let Some(i) = keys.iter().position(|x| x == k) {
+        return i as u32;
+    }
+    let i = keys.len() as u32;
+    keys.push(k.clone());
+    i
 }
 
 fn materialize_into(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
-    pool: &mut Vec<(Value, Value)>,
+    pool: &mut Vec<(u32, Value)>,
+    keys: &mut Vec<Value>,
     fact: &Value,
 ) -> Option<(u32, u16)> {
     let off = pool.len();
     if let Some(key) = &compiled.fact_bind {
-        pool.push((key.clone(), fact.clone()));
+        pool.push((intern_key(keys, key), fact.clone()));
     }
     for (i, &slot) in compiled.output_slots.iter().enumerate() {
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
@@ -569,7 +580,7 @@ fn materialize_into(
                 return None;
             }
         };
-        pool.push((compiled.slot_keys[i].clone(), v));
+        pool.push((intern_key(keys, &compiled.slot_keys[i]), v));
     }
     Some((off as u32, (pool.len() - off) as u16))
 }
@@ -736,7 +747,7 @@ mod tests {
         let fact = [Value::i64(20)];
         let mut scratch = Vec::new();
         assert!(
-            exec_compiled(&compiled, &fact, &mut scratch, &mut Vec::new(), &Value::i64(20))
+            exec_compiled(&compiled, &fact, &mut scratch, &mut Vec::new(), &mut Vec::new(), &Value::i64(20))
                 .is_some(),
             "populate skips SeedCmp so the fact enters alpha"
         );
@@ -780,6 +791,7 @@ mod tests {
                 &compiled,
                 &[Value::i64(20)],
                 &mut scratch,
+                &mut Vec::new(),
                 &mut Vec::new(),
                 &Value::i64(20),
             )

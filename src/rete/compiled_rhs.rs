@@ -261,13 +261,18 @@ fn unbound_operand(ast_debug: &str) -> EvalBreak {
 /// or an unbound Bind (same miss `get` already raises).
 /// Derived from a live span, never stored on the interned form
 /// (`DESIGN-STONE-rhs-bind-slot`).
-pub(crate) fn rhs_bind_slots(c: &CompiledRhs, pairs: &[(Value, Value)]) -> Vec<Option<usize>> {
+pub(crate) fn rhs_bind_slots(
+    c: &CompiledRhs,
+    pairs: &(impl crate::rete::matcher::Bindings + ?Sized),
+) -> Vec<Option<usize>> {
     match c {
         CompiledRhs::Call(_) => Vec::new(),
         CompiledRhs::Record { ops, .. } => ops
             .iter()
             .map(|op| match op {
-                RhsOp::Bind(k, _) => pairs.iter().position(|(kk, _)| kk == k),
+                RhsOp::Bind(k, _) => pairs
+                    .iter()
+                    .position(|(kk, _)| kk == k),
                 RhsOp::Lit(_) | RhsOp::Expr(_) => None,
             })
             .collect(),
@@ -278,26 +283,26 @@ pub(crate) fn rhs_bind_slots(c: &CompiledRhs, pairs: &[(Value, Value)]) -> Vec<O
 /// mismatch fall back to [`exec_compiled_rhs`]. Token stays a BindSpan.
 pub(crate) fn exec_compiled_rhs_at(
     c: &CompiledRhs,
-    pairs: &[(Value, Value)],
+    pairs: crate::rete::matcher::BindView<'_>,
     slots: &[Option<usize>],
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let CompiledRhs::Record { class, names, ops } = c else {
-        return exec_compiled_rhs(c, pairs, sym);
+        return exec_compiled_rhs(c, &pairs, sym);
     };
     if slots.len() != ops.len() {
-        return exec_compiled_rhs(c, pairs, sym);
+        return exec_compiled_rhs(c, &pairs, sym);
     }
     let mut fields: Vec<Value> = Vec::with_capacity(ops.len());
     for (op, slot) in ops.iter().zip(slots) {
         let v = match op {
-            RhsOp::Bind(_, ast_debug) => match slot.and_then(|i| pairs.get(i)) {
+            RhsOp::Bind(_, ast_debug) => match slot.and_then(|i| pairs.pairs.get(i)) {
                 Some((_, v)) => v.clone(),
                 None => return Err(unbound_operand(ast_debug)),
             },
             RhsOp::Lit(v) => v.clone(),
             RhsOp::Expr(program) => {
-                crate::rete::expr_ir::exec_value(program, pairs, sym, &program.span)?
+                crate::rete::expr_ir::exec_value(program, &pairs, sym, &program.span)?
             }
         };
         fields.push(v);
@@ -649,8 +654,17 @@ mod tests {
         black_box(get_slot());
         let slotted = rhs_bind_slots(&compiled, pairs.as_slice());
         let via_get = exec_compiled_rhs(&compiled, pairs.as_slice(), &sym).expect("exec");
-        let via_slot =
-            exec_compiled_rhs_at(&compiled, pairs.as_slice(), &slotted, &sym).expect("at");
+        let view_keys: Vec<Value> = pairs.iter().map(|(k, _)| k.clone()).collect();
+        let view_pairs: Vec<(u32, Value)> = pairs
+            .iter()
+            .enumerate()
+            .map(|(i, (_, v))| (i as u32, v.clone()))
+            .collect();
+        let view = crate::rete::matcher::BindView {
+            keys: &view_keys,
+            pairs: &view_pairs,
+        };
+        let via_slot = exec_compiled_rhs_at(&compiled, view, &slotted, &sym).expect("at");
         assert_eq!(
             via_get, via_slot,
             "slotted exec must be byte-identical to get on the same pairs"

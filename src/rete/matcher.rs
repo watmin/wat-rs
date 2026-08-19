@@ -89,6 +89,34 @@ pub(crate) trait Bindings {
     fn iter(&self) -> impl Iterator<Item = (&Value, &Value)>;
 }
 
+/// Fire-scoped bind view: key ids into `bind_keys`, fillers in `pairs`
+/// (`DESIGN-STONE-bind-key-intern`).
+#[derive(Clone, Copy)]
+pub(crate) struct BindView<'a> {
+    pub keys: &'a [Value],
+    pub pairs: &'a [(u32, Value)],
+}
+
+impl Bindings for BindView<'_> {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        self.pairs.iter().find_map(|(i, v)| {
+            (self.keys.get(*i as usize) == Some(k)).then_some(v)
+        })
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        self.pairs.iter().filter_map(|(i, v)| {
+            self.keys.get(*i as usize).map(|k| (k, v))
+        })
+    }
+}
+
+impl BindView<'_> {
+    #[allow(dead_code)]
+    pub(crate) fn len(self) -> usize {
+        self.pairs.len()
+    }
+}
+
 impl Bindings for rpds::HashTrieMapSync<Value, Value> {
     fn get(&self, k: &Value) -> Option<&Value> {
         rpds::HashTrieMapSync::get(self, k)
