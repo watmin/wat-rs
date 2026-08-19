@@ -1,4 +1,4 @@
-//! Arc 278 — fence-HOF: the 6a purity fence must accept higher-order fold fns (foldl/map/filter/foldr) and
+//! Arc 278 — fence-HOF: the 6a purity fence must accept higher-order fold fns (foldl/map/filter) and
 //! `:wat::core::fn` literals. RED at HEAD: `pure?`/`deterministic?` return FALSE for a fold expr because
 //! (a) the HOF combinators aren't recognized as pure∧det (foldl is native → classify_fn denies it before
 //! intrinsic_meta), and (b) classify_expr has no `:wat::core::fn` lambda arm (a fn-literal is treated as an

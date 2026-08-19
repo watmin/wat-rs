@@ -1,6 +1,6 @@
 //! Arc 278 seq-1b — disconfirming probe: List joins the seq-HOF family. RED at HEAD.
 //!
-//! After seq-1a, `mappable()` (map/filter/foldl/foldr) and `ordered()` (reverse/take/drop/concat) are both
+//! After seq-1a, `mappable()` (map/filter/foldl) and `ordered()` (reverse/concat) are both
 //! `{Vector, PersistentVector}`-only. List supports ALL EIGHT (it is a full ordered, homogeneous,
 //! variable-length sequence) but the registry gates it out and neither the runtime arms nor the checker
 //! accept it. seq-1b flips `mappable()`+`ordered()` true for List and builds the eight runtime arms + the
@@ -65,11 +65,14 @@ fn list_hofs_typecheck_parametric() {
     // Arc 118.2a: `map`/`filter`/`take`/`drop` now return a lazy `Stream`, not the original
     // container — `foldl` is container-only (Vector/PersistentVector/List), so those four
     // HOF-result folds must go through `:wat::core::reduce` (the Stream-aware clojure surface)
-    // instead. `foldl`/`foldr` over the raw List, and `reverse`/`concat` (still eager,
+    // instead. `foldl` over the raw List, and `reverse`/`concat` (still eager,
     // container-preserving — unaffected by the flip) keep the original `foldl`.
+    // Arc 118.B6b: `foldr` retired (it was `reverse`+`foldl` wearing a name borrowed from
+    // Haskell, distinct only under laziness wat does not have) — `l-foldr` renamed
+    // `l-fold-reverse`, body now `(reduce f init (reverse coll))`.
     let src = format!(
         "(:wat::core::defn :user::l-foldl  [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 {L123}))\n\
-         (:wat::core::defn :user::l-foldr  [] -> :wat::core::i64 (:wat::core::foldr {SUM} 0 {L123}))\n\
+         (:wat::core::defn :user::l-fold-reverse [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::reverse {L123})))\n\
          (:wat::core::defn :user::l-map    [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} {L123})))\n\
          (:wat::core::defn :user::l-filter [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::filter {GT1} {L123})))\n\
          (:wat::core::defn :user::l-rev    [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse {L123})))\n\
@@ -108,12 +111,14 @@ fn wrong_element_rejected() {
 // ── Runtime values: each op produces the right elements ──
 
 // Arc 118.2a — map/filter/take/drop now return a lazy Stream; fold the HOF result via
-// `reduce` (the Stream-aware clojure surface), not `foldl` (container-only). foldl/foldr
-// over the raw List are unaffected (they test foldl/foldr itself, not a HOF result).
+// `reduce` (the Stream-aware clojure surface), not `foldl` (container-only). foldl
+// over the raw List is unaffected (it tests foldl itself, not a HOF result).
+// Arc 118.B6b — `foldr` retired; `list_foldr` renamed `list_reduce_over_reverse`, now
+// spelled `(reduce f init (reverse coll))` — still List, still sums to 6.
 #[test] fn list_map_sum()   { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} {L123}))"), 12); }   // 2+4+6
 #[test] fn list_filter_sum(){ expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::filter {GT1} {L123}))"), 5); }  // 2+3
 #[test] fn list_foldl()     { expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 {L123})"), 6); }
-#[test] fn list_foldr()     { expect_i64(MAIN, &format!("(:wat::core::foldr {SUM} 0 {L123})"), 6); }
+#[test] fn list_reduce_over_reverse() { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::reverse {L123}))"), 6); }
 #[test] fn list_take_sum()  { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::take {L123} 2))"), 3); }   // 1+2
 #[test] fn list_drop_sum()  { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::drop {L123} 1))"), 5); }   // 2+3
 

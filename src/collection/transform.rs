@@ -1,10 +1,10 @@
 //! Stream-HOF and helper functions for the collection dispatch home.
 //!
-//! Contains the ~15 seq-HOF and helper functions (map, filter, foldl, foldr,
+//! Contains the ~15 seq-HOF and helper functions (map, filter, foldl,
 //! sort' (primitive comparator-sort), reverse, range, take, drop, last,
 //! find-last-index, zip, window, remove-at, map-with-index).
 //!
-//! Arc-278 strike 3: the HOF family (map/filter/foldl/foldr/reverse/take/drop)
+//! Arc-278 strike 3: the HOF family (map/filter/foldl/reverse/take/drop)
 //! is now container-polymorphic over `mappable()` containers (currently Vector
 //! and PersistentVector). Classification delegates to `StreamContainer::of_value` +
 //! `mappable()` — no hand-rolled per-container match in the classifier gate.
@@ -470,7 +470,6 @@ fn lazy_map_stream(
 /// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
 /// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's driver.
 /// Arc 247: fn-first — (foldl f init xs).
-/// `:wat::core::foldr` ships alongside — see [`eval_vec_foldr`].
 pub(crate) fn eval_vec_foldl(
     args: &[WatAST],
     call_span: &Span,
@@ -511,7 +510,7 @@ pub(crate) fn eval_vec_foldl(
     use crate::collection::seq_container::StreamContainer;
     // Stone 118.B6 — `mappable()` OR `Stream`. `mappable()`'s `Stream => false` arm still carries
     // arc 118's own note that streaming HOFs were "a later strike. ○ gap"; this closes foldl's half
-    // of it WITHOUT widening that table, because `mappable()` also gates map/filter/foldr and
+    // of it WITHOUT widening that table, because `mappable()` also gates map/filter and
     // moving it would ripple across the whole HOF family in one commit (118.B6 STOP-2).
     match StreamContainer::of_value(&coll) {
         Some(container) if container.mappable() || matches!(container, StreamContainer::Stream) => match container {
@@ -586,102 +585,6 @@ pub(crate) fn eval_vec_foldl(
             RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldl".into(),
                 expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
-                got: Box::new(ValueSnapshot::of(&coll)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// `(:wat::core::foldr f init xs)` → acc. Right-associative fold.
-/// `f(x0, f(x1, f(..., f(xn, init))))`. Iterates the container in reverse
-/// so the call stack is bounded by iteration, not recursion.
-/// Arc 247: fn-first — (foldr f init xs).
-pub(crate) fn eval_vec_foldr(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::foldr".into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    // Arc 247: fn-first — (foldr f init xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let coll = eval_inner(&args[2], env, sym)?.value_owned();
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::foldr".into(),
-                    expected: "wat::core::fn",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into());
-        }
-    };
-    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match container {
-            StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else {
-                    unreachable!("of_value⇒Vector")
-                };
-                for x in xs.iter().rev() {
-                    acc =
-                        apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
-                }
-                Ok(acc)
-            }
-            StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else {
-                    unreachable!("of_value⇒PersistentVector")
-                };
-                let elems: Vec<&Value> = pv.iter().collect();
-                for x in elems.into_iter().rev() {
-                    acc =
-                        apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
-                }
-                Ok(acc)
-            }
-            StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else {
-                    unreachable!("of_value⇒List")
-                };
-                let elems: Vec<&Value> = xs.iter().collect();
-                for x in elems.into_iter().rev() {
-                    acc =
-                        apply_function(func.clone(), vec![x.clone(), acc], sym, call_span.clone())?;
-                }
-                Ok(acc)
-            }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple
-            | StreamContainer::WatAstList
-            | StreamContainer::HashSet
-            | StreamContainer::Stream => {
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream")
-            }
-        },
-        _ => Err(RuntimeError::new(
-            args[2].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::foldr".into(),
-                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
                 got: Box::new(ValueSnapshot::of(&coll)),
             },
         )
@@ -1092,7 +995,7 @@ pub(crate) fn eval_vec_map_with_index(
         .into());
     }
     // NB: arg order here is (xs f) — the collection leads. This diverges from the fn-first
-    // HOF family (arc 247: map/filter/foldl/foldr all take (f xs)). Do NOT copy the extraction
+    // HOF family (arc 247: map/filter/foldl all take (f xs)). Do NOT copy the extraction
     // order from sibling HOFs — args[0] is the Vec, args[1] is the function.
     let xs = require_vec(
         ":wat::std::list::map-with-index",

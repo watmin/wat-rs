@@ -1,9 +1,10 @@
 //! Arc 278 stone 0d — disconfirming probe: transform-op CHECK-SIDE parity. RED at HEAD.
 //!
 //! 0c gave PersistentVector the transform/sequence ops at RUNTIME (the `eval_vec_*` arms dispatch on
-//! PersistentVector). But the CHECKER never followed: `map`/`filter`/`foldl`/`foldr`/`reverse`/`take`/`drop`
+//! PersistentVector). But the CHECKER never followed: `map`/`filter`/`foldl`/`reverse`/`take`/`drop`
 //! are still monomorphic `Vector`-only static TypeSchemes (check.rs:17963-18073), `concat` checks via the
 //! `Vector/concat` alias. So a TYPED body that folds/maps a PersistentVector is rejected at check time.
+//! (Arc 118.B6b: `foldr` retired — its slot below is now `reduce` over `reverse`.)
 //!
 //! This probe exercises the CHECKER (via startup, which type-checks at freeze) — NOT
 //! `eval_in_frozen` (which bypasses the checker). Each op is wrapped in a typed `defn` returning `:i64`
@@ -26,8 +27,9 @@ use wat::freeze::{startup_beside, startup_from_file};
 #[test]
 fn transform_ops_typecheck_on_persistent_vector() {
     // Each defn returns :i64; every container-producing op is wrapped in (foldl SUM 0 …) so the body
-    // type is a scalar. The 8 ops: foldl, foldr, map, filter, reverse, take, drop, concat — each over a
-    // PersistentVector. RED at HEAD (the static Vec-only schemes reject PersistentVector).
+    // type is a scalar. The 8 ops: foldl, reduce-over-reverse, map, filter, reverse, take, drop,
+    // concat — each over a PersistentVector. RED at HEAD (the static Vec-only schemes reject
+    // PersistentVector).
     let r = startup_beside(file!());
     assert!(
         r.is_ok(),

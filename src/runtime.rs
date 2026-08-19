@@ -6373,9 +6373,6 @@ fn dispatch_keyword_head_value(
         ":wat::core::foldl" => {
             crate::collection::transform::eval_vec_foldl(args, list_span, env, sym)
         }
-        ":wat::core::foldr" => {
-            crate::collection::transform::eval_vec_foldr(args, list_span, env, sym)
-        }
         // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — `:wat::core::filter` is
         // native again (was the arc-118.2a wat `defclause`, `wat/seq.wat`, which stepped its
         // source via repeated `rest` — O(n^2) on every eager container). Composes through
@@ -37860,17 +37857,22 @@ mod tests {
         assert_eq!(parent_result, 42);
     }
 
-    // ─── foldr / filter / zip ──────────────────────────────────────────
+    // ─── reduce-over-reverse / filter / zip ────────────────────────────
 
     #[test]
-    fn foldr_is_right_associative() {
-        // (foldr f init xs) = f(x0, f(x1, f(x2, init))) = 1-(2-(3-0)) = 2
+    fn reduce_over_reverse_is_right_associative() {
+        // Arc 118.B6b — `foldr` retired: it was `reverse` + `foldl` wearing a name borrowed
+        // from Haskell, where the verb is distinct only because it is LAZY (a property strict
+        // wat cannot have). This is the replacement spelling: `(reduce f init (reverse xs))`.
+        // f(x0, f(x1, f(x2, init))) = 1-(2-(3-0)) = 2 — the same right-associative answer
+        // `foldr` gave. A left fold over the un-reversed input gives -6 (see the sibling test
+        // below), so this assertion still discriminates a right fold from a left one.
         let src = r#"
-            (:wat::core::foldr
-              (:wat::core::fn [x <- :i64 acc <- :i64] -> :i64
+            (:wat::core::reduce
+              (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
                 (:wat::core::i64::- x acc))
               0
-              (:wat::core::Vector :i64 1 2 3))
+              (:wat::core::reverse (:wat::core::Vector :i64 1 2 3)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -37879,7 +37881,11 @@ mod tests {
     }
 
     #[test]
-    fn foldl_vs_foldr_differ_on_nonassoc_op() {
+    fn foldl_vs_reduce_over_reverse_differ_on_nonassoc_op() {
+        // Arc 118.B6b — renamed from `foldl_vs_foldr_differ_on_nonassoc_op`: this body only
+        // ever called `foldl` (the `foldr` half lived in the name and this comment, never in a
+        // call) — it is the negative control that keeps a left fold discriminated from the
+        // `(reduce f init (reverse xs))` right fold above, so it stays.
         // (foldl f init xs) where f = - : ((0 - 1) - 2) - 3 = -6
         let src_l = r#"
             (:wat::core::foldl

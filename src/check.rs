@@ -2374,14 +2374,14 @@ fn infer_rete_form(
         // a route here mirroring `check.rs`'s own `":wat::core::fn" => infer_fn` arm above
         // (`infer_fn` takes no `head_span` — passed only the args it wants, same as that arm).
         ":wat::core::fn" => crate::function::infer_fn(args, env, locals, fresh, subst),
-        // Arc 278 #57 round 1b — the four `Redispatch`-class HOFs that ARE checker special
-        // forms (each has a bespoke inference fn in `collection::infer`, same call shape as
-        // `infer_if` above). `reduce` — the fifth — is deliberately absent from this list:
-        // verified it has no `infer_reduce` anywhere (it is a wat-level `defclause`,
+        // Arc 278 #57 round 1b — originally the four `Redispatch`-class HOFs that ARE checker
+        // special forms (each has a bespoke inference fn in `collection::infer`, same call
+        // shape as `infer_if` above); arc 118.B6b retired `foldr`'s row, leaving three
+        // (foldl/map/filter). `reduce` — the fourth here — is deliberately absent from this
+        // list: verified it has no `infer_reduce` anywhere (it is a wat-level `defclause`,
         // `wat/seq.wat`, not a native special form), so its arm is below, re-dispatching by
         // AST head-substitution into `infer_list` rather than a direct call here.
         ":wat::core::foldl" => crate::collection::infer::infer_foldl(args, head_span, env, locals, fresh, subst),
-        ":wat::core::foldr" => crate::collection::infer::infer_foldr(args, head_span, env, locals, fresh, subst),
         ":wat::core::map" => crate::collection::infer::infer_map(args, head_span, env, locals, fresh, subst),
         ":wat::core::filter" => crate::collection::infer::infer_filter(args, head_span, env, locals, fresh, subst),
         // `reduce` — no bespoke inference fn exists for it (it dispatches via
@@ -4398,13 +4398,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 118.B6b — HARD CUT: `:wat::core::foldr` is retired. It was `reverse`+`foldl`
+            // wearing a name borrowed from Haskell, where the verb is distinct only because it
+            // is LAZY — a property strict wat cannot have. Same shape as the `:wat::core::try`
+            // zombie arm above: an explicit match arm, not a silent fall-through, so the error
+            // surfaces at check time (the generic `:wat::`-prefixed multi-arg fallback below is
+            // permissive and would otherwise accept this and defer to a runtime dispatch miss).
             ":wat::core::foldr" => {
-                let (val, mut errs) = crate::collection::infer::infer_foldr(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (arc 118.B6b); use '(:wat::core::reduce f init (:wat::core::reverse coll))' instead", k),
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             ":wat::core::reverse" => {
                 let (val, mut errs) = crate::collection::infer::infer_reverse(args, head_span, env, locals, fresh, subst).into_parts();
@@ -19523,24 +19528,6 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 TypeExpr::Fn {
                     args: vec![acc_var(), t_var()],
-                    ret: Box::new(acc_var()),
-                },
-                acc_var(),
-                vec_of(t_var()),
-            ],
-            ret: acc_var(),
-            rest_param_type: None,
-        },
-    );
-    // Arc 247: fn-first — (foldr f init xs) -> Acc
-    // Arc-278-0d NOTE: direct calls intercepted by infer_foldr; scheme retained for potential aliases.
-    env.register(
-        ":wat::core::foldr".into(),
-        TypeScheme {
-            type_params: vec!["T".into(), "Acc".into()],
-            params: vec![
-                TypeExpr::Fn {
-                    args: vec![t_var(), acc_var()],
                     ret: Box::new(acc_var()),
                 },
                 acc_var(),

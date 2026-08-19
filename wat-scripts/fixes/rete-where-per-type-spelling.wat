@@ -80,7 +80,9 @@
     (:wat::core::Tuple ":wat::core::filter" ":wat::rete::core::filter")
     (:wat::core::Tuple ":wat::core::fn" ":wat::rete::core::fn")
     (:wat::core::Tuple ":wat::core::foldl" ":wat::rete::core::foldl")
-    (:wat::core::Tuple ":wat::core::foldr" ":wat::rete::core::foldr")
+    ;; Arc 118.B6b: `:wat::core::foldr`/`:wat::rete::core::foldr` retired — the pair that used to
+    ;; live here is gone from both sides (core's verb AND its rete vocabulary row), so this
+    ;; migration table no longer names it. See DESIGN-STONE-118.B6b-retire-foldr.md.
     (:wat::core::Tuple ":wat::core::i64::<" ":wat::rete::core::i64::<")
     (:wat::core::Tuple ":wat::core::i64::<=" ":wat::rete::core::i64::<=")
     (:wat::core::Tuple ":wat::core::i64::=" ":wat::rete::core::i64::=")

@@ -545,7 +545,6 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::map"
         | ":wat::core::filter"
         | ":wat::core::foldl"
-        | ":wat::core::foldr"
         | ":wat::core::range"
         | ":wat::core::take"
         | ":wat::core::drop"

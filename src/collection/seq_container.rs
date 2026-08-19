@@ -32,7 +32,7 @@
 //!
 //! # Capability matrix (current runtime truth; `○ gap` = fillable but not yet)
 //!
-//! | container          | Indexable | Nth (general positional) | Tail (rest) | Append (conj) | Mappable (map/filter/foldl/foldr) | Ordered (reverse/take/drop/concat) | Measurable | Searchable | Gettable |
+//! | container          | Indexable | Nth (general positional) | Tail (rest) | Append (conj) | Mappable (map/filter/foldl) | Ordered (reverse/concat) | Measurable | Searchable | Gettable |
 //! |--------------------|-----------|---------------------------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
 //! | Vector             | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
 //! | PersistentVector   | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
@@ -252,12 +252,14 @@ impl StreamContainer {
         }
     }
 
-    /// `map`/`filter`/`foldl`/`foldr` — order-agnostic element transform.
+    /// `map`/`filter`/`foldl` — order-agnostic element transform.
     ///
     /// Un-stubbed: strike 3 migrates HOF classification through this gate.
     /// `true` for Vector and PersistentVector — the only containers the HOF
     /// runtime arms support today (verified against transform.rs eval_vec_map/
-    /// filter/foldl/foldr).
+    /// filter/foldl). Arc 118.B6b: `foldr` retired — it was `reverse`+`foldl`
+    /// wearing a name borrowed from Haskell, where the verb is distinct only
+    /// because it is LAZY (a property strict wat cannot have).
     pub(crate) fn mappable(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -274,11 +276,17 @@ impl StreamContainer {
         }
     }
 
-    /// `reverse`/`take`/`drop`/`concat` — order-dependent sequence ops.
+    /// `reverse`/`concat` — order-dependent sequence ops.
     ///
     /// `true` for ordered, homogeneous, variable-length sequences. `false` for
     /// HashSet (unordered — no defined element order to slice or join) and Tuple
-    /// (fixed-arity heterogeneous product). Same nature predicate for all four ops.
+    /// (fixed-arity heterogeneous product). Same nature predicate for both ops.
+    ///
+    /// ★ Corrected 118.B6b — this header used to also name `take`/`drop`, but they do NOT
+    /// consult this gate: 118.2a moved them to `extract_lazyable_elem`'s fixed set
+    /// (`collection/infer.rs:1070` records the move: "classification no longer routes through
+    /// `ordered()`"). The two live consumers, measured, are `concat` (`collection/eval.rs:763`)
+    /// and `reverse` (`collection/transform.rs:51`).
     pub(crate) fn ordered(self) -> bool {
         match self {
             StreamContainer::Vector => true,

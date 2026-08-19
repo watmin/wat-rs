@@ -1,7 +1,7 @@
 //! FM-2-bis probe for Arc 247 — Clojure-honest seq-HOF order (fn-first).
 //!
 //! Dialect compliance: the seq-HOFs flip coll-first → fn-first (Clojure order):
-//!   (map f xs)  (filter pred xs)  (foldl f init xs)  (foldr f init xs)  (sort-by keyfn xs)
+//!   (map f xs)  (filter pred xs)  (foldl f init xs)  (sort-by keyfn xs)
 //!
 //! ROW STATUS (initial):
 //!   - REGRESSION (GREEN at HEAD + after): variadic arithmetic uses `foldl` internally;

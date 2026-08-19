@@ -1,16 +1,23 @@
 ;; tests/collection/probe_arc278_0d_transform_dispatch_parity.wat — co-located fixture,
 ;; slurped via startup_beside(file!()), asserting startup (type-check) succeeds.
 ;;
-;; Contains the 8 transform-op defns over PersistentVector (foldl/foldr/map/filter/reverse/take/drop/concat)
-;; and the 3 bare-typed-container defns — all must type-check clean (arc 278 stone 0d).
+;; Contains the 8 transform-op defns over PersistentVector (foldl/reduce-over-reverse/map/filter/
+;; reverse/take/drop/concat) and the 3 bare-typed-container defns — all must type-check clean
+;; (arc 278 stone 0d).
 ;;
 ;; Arc 118.2a note: `map`/`filter`/`take`/`drop` flipped LAZY (return `Stream<T>`, not the
 ;; container-preserving contract this probe originally proved parity for). The test's PURPOSE —
 ;; "does this op accept a PersistentVector INPUT at check time" — still holds and is still
 ;; asserted here; only the OUTER fold changed from `foldl` (Vector/List/PersistentVector-only,
 ;; would reject the new Stream output) to `:wat::core::reduce` (same 3-arg shape, Stream-aware).
-;; `foldl`/`foldr`/`reverse`/`concat` are untouched by 118.2a and keep their original `foldl`
-;; wrapping unchanged.
+;; `foldl`/`reverse`/`concat` are untouched by 118.2a and keep their original `foldl` wrapping
+;; unchanged.
+;;
+;; Arc 118.B6b: `foldr` retired — it was `reverse`+`foldl` wearing a name borrowed from Haskell,
+;; where the verb is distinct only because it is LAZY, a property strict wat cannot have.
+;; `p-foldr` below is renamed `p-fold-reverse` and its body is now spelled
+;; `(reduce f init (reverse coll))` — the replacement composition, still checked over a
+;; PersistentVector at check time, same as every other slot in this file.
 
 (:wat::core::defn :user::p-foldl [] -> :wat::core::i64
   (:wat::core::foldl
@@ -18,11 +25,11 @@
     0
     (:wat::core::PersistentVector 1 2 3)))
 
-(:wat::core::defn :user::p-foldr [] -> :wat::core::i64
-  (:wat::core::foldr
+(:wat::core::defn :user::p-fold-reverse [] -> :wat::core::i64
+  (:wat::core::reduce
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
     0
-    (:wat::core::PersistentVector 1 2 3)))
+    (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
 
 (:wat::core::defn :user::p-map [] -> :wat::core::i64
   (:wat::core::reduce
