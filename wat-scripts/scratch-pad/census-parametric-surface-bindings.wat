@@ -33,7 +33,7 @@
   (:wat::core::let [ch (:wat::core::into [] (:wat::core::ast->children form))]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) (:wat::core::+ idx 1))
       ""
-      (:wat::core::ast->source (:wat::core::first (:wat::core::drop ch idx))))))
+      (:wat::core::ast->source (:wat::core::nth ch idx)))))
 
 ;; Report this form if it is a defsurface / extend-type, then recurse into every child.
 (:wat::core::defn :census::walk [form <- :wat::WatAST] -> :wat::core::nil

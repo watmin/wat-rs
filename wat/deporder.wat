@@ -120,7 +120,7 @@
   [form <- :wat::WatAST]
   -> :wat::core::String
   (:wat::core::let [ch   (:wat::core::ast->children form)
-                    name-node (:wat::core::first (:wat::core::drop ch 1))]
+                    name-node (:wat::core::nth ch 1)]
     (:wat::core::ast-name name-node)))
 
 ;; ─── Keyword reference collector ──────────────────────────────────────

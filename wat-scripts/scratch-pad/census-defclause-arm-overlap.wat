@@ -86,7 +86,7 @@
       (:wat::core::let
         [ch   (:wat::core::into [] (:wat::core::ast->children form))
          name (:wat::core::if (:wat::core::< (:wat::core::length ch) 2) "<anon>"
-                (:wat::core::ast->source (:wat::core::first (:wat::core::drop ch 1))))
+                (:wat::core::ast->source (:wat::core::nth ch 1)))
          ;; ⚠ AN ARM IS NOT "EVERY CHILD PAST THE NAME". A `defclause` may carry a SHARED return
          ;; type on its head line — `(defclause :p05::pick -> :i64 (arm) (arm))` — and a naive
          ;; `drop 2` then counts `->` and `:i64` as arms. That produced two bogus EMPTY-typed rows

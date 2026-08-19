@@ -31,7 +31,7 @@
         (:wat::core::let
           [ch (:wat::core::ast->children f)
            hd (:wat::core::ast-name (:wat::core::first ch))
-           nm (:wat::core::ast-name (:wat::core::first (:wat::core::drop ch 1)))]
+           nm (:wat::core::ast-name (:wat::core::nth ch 1))]
           (:wat::kernel::println (:wat::core::string::concat hd (:wat::core::string::concat "  " nm)))))
       nil
       forms)))

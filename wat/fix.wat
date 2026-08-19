@@ -66,7 +66,7 @@
       (:wat::core::if (:wat::core::empty? (:wat::core::drop ch 2))
         false
         (:wat::core::let [head (:wat::core::first ch)
-                          c2   (:wat::core::first (:wat::core::drop ch 2))]
+                          c2   (:wat::core::nth ch 2)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
               (:wat::core::= (:wat::core::ast-name c2) "->")
@@ -297,8 +297,8 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::let [head     (:wat::core::first ch)
                         c1       (:wat::core::first (:wat::core::rest ch))
-                        c2       (:wat::core::first (:wat::core::drop ch 2))
-                        c3       (:wat::core::first (:wat::core::drop ch 3))
+                        c2       (:wat::core::nth ch 2)
+                        c3       (:wat::core::nth ch 3)
                         ;; Arc 118.2a — `drop` flipped LAZY; `branches` feeds
                         ;; `fix-text-seq-edits`, which declares a `Vector<WatAST>` param.
                         branches (:wat::core::into [] (:wat::core::drop ch 4))]
@@ -545,10 +545,10 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::let [ch     (:wat::core::ast->children form)
                     ;; ch[2]: if it's a vector, argvec is here (6-item); else ch[3] (7-item)
-                    c2     (:wat::core::first (:wat::core::drop ch 2))
+                    c2     (:wat::core::nth ch 2)
                     argvec (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "vector")
                               c2
-                              (:wat::core::first (:wat::core::drop ch 3)))
+                              (:wat::core::nth ch 3))
                     argvec-children (:wat::core::ast->children argvec)
                     ;; collect argvec type edits
                     av-edits   (:wat::fix::argspec-type-edits-walk argvec-children false false lines)
@@ -1078,5 +1078,119 @@
     [lines (:wat::core::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
      eds   (:wat::fix::rehead-rete-defn-walk (:wat::core::ast->children tree) names lines)
+     rev   (:wat::core::reverse (:wat::core::sort eds))]
+    (:wat::fix::fix-text-apply src rev)))
+
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; STONE 118.B4-ii — `(first (drop X n))` → `(nth X n)`, the general-positional-lookup fold
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; B4-i widened `nth` to Seqable<T> (O(1) on Vector/PersistentVector/List, O(n) walk on
+;; Stream); this rewrites every corpus call-site of the old two-verb idiom to the new one.
+;; X and n carry across as their ORIGINAL SOURCE TEXT, byte for byte — this is a STRUCTURAL
+;; edit (head + one nested call collapses to one call), not a token rename, so it needs its
+;; own edit shape rather than reusing rename-keyword-* or strip-arrow-*.
+;;
+;; The text-level shape, for `(:wat::core::first (:wat::core::drop  X  n ))`:
+;;   1. rename the OUTER head span:            "first" → "nth"
+;;   2. delete [end-of-outer-head .. end-of-"drop"-head]  (removes " (:wat::core::drop",
+;;      i.e. the space + open-paren + the drop head itself; the whitespace that follows —
+;;      between "drop" and X — is untouched, so it now sits directly after "nth")
+;;   3. delete the drop-list's OWN closing paren (its last character) — the outer form's
+;;      closing paren is untouched and becomes the new form's only one.
+;; Result: `(:wat::core::nth  X  n )` — X and n's own spans are never edited.
+
+;; first-of-drop? — a List headed :wat::core::first with EXACTLY ONE argument, itself a
+;; List headed :wat::core::drop with EXACTLY TWO arguments (head + X + n = 3 children).
+;; Both arities are checked (not just the heads) so a malformed/different-shaped call is
+;; left alone rather than mis-edited — see census-first-of-drop.wat's own malformed guard.
+(:wat::core::defn :wat::fix::first-of-drop?
+  [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
+        (:wat::core::let [head (:wat::core::first ch)
+                          arg  (:wat::core::first (:wat::core::rest ch))]
+          (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+                            (:wat::core::= (:wat::core::ast-name head) ":wat::core::first")
+                            false)
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "list")
+              (:wat::core::let [ach (:wat::core::ast->children arg)]
+                (:wat::core::if (:wat::core::= (:wat::core::length ach) 3)
+                  (:wat::core::let [ahead (:wat::core::first ach)]
+                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind ahead) "keyword")
+                      (:wat::core::= (:wat::core::ast-name ahead) ":wat::core::drop")
+                      false))
+                  false))
+              false)
+            false))
+        false))
+    false))
+
+;; first-of-drop-edits — the 3 span edits (see shape note above) for one matched node.
+(:wat::core::defn :wat::fix::first-of-drop-edits
+  [node  <- :wat::WatAST
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::let
+    [ch        (:wat::core::ast->children node)
+     head      (:wat::core::first ch)
+     drop-list (:wat::core::first (:wat::core::rest ch))
+     ach       (:wat::core::ast->children drop-list)
+     drop-head (:wat::core::first ach)
+     head-off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
+     head-len  (:wat::core::string::length (:wat::core::ast-name head))
+     head-end  (:wat::core::+ head-off head-len)
+     dh-off    (:wat::fix::fix-text-offset-of (:wat::core::ast-span drop-head) lines)
+     dh-len    (:wat::core::string::length (:wat::core::ast-name drop-head))
+     dh-end    (:wat::core::+ dh-off dh-len)
+     dl-end    (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span drop-list) lines)]
+    (:wat::core::Vector :wat::fix::Edit
+      (:wat::core::Tuple head-off head-len ":wat::core::nth")
+      (:wat::core::Tuple head-end (:wat::core::i64::- dh-end head-end) "")
+      (:wat::core::Tuple (:wat::core::i64::- dl-end 1) 1 ""))))
+
+;; first-of-drop-scan — recursive walk. A match emits its 3 edits AND still recurses into
+;; X and n (a nested hit inside either operand is a SEPARATE hit, per the census's own
+;; descent policy: `(first (drop (first (drop x 1)) 2))` is two). A non-match recurses into
+;; every structural child as usual. Edits come back in ascending-offset order per subtree,
+;; but a matched node's own 3rd edit (its drop-list's closing paren) sits textually AFTER
+;; any nested hit inside X/n — collected via reverse+sort at the entry point, not here.
+(:wat::core::defn :wat::fix::first-of-drop-scan
+  [node  <- :wat::WatAST
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::if (:wat::fix::first-of-drop? node)
+    (:wat::core::let
+      [ch        (:wat::core::ast->children node)
+       drop-list (:wat::core::first (:wat::core::rest ch))
+       operands  (:wat::core::rest (:wat::core::ast->children drop-list))]
+      (:wat::core::concat
+        (:wat::fix::first-of-drop-edits node lines)
+        (:wat::fix::first-of-drop-walk (:wat::core::into [] operands) lines)))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::fix::first-of-drop-walk (:wat::core::ast->children node) lines)
+      (:wat::core::Vector :wat::fix::Edit))))
+
+(:wat::core::defn :wat::fix::first-of-drop-walk
+  [items <- :wat::core::Vector<wat::WatAST>
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<wat::fix::Edit>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::concat
+      (:wat::fix::first-of-drop-scan (:wat::core::first items) lines)
+      (:wat::fix::first-of-drop-walk (:wat::core::rest items) lines))))
+
+;; first-of-drop-to-nth — the entry point. src in, migrated src out; comment- and
+;; layout-faithful (splices the ORIGINAL text at spans). `sort` before `reverse` because a
+;; matched node's edits are not strictly ascending against its own nested operand edits
+;; (see first-of-drop-scan's note) — the same shape `wrap-calls-in-match` /
+;; `rehead-rete-defn` already use for exactly this reason.
+(:wat::core::defn :wat::fix::first-of-drop-to-nth
+  [src <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let
+    [lines (:wat::core::string::split src "\n")
+     tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+     eds   (:wat::fix::first-of-drop-walk (:wat::core::ast->children tree) lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))

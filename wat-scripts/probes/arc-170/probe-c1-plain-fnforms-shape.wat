@@ -22,11 +22,11 @@
     [work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
      forms     (:wat::kernel::fn-forms :probe::dial-work work-name)
      def-node  (:wat::core::Option/expect (:wat::core::last forms) "no define")
-     fn-form   (:wat::core::first (:wat::core::drop (:wat::core::ast->children def-node) 2))
+     fn-form   (:wat::core::nth (:wat::core::ast->children def-node) 2)
      fn-ch     (:wat::core::ast->children fn-form)
-     argspec   (:wat::core::first (:wat::core::drop fn-ch 1))
+     argspec   (:wat::core::nth fn-ch 1)
      arg-ch    (:wat::core::ast->children argspec)
-     c-ty      (:wat::core::first (:wat::core::drop arg-ch 2))
+     c-ty      (:wat::core::nth arg-ch 2)
      c-nm      (:wat::core::ast-name c-ty)]
     (:wat::core::do
       (:wat::kernel::println forms)
