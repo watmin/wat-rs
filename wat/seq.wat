@@ -201,13 +201,24 @@
 ;; returns the SAME (now-forced) lazy seq, replayable — wat's Stream is single-pass / NEVER
 ;; memoized (arc 118 R1, NON BIS IN IDEM FLVMEN: "you cannot walk back a stream"), so there is
 ;; no "same seq, now forced" to hand back. The honest wat-dialect equivalent: fully realize into
-;; a Vector (forces every element / side-effect) and return THAT. `dorun` is the same walk,
-;; discarding the values (side-effects only) and returning nil.
+;; a Vector (forces every element / side-effect) and return THAT.
+;;
+;; `dorun` is NOT the same walk with the result discarded — that would still pay O(n) memory to
+;; build the Vector it then throws away (118.B8: measured linear, ~50 B/element). `dorun`'s whole
+;; contract is "walk for effects, keep nothing", so its body is the drain's own shape
+;; (`stream->pvec-spec` above) instead of `doall`'s: a tail-recursive walk over
+;; `:wat::stream::next` that retains nothing. ★ THE RECURSIVE CALL MUST STAY IN THE `match`'s
+;; `Item` ARM TAIL POSITION (proven: `probe-118B-match-tco-drain.wat`, non-tail sibling control
+;; SIGSEGVs at the same depth) — nesting it inside an argument would silently make this O(n)-stack.
+;; Forcing still happens (that is what `next` does, and what makes the side effects run); only the
+;; retention goes, O(n) live -> O(1) live (measured flat, `probe-118B8-dorun-retention.wat`).
 (:wat::core::defn :wat::core::doall<T> [coll <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
   (:wat::core::into [] coll))
 
 (:wat::core::defn :wat::core::dorun<T> [coll <- :wat::stream::Stream<T>] -> :wat::core::nil
-  (:wat::core::do (:wat::core::into [] coll) nil))
+  (:wat::core::match (:wat::stream::next coll)
+    ((:wat::stream::NextOutcome::Item _value rest) (:wat::core::dorun rest))
+    (:wat::stream::NextOutcome::Exhausted nil)))
 
 ;; ─── run! — the eager side-effecting consumer (clojure's `run!`) ──────────────────────────────
 ;;

@@ -653,15 +653,33 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 /// 3. ~~wat has no ad-hoc unions~~ — DISSOLVED, not refuted: it was never a union. It is N
 ///    `extend-type`s of ONE surface — Clojure's `ISeq`.
 ///
-/// Minting `:wat::core::Seqable` in the stdlib, extending these four containers, and pointing
-/// `join`/`map`/`filter` at it is the NEXT stone (118.3-B's brief, "out of scope" section) — this
-/// function's hand-rolled four-head match is exactly what that stone would delete. See
+/// `:wat::core::Seqable` WAS minted in the stdlib (stone 118.B1), extending these four
+/// containers. See
 /// `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/MEASURED-118.3-B-is-a-string-compare-not-a-mechanism.md`
 /// for the full diagnosis, and `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md`
 /// for the original writeup (the twelve `<verb>-stream` twins that exist only because this type
-/// wasn't wired up yet, and why arc 278's native route is this note's PRECONDITION, not a
-/// competing fix — it collapses the set's ~30 hand-rolled re-spellings down to this one function,
-/// which is what made naming it tractable).
+/// wasn't wired up yet).
+///
+/// ★ **118.B8 — this doc used to end with a standing order: "this function's hand-rolled
+/// four-head match is exactly what [minting `Seqable`] would delete." That premise was
+/// falsified by what actually got built, so the order is struck here rather than obeyed stale.**
+/// `Seqable` did NOT replace this function — stone **118.B7 added `Seqable` to this very match as
+/// a FIFTH HEAD** (below), because a wat verb whose parameter is declared `Seqable<T>` could not
+/// otherwise be passed to `foldl`/`map`/`take` at all: it would have to normalise through
+/// `(Seqable/seq coll)` first, forcing every eager container onto the lazy path and paying for a
+/// Stream it never needed — exactly the tax stone 118.B6 removed, reopened at the front door.
+///
+/// **What this function IS, today:** the ONE DOOR the checker's lazy-input classification
+/// consults — the four concrete heads plus the `Seqable<T>` surface itself. It has **6 live call
+/// sites**, named rather than pinned: `infer_map`, `infer_filter`, `infer_foldl`, `infer_take`,
+/// `infer_drop`, `infer_seqable_to_stream`. (⚠ 118.B8 first wrote those six as LINE NUMBERS and
+/// they were stale on arrival — this same edit inserted 14 lines above them. A doc that pins line
+/// numbers into the file it lives in is invalidated by its own next revision; names are not.
+/// `grep -n 'extract_lazyable_elem' src/collection/infer.rs` is the honest check.)
+/// Deleting it would mean re-hand-rolling this
+/// five-head match at each of those six sites — the opposite of the collapse this doc used to
+/// promise, not a step toward it. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+/// `[[feedback_an_instruction_to_delete_needs_more_grounding_than_one_to_add]]`
 fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
     match reduced {
         TypeExpr::Parametric { head, args }
