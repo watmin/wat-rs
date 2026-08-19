@@ -889,25 +889,26 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // ── #57 round 1b, originally five higher-order combinators (`Redispatch` — this
-    // table's first use of the class); arc 118.B6b retired `foldr` — reverse+foldl
-    // wearing a Haskell name. `foldl` is polymorphic over the CONTAINER CONSTRUCTOR (Vector,
-    // PersistentVector, List, Stream), which no rank-1 `TypeScheme` can say — STOP-5: no
-    // scheme is minted here, ever, for this reason. `params`/`ret` are unused for this class
-    // exactly as they are for `Form` (mirrored, not consulted — `check.rs`'s registration
-    // loop skips `Redispatch` the same way it skips `Form`); `ret: ParamType::Bool` is a
-    // placeholder, matching the `Form` rows' own convention above. `meta` TRANSCRIBED from
-    // `rete/purity.rs`, never decided: all five sit in its pure∧det hand-list (`:371-375`,
-    // "CONDITIONALLY pure∧det: the combinator itself is referentially transparent +
-    // effect-free; its purity/determinism falls out of the arg-recursion over its
-    // fn-argument" — `classify_expr`'s unconditional per-argument recursion, already
-    // generic, needs no widening for these five). `total`: `foldl` alone is in the total
-    // hand-list (`:533`, "the verb ITSELF never raises... marking the head total and letting
-    // `classify_expr`'s general-list arm recurse into the fn-literal argument... is the same
-    // mechanism already built for pure/det"); `foldr`/`map`/`filter`/`reduce` are explicitly
-    // NOT included there (`:478-480`, "extremely likely total... but are NOT included — no
-    // `where` row in the corpus uses them... Flagged, not classified") — `total: false` for
-    // those four is the honest default-deny, not a guess.
+    // ── #57 round 1b, originally the five higher-order combinators (`Redispatch` — this
+    // table's first use of the class); arc 118.B6b retired `foldr`'s row — it was
+    // `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct only
+    // because it is LAZY, a property strict wat cannot have — leaving four. `foldl` is
+    // polymorphic over the CONTAINER CONSTRUCTOR (Vector, PersistentVector, List, Stream),
+    // which no rank-1 `TypeScheme` can say — STOP-5: no scheme is minted here, ever, for this
+    // reason. `params`/`ret` are unused for this class exactly as they are for `Form`
+    // (mirrored, not consulted — `check.rs`'s registration loop skips `Redispatch` the same
+    // way it skips `Form`); `ret: ParamType::Bool` is a placeholder, matching the `Form` rows'
+    // own convention above. `meta` TRANSCRIBED from `rete/purity.rs`, never decided: all four
+    // sit in its pure∧det hand-list (`:371-375`, "CONDITIONALLY pure∧det: the combinator
+    // itself is referentially transparent + effect-free; its purity/determinism falls out of
+    // the arg-recursion over its fn-argument" — `classify_expr`'s unconditional per-argument
+    // recursion, already generic, needs no widening for these four). `total`: `foldl` alone is
+    // in the total hand-list (`:533`, "the verb ITSELF never raises... marking the head total
+    // and letting `classify_expr`'s general-list arm recurse into the fn-literal argument...
+    // is the same mechanism already built for pure/det"); `map`/`filter`/`reduce` are
+    // explicitly NOT included there (`:478-480`, "extremely likely total... but are NOT
+    // included — no `where` row in the corpus uses them... Flagged, not classified") —
+    // `total: false` for those three is the honest default-deny, not a guess.
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::foldl",

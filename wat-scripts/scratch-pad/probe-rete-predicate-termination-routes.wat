@@ -8,7 +8,8 @@
 ;; documented to mean *defined on all inputs, never raises*, NOT *terminates*.
 ;;
 ;; The closed vocabulary (75 rows, src/rete/vocabulary.rs) has NO unbounded looping construct:
-;; no loop, no recur, no while, no apply, no eval. Its five HOFs (foldl/foldr/map/filter/reduce)
+;; no loop, no recur, no while, no apply, no eval. Its four HOFs (foldl/map/filter/reduce) —
+;; `foldr` retired 118.B6b, a `Redispatch` alias whose core verb no longer exists —
 ;; are BOUNDED iteration over a finite collection. Two candidate routes remained:
 ;;
 ;;   ROUTE A — a NAMED recursive user fn admitted through the composition door's BACK-EDGE

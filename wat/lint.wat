@@ -138,7 +138,7 @@
       (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 3)
         ""
         (:wat::core::let [head (:wat::core::first ch)
-                          c1   (:wat::core::first (:wat::core::drop ch 1))]
+                          c1   (:wat::core::nth ch 1)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::=")
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind c1) "symbol")
@@ -156,7 +156,7 @@
   (:wat::core::let [ch (:wat::core::ast->children node)]
     (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 3)
       ""
-      (:wat::core::let [c2 (:wat::core::first (:wat::core::drop ch 2))]
+      (:wat::core::let [c2 (:wat::core::nth ch 2)]
         (:wat::lint::node-write c2)))))
 
 ;; collect-ladder-lits — walk an if-eq-true chain over VAR, collecting
@@ -180,9 +180,9 @@
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 4)
         (:wat::core::Vector :wat::core::String)
-        (:wat::core::let [cond (:wat::core::first (:wat::core::drop ch 1))
-                          then (:wat::core::first (:wat::core::drop ch 2))
-                          else-node (:wat::core::first (:wat::core::drop ch 3))]
+        (:wat::core::let [cond (:wat::core::nth ch 1)
+                          then (:wat::core::nth ch 2)
+                          else-node (:wat::core::nth ch 3)]
           ;; cond must be (= VAR LIT)
           (:wat::core::let [this-var (:wat::lint::eq-sym-name cond)]
             (:wat::core::if (:wat::core::= this-var "")
@@ -224,7 +224,7 @@
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 2)
         ""
-        (:wat::core::let [cond (:wat::core::first (:wat::core::drop ch 1))]
+        (:wat::core::let [cond (:wat::core::nth ch 1)]
           (:wat::lint::eq-sym-name cond))))
     ""))
 

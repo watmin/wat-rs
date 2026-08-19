@@ -488,14 +488,14 @@
        forms     (:wat::kernel::fn-forms work-fn work-name)
        ;; ── derive the concrete arg/return type keywords off the reified work-fn ──
        def-node  (:wat::core::Option/expect (:wat::core::last forms) "spawn-runner: fn-forms produced no define")
-       fn-form   (:wat::core::first (:wat::core::drop (:wat::core::ast->children def-node) 2))
+       fn-form   (:wat::core::nth (:wat::core::ast->children def-node) 2)
        fn-ch     (:wat::core::ast->children fn-form)
-       argspec   (:wat::core::first (:wat::core::drop fn-ch 1))
+       argspec   (:wat::core::nth fn-ch 1)
        arg-ch    (:wat::core::ast->children argspec)
        arity     (:wat::core::length arg-ch)   ;; 3 = 1-param (non-dial); 6 = 2-param (dial)
        ;; item type I = the LAST param's type (both arities); O = the return type.
        arg-ty    (:wat::core::Option/expect (:wat::core::last arg-ch) "spawn-runner: work-fn has no arg type")
-       ret-ty    (:wat::core::first (:wat::core::drop fn-ch 3))
+       ret-ty    (:wat::core::nth fn-ch 3)
        ;; ast-name → ":wat::core::i64"; strip the leading ':' for the type bodies.
        arg-nm    (:wat::core::ast-name arg-ty)
        ret-nm    (:wat::core::ast-name ret-ty)
@@ -510,7 +510,7 @@
        (:wat::core::if (:wat::core::= arity 6)
          ;; DIAL: derive Address<S,R> off the 1st param Peer<S,R>; recv PoolMsg<Address<S,R>,I>.
          (:wat::core::let
-           [c-ty   (:wat::core::first (:wat::core::drop arg-ch 2))          ;; 1st param's TYPE node
+           [c-ty   (:wat::core::nth arg-ch 2)          ;; 1st param's TYPE node
             c-nm   (:wat::core::ast-name c-ty)                              ;; ":wat::kernel::Peer<S,R>"
             addr   (:wat::core::string::join "Address" (:wat::core::string::split c-nm "Peer"))  ;; ":wat::kernel::Address<S,R>"
             ;; strip the leading ':' (ast-name keywords always carry one) — inlined via `subs`,

@@ -1,0 +1,17 @@
+;; Stone 118.B2c strike 1 — NEGATIVE fixture. MUST FAIL TO REGISTER.
+;;
+;; Two arms, IDENTICAL declared type, DIFFERENT bodies. Arm 1 can never be selected: dispatch is
+;; first-match-wins in declaration order, so arm 0 takes every i64 and "SECOND" is unreachable.
+;;
+;; BEFORE the wall (this file's own history, `probe_stone_118_b2c_overlapping_arms_are_silent`):
+;; `--check` was CLEAN and running it printed "FIRST". The second body was dead code, silently,
+;; with no error and no warning.
+;;
+;; ★ THAT WAS A HOLE IN THE REDEF RULE. Arc 054 made typealias/define/defmacro "if byte-equivalent,
+;; no-op", else DuplicateDefine; clause ARMS were never covered, because an arm is not a definition
+;; BY NAME — so the one registry that dispatches on TYPES had no define-once rule. An arm that can
+;; never fire is a definition with no effect.
+
+(:wat::core::defclause :my::pick
+  ([x <- :wat::core::i64] -> :wat::core::String "FIRST")
+  ([x <- :wat::core::i64] -> :wat::core::String "SECOND"))

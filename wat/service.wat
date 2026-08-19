@@ -465,8 +465,8 @@
      ;; Extract the param vector children [name <- :T] from the init fn node
      ;; init-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
      init-fn-ch     (:wat::core::ast->children init-fn-node)
-     init-params-vec (:wat::core::first (:wat::core::drop init-fn-ch 1))
-     init-body      (:wat::core::first (:wat::core::drop init-fn-ch 4))
+     init-params-vec (:wat::core::nth init-fn-ch 1)
+     init-body      (:wat::core::nth init-fn-ch 4)
      ;; init-param: the children of the params vector — the 3-token binder [name <- :T]
      init-param     (:wat::core::ast->children init-params-vec)
      ;; init-arg-names: the list of param NAME nodes (tokens at indices 0, 3, 6, …)
@@ -506,10 +506,10 @@
                         "defservice: :stop needs a value")
                       `(:wat::core::fn [~s-sym <- ~state-ty] -> ~record-ty (~state-durable-kw ~s-sym)))
      stop-fn-ch     (:wat::core::ast->children stop-fn-node)
-     stop-params-vec (:wat::core::first (:wat::core::drop stop-fn-ch 1))
+     stop-params-vec (:wat::core::nth stop-fn-ch 1)
      ;; resp-ty: index 3 = the :RetTy node in [fn, params, ->, :RetTy, body]
-     resp-ty        (:wat::core::first (:wat::core::drop stop-fn-ch 3))
-     stop-body      (:wat::core::first (:wat::core::drop stop-fn-ch 4))
+     resp-ty        (:wat::core::nth stop-fn-ch 3)
+     stop-body      (:wat::core::nth stop-fn-ch 4)
      ;; stop-project-name: :<fqdn>::stop-project (distinct from <fqdn>/stop method)
      stop-project-name-str (:wat::core::string::interpolate "{b}::stop-project{p}" :b fqdn-base :p fqdn-tp)
      stop-project-name (:wat::core::keyword/from-string stop-project-name-str)
@@ -527,10 +527,10 @@
                            "defservice: :hibernate needs a value")
                          `(:wat::core::fn [~s-sym <- ~state-ty] -> ~record-ty (~state-durable-kw ~s-sym)))
      hibernate-fn-ch  (:wat::core::ast->children hibernate-fn-node)
-     hibernate-params-vec (:wat::core::first (:wat::core::drop hibernate-fn-ch 1))
+     hibernate-params-vec (:wat::core::nth hibernate-fn-ch 1)
      ;; hib-ret-ty: the declared return type of the hibernate fn
-     hib-ret-ty       (:wat::core::first (:wat::core::drop hibernate-fn-ch 3))
-     hibernate-body   (:wat::core::first (:wat::core::drop hibernate-fn-ch 4))
+     hib-ret-ty       (:wat::core::nth hibernate-fn-ch 3)
+     hibernate-body   (:wat::core::nth hibernate-fn-ch 4)
      ;; Force the return type to ::Record — if user declared something else, macro-error
      hib-ret-str      (:wat::core::keyword/to-string hib-ret-ty)
      record-ty-str    (:wat::core::keyword/to-string record-ty)
@@ -1152,8 +1152,8 @@
                           op-node       (:wat::core::first ch)
                           op-str        (:wat::core::ast-name op-node)
                           is-internal   (:wat::core::string::starts-with? op-str "-")
-                          param-vec     (:wat::core::first (:wat::core::drop ch 1))
-                          body0         (:wat::core::first (:wat::core::drop ch 2))
+                          param-vec     (:wat::core::nth ch 1)
+                          body0         (:wat::core::nth ch 2)
                           ;; keyword-:op RESOLUTION — rewrite each internal-op keyword (`:-tick`) in
                           ;; the handler body to its <service>::Op variant ctor via a source
                           ;; round-trip (ast->source → split/join → read-string). Skipped when the

@@ -106,7 +106,7 @@
 //!   `require_vec`. The four ops in `:wat::std::list::*` (zip, window, remove-at,
 //!   map-with-index) are named `eval_vec_*` in Rust to mirror the ENFORCED value type.
 //!   `rest` was moved to `eval.rs` (container-polymorphic). Functions:
-//!   `eval_vec_map`, `eval_vec_filter`, `eval_vec_foldl`, `eval_vec_foldr`,
+//!   `eval_vec_map`, `eval_vec_filter`, `eval_vec_foldl`,
 //!   `eval_vec_sort_by`, `eval_vec_reverse`, `eval_vec_range`, `eval_vec_take`,
 //!   `eval_vec_drop`, `eval_vec_last`, `eval_vec_find_last_index`,
 //!   `eval_vec_zip`, `eval_vec_window`, `eval_vec_remove_at`, `eval_vec_map_with_index`.

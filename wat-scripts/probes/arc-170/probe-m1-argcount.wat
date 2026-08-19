@@ -5,20 +5,20 @@
   (:wat::core::let
     [forms   (:wat::kernel::fn-forms f (:wat::core::keyword/from-string "user::probe::wf"))
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
-     fn-form  (:wat::core::first (:wat::core::drop (:wat::core::ast->children def-node) 2))
+     fn-form  (:wat::core::nth (:wat::core::ast->children def-node) 2)
      fn-ch    (:wat::core::ast->children fn-form)
-     argspec  (:wat::core::first (:wat::core::drop fn-ch 1))]
+     argspec  (:wat::core::nth fn-ch 1)]
     (:wat::core::length (:wat::core::ast->children argspec))))
 
 (:wat::core::defn :probe::argcount2<W> [f <- :W] -> :wat::core::i64
   (:wat::core::let
     [forms   (:wat::kernel::fn-forms f (:wat::core::keyword/from-string "user::probe::wf"))
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
-     fn-form  (:wat::core::first (:wat::core::drop (:wat::core::ast->children def-node) 2))
+     fn-form  (:wat::core::nth (:wat::core::ast->children def-node) 2)
      fn-ch    (:wat::core::ast->children fn-form)
-     argspec  (:wat::core::first (:wat::core::drop fn-ch 1))
+     argspec  (:wat::core::nth fn-ch 1)
      ;; also: first param TYPE node (index 2) ast-name, and head-swap
-     c-ty     (:wat::core::first (:wat::core::drop (:wat::core::ast->children argspec) 2))
+     c-ty     (:wat::core::nth (:wat::core::ast->children argspec) 2)
      c-nm     (:wat::core::ast-name c-ty)
      swapped  (:wat::core::string::join "Address" (:wat::core::string::split c-nm "Peer"))]
     (:wat::core::do

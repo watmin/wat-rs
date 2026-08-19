@@ -4342,6 +4342,50 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
                     let func = sym.get(other).expect("contains_key above").clone();
                     emit_tail_call(func, args, env, sym, list_span)
                 }
+                // Clause-TCO stone — a `defclause` head in TAIL position.
+                //
+                // The arm above misses it: a defclause registers a `ClauseSet` as a def-value,
+                // not an entry in `sym.functions`, so before this arm every clause head fell to
+                // `_ => eval_inner(...)` and recursed on the REAL STACK. Measured: a 200,000-deep
+                // tail-recursive `defclause` SIGSEGV'd while its byte-identical `defn` twin
+                // completed. Every `defclause` in wat was affected — arithmetic, `into`, `conj`,
+                // every user-written multi-arity verb.
+                //
+                // Selection routes through `select_defclause_clause` — the SAME door the ordinary
+                // path uses. Duplicating that loop would be the "N ways to do a thing" defect.
+                other
+                    if sym
+                        .def_value(other)
+                        .is_some_and(|v| matches!(v, Value::wat__core__clauses(_))) =>
+                {
+                    let Some(Value::wat__core__clauses(cs)) = sym.def_value(other) else {
+                        unreachable!("the guard above matched wat__core__clauses")
+                    };
+                    let cs = cs.clone();
+                    let vals = args
+                        .iter()
+                        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let (idx, _scope) = select_defclause_clause(&cs, &vals, &list_span, sym)?;
+                    let clause = &cs.clauses[idx];
+                    // ⚠ `:ensure` is a POST-condition — it runs AFTER the body, and a tail call
+                    // abandons the frame it would return into. An ensure-bearing clause therefore
+                    // takes the ordinary path, DELIBERATELY. Tail-calling it would silently delete
+                    // a post-condition the author wrote and the checker promised.
+                    if clause.ensure_fn.is_none() {
+                        if let Some(f) = &clause.func {
+                            return Err(EvalBreak::Signal(EvalSignal::TailCall {
+                                func: f.clone(),
+                                args: vals,
+                                call_span: list_span.clone(),
+                            }));
+                        }
+                    }
+                    // Ordinary path. It re-selects; that cost is paid ONLY by ensure-bearing
+                    // clauses (and by the checker-built clauses that carry no compiled Function),
+                    // and it keeps `:ensure` handling in exactly one place.
+                    eval_call_to_defclause_with_vals(cs, vals, &list_span, sym)
+                }
                 _ => eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
             }
         }
@@ -5413,6 +5457,9 @@ fn dispatch_keyword_head_value(
         // `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap the body in a
         // 0-arg closure over the current env → Stream::Thunk. Mirrors `quote`.
         ":wat::stream::lazy" => eval_lazy_seq(args, list_span, env),
+        // Arc 118.11a — `next` is a NORMAL intrinsic (arg evaluated). Forces
+        // exactly one cell via `realize` and destructures — no second forcing loop.
+        ":wat::stream::next" => eval_stream_next(args, list_span, env, sym),
         // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
@@ -5621,6 +5668,25 @@ fn dispatch_keyword_head_value(
         }
         ":wat::core::third" => {
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::third", 2)
+        }
+        // Stone 118.B4-0 — `nth` promoted from a wat `defclause` to a Rust intrinsic so a
+        // `defmacro` program body (which evaluates only through this dispatcher) can call it.
+        // The runtime-index generalization of first/second/third, above. `:wat::core::nth-spec`
+        // (`wat/core.wat`) is the wat ORACLE kept honest by a differential test.
+        ":wat::core::nth" => eval_nth(args, list_span, env, sym),
+        // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` to Rust
+        // intrinsics: the native kernel underneath `into`'s two Stream clause arms
+        // (`wat/seq.wat:166`; the clause bodies are UNCHANGED — they already named these two
+        // verbs, which simply stop being interpreted). `:wat::core::stream->vec-spec` /
+        // `-pvec-spec` (`wat/seq.wat`) are the retained wat ORACLES, kept honest by a
+        // differential (`wat-tests/core/core-stream-materializers-differential.wat`). Same
+        // shape as `nth` immediately above and `foldl` (B6): the fast native kernel, the wat
+        // spec keeps it honest.
+        ":wat::core::stream->vec" => {
+            crate::collection::transform::eval_stream_to_vec(args, list_span, env, sym)
+        }
+        ":wat::core::stream->pvec" => {
+            crate::collection::transform::eval_stream_to_pvec(args, list_span, env, sym)
         }
         // Vec last + find-last-index. Arc 047.
         ":wat::core::last" => {
@@ -6323,9 +6389,6 @@ fn dispatch_keyword_head_value(
         }
         ":wat::core::foldl" => {
             crate::collection::transform::eval_vec_foldl(args, list_span, env, sym)
-        }
-        ":wat::core::foldr" => {
-            crate::collection::transform::eval_vec_foldr(args, list_span, env, sym)
         }
         // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — `:wat::core::filter` is
         // native again (was the arc-118.2a wat `defclause`, `wat/seq.wat`, which stepped its
@@ -7848,6 +7911,9 @@ fn parse_defclause_clause(
         guard: guard_ast,
         ensure_fn: ensure_ast,
         body: Arc::new(body_ast),
+        // Filled in at ClauseSet assembly, where the set's NAME is in scope (the Function's
+        // name is what a call-stack frame shows).
+        func: None,
     })
 }
 
@@ -7990,8 +8056,96 @@ pub fn parse_defclause_form(
 
     let mut clauses = Vec::with_capacity(clause_items.len());
     for clause_form in clause_items {
-        let clause = parse_defclause_clause(clause_form, HEAD, shared_return.as_ref())?;
+        let mut clause = parse_defclause_clause(clause_form, HEAD, shared_return.as_ref())?;
+        // Clause-TCO stone — compile the clause to an ordinary `Function` ONCE, here, where the
+        // set name is in scope. `eval_tail` hands this to the existing TailCall signal, so a
+        // clause head tail-calls exactly like a `defn` head. Mirrors the extend-type method
+        // synthesis (this file, `register_extend_type_methods`), which is why extend-type
+        // methods already had TCO and defclause verbs did not.
+        clause.func = Some(Arc::new(Function {
+            name: Some(name.clone()),
+            params: clause.args.fixed_params.iter().map(|(n, _)| n.clone()).collect(),
+            type_params: vec![],
+            param_types: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
+            ret_type: clause.return_type.clone(),
+            rest_param: clause
+                .args
+                .rest_param
+                .as_ref()
+                .map(|(n, _)| crate::scope::env_key(n).into_owned()),
+            rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
+            body: FunctionBody::Wat(clause.body.clone()),
+            closed_env: None,
+            rete: None,
+            synthesized_for: None,
+        }));
         clauses.push(clause);
+    }
+
+    // ── Stone 118.B2c strike 1 — THE REACHABILITY WALL ──────────────────────────────────
+    //
+    // An arm that no input can ever reach is dead code, and until this wall nothing said so:
+    // `(defclause :my::pick ([x <- :i64] "FIRST") ([x <- :i64] "SECOND"))` type-checked, ran,
+    // and answered "FIRST" forever while the second body sat unreachable and silent.
+    //
+    // ★ THIS IS THE REDEF RULE REACHING THE ONE REGISTRY IT NEVER COVERED. Arc 054 made
+    // typealias/define/defmacro "if byte-equivalent, no-op", else DuplicateDefine; clause ARMS
+    // were exempt because an arm is not a definition BY NAME — so the only registry that
+    // dispatches on TYPES had no define-once rule. An arm that can never fire is a definition
+    // with no effect. Builder, 2026-08-18: "you may only express something's def once and all
+    // other attempts must be identical."
+    //
+    // ARMED AT ZERO OFFENDERS (the house pattern). A corpus census over 1,457 .wat files found
+    // exactly ONE unreachable arm, and it is the fixture written to be refused
+    // (tests/types/probe_stone_118_b2c_overlapping_arms_are_silent.wat). See
+    // MEASURED-118.B2c-strike1-the-corpus-is-NOT-clean.md for the run and for the WRONG first
+    // predicate (intersection) that this one replaced.
+    //
+    // Three deliberate conservatisms, each so the wall refuses only what is PROVABLY dead:
+    //   - a GUARDED earlier arm never subsumes — `:guard` can evaluate false
+    //     (`ClauseFailureReason::GuardFalse` is a real dispatch outcome), so it cannot render a
+    //     later arm unreachable;
+    //   - VARIADIC arms are skipped entirely — a rest-param accepts a range of arities and the
+    //     pairwise test does not model that;
+    //   - PAIRWISE only — three arms whose first two JOINTLY exhaust the type universe would
+    //     leave a third provably dead and this wall will not see it. That is undecidable in
+    //     general, and under-firing is the correct bias for a wall.
+    for later_idx in 1..clauses.len() {
+        for earlier_idx in 0..later_idx {
+            let earlier = &clauses[earlier_idx];
+            let later = &clauses[later_idx];
+            if earlier.guard.is_some() {
+                continue;
+            }
+            if earlier.args.rest_param.is_some() || later.args.rest_param.is_some() {
+                continue;
+            }
+            if earlier.args.fixed_params.len() != later.args.fixed_params.len() {
+                continue;
+            }
+            let subsumed = earlier
+                .args
+                .fixed_params
+                .iter()
+                .zip(later.args.fixed_params.iter())
+                .all(|((_, e_ty), (_, l_ty))| declared_type_subsumes(e_ty, l_ty));
+            if subsumed {
+                return Err(RuntimeError::new(
+                    form.span().clone(),
+                    RuntimeErrorKind::UnreachableClause {
+                        name: name.clone(),
+                        clause_index: later_idx,
+                        subsumed_by: earlier_idx,
+                        declared_arg_types: later
+                            .args
+                            .fixed_params
+                            .iter()
+                            .map(|(_, t)| crate::check::format_type(t))
+                            .collect(),
+                    },
+                ));
+            }
+        }
     }
 
     Ok((
@@ -8257,6 +8411,10 @@ pub(crate) fn parse_extend_type_form(
             guard: None,
             ensure_fn: None,
             body: Arc::new(body_ast),
+            // extend-type methods are registered as real Functions in `sym.functions`
+            // (see `register_extend_type_methods`), so they already tail-call and never
+            // dispatch through `eval_call_to_defclause_with_vals`.
+            func: None,
         };
         impl_clauses.insert(method_name, clause);
     }
@@ -8375,12 +8533,22 @@ fn eval_call_to_defclause(
 /// Stone 237.3: extended with :guard evaluation (before body) and :ensure
 /// post-condition check (after body). First-match-wins: arity + type +
 /// guard must all pass before the body executes.
-fn eval_call_to_defclause_with_vals(
-    cs: Arc<ClauseSet>,
-    vals: Vec<Value>,
+/// Clause-TCO stone — SELECTION ONLY: arity + runtime type match + `:guard` + arg binding.
+///
+/// Extracted from [`eval_call_to_defclause_with_vals`] so the TAIL path can pick a clause
+/// WITHOUT evaluating its body. ONE DOOR: both the ordinary call path and `eval_tail`'s clause
+/// arm select through here — duplicating this loop would be the "N ways to do a thing" defect
+/// this substrate keeps deleting.
+///
+/// Returns the winning clause's index plus the scope its args are bound into. `:guard` is
+/// evaluated HERE because a guard runs in clause-arg scope and therefore decides SELECTION;
+/// `:ensure` is deliberately NOT here — it is a POST-condition and belongs to the body path.
+fn select_defclause_clause(
+    cs: &Arc<ClauseSet>,
+    vals: &[Value],
     list_span: &Span,
     sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
+) -> Result<(usize, Environment), EvalBreak> {
     let called_arity = vals.len();
     // Stone 237.4 — structured per-clause failure reasons (replaces Vec<String>).
     let mut attempted: Vec<ClauseAttempt> = Vec::new();
@@ -8427,7 +8595,7 @@ fn eval_call_to_defclause_with_vals(
             .zip(vals.iter())
             .enumerate()
             .find_map(|(pos, ((_, ty), val))| {
-                if value_matches_type_by_name(val, ty) {
+                if value_matches_type_by_name(val, ty, sym) {
                     None
                 } else {
                     Some((
@@ -8482,7 +8650,7 @@ fn eval_call_to_defclause_with_vals(
                     .iter()
                     .enumerate()
                     .find_map(|(rest_pos, val)| {
-                        if value_matches_type_by_name(val, elem_ty) {
+                        if value_matches_type_by_name(val, elem_ty, sym) {
                             None
                         } else {
                             Some((
@@ -8568,8 +8736,52 @@ fn eval_call_to_defclause_with_vals(
             }
         }
 
-        // 5. Body evaluation.
-        let result = eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned())?;
+        // 5. Selected — the caller decides whether to run the body or tail-call it.
+        return Ok((clause_idx, scope));
+    }
+
+    // No clause matched (arity + type + guard all fell through).
+    let called_args: Vec<ValueSnapshot> = vals.iter().map(ValueSnapshot::of).collect();
+    Err(RuntimeError::new(
+        list_span.clone(),
+        RuntimeErrorKind::NoMatchingClause {
+            name: cs.name.clone(),
+            called_arity,
+            called_args,
+            attempted_clauses: Box::new(attempted),
+        },
+    )
+    .into())
+}
+
+/// Core dispatch for defclause calls (args already evaluated): select, run the body,
+/// then check `:ensure`. Selection lives in [`select_defclause_clause`].
+fn eval_call_to_defclause_with_vals(
+    cs: Arc<ClauseSet>,
+    vals: Vec<Value>,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let (clause_idx, scope) = select_defclause_clause(&cs, &vals, list_span, sym)?;
+    let clause = &cs.clauses[clause_idx];
+
+    // Body evaluation.
+    //
+    // Clause-TCO stone — a clause with NO `:ensure` runs through `apply_function`, which
+    // evaluates the body in TAIL position and owns the trampoline that catches
+    // `EvalSignal::TailCall`. That is what actually makes clause recursion flat: without it the
+    // body is evaluated by `eval_inner`, so an `if`/`match` inside it never reaches `eval_tail`,
+    // the recursive call is an ordinary call, and the stack grows until it SIGSEGVs. Measured:
+    // adding only the `eval_tail` arm did NOT fix the 200k probe — this line is the other half.
+    //
+    // ⚠ An `:ensure` clause keeps the direct `eval_inner` path: a post-condition runs AFTER the
+    // body and needs the frame it returns into, which a tail call abandons.
+    if clause.ensure_fn.is_none() {
+        if let Some(f) = &clause.func {
+            return apply_function(f.clone(), vals, sym, list_span.clone()).map_err(Into::into);
+        }
+    }
+    let result = eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned())?;
 
         // 6. Stone 237.3 / 237.4 — :ensure post-condition check (after body).
         if let Some(ensure_ast) = &clause.ensure_fn {
@@ -8633,21 +8845,50 @@ fn eval_call_to_defclause_with_vals(
             }
         }
 
-        return Ok(result);
-    }
+    Ok(result)
+}
 
-    // No clause matched (arity + type + guard all fell through).
-    let called_args: Vec<ValueSnapshot> = vals.iter().map(ValueSnapshot::of).collect();
-    Err(RuntimeError::new(
-        list_span.clone(),
-        RuntimeErrorKind::NoMatchingClause {
-            name: cs.name.clone(),
-            called_arity,
-            called_args,
-            attempted_clauses: Box::new(attempted),
-        },
-    )
-    .into())
+/// Stone 118.B2c strike 1 — does declared type `earlier` accept EVERY value that `later` accepts?
+///
+/// This is the REACHABILITY predicate the registration wall is built on, and it is the exact
+/// mirror of [`value_matches_type_by_name`]: `earlier` subsumes `later` iff, for every value `v`,
+/// `matches(v, later)` implies `matches(v, earlier)`.
+///
+/// ⚠ **SUBSUMPTION, NOT INTERSECTION — and the difference is the whole rule.** Two arms whose
+/// domains merely intersect (an earlier concrete arm, a later catch-all) are a legitimate
+/// FALLBACK: the later arm still fires for the rest of its domain, deterministically. That shape
+/// is in production and documented — see `wat/bracket.wat:314-316`, which names first-match-wins,
+/// calls the generic arm a "PERMISSIVE catch-all", and states that ordering is load-bearing.
+/// Refusing intersection would outlaw it. Only CONTAINMENT means dead code.
+///
+/// CONSERVATIVE BY CONSTRUCTION. It answers `true` only for the cases where
+/// `value_matches_type_by_name` is provably universal (a bare type-var Path, and the `_ => true`
+/// arm covering fn/tuple/var types) or where the two types are literally identical. Anything
+/// subtler — a Parametric head, a record supertype — answers `false`, so the wall refuses only
+/// what is PROVABLY unreachable. A wall that guesses is worse than a wall that under-fires.
+fn declared_type_subsumes(earlier: &crate::types::TypeExpr, later: &crate::types::TypeExpr) -> bool {
+    use crate::types::TypeExpr;
+    // Identical declared types: trivially, the earlier arm takes every value the later would.
+    if crate::check::format_type(earlier) == crate::check::format_type(later) {
+        return true;
+    }
+    match earlier {
+        // Mirrors the `is_type_var` early-return in `value_matches_type_by_name`: a bare
+        // uppercase path with no `::`/`.` is a wildcard at dispatch and accepts anything.
+        TypeExpr::Path(p) => {
+            let s = p.strip_prefix(':').unwrap_or(p);
+            !s.contains("::")
+                && !s.contains('.')
+                && s.chars()
+                    .find(|c| c.is_alphabetic())
+                    .is_some_and(|c| c.is_uppercase())
+        }
+        // Mirrors the matcher's `_ => true` arm (fn / tuple / var types are permissive).
+        TypeExpr::Fn { .. } | TypeExpr::Tuple(_) | TypeExpr::Var(_) => true,
+        // Everything else — concrete paths, parametrics — accepts a restricted set. Not proven
+        // universal, so not proven to subsume.
+        _ => false,
+    }
 }
 
 /// Stone 237.2 — runtime type match for defclause dispatch.
@@ -8658,7 +8899,11 @@ fn eval_call_to_defclause_with_vals(
 ///
 /// For typeunion types, we check if the value's type is a member of the union.
 /// For plain Path types, we compare against the value's type_name.
-fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool {
+fn value_matches_type_by_name(
+    val: &Value,
+    ty: &crate::types::TypeExpr,
+    sym: &SymbolTable,
+) -> bool {
     match ty {
         crate::types::TypeExpr::Path(p) => {
             // Arc 251 Stone — bare uppercase paths are type-vars (same rule as
@@ -8704,7 +8949,22 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
                 _ => {
                     // Map the value's runtime type to its canonical type-keyword path.
                     let val_type = val_type_path(val);
-                    p.as_str() == val_type
+                    if p.as_str() == val_type {
+                        return true;
+                    }
+                    // Strike 2, the MONOMORPHIC half: a surface with no type params (e.g.
+                    // `:wat::spawn::Locus`) names a top exactly as a parametric one does, and
+                    // leaving it out would ship the fix with a seam. Same additive shape, same
+                    // one door.
+                    if let Some(types) = sym.types_deref() {
+                        let surface = crate::types::parametric_head_fqdn(p);
+                        if matches!(types.get(&surface), Some(crate::types::TypeDef::Surface(_)))
+                            && crate::types::satisfies_bare_surface(val_type, &surface, types)
+                        {
+                            return true;
+                        }
+                    }
+                    false
                 }
             }
         }
@@ -8722,6 +8982,34 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
         // every other Parametric shape (HashMap<K,V>, Option<T>, Result<T,E>, etc. — never
         // multi-clause-competing on container kind) keeps the old permissive behavior.
         crate::types::TypeExpr::Parametric { head, .. } => {
+            // ── Stone 118.B2c strike 2 — A SURFACE IS THE CONTAINER-TOP ─────────────────────
+            //
+            // B1a (`eab12e05`) taught the CHECKER that a concrete instantiation satisfies a
+            // parametric surface. This selector never learned it: the container match below
+            // resolves the value to a `StreamContainer` and demands the declared head equal that
+            // container's canonical name, so `wat::core::Seqable` could never match ANYTHING. A
+            // `defclause` arm typed with a surface type-checked and then died at runtime with
+            // `NoMatchingClause` — the checker and the runtime disagreeing about the same call.
+            //
+            // ★ THIS IS THE ARC-278 RECORD-TOP FIX, ONE ARM DOWN, and that fix's own comment
+            // (just above) supplies the safety argument verbatim: "This only ADDS the supertype,
+            // so it can never make a call that dispatches today stop dispatching; and the checker
+            // still gates which calls are legal at all." That the same function needed this twice,
+            // for two different tops, is the finding — the arm enumerates concrete heads, so every
+            // new top arrives as a fresh instance of the same bug.
+            //
+            // ONE DOOR: `satisfies_bare_surface` (src/types.rs:752) is the CHECKER's own answer to
+            // "does this type satisfy this surface", walking the `extend-type` edges
+            // `register_subtype` laid down. The runtime now asks the same question of the same
+            // registry instead of keeping a second, narrower opinion.
+            if let Some(types) = sym.types_deref() {
+                let surface = crate::types::parametric_head_fqdn(head);
+                if matches!(types.get(&surface), Some(crate::types::TypeDef::Surface(_)))
+                    && crate::types::satisfies_bare_surface(val_type_path(val), &surface, types)
+                {
+                    return true;
+                }
+            }
             use crate::collection::seq_container::StreamContainer;
             match StreamContainer::of_value(val) {
                 Some(container) => {
@@ -12275,9 +12563,13 @@ fn eval_cons(
 ///
 /// The body is NOT evaluated here. Instead it is captured as a 0-arg wat closure
 /// over the current environment (`env.clone()` in `closed_env`), and wrapped in a
-/// `Stream::Thunk(LazyCell{ thunk, forced: OnceLock::new() })`. The body runs ONLY when
-/// the seq is forced (via `realize` on `first`/`rest`/`empty?`), and runs at most ONCE
-/// (memoized in the `OnceLock`).
+/// `Stream::Thunk(LazyCell{ thunk })`. The body runs ONLY when the seq is forced.
+///
+/// ⚠ It is NOT memoized. Stone 118.B3 deleted the `forced: OnceLock` cache this comment used to
+/// promise ("runs at most ONCE"): forcing the same cell twice now runs its body twice. The cache
+/// existed only to hide the three-call `first`/`rest`/`empty?` walk the stdlib itself used, and its
+/// cost was retaining every cell ever forced — O(n) memory for a pipeline whose entire purpose is
+/// not to have any. The stdlib walks with `:wat::stream::next` (one force per cell) since 118.B2b.
 ///
 /// Mirrors `eval_quote`'s capture-don't-eval shape (runtime.rs) + the fn-closure
 /// construction in `function::eval_fn` (a 0-param `Function` with `closed_env`).
@@ -12313,6 +12605,89 @@ fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result
     Ok(Value::wat__stream__Stream(Arc::new(
         crate::stream::Stream::Thunk(crate::stream::LazyCell::new(thunk)),
     )))
+}
+
+/// Arc 118.11a — the type path of `next`'s matchable outcome enum
+/// (`:wat::stream::NextOutcome<T>`, registered in `types.rs`).
+const NEXT_OUTCOME_TYPE: &str = ":wat::stream::NextOutcome";
+
+/// `NextOutcome::Item [value <- T, rest <- Stream<T>]` — the forced head plus the
+/// undrained tail, both from the SAME single force. Mirrors `recv_outcome_message`.
+fn next_outcome_item(value: Value, rest: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: NEXT_OUTCOME_TYPE.into(),
+        variant_name: "Item".into(),
+        names: builtin_enum_variant_names(NEXT_OUTCOME_TYPE, "Item"),
+        fields: vec![value, rest],
+    }))
+}
+
+/// `NextOutcome::Exhausted []` — the named end; no more elements. Mirrors
+/// `recv_outcome_closed`.
+fn next_outcome_exhausted() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: NEXT_OUTCOME_TYPE.into(),
+        variant_name: "Exhausted".into(),
+        names: no_field_names(),
+        fields: vec![],
+    }))
+}
+
+/// Arc 118.11a — `(:wat::stream::next s) -> NextOutcome<T>`. The pull primitive:
+/// forces `s` to WHNF via `realize` (reusing the existing `forced` memo — this
+/// stone does not touch it) and destructures the result. `Empty` → `Exhausted`;
+/// `Cons{head, tail}` → `Item[value <- head, rest <- Stream<T> wrapping tail]`.
+///
+/// **Exactly one force per call** — `realize`'s own loop already stops at the
+/// first `Empty`/`Cons`; this function does not add a second forcing loop or
+/// consult/build any cache of its own. That is the entire reason this verb
+/// exists (DESIGN-STONE-118.11a): the three-call `empty?`/`first`/`rest` walk
+/// forces the SAME cell three times.
+fn eval_stream_next(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::stream::next".into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let seq_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let seq = match seq_val {
+        Value::wat__stream__Stream(s) => s,
+        other => {
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::stream::next".into(),
+                    expected: "wat::stream::Stream",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into())
+        }
+    };
+    let whnf = crate::stream::realize(&seq, sym, list_span)?;
+    match whnf.as_ref() {
+        crate::stream::Stream::Empty => Ok(next_outcome_exhausted()),
+        crate::stream::Stream::Cons { head, tail } => Ok(next_outcome_item(
+            head.clone(),
+            Value::wat__stream__Stream(Arc::clone(tail)),
+        )),
+        // INVARIANT (src/stream/mod.rs `realize` doc): realize always terminates
+        // with Empty or Cons; Thunk/NativeThunk is the only transitional state.
+        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+            unreachable!("realize returns only Empty|Cons (WHNF invariant, src/stream/mod.rs)")
+        }
+    }
 }
 
 /// `(:wat::core::ann-form <expr> <type>) -> T` — arc 251 Stone 251.4b.
@@ -15197,33 +15572,30 @@ fn eval_positional_accessor(
                         _ => unreachable!("StreamContainer::of_value guarantees WatAST::List for WatAstList"),
                     }
                 }
-                // Arc 118 — Stream: realize to WHNF, return head (index 0) or nil for Empty.
-                // Only `first` (index=0) is supported; second/third (index>0) raise (no random access).
-                StreamContainer::Stream => {
-                    let Value::wat__stream__Stream(seq) = &v else {
-                        unreachable!("of_value⇒Stream")
-                    };
-                    if index != 0 {
-                        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-                            head: op.into(),
-                            reason: format!("{op}: lazy Stream supports only `first` (index 0); positional access at index {index} is not a Stream operation (walk via rest)")
-                        }).into());
-                    }
-                    let realized = crate::stream::realize(seq, sym, &args[0].span().clone())?;
-                    match realized.as_ref() {
-                        // first of empty → nil (Clojure semantic).
-                        crate::stream::Stream::Empty => Ok(Value::Unit),
-                        crate::stream::Stream::Cons { head, .. } => Ok(head.clone()),
-                        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
-                            unreachable!("realize returns WHNF")
-                        }
-                    }
-                }
+                // Stone 118.B4-iii — THE WALL: `indexable()` is FALSE for Stream now, so this
+                // arm is dead — no `container` value can reach it as `Stream`. Named, not `_`,
+                // so a future capability change that reopens Stream here is a compile error, not
+                // a silent revival. Built one stone ago (B4-0); retired on purpose, per the wall.
+                StreamContainer::Stream => unreachable!(
+                    "indexable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use :wat::stream::next)"
+                ),
                 // indexable() gate excludes HashSet — named arm, genuinely dead, compiler-forced:
                 StreamContainer::HashSet => unreachable!("indexable() gate excludes HashSet"),
             }
         }
-        // ∅ N/A: HashSet is unordered — no canonical "first".
+        // ∅ N/A: HashSet is unordered — no canonical "first". Stone 118.B4-iii — THE WALL:
+        // Stream lands here too now (indexable()==false) — a lazy seq has no first/second/third;
+        // advance it with `:wat::stream::next`, whose `NextOutcome<T> = Item(value, rest) |
+        // Exhausted` is the only door a Stream yields through.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "Tuple, Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no first/second/third; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
         Some(_) => Err(RuntimeError::new(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -15255,6 +15627,182 @@ fn eval_positional_accessor(
             )
             .into()),
         },
+    }
+}
+
+/// `(:wat::core::nth coll i)` — stone 118.B4-0: the general positional accessor, the
+/// RUNTIME-index generalization of `first`/`second`/`third` above (same shape, `index` taken
+/// from `args[1]` instead of a Rust constant). Promoted from a wat `defclause` to a Rust
+/// intrinsic specifically so a `defmacro` program body — which evaluates only through
+/// `dispatch_keyword_head`, this function's caller — can call it (B4-ii's codemod tripped on
+/// exactly that). `:wat::core::nth-spec` (`wat/core.wat`) is the retained wat ORACLE; a
+/// differential test (`wat-tests/core/core-nth-differential.wat`) proves they agree.
+///
+/// CONTRACT (unchanged from the retired clause): raise, uniformly, `"nth: index out of range"`
+/// on out-of-range — never an `Option`, never a container-specific message. Gated by
+/// `nth_indexable()` (`seq_container.rs`), NOT `indexable()` — see that method's doc for why.
+///
+/// Stream has no O(1) nth (`nth_indexable()`'s doc). It walks: `realize` one cell, and if that
+/// is not the target index, recurse on the tail — exactly `i+1` forces for index `i`, one per
+/// step. Realizing the whole stream first and then indexing would reintroduce the O(n)
+/// retention stone B3 deleted; the walk is the honest cost, not a regression.
+fn eval_nth(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::nth";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let idx_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let index_i64 = match idx_val {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "i64",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into());
+        }
+    };
+
+    // Uniform out-of-range raise — the ONE CONTRACT DECISION (DESIGN-STONE-118.B4-0): the
+    // native and `nth-spec` must produce the exact same message on every receiver, never a
+    // per-container variant (contrast `eval_positional_accessor`'s arms above, which DO vary
+    // their message per container — that shape is deliberately NOT reused here).
+    //
+    // ⚠ MUST panic (`panic_any` + `AssertionPayload`), NOT return a `RuntimeError`: the wat
+    // oracle `nth-spec` raises via `Option/expect`/`assertion-failed!`, both of which panic. A
+    // `RuntimeError` return surfaces at a process boundary as a DIFFERENT `LociDiedError`
+    // variant (not `Panic`) — measured directly: it broke `wat-tests/core/core-nth.wat`'s
+    // pre-existing `nth-past-end-*-raises` rows (STOP-4, caught and fixed during this strike).
+    fn out_of_range(span: Span) -> EvalBreak {
+        let frames = snapshot_call_stack();
+        let payload = crate::assertion::AssertionPayload {
+            message: "nth: index out of range".into(),
+            actual: None,
+            expected: None,
+            location: Some(span),
+            frames,
+            upstream_chain: None,
+            thread_name: std::thread::current().name().map(String::from),
+            raised_error: None,
+        };
+        std::panic::panic_any(payload)
+    }
+
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&v) {
+        Some(container) if container.nth_indexable() => {
+            if index_i64 < 0 {
+                return Err(out_of_range(args[0].span().clone()));
+            }
+            let index = index_i64 as usize;
+            match container {
+                StreamContainer::Vector => {
+                    let Value::Vec(items) = v else {
+                        unreachable!("of_value⇒Vector")
+                    };
+                    items
+                        .get(index)
+                        .cloned()
+                        .ok_or_else(|| out_of_range(args[0].span().clone()))
+                }
+                StreamContainer::PersistentVector => {
+                    let Value::wat__core__PersistentVector(pv) = v else {
+                        unreachable!("of_value⇒PersistentVector")
+                    };
+                    pv.get(index)
+                        .cloned()
+                        .ok_or_else(|| out_of_range(args[0].span().clone()))
+                }
+                StreamContainer::List => {
+                    let Value::wat__core__List(items) = v else {
+                        unreachable!("of_value⇒List")
+                    };
+                    items
+                        .iter()
+                        .nth(index)
+                        .cloned()
+                        .ok_or_else(|| out_of_range(args[0].span().clone()))
+                }
+                StreamContainer::WatAstList => {
+                    let Value::wat__WatAST(ast) = v else {
+                        unreachable!("of_value⇒WatAstList")
+                    };
+                    match &*ast {
+                        WatAST::List(children, _) => children
+                            .get(index)
+                            .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
+                            .ok_or_else(|| out_of_range(args[0].span().clone())),
+                        _ => unreachable!(
+                            "StreamContainer::of_value guarantees WatAST::List for WatAstList"
+                        ),
+                    }
+                }
+                // Stone 118.B4-iii — THE WALL: `nth_indexable()` is FALSE for Stream now, so
+                // this arm is dead — no `container` value can reach it as `Stream`. Named, not
+                // folded into `_`, so a future capability change that reopens Stream here is a
+                // compile error, not a silent revival. Built one stone ago (B4-0) — the O(i)
+                // walk this arm performed is exactly the quadratic-under-a-loop hazard the wall
+                // exists to make un-spellable: `(nth s i)` read like O(1) and was O(i).
+                StreamContainer::Stream => unreachable!(
+                    "nth_indexable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use (drop s i) then :wat::stream::next)"
+                ),
+                // nth_indexable() gate excludes Tuple/HashSet — named arms, genuinely dead,
+                // compiler-forced (exhaustiveness guarantee, seq_container.rs's own doc).
+                StreamContainer::Tuple | StreamContainer::HashSet => {
+                    unreachable!("nth_indexable() gate excludes Tuple and HashSet")
+                }
+            }
+        }
+        // Stone 118.B4-iii — THE WALL: Stream lands here now (nth_indexable()==false). A lazy
+        // seq has no O(1) positional access — `(nth s i)` was O(i) via `realize`, walking `i+1`
+        // cells with syntax that reads like the O(1) Vector case. Spell it honestly instead:
+        // `(drop s i)` then `:wat::stream::next`.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no O(1) nth; use (drop s i) then :wat::stream::next",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
+        // ∅ N/A: Tuple (heterogeneous — runtime index can't be typed) / HashSet (unordered).
+        Some(_) => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector, PersistentVector, List, or WatAST list",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
+        None => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector, PersistentVector, List, or WatAST list",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -16989,20 +17537,16 @@ fn eval_empty(
         }).into()),
         None => {}
     }
-    // Arc 118 — Stream: empty? realizes to WHNF (force one step) and checks for Empty.
-    // Cannot route through the measurable() gate (Stream is not measurable — length diverges
-    // on infinite seqs — but `empty?` is decidable: it forces only ONE step).
-    if let Value::wat__stream__Stream(seq) = &arg_val {
-        let realized = crate::stream::realize(seq, sym, list_span)?;
-        return Ok(Value::bool(matches!(
-            realized.as_ref(),
-            crate::stream::Stream::Empty
-        )));
-    }
     // Arc-278 seq-1a — seq-family arms route through StreamContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
     // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
     // forces this arm to be updated before the code compiles.
+    //
+    // Stone 118.B4-iii — THE WALL: the hand-written Stream early-realize branch that used to sit
+    // here (forcing one step to decide Empty vs Cons) is DELETED. It routed AROUND this very
+    // gate — `measurable()` was already `false` for Stream, and the special case let `empty?`
+    // ignore that. Deleting it means Stream now falls through to `Some(_)` below like any other
+    // non-measurable container, and is refused uniformly.
     use crate::collection::seq_container::StreamContainer;
     match StreamContainer::of_value(&arg_val) {
         Some(c) if c.measurable() => match c {
@@ -17013,9 +17557,20 @@ fn eval_empty(
             // seq-1b — filled
             StreamContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
             StreamContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
-            // Arc 118 — Stream handled above via early realize (not measurable). Dead arm.
-            StreamContainer::Stream => unreachable!("Stream handled by the early realize branch above"),
+            // measurable() gate excludes Stream — named arm, genuinely dead, compiler-forced:
+            StreamContainer::Stream => unreachable!(
+                "measurable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use :wat::stream::next)"
+            ),
         },
+        // Stone 118.B4-iii — THE WALL: Stream lands here now (measurable()==false, and no early
+        // realize left to intercept it first). A lazy seq's emptiness is decidable in one force,
+        // but the wall closes the verb anyway — advance it with `:wat::stream::next`, whose
+        // `NextOutcome<T>::Exhausted` already answers exactly what `empty?` was asked.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers what empty? was asked",
+            got: Box::new(ValueSnapshot::of(&arg_val))
+        }).into()),
         Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
@@ -37319,17 +37874,22 @@ mod tests {
         assert_eq!(parent_result, 42);
     }
 
-    // ─── foldr / filter / zip ──────────────────────────────────────────
+    // ─── reduce-over-reverse / filter / zip ────────────────────────────
 
     #[test]
-    fn foldr_is_right_associative() {
-        // (foldr f init xs) = f(x0, f(x1, f(x2, init))) = 1-(2-(3-0)) = 2
+    fn reduce_over_reverse_is_right_associative() {
+        // Arc 118.B6b — `foldr` retired: it was `reverse` + `foldl` wearing a name borrowed
+        // from Haskell, where the verb is distinct only because it is LAZY (a property strict
+        // wat cannot have). This is the replacement spelling: `(reduce f init (reverse xs))`.
+        // f(x0, f(x1, f(x2, init))) = 1-(2-(3-0)) = 2 — the same right-associative answer
+        // `foldr` gave. A left fold over the un-reversed input gives -6 (see the sibling test
+        // below), so this assertion still discriminates a right fold from a left one.
         let src = r#"
-            (:wat::core::foldr
-              (:wat::core::fn [x <- :i64 acc <- :i64] -> :i64
+            (:wat::core::reduce
+              (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
                 (:wat::core::i64::- x acc))
               0
-              (:wat::core::Vector :i64 1 2 3))
+              (:wat::core::reverse (:wat::core::Vector :i64 1 2 3)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -37338,7 +37898,11 @@ mod tests {
     }
 
     #[test]
-    fn foldl_vs_foldr_differ_on_nonassoc_op() {
+    fn foldl_vs_reduce_over_reverse_differ_on_nonassoc_op() {
+        // Arc 118.B6b — renamed from `foldl_vs_foldr_differ_on_nonassoc_op`: this body only
+        // ever called `foldl` (the `foldr` half lived in the name and this comment, never in a
+        // call) — it is the negative control that keeps a left fold discriminated from the
+        // `(reduce f init (reverse xs))` right fold above, so it stays.
         // (foldl f init xs) where f = - : ((0 - 1) - 2) - 3 = -6
         let src_l = r#"
             (:wat::core::foldl

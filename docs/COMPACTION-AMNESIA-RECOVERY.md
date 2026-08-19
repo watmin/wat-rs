@@ -847,8 +847,14 @@ paperwork:**
 ```bash
 # WRAP-PROOF form (2026-06-06): a line-based grep is BLIND to phrases broken
 # across wrapped lines ("If/when\n  a caller surfaces" — real false-pass caught
-# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match:
-tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
+# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match.
+# CASE-INSENSITIVE (2026-08-19, arc 118's INSCRIPTION): the pattern was `-oE`, so
+# `out of [a-z...]*scope` could only match LOWERCASE — and the affirmative form is a
+# SENTENCE OPENER ("Out of arc N's scope. Tracked in ..."), so the one phrase the
+# gate most needs to surface for judgement was the one case it could not see.
+# Under-reported the acceptable form, and would also have slipped "Out of scope;
+# we'll get to it" — a real false-pass path. `-oiE` now:
+tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oiE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
 ```
 
 For each match: **is the work in this arc, or is it explicitly
@@ -1452,6 +1458,46 @@ agent to finish and report. A resumed rider keeps its full context.
 ended while its own build ran. Both are about how rider work relates to the build; neither is about
 the rider's competence.
 
+### ⛔ AMENDED 2026-08-18 — THE ROLE-BRIEFING PRESCRIPTION ABOVE DOES NOT WORK. FM 18 ALREADY HELD THE FIX.
+
+The prescription above says to brief the ROLE ("ending your turn ENDS you"), on the theory that a
+bare prohibition gets reasoned around but a derivable rule sticks. **Measured across one day, arc 118
+route B: FOUR riders, FOUR occurrences.** Every brief carried the role paragraph verbatim. The fourth
+also carried the running count and the sentence *"if you catch yourself about to background a build
+or a floor: don't."* It backgrounded the floor and ended its turn anyway.
+
+Four for four with the prescription applied is not a briefing problem. **The affordance is the
+defect**: a rider holds a Bash tool with `run_in_background` and a long verification to run, and the
+orchestrator's own correct pattern — start the long thing, end the turn, get woken — is the obvious
+move from inside that position. Telling a capable model not to take the obvious move, in prose, is
+the CONVENTION rung.
+
+**The fix is one rung up, and FM 18 already wrote it down:**
+
+> *riders do TEXT edits only — forbid cargo in the brief. The **orchestrator weighs CENTRALLY,
+> once**, after the tree is quiescent.*
+
+FM 18 derived that from lock contention among N riders, so it reads as a concurrency rule and I
+applied it only to fan-outs. **It is not a concurrency rule. It is a tier rule, and it eliminates
+FM 19 by construction:** a rider that never runs the floor cannot background one. The single-rider
+case felt exempt because there is no contention — but contention was never what made FM 19 fire.
+
+**The standing pattern, both modes, one line:** the rider edits and reports; the orchestrator builds,
+floors, and clippies. Give the rider the acceptance CRITERIA so it knows what "done" means and can
+run cheap targeted checks (a `--check`, a single probe, a scoped `nextest -E`); do not give it the
+floor. The orchestrator was independently re-running every load-bearing row anyway — examinare's
+*weigh the kill against your own reading of the disk* — so handing the rider the full floor bought
+a duplicated 4-minute run and a 50% chance of losing the report.
+
+**What the rider still owns:** its own numbers for anything the orchestrator cannot reconstruct —
+which sites it inspected, what a perturbation did, what surprised it. Those are the honest deltas,
+and they are the reason to resume a rider rather than take over.
+
+★ **The meta-lesson, and it is the expensive one:** FM 19's prescription was written from ONE
+incident and never re-measured. It read as sound and was cited in three subsequent briefs while
+failing in each. A prescription is a claim; four occurrences are its refutation.
+`[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
+
 ---
 
 ---
@@ -1737,8 +1783,14 @@ ships to disk:
 ```bash
 # WRAP-PROOF form (2026-06-06): a line-based grep is BLIND to phrases broken
 # across wrapped lines ("If/when\n  a caller surfaces" — real false-pass caught
-# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match:
-tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
+# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match.
+# CASE-INSENSITIVE (2026-08-19, arc 118's INSCRIPTION): the pattern was `-oE`, so
+# `out of [a-z...]*scope` could only match LOWERCASE — and the affirmative form is a
+# SENTENCE OPENER ("Out of arc N's scope. Tracked in ..."), so the one phrase the
+# gate most needs to surface for judgement was the one case it could not see.
+# Under-reported the acceptable form, and would also have slipped "Out of scope;
+# we'll get to it" — a real false-pass path. `-oiE` now:
+tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oiE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
 ```
 
 For each match: ship the work in this arc OR rewrite to

@@ -566,7 +566,7 @@ pub(crate) fn infer_assoc(
 /// `seq_container.rs`; this function needs no edit.
 ///
 /// `cap` is the capability predicate to apply:
-/// - Pass `StreamContainer::mappable` for map/filter/foldl/foldr (order-agnostic element transform).
+/// - Pass `StreamContainer::mappable` for map/filter/foldl (order-agnostic element transform).
 /// - Pass `StreamContainer::ordered` for reverse/take/drop/concat (order-dependent sequence ops).
 ///
 /// Returns `None` for a `Var` (caller defers to the runtime backstop) or for
@@ -630,7 +630,7 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 /// `crate::stream::NativeLazyCell` / `eval_vec_map`). Accepts `Vector<T>` | `List<T>` |
 /// `PersistentVector<T>` | `Stream<T>` — a FIXED set, independent of the `mappable()`/
 /// `ordered()` capability tables (those stay exactly as they were, still gating `foldl`/
-/// `foldr`/`reverse`/`concat`, which this arc does not touch).
+/// `reverse`/`concat`, which this arc does not touch).
 ///
 /// Returns `None` for a `Var` (caller defers to the runtime backstop, same policy as
 /// `extract_seq_elem`) or for any other shape (caller emits `TypeMismatch`).
@@ -653,22 +653,57 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 /// 3. ~~wat has no ad-hoc unions~~ — DISSOLVED, not refuted: it was never a union. It is N
 ///    `extend-type`s of ONE surface — Clojure's `ISeq`.
 ///
-/// Minting `:wat::core::Seqable` in the stdlib, extending these four containers, and pointing
-/// `join`/`map`/`filter` at it is the NEXT stone (118.3-B's brief, "out of scope" section) — this
-/// function's hand-rolled four-head match is exactly what that stone would delete. See
+/// `:wat::core::Seqable` WAS minted in the stdlib (stone 118.B1), extending these four
+/// containers. See
 /// `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/MEASURED-118.3-B-is-a-string-compare-not-a-mechanism.md`
 /// for the full diagnosis, and `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md`
 /// for the original writeup (the twelve `<verb>-stream` twins that exist only because this type
-/// wasn't wired up yet, and why arc 278's native route is this note's PRECONDITION, not a
-/// competing fix — it collapses the set's ~30 hand-rolled re-spellings down to this one function,
-/// which is what made naming it tractable).
+/// wasn't wired up yet).
+///
+/// ★ **118.B8 — this doc used to end with a standing order: "this function's hand-rolled
+/// four-head match is exactly what [minting `Seqable`] would delete." That premise was
+/// falsified by what actually got built, so the order is struck here rather than obeyed stale.**
+/// `Seqable` did NOT replace this function — stone **118.B7 added `Seqable` to this very match as
+/// a FIFTH HEAD** (below), because a wat verb whose parameter is declared `Seqable<T>` could not
+/// otherwise be passed to `foldl`/`map`/`take` at all: it would have to normalise through
+/// `(Seqable/seq coll)` first, forcing every eager container onto the lazy path and paying for a
+/// Stream it never needed — exactly the tax stone 118.B6 removed, reopened at the front door.
+///
+/// **What this function IS, today:** the ONE DOOR the checker's lazy-input classification
+/// consults — the four concrete heads plus the `Seqable<T>` surface itself. It has **6 live call
+/// sites**, named rather than pinned: `infer_map`, `infer_filter`, `infer_foldl`, `infer_take`,
+/// `infer_drop`, `infer_seqable_to_stream`. (⚠ 118.B8 first wrote those six as LINE NUMBERS and
+/// they were stale on arrival — this same edit inserted 14 lines above them. A doc that pins line
+/// numbers into the file it lives in is invalidated by its own next revision; names are not.
+/// `grep -n 'extract_lazyable_elem' src/collection/infer.rs` is the honest check.)
+/// Deleting it would mean re-hand-rolling this
+/// five-head match at each of those six sites — the opposite of the collapse this doc used to
+/// promise, not a step toward it. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+/// `[[feedback_an_instruction_to_delete_needs_more_grounding_than_one_to_add]]`
 fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
     match reduced {
         TypeExpr::Parametric { head, args }
             if head == "wat::core::Vector"
                 || head == "wat::core::List"
                 || head == "wat::core::PersistentVector"
-                || head == "wat::stream::Stream" =>
+                || head == "wat::stream::Stream"
+                // ── Stone 118.B7 — `Seqable<T>` ITSELF ────────────────────────────────────────
+                //
+                // The four heads above are the CONCRETE containers. `Seqable<T>` is the SURFACE
+                // that names exactly them (`wat/seq.wat`, stone 118.B1), and this function's own
+                // doc already calls its head-set "the `Seqable` set" — so a value STATICALLY typed
+                // `Seqable<T>` belongs here by definition.
+                //
+                // ★ AND IT COSTS NOTHING AT RUNTIME. `Seqable<T>` is a static type; the value that
+                // actually arrives is always one of the four concrete containers, so
+                // `StreamContainer::of_value` classifies it and `foldl` takes its DIRECT iterator
+                // for the eager ones. Without this arm, a wat verb whose parameter is declared
+                // `Seqable<T>` could not pass that parameter to `foldl`/`map`/`take` at all — it
+                // would have to normalise through `(Seqable/seq coll)` first, forcing every eager
+                // container onto the lazy path and paying for a Stream it never needed. That is
+                // exactly the tax stone 118.B6 removed; this arm is what stops it coming back in
+                // through the front door when a verb collapses onto the surface.
+                || head == "wat::core::Seqable" =>
         {
             Some(args.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh()))
         }
@@ -676,7 +711,8 @@ fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut Infe
             if p == ":wat::core::Vector"
                 || p == ":wat::core::List"
                 || p == ":wat::core::PersistentVector"
-                || p == ":wat::stream::Stream" =>
+                || p == ":wat::stream::Stream"
+                || p == ":wat::core::Seqable" =>
         {
             Some(fresh.fresh())
         }
@@ -860,8 +896,14 @@ pub(crate) fn infer_foldl(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
-            Some((_coll_head, elem_ty)) => {
+        // ── Stone 118.B6 — foldl walks any SEQABLE, `Stream` included ───────────────────────
+        // Routed through `extract_lazyable_elem` — the EXISTING extractor whose own doc names it
+        // "the `Seqable` set" — rather than minting a `foldable()` row beside `mappable()`. A new
+        // predicate would be a SECOND answer to "is this a seqable?", and `extract_seq_elem`'s tail
+        // comment ("No other containers pass the cap gate today") would have quietly become false.
+        // Nothing else's gate moves: map/filter keep `mappable` exactly (118.B6 STOP-2).
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
                 // Accumulator type: unify a fresh Acc var against init's inferred type.
                 let acc_var = fresh.fresh();
                 if let Some(init_ty) = init_ty_opt {
@@ -903,86 +945,7 @@ pub(crate) fn infer_foldl(
                 local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#3".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
-                    got: format_type(&reduced)
-                }});
-            }
-        }
-    }
-    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
-}
-
-/// Type-check `(:wat::core::foldr f init xs)` — arc 278 stone 0d.
-///
-/// Projective: `fn(T,Acc)->Acc × Acc × C<T> → Acc`.
-/// Same layout as foldl but fold function argument order is (T, Acc) → Acc instead of (Acc, T) → Acc.
-pub(crate) fn infer_foldr(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::core::foldr";
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = fresh.fresh();
-    if args.len() != 3 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: OP.into(), expected: 3, got: args.len()
-        }});
-        return CheckResult::partial_with(fallback_ty, local_errors);
-    }
-    // fn-first: arg[0]=f, arg[1]=init (Acc), arg[2]=collection C<T>.
-    let fn_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let init_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let coll_ty_opt = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-
-    if let Some(coll_ty) = coll_ty_opt {
-        let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
-            Some((_coll_head, elem_ty)) => {
-                // Accumulator type: unify a fresh Acc var against init's inferred type.
-                let acc_var = fresh.fresh();
-                if let Some(init_ty) = init_ty_opt {
-                    if unify(&init_ty, &acc_var, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#2".into(),
-                            expected: format_type(&acc_var),
-                            got: format_type(&apply_subst(&init_ty, subst))
-                        }});
-                    }
-                }
-                // f must be fn(T, Acc) -> Acc  — note T comes first, unlike foldl.
-                let acc_ty = apply_subst(&acc_var, subst);
-                let expected_fn_ty = TypeExpr::Fn {
-                    args: vec![elem_ty, acc_ty.clone()],
-                    ret: Box::new(acc_ty.clone()),
-                };
-                if let Some(f_ty) = fn_ty {
-                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#1".into(),
-                            expected: format_type(&expected_fn_ty),
-                            got: format_type(&apply_subst(&f_ty, subst))
-                        }});
-                    }
-                }
-                let ret_ty = apply_subst(&acc_var, subst);
-                return if local_errors.is_empty() {
-                    CheckResult::ok(ret_ty)
-                } else {
-                    CheckResult::partial_with(ret_ty, local_errors)
-                };
-            }
-            None if matches!(reduced, TypeExpr::Var(_)) => {}
-            None => {
-                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: OP.into(),
-                    param: "#3".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
                     got: format_type(&reduced)
                 }});
             }

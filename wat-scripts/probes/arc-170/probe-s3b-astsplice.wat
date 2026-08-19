@@ -45,11 +45,11 @@
      ;; ── extract the concrete arg/return type keywords off the reified work-fn ──
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
      def-ch   (:wat::core::ast->children def-node)
-     fn-form  (:wat::core::first (:wat::core::drop def-ch 2))
+     fn-form  (:wat::core::nth def-ch 2)
      fn-ch    (:wat::core::ast->children fn-form)
-     argspec  (:wat::core::first (:wat::core::drop fn-ch 1))
+     argspec  (:wat::core::nth fn-ch 1)
      arg-ty   (:wat::core::Option/expect (:wat::core::last (:wat::core::ast->children argspec)) "no argty")
-     ret-ty   (:wat::core::first (:wat::core::drop fn-ch 3))
+     ret-ty   (:wat::core::nth fn-ch 3)
      ;; ast-name → ":wat::core::i64"; strip leading colon → "wat::core::i64" for tuple bodies
      arg-nm   (:wat::core::ast-name arg-ty)
      ret-nm   (:wat::core::ast-name ret-ty)

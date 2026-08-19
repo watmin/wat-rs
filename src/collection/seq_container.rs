@@ -32,14 +32,24 @@
 //!
 //! # Capability matrix (current runtime truth; `○ gap` = fillable but not yet)
 //!
-//! | container          | Indexable | Tail (rest) | Append (conj) | Mappable (map/filter/foldl/foldr) | Ordered (reverse/take/drop/concat) | Measurable | Searchable | Gettable |
-//! |--------------------|-----------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
-//! | Vector             | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | PersistentVector   | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | List               | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A                            | ∅ N/A                             | ✓          | ✓          | ∅ N/A   |
-//! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
-//! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap                             | ∅ N/A                             | ✓          | ✓          | ✓        |
+//! | container          | Indexable | Nth (general positional) | Tail (rest) | Append (conj) | Mappable (map/filter/foldl) | Ordered (reverse/concat) | Measurable | Searchable | Gettable |
+//! |--------------------|-----------|---------------------------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
+//! | Vector             | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | PersistentVector   | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | List               | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | Tuple              | ✓         | ∅ N/A                     | ∅ N/A       | ∅ N/A         | ∅ N/A                            | ∅ N/A                             | ✓          | ✓          | ∅ N/A   |
+//! | WatAstList         | ✓         | ✓                         | ✓           | ○ gap         | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
+//! | HashSet            | ∅ N/A     | ∅ N/A                     | ∅ N/A       | ✓             | ○ gap                             | ∅ N/A                             | ✓          | ✓          | ✓        |
+//! | Stream             | ✓ (idx 0) | ✓                         | ✓           | ∅ N/A         | ○ gap                             | ○ gap                              | ∅ N/A      | ○ gap      | ∅ N/A   |
+//!
+//! **Nth vs Indexable** (stone 118.B4-0): `Indexable` backs `first`/`second`/`third` (Stream
+//! only at index 0 — `first` realizes one cell and rejects any other constant index at
+//! compile-time-selected call sites). `Nth` backs `:wat::core::nth`'s *runtime*-supplied index —
+//! deliberately a THIRD capability, not a reuse of `Indexable`, because `indexable()` is the one
+//! B4-iii is slated to flip to `false` for Stream; sharing it would silently close `nth` on lazy
+//! seqs three stones later. `Nth` is `false` for the same two receivers `Indexable` excludes
+//! (HashSet — unordered) plus one `Indexable` allows: Tuple (heterogeneous — a *runtime* index
+//! cannot be typed per-slot the way a compile-time-constant index can).
 
 use crate::types::TypeExpr;
 use crate::value::Value;
@@ -153,7 +163,10 @@ impl StreamContainer {
     ///
     /// `true` for ordered containers (Vector, PersistentVector, List, Tuple,
     /// WatAstList). `false` for HashSet (unordered — no canonical "first").
-    /// Arc 118 — Stream: `true` for `first` (index=0); index>0 raises at runtime.
+    /// Stone 118.B4-iii — THE WALL: `false` for Stream. A lazy seq yields only through
+    /// `:wat::stream::next` now; `first` pretending index=0 is a safe special case hid the
+    /// 3x-per-cell force cost of a walk that also calls `empty?`/`rest` (measured: walk C,
+    /// no `rest`, still pays 3x). See DESIGN-STONE-118.B4-iii-the-wall.md.
     pub(crate) fn indexable(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -162,15 +175,49 @@ impl StreamContainer {
             StreamContainer::Tuple => true,
             StreamContainer::WatAstList => true,
             StreamContainer::HashSet => false,
-            // Arc 118 — Stream: `first` (index=0) is valid; higher indices raise at runtime.
-            StreamContainer::Stream => true,
+            // Stone 118.B4-iii — THE WALL: `first` no longer accepts Stream. Use `next`.
+            StreamContainer::Stream => false,
+        }
+    }
+
+    /// `:wat::core::nth` — general positional lookup by a RUNTIME-supplied index.
+    ///
+    /// Stone 118.B4-0. **Deliberately not `indexable()`**: `first`/`second`/`third` route
+    /// through `indexable()`, and B4-iii (a later stone) flips that bit to `false` for
+    /// Stream — sharing the gate would silently close `nth` on lazy seqs when that lands.
+    /// Also deliberately not `gettable()`: that one is already `false` for Stream, so `nth`
+    /// would never reach a lazy seq either way.
+    ///
+    /// `true` for every ordered, homogeneous container (Vector, PersistentVector, List,
+    /// WatAstList — same receivers `nth`'s wat oracle `nth-spec` now type-checks against).
+    /// `false` for Tuple (heterogeneous — unlike a compile-time-constant index, a *runtime*
+    /// index cannot be typed per-slot) and HashSet (unordered — no positional meaning).
+    /// Stone 118.B4-iii — THE WALL: `false` for Stream too (option B, ruled 2026-08-18).
+    /// `(nth s i)` on a Vector is O(1); on a Stream it was O(i) via `realize`, walking `i+1`
+    /// cells with the SAME syntax — a loop that is linear on one receiver is quadratic on the
+    /// other and nothing at the call site says which you hold (measured: n(n+1)/2 forced for
+    /// an index-based walk vs n+1 for the equivalent `next`-walk). Use `(drop s i)` then
+    /// `next` — the complexity is visible in the spelling.
+    pub(crate) fn nth_indexable(self) -> bool {
+        match self {
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
+            StreamContainer::WatAstList => true,
+            // Heterogeneous product: a runtime index has no single per-slot type.
+            StreamContainer::Tuple => false,
+            // Unordered: no positional meaning.
+            StreamContainer::HashSet => false,
+            // Stone 118.B4-iii — THE WALL: `nth` no longer accepts Stream. Use `(drop s i)` + `next`.
+            StreamContainer::Stream => false,
         }
     }
 
     /// `rest` — return all but the first element.
     ///
-    /// Un-stubbed: strike 2 migrates `rest` classification through this gate.
-    /// Arc 118 — Stream: `true` (rest returns the tail, or Empty for an empty seq).
+    /// Stone 118.B4-iii — THE WALL: `false` for Stream. `rest` on a lazy seq forces one cell
+    /// to discard it — the same cost as `next`, but the name hides the force. Use `next` and
+    /// keep its `rest` half.
     pub(crate) fn has_tail(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -181,8 +228,8 @@ impl StreamContainer {
             StreamContainer::Tuple => false,
             // HashSet is unordered → ∅ N/A
             StreamContainer::HashSet => false,
-            // Arc 118 — Stream: rest returns tail (or Empty) — always valid.
-            StreamContainer::Stream => true,
+            // Stone 118.B4-iii — THE WALL: `rest` no longer accepts Stream. Use `next`.
+            StreamContainer::Stream => false,
         }
     }
 
@@ -205,12 +252,14 @@ impl StreamContainer {
         }
     }
 
-    /// `map`/`filter`/`foldl`/`foldr` — order-agnostic element transform.
+    /// `map`/`filter`/`foldl` — order-agnostic element transform.
     ///
     /// Un-stubbed: strike 3 migrates HOF classification through this gate.
     /// `true` for Vector and PersistentVector — the only containers the HOF
     /// runtime arms support today (verified against transform.rs eval_vec_map/
-    /// filter/foldl/foldr).
+    /// filter/foldl). Arc 118.B6b: `foldr` retired — it was `reverse`+`foldl`
+    /// wearing a name borrowed from Haskell, where the verb is distinct only
+    /// because it is LAZY (a property strict wat cannot have).
     pub(crate) fn mappable(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -227,11 +276,17 @@ impl StreamContainer {
         }
     }
 
-    /// `reverse`/`take`/`drop`/`concat` — order-dependent sequence ops.
+    /// `reverse`/`concat` — order-dependent sequence ops.
     ///
     /// `true` for ordered, homogeneous, variable-length sequences. `false` for
     /// HashSet (unordered — no defined element order to slice or join) and Tuple
-    /// (fixed-arity heterogeneous product). Same nature predicate for all four ops.
+    /// (fixed-arity heterogeneous product). Same nature predicate for both ops.
+    ///
+    /// ★ Corrected 118.B6b — this header used to also name `take`/`drop`, but they do NOT
+    /// consult this gate: 118.2a moved them to `extract_lazyable_elem`'s fixed set
+    /// (`collection/infer.rs:1070` records the move: "classification no longer routes through
+    /// `ordered()`"). The two live consumers, measured, are `concat` (`collection/eval.rs:763`)
+    /// and `reverse` (`collection/transform.rs:51`).
     pub(crate) fn ordered(self) -> bool {
         match self {
             StreamContainer::Vector => true,

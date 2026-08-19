@@ -1,8 +1,12 @@
 //! Arc 118 — DISCONFIRMING PROBE for lazy seqs (Option C, the foundation strike).
 //!
 //! Decision (`118/DESIGN.md`): lazy seqs as **closures + memoized thunks** — `Value::wat__stream__Stream(Arc<Stream>)`,
-//! `Stream = Empty | Cons{ head, LazyTail{ thunk: Arc<Function>, forced: OnceLock } }`, force-once-cache (the
-//! `ChildHandle.cached_exit` precedent). Clojure-faithful (Surface C): the family in `:wat::core::*`.
+//! `Stream = Empty | Cons{ head, LazyTail{ thunk: Arc<Function> } }`. Clojure-faithful (Surface C):
+//! the family in `:wat::core::*`.
+//!
+//! ⚠ The decision above originally said "memoized thunks … force-once-cache (the
+//! `ChildHandle.cached_exit` precedent)". Stone 118.B3 removed the cache: the thunks are deferred,
+//! not memoized. Laziness is preserved; the RETENTION is not.
 //!
 //! RED at HEAD: `:wat::stream::cons` / `lazy-seq` / `seq-empty` do not exist (no lazy `Stream` value); `first`/`rest`
 //! exist only for eager collections. GREEN when the six primitives land in `src/seq/` and `first`/`rest` extend to

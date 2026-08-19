@@ -1,6 +1,9 @@
 ;; Arc 278 #57 round 1b — sanity probe for the eight newly-minted rows: the parametric
-;; PersistentVector trio (Alias, type_params ["T"]) and the five Redispatch-class higher-order
-;; combinators. Not a test file itself (see tests/rete for the durable gate); this is a
+;; PersistentVector trio (Alias, type_params ["T"]) and, originally, five Redispatch-class
+;; higher-order combinators — now four (arc 118.B6b retired `:wat::rete::core::foldr`'s row: a
+;; `Redispatch` alias pointing at a core verb, `:wat::core::foldr`, that no longer exists is a
+;; dangling declaration, so the row went with it; see the STOP block at `:probe-foldr`'s old
+;; site below). Not a test file itself (see tests/rete for the durable gate); this is a
 ;; loadable, type-checked reference proving the new spellings resolve and, for the PV trio,
 ;; that a real parametric TypeScheme is now attached (round 1a's rows were all monomorphic).
 (def :probe-pv-length (:wat::rete::core::PersistentVector/length (:wat::core::PersistentVector 1 2 3)))
@@ -39,11 +42,14 @@
     0
     (:wat::core::PersistentVector 1 2 3)))
 
-(def :probe-foldr
-  (:wat::rete::core::foldr
-    (:wat::core::fn [x <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x acc))
-    0
-    (:wat::core::PersistentVector 1 2 3)))
+;; ⛔ `:probe-foldr` REMOVED, arc 118.B6b — `foldr` retired from core (it was `reverse`+`foldl`
+;; wearing a name borrowed from Haskell, distinct only under laziness wat does not have), so
+;; `:wat::rete::core::foldr`'s `Redispatch` row was deleted alongside it (a dangling alias
+;; otherwise). The replacement composition, `(reduce f init (reverse coll))`, has NO rete
+;; spelling — the rete vocabulary has `foldl`/`map`/`filter`/`reduce` but no `reverse` row, and
+;; minting one is a language-surface addition, the builder's ruling, not this stone's. So this
+;; file drops from five HOF probes to four; there is currently no rete-spelled right fold to
+;; probe here at all.
 
 (def :probe-map
   (:wat::core::into (:wat::core::PersistentVector)
@@ -58,9 +64,9 @@
       (:wat::core::PersistentVector 1 2 3))))
 
 ;; `reduce` is a wat-level `defclause` (`wat/seq.wat`), not a checker special form like its
-;; four siblings above — its rete row re-dispatches by AST head-substitution into the SAME
-;; defclause-dispatch machinery a core-spelled call reaches (see check.rs's infer_rete_form,
-;; the `:wat::core::reduce` arm).
+;; three siblings above (foldl/map/filter) — its rete row re-dispatches by AST head-substitution
+;; into the SAME defclause-dispatch machinery a core-spelled call reaches (see check.rs's
+;; infer_rete_form, the `:wat::core::reduce` arm).
 (def :probe-reduce
   (:wat::rete::core::reduce
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))

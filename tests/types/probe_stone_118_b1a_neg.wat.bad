@@ -1,0 +1,22 @@
+;; NEGATIVE CONTROLS for stone 118.B1a — DELIBERATELY ILL-TYPED (`.wat.bad`, so the
+;; `every_wat_scripts_file_loads` / test-discovery gates never load it; driven from
+;; probe_stone_118_b1a_neg.rs via `startup_from_file(...).expect_err`).
+;;
+;; B1a removed a `Var` gate at check.rs so a CONCRETE instantiation of a parametric surface
+;; (`Seqable<wat::core::i64>`) can be satisfied by a builtin container. A widening proved only by
+;; what it now ACCEPTS is a widening nobody tested — these two prove it still REFUSES.
+;;
+;;   NEG-1  HashSet has NO extend-type edge to Seqable  -> refused by `satisfies_bare_surface`
+;;   NEG-2  ★ THE SWAP GATE. Vector DOES extend Seqable, but the ARGS disagree
+;;          (Vector<String> vs Seqable<i64>). Only pairwise arg UNIFICATION can refuse this, and
+;;          it is precisely the property the removed gate's comment worried about
+;;          (`echo'::Handle` must satisfy Dialable<Echo::…>, never Dialable<Kv::…>).
+
+(:wat::core::defn :neg::needs-seqable<T>
+  [probe <- :T s <- :wat::core::Seqable<T>] -> :wat::core::i64
+  (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::kernel::println (:neg::needs-seqable 0 (:wat::core::HashSet :wat::core::i64 1 2 3)))
+    (:wat::kernel::println (:neg::needs-seqable 0 (:wat::core::Vector :wat::core::String "a" "b")))))

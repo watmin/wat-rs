@@ -224,6 +224,39 @@ pub enum RuntimeErrorKind {
     DuplicateDefine(String),
     #[to_edn(key = "prefix")]
     ReservedPrefix(String),
+
+    /// Stone 118.B2c strike 1 — a `defclause` arm that can NEVER be selected, because an
+    /// EARLIER arm accepts every value it accepts. Refused at registration.
+    ///
+    /// ## Why unreachability and not "overlap"
+    ///
+    /// Dispatch is first-match-wins in declaration order. Two arms whose domains merely
+    /// INTERSECT are a legitimate FALLBACK — the later arm still fires for the rest of its
+    /// domain, deterministically (`wat/bracket.wat:314-316` documents exactly this shape and
+    /// depends on it). An arm whose domain is CONTAINED in an earlier one is dead code: no
+    /// input can ever reach it, and nothing said so.
+    ///
+    /// ## Why this is the redef rule
+    ///
+    /// Arc 054 made `typealias`/`define`/`defmacro` "if byte-equivalent, no-op", else
+    /// `DuplicateDefine`. Clause ARMS were never covered — an arm is not a definition BY NAME —
+    /// so the one registry that dispatches on TYPES had no define-once rule. An arm that can
+    /// never fire is a definition with no effect. Builder, 2026-08-18: *"you may only express
+    /// something's def once and all other attempts must be identical."*
+    ///
+    /// 054's idempotent escape hatch is deliberately NOT carried over: it exists because a FILE
+    /// can legitimately load twice (in-crate shims). Arms inside one form are hand-written
+    /// adjacently and cannot arrive that way, so a byte-identical duplicate arm has no
+    /// legitimate source.
+    UnreachableClause {
+        name: String,
+        /// 0-based index of the arm that can never be selected.
+        clause_index: usize,
+        /// 0-based index of the EARLIER arm that subsumes it.
+        subsumed_by: usize,
+        /// Formatted declared types of the unreachable arm.
+        declared_arg_types: Vec<String>,
+    },
     /// A top-level name reached a registration gate with no namespace. Only
     /// fn arguments and `let` bindings may be bare — those are lexical and
     /// never reach a gate. Held against `Privilege::Stdlib` too; there is no
@@ -587,6 +620,23 @@ impl RuntimeErrorKind {
                 prefix,
                 p,
                 crate::resolve::reserved_prefix_list()
+            ),
+            RuntimeErrorKind::UnreachableClause {
+                name,
+                clause_index,
+                subsumed_by,
+                declared_arg_types,
+            } => write!(
+                f,
+                "{}{}: clause #{} [{}] can never be selected — clause #{} is declared earlier and \
+                 accepts every value it accepts. defclause dispatch is first-match-wins, so this \
+                 arm is dead code. Give it a type no earlier clause accepts, add a :guard to the \
+                 earlier clause, or delete it.",
+                prefix,
+                name,
+                clause_index,
+                declared_arg_types.join(", "),
+                subsumed_by
             ),
             RuntimeErrorKind::UnnamespacedName(name) => write!(
                 f,

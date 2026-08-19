@@ -1,3 +1,16 @@
+# ⛔⛔ SUPERSEDED IN PART, 2026-08-17 — THE `length`/`empty?` SECTIONS ARE WRONG.
+
+> Measured after this was written: **`empty?` on a Stream type-checks AND RUNS** (returns `false`) —
+> and `wat/seq.wat:457`'s `keep-stream` *depends* on it. **`length` on a Stream type-checks and then
+> RAISES at runtime** — a checker/runtime divergence, i.e. a live defect, not a contract.
+>
+> I read `measurable() => false` and **inferred what it gated instead of testing it.** The table
+> governs one of the two verbs, not both, and the one it governs fails at the wrong layer.
+>
+> **Read `UX-118.7-the-user-forms-and-a-correction-to-118.4.md` for the corrected disposition.**
+> The intermediate-vs-terminal frame, the read-once analysis, and everything about `count` still
+> stand; only the "both refuse, `measurable()` needs no change" ruling is struck.
+
 # DESIGN — 118.4 · the `Seqable` contract: intermediate vs terminal, and why `length` stays refused
 
 **Builder ruled D 2026-08-17** (*"D has been reasoned and i don't see a reason against it… seqs have

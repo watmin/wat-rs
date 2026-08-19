@@ -409,6 +409,29 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::first"
             | ":wat::core::second"
             | ":wat::core::third"
+            // Stone 118.B4-0 — `nth` promoted from a wat `defclause` (which carried no purity
+            // ruling of its own; `intrinsic_meta` only judges DISPATCHED verbs) to a Rust
+            // intrinsic, which does. Same ruling as its siblings immediately above: it reads an
+            // already-evaluated collection + an already-evaluated i64 index, performs no IO, no
+            // entropy, no mutation — pure ∧ deterministic. NOT added to the `total` list below:
+            // like `first`/`second`/`third`, it raises on out-of-range (verified `eval_nth`,
+            // runtime.rs) — a genuinely partial function, exactly the reason this axis exists.
+            | ":wat::core::nth"
+            // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` (also
+            // unruled here; same reason `nth`'s comment gives — `intrinsic_meta` only judges
+            // DISPATCHED verbs, and a wat `defn` is not one) to Rust intrinsics, which are.
+            // Discovered by going red on `rete::purity::completeness_gate::
+            // every_dispatched_verb_is_classified_or_disposed` — a SEPARATE gate from
+            // `is_pure_total` (`macros/eval.rs`), no link between them. Same ruling as `nth`
+            // immediately above: each reads an already-evaluated receiver + an
+            // already-evaluated Stream and realizes it one cell at a time
+            // (`eval_stream_to_vec`/`eval_stream_to_pvec`, `collection/transform.rs`) — no IO,
+            // no entropy, no mutation of anything the caller can observe — pure ∧
+            // deterministic. NOT added to the `total` list below: the walk forces the
+            // producer, and the producer can raise (a `lazy-seq` body is arbitrary user code) —
+            // genuinely partial, same axis this exists to catch.
+            | ":wat::core::stream->vec"
+            | ":wat::core::stream->pvec"
             | ":wat::core::record?"
             | ":wat::core::str"
             // PersistentVector ops
@@ -677,10 +700,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             //
             // `classify_expr` enters the typed fn body and finds the partial op. So `total: true`
             // on the HEAD means exactly what `pure: true`/`deterministic: true` already mean for
-            // these five — "the combinator itself adds no partiality" — and those two columns took
+            // these four — "the combinator itself adds no partiality" — and those two columns took
             // the conditional-TRUE reading from the start. One row, one convention.
-            // Arc 118.B6b: `foldr` retired — reverse+foldl wearing a Haskell name.
-            // Its replacement `(reduce f init (reverse coll))` is still covered via `reduce`.
+            //
+            // Arc 118.B6b: `foldr` retired from this arm (and from `pure_det` above) — it was
+            // `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct
+            // only because it is LAZY, a property strict wat cannot have. Its right-fold
+            // replacement, `(reduce f init (reverse coll))`, is still covered here via `reduce`.
             | ":wat::core::map" | ":wat::core::filter" | ":wat::core::reduce"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
@@ -2217,6 +2243,12 @@ mod completeness_gate {
     ":wat::stream::cons",
     ":wat::stream::empty",
     ":wat::stream::lazy",
+    // Arc 118.11a — mint next/NextOutcome. Same open question as its three siblings just
+    // above (RULES: ":wat::stream::" is Disp::Unreviewed, "laziness — a Stream's purity is
+    // its producer's") — `next` forces the SAME cell `first`/`rest` already force, so it
+    // inherits exactly their unreviewed status, not a fresh one. Ruling purity is out of
+    // scope for this stone (additive: mint the verb, change nothing else).
+    ":wat::stream::next",
     ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the

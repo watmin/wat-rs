@@ -4,6 +4,35 @@
 (`278-rules-engine/DESIGN-STONE-seq-traversal-one-door.md`). Not fixed. Tracked here because it is
 a TYPE-SYSTEM gap, not a collections bug.**
 
+---
+
+> ## ⛔ AMENDED 2026-08-17 — ALL THREE BLOCKERS BELOW ARE DEAD. THE TITLE IS NOW WRONG.
+>
+> **wat CAN spell `Seqable` today.** Every blocker in *"Why it is not a small fix"* was refuted or
+> dissolved by stone **118.3-B** (`a15f4ea9`), measured against the disk, not reasoned. The
+> refutations have been in `src/collection/infer.rs`'s own doc since that commit; **this file —
+> the one that FILES the decision — was never updated**, and until this amendment a reader
+> consulting the record would have found "blocked" while the code said "refuted."
+>
+> That is the failure this project has now hit twice:
+> `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`. A blocker note is self-protecting,
+> because its entire job is to stop people from looking.
+>
+> **What this changes:** arc 278's four-questions table scored the `Seqable` route a flat **NO on
+> Simple** *on these three blockers alone*, and chose native on that basis. **That ruling's premise
+> has expired.** Native may still be right — but it is no longer right *for the recorded reason*,
+> and the fork must be re-posed rather than inherited.
+> `[[feedback_a_superseded_design_looks_exactly_like_a_broken_check]]`
+>
+> The re-posed fork, with both routes four-questioned against today's measurements, is
+> **`docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN-118.B-the-route-fork.md`**.
+> ⚠ It is UNRULED. Do not read either route as chosen.
+>
+> The original text is preserved below exactly as filed — it is the record of what was believed on
+> 2026-07-31, and it was honestly held. It is not a description of the substrate today.
+
+---
+
 ## The finding
 
 Clojure has exactly one `filter`. It calls `seq` on its argument — the universal coercion every
@@ -29,19 +58,41 @@ Twelve functions, none of which a Clojure-shaped substrate would have.
 
 ## Why it is not a small fix
 
+> ⛔ **EVERY NUMBERED CLAIM IN THIS SECTION IS DEAD (2026-08-17).** Preserved as filed; annotated
+> per claim. Do not quote any of them as a present-tense fact about the substrate.
+
 Three separate type-system extensions, braided:
 
 1. **No surface nature admits a builtin container.** Every `defsurface` carries a `:nature`, and the
    ones that exist are `:wat::core::Record` and `:wat::kernel::Peer'`. A `Vector` is neither.
+   > **REFUTED 2026-08-17.** `:nature :wat::core::Struct` + `extend-type` on a builtin type-check
+   > and RUN today, bare and parametric both. Proof on disk and loader-gated:
+   > `wat-scripts/scratch-pad/probe-seqable-is-spellable-today.wat` (runs, prints `3,4`) and
+   > `probe-seqable-parametric-all-four.wat`.
 2. **No builtin satisfies any surface today** — grep-verified: zero `extend-type` on
    `Vector` / `PersistentVector` / `List`. Surface satisfaction is an aggregate mechanism
    (attributes + methods, R28); builtins are outside it.
+   > **REFUTED TWICE OVER.** (a) A *bare* surface over `Vector`/`PersistentVector` was already green
+   > in `SCORE-293.4d` — **2026-06-28, a MONTH BEFORE this note was filed.** (b) A *parametric*
+   > surface over all four heads is stone 118.3-B (`a15f4ea9`): the 2×2's fourth cell. The defect
+   > was a **string compare** in `check.rs`'s `(Parametric, Parametric)` arm where unification was
+   > needed — `:sq::Seqable<?454>` never equals `:sq::Seqable<T>` — not a missing mechanism.
+   > `[[feedback_an_error_names_where_it_gave_up_not_what_is_missing]]`
 3. **wat has no ad-hoc unions, deliberately** (R7: *"an ADT substrate with no ad-hoc unions"* — the
    reason `:wat::core::Value` is a one-line universal top rather than a union). A bound over four
    concrete builtins is structurally a union unless the surface mechanism genuinely subsumes it.
+   > **DISSOLVED, not refuted — it was never a union.** It is N `extend-type`s of ONE surface,
+   > which is exactly Clojure's `ISeq`. R7 was never in tension with this; the claim mis-framed
+   > its own subject.
 
 Four-questioned in the 278 design: this option **fails Simple** on those three, which is why arc
 278 took the native route instead. That was a scope ruling, not a verdict that this is wrong.
+
+> ⛔ **AND THAT IS WHY THE RULING MUST BE RE-POSED.** The NO on Simple rested entirely on the three
+> claims above. With all three gone, the 278 table no longer decides anything — a 4–0 verdict whose
+> disqualifier has evaporated is not a verdict, it is an inheritance.
+> `[[feedback_four_questions_cannot_see_a_shared_premise]]`. Re-posed, both routes scored against
+> measurements taken 2026-08-17, in `118-lazy-seqs-vs-threaded-streams/DESIGN-118.B-the-route-fork.md`.
 
 ## What the 278 work does for it
 

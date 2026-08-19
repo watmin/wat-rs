@@ -53,7 +53,7 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 4)
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-        (:wat::core::let [prelude (:wat::core::first (:wat::core::drop ch 2))]
+        (:wat::core::let [prelude (:wat::core::nth ch 2)]
           (:wat::core::if (:user::empty-list? prelude)
             ;; delete ONLY the `()` token span (prelude-start .. prelude-end); surrounding
             ;; whitespace + any body doc-comment between `()` and the body survive intact

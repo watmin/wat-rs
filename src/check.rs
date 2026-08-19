@@ -2374,14 +2374,14 @@ fn infer_rete_form(
         // a route here mirroring `check.rs`'s own `":wat::core::fn" => infer_fn` arm above
         // (`infer_fn` takes no `head_span` — passed only the args it wants, same as that arm).
         ":wat::core::fn" => crate::function::infer_fn(args, env, locals, fresh, subst),
-        // Arc 278 #57 round 1b — the four `Redispatch`-class HOFs that ARE checker special
-        // forms (each has a bespoke inference fn in `collection::infer`, same call shape as
-        // `infer_if` above). `reduce` — the fifth — is deliberately absent from this list:
-        // verified it has no `infer_reduce` anywhere (it is a wat-level `defclause`,
+        // Arc 278 #57 round 1b — originally the four `Redispatch`-class HOFs that ARE checker
+        // special forms (each has a bespoke inference fn in `collection::infer`, same call
+        // shape as `infer_if` above); arc 118.B6b retired `foldr`'s row, leaving three
+        // (foldl/map/filter). `reduce` — the fourth here — is deliberately absent from this
+        // list: verified it has no `infer_reduce` anywhere (it is a wat-level `defclause`,
         // `wat/seq.wat`, not a native special form), so its arm is below, re-dispatching by
         // AST head-substitution into `infer_list` rather than a direct call here.
         ":wat::core::foldl" => crate::collection::infer::infer_foldl(args, head_span, env, locals, fresh, subst),
-        ":wat::core::foldr" => crate::collection::infer::infer_foldr(args, head_span, env, locals, fresh, subst),
         ":wat::core::map" => crate::collection::infer::infer_map(args, head_span, env, locals, fresh, subst),
         ":wat::core::filter" => crate::collection::infer::infer_filter(args, head_span, env, locals, fresh, subst),
         // `reduce` — no bespoke inference fn exists for it (it dispatches via
@@ -4282,6 +4282,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Stone 118.B4-0 — `nth` promoted from a wat `defclause` to a Rust intrinsic
+            // (a `defmacro` program body evaluates only through this dispatch table). Mirrors
+            // first/second/third's shape above, generalized to a runtime-supplied index.
+            ":wat::core::nth" => {
+                let (val, mut errs) = infer_nth(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 237 Stone 237.7b-ii — `:wat::core::contains?` ∀T intrinsic with custom inference.
             // Tier B: element-typing enforced via infer_contains (mirrors first/second/third pattern).
             // Custom arm because plain ∀ scheme can't enforce arg1 matches collection's element type.
@@ -4387,13 +4398,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 118.B6b — HARD CUT: `:wat::core::foldr` is retired. It was `reverse`+`foldl`
+            // wearing a name borrowed from Haskell, where the verb is distinct only because it
+            // is LAZY — a property strict wat cannot have. Same shape as the `:wat::core::try`
+            // zombie arm above: an explicit match arm, not a silent fall-through, so the error
+            // surfaces at check time (the generic `:wat::`-prefixed multi-arg fallback below is
+            // permissive and would otherwise accept this and defer to a runtime dispatch miss).
             ":wat::core::foldr" => {
-                let (val, mut errs) = crate::collection::infer::infer_foldr(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (arc 118.B6b); use '(:wat::core::reduce f init (:wat::core::reverse coll))' instead", k),
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             ":wat::core::reverse" => {
                 let (val, mut errs) = crate::collection::infer::infer_reverse(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4507,6 +4523,19 @@ fn infer_list(
                                 _ => reduced.clone(),
                             }
                         }
+                        // Stone 118.B4-iii — THE WALL: Stream is not has_tail() now. `rest`
+                        // forced one cell to discard it — the same cost as `next`, but the name
+                        // hid the force. Names the door.
+                        Some(crate::collection::seq_container::StreamContainer::Stream) => {
+                            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: ":wat::core::rest".into(),
+                                param: "#1".into(),
+                                expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no rest; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                                got: format_type(&apply_subst(ty, subst))
+                            } });
+                            let t = fresh.fresh();
+                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                        }
                         Some(_) => {
                             // ∅ N/A: container has no tail (Tuple, HashSet).
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -4541,6 +4570,46 @@ fn infer_list(
                     TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
                 };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+            }
+            // Stone 118.B4-iii — THE WALL: `:wat::core::empty?` gets a hand-written arm so a
+            // Stream<T> receiver is refused at COMPILE time, not only by the runtime — the
+            // hand-written runtime arm that routed AROUND `measurable()` (`eval_empty`,
+            // `runtime.rs`) is deleted this stone; `measurable()` is now the one gate, consulted
+            // here on the checker side too, mirroring `:wat::core::rest` just above (`has_tail()`).
+            // `empty?` is polymorphic over BOTH the StreamContainer family (this arm) AND the
+            // separate MapContainer family (HashMap/PersistentMap/Record — not this registry) —
+            // this arm does not re-derive that whole surface; every receiver that is NOT a
+            // classified StreamContainer::Stream keeps the prior permissive ∀T -> bool behavior,
+            // deferring to the runtime exactly as before. Only the ONE new Stream refusal is added.
+            ":wat::core::empty?" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: ":wat::core::empty?".into(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                    for arg in args {
+                        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                    }
+                    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                    return CheckResult::partial_with(bool_ty, local_errors);
+                }
+                let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                if let Some(ty) = &arg_ty {
+                    let reduced = reduce(ty, subst, env.types());
+                    if let Some(crate::collection::seq_container::StreamContainer::Stream) =
+                        crate::collection::seq_container::StreamContainer::of_type(&reduced)
+                    {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: ":wat::core::empty?".into(),
+                            param: "#1".into(),
+                            expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers exactly what empty? was asked".into(),
+                            got: format_type(&apply_subst(ty, subst))
+                        } });
+                    }
+                }
+                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                return if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) };
             }
             ":wat::core::and" | ":wat::core::or" => {
                 let (val, mut errs) = infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4940,7 +5009,63 @@ fn infer_list(
                                     for key in satisfier_method_keys(&recv, method_name) {
                                         if let Some(scheme) = env.get(&key) {
                                             let ret = scheme.ret.clone();
-                                            let params = scheme.params.get(1..).unwrap_or(&[]).to_vec();
+                                            let params =
+                                                scheme.params.get(1..).unwrap_or(&[]).to_vec();
+                                            // ── Stone 118.B2d — A GENERIC SATISFIER LEAVES THE
+                                            // SURFACE'S PARAM UNBOUND, SO BIND IT FROM THE RECEIVER
+                                            //
+                                            // Path (1) above assumes `extend-type` already
+                                            // substituted the surface's `<T>` to a CONCRETE binding
+                                            // ("e.g. T=i64 for (extend-type :IntBox :Holds<i64>)").
+                                            // That holds for a MONOMORPHIC satisfier. It does NOT
+                                            // hold when a GENERIC container satisfies the surface:
+                                            // `(extend-type :wat::core::Vector :wat::core::Seqable<T>)`
+                                            // binds `T -> T`, a VARIABLE, so the stored scheme's
+                                            // return stays `Stream<T>` with `T` free and nothing
+                                            // ever instantiated it. `(Seqable/seq v)` on a
+                                            // `Vector<i64>` therefore yielded `Stream<T>` and could
+                                            // not be handed to any consumer wanting a concrete
+                                            // element type — the ONE method `Seqable<T>` has could
+                                            // not have its result typed.
+                                            //
+                                            // ★ NO NEW STATE IS NEEDED, AND `rename` IS THE SIGNAL.
+                                            // A satisfier that bound CONCRETELY leaves no surface
+                                            // param in its scheme, so this `rename` is the identity
+                                            // and those schemes are byte-identical — the safety is
+                                            // structural, not a guard someone has to maintain. Only
+                                            // a scheme that still MENTIONS the surface's params can
+                                            // move, and that is exactly the broken class (measured:
+                                            // 8 rows, all Seqable —
+                                            // MEASURED-118.B2d-the-blast-radius-is-exactly-seqable.md).
+                                            //
+                                            // The arity guard is the same one path (2) below
+                                            // already applies, for the same reason: the positional
+                                            // zip is only meaningful when the counts line up. A
+                                            // hypothetical `Map<K,V>` satisfying `Seqable<T>` fails
+                                            // it and falls through untouched rather than binding
+                                            // `T := K`.
+                                            if let TypeExpr::Parametric {
+                                                args: recv_args, ..
+                                            } = &recv
+                                            {
+                                                if recv_args.len() == s.type_params.len()
+                                                    && !s.type_params.is_empty()
+                                                {
+                                                    let mapping: HashMap<String, TypeExpr> = s
+                                                        .type_params
+                                                        .iter()
+                                                        .cloned()
+                                                        .zip(recv_args.iter().cloned())
+                                                        .collect();
+                                                    return Some((
+                                                        rename(&ret, &mapping),
+                                                        params
+                                                            .iter()
+                                                            .map(|t| rename(t, &mapping))
+                                                            .collect(),
+                                                    ));
+                                                }
+                                            }
                                             return Some((ret, params));
                                         }
                                     }
@@ -9163,6 +9288,17 @@ fn infer_positional_accessor(
                 };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
+            // Stone 118.B4-iii — THE WALL: Stream is not Indexable now — a lazy seq has no
+            // first/second/third. Names the door: `:wat::stream::next`'s `NextOutcome<T> =
+            // Item(value, rest) | Exhausted` is the only way a Stream yields anything.
+            Some(crate::collection::seq_container::StreamContainer::Stream) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: op.into(),
+                    param: "#1".into(),
+                    expected: "Tuple, Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no first/second/third; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
             // ∅ N/A: container is not Indexable (HashSet — unordered, no canonical "first").
             Some(_) => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -9178,6 +9314,125 @@ fn infer_positional_accessor(
                     callee: op.into(),
                     param: "#1".into(),
                     expected: "tuple, Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+        }
+    }
+    // HARVEST (236.2): silent-by-intent — arg inference failed; return polymorphic placeholder.
+    if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) }
+}
+
+/// Type-check `(:wat::core::nth coll i)`. Stone 118.B4-0: `nth` is the runtime-index
+/// generalization of `infer_positional_accessor` above — mirrors its shape (dispatch by
+/// `StreamContainer::of_type`, exhaustive, no wildcard) but takes the index from the SECOND
+/// argument (unified against `i64`, not baked in as a Rust constant) and gates on
+/// `nth_indexable()` rather than `indexable()`. Promoted from a wat `defclause` — which had a
+/// `TypeScheme` registered automatically at stdlib load — to a Rust intrinsic, which does not;
+/// this hand-written arm is what supplies it now. Adds one more entry to `infer_list`'s
+/// hand-written keyword block, moving arc 255's shrink-the-block count the wrong way — known,
+/// accepted, and it is why this function exists instead of a generic ∀T scheme.
+#[allow(clippy::too_many_arguments)]
+fn infer_nth(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::nth";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(),
+            expected: 2,
+            got: args.len()
+        } });
+        return CheckResult::partial_with(fresh.fresh(), local_errors);
+    }
+    let arg0_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Infer arg1 (the index) regardless of arg0's outcome, mirroring infer_get — always
+    // surface all errors rather than short-circuiting on the first.
+    let arg1_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg1 must be i64 — independent of the receiver's element type.
+    if let Some(idx_ty) = &arg1_ty {
+        let expected_idx_ty = TypeExpr::Path(":wat::core::i64".into());
+        if unify(idx_ty, &expected_idx_ty, subst, env.types()).is_err() {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "#2".into(),
+                expected: "i64".into(),
+                got: format_type(&apply_subst(idx_ty, subst))
+            } });
+        }
+    }
+
+    if let Some(ty) = arg0_ty {
+        let reduced = reduce(&ty, subst, env.types());
+        // Unresolved type variable (e.g. `(nth (PersistentVector/conj (PersistentVector) 7) 0)`
+        // — the empty constructor's element type isn't pinned until `conj` unifies it, and that
+        // unification may not have landed on THIS var by the time nth's arg0 is inspected) defers
+        // to the runtime backstop, uniformly with `infer_get`'s `TypeExpr::Var(_) => None` arm —
+        // silent-by-design, not an error. `nth`'s OLD `defclause` form resolved this case for
+        // free (multi-arm dispatch unifies against each arm's declared param, which can bind a
+        // free var); the hand-written arm this stone adds does not unify, only classifies an
+        // already-resolved type, so it must defer explicitly instead of hard-erroring. Measured:
+        // `tests/collection/probe_nth_persistent_vector.rs` regressed on this exact shape without it.
+        if matches!(&reduced, TypeExpr::Var(_)) {
+            return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
+        }
+        // Classify via the registry — same waist infer_positional_accessor uses, gated on the
+        // THIRD capability (nth_indexable, not indexable) minted for this stone.
+        match crate::collection::seq_container::StreamContainer::of_type(&reduced) {
+            Some(container) if container.nth_indexable() => {
+                let result_ty = match &reduced {
+                    // WatAstList: fixed homogeneous element type :wat::WatAST.
+                    TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                        TypeExpr::Path(":wat::WatAST".into())
+                    }
+                    // Homogeneous parametric containers: Vector<T>, List<T>, PersistentVector<T>
+                    // — bare T, never Option<T> (nth raises, doesn't None). Stone 118.B4-iii —
+                    // THE WALL: Stream<T> no longer reaches this arm (nth_indexable()==false).
+                    TypeExpr::Parametric { args: targs, .. } => {
+                        targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| {
+                            // HARVEST (236.2): silent-by-intent — no inner type; polymorphic.
+                            fresh.fresh()
+                        })
+                    }
+                    // Bare path forms (:wat::core::Vector etc.): no type param available.
+                    _ => fresh.fresh(),
+                };
+                return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+            }
+            // Stone 118.B4-iii — THE WALL: Stream is not nth_indexable now. `(nth s i)` was O(i)
+            // via `realize` on a Stream — same syntax as the O(1) Vector case, a complexity lie.
+            // Names the door: `(drop s i)` then `:wat::stream::next` spells the walk honestly.
+            Some(crate::collection::seq_container::StreamContainer::Stream) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no O(1) nth; use (drop s i) then :wat::stream::next".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+            // ∅ N/A: Tuple (heterogeneous — a runtime index can't be typed per-slot) or
+            // HashSet (unordered — no positional meaning).
+            Some(_) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+            // Not a sequence container at all.
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -14882,16 +15137,30 @@ pub(crate) fn assignable(
         // surface's declared params (already positionally == `eargs`) against the actual's own
         // args. `e` is already fully `reduce`d (this fn's top), so `eargs` needs no re-walk.
         //
-        // Deliberately gated on `eargs` still containing a Var: this arm's existing tenants —
-        // `Dialable` / `TypedCapability` / `Handle` (293.W.2f just above) — are BAKED
-        // per-instance with fully CONCRETE args (e.g. `TypedCapability<Echo::Op,Echo::Reply>`,
-        // never a bare `S`/`R`; confirmed live at
-        // tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32), so their `e` is always
-        // fully resolved before reaching here — the exact-string arm above already decides
-        // them, byte-identical, and this branch is unreached for their calls. It is reachable
-        // ONLY for a still-polymorphic surface dispatch, which the swap-gate (arm 4's comment,
-        // 14814-14822) has no opinion about — there is nothing concrete yet to swap.
-        else if eargs.iter().any(|t| matches!(t, TypeExpr::Var(_))) {
+        // Stone 118.B1a — this branch was ALSO gated on `eargs` still containing a Var. That
+        // gate is REMOVED, because it excluded a legitimate case while protecting nothing.
+        //
+        // Why it protected nothing: this is an `else if` on the exact-string arm above. The
+        // tenants the old comment named — `Dialable` / `TypedCapability` / `Handle` (293.W.2f) —
+        // are baked per-instance with fully CONCRETE args (`TypedCapability<Echo::Op,Echo::Reply>`,
+        // never a bare `S`/`R`; live at tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32),
+        // so the arm above DECIDES AND RETURNS for them and this branch is unreachable for their
+        // calls either way. `else` is what protects them, never the Var test.
+        //
+        // What it excluded: a CONCRETE instantiation of a parametric surface over a BUILTIN —
+        // `Vector<i64>` against `Seqable<wat::core::i64>`. A builtin's name can never string-match
+        // a surface's, so the arm above MUST fail for it; and once an earlier parameter has pinned
+        // `T`, `eargs` holds no Var, so the old gate skipped it too and satisfaction fell through
+        // to `false`. Measured: `[s <- Seqable<T>]` accepted a Vector while
+        // `[probe <- :T  s <- Seqable<T>]` rejected the same Vector — the position of an unrelated
+        // parameter decided it (`118-lazy-seqs-vs-threaded-streams/MEASURED-118.B2-blocked-the-var-gate.md`).
+        //
+        // ★ SOUNDNESS LIVES IN THE GUARDS BELOW, NOT IN THE GATE — and specifically the swap-gate
+        // (arm 4's comment, 14814-14822) is enforced by UNIFY on the args: two different concrete
+        // instantiations do not unify, so `Vector<String>` is still refused against
+        // `Seqable<i64>`, and a family with no extend-type edge is refused by
+        // `satisfies_bare_surface`. Both are negative-control rows of 118.B1a's gate.
+        else {
             let bare = crate::types::parametric_head_fqdn(eh);
             if let Some(crate::types::TypeDef::Surface(surf)) = types.get(&bare) {
                 if surf.type_params.len() == eargs.len()
@@ -19268,24 +19537,6 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 247: fn-first — (foldr f init xs) -> Acc
-    // Arc-278-0d NOTE: direct calls intercepted by infer_foldr; scheme retained for potential aliases.
-    env.register(
-        ":wat::core::foldr".into(),
-        TypeScheme {
-            type_params: vec!["T".into(), "Acc".into()],
-            params: vec![
-                TypeExpr::Fn {
-                    args: vec![t_var(), acc_var()],
-                    ret: Box::new(acc_var()),
-                },
-                acc_var(),
-                vec_of(t_var()),
-            ],
-            ret: acc_var(),
-            rest_param_type: None,
-        },
-    );
     // Arc 247: fn-first — (filter pred xs) -> Vec<T>
     // Arc-278-0d NOTE: direct calls intercepted by infer_filter; scheme retained for potential aliases.
     env.register(
@@ -19864,6 +20115,50 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var(), seq_t()],
             ret: seq_t(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 118.11a — `next :: ∀T. Stream<T> -> NextOutcome<T>`. Forces exactly one
+    // cell (`crate::stream::realize`) and returns both halves — the pull primitive
+    // stone B's migration will move `map`/`filter`/`keep`/`into`/`doall` onto.
+    // Additive only: no existing scheme above is touched.
+    env.register(
+        ":wat::stream::next".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![seq_t()],
+            ret: TypeExpr::Parametric {
+                head: "wat::stream::NextOutcome".into(),
+                args: vec![t_var()],
+            },
+            rest_param_type: None,
+        },
+    );
+
+    // Stone 118.B5 — `stream->vec` / `stream->pvec` promoted from wat `defn` (which carried a
+    // TypeScheme auto-registered at stdlib load, same as any other wat-defined function) to
+    // Rust intrinsics, which do not — this registration is what supplies it now (the same gap
+    // `nth`, B4-0, hit first; see `infer_nth`'s own doc). UNLIKE `nth`, each of these has
+    // exactly ONE receiver shape — no container union to dispatch over (`nth` needed a
+    // hand-written `infer_nth` arm precisely because it does) — so a plain generic scheme is
+    // the whole story here, the same shape `:wat::stream::cons`/`next` above use.
+    //   stream->vec  :: ∀T. Vector<T> × Stream<T> -> Vector<T>
+    //   stream->pvec :: ∀T. PersistentVector<T> × Stream<T> -> PersistentVector<T>
+    env.register(
+        ":wat::core::stream->vec".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), seq_t()],
+            ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::stream->pvec".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), seq_t()],
+            ret: pv_of(t_var()),
             rest_param_type: None,
         },
     );

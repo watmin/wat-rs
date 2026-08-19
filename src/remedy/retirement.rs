@@ -48,6 +48,7 @@
 //! | `":wat::core::result::expect"`    | 241.15 | lowercase result::expect zombie | Result/expect (PascalCase canonical) |
 //! | `":wat::core::Record::def"`             | 293.2  | base record decl macro          | defrecord (`:wat::core::defrecord`)  |
 //! | `":wat::holon::Record::def"`      | 293.2  | holonic record decl macro       | defrecord (`:wat::holon::defrecord`) |
+//! | `":wat::core::foldr"`             | 118.B6b | right fold (reverse+foldl wearing a Haskell name) | reduce (`:wat::core::reduce f init (:wat::core::reverse coll)`) |
 
 use super::{Remedy, RemedyKind};
 
@@ -131,6 +132,13 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // Arc 109 slice 1i — bare `Err` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Err", replacement: ":wat::core::Err",
         note: Some("rename `(Err e)` → `(:wat::core::Err e)` at constructor sites; rename `((Err _e) ...)` → `((:wat::core::Err _e) ...)` at match-pattern sites (arc 109 slice 1i)") },
+    // Arc 118.B6b — foldr retired: it was `reverse`+`foldl` wearing a name borrowed from
+    // Haskell, where the verb is distinct only because it is LAZY, a property strict wat
+    // cannot have. The operation is spelled from verbs that already exist; `reduce` already IS
+    // `foldl` (`wat/seq.wat:308`), so nothing is renamed TO `reduce` — `foldr` simply stops
+    // being a word.
+    RetirementEntry { retired: ":wat::core::foldr", replacement: ":wat::core::reduce",
+        note: Some("wat is STRICT, so a right fold is `(:wat::core::reduce f init (:wat::core::reverse coll))` — `foldr` was `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct only because it is LAZY (arc 118.B6b)") },
 ];
 
 /// Look up `needle` in the retirement table.

@@ -78,11 +78,18 @@
 
     __ (:wat::kernel::println (:wat::core::string::concat "cross-container-agree=" (:wat::core::bool::to-string agree)))
 
-    ;; (b) laziness — force ONLY `first` of a `keep` pipeline over a BIG Vector. If the
+    ;; (b) laziness — force ONLY ONE cell of a `keep` pipeline over a BIG Vector. If the
     ;; predicate prints once, only ONE element was ever touched; the pipeline did not
-    ;; realize the whole stream to answer `first`.
+    ;; realize the whole stream to answer the first cell.
+    ;; Stone 118.B4-iii — THE WALL: was `(first (keep :cx::counting-keep big))`. `first` no
+    ;; longer accepts a Stream (`keep` is lazy, arc 118.2a) — `:wat::stream::next` is the door
+    ;; now, and it proves the SAME thing: one `NextOutcome::Item` means one cell realized,
+    ;; identical to what `first` used to demonstrate.
     big     (:wat::core::range 0 4000)
     __hdr   (:wat::kernel::println "--- laziness probe: expect exactly ONE line below ---")
-    fst     (:wat::core::first (:wat::core::keep :cx::counting-keep big))
+    fst     (:wat::core::match (:wat::stream::next (:wat::core::keep :cx::counting-keep big))
+              ((:wat::stream::NextOutcome::Item value _rest) value)
+              (:wat::stream::NextOutcome::Exhausted
+                (:wat::kernel::assertion-failed! "keep: unexpectedly exhausted" :wat::core::None :wat::core::None)))
     __ftr   (:wat::kernel::println "--- end laziness probe ---")]
     (:wat::kernel::println (:wat::core::string::concat "first=" (:wat::core::i64::to-string fst)))))

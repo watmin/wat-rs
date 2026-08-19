@@ -7,18 +7,21 @@
 ;; PersistentVector via `into` before taking `length`, exactly mirroring the
 ;; original format!-driven exprs.
 
-;; foldl / foldr (fn-first; return the accumulator)
+;; foldl / reduce-over-reverse (fn-first; return the accumulator)
+;; Arc 118.B6b: `foldr` retired — `p2-foldr` renamed `p2-fold-reverse`, body now spelled
+;; `(reduce f init (reverse coll))`, the composition that replaces it (`reverse`+`foldl`
+;; wearing a name borrowed from Haskell, distinct only under laziness wat does not have).
 (:wat::core::defn :t::p1-foldl [] -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
     0
     (:wat::core::PersistentVector 1 2 3)))
 
-(:wat::core::defn :t::p2-foldr [] -> :wat::core::i64
-  (:wat::core::foldr
+(:wat::core::defn :t::p2-fold-reverse [] -> :wat::core::i64
+  (:wat::core::reduce
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
     0
-    (:wat::core::PersistentVector 1 2 3)))
+    (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
 
 ;; map / filter — materialize back to a PersistentVector via `into`.
 (:wat::core::defn :t::p3-map [] -> :wat::core::i64

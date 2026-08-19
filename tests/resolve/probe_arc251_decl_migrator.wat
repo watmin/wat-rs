@@ -47,7 +47,7 @@
                         false)
         ;; Arc 118.2a — `drop` flipped LAZY; `rest2` feeds `:wat::fix::fix-seq` (Vector<WatAST>
         ;; param) both directly and via further `rest`/`concat`, so materialize here.
-        (:wat::core::let [ch1   (:wat::core::first (:wat::core::drop ch 1))
+        (:wat::core::let [ch1   (:wat::core::nth ch 1)
                           rest2  (:wat::core::into [] (:wat::core::drop ch 2))
                           fixed-head (:wat::core::keyword/to-symbol head)
                           fixed-name (:migrate::name-fix ch1)
