@@ -55,7 +55,10 @@
   :Preserving)
 
 ;; Category — functional category.
-;; Category — what kind of computation an intrinsic or special form performs.
+;; Category — what a verb DOES in the language. Most commonly a runtime computation;
+;; sometimes a program-level registration (:Declaration); sometimes a contract
+;; discharged entirely at check time (:CheckGate). The axis is the DOING, not the
+;; moment it happens.
 ;; ONE axis throughout: what the verb DOES. Not what it returns, not where its
 ;; input comes from, not which direction it crosses a type boundary — each of
 ;; those was proposed as a variant during arc 255 and rejected for mixing axes.
@@ -79,8 +82,31 @@
 ;; `wat_enum_derive::wat_enum_from!` and becomes a Rust enum — variants, order, and
 ;; the `;;` prose on each variant (which becomes its `///`). Add a variant here and
 ;; the Rust type follows; every exhaustive `match` on it then fails to compile until
-;; the new variant is handled. There is no second list and no drift gate, because
-;; a generated type cannot drift from its generator.
+;; the new variant is handled.
+;;
+;; ⛔ CORRECTED 2026-08-19 (255.1c-taxonomy). This paragraph used to end: "There is no
+;; second list and no drift gate, because a generated type cannot drift from its
+;; generator." BOTH HALVES WERE FALSE, and adding five variants proved it by breaking
+;; the build in three places.
+;;
+;; THERE ARE SECOND LISTS. The generated TYPE cannot drift — that much was true — but
+;; every place that turns a `Category` VALUE back into something else is hand-written:
+;;   crates/wat-macros/src/wat_intrinsic.rs      value -> `quote!` token, arm per variant
+;;   crates/wat-macros/src/wat_special_form.rs   the same match, again
+;;   crates/wat-doc/src/lib.rs                   the round-trip test’s own `all` + `match`
+;;   crates/wat-doc/src/lib.rs `CATEGORY_LEGAL_VALUES`  a hand-written STRING of every name
+;;
+;; AND THERE IS A DRIFT GATE — `every_enum_variant_reaches_both_hand_lists`, whose NAME
+;; says so. It was built 2026-08-15 because the lists HAD already drifted: `Transform`/
+;; `Probe`/`Combine` were added and the old gate stayed green "because the two lists still
+;; agreed with each other" — stale-to-stale.
+;;
+;; ★ THE PROPERTY THAT ACTUALLY HOLDS, and it is worth more than the false one: the second
+;; lists CANNOT SILENTLY DRIFT. Every exhaustive `match` is covered by the compiler
+;; (`E0004`, a hard error — `cargo build` for production code, `cargo test --no-run` for
+;; test code); the one NON-match mirror, `CATEGORY_LEGAL_VALUES`, is covered by that gate.
+;; Build green + test-build green + that gate passing = every mirror reached. Say THAT,
+;; not that there is no second list.
 (:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
 ;; Returns the SAME value in another form — `Bytes::to-hex`, `epoch-seconds`,
 ;; `string::trim`. Was `:Encoding` until 2026-08-15: half its members were not
@@ -103,7 +129,9 @@
 ;; not math, and that absurdity is what exposed the mistake (2026-08-15).
   :Arithmetic
 ;; Input/output on a stream — `println`, `readln'`. The effect IS the point;
-;; an encoding step along the way does not make it `:Transform`.
+;; an encoding step along the way does not make it `:Transform`. Contrast
+;; `:Message`: a peer is a typed value the caller holds a handle to, not an
+;; OS stream.
   :Io
 ;; Interrogates a value and derives a FACT about it — `empty?`, `length`,
 ;; `contains?`. The output is a fact ABOUT the input, never a form of it.
@@ -117,4 +145,38 @@
 ;; Registers a program-level entity — `def`, `defclause`, `declare-acronyms`.
 ;; Distinct from `:Binding`: a declaration registers into the program and is
 ;; visible to everything after it; `let` is local and scoped.
-  :Declaration)
+  :Declaration
+;; Acquires, releases, or ADMINISTERS a handle whose lifetime is tracked outside
+;; value scope — `listener`, `connect`, `accept`, `pipe`, `spawn-thread`,
+;; `spawn-process`, `after`, `HandlePool::{new,pop,finish}`, `close`, `drop`,
+;; `allow`, `deny`, `signal`. NOT what data moves through the handle (that is
+;; `:Message`), NOT where the handle came from. `drop` is a documented NO-OP —
+;; it does not force teardown while other references remain.
+  :Resource
+;; Delivers or receives a payload across a peer/channel boundary to another locus —
+;; `send`, `try-send`, `recv`, `select`, `poll`. The locus is a TYPED VALUE (`peer<I,O>`)
+;; the caller already holds — contrast `:Io`, whose target is an ambient OS stream with
+;; no caller-held handle. The underlying transport (in-process channel, pipe, socket) is
+;; an implementation detail, NEVER the axis — the same way `:Mutate` was refused for
+;; `allow`/`deny`.
+  :Message
+;; Reads or writes process-global state that no value the caller holds addresses —
+;; `stopped?`, `sigusr1?`, `sigusr2?`, `sighup?`, `reset-sigusr1!`, `reset-sigusr2!`,
+;; `reset-sighup!`. NOT `:Clock`: three of seven members are writes, and `:Clock`'s
+;; axis is which source a read draws from. NOT `:Probe`: the `sig*?` queries take no
+;; input value to interrogate — they read a global `AtomicBool`, not a fact about
+;; something the caller holds.
+  :Ambient
+;; Returns a COMPONENT of a compound value that was already there — `Failure/message`,
+;; `Failure/location`, `LociDiedError/message`, and every hand-written record/struct
+;; field accessor. The inverse of `:Combine`, which builds a larger value of the same
+;; kind; nothing had named taking a part back out. NOT `:Probe`: a probe computes a
+;; new fact (`empty?`, `length`); an accessor returns a part that already existed.
+  :Project
+;; Refuses a call site at CHECK TIME; the contract is discharged before evaluation
+;; ever runs — `require-wire-address`. ONE axis: constrains which programs compile.
+;; The runtime body is identity or otherwise incidental to the variant's purpose.
+;; One member today, deliberately: minted ahead of the totality campaign's `must-*`
+;; family on the builder's forward knowledge; revisit this variant at the second
+;; member rather than treating the thin membership as an error.
+  :CheckGate)

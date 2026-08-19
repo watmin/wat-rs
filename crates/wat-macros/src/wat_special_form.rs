@@ -87,6 +87,11 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         wat_doc::Category::Probe => quote! { ::wat_doc::Category::Probe },
         wat_doc::Category::Combine => quote! { ::wat_doc::Category::Combine },
         wat_doc::Category::Declaration => quote! { ::wat_doc::Category::Declaration },
+        wat_doc::Category::Resource => quote! { ::wat_doc::Category::Resource },
+        wat_doc::Category::Message => quote! { ::wat_doc::Category::Message },
+        wat_doc::Category::Ambient => quote! { ::wat_doc::Category::Ambient },
+        wat_doc::Category::Project => quote! { ::wat_doc::Category::Project },
+        wat_doc::Category::CheckGate => quote! { ::wat_doc::Category::CheckGate },
     };
 
     let args_lit: Vec<TokenStream2> = doc.args.iter().map(|a| {
