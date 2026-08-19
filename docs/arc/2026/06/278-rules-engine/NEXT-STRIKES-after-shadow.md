@@ -88,6 +88,7 @@ on this cell. Persist is still ~0 on a cold fire.
 | 2e | `DESIGN-STONE-elem-bindings-inline.md` — width 0–2 in the enum, not `Arc`. | drop 10.49 → **5.45**. FIRE 76.85 → **78.38**. Push ate the win (fatter Element). **Reverted.** | **TRIED — not a FIRE win** |
 | 2f | `DESIGN-STONE-bind-pool.md` — pairs in `wm.bind_pool`; `Element` is `(off, len)`. Indices, not pointers. | drop 10.49 → **3.63**. FIRE 76.85 → **67.33**. Push stayed thin. | **LANDED** |
 | 2g | `DESIGN-STONE-aggregate-identity.md` — shallow Aggregates stamp `identity` at birth. Hash writes the u64. | `setup:seen` ~8.8 → **6.89**. FIRE 67.33 → **63.10**. Leftover is HashSet insert. | **LANDED** |
+| **2h** | **Fanout census** — grid closest cell is fanout `[40000]` (ratio 1.42). HashJoin / token emit, not accum leftovers. Weigh before drawing. | — | **NEXT** |
 | 3 | `DESIGN-STONE-persist-gather-across-rounds.md` — P6 for gathers; append `d_alpha`. | ~0 on a cold fire (index is first-round hash). | after a census names a multi-round cell |
 | 4 | `DESIGN-STONE-where-dim-reuse.md` — `(b)`: do not `exec_where` a proven `(= dim lit)`. | node-share polish (already 3.18 ms) | after the accum wall |
 | 5 | `DESIGN-STONE-where-range-edges.md` — populate `range_children`. | chaos-engine / `where-numeric`; not this grid | after 4 |

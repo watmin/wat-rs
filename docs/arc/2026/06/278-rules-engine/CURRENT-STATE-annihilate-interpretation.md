@@ -7,12 +7,13 @@
 
 **Right now:** items 1–13, fold, no-snapshot, delta-alpha
 indices, setup-seen-once, fxhash, bind-pool, aggregate
-identity. Queue: `NEXT-STRIKES-after-shadow.md`. `[200 200]`
-FIRE 160.70 → **63.10 ms**. `setup:seen` 13.26 → **6.89**
-(walk gone for shallow Records; leftover is HashSet insert
-of 40k Arcs — no second hasher). Drop 3.63. Persist still
-~0 on a cold fire. Do not start 297. Do not merge
-`origin/main` onto this dirty branch.
+identity. Queue: `NEXT-STRIKES-after-shadow.md`. Grid
+`GRID-native-vs-clara-2026-08-18T23-57-10Z.txt`: **30/30
+`:match`, 30 `:us`, 0 unresolved.** Accum `[200 200]`
+1.12 unresolved → **2.95 :us** (wat 60.0 ms / clara 176.5).
+Closest cell is now **fanout [40000]** ratio **1.42**
+(141 ms / 200 ms). HashSet insert is not the next strike.
+Do not start 297. Do not merge `origin/main`.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -511,9 +512,8 @@ shares the id. A second `fire-rules` does not re-`lower`
 / re-`classify`. Stratified slices still build (ephemeral
 `from_trie`).
 
-Next fire-path leftover: `setup:seen` HashSet insert
-(~6.89). Then `accum:index` (~5). Drop 3.44. Not a second
-hasher. Not persist. Not 297.
+Next: fanout `[40000]` census (grid 1.42 vs Clara). Not
+HashSet insert. Not persist. Not 297.
 
 Ruled 2026-08-17 (do not drop): **armed Session before
 ShadowNode.** That order held. The arm was armed; `(b)`
