@@ -32,14 +32,24 @@
 //!
 //! # Capability matrix (current runtime truth; `○ gap` = fillable but not yet)
 //!
-//! | container          | Indexable | Tail (rest) | Append (conj) | Mappable (map/filter/foldl/foldr) | Ordered (reverse/take/drop/concat) | Measurable | Searchable | Gettable |
-//! |--------------------|-----------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
-//! | Vector             | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | PersistentVector   | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | List               | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A                            | ∅ N/A                             | ✓          | ✓          | ∅ N/A   |
-//! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
-//! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap                             | ∅ N/A                             | ✓          | ✓          | ✓        |
+//! | container          | Indexable | Nth (general positional) | Tail (rest) | Append (conj) | Mappable (map/filter/foldl/foldr) | Ordered (reverse/take/drop/concat) | Measurable | Searchable | Gettable |
+//! |--------------------|-----------|---------------------------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
+//! | Vector             | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | PersistentVector   | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | List               | ✓         | ✓                         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | Tuple              | ✓         | ∅ N/A                     | ∅ N/A       | ∅ N/A         | ∅ N/A                            | ∅ N/A                             | ✓          | ✓          | ∅ N/A   |
+//! | WatAstList         | ✓         | ✓                         | ✓           | ○ gap         | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
+//! | HashSet            | ∅ N/A     | ∅ N/A                     | ∅ N/A       | ✓             | ○ gap                             | ∅ N/A                             | ✓          | ✓          | ✓        |
+//! | Stream             | ✓ (idx 0) | ✓                         | ✓           | ∅ N/A         | ○ gap                             | ○ gap                              | ∅ N/A      | ○ gap      | ∅ N/A   |
+//!
+//! **Nth vs Indexable** (stone 118.B4-0): `Indexable` backs `first`/`second`/`third` (Stream
+//! only at index 0 — `first` realizes one cell and rejects any other constant index at
+//! compile-time-selected call sites). `Nth` backs `:wat::core::nth`'s *runtime*-supplied index —
+//! deliberately a THIRD capability, not a reuse of `Indexable`, because `indexable()` is the one
+//! B4-iii is slated to flip to `false` for Stream; sharing it would silently close `nth` on lazy
+//! seqs three stones later. `Nth` is `false` for the same two receivers `Indexable` excludes
+//! (HashSet — unordered) plus one `Indexable` allows: Tuple (heterogeneous — a *runtime* index
+//! cannot be typed per-slot the way a compile-time-constant index can).
 
 use crate::types::TypeExpr;
 use crate::value::Value;
@@ -163,6 +173,36 @@ impl StreamContainer {
             StreamContainer::WatAstList => true,
             StreamContainer::HashSet => false,
             // Arc 118 — Stream: `first` (index=0) is valid; higher indices raise at runtime.
+            StreamContainer::Stream => true,
+        }
+    }
+
+    /// `:wat::core::nth` — general positional lookup by a RUNTIME-supplied index.
+    ///
+    /// Stone 118.B4-0. **Deliberately not `indexable()`**: `first`/`second`/`third` route
+    /// through `indexable()`, and B4-iii (a later stone) flips that bit to `false` for
+    /// Stream — sharing the gate would silently close `nth` on lazy seqs when that lands.
+    /// Also deliberately not `gettable()`: that one is already `false` for Stream, so `nth`
+    /// would never reach a lazy seq either way.
+    ///
+    /// `true` for every ordered, homogeneous container (Vector, PersistentVector, List,
+    /// WatAstList, Stream — same receivers `nth`'s wat oracle `nth-spec` and the family it
+    /// generalizes already type-check against). `false` for Tuple (heterogeneous — unlike a
+    /// compile-time-constant index, a *runtime* index cannot be typed per-slot) and HashSet
+    /// (unordered — no positional meaning). Stream walks `i+1` cells via `realize`, one force
+    /// per step — never drains.
+    pub(crate) fn nth_indexable(self) -> bool {
+        match self {
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
+            StreamContainer::WatAstList => true,
+            // Heterogeneous product: a runtime index has no single per-slot type.
+            StreamContainer::Tuple => false,
+            // Unordered: no positional meaning.
+            StreamContainer::HashSet => false,
+            // Arc 118 — Stream: general positional lookup, walked (not O(1)). NOT gated by
+            // indexable()/gettable() — see the doc comment above for why.
             StreamContainer::Stream => true,
         }
     }

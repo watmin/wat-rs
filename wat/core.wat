@@ -1390,7 +1390,7 @@
         (cmp (keyfn a) (keyfn b)))
       coll)))
 
-;; ── nth — the positional, TOTAL-LOOKING-CONTRACT accessor (the FUNCTION is partial) ───────────
+;; ── nth-spec — the wat ORACLE for the native `:wat::core::nth` (stone 118.B4-0) ────────────────
 ;;
 ;; ⚠ BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — this header used to call
 ;; `nth` "the positional, TOTAL accessor" in the same breath as "RAISING on out-of-range", which
@@ -1414,7 +1414,20 @@
 ;; reaches at O(n) is Stream, since Vector/PersistentVector/List all resolve to an earlier, O(1)
 ;; arm first. Stream has no O(1) nth (`seq_container.rs:65`); walking it here is the honest cost,
 ;; not a regression.
-(:wat::core::defclause :wat::core::nth
+;;
+;; ── B4-0 renames this to `nth-spec`; the public `:wat::core::nth` is now a Rust intrinsic ─────
+;;
+;; This clause is UNCHANGED in every way that matters — same arms, same contract, same walk.
+;; What moved is only its NAME and its role: `:wat::core::nth` (`src/runtime.rs`, `eval_nth`) is
+;; now the fast native kernel; this clause is demoted to `nth-spec`, the ORACLE that keeps it
+;; honest via a differential test (`wat-tests/core/core-nth-differential.wat`). Same shape as
+;; `:wat::rete::insert-all-spec` (`wat/rete.wat:1508`): "the native kernel is the fast impl, the
+;; spec keeps it honest." ⚠ `nth-spec` MUST NEVER delegate to `nth` — a spec that calls its
+;; subject proves nothing (`[[feedback_an_oracle_must_be_written_in_the_other_language]]`).
+;; The native `nth` is NOT promoted from calling this clause: `nth`'s existing callers
+;; (`wat/bracket.wat`, `wat/fix.wat`, `wat/service.wat`, …) keep saying `nth` and now silently
+;; reach the native — that is the point of the rename, not an accident.
+(:wat::core::defclause :wat::core::nth-spec
   ([v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
     (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
   ([v <- :wat::core::PersistentVector<T> i <- :wat::core::i64] -> :T
@@ -1422,13 +1435,13 @@
   ([v <- :wat::core::List<T> i <- :wat::core::i64] -> :T
     (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
   ([coll <- :wat::core::Seqable<T> i <- :wat::core::i64] -> :T
-    (:wat::core::nth-walk (:wat::core::Seqable/seq coll) i)))
+    (:wat::core::nth-spec-walk (:wat::core::Seqable/seq coll) i)))
 
-(:wat::core::defn :wat::core::nth-walk<T>
+(:wat::core::defn :wat::core::nth-spec-walk<T>
   [s <- :wat::stream::Stream<T> i <- :wat::core::i64] -> :T
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::if (:wat::core::<= i 0) value (:wat::core::nth-walk rest (:wat::core::- i 1))))
+      (:wat::core::if (:wat::core::<= i 0) value (:wat::core::nth-spec-walk rest (:wat::core::- i 1))))
     (:wat::stream::NextOutcome::Exhausted
       (:wat::kernel::assertion-failed! "nth: index out of range" :wat::core::None :wat::core::None))))
 

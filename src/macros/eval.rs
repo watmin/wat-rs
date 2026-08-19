@@ -513,6 +513,11 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::first"
         | ":wat::core::second"
         | ":wat::core::third"
+        // Stone 118.B4-0 — `nth` is now a Rust intrinsic (was a wat `defclause`, never a
+        // candidate for this list). Legitimate now, for the same reason as its siblings above:
+        // it reads no state, performs no effect, and its out-of-range raise is a deterministic
+        // located abort — not disqualifying (see `i64::/`, admitted above for div-by-zero).
+        | ":wat::core::nth"
         | ":wat::core::last"
         | ":wat::core::rest"
 

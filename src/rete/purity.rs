@@ -409,6 +409,14 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::first"
             | ":wat::core::second"
             | ":wat::core::third"
+            // Stone 118.B4-0 — `nth` promoted from a wat `defclause` (which carried no purity
+            // ruling of its own; `intrinsic_meta` only judges DISPATCHED verbs) to a Rust
+            // intrinsic, which does. Same ruling as its siblings immediately above: it reads an
+            // already-evaluated collection + an already-evaluated i64 index, performs no IO, no
+            // entropy, no mutation — pure ∧ deterministic. NOT added to the `total` list below:
+            // like `first`/`second`/`third`, it raises on out-of-range (verified `eval_nth`,
+            // runtime.rs) — a genuinely partial function, exactly the reason this axis exists.
+            | ":wat::core::nth"
             | ":wat::core::record?"
             | ":wat::core::str"
             // PersistentVector ops

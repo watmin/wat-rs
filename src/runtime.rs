@@ -5652,6 +5652,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::third" => {
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::third", 2)
         }
+        // Stone 118.B4-0 — `nth` promoted from a wat `defclause` to a Rust intrinsic so a
+        // `defmacro` program body (which evaluates only through this dispatcher) can call it.
+        // The runtime-index generalization of first/second/third, above. `:wat::core::nth-spec`
+        // (`wat/core.wat`) is the wat ORACLE kept honest by a differential test.
+        ":wat::core::nth" => eval_nth(args, list_span, env, sym),
         // Vec last + find-last-index. Arc 047.
         ":wat::core::last" => {
             crate::collection::transform::eval_vec_last(args, list_span, env, sym)
@@ -15597,6 +15602,188 @@ fn eval_positional_accessor(
             )
             .into()),
         },
+    }
+}
+
+/// `(:wat::core::nth coll i)` — stone 118.B4-0: the general positional accessor, the
+/// RUNTIME-index generalization of `first`/`second`/`third` above (same shape, `index` taken
+/// from `args[1]` instead of a Rust constant). Promoted from a wat `defclause` to a Rust
+/// intrinsic specifically so a `defmacro` program body — which evaluates only through
+/// `dispatch_keyword_head`, this function's caller — can call it (B4-ii's codemod tripped on
+/// exactly that). `:wat::core::nth-spec` (`wat/core.wat`) is the retained wat ORACLE; a
+/// differential test (`wat-tests/core/core-nth-differential.wat`) proves they agree.
+///
+/// CONTRACT (unchanged from the retired clause): raise, uniformly, `"nth: index out of range"`
+/// on out-of-range — never an `Option`, never a container-specific message. Gated by
+/// `nth_indexable()` (`seq_container.rs`), NOT `indexable()` — see that method's doc for why.
+///
+/// Stream has no O(1) nth (`nth_indexable()`'s doc). It walks: `realize` one cell, and if that
+/// is not the target index, recurse on the tail — exactly `i+1` forces for index `i`, one per
+/// step. Realizing the whole stream first and then indexing would reintroduce the O(n)
+/// retention stone B3 deleted; the walk is the honest cost, not a regression.
+fn eval_nth(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::nth";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let idx_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let index_i64 = match idx_val {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "i64",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into());
+        }
+    };
+
+    // Uniform out-of-range raise — the ONE CONTRACT DECISION (DESIGN-STONE-118.B4-0): the
+    // native and `nth-spec` must produce the exact same message on every receiver, never a
+    // per-container variant (contrast `eval_positional_accessor`'s arms above, which DO vary
+    // their message per container — that shape is deliberately NOT reused here).
+    //
+    // ⚠ MUST panic (`panic_any` + `AssertionPayload`), NOT return a `RuntimeError`: the wat
+    // oracle `nth-spec` raises via `Option/expect`/`assertion-failed!`, both of which panic. A
+    // `RuntimeError` return surfaces at a process boundary as a DIFFERENT `LociDiedError`
+    // variant (not `Panic`) — measured directly: it broke `wat-tests/core/core-nth.wat`'s
+    // pre-existing `nth-past-end-*-raises` rows (STOP-4, caught and fixed during this strike).
+    fn out_of_range(span: Span) -> EvalBreak {
+        let frames = snapshot_call_stack();
+        let payload = crate::assertion::AssertionPayload {
+            message: "nth: index out of range".into(),
+            actual: None,
+            expected: None,
+            location: Some(span),
+            frames,
+            upstream_chain: None,
+            thread_name: std::thread::current().name().map(String::from),
+            raised_error: None,
+        };
+        std::panic::panic_any(payload)
+    }
+
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&v) {
+        Some(container) if container.nth_indexable() => {
+            if index_i64 < 0 {
+                return Err(out_of_range(args[0].span().clone()));
+            }
+            let index = index_i64 as usize;
+            match container {
+                StreamContainer::Vector => {
+                    let Value::Vec(items) = v else {
+                        unreachable!("of_value⇒Vector")
+                    };
+                    items
+                        .get(index)
+                        .cloned()
+                        .ok_or_else(|| out_of_range(args[0].span().clone()))
+                }
+                StreamContainer::PersistentVector => {
+                    let Value::wat__core__PersistentVector(pv) = v else {
+                        unreachable!("of_value⇒PersistentVector")
+                    };
+                    pv.get(index)
+                        .cloned()
+                        .ok_or_else(|| out_of_range(args[0].span().clone()))
+                }
+                StreamContainer::List => {
+                    let Value::wat__core__List(items) = v else {
+                        unreachable!("of_value⇒List")
+                    };
+                    items
+                        .iter()
+                        .nth(index)
+                        .cloned()
+                        .ok_or_else(|| out_of_range(args[0].span().clone()))
+                }
+                StreamContainer::WatAstList => {
+                    let Value::wat__WatAST(ast) = v else {
+                        unreachable!("of_value⇒WatAstList")
+                    };
+                    match &*ast {
+                        WatAST::List(children, _) => children
+                            .get(index)
+                            .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
+                            .ok_or_else(|| out_of_range(args[0].span().clone())),
+                        _ => unreachable!(
+                            "StreamContainer::of_value guarantees WatAST::List for WatAstList"
+                        ),
+                    }
+                }
+                // Arc 118 — Stream: walk exactly `i+1` cells, one `realize` force per step.
+                StreamContainer::Stream => {
+                    let Value::wat__stream__Stream(seq) = &v else {
+                        unreachable!("of_value⇒Stream")
+                    };
+                    let mut cur = Arc::clone(seq);
+                    let mut remaining = index;
+                    loop {
+                        let whnf =
+                            crate::stream::realize(&cur, sym, &args[0].span().clone())?;
+                        match whnf.as_ref() {
+                            crate::stream::Stream::Empty => {
+                                return Err(out_of_range(args[0].span().clone()));
+                            }
+                            crate::stream::Stream::Cons { head, tail } => {
+                                if remaining == 0 {
+                                    return Ok(head.clone());
+                                }
+                                remaining -= 1;
+                                cur = Arc::clone(tail);
+                            }
+                            crate::stream::Stream::Thunk(_)
+                            | crate::stream::Stream::NativeThunk(_) => {
+                                unreachable!("realize returns WHNF")
+                            }
+                        }
+                    }
+                }
+                // nth_indexable() gate excludes Tuple/HashSet — named arms, genuinely dead,
+                // compiler-forced (exhaustiveness guarantee, seq_container.rs's own doc).
+                StreamContainer::Tuple | StreamContainer::HashSet => {
+                    unreachable!("nth_indexable() gate excludes Tuple and HashSet")
+                }
+            }
+        }
+        // ∅ N/A: Tuple (heterogeneous — runtime index can't be typed) / HashSet (unordered).
+        Some(_) => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector, PersistentVector, List, WatAST list, or Stream",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
+        None => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector, PersistentVector, List, WatAST list, or Stream",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
     }
 }
 

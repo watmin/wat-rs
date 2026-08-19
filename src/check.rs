@@ -4282,6 +4282,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Stone 118.B4-0 — `nth` promoted from a wat `defclause` to a Rust intrinsic
+            // (a `defmacro` program body evaluates only through this dispatch table). Mirrors
+            // first/second/third's shape above, generalized to a runtime-supplied index.
+            ":wat::core::nth" => {
+                let (val, mut errs) = infer_nth(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 237 Stone 237.7b-ii — `:wat::core::contains?` ∀T intrinsic with custom inference.
             // Tier B: element-typing enforced via infer_contains (mirrors first/second/third pattern).
             // Custom arm because plain ∀ scheme can't enforce arg1 matches collection's element type.
@@ -9234,6 +9245,113 @@ fn infer_positional_accessor(
                     callee: op.into(),
                     param: "#1".into(),
                     expected: "tuple, Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+        }
+    }
+    // HARVEST (236.2): silent-by-intent — arg inference failed; return polymorphic placeholder.
+    if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) }
+}
+
+/// Type-check `(:wat::core::nth coll i)`. Stone 118.B4-0: `nth` is the runtime-index
+/// generalization of `infer_positional_accessor` above — mirrors its shape (dispatch by
+/// `StreamContainer::of_type`, exhaustive, no wildcard) but takes the index from the SECOND
+/// argument (unified against `i64`, not baked in as a Rust constant) and gates on
+/// `nth_indexable()` rather than `indexable()`. Promoted from a wat `defclause` — which had a
+/// `TypeScheme` registered automatically at stdlib load — to a Rust intrinsic, which does not;
+/// this hand-written arm is what supplies it now. Adds one more entry to `infer_list`'s
+/// hand-written keyword block, moving arc 255's shrink-the-block count the wrong way — known,
+/// accepted, and it is why this function exists instead of a generic ∀T scheme.
+#[allow(clippy::too_many_arguments)]
+fn infer_nth(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::nth";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(),
+            expected: 2,
+            got: args.len()
+        } });
+        return CheckResult::partial_with(fresh.fresh(), local_errors);
+    }
+    let arg0_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Infer arg1 (the index) regardless of arg0's outcome, mirroring infer_get — always
+    // surface all errors rather than short-circuiting on the first.
+    let arg1_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg1 must be i64 — independent of the receiver's element type.
+    if let Some(idx_ty) = &arg1_ty {
+        let expected_idx_ty = TypeExpr::Path(":wat::core::i64".into());
+        if unify(idx_ty, &expected_idx_ty, subst, env.types()).is_err() {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "#2".into(),
+                expected: "i64".into(),
+                got: format_type(&apply_subst(idx_ty, subst))
+            } });
+        }
+    }
+
+    if let Some(ty) = arg0_ty {
+        let reduced = reduce(&ty, subst, env.types());
+        // Unresolved type variable (e.g. `(nth (PersistentVector/conj (PersistentVector) 7) 0)`
+        // — the empty constructor's element type isn't pinned until `conj` unifies it, and that
+        // unification may not have landed on THIS var by the time nth's arg0 is inspected) defers
+        // to the runtime backstop, uniformly with `infer_get`'s `TypeExpr::Var(_) => None` arm —
+        // silent-by-design, not an error. `nth`'s OLD `defclause` form resolved this case for
+        // free (multi-arm dispatch unifies against each arm's declared param, which can bind a
+        // free var); the hand-written arm this stone adds does not unify, only classifies an
+        // already-resolved type, so it must defer explicitly instead of hard-erroring. Measured:
+        // `tests/collection/probe_nth_persistent_vector.rs` regressed on this exact shape without it.
+        if matches!(&reduced, TypeExpr::Var(_)) {
+            return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
+        }
+        // Classify via the registry — same waist infer_positional_accessor uses, gated on the
+        // THIRD capability (nth_indexable, not indexable) minted for this stone.
+        match crate::collection::seq_container::StreamContainer::of_type(&reduced) {
+            Some(container) if container.nth_indexable() => {
+                let result_ty = match &reduced {
+                    // WatAstList: fixed homogeneous element type :wat::WatAST.
+                    TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                        TypeExpr::Path(":wat::WatAST".into())
+                    }
+                    // Homogeneous parametric containers: Vector<T>, List<T>, PersistentVector<T>,
+                    // and (arc 118) Stream<T> — bare T, never Option<T> (nth raises, doesn't None).
+                    TypeExpr::Parametric { args: targs, .. } => {
+                        targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| {
+                            // HARVEST (236.2): silent-by-intent — no inner type; polymorphic.
+                            fresh.fresh()
+                        })
+                    }
+                    // Bare path forms (:wat::core::Vector etc.): no type param available.
+                    _ => fresh.fresh(),
+                };
+                return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+            }
+            // ∅ N/A: Tuple (heterogeneous — a runtime index can't be typed per-slot) or
+            // HashSet (unordered — no positional meaning).
+            Some(_) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, WatAST, or Stream<T>".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+            // Not a sequence container at all.
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, WatAST, or Stream<T>".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
