@@ -4525,7 +4525,7 @@ fn infer_list(
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::rest".into(),
                                 param: "#1".into(),
-                                expected: "a lazy Stream<T> has no rest — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                                expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no rest; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
                                 got: format_type(&apply_subst(ty, subst))
                             } });
                             let t = fresh.fresh();
@@ -4598,7 +4598,7 @@ fn infer_list(
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::core::empty?".into(),
                             param: "#1".into(),
-                            expected: "a lazy Stream<T> has no empty? — advance it with :wat::stream::next, whose NextOutcome<T> = Item(value, rest) | Exhausted answers exactly what empty? was asked".into(),
+                            expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers exactly what empty? was asked".into(),
                             got: format_type(&apply_subst(ty, subst))
                         } });
                     }
@@ -9290,7 +9290,7 @@ fn infer_positional_accessor(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "a lazy Stream<T> has no first/second/third — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                    expected: "Tuple, Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no first/second/third; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9408,7 +9408,7 @@ fn infer_nth(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "a lazy Stream<T> has no O(1) nth — use (drop s i) then :wat::stream::next".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no O(1) nth; use (drop s i) then :wat::stream::next".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }

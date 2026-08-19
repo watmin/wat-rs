@@ -1807,7 +1807,7 @@ pub(crate) fn eval_rest(
         // Exhausted` is the only door a Stream yields through.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::rest".into(),
-            expected: "a lazy Stream<T> has no rest — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
+            expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no rest; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
             got: Box::new(ValueSnapshot::of(&v))
         }).into()),
         Some(_) => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {

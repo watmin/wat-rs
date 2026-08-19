@@ -15563,7 +15563,7 @@ fn eval_positional_accessor(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "a lazy Stream<T> has no first/second/third — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
+                expected: "Tuple, Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no first/second/third; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
                 got: Box::new(ValueSnapshot::of(&v)),
             },
         )
@@ -15751,7 +15751,7 @@ fn eval_nth(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "a lazy Stream<T> has no O(1) nth — use (drop s i) then :wat::stream::next",
+                expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no O(1) nth; use (drop s i) then :wat::stream::next",
                 got: Box::new(ValueSnapshot::of(&v)),
             },
         )
@@ -17540,7 +17540,7 @@ fn eval_empty(
         // `NextOutcome<T>::Exhausted` already answers exactly what `empty?` was asked.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "a lazy Stream<T> has no empty? — advance it with :wat::stream::next (NextOutcome<T>::Exhausted answers what empty? was asked)",
+            expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers what empty? was asked",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
         Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
