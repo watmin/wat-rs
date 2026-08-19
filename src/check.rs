@@ -20148,6 +20148,34 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Stone 118.B5 — `stream->vec` / `stream->pvec` promoted from wat `defn` (which carried a
+    // TypeScheme auto-registered at stdlib load, same as any other wat-defined function) to
+    // Rust intrinsics, which do not — this registration is what supplies it now (the same gap
+    // `nth`, B4-0, hit first; see `infer_nth`'s own doc). UNLIKE `nth`, each of these has
+    // exactly ONE receiver shape — no container union to dispatch over (`nth` needed a
+    // hand-written `infer_nth` arm precisely because it does) — so a plain generic scheme is
+    // the whole story here, the same shape `:wat::stream::cons`/`next` above use.
+    //   stream->vec  :: ∀T. Vector<T> × Stream<T> -> Vector<T>
+    //   stream->pvec :: ∀T. PersistentVector<T> × Stream<T> -> PersistentVector<T>
+    env.register(
+        ":wat::core::stream->vec".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), seq_t()],
+            ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::stream->pvec".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), seq_t()],
+            ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 144 slice 3 — fingerprints for bare dispatch forms: contains? / get / conj.
     // These are Rust ∀T intrinsics (infer_contains / infer_get / infer_conj) whose
     // custom inference arms run BEFORE the env.get fallback — the TypeScheme below is

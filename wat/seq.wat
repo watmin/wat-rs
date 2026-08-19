@@ -106,9 +106,11 @@
 
 ;; ─── the eager materializers ─────────────────────────────────────────────────────────────────
 
-;; stream->vec — internal helper: drains a Stream into a Vector, seeded by `acc` (so `into` can
-;; append onto an existing Vector, not just build from empty). Tail-recursive (TCO trampoline
-;; keeps this O(1) Rust-stack regardless of stream length).
+;; stream->vec-spec — the wat reference engine (the SPEC / differential oracle) for
+;; `:wat::core::stream->vec` (stone 118.B5: promoted to a native Rust intrinsic — see
+;; `src/collection/transform.rs::eval_stream_to_vec`). Drains a Stream into a Vector, seeded by
+;; `acc` (so `into` can append onto an existing Vector, not just build from empty).
+;; Tail-recursive (TCO trampoline keeps this O(1) Rust-stack regardless of stream length).
 ;; ★ Arc 278 — THIS WAS QUADRATIC, and it is the language's standard materializer.
 ;; The old body recursed `(conj acc (first s))`, one `conj` per element — and Vector's conj
 ;; (`vector_conj_inner`, src/collection/eval.rs) does `(**xs).clone()`, a FULL copy of the
@@ -118,11 +120,15 @@
 ;; 113 ms (LINEAR) · one native build 0.8 ms. 8x n gave 114x time; rpds gave 7.8x.
 ;; So: drain into a PersistentVector (structural sharing, linear), then materialize ONCE via the
 ;; native `Vector/extend`. Same result, same order, no per-element copy.
-(:wat::core::defn :wat::core::stream->vec<T>
+;; ⚠ `stream->vec-spec` MUST NEVER delegate to `stream->vec` (its native subject) — a spec that
+;; calls its subject proves nothing. So it drains through its OWN sibling oracle,
+;; `stream->pvec-spec`, below — NOT the (now-native) `stream->pvec`.
+;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
+(:wat::core::defn :wat::core::stream->vec-spec<T>
   [acc <- :wat::core::Vector<T> s <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
   (:wat::core::Vector/extend
     acc
-    (:wat::core::stream->pvec (:wat::core::PersistentVector) s)))
+    (:wat::core::stream->pvec-spec (:wat::core::PersistentVector) s)))
 
 ;; mapv / filterv — the eager forms: force `map`/`filter`'s lazy Stream result to a Vector in
 ;; one step via `(into [] ...)` (clojure's own materializer idiom — no new name). Two clauses —
@@ -142,19 +148,28 @@
   ([pred <- :wat::core::Fn(T)->wat::core::bool coll <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
     (:wat::core::into [] (:wat::core::filter pred coll))))
 
-;; stream->pvec — the PersistentVector twin of `stream->vec` (118.2b cascade: rete.wat's
-;; PersistentVector<Rule>/PersistentVector<DerivationStep> fields need a Stream materialized
-;; into a PersistentVector, not a Vector).
+;; stream->pvec-spec — the wat reference engine (the SPEC / differential oracle) for
+;; `:wat::core::stream->pvec` (stone 118.B5: promoted to a native Rust intrinsic — see
+;; `src/collection/transform.rs::eval_stream_to_pvec`). The PersistentVector twin of
+;; `stream->vec-spec` (118.2b cascade: rete.wat's PersistentVector<Rule>/
+;; PersistentVector<DerivationStep> fields need a Stream materialized into a PersistentVector,
+;; not a Vector).
 ;; 118.B2 — migrated from the three-call (`empty?`/`first`/`rest`) walk onto the single-force
 ;; `:wat::stream::next` pull primitive. ★ THE DRAIN — the recursive call MUST stay in the
 ;; `match`'s `Item` arm tail position (proven: `probe-118B-match-tco-drain.wat`, with a
 ;; non-tail-position sibling control that SIGSEGVs at the same depth). Nesting it inside a
 ;; `cons`/argument here would silently make the language's one materializer O(n)-stack.
-(:wat::core::defn :wat::core::stream->pvec<T>
+;; ⚠ THE ORACLE STAYS WAT — `[[feedback_an_oracle_must_be_written_in_the_other_language]]`.
+;; This is `stream->vec-spec`'s own drain (see its ⚠ note above): if this body ever called the
+;; native `stream->pvec` instead of recursing on itself, the differential against that same
+;; native would become a tautology. `wat/rete.wat:1508`'s `insert-all-spec` is the recorded
+;; shape — a composed oracle calls its OWN sibling `-spec`, never the subject it is honesty-
+;; checking.
+(:wat::core::defn :wat::core::stream->pvec-spec<T>
   [acc <- :wat::core::PersistentVector<T> s <- :wat::stream::Stream<T>] -> :wat::core::PersistentVector<T>
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::stream->pvec (:wat::core::PersistentVector/conj acc value) rest))
+      (:wat::core::stream->pvec-spec (:wat::core::PersistentVector/conj acc value) rest))
     (:wat::stream::NextOutcome::Exhausted acc)))
 
 ;; into — clojure's `(into to from)`: append every element of `from` onto `to`. `to` determines

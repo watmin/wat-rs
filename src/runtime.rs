@@ -5657,6 +5657,20 @@ fn dispatch_keyword_head_value(
         // The runtime-index generalization of first/second/third, above. `:wat::core::nth-spec`
         // (`wat/core.wat`) is the wat ORACLE kept honest by a differential test.
         ":wat::core::nth" => eval_nth(args, list_span, env, sym),
+        // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` to Rust
+        // intrinsics: the native kernel underneath `into`'s two Stream clause arms
+        // (`wat/seq.wat:166`; the clause bodies are UNCHANGED — they already named these two
+        // verbs, which simply stop being interpreted). `:wat::core::stream->vec-spec` /
+        // `-pvec-spec` (`wat/seq.wat`) are the retained wat ORACLES, kept honest by a
+        // differential (`wat-tests/core/core-stream-materializers-differential.wat`). Same
+        // shape as `nth` immediately above and `foldl` (B6): the fast native kernel, the wat
+        // spec keeps it honest.
+        ":wat::core::stream->vec" => {
+            crate::collection::transform::eval_stream_to_vec(args, list_span, env, sym)
+        }
+        ":wat::core::stream->pvec" => {
+            crate::collection::transform::eval_stream_to_pvec(args, list_span, env, sym)
+        }
         // Vec last + find-last-index. Arc 047.
         ":wat::core::last" => {
             crate::collection::transform::eval_vec_last(args, list_span, env, sym)

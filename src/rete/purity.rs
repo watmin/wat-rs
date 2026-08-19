@@ -417,6 +417,21 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // like `first`/`second`/`third`, it raises on out-of-range (verified `eval_nth`,
             // runtime.rs) — a genuinely partial function, exactly the reason this axis exists.
             | ":wat::core::nth"
+            // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` (also
+            // unruled here; same reason `nth`'s comment gives — `intrinsic_meta` only judges
+            // DISPATCHED verbs, and a wat `defn` is not one) to Rust intrinsics, which are.
+            // Discovered by going red on `rete::purity::completeness_gate::
+            // every_dispatched_verb_is_classified_or_disposed` — a SEPARATE gate from
+            // `is_pure_total` (`macros/eval.rs`), no link between them. Same ruling as `nth`
+            // immediately above: each reads an already-evaluated receiver + an
+            // already-evaluated Stream and realizes it one cell at a time
+            // (`eval_stream_to_vec`/`eval_stream_to_pvec`, `collection/transform.rs`) — no IO,
+            // no entropy, no mutation of anything the caller can observe — pure ∧
+            // deterministic. NOT added to the `total` list below: the walk forces the
+            // producer, and the producer can raise (a `lazy-seq` body is arbitrary user code) —
+            // genuinely partial, same axis this exists to catch.
+            | ":wat::core::stream->vec"
+            | ":wat::core::stream->pvec"
             | ":wat::core::record?"
             | ":wat::core::str"
             // PersistentVector ops

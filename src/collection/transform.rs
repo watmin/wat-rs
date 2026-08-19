@@ -689,6 +689,154 @@ pub(crate) fn eval_vec_foldr(
     }
 }
 
+/// `(:wat::core::stream->vec acc s)` — Stone 118.B5: the native kernel underneath `into`'s
+/// `Vector<T> <- Stream<T>` clause arm (`wat/seq.wat:166`; the clause itself is UNCHANGED — it
+/// already named `stream->vec`, and that name simply stopped being interpreted). Promoted from
+/// a wat `defn` to a Rust intrinsic, exactly the `nth` (B4-0) / `foldl` (B6) shape:
+/// `:wat::core::stream->vec-spec` (`wat/seq.wat`) is the retained wat ORACLE, kept honest by a
+/// differential (`wat-tests/core/core-stream-materializers-differential.wat`).
+///
+/// Realizes the Stream one cell at a time via `crate::stream::realize` — the SAME iterative
+/// loop `eval_vec_foldl`'s Stream arm uses (`Stream::Cons { head, tail }` → push `head`,
+/// `cur = Arc::clone(tail)`, drop the old `cur`) — so fold depth is bounded by iteration, not
+/// recursion, AND no earlier cell is retained past its own step. ⚠ THE TRAP this stone names:
+/// a native that first collects into an INTERMEDIATE container (or that keeps `cur`'s previous
+/// value alive) reintroduces the O(n) retention B3 deleted
+/// (`wat-scripts/scratch-pad/probe-118B-dorun-retention-slope.wat`) — one pass, one
+/// accumulator, nothing else held.
+///
+/// Seeded by `acc` (so `into` can append onto an existing Vector, not just build from empty) —
+/// `Arc::try_unwrap` reclaims `acc`'s backing `Vec` in place when this call holds the only
+/// reference (the common case: `into`'s `[]`/fresh-Vector callers), falling back to one clone
+/// only when the accumulator is shared.
+pub(crate) fn eval_stream_to_vec(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::stream->vec";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let acc = eval_inner(&args[0], env, sym)?.value_owned();
+    let Value::Vec(acc) = acc else {
+        return Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::Vector",
+                got: Box::new(ValueSnapshot::of(&acc)),
+            },
+        )
+        .into());
+    };
+    let s = eval_inner(&args[1], env, sym)?.value_owned();
+    let Some(mut cur) = crate::stream::value_as_stream(&s) else {
+        return Err(RuntimeError::new(
+            args[1].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::stream::Stream",
+                got: Box::new(ValueSnapshot::of(&s)),
+            },
+        )
+        .into());
+    };
+    let mut out: Vec<Value> = match Arc::try_unwrap(acc) {
+        Ok(v) => v,
+        Err(shared) => (*shared).clone(),
+    };
+    loop {
+        let realized = crate::stream::realize(&cur, sym, call_span)?;
+        match realized.as_ref() {
+            crate::stream::Stream::Empty => return Ok(Value::Vec(Arc::new(out))),
+            crate::stream::Stream::Cons { head, tail } => {
+                out.push(head.clone());
+                cur = Arc::clone(tail);
+            }
+            crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+                unreachable!("crate::stream::realize always returns Empty|Cons")
+            }
+        }
+    }
+}
+
+/// `(:wat::core::stream->pvec acc s)` — Stone 118.B5: the native kernel underneath `into`'s
+/// `PersistentVector<T> <- Stream<T>` clause arm (`wat/seq.wat:166`; the clause itself is
+/// UNCHANGED). `:wat::core::stream->pvec-spec` (`wat/seq.wat`) is the retained wat ORACLE — see
+/// `eval_stream_to_vec`'s doc, immediately above, for the shared shape/trap/differential note;
+/// this is its PersistentVector twin. `rpds::VectorSync::push_back_mut` mutates the receiver's
+/// OWN backing structure in place (structural sharing, no per-element full-vector clone — the
+/// same primitive `PersistentVector/conj`'s native arm uses, `collection/eval.rs`), so this is
+/// one pass, one accumulator, exactly like its Vector sibling.
+pub(crate) fn eval_stream_to_pvec(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::stream->pvec";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let acc = eval_inner(&args[0], env, sym)?.value_owned();
+    let Value::wat__core__PersistentVector(mut pv) = acc else {
+        return Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::PersistentVector",
+                got: Box::new(ValueSnapshot::of(&acc)),
+            },
+        )
+        .into());
+    };
+    let s = eval_inner(&args[1], env, sym)?.value_owned();
+    let Some(mut cur) = crate::stream::value_as_stream(&s) else {
+        return Err(RuntimeError::new(
+            args[1].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::stream::Stream",
+                got: Box::new(ValueSnapshot::of(&s)),
+            },
+        )
+        .into());
+    };
+    loop {
+        let realized = crate::stream::realize(&cur, sym, call_span)?;
+        match realized.as_ref() {
+            crate::stream::Stream::Empty => {
+                return Ok(Value::wat__core__PersistentVector(pv))
+            }
+            crate::stream::Stream::Cons { head, tail } => {
+                pv.push_back_mut(head.clone());
+                cur = Arc::clone(tail);
+            }
+            crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+                unreachable!("crate::stream::realize always returns Empty|Cons")
+            }
+        }
+    }
+}
+
 // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — `:wat::core::filter` is NATIVE
 // again (`eval_filter`, above `eval_seqable_to_stream` in this file), superseding the
 // Arc-118.2a wat `defclause` (five per-container arms, `wat/seq.wat`) that walked its source
