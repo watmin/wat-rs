@@ -52,7 +52,7 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
         .iter()
         .filter_map(|e| match e {
             Value::Aggregate(a)
-                if a.nature != Nature::Struct && a.class == "wat::intrinsic::Example" =>
+                if a.nature != Nature::Struct && a.class.as_ref() == "wat::intrinsic::Example" =>
             {
                 Some(&a.fields)
             }

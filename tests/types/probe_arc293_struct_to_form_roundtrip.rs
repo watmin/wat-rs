@@ -25,7 +25,7 @@ fn struct_to_form_eval_ast_roundtrip() {
     match inner.as_ref() {
         Ok(Value::Aggregate(agg)) => {
             assert_eq!(
-                agg.class, "probe::Pair",
+                agg.class.as_ref(), "probe::Pair",
                 "reconstructed struct class mismatch: expected 'probe::Pair', got {:?}",
                 agg.class
             );

@@ -112,7 +112,7 @@ fn probe_1_variant_construction_compiles() {
     // the holonic variant is Value::wat__holon__Record.
     match &r {
         Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
-            assert_eq!(a.class.as_str(), "myapp::Voltage");
+            assert_eq!(a.class.as_ref(), "myapp::Voltage");
             assert_eq!(a.fields.len(), 1);
             assert!(!format!("{:?}", a.holon).is_empty());
         }

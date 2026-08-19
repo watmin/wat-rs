@@ -671,7 +671,7 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
         }
     };
     let fv = match failure {
-        Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Failure" => a,
+        Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::kernel::Failure" => a,
         _ => {
             return Some(make_simple_edn(
                 "MalformedTestResult",
@@ -896,10 +896,10 @@ fn failure_location(v: &Value) -> Option<String> {
     // unwrap an `Option<Location>` if handed one (defensive / legacy callers).
     let loc = match v {
         Value::Option(opt) => match opt.as_ref().as_ref()? {
-            Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Location" => a,
+            Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::kernel::Location" => a,
             _ => return None,
         },
-        Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Location" => a,
+        Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::kernel::Location" => a,
         _ => return None,
     };
     let file = match loc.fields.first()? {
@@ -938,7 +938,7 @@ fn failure_frames_vec(v: &Value) -> Option<Vec<String>> {
     let mut out = Vec::with_capacity(xs.len());
     for frame_v in xs.iter() {
         let f = match frame_v {
-            Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Frame" => a,
+            Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::kernel::Frame" => a,
             _ => continue,
         };
         // Arc 109 — Frame's fields are concrete (non-`Option`): bare

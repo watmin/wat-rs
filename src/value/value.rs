@@ -983,7 +983,8 @@ pub struct AggregateValue {
     /// Colon-free FQDN of the declared type (e.g. `"wat::kernel::Process"`).
     /// Was `StructValue.type_name` (stripped of leading `:`) /
     /// `wat__core__Record.class_fqdn` / `wat__holon__Record.class_fqdn`.
-    pub class: String,
+    /// `Arc<str>` so `CompiledRhs` can share the class (`DESIGN-STONE-class-arc`).
+    pub class: Arc<str>,
     /// Field names in declaration order. **Same length as `fields`, always.**
     /// Arc 296 G: carried, never looked up — see the sibling `Value::ForeignRecord`,
     /// which self-carries its keys and has never had the `field-N` bug.
@@ -998,6 +999,13 @@ pub struct AggregateValue {
     /// FxHash of `(nature, class, fields)` — Hash cache, not EDN.
     /// `DESIGN-STONE-aggregate-identity`. Private so construction must restamp.
     identity: u64,
+}
+
+impl AggregateValue {
+    /// Construction fingerprint. 0 means Hash still walks (`DESIGN-STONE-seen-identity-set`).
+    pub(crate) fn identity(&self) -> u64 {
+        self.identity
+    }
 }
 
 fn value_is_shallow(v: &Value) -> bool {
@@ -1034,7 +1042,7 @@ impl fmt::Debug for AggregateValue {
 impl AggregateValue {
     /// Single construction funnel. Stamps `identity` (`DESIGN-STONE-aggregate-identity`).
     pub(crate) fn from_parts(
-        class: String,
+        class: Arc<str>,
         names: Arc<Vec<String>>,
         fields: Arc<Vec<Value>>,
         nature: Nature,
@@ -1066,16 +1074,29 @@ impl AggregateValue {
     /// Construct a Struct-nature aggregate (no hologram).
     /// `class` must be WITHOUT the leading colon.
     pub fn struct_(class: String, names: Arc<Vec<String>>, fields: Vec<Value>) -> Self {
-        Self::from_parts(class, names, Arc::new(fields), Nature::Struct, HolonForm::Empty)
+        Self::from_parts(Arc::from(class), names, Arc::new(fields), Nature::Struct, HolonForm::Empty)
     }
     /// Construct a base-Record aggregate (no hologram).
     pub fn record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>) -> Self {
+        Self::from_parts(Arc::from(class), names, fields, Nature::Record, HolonForm::Empty)
+    }
+    /// Hot path: class already interned on `CompiledRhs` (`DESIGN-STONE-class-arc`).
+    pub(crate) fn record_arc(
+        class: Arc<str>,
+        names: Arc<Vec<String>>,
+        fields: Arc<Vec<Value>>,
+    ) -> Self {
         Self::from_parts(class, names, fields, Nature::Record, HolonForm::Empty)
     }
     /// Construct a HolonRecord aggregate (with hologram).
-    pub fn holon_record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>, hologram: Arc<HolonAST>) -> Self {
+    pub fn holon_record(
+        class: String,
+        names: Arc<Vec<String>>,
+        fields: Arc<Vec<Value>>,
+        hologram: Arc<HolonAST>,
+    ) -> Self {
         Self::from_parts(
-            class,
+            Arc::from(class),
             names,
             fields,
             Nature::HolonRecord,
@@ -1671,7 +1692,7 @@ impl Value {
             // Arc 293.R2.1 — Aggregate: class is already colon-free (all natures).
             // Struct nature: type_name was `:my::Point` → stripped → stored as `my::Point`.
             // Record/HolonRecord: class_fqdn was already colon-free.
-            Value::Aggregate(a) => a.class.clone(),
+            Value::Aggregate(a) => a.class.to_string(),
             // Enum: type_path is the declared enum FQDN verbatim (e.g.
             // `:my::Color`); strip the leading colon.  Do NOT use
             // self.type_name(), which returns the generic "wat::core::Enum".

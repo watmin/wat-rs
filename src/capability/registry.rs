@@ -150,7 +150,7 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
             ))
         }
     };
-    if agg.class.as_str() != SOCKET_ADDRESS_WIRE_CLASS {
+    if agg.class.as_ref() != SOCKET_ADDRESS_WIRE_CLASS {
         return Err(cap_decode_error(format!(
             "#wat.kernel/Address (wrong record class: {})",
             agg.class

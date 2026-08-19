@@ -582,7 +582,7 @@ pub(crate) fn exec_compiled_under(
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut Vec<Option<Value>>,
-    seed: &impl Bindings,
+    seed: &(impl Bindings + ?Sized),
 ) -> Option<Arc<[(Value, Value)]>> {
     crate::rete::kernel::census_count("rematch:compiled");
     scratch.clear();

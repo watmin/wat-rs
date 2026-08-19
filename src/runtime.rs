@@ -7399,7 +7399,7 @@ fn dispatch_keyword_head_value(
                             // Record/HolonRecord → keyword_accessor_record (field_names path).
                             // Struct → keyword_accessor_struct (TypeDef path).
                             Value::Aggregate(a) if a.nature != Nature::Struct => {
-                                let class_arc = Arc::new(a.class.clone());
+                                let class_arc = Arc::new(a.class.to_string());
                                 return keyword_accessor_record(
                                     bare_name,
                                     class_arc,
@@ -8698,7 +8698,7 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
                     // lets a clause keyed on `:user::Tag` match a `Tag`. This only ADDS the
                     // supertype, so it can never make a call that dispatches today stop
                     // dispatching; and the checker still gates which calls are legal at all.
-                    bare_p == a.class.as_str()
+                    bare_p == a.class.as_ref()
                         || (bare_p == "wat::core::Record" && a.nature != Nature::Struct)
                 }
                 _ => {
@@ -9062,7 +9062,7 @@ fn bind_let_binding(
                     for (var_name, bare_field, var_span) in &bindings {
                         let field_val = keyword_accessor_record(
                             bare_field,
-                            Arc::new(a.class.clone()),
+                            Arc::new(a.class.to_string()),
                             a.fields.clone(),
                             sym,
                             rhs.span(),
@@ -14708,7 +14708,7 @@ fn eval_form_matches(
     // Arc 293.R2.1 — Aggregate with nature==Struct; class is colon-free, type_name has ':'.
     let bare_type = type_name.strip_prefix(':').unwrap_or(type_name);
     let struct_value = match &subject {
-        Value::Aggregate(a) if a.nature == Nature::Struct && a.class == bare_type => a.clone(),
+        Value::Aggregate(a) if a.nature == Nature::Struct && a.class.as_ref() == bare_type => a.clone(),
         _ => return Ok(Value::bool(false)),
     };
 
@@ -16571,7 +16571,7 @@ fn try_match_pattern(
                         for (var_name, bare_field) in &pairs {
                             let field_val = keyword_accessor_record(
                                 bare_field,
-                                Arc::new(a.class.clone()),
+                                Arc::new(a.class.to_string()),
                                 a.fields.clone(),
                                 sym,
                                 span,
@@ -17523,7 +17523,7 @@ fn conforms_check(
                         // Arc 293.R2.1 — Aggregate: class is colon-free.
                         match value {
                             Value::Aggregate(a) => {
-                                Ok(a.class.as_str() == stripped)
+                                Ok(a.class.as_ref() == stripped)
                             }
                             _ => Err(format!(
                                 "unknown type name '{}' is not registered in the TypeEnv and is not a built-in primitive; \
@@ -18766,7 +18766,7 @@ fn record_assoc_inner(
             return Err(RuntimeError::new(
                 list_span.clone(),
                 RuntimeErrorKind::UnknownField {
-                    record_class: agg.class.clone(),
+                    record_class: agg.class.to_string(),
                     field: key_name,
                     available,
                 },
@@ -18968,7 +18968,7 @@ fn eval_extract_classifier(
     // structural HolonASTs that aren't typed-entity Binds).
     match arg_val {
         // Arc 293.R2.1 — Aggregate carries class (colon-free); return as String.
-        Value::Aggregate(a) => Ok(Value::String(Arc::new(a.class.clone()))),
+        Value::Aggregate(a) => Ok(Value::String(Arc::new(a.class.to_string()))),
         Value::holon__HolonAST(h) => {
             let result = extract_classifier(&h).map(|s| Value::String(Arc::new(s)));
             Ok(Value::Option(Arc::new(result)))
@@ -25580,7 +25580,7 @@ fn eval_listener_prime(
     // Evaluate the host to dispatch between thread and process tiers.
     let host_val = eval_inner(&args[0], env, sym)?.value_owned();
     let is_process = matches!(&host_val,
-        Value::Aggregate(a) if a.class.as_str() == "wat::spawn::ProcessOpts");
+        Value::Aggregate(a) if a.class.as_ref() == "wat::spawn::ProcessOpts");
 
     if is_process {
         // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)`: mint a kernel-unique,
@@ -30894,7 +30894,7 @@ fn reply_failed_reason(v: &Value) -> Option<String> {
     // `message` String (arc 278 — Failure carries the error structurally; the Fault's
     // fields are [message, location, causes]).
     match e.fields.first() {
-        Some(Value::Aggregate(a)) if a.class == "wat::kernel::Failure" => match a.fields.first() {
+        Some(Value::Aggregate(a)) if a.class.as_ref() == "wat::kernel::Failure" => match a.fields.first() {
             // The `error` field: read its `message` (Fault field[0]).
             Some(Value::Aggregate(err)) => match err.fields.first() {
                 Some(Value::String(s)) => Some((**s).clone()),
@@ -33645,7 +33645,7 @@ mod tests {
             other => panic!("StartupError cause must be a typed record; got {other:?}"),
         };
         assert_eq!(
-            agg.class, "wat::runtime::UnknownFunction",
+            agg.class.as_ref(), "wat::runtime::UnknownFunction",
             "cause is the typed RuntimeError record"
         );
 
@@ -33663,7 +33663,7 @@ mod tests {
         // :location — a REAL located #wat.core/Span record, never nil.
         match field(1) {
             Value::Aggregate(loc) => {
-                assert_eq!(loc.class, "wat::core::Span", ":location is a typed Span")
+                assert_eq!(loc.class.as_ref(), "wat::core::Span", ":location is a typed Span")
             }
             other => panic!(":location must be a typed Span record (never nil); got {other:?}"),
         }
@@ -34583,7 +34583,7 @@ mod tests {
             Value::Result(r) => match &*r {
                 Err(err) => match err {
                     Value::Aggregate(sv)
-                        if sv.nature == Nature::Struct && sv.class == "wat::core::EvalError" =>
+                        if sv.nature == Nature::Struct && sv.class.as_ref() == "wat::core::EvalError" =>
                     {
                         let kind = match &sv.fields[0] {
                             Value::String(s) => (**s).clone(),
@@ -35230,7 +35230,7 @@ mod tests {
         match v {
             Value::Aggregate(sv)
                 if sv.nature == Nature::Struct
-                    && sv.class == "wat::holon::CoincidentExplanation" =>
+                    && sv.class.as_ref() == "wat::holon::CoincidentExplanation" =>
             {
                 assert_eq!(sv.fields.len(), 6);
                 sv.fields.as_slice()

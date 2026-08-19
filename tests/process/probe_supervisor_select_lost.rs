@@ -182,7 +182,7 @@ fn select_prime_yields_lost_when_process_child_crashes() {
                     match &ev.fields[1] {
                         Value::Aggregate(s) => {
                             assert_eq!(
-                                s.class, "wat::kernel::Failure",
+                                s.class.as_ref(), "wat::kernel::Failure",
                                 "cause must be Failure struct; got {:?}",
                                 s.class
                             );

@@ -860,7 +860,7 @@ fn lower_construct(
 
 // ── exec ─────────────────────────────────────────────────────────────────────
 
-pub(crate) fn exec_where<B: Bindings>(
+pub(crate) fn exec_where<B: Bindings + ?Sized>(
     program: &Program,
     bindings: &B,
     sym: &SymbolTable,
@@ -882,7 +882,7 @@ pub(crate) fn exec_where<B: Bindings>(
 
 /// Prologue (token bindings → slots) + eval. `where` requires bool;
 /// `compiled_rhs` takes the `Value` as a fact field.
-pub(crate) fn exec_value<B: Bindings>(
+pub(crate) fn exec_value<B: Bindings + ?Sized>(
     program: &Program,
     bindings: &B,
     sym: &SymbolTable,
@@ -923,7 +923,7 @@ fn exec(
                     RuntimeError::new(
                         span.clone(),
                         RuntimeErrorKind::UnknownField {
-                            record_class: a.class.clone(),
+                            record_class: a.class.to_string(),
                             field: format!("{idx}"),
                             available: (*a.names).clone(),
                         },

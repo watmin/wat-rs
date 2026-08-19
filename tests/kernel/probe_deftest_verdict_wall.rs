@@ -29,7 +29,7 @@ use wat::runtime::Value;
 /// STRUCTURALLY — field by field — never by string-matching a rendered blob.
 fn aggregate_fields<'a>(v: &'a Value, class: &str) -> &'a [Value] {
     match v {
-        Value::Aggregate(a) if a.class == class => &a.fields,
+        Value::Aggregate(a) if a.class.as_ref() == class => &a.fields,
         other => panic!("expected a {class} aggregate; got {other:?}"),
     }
 }

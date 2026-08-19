@@ -57,7 +57,7 @@ fn run_result_failure_message(fn_name: &str) -> Option<String> {
         other => panic!("RunResult::Failed must carry a Failure record; got {other:?}"),
     };
     assert_eq!(
-        f.class, "wat::kernel::Failure",
+        f.class.as_ref(), "wat::kernel::Failure",
         "RunResult::Failed must carry a :wat::kernel::Failure; got class {:?}",
         f.class
     );

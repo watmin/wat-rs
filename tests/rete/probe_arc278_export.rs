@@ -91,7 +91,7 @@ fn import_refuses_abi_mismatch() {
             let mut fields = a.fields.as_ref().clone();
             fields[1] = Value::String(Arc::new("v1:deadbeefdeadbeef".into()));
             Value::Aggregate(Arc::new(AggregateValue::record(
-                a.class.clone(),
+                a.class.to_string(),
                 a.names.clone(),
                 Arc::new(fields),
             )))

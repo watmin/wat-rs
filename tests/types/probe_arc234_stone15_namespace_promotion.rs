@@ -65,7 +65,7 @@ fn probe_1_variant_compiles_and_constructs() {
     );
     match &r {
         Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
-            assert_eq!(a.class.as_str(), "myapp::Voltage");
+            assert_eq!(a.class.as_ref(), "myapp::Voltage");
             assert_eq!(a.fields.len(), 1);
         }
         _ => panic!("Probe 1: expected Value::Aggregate(HolonRecord) variant"),
@@ -133,7 +133,7 @@ fn probe_5_class_fqdn_extraction_post_rename() {
     match &r {
         Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
             assert_eq!(
-                a.class.as_str(),
+                a.class.as_ref(),
                 "myapp::Voltage",
                 "Probe 5: class extraction returns user-named class, NOT umbrella"
             );

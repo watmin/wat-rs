@@ -17,7 +17,7 @@ fn probe_1_single_field_construction() {
         Ok(v) => match v {
             Value::Aggregate(a) if a.nature != Nature::Struct => {
                 assert_eq!(
-                    a.class.as_str(),
+                    a.class.as_ref(),
                     "myapp::Voltage",
                     "Probe 1: class should be 'myapp::Voltage'"
                 );

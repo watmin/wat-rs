@@ -62,7 +62,7 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
     match v {
         // Arc 293.R2.1 — Aggregate covers Record, HolonRecord, and Struct.
         Value::Aggregate(a) => Some(Fact {
-            class_fqdn: a.class.as_str(),
+            class_fqdn: a.class.as_ref(),
             fields: a.fields.as_slice(),
         }),
         _ => None,
@@ -1690,7 +1690,7 @@ fn derivation_step_names() -> Arc<Vec<String>> {
 /// Measured (Step 0, 2026-08-01): **122.5 ns/eval — 22.7% of a `where` evaluation.** The other
 /// 77.3% is the `eval_inner` walk, which is why the stone is a full expression IR and not just
 /// this block.
-pub(crate) fn build_test_env<B: Bindings>(bindings: &B, env: &Environment) -> Environment {
+pub(crate) fn build_test_env<B: Bindings + ?Sized>(bindings: &B, env: &Environment) -> Environment {
     crate::rete::kernel::census_count("filter:test-env-builds");
     let mut b = env.child();
     for (k, v) in bindings.iter() {
@@ -1704,7 +1704,7 @@ pub(crate) fn build_test_env<B: Bindings>(bindings: &B, env: &Environment) -> En
     b.build()
 }
 
-pub(crate) fn eval_test_core<B: Bindings>(
+pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
     expr: &WatAST,
     bindings: &B,
     env: &Environment,

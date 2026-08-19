@@ -5,15 +5,14 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–13, fold, no-snapshot, delta-alpha
-indices, setup-seen-once, fxhash, bind-pool, aggregate
-identity. Queue: `NEXT-STRIKES-after-shadow.md`. Grid
-`GRID-native-vs-clara-2026-08-18T23-57-10Z.txt`: **30/30
-`:match`, 30 `:us`, 0 unresolved.** Accum `[200 200]`
-1.12 unresolved → **2.95 :us** (wat 60.0 ms / clara 176.5).
-Closest cell is now **fanout [40000]** ratio **1.42**
-(141 ms / 200 ms). HashSet insert is not the next strike.
-Do not start 297. Do not merge `origin/main`.
+**Right now:** items 1–13, fold through fact-as-index.
+Queue: `NEXT-STRIKES-after-shadow.md`. Fanout dry. Accum
+`[200 200]` FIRE **51.56**. 2ab: Element.fact is a `u32`;
+isolated A **0.00**; in-fire drop **1.14**. Element is Copy.
+Leftover drop is match_pool (M **1.08**). Next intern:
+match_pool does not own a fact clone. Do not retry 2e.
+Do not cache Value back onto Element. Do not persist
+gather. Do not start 297. Do not merge `origin/main`.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -512,8 +511,9 @@ shares the id. A second `fire-rules` does not re-`lower`
 / re-`classify`. Stratified slices still build (ephemeral
 `from_trie`).
 
-Next: fanout `[40000]` census (grid 1.42 vs Clara). Not
-HashSet insert. Not persist. Not 297.
+Prod no-token-clone **landed** (fanout FIRE 72.43 → 61.35).
+Leftover production 26.30 is RHS + `seen`. Not persist.
+Not 297.
 
 Ruled 2026-08-17 (do not drop): **armed Session before
 ShadowNode.** That order held. The arm was armed; `(b)`

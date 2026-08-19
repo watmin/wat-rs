@@ -114,7 +114,7 @@ impl WhereTree {
 
     /// Candidate TestNode ids. A superset of those whose `where` is true.
     /// Dim eval that raises → take every child (over-approx; do not drop).
-    pub(crate) fn candidates<B: Bindings>(
+    pub(crate) fn candidates<B: Bindings + ?Sized>(
         &self,
         bindings: &B,
         span: &Span,
@@ -171,7 +171,7 @@ fn build_node(
     })
 }
 
-fn walk<B: Bindings>(
+fn walk<B: Bindings + ?Sized>(
     node: &ShadowNode,
     bindings: &B,
     span: &Span,
@@ -277,7 +277,7 @@ fn to_dim(e: &Expr, slots: &HashMap<u16, String>) -> Option<DimKey> {
     }
 }
 
-fn exec_dim<B: Bindings>(d: &DimKey, bindings: &B, span: &Span) -> Result<Value, EvalBreak> {
+fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Result<Value, EvalBreak> {
     match d {
         DimKey::Lit(v) => Ok(v.clone()),
         DimKey::Bind(name) => {
@@ -338,7 +338,7 @@ fn exec_dim<B: Bindings>(d: &DimKey, bindings: &B, span: &Span) -> Result<Value,
                     RuntimeError::new(
                         span.clone(),
                         RuntimeErrorKind::UnknownField {
-                            record_class: a.class.clone(),
+                            record_class: a.class.to_string(),
                             field: format!("{idx}"),
                             available: (*a.names).clone(),
                         },

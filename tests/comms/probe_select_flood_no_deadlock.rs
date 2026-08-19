@@ -104,7 +104,7 @@ fn select_prime_flood_no_deadlock() {
                         match &ev.fields[1] {
                             Value::Aggregate(s) => {
                                 assert_eq!(
-                                    s.class, "wat::kernel::Failure",
+                                    s.class.as_ref(), "wat::kernel::Failure",
                                     "cause must be Failure struct; got {:?}",
                                     s.class
                                 );

@@ -24,7 +24,7 @@ fn probe_1_construction_returns_wat_record() {
         Ok(v) => match v {
             Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
                 assert_eq!(
-                    a.class.as_str(),
+                    a.class.as_ref(),
                     "myapp::Voltage",
                     "Probe 1: class should be 'myapp::Voltage'"
                 );
@@ -80,7 +80,7 @@ fn probe_4_multi_field_construction() {
     match run(":user::probe-4") {
         Ok(v) => match v {
             Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
-                assert_eq!(a.class.as_str(), "myapp::Point");
+                assert_eq!(a.class.as_ref(), "myapp::Point");
                 assert_eq!(a.fields.len(), 2);
                 match (&a.fields[0], &a.fields[1]) {
                     (Value::i64(x), Value::i64(y)) => {

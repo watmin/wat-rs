@@ -34,7 +34,7 @@ fn c2_pos_edn_read_reconstructs() {
     match result {
         Ok(Value::Aggregate(agg)) => {
             eprintln!("C2 PASS: edn::read returned Aggregate {:?}", agg.class);
-            assert_eq!(agg.class, "wat::core::Pos",
+            assert_eq!(agg.class.as_ref(), "wat::core::Pos",
                 "C2 FAIL: class mismatch, expected wat::core::Pos");
         }
         Ok(other) => {

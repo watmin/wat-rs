@@ -941,7 +941,7 @@ fn pack_rhs(r: &CompiledRhs) -> Value {
         CompiledRhs::Record { class, names, ops } => {
             let mut xs = vec![
                 kw(":rec"),
-                Value::String(Arc::new(class.clone())),
+                Value::String(Arc::new(class.to_string())),
                 pv(names.iter().map(|n| Value::String(Arc::new(n.clone())))),
             ];
             xs.extend(ops.iter().map(pack_rhs_op));
@@ -955,7 +955,7 @@ fn unpack_rhs(v: &Value) -> Result<CompiledRhs, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP)?;
     match expect_kw(items.first().unwrap(), IMPORT_OP)? {
         ":rec" => {
-            let class = expect_str(items.get(1).unwrap(), IMPORT_OP)?.to_string();
+            let class: Arc<str> = expect_str(items.get(1).unwrap(), IMPORT_OP)?.into();
             let names_pv = expect_seq(items.get(2).unwrap(), IMPORT_OP)?;
             let mut ns = Vec::new();
             for n in names_pv.iter() {
@@ -1277,7 +1277,7 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
 
 fn session_network_rules(session: &Value) -> Result<(&Value, &Value), EvalBreak> {
     match session {
-        Value::Aggregate(a) if a.nature != Nature::Struct && a.class == "wat::rete::Session" => {
+        Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Session" => {
             let sf = a.fields.as_slice();
             Ok((&sf[0], &sf[1]))
         }
@@ -1438,7 +1438,7 @@ pub(crate) fn eval_import(
 
 fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let agg = match export {
-        Value::Aggregate(a) if a.nature != Nature::Struct && a.class == "wat::rete::Export" => a,
+        Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Export" => a,
         other => {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
