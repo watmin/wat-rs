@@ -80,7 +80,6 @@
     (:wat::core::Tuple ":wat::core::filter" ":wat::rete::core::filter")
     (:wat::core::Tuple ":wat::core::fn" ":wat::rete::core::fn")
     (:wat::core::Tuple ":wat::core::foldl" ":wat::rete::core::foldl")
-    (:wat::core::Tuple ":wat::core::foldr" ":wat::rete::core::foldr")
     (:wat::core::Tuple ":wat::core::i64::<" ":wat::rete::core::i64::<")
     (:wat::core::Tuple ":wat::core::i64::<=" ":wat::rete::core::i64::<=")
     (:wat::core::Tuple ":wat::core::i64::=" ":wat::rete::core::i64::=")

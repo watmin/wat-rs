@@ -449,7 +449,6 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // fn-literal, whose body is classified by the `:wat::core::fn` arm). An impure fn-arg
             // therefore still fails — conditional purity, not blanket-allow.
             | ":wat::core::foldl"
-            | ":wat::core::foldr"
             | ":wat::core::map"
             | ":wat::core::filter"
             | ":wat::core::reduce"
@@ -680,7 +679,9 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // on the HEAD means exactly what `pure: true`/`deterministic: true` already mean for
             // these five — "the combinator itself adds no partiality" — and those two columns took
             // the conditional-TRUE reading from the start. One row, one convention.
-            | ":wat::core::foldr" | ":wat::core::map" | ":wat::core::filter" | ":wat::core::reduce"
+            // Arc 118.B6b: `foldr` retired — reverse+foldl wearing a Haskell name.
+            // Its replacement `(reduce f init (reverse coll))` is still covered via `reduce`.
+            | ":wat::core::map" | ":wat::core::filter" | ":wat::core::reduce"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
             // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)

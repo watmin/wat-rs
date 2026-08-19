@@ -368,7 +368,6 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         let hof = matches!(
             row.core_name,
             ":wat::core::foldl"
-                | ":wat::core::foldr"
                 | ":wat::core::map"
                 | ":wat::core::filter"
                 | ":wat::core::reduce"

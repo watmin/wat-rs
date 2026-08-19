@@ -889,8 +889,9 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // ── #57 round 1b, the five higher-order combinators (`Redispatch` — this table's first
-    // use of the class). `foldl` is polymorphic over the CONTAINER CONSTRUCTOR (Vector,
+    // ── #57 round 1b, originally five higher-order combinators (`Redispatch` — this
+    // table's first use of the class); arc 118.B6b retired `foldr` — reverse+foldl
+    // wearing a Haskell name. `foldl` is polymorphic over the CONTAINER CONSTRUCTOR (Vector,
     // PersistentVector, List, Stream), which no rank-1 `TypeScheme` can say — STOP-5: no
     // scheme is minted here, ever, for this reason. `params`/`ret` are unused for this class
     // exactly as they are for `Form` (mirrored, not consulted — `check.rs`'s registration
@@ -911,15 +912,6 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         type_params: &[],
         rete_name: ":wat::rete::core::foldl",
         core_name: ":wat::core::foldl",
-        class: OpClass::Redispatch,
-        params: &[],
-        ret: ParamType::Bool,
-        meta: OpMeta { pure: true, deterministic: true, total: true },
-    },
-    ReteOp {
-        type_params: &[],
-        rete_name: ":wat::rete::core::foldr",
-        core_name: ":wat::core::foldr",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
