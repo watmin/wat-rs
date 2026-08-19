@@ -125,6 +125,19 @@ element should be. The codemod closes it, which is a strict improvement and the 
 (task #64) — **but it is a behaviour change and the strike must treat it as one.** Any site whose
 surrounding code branches on that `nil` is a STOP, not a guess.
 
+> ## ⛔ CORRECTED 2026-08-18 by B4-iii's dry run — THE CENSUS RAN AND WAS STILL WRONG.
+>
+> B4-ii reported **44 across 13 files**, and its commit recorded that the form-tree census "earned"
+> the number because grep independently agreed. **It is 48 across 16.** Four sites live in `tests/` —
+> `probe_arc258_stone3_fix_source.wat`, `probe_arc251_decl_migrator.wat`,
+> `probe_arc209_c1_defmacro_ast_walk.wat` — and they are exactly the files behind 20 of the 38
+> failures B4-iii's dry run surfaced.
+>
+> The census was blind to a **directory**, not a shape. The path list was built with
+> `grep -rl … wat/ wat-scripts/` and fed to BOTH instruments; `tests/` holds ~900 `.wat` files and was
+> never in it. **Two instruments agreeing is not corroboration when they share an input.**
+> See `DESIGN-STONE-118.B4-iii-the-wall.md`.
+
 ★ **R21 applies: this is a wat-fix codemod, not hand-edits.** A grep — *not a census* — puts the
 idiom at **44 hits across 13 files**: `wat/service.wat` 10 · `wat/lint.wat` 6 · `wat/fix.wat` 5 ·
 `wat/bracket.wat` 4 · `wat/deporder.wat` 1 · 18 in `wat-scripts/`. **The strike owes a form-tree
