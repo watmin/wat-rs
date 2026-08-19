@@ -15544,33 +15544,30 @@ fn eval_positional_accessor(
                         _ => unreachable!("StreamContainer::of_value guarantees WatAST::List for WatAstList"),
                     }
                 }
-                // Arc 118 — Stream: realize to WHNF, return head (index 0) or nil for Empty.
-                // Only `first` (index=0) is supported; second/third (index>0) raise (no random access).
-                StreamContainer::Stream => {
-                    let Value::wat__stream__Stream(seq) = &v else {
-                        unreachable!("of_value⇒Stream")
-                    };
-                    if index != 0 {
-                        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-                            head: op.into(),
-                            reason: format!("{op}: lazy Stream supports only `first` (index 0); positional access at index {index} is not a Stream operation (walk via rest)")
-                        }).into());
-                    }
-                    let realized = crate::stream::realize(seq, sym, &args[0].span().clone())?;
-                    match realized.as_ref() {
-                        // first of empty → nil (Clojure semantic).
-                        crate::stream::Stream::Empty => Ok(Value::Unit),
-                        crate::stream::Stream::Cons { head, .. } => Ok(head.clone()),
-                        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
-                            unreachable!("realize returns WHNF")
-                        }
-                    }
-                }
+                // Stone 118.B4-iii — THE WALL: `indexable()` is FALSE for Stream now, so this
+                // arm is dead — no `container` value can reach it as `Stream`. Named, not `_`,
+                // so a future capability change that reopens Stream here is a compile error, not
+                // a silent revival. Built one stone ago (B4-0); retired on purpose, per the wall.
+                StreamContainer::Stream => unreachable!(
+                    "indexable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use :wat::stream::next)"
+                ),
                 // indexable() gate excludes HashSet — named arm, genuinely dead, compiler-forced:
                 StreamContainer::HashSet => unreachable!("indexable() gate excludes HashSet"),
             }
         }
-        // ∅ N/A: HashSet is unordered — no canonical "first".
+        // ∅ N/A: HashSet is unordered — no canonical "first". Stone 118.B4-iii — THE WALL:
+        // Stream lands here too now (indexable()==false) — a lazy seq has no first/second/third;
+        // advance it with `:wat::stream::next`, whose `NextOutcome<T> = Item(value, rest) |
+        // Exhausted` is the only door a Stream yields through.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "a lazy Stream<T> has no first/second/third — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
         Some(_) => Err(RuntimeError::new(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -15730,34 +15727,15 @@ fn eval_nth(
                         ),
                     }
                 }
-                // Arc 118 — Stream: walk exactly `i+1` cells, one `realize` force per step.
-                StreamContainer::Stream => {
-                    let Value::wat__stream__Stream(seq) = &v else {
-                        unreachable!("of_value⇒Stream")
-                    };
-                    let mut cur = Arc::clone(seq);
-                    let mut remaining = index;
-                    loop {
-                        let whnf =
-                            crate::stream::realize(&cur, sym, &args[0].span().clone())?;
-                        match whnf.as_ref() {
-                            crate::stream::Stream::Empty => {
-                                return Err(out_of_range(args[0].span().clone()));
-                            }
-                            crate::stream::Stream::Cons { head, tail } => {
-                                if remaining == 0 {
-                                    return Ok(head.clone());
-                                }
-                                remaining -= 1;
-                                cur = Arc::clone(tail);
-                            }
-                            crate::stream::Stream::Thunk(_)
-                            | crate::stream::Stream::NativeThunk(_) => {
-                                unreachable!("realize returns WHNF")
-                            }
-                        }
-                    }
-                }
+                // Stone 118.B4-iii — THE WALL: `nth_indexable()` is FALSE for Stream now, so
+                // this arm is dead — no `container` value can reach it as `Stream`. Named, not
+                // folded into `_`, so a future capability change that reopens Stream here is a
+                // compile error, not a silent revival. Built one stone ago (B4-0) — the O(i)
+                // walk this arm performed is exactly the quadratic-under-a-loop hazard the wall
+                // exists to make un-spellable: `(nth s i)` read like O(1) and was O(i).
+                StreamContainer::Stream => unreachable!(
+                    "nth_indexable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use (drop s i) then :wat::stream::next)"
+                ),
                 // nth_indexable() gate excludes Tuple/HashSet — named arms, genuinely dead,
                 // compiler-forced (exhaustiveness guarantee, seq_container.rs's own doc).
                 StreamContainer::Tuple | StreamContainer::HashSet => {
@@ -15765,12 +15743,25 @@ fn eval_nth(
                 }
             }
         }
+        // Stone 118.B4-iii — THE WALL: Stream lands here now (nth_indexable()==false). A lazy
+        // seq has no O(1) positional access — `(nth s i)` was O(i) via `realize`, walking `i+1`
+        // cells with syntax that reads like the O(1) Vector case. Spell it honestly instead:
+        // `(drop s i)` then `:wat::stream::next`.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(
+            args[0].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "a lazy Stream<T> has no O(1) nth — use (drop s i) then :wat::stream::next",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
         // ∅ N/A: Tuple (heterogeneous — runtime index can't be typed) / HashSet (unordered).
         Some(_) => Err(RuntimeError::new(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector, PersistentVector, List, WatAST list, or Stream",
+                expected: "Vector, PersistentVector, List, or WatAST list",
                 got: Box::new(ValueSnapshot::of(&v)),
             },
         )
@@ -15779,7 +15770,7 @@ fn eval_nth(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector, PersistentVector, List, WatAST list, or Stream",
+                expected: "Vector, PersistentVector, List, or WatAST list",
                 got: Box::new(ValueSnapshot::of(&v)),
             },
         )
@@ -17518,20 +17509,16 @@ fn eval_empty(
         }).into()),
         None => {}
     }
-    // Arc 118 — Stream: empty? realizes to WHNF (force one step) and checks for Empty.
-    // Cannot route through the measurable() gate (Stream is not measurable — length diverges
-    // on infinite seqs — but `empty?` is decidable: it forces only ONE step).
-    if let Value::wat__stream__Stream(seq) = &arg_val {
-        let realized = crate::stream::realize(seq, sym, list_span)?;
-        return Ok(Value::bool(matches!(
-            realized.as_ref(),
-            crate::stream::Stream::Empty
-        )));
-    }
     // Arc-278 seq-1a — seq-family arms route through StreamContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
     // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
     // forces this arm to be updated before the code compiles.
+    //
+    // Stone 118.B4-iii — THE WALL: the hand-written Stream early-realize branch that used to sit
+    // here (forcing one step to decide Empty vs Cons) is DELETED. It routed AROUND this very
+    // gate — `measurable()` was already `false` for Stream, and the special case let `empty?`
+    // ignore that. Deleting it means Stream now falls through to `Some(_)` below like any other
+    // non-measurable container, and is refused uniformly.
     use crate::collection::seq_container::StreamContainer;
     match StreamContainer::of_value(&arg_val) {
         Some(c) if c.measurable() => match c {
@@ -17542,9 +17529,20 @@ fn eval_empty(
             // seq-1b — filled
             StreamContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
             StreamContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
-            // Arc 118 — Stream handled above via early realize (not measurable). Dead arm.
-            StreamContainer::Stream => unreachable!("Stream handled by the early realize branch above"),
+            // measurable() gate excludes Stream — named arm, genuinely dead, compiler-forced:
+            StreamContainer::Stream => unreachable!(
+                "measurable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use :wat::stream::next)"
+            ),
         },
+        // Stone 118.B4-iii — THE WALL: Stream lands here now (measurable()==false, and no early
+        // realize left to intercept it first). A lazy seq's emptiness is decidable in one force,
+        // but the wall closes the verb anyway — advance it with `:wat::stream::next`, whose
+        // `NextOutcome<T>::Exhausted` already answers exactly what `empty?` was asked.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "a lazy Stream<T> has no empty? — advance it with :wat::stream::next (NextOutcome<T>::Exhausted answers what empty? was asked)",
+            got: Box::new(ValueSnapshot::of(&arg_val))
+        }).into()),
         Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",

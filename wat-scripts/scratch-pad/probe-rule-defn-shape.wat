@@ -19,16 +19,21 @@
              ((:wat::core::ReadOutcome::Malformed __c) (:wat::kernel::assertion-failed! (:wat::core::Error/message __c) :wat::core::None :wat::core::None)))
      forms (:wat::core::ast->children tree)
      ;; find the first form whose ast-name is ":wsh::rule-arith"
+     ;; Stone 118.B4-iii — THE WALL: `filter` returns a lazy Stream<T> (arc 118.2a) and `first`
+     ;; no longer accepts one. `forms` is already a fully-realized, finite Vector<WatAST> — this
+     ;; is reconnaissance, not a force-count probe — so `into []` materializes the filtered
+     ;; Stream back to a Vector so `first` still applies, byte-identical answer.
      rule  (:wat::core::first
-             (:wat::core::filter
-               (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::bool
-                 (:wat::core::if (:wat::core::= (:wat::core::ast-kind f) "list")
-                   (:wat::core::let [ch (:wat::core::ast->children f)]
-                     (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
-                       (:wat::core::= (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch 1) "n")) ":wsh::rule-arith")
-                       false))
-                   false))
-               forms))
+             (:wat::core::into []
+               (:wat::core::filter
+                 (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::bool
+                   (:wat::core::if (:wat::core::= (:wat::core::ast-kind f) "list")
+                     (:wat::core::let [ch (:wat::core::ast->children f)]
+                       (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
+                         (:wat::core::= (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch 1) "n")) ":wsh::rule-arith")
+                         false))
+                     false))
+                 forms)))
      rch   (:wat::core::ast->children rule)]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::String/concat "rule-defn child kinds:" (:user::kinds rch)))

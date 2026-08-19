@@ -1788,30 +1788,28 @@ pub(crate) fn eval_rest(
                     }
                     Ok(Value::wat__core__PersistentVector(out))
                 }
-                // Arc 118 — Stream: realize to WHNF, return the tail (or Empty for an empty seq).
-                // Clojure-faithful: (rest empty-seq) → empty-seq (not an error).
-                StreamContainer::Stream => {
-                    let Value::wat__stream__Stream(seq) = &v else { unreachable!("of_value⇒Stream") };
-                    let realized = crate::stream::realize(seq, sym, &args[0].span().clone())?;
-                    match realized.as_ref() {
-                        crate::stream::Stream::Empty => {
-                            // rest of empty → empty (Clojure semantic).
-                            Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Empty)))
-                        }
-                        crate::stream::Stream::Cons { tail, .. } => {
-                            Ok(Value::wat__stream__Stream(Arc::clone(tail)))
-                        }
-                        // realize guarantees WHNF (Empty | Cons); Thunk/NativeThunk are impossible here.
-                        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) =>
-                            unreachable!("realize returns WHNF"),
-                    }
-                }
+                // Stone 118.B4-iii — THE WALL: `has_tail()` is FALSE for Stream now, so this
+                // arm is dead — no `container` value can reach it as `Stream`. Named, not `_`,
+                // so a future capability change that reopens Stream here is a compile error, not
+                // a silent revival. `rest` forced one cell to discard it — the same cost as
+                // `next`, but the name hid the force; the wall closes that.
+                StreamContainer::Stream => unreachable!(
+                    "has_tail() gate excludes Stream (Stone 118.B4-iii — THE WALL: use :wat::stream::next)"
+                ),
                 // has_tail() gate excludes these — named arms, genuinely dead, compiler-forced:
                 StreamContainer::Tuple | StreamContainer::HashSet =>
                     unreachable!("has_tail() gate excludes Tuple/HashSet"),
             }
         }
-        // ∅ N/A: container has no tail (Tuple, HashSet — nature forbids it).
+        // ∅ N/A: container has no tail (Tuple, HashSet — nature forbids it). Stone 118.B4-iii —
+        // THE WALL: Stream lands here too now (has_tail()==false) — a lazy seq has no `rest`;
+        // advance it with `:wat::stream::next`, whose `NextOutcome<T> = Item(value, rest) |
+        // Exhausted` is the only door a Stream yields through.
+        Some(StreamContainer::Stream) => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::rest".into(),
+            expected: "a lazy Stream<T> has no rest — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
+            got: Box::new(ValueSnapshot::of(&v))
+        }).into()),
         Some(_) => Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::rest".into(),
             expected: "Vec, List, PersistentVector, or list form",

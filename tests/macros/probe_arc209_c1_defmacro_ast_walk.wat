@@ -7,7 +7,7 @@
 (:wat::core::defmacro :user::second-child
   [v <- :wat::WatAST]
   -> :wat::WatAST
-  (:wat::core::first (:wat::core::drop (:wat::core::ast->children v) 1)))
+  (:wat::core::nth (:wat::core::ast->children v) 1))
 
 (:wat::core::defn :user::probe-walk [] -> :wat::core::i64
   (:user::second-child [10 20 30]))

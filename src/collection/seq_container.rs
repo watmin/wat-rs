@@ -163,7 +163,10 @@ impl StreamContainer {
     ///
     /// `true` for ordered containers (Vector, PersistentVector, List, Tuple,
     /// WatAstList). `false` for HashSet (unordered — no canonical "first").
-    /// Arc 118 — Stream: `true` for `first` (index=0); index>0 raises at runtime.
+    /// Stone 118.B4-iii — THE WALL: `false` for Stream. A lazy seq yields only through
+    /// `:wat::stream::next` now; `first` pretending index=0 is a safe special case hid the
+    /// 3x-per-cell force cost of a walk that also calls `empty?`/`rest` (measured: walk C,
+    /// no `rest`, still pays 3x). See DESIGN-STONE-118.B4-iii-the-wall.md.
     pub(crate) fn indexable(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -172,8 +175,8 @@ impl StreamContainer {
             StreamContainer::Tuple => true,
             StreamContainer::WatAstList => true,
             StreamContainer::HashSet => false,
-            // Arc 118 — Stream: `first` (index=0) is valid; higher indices raise at runtime.
-            StreamContainer::Stream => true,
+            // Stone 118.B4-iii — THE WALL: `first` no longer accepts Stream. Use `next`.
+            StreamContainer::Stream => false,
         }
     }
 
@@ -186,11 +189,15 @@ impl StreamContainer {
     /// would never reach a lazy seq either way.
     ///
     /// `true` for every ordered, homogeneous container (Vector, PersistentVector, List,
-    /// WatAstList, Stream — same receivers `nth`'s wat oracle `nth-spec` and the family it
-    /// generalizes already type-check against). `false` for Tuple (heterogeneous — unlike a
-    /// compile-time-constant index, a *runtime* index cannot be typed per-slot) and HashSet
-    /// (unordered — no positional meaning). Stream walks `i+1` cells via `realize`, one force
-    /// per step — never drains.
+    /// WatAstList — same receivers `nth`'s wat oracle `nth-spec` now type-checks against).
+    /// `false` for Tuple (heterogeneous — unlike a compile-time-constant index, a *runtime*
+    /// index cannot be typed per-slot) and HashSet (unordered — no positional meaning).
+    /// Stone 118.B4-iii — THE WALL: `false` for Stream too (option B, ruled 2026-08-18).
+    /// `(nth s i)` on a Vector is O(1); on a Stream it was O(i) via `realize`, walking `i+1`
+    /// cells with the SAME syntax — a loop that is linear on one receiver is quadratic on the
+    /// other and nothing at the call site says which you hold (measured: n(n+1)/2 forced for
+    /// an index-based walk vs n+1 for the equivalent `next`-walk). Use `(drop s i)` then
+    /// `next` — the complexity is visible in the spelling.
     pub(crate) fn nth_indexable(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -201,16 +208,16 @@ impl StreamContainer {
             StreamContainer::Tuple => false,
             // Unordered: no positional meaning.
             StreamContainer::HashSet => false,
-            // Arc 118 — Stream: general positional lookup, walked (not O(1)). NOT gated by
-            // indexable()/gettable() — see the doc comment above for why.
-            StreamContainer::Stream => true,
+            // Stone 118.B4-iii — THE WALL: `nth` no longer accepts Stream. Use `(drop s i)` + `next`.
+            StreamContainer::Stream => false,
         }
     }
 
     /// `rest` — return all but the first element.
     ///
-    /// Un-stubbed: strike 2 migrates `rest` classification through this gate.
-    /// Arc 118 — Stream: `true` (rest returns the tail, or Empty for an empty seq).
+    /// Stone 118.B4-iii — THE WALL: `false` for Stream. `rest` on a lazy seq forces one cell
+    /// to discard it — the same cost as `next`, but the name hides the force. Use `next` and
+    /// keep its `rest` half.
     pub(crate) fn has_tail(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -221,8 +228,8 @@ impl StreamContainer {
             StreamContainer::Tuple => false,
             // HashSet is unordered → ∅ N/A
             StreamContainer::HashSet => false,
-            // Arc 118 — Stream: rest returns tail (or Empty) — always valid.
-            StreamContainer::Stream => true,
+            // Stone 118.B4-iii — THE WALL: `rest` no longer accepts Stream. Use `next`.
+            StreamContainer::Stream => false,
         }
     }
 

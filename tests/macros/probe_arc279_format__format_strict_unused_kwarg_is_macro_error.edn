@@ -17,11 +17,11 @@
     :message "malformed template: format: kwarg :y is unused — no {y} in template"
     :location #wat.core/Span {
       :file "wat/core.wat"
-      :line 1795
+      :line 1789
       :col 24
       :end #wat.core.Option/Some [
         #wat.core/Pos {
-          :line 1799
+          :line 1793
           :col 84
         }
       ]

@@ -11,10 +11,13 @@
 (:wat::core::defn :user::annotated-if? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? (:wat::core::drop ch 2))
+      ;; Stone 118.B4-iii — THE WALL: was `(empty? (drop ch 2))`. `drop` returns a lazy Stream
+      ;; (arc 118.2a); `empty?` no longer accepts one. `ch` is a Vector (eager) so `length`
+      ;; answers the identical question — "does ch have fewer than 3 elements" — in O(1).
+      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
         false
         (:wat::core::let [head (:wat::core::first ch)
-                          c2   (:wat::core::first (:wat::core::drop ch 2))]
+                          c2   (:wat::core::nth ch 2)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
               (:wat::core::= (:wat::core::ast-name c2) "->")
@@ -51,9 +54,9 @@
   (:user::annotated-if? (:user::fix-source (:user::topform "(:wat::core::if true -> :wat::core::i64 1 2)"))))
 (:wat::core::defn :user::c04b [] -> :wat::core::bool
   (:wat::core::= (:wat::core::ast-kind
-    (:wat::core::first (:wat::core::drop
+    (:wat::core::nth
       (:wat::core::ast->children (:user::fix-source (:user::topform "(:wat::core::if true -> :wat::core::i64 1 2)")))
-      2)))
+      2))
     "int"))
 (:wat::core::defn :user::c05 [] -> :wat::core::String
   (:wat::core::write-forms (:user::fix-source (:user::topform "(:wat::core::do (:wat::core::if true -> :wat::core::i64 1 2))"))))

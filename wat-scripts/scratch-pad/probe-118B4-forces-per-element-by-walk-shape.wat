@@ -32,6 +32,27 @@
 ;; force is a VISIBLE `next`, countable by reading the source, where today three verbs that each
 ;; look free hide the cost.
 ;;
+;; ⛔ STONE 118.B4-iii — THE WALL SHIPPED (2026-08-18): `first`/`rest`/`empty?`/`nth` no longer
+;; accept a Stream. Walks B and C above are now **ILLEGAL** — `empty?` and `first` on a Stream are
+;; compile-time TypeMismatch errors — so their bodies are RETIRED below rather than left in this
+;; file (a `wat-scripts/` file must still LOAD under `every_wat_scripts_file_loads`, and a form
+;; that no longer type-checks would break that gate). Their historical measurements stand exactly
+;; as recorded above — that data does not change; only its REPRODUCIBILITY does, on purpose: the
+;; wall's whole point is that walk shapes B and C can no longer be spelled. Confirmed at the wall
+;; (`--check` on a two-line reproduction of each, verbatim):
+;;
+;;   walk B (`empty?` on Stream):
+;;     :wat::core::empty?: parameter #1 expects a lazy Stream<T> has no empty? — advance it with
+;;     :wat::stream::next, whose NextOutcome<T> = Item(value, rest) | Exhausted answers exactly
+;;     what empty? was asked; got :wat::stream::Stream<wat::core::i64>
+;;
+;;   walk C (`first` on Stream, same `empty?` refusal fires first):
+;;     :wat::core::first: parameter #1 expects a lazy Stream<T> has no first/second/third —
+;;     advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted); got
+;;     :wat::stream::Stream<wat::core::i64>
+;;
+;; Walk A is the sole survivor — it was already the only walk the migrated stdlib uses (B2b).
+;;
 ;; RUN (capped, per the standing rule):
 ;;   systemd-run --user --scope -q -p MemoryMax=512M -p MemorySwapMax=0 timeout 60 \
 ;;     ./target/release/wat wat-scripts/scratch-pad/probe-118B4-forces-per-element-by-walk-shape.wat
@@ -45,38 +66,14 @@
         (:wat::stream::empty)
         (:wat::stream::cons n (:user::gen (:wat::core::- n 1)))))))
 
-;; A — next-only. One force per cell by construction.
+;; A — next-only. One force per cell by construction. The ONLY walk shape THE WALL still permits.
 (:wat::core::defn :user::walk-a
   [s <- :wat::stream::Stream<wat::core::i64> acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest) (:user::walk-a rest (:wat::core::+ acc value)))
     (:wat::stream::NextOutcome::Exhausted acc)))
 
-;; B — empty? guard + next. `rest` never appears; legal after option 3.
-(:wat::core::defn :user::walk-b
-  [s <- :wat::stream::Stream<wat::core::i64> acc <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::empty? s)
-    acc
-    (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item value rest) (:user::walk-b rest (:wat::core::+ acc value)))
-      (:wat::stream::NextOutcome::Exhausted acc))))
-
-;; C — empty? + first + next. `rest` never appears; legal after option 3.
-(:wat::core::defn :user::walk-c
-  [s <- :wat::stream::Stream<wat::core::i64> acc <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::empty? s)
-    acc
-    (:wat::core::let
-      [v (:wat::core::first s)]
-      (:wat::core::match (:wat::stream::next s)
-        ((:wat::stream::NextOutcome::Item __value rest) (:user::walk-c rest (:wat::core::+ acc v)))
-        (:wat::stream::NextOutcome::Exhausted acc)))))
-
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::kernel::println "== A next-only")
-    (:wat::kernel::println (:user::walk-a (:user::gen 5) 0))
-    (:wat::kernel::println "== B empty?+next")
-    (:wat::kernel::println (:user::walk-b (:user::gen 5) 0))
-    (:wat::kernel::println "== C empty?+first+next")
-    (:wat::kernel::println (:user::walk-c (:user::gen 5) 0))))
+    (:wat::kernel::println (:user::walk-a (:user::gen 5) 0))))

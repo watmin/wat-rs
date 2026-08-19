@@ -4518,6 +4518,19 @@ fn infer_list(
                                 _ => reduced.clone(),
                             }
                         }
+                        // Stone 118.B4-iii — THE WALL: Stream is not has_tail() now. `rest`
+                        // forced one cell to discard it — the same cost as `next`, but the name
+                        // hid the force. Names the door.
+                        Some(crate::collection::seq_container::StreamContainer::Stream) => {
+                            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: ":wat::core::rest".into(),
+                                param: "#1".into(),
+                                expected: "a lazy Stream<T> has no rest — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                                got: format_type(&apply_subst(ty, subst))
+                            } });
+                            let t = fresh.fresh();
+                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                        }
                         Some(_) => {
                             // ∅ N/A: container has no tail (Tuple, HashSet).
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -4552,6 +4565,46 @@ fn infer_list(
                     TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
                 };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+            }
+            // Stone 118.B4-iii — THE WALL: `:wat::core::empty?` gets a hand-written arm so a
+            // Stream<T> receiver is refused at COMPILE time, not only by the runtime — the
+            // hand-written runtime arm that routed AROUND `measurable()` (`eval_empty`,
+            // `runtime.rs`) is deleted this stone; `measurable()` is now the one gate, consulted
+            // here on the checker side too, mirroring `:wat::core::rest` just above (`has_tail()`).
+            // `empty?` is polymorphic over BOTH the StreamContainer family (this arm) AND the
+            // separate MapContainer family (HashMap/PersistentMap/Record — not this registry) —
+            // this arm does not re-derive that whole surface; every receiver that is NOT a
+            // classified StreamContainer::Stream keeps the prior permissive ∀T -> bool behavior,
+            // deferring to the runtime exactly as before. Only the ONE new Stream refusal is added.
+            ":wat::core::empty?" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: ":wat::core::empty?".into(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                    for arg in args {
+                        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                    }
+                    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                    return CheckResult::partial_with(bool_ty, local_errors);
+                }
+                let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                if let Some(ty) = &arg_ty {
+                    let reduced = reduce(ty, subst, env.types());
+                    if let Some(crate::collection::seq_container::StreamContainer::Stream) =
+                        crate::collection::seq_container::StreamContainer::of_type(&reduced)
+                    {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: ":wat::core::empty?".into(),
+                            param: "#1".into(),
+                            expected: "a lazy Stream<T> has no empty? — advance it with :wat::stream::next, whose NextOutcome<T> = Item(value, rest) | Exhausted answers exactly what empty? was asked".into(),
+                            got: format_type(&apply_subst(ty, subst))
+                        } });
+                    }
+                }
+                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                return if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) };
             }
             ":wat::core::and" | ":wat::core::or" => {
                 let (val, mut errs) = infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst).into_parts();
@@ -9230,6 +9283,17 @@ fn infer_positional_accessor(
                 };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
+            // Stone 118.B4-iii — THE WALL: Stream is not Indexable now — a lazy seq has no
+            // first/second/third. Names the door: `:wat::stream::next`'s `NextOutcome<T> =
+            // Item(value, rest) | Exhausted` is the only way a Stream yields anything.
+            Some(crate::collection::seq_container::StreamContainer::Stream) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: op.into(),
+                    param: "#1".into(),
+                    expected: "a lazy Stream<T> has no first/second/third — advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
             // ∅ N/A: container is not Indexable (HashSet — unordered, no canonical "first").
             Some(_) => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -9323,8 +9387,9 @@ fn infer_nth(
                     TypeExpr::Path(p) if p == ":wat::WatAST" => {
                         TypeExpr::Path(":wat::WatAST".into())
                     }
-                    // Homogeneous parametric containers: Vector<T>, List<T>, PersistentVector<T>,
-                    // and (arc 118) Stream<T> — bare T, never Option<T> (nth raises, doesn't None).
+                    // Homogeneous parametric containers: Vector<T>, List<T>, PersistentVector<T>
+                    // — bare T, never Option<T> (nth raises, doesn't None). Stone 118.B4-iii —
+                    // THE WALL: Stream<T> no longer reaches this arm (nth_indexable()==false).
                     TypeExpr::Parametric { args: targs, .. } => {
                         targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| {
                             // HARVEST (236.2): silent-by-intent — no inner type; polymorphic.
@@ -9336,13 +9401,24 @@ fn infer_nth(
                 };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
+            // Stone 118.B4-iii — THE WALL: Stream is not nth_indexable now. `(nth s i)` was O(i)
+            // via `realize` on a Stream — same syntax as the O(1) Vector case, a complexity lie.
+            // Names the door: `(drop s i)` then `:wat::stream::next` spells the walk honestly.
+            Some(crate::collection::seq_container::StreamContainer::Stream) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "a lazy Stream<T> has no O(1) nth — use (drop s i) then :wat::stream::next".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
             // ∅ N/A: Tuple (heterogeneous — a runtime index can't be typed per-slot) or
             // HashSet (unordered — no positional meaning).
             Some(_) => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, List<T>, PersistentVector<T>, WatAST, or Stream<T>".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9351,7 +9427,7 @@ fn infer_nth(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, List<T>, PersistentVector<T>, WatAST, or Stream<T>".into(),
+                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }

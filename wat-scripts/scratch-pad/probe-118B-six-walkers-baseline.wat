@@ -23,6 +23,15 @@
 ;; Every row prints; nothing asserts. The point is to RECORD HEAD's answers, not to judge them.
 ;; Run CAPPED (the seam's standing rule); row 1 builds an infinite stream and MUST stay behind a
 ;; `take`.
+;;
+;; ⛔ STONE 118.B4-iii — THE WALL (2026-08-18): row 2 (`:probe::first-of-empty-stream`) asked what
+;; `first` returns on an EXHAUSTED Stream. That question is now MOOT, not merely unanswered:
+;; `first` refuses every Stream, exhausted or not, at compile time — `:wat::core::first: parameter
+;; #1 expects a lazy Stream<T> has no first/second/third — advance it with :wat::stream::next`. The
+;; tracked B5 defect the row existed to pin (first-of-exhausted silently returning nil) is
+;; permanently unreachable dead code now — the wall answers it by making it unaskable. Row
+;; retired below; row 3 (`reductions` on an empty Stream) is untouched — its call site never went
+;; through `first`/`rest`/`empty?`/`nth` directly, so it still type-checks.
 
 ;; ─── row 1 — take-nth's degenerate n ───────────────────────────────────────────────────────────
 ;; n=0 over [1 2 3], forced to 5 elements. If HEAD repeats the head forever this prints 1,1,1,1,1.
@@ -44,9 +53,7 @@
     (:wat::core::into []
       (:wat::core::take-nth 2 (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6)))))
 
-;; ─── row 2 — first on an EXHAUSTED Stream (the B5 question, asked directly) ────────────────────
-(:wat::core::defn :probe::first-of-empty-stream [] -> :wat::core::String
-  (:wat::core::str (:wat::core::first (:wat::stream::empty))))
+;; ─── row 2 — RETIRED by stone 118.B4-iii (THE WALL) — see the header note above.
 
 ;; ─── row 3 — reductions 2-arity over an EMPTY Stream ───────────────────────────────────────────
 ;; If the doc comment is right this RAISES. If `first` returns a bare nil it yields one element.
@@ -111,5 +118,4 @@
     (:wat::kernel::println (:wat::core::string::concat "drop-while <4  : " (:probe::drop-while-lt4)))
     (:wat::kernel::println (:wat::core::string::concat "reductions/3   : " (:probe::reductions-3arity)))
     (:wat::kernel::println (:wat::core::string::concat "reductions/2   : " (:probe::reductions-2arity)))
-    (:wat::kernel::println (:wat::core::string::concat "first of empty : " (:probe::first-of-empty-stream)))
     (:wat::kernel::println (:wat::core::string::concat "reductions/2 [] : " (:probe::reductions-empty-stream)))))

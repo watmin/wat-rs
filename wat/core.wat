@@ -1404,26 +1404,30 @@
 ;; element returned as `T`, RAISING on out-of-range — "there IS an i-th element; give it or
 ;; fail." Sugar over `Option/expect (Vector/get …)`.
 ;;
-;; ── B4-i widens nth to Seqable<T> (arc 118) ─────────────────────────────────────────────────
+;; ── B4-i widened nth to Seqable<T> (arc 118); B4-iii — THE WALL closes it again ──────────────
 ;;
 ;; The header's argument above is unchanged: nth's CONTRACT still reads as total, its FUNCTION is
-;; still partial. What widens is the set of receivers. Three O(1) arms, once per container that
-;; has `get` (byte-identical modulo receiver type — the "eager indexable container" gap the 294
-;; seam already records for `reduce`'s three eager arms; not collapsed here), plus one O(n)
-;; `Seqable<T>` arm that walks with `:wat::stream::next` — the only receiver this arm actually
-;; reaches at O(n) is Stream, since Vector/PersistentVector/List all resolve to an earlier, O(1)
-;; arm first. Stream has no O(1) nth (`seq_container.rs:65`); walking it here is the honest cost,
-;; not a regression.
+;; still partial. B4-i widened the receiver set with a fourth, O(n) `Seqable<T>` arm reached only
+;; by Stream (Vector/PersistentVector/List all resolve to an earlier, O(1) arm first) — walking
+;; via `nth-spec-walk`/`:wat::stream::next`. Three O(1) arms, once per container that has `get`
+;; (byte-identical modulo receiver type — the "eager indexable container" gap the 294 seam already
+;; records for `reduce`'s three eager arms; not collapsed here).
 ;;
-;; ── B4-0 renames this to `nth-spec`; the public `:wat::core::nth` is now a Rust intrinsic ─────
+;; Stone 118.B4-iii — THE WALL removes that fourth arm (and `nth-spec-walk`, its sole caller):
+;; `(nth s i)` on a Stream was O(i) via the walk, identical syntax to the O(1) Vector case — a
+;; complexity lie. `nth-spec` must classify the SAME receiver set the native `nth` now accepts
+;; (`StreamContainer::nth_indexable()`, `seq_container.rs`) or the oracle and the native disagree
+;; about what they cover and the differential test silently stops proving anything about Stream.
+;; Positional access on a lazy seq is spelled `(drop s i)` then `next` now — which is what it does.
 ;;
-;; This clause is UNCHANGED in every way that matters — same arms, same contract, same walk.
+;; ── B4-0 renamed this to `nth-spec`; the public `:wat::core::nth` is now a Rust intrinsic ─────
+;;
 ;; What moved is only its NAME and its role: `:wat::core::nth` (`src/runtime.rs`, `eval_nth`) is
-;; now the fast native kernel; this clause is demoted to `nth-spec`, the ORACLE that keeps it
-;; honest via a differential test (`wat-tests/core/core-nth-differential.wat`). Same shape as
-;; `:wat::rete::insert-all-spec` (`wat/rete.wat:1508`): "the native kernel is the fast impl, the
-;; spec keeps it honest." ⚠ `nth-spec` MUST NEVER delegate to `nth` — a spec that calls its
-;; subject proves nothing (`[[feedback_an_oracle_must_be_written_in_the_other_language]]`).
+;; the fast native kernel; this clause is the ORACLE that keeps it honest via a differential test
+;; (`wat-tests/core/core-nth-differential.wat`). Same shape as `:wat::rete::insert-all-spec`
+;; (`wat/rete.wat:1508`): "the native kernel is the fast impl, the spec keeps it honest."
+;; ⚠ `nth-spec` MUST NEVER delegate to `nth` — a spec that calls its subject proves nothing
+;; (`[[feedback_an_oracle_must_be_written_in_the_other_language]]`).
 ;; The native `nth` is NOT promoted from calling this clause: `nth`'s existing callers
 ;; (`wat/bracket.wat`, `wat/fix.wat`, `wat/service.wat`, …) keep saying `nth` and now silently
 ;; reach the native — that is the point of the rename, not an accident.
@@ -1433,17 +1437,7 @@
   ([v <- :wat::core::PersistentVector<T> i <- :wat::core::i64] -> :T
     (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
   ([v <- :wat::core::List<T> i <- :wat::core::i64] -> :T
-    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
-  ([coll <- :wat::core::Seqable<T> i <- :wat::core::i64] -> :T
-    (:wat::core::nth-spec-walk (:wat::core::Seqable/seq coll) i)))
-
-(:wat::core::defn :wat::core::nth-spec-walk<T>
-  [s <- :wat::stream::Stream<T> i <- :wat::core::i64] -> :T
-  (:wat::core::match (:wat::stream::next s)
-    ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::if (:wat::core::<= i 0) value (:wat::core::nth-spec-walk rest (:wat::core::- i 1))))
-    (:wat::stream::NextOutcome::Exhausted
-      (:wat::kernel::assertion-failed! "nth: index out of range" :wat::core::None :wat::core::None))))
+    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range")))
 
 ;; ─── format — opinionated named-template printf (arc 279) ────────────────────
 ;;

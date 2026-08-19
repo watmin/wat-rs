@@ -10,7 +10,15 @@
 ;; ⚠ `nth-spec` MUST NEVER delegate to `nth`. A spec that calls its subject proves nothing.
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
 ;;
-;; ═══ in-range agreement — Vector / PersistentVector / List / Stream, at 0 / mid / last ═══════
+;; ⛔ STONE 118.B4-iii — THE WALL (2026-08-18): both `nth` (native) and `nth-spec` (oracle) drop
+;; their Stream arm — `nth-spec`'s wat `defclause` loses its fourth (`Seqable<T>`) arm in lockstep
+;; with the native's `nth_indexable()` capability flip (`wat/core.wat`, `src/collection/
+;; seq_container.rs`). The differential must classify the SAME receiver set on both sides or it
+;; silently stops covering what it claims to. `agree-on-stream` and `nth-spec-past-end-stream-
+;; raises` are REMOVED below, not weakened — `(nth-spec stream i)` no longer type-checks, so
+;; nothing is left for either to measure. Every eager row is UNCHANGED.
+;;
+;; ═══ in-range agreement — Vector / PersistentVector / List, at 0 / mid / last ═════════════════
 ;;
 ;; Direct value comparison: `nth` and `nth-spec` both succeed on these inputs, so `assert-eq`
 ;; between the two calls IS the differential.
@@ -36,26 +44,12 @@
       (:wat::test::assert-eq (:wat::core::nth v 2) (:wat::core::nth-spec v 2))
       (:wat::test::assert-eq (:wat::core::nth v 4) (:wat::core::nth-spec v 4)))))
 
-(:wat::test::deftest :wat-tests::core::core-nth-differential::agree-on-stream
-  (:wat::core::let
-    [mk (:wat::core::fn [] -> :wat::stream::Stream<wat::core::i64>
-          (:wat::stream::cons 10
-            (:wat::stream::lazy (:wat::stream::cons 20
-              (:wat::stream::lazy (:wat::stream::cons 30
-                (:wat::stream::lazy (:wat::stream::cons 40
-                  (:wat::stream::lazy (:wat::stream::cons 50
-                    (:wat::stream::lazy (:wat::stream::empty))))))))))))]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth (mk) 0) (:wat::core::nth-spec (mk) 0))
-      (:wat::test::assert-eq (:wat::core::nth (mk) 2) (:wat::core::nth-spec (mk) 2))
-      (:wat::test::assert-eq (:wat::core::nth (mk) 4) (:wat::core::nth-spec (mk) 4)))))
-
 ;; ═══ out-of-range agreement — both raise the SAME message ═════════════════════════════════════
 ;;
 ;; `wat-tests/core/core-nth.wat`'s `nth-past-end-*-raises` rows already establish that the native
-;; `nth` raises exactly "nth: index out of range" on Vector/PersistentVector/List/Stream. These
-;; four rows establish the other half: `nth-spec` raises the SAME literal message on the SAME
-;; four receivers — together the two files prove native and oracle agree on the raise, not just
+;; `nth` raises exactly "nth: index out of range" on Vector/PersistentVector/List. These three
+;; rows establish the other half: `nth-spec` raises the SAME literal message on the SAME three
+;; receivers — together the two files prove native and oracle agree on the raise, not just
 ;; on the happy path. Death-expectation idiom per `wat-tests/core/core-seq-walkers.wat`.
 
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-vector-raises
@@ -118,27 +112,8 @@
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true (:wat::core::regex::matches? "nth: index out of range" msg))))
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-stream-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::kernel::println
-               (:wat::core::nth-spec
-                 (:wat::stream::cons 10
-                   (:wat::stream::lazy (:wat::stream::cons 20
-                     (:wat::stream::lazy (:wat::stream::cons 30
-                       (:wat::stream::lazy (:wat::stream::empty)))))))
-                 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           ((:wat::kernel::RecvOutcome::Message _m)
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None))
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::core::match cause
-               ((:wat::kernel::LociDiedError::Panic message _failure) message)
-               (_ (:wat::kernel::assertion-failed! "expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None))))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
-    (:wat::test::assert-true (:wat::core::regex::matches? "nth: index out of range" msg))))
+;; ═══ RETIRED by stone 118.B4-iii (THE WALL) ════════════════════════════════════════════════
+;;
+;; `agree-on-stream` and `nth-spec-past-end-stream-raises` used to sit here. Both are GONE, not
+;; weakened: `(nth-spec stream i)` no longer type-checks (the oracle's `Seqable<T>` arm is
+;; dropped, `wat/core.wat`), so there is nothing left for either assertion to measure.

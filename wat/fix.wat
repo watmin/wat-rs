@@ -63,7 +63,11 @@
 (:wat::core::defn :wat::fix::annotated-if? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? (:wat::core::drop ch 2))
+      ;; Stone 118.B4-iii — THE WALL: was `(empty? (drop ch 2))`. `drop` returns a lazy
+      ;; Stream (arc 118.2a), and `empty?` no longer accepts one. `ch` is a Vector (eager,
+      ;; `ast->children`'s return type) so `length` answers the identical question — "does ch
+      ;; have fewer than 3 elements" — in O(1) without ever going lazy. Same boolean, no `drop`.
+      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
         false
         (:wat::core::let [head (:wat::core::first ch)
                           c2   (:wat::core::nth ch 2)]
