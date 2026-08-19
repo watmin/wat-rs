@@ -228,3 +228,87 @@ had its `Io`/`Reflection` first pass **overruled and re-derived**, which is the 
 - **`:ControlFlow`'s prose for `raise!`/`assertion-failed!`.** They never return; they abandon
   evaluation rather than direct it. The ward accepted the fit and asked the prose be strengthened to
   say so. That is a one-line prose edit the CARVE makes when it files them.
+
+---
+
+## ⊘ AMENDED 2026-08-19 — `:Message` SURVIVES, BUT ITS JUSTIFICATION ABOVE IS REFUTED. REPLACE THE PROSE.
+
+The builder challenged the derivation: *"send/recv ..... this is promoted off of IO because its a
+managed layer ontop of an IO?... because we treat going over a crossbeam pipe the same as a linux
+pipe?... (and soon.. network pipes)?"* A second `intueri` was cast with the sharpened question. It
+**overturned the reasoning above while keeping the conclusion**, and every claim below was
+re-verified against the disk.
+
+### ⛔ THE TRANSPORT ARGUMENT FAILS THE STONE'S OWN `:Mutate` PRECEDENT
+
+The `:Message` section above argues: *"`Io` promises on a stream; two of four tiers are raw Value
+pass-through; therefore mint."* **That is the same shape as the `:Mutate` proposal this stone
+already refused.**
+
+`:Mutate` was refused because two implementations (in-place vs rebuild) accomplish the *identical
+observable domain action*, so the difference is a HOW. `(send peer payload)` likewise accomplishes
+the identical observable action at every tier — **the payload arrives at the peer and a subsequent
+`recv` gets it** — and whether it crossed crossbeam, a pipe, or a socket is invisible to the wat
+caller. **Transport is a HOW.** A rule applied only when convenient is not a rule.
+
+### The other three readings, and why each fails
+
+- **B — "the abstraction level is the domain."** `comms/mod.rs`'s tier-agnosticism is a design goal
+  **of the implementation layer** — it explains why the Rust looks uniform, not what the wat verb
+  does. Filing that as the axis puts an implementation-strategy fact in a domain taxonomy.
+- **C — "`Io`'s axis is *the effect IS the point*; mint nothing."** Over-generalizes fatally.
+  ★ **VERIFIED: `Purity` already has `:Effectful` — *"Has an observable side effect — I/O, mutation,
+  a signal"*** (`runtime-meta.wat:41`). Under reading C, `:Io` stops picking out anything and becomes
+  a residual bucket for "an effect not obviously something else" — the exact mumbling this ward
+  exists to catch. `:Io` earns its place **because** it is narrow.
+- **The orchestrator's fourth reading — "ambient sink vs addressed counterpart."** ⛔ **REJECTED, and
+  the refutation is the sharpest thing in this cast.** Read plainly, that is an axis over *where the
+  effect's target is* — **the output-side mirror of "where its input comes from," which the header
+  explicitly lists as REJECTED during arc 255 for mixing axes.** Adopting it as a general organizing
+  rule reopens exactly that door.
+
+### ★ WHAT SURVIVES — the `:Clock` precedent, not a new axis
+
+`:Clock`'s prose is a **DOING** (*"samples the wall clock"*) that is *additionally* allowed to carry
+source information — a narrow, justified carve-out, not a general "source is an axis" rule.
+`:Message` is built the same way: the DOING is **moving a payload to or from a locus the caller holds
+a handle to**. `send`/`try-send`/`recv`/`select`/`poll` share that; `println`/`readln'` do not —
+their target is an ambient OS stream with no caller-held handle. A `peer<I,O>` is a **typed value**.
+That is a type-visible distinction, not a transport one.
+
+### THE PROSE TO SHIP — replaces the `:Message` block above
+
+```
+;; Delivers or receives a payload across a peer/channel boundary to another locus —
+;; `send`, `try-send`, `recv`, `select`, `poll`. The locus is a TYPED VALUE (`peer<I,O>`)
+;; the caller already holds — contrast `:Io`, whose target is an ambient OS stream with
+;; no caller-held handle. The underlying transport (in-process channel, pipe, socket) is
+;; an implementation detail, NEVER the axis — the same way `:Mutate` was refused for
+;; `allow`/`deny`.
+  :Message
+```
+
+That last clause is deliberate: it turns the refuted argument into a **documented boundary** so the
+next reader cannot reopen this question on the ground it was already lost on.
+
+**`:Io`'s prose gains one contrast clause** and is otherwise CORRECT AND UNCHANGED:
+*"…Contrast `:Message`: a peer is a typed value the caller holds a handle to, not an OS stream."*
+
+### ⚠ WAS THE CHURN EVIDENCE AGAINST THE VARIANT? — asked explicitly, answered NO
+
+The orchestrator produced **three framings for this one variant in one sitting** and told the ward so,
+inviting "none of these; `Io` is fine" as a verdict. The ward's answer: two of the three readings and
+the surviving derivation **all land on mint** — only the *justification* moved. The churn is evidence
+the **prose** needed correcting (transport was the wrong tell), not that the variant lacks a referent.
+
+★ **And it named the discriminator, which is the durable lesson:** when the same WHAT/HOW test was
+applied to `:Mutate`, the variant **disappeared** — folded into `:Resource`. *That* is what
+"churn means the variant shouldn't exist" looks like on this disk, and it is not what happened here.
+`:Message`'s member set survives the test with a DOING distinct from every existing variant.
+
+### Minor finding, in scope for the CARVE not this stone
+
+`src/runtime.rs:33253` **`eval_poll_prime` has NO doc comment** — verified; its four siblings
+(`send`/`try-send`/`recv`/`select`) each carry one describing the tier-by-tier contract. Since `poll'`
+is admitted to `:Message` on "same locus-delivery DOING as the other four," its own doc should say so
+rather than leave a reader inferring parity from the body. **Level 2 mumble.**
