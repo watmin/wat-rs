@@ -113,6 +113,18 @@ src/collection/mod.rs          1
 ⚠ **`seq_container.rs`'s 3 hits are `mappable()`'s doc comments**, which describe `mappable()` as
 gating `foldl`/`foldr`/`reverse`/`concat`. Those sentences go stale the moment `foldr` does.
 
+★ **AND ITS NEIGHBOUR IS ALREADY STALE — measured 2026-08-18, fix it in the same motion.**
+`ordered()`'s header (`seq_container.rs:277`) says it gates *"`reverse`/`take`/`drop`/`concat`"*.
+It has exactly **two** live consumers: `concat` (`collection/eval.rs:763`) and `reverse`
+(`collection/transform.rs:51`). **`take` and `drop` do not consult it** — 118.2a moved them to
+`extract_lazyable_elem`'s fixed set, and `collection/infer.rs:1070` records the move in as many
+words: *"classification no longer routes through `ordered()`"*.
+
+This is NOT a capability being routed around (the `mappable()`/`foldl` shape). It is a comment that
+outlived its subject, in the same file and the same class as the `mappable()` sentences above — so
+it is IN SCOPE here rather than tracked elsewhere. Two capability headers, one motion, both made to
+say what they gate.
+
 ## ACCEPTANCE
 
 | | assertion | instrument |
@@ -129,6 +141,5 @@ Plus: floor ≥4772/0, clippy 0, ignores 13.
 - **Retiring `foldl` in favour of `reduce` alone.** Clojure has only `reduce`, and `foldl` is currently
   the native kernel `reduce` delegates to — that is the oracle/native shape, legitimate as it stands.
   A separate question, not this stone's.
-- **`reverse` over a Stream.** `ordered()` says `false` for Stream. Note that `take`/`drop` accept a
-  Stream today while `ordered()` also claims to gate them — **a possible fourth instance of a
-  capability being routed around**, unmeasured, tracked, not chased here.
+- **`reverse` over a Stream.** `ordered()` says `false` for Stream; whether it should is a separate
+  ruling, not this stone's.
