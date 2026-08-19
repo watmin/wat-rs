@@ -56,6 +56,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use rustc_hash::FxHashMap;
+
 use crate::ast::WatAST;
 use crate::rete::expr_ir::Expr;
 use crate::rete::matcher::{
@@ -526,12 +528,15 @@ fn compile_operand_expr(
 /// Populate: write pairs into `pool`, `?p` first when this cond is
 /// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
 /// `alpha_match_inner` + `attach_fact` (STOP-1).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn exec_compiled(
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(u32, Value)>,
+    pool: &mut Vec<(u32, u32)>,
     keys: &mut Vec<Value>,
+    vals: &mut Vec<Value>,
+    val_ids: &mut FxHashMap<Value, u32>,
     fact: &Value,
 ) -> Option<(u32, u16)> {
     // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's call counter, parallel to
@@ -545,7 +550,7 @@ pub(crate) fn exec_compiled(
     if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
         return None;
     }
-    materialize_into(compiled, scratch, pool, keys, fact)
+    materialize_into(compiled, scratch, pool, keys, vals, val_ids, fact)
 }
 
 fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
@@ -557,16 +562,31 @@ fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     i
 }
 
+fn intern_val(vals: &mut Vec<Value>, ids: &mut FxHashMap<Value, u32>, v: Value) -> u32 {
+    if let Some(&id) = ids.get(&v) {
+        return id;
+    }
+    let id = vals.len() as u32;
+    ids.insert(v.clone(), id);
+    vals.push(v);
+    id
+}
+
 fn materialize_into(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
-    pool: &mut Vec<(u32, Value)>,
+    pool: &mut Vec<(u32, u32)>,
     keys: &mut Vec<Value>,
+    vals: &mut Vec<Value>,
+    val_ids: &mut FxHashMap<Value, u32>,
     fact: &Value,
 ) -> Option<(u32, u16)> {
     let off = pool.len();
     if let Some(key) = &compiled.fact_bind {
-        pool.push((intern_key(keys, key), fact.clone()));
+        pool.push((
+            intern_key(keys, key),
+            intern_val(vals, val_ids, fact.clone()),
+        ));
     }
     for (i, &slot) in compiled.output_slots.iter().enumerate() {
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
@@ -580,7 +600,10 @@ fn materialize_into(
                 return None;
             }
         };
-        pool.push((intern_key(keys, &compiled.slot_keys[i]), v));
+        pool.push((
+            intern_key(keys, &compiled.slot_keys[i]),
+            intern_val(vals, val_ids, v),
+        ));
     }
     Some((off as u32, (pool.len() - off) as u16))
 }
@@ -747,7 +770,16 @@ mod tests {
         let fact = [Value::i64(20)];
         let mut scratch = Vec::new();
         assert!(
-            exec_compiled(&compiled, &fact, &mut scratch, &mut Vec::new(), &mut Vec::new(), &Value::i64(20))
+            exec_compiled(
+                &compiled,
+                &fact,
+                &mut scratch,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut FxHashMap::default(),
+                &Value::i64(20),
+            )
                 .is_some(),
             "populate skips SeedCmp so the fact enters alpha"
         );
@@ -793,6 +825,8 @@ mod tests {
                 &mut scratch,
                 &mut Vec::new(),
                 &mut Vec::new(),
+                &mut Vec::new(),
+                &mut FxHashMap::default(),
                 &Value::i64(20),
             )
             .is_none(),

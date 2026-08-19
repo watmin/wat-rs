@@ -12,10 +12,12 @@
 //! for predicates we actually run). `candidates(token)` ⊇ { TestNodes
 //! whose `where` returns true }.
 //!
-//! Anything this analyzer cannot prove as `(= dim literal)` — `not=`,
-//! `or`, user-fn, var-to-var, a dim it cannot canonicalize — rides the
-//! wildcard edge and is always walked. A conservative tree is a correct
-//! tree.
+//! Anything this analyzer cannot prove as `(= dim literal)` or a
+//! single range `(< > <= >= dim lit)` — `not=`, `or`, user-fn,
+//! var-to-var, two constraints on one dim, a dim it cannot
+//! canonicalize — rides the wildcard edge and is always walked.
+//! A conservative tree is a correct tree. Range edges are guards
+//! (`DESIGN-STONE-where-range-edges`).
 //!
 //! Dimensions are derived from the compiled `Expr` DAG (item 12), not
 //! from `WatAST`. Two programs share a dim when their non-literal `=`
@@ -26,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::rete::expr_ir::{apply_core, Expr, Program};
-use crate::rete::matcher::Bindings;
+use crate::rete::matcher::{compare_values, Bindings, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
 use crate::span::Span;
@@ -53,13 +55,28 @@ pub(crate) enum DimKey {
     },
 }
 
-/// One level: branch on a compiled dim. `range_children` reserved, unpopulated.
+/// Guard edge: dim compared to a literal (`DESIGN-STONE-where-range-edges`).
+/// Not equality fan-out. Two constraints on one dim never land here.
+#[derive(Clone, Debug)]
+struct RangeEdge {
+    op: CmpKind,
+    threshold: Value,
+}
+
+/// One analyzed constraint on a dim. Two on the same dim delete the dim
+/// (wildcard — over-approx; STOP-2).
+#[derive(Clone, Debug)]
+enum DimCon {
+    Eq(Value),
+    Range(CmpKind, Value),
+}
+
+/// One level: branch on a compiled dim. Equality fan-out + range guards + wildcard.
 pub(crate) struct ShadowNode {
     dim: Option<DimKey>,
     children: HashMap<Value, Arc<ShadowNode>>,
     wildcard: Option<Arc<ShadowNode>>,
-    #[allow(dead_code)]
-    range_children: Vec<()>,
+    range_children: Vec<(RangeEdge, Arc<ShadowNode>)>,
     leaves: Vec<i64>,
 }
 
@@ -68,6 +85,17 @@ pub(crate) struct WhereTree {
     root: Arc<ShadowNode>,
     /// Test ids this tree covers (every TestNode in the network).
     ids: HashSet<i64>,
+    /// `where` is only `And` of dim-lit eq **or** range — skip `exec_where`
+    /// when proven (`DESIGN-STONE-where-dim-reuse`,
+    /// `DESIGN-STONE-where-range-edges`).
+    pure_cmp: HashSet<i64>,
+}
+
+/// Candidate TestNode ids. `proven` arrived only via equality children
+/// whose dim eval succeeded. `maybe` is wildcard / dim-raise over-approx.
+pub(crate) struct WhereCands {
+    pub proven: Vec<i64>,
+    pub maybe: Vec<i64>,
 }
 
 impl WhereTree {
@@ -82,6 +110,7 @@ impl WhereTree {
                 leaves: Vec::new(),
             }),
             ids: HashSet::new(),
+            pure_cmp: HashSet::new(),
         }
     }
 
@@ -89,7 +118,7 @@ impl WhereTree {
         if compiled_wheres.is_empty() {
             return Self::empty();
         }
-        let mut disc: HashMap<i64, HashMap<DimKey, Value>> =
+        let mut disc: HashMap<i64, HashMap<DimKey, DimCon>> =
             HashMap::with_capacity(compiled_wheres.len());
         let mut dim_set: HashSet<DimKey> = HashSet::new();
         for (id, prog) in compiled_wheres {
@@ -101,10 +130,23 @@ impl WhereTree {
         }
         let dims: Vec<DimKey> = dim_set.into_iter().collect();
         let ids: HashSet<i64> = compiled_wheres.keys().copied().collect();
+        let mut pure_cmp = HashSet::new();
+        for (id, prog) in compiled_wheres {
+            let mut slot_to_key: HashMap<u16, String> = HashMap::new();
+            for (k, slot) in prog.reads.iter() {
+                if let Value::String(s) = k {
+                    slot_to_key.insert(*slot, s.as_ref().clone());
+                }
+            }
+            if expr_is_pure_cmp(&prog.root, &slot_to_key) {
+                pure_cmp.insert(*id);
+            }
+        }
         let all: Vec<i64> = ids.iter().copied().collect();
         WhereTree {
             root: build_node(all, &disc, &dims, 0),
             ids,
+            pure_cmp,
         }
     }
 
@@ -112,26 +154,33 @@ impl WhereTree {
         self.ids.contains(&id)
     }
 
+    pub(crate) fn is_pure_cmp(&self, id: i64) -> bool {
+        self.pure_cmp.contains(&id)
+    }
+
     /// Candidate TestNode ids. A superset of those whose `where` is true.
-    /// Dim eval that raises → take every child (over-approx; do not drop).
+    /// Dim eval that raises → take every child as **maybe** (over-approx; do not drop).
     pub(crate) fn candidates<B: Bindings + ?Sized>(
         &self,
         bindings: &B,
         span: &Span,
-    ) -> Vec<i64> {
-        let mut out = Vec::new();
-        walk(&self.root, bindings, span, &mut out);
-        out
+    ) -> WhereCands {
+        let mut proven = Vec::new();
+        let mut maybe = Vec::new();
+        walk(&self.root, bindings, span, true, &mut proven, &mut maybe);
+        WhereCands { proven, maybe }
     }
 }
 
 fn build_node(
     test_ids: Vec<i64>,
-    disc: &HashMap<i64, HashMap<DimKey, Value>>,
+    disc: &HashMap<i64, HashMap<DimKey, DimCon>>,
     dims: &[DimKey],
     pos: usize,
 ) -> Arc<ShadowNode> {
-    if pos >= dims.len() || test_ids.len() <= 1 {
+    // Do not leaf on `len() <= 1`: a solo pure-cmp residue still has to
+    // prove its remaining dims or `exec_where` is skipped on a lie.
+    if pos >= dims.len() {
         return Arc::new(ShadowNode {
             dim: None,
             children: HashMap::new(),
@@ -142,20 +191,33 @@ fn build_node(
     }
     let dim = &dims[pos];
     let mut buckets: HashMap<Value, Vec<i64>> = HashMap::new();
+    let mut range_buckets: HashMap<(CmpKind, Value), Vec<i64>> = HashMap::new();
     let mut wild: Vec<i64> = Vec::new();
     for id in test_ids {
         match disc.get(&id).and_then(|m| m.get(dim)) {
-            Some(v) => buckets.entry(v.clone()).or_default().push(id),
+            Some(DimCon::Eq(v)) => buckets.entry(v.clone()).or_default().push(id),
+            Some(DimCon::Range(op, thr)) => {
+                range_buckets.entry((*op, thr.clone())).or_default().push(id)
+            }
             None => wild.push(id),
         }
     }
     // A dim nobody in this subset constrains is a no-op level — skip it.
-    if buckets.is_empty() {
+    if buckets.is_empty() && range_buckets.is_empty() {
         return build_node(wild, disc, dims, pos + 1);
     }
     let children: HashMap<Value, Arc<ShadowNode>> = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
+        .collect();
+    let range_children: Vec<(RangeEdge, Arc<ShadowNode>)> = range_buckets
+        .into_iter()
+        .map(|((op, threshold), ids)| {
+            (
+                RangeEdge { op, threshold },
+                build_node(ids, disc, dims, pos + 1),
+            )
+        })
         .collect();
     let wildcard = if wild.is_empty() {
         None
@@ -166,7 +228,7 @@ fn build_node(
         dim: Some(dim.clone()),
         children,
         wildcard,
-        range_children: Vec::new(),
+        range_children,
         leaves: Vec::new(),
     })
 }
@@ -175,27 +237,82 @@ fn walk<B: Bindings + ?Sized>(
     node: &ShadowNode,
     bindings: &B,
     span: &Span,
-    out: &mut Vec<i64>,
+    proven: bool,
+    out_proven: &mut Vec<i64>,
+    out_maybe: &mut Vec<i64>,
 ) {
-    out.extend(node.leaves.iter().copied());
+    if proven {
+        out_proven.extend(node.leaves.iter().copied());
+    } else {
+        out_maybe.extend(node.leaves.iter().copied());
+    }
     let Some(dim) = &node.dim else {
         return;
     };
     match exec_dim(dim, bindings, span) {
         Ok(v) => {
             if let Some(child) = node.children.get(&v) {
-                walk(child, bindings, span, out);
+                walk(child, bindings, span, proven, out_proven, out_maybe);
+            }
+            for (edge, child) in &node.range_children {
+                match range_holds(&v, edge.op, &edge.threshold) {
+                    Some(true) => walk(child, bindings, span, proven, out_proven, out_maybe),
+                    Some(false) => {}
+                    None => walk(child, bindings, span, false, out_proven, out_maybe),
+                }
             }
         }
         Err(_) => {
-            // Cannot prove a branch — keep every child (over-approx).
+            // Cannot prove a branch — keep every child as maybe (over-approx).
             for child in node.children.values() {
-                walk(child, bindings, span, out);
+                walk(child, bindings, span, false, out_proven, out_maybe);
+            }
+            for (_, child) in &node.range_children {
+                walk(child, bindings, span, false, out_proven, out_maybe);
             }
         }
     }
     if let Some(wc) = &node.wildcard {
-        walk(wc, bindings, span, out);
+        walk(wc, bindings, span, false, out_proven, out_maybe);
+    }
+}
+
+fn range_holds(v: &Value, op: CmpKind, thr: &Value) -> Option<bool> {
+    let ord = compare_values(v, thr)?;
+    match op {
+        CmpKind::Lt => Some(ord.is_lt()),
+        CmpKind::Gt => Some(ord.is_gt()),
+        CmpKind::Le => Some(ord.is_le()),
+        CmpKind::Ge => Some(ord.is_ge()),
+        CmpKind::Eq | CmpKind::NotEq => None,
+    }
+}
+
+fn expr_is_pure_cmp(e: &Expr, slots: &HashMap<u16, String>) -> bool {
+    if !shape_is_pure_cmp(e, slots) {
+        return false;
+    }
+    let mut out = HashMap::new();
+    let mut conflicts = HashSet::new();
+    collect_cons(e, slots, &mut out, &mut conflicts);
+    conflicts.is_empty()
+}
+
+fn shape_is_pure_cmp(e: &Expr, slots: &HashMap<u16, String>) -> bool {
+    match e {
+        Expr::And(xs) => !xs.is_empty() && xs.iter().all(|x| shape_is_pure_cmp(x, slots)),
+        Expr::Call { op, args }
+            if args.len() == 2 && (is_eq_op(*op) || range_kind_of(*op).is_some()) =>
+        {
+            let a = to_dim(&args[0], slots);
+            let b = to_dim(&args[1], slots);
+            matches!(
+                (a, b),
+                (Some(DimKey::Lit(_)), Some(d)) | (Some(d), Some(DimKey::Lit(_)))
+                    if !matches!(d, DimKey::Lit(_))
+            )
+        }
+        _ => false,
     }
 }
 
@@ -204,7 +321,55 @@ fn is_eq_op(op: u16) -> bool {
     n.ends_with("::=") && !n.contains("not=")
 }
 
-fn analyze_where(prog: &Program) -> HashMap<DimKey, Value> {
+fn range_kind_of(op: u16) -> Option<CmpKind> {
+    let n = RETE_OPS[op as usize].core_name;
+    match n.rsplit("::").next()? {
+        "<" => Some(CmpKind::Lt),
+        ">" => Some(CmpKind::Gt),
+        "<=" => Some(CmpKind::Le),
+        ">=" => Some(CmpKind::Ge),
+        _ => None,
+    }
+}
+
+fn flip_range(k: CmpKind) -> CmpKind {
+    match k {
+        CmpKind::Lt => CmpKind::Gt,
+        CmpKind::Gt => CmpKind::Lt,
+        CmpKind::Le => CmpKind::Ge,
+        CmpKind::Ge => CmpKind::Le,
+        other => other,
+    }
+}
+
+fn classify_dim_con(op: u16, lit_on_left: bool, lit: Value) -> Option<DimCon> {
+    if is_eq_op(op) {
+        return Some(DimCon::Eq(lit));
+    }
+    let k = range_kind_of(op)?;
+    Some(DimCon::Range(
+        if lit_on_left { flip_range(k) } else { k },
+        lit,
+    ))
+}
+
+fn put_con(
+    out: &mut HashMap<DimKey, DimCon>,
+    conflicts: &mut HashSet<DimKey>,
+    dim: DimKey,
+    con: DimCon,
+) {
+    if conflicts.contains(&dim) {
+        return;
+    }
+    if out.remove(&dim).is_some() {
+        conflicts.insert(dim);
+        return;
+    }
+    out.insert(dim, con);
+}
+
+fn analyze_where(prog: &Program) -> HashMap<DimKey, DimCon> {
     let mut slot_to_key: HashMap<u16, String> = HashMap::new();
     for (k, slot) in prog.reads.iter() {
         if let Value::String(s) = k {
@@ -212,26 +377,36 @@ fn analyze_where(prog: &Program) -> HashMap<DimKey, Value> {
         }
     }
     let mut out = HashMap::new();
-    collect_eqs(&prog.root, &slot_to_key, &mut out);
+    let mut conflicts = HashSet::new();
+    collect_cons(&prog.root, &slot_to_key, &mut out, &mut conflicts);
     out
 }
 
-fn collect_eqs(e: &Expr, slots: &HashMap<u16, String>, out: &mut HashMap<DimKey, Value>) {
+fn collect_cons(
+    e: &Expr,
+    slots: &HashMap<u16, String>,
+    out: &mut HashMap<DimKey, DimCon>,
+    conflicts: &mut HashSet<DimKey>,
+) {
     match e {
         Expr::And(xs) => {
             for x in xs.iter() {
-                collect_eqs(x, slots, out);
+                collect_cons(x, slots, out, conflicts);
             }
         }
-        Expr::Call { op, args } if is_eq_op(*op) && args.len() == 2 => {
+        Expr::Call { op, args } if args.len() == 2 => {
             let a = to_dim(&args[0], slots);
             let b = to_dim(&args[1], slots);
             match (a, b) {
                 (Some(DimKey::Lit(v)), Some(d)) if !matches!(d, DimKey::Lit(_)) => {
-                    out.insert(d, v);
+                    if let Some(con) = classify_dim_con(*op, true, v) {
+                        put_con(out, conflicts, d, con);
+                    }
                 }
                 (Some(d), Some(DimKey::Lit(v))) if !matches!(d, DimKey::Lit(_)) => {
-                    out.insert(d, v);
+                    if let Some(con) = classify_dim_con(*op, false, v) {
+                        put_con(out, conflicts, d, con);
+                    }
                 }
                 _ => {}
             }
@@ -400,12 +575,24 @@ mod tests {
         let span = crate::rust_caller_span!();
         let cands = tree.candidates(&bindings_k(1), &span);
         assert!(
-            cands.contains(&11),
-            "token ?k=1 must keep the (= ?k 1) TestNode; got {cands:?}"
+            cands.proven.contains(&11) || cands.maybe.contains(&11),
+            "token ?k=1 must keep the (= ?k 1) TestNode; proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
         );
         assert!(
-            !cands.contains(&10) && !cands.contains(&12),
-            "same-dim other literals must be pruned (over-approx would keep them); got {cands:?}"
+            !cands.proven.contains(&10)
+                && !cands.maybe.contains(&10)
+                && !cands.proven.contains(&12)
+                && !cands.maybe.contains(&12),
+            "same-dim other literals must be pruned (over-approx would keep them); proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
+        );
+        assert!(
+            cands.proven.contains(&11),
+            "(= ?k 1) must be proven, not maybe; proven {:?}",
+            cands.proven
         );
     }
 
@@ -427,12 +614,221 @@ mod tests {
         let span = crate::rust_caller_span!();
         let cands = tree.candidates(&bindings_k(1), &span);
         assert!(
-            cands.contains(&2),
-            "a where with no (= dim lit) must stay on the wildcard; got {cands:?}"
+            cands.maybe.contains(&2),
+            "a where with no (= dim lit) must stay on the wildcard as maybe; proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
         );
         assert!(
-            !cands.contains(&1),
-            "token ?k=1 must not keep (= ?k 0); got {cands:?}"
+            !cands.proven.contains(&1) && !cands.maybe.contains(&1),
+            "token ?k=1 must not keep (= ?k 0); proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
+        );
+    }
+
+    fn gt_op() -> u16 {
+        RETE_OPS
+            .iter()
+            .position(|r| r.core_name == ":wat::core::i64::>")
+            .expect("RETE_OPS has i64::>") as u16
+    }
+
+    fn lt_op() -> u16 {
+        RETE_OPS
+            .iter()
+            .position(|r| r.core_name == ":wat::core::i64::<")
+            .expect("RETE_OPS has i64::<") as u16
+    }
+
+    fn cmp_bind_lit(op: u16, lit: i64) -> Program {
+        let k = Value::String(Arc::new("?k".into()));
+        Program {
+            frame_len: 1,
+            root: Expr::Call {
+                op,
+                args: Box::new([Expr::Slot(0), Expr::Lit(Value::i64(lit))]),
+            },
+            reads: Arc::from([(k, 0u16)]),
+            params: Box::from([]),
+            names: Box::from([Some(Arc::from("?k"))]),
+            span: crate::rust_caller_span!(),
+        }
+    }
+
+    fn cmp_lit_bind(op: u16, lit: i64) -> Program {
+        let k = Value::String(Arc::new("?k".into()));
+        Program {
+            frame_len: 1,
+            root: Expr::Call {
+                op,
+                args: Box::new([Expr::Lit(Value::i64(lit)), Expr::Slot(0)]),
+            },
+            reads: Arc::from([(k, 0u16)]),
+            params: Box::from([]),
+            names: Box::from([Some(Arc::from("?k"))]),
+            span: crate::rust_caller_span!(),
+        }
+    }
+
+    #[test]
+    fn range_gt_prunes_below_and_proves_above() {
+        let mut compiled = HashMap::new();
+        compiled.insert(20, cmp_bind_lit(gt_op(), 10));
+        let tree = WhereTree::build(&compiled);
+        let span = crate::rust_caller_span!();
+        assert!(tree.is_pure_cmp(20), "(> ?k 10) is a pure range");
+
+        let below = tree.candidates(&bindings_k(5), &span);
+        assert!(
+            !below.proven.contains(&20) && !below.maybe.contains(&20),
+            "(> ?k 10) must prune ?k=5; proven {:?} maybe {:?}",
+            below.proven,
+            below.maybe
+        );
+
+        let above = tree.candidates(&bindings_k(15), &span);
+        assert!(
+            above.proven.contains(&20),
+            "(> ?k 10) must prove ?k=15; proven {:?} maybe {:?}",
+            above.proven,
+            above.maybe
+        );
+        assert!(
+            !above.maybe.contains(&20),
+            "(> ?k 10) at 15 is proven, not maybe; maybe {:?}",
+            above.maybe
+        );
+    }
+
+    #[test]
+    fn range_lit_on_left_flips_the_op() {
+        // (> 10 ?k) ≡ (?k < 10)
+        let mut compiled = HashMap::new();
+        compiled.insert(21, cmp_lit_bind(gt_op(), 10));
+        let tree = WhereTree::build(&compiled);
+        let span = crate::rust_caller_span!();
+
+        let below = tree.candidates(&bindings_k(5), &span);
+        assert!(
+            below.proven.contains(&21),
+            "(> 10 ?k) must prove ?k=5; proven {:?} maybe {:?}",
+            below.proven,
+            below.maybe
+        );
+
+        let above = tree.candidates(&bindings_k(15), &span);
+        assert!(
+            !above.proven.contains(&21) && !above.maybe.contains(&21),
+            "(> 10 ?k) must prune ?k=15; proven {:?} maybe {:?}",
+            above.proven,
+            above.maybe
+        );
+    }
+
+    fn two_constraint_where() -> Program {
+        let k = Value::String(Arc::new("?k".into()));
+        Program {
+            frame_len: 1,
+            root: Expr::And(Box::new([
+                Expr::Call {
+                    op: gt_op(),
+                    args: Box::new([Expr::Slot(0), Expr::Lit(Value::i64(10))]),
+                },
+                Expr::Call {
+                    op: lt_op(),
+                    args: Box::new([Expr::Slot(0), Expr::Lit(Value::i64(20))]),
+                },
+            ])),
+            reads: Arc::from([(k, 0u16)]),
+            params: Box::from([]),
+            names: Box::from([Some(Arc::from("?k"))]),
+            span: crate::rust_caller_span!(),
+        }
+    }
+
+    #[test]
+    fn two_constraints_on_one_dim_are_not_pure_cmp() {
+        let mut compiled = HashMap::new();
+        compiled.insert(30, two_constraint_where());
+        let tree = WhereTree::build(&compiled);
+        let span = crate::rust_caller_span!();
+        let cands = tree.candidates(&bindings_k(15), &span);
+        assert!(
+            cands.proven.contains(&30) || cands.maybe.contains(&30),
+            "two constraints on one dim must not drop the residue; proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
+        );
+        assert!(
+            !tree.is_pure_cmp(30),
+            "two constraints on one dim must not skip exec_where"
+        );
+    }
+
+    #[test]
+    fn two_constraints_on_one_dim_ride_wildcard_beside_equality() {
+        let mut compiled = HashMap::new();
+        compiled.insert(10, eq_bind_lit(0));
+        compiled.insert(30, two_constraint_where());
+        let tree = WhereTree::build(&compiled);
+        let span = crate::rust_caller_span!();
+        let cands = tree.candidates(&bindings_k(15), &span);
+        assert!(
+            cands.maybe.contains(&30),
+            "conflicted dim rides the wildcard as maybe; proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
+        );
+        assert!(
+            !cands.proven.contains(&30),
+            "conflicted dim must not be proven; proven {:?}",
+            cands.proven
+        );
+        assert!(
+            !cands.proven.contains(&10) && !cands.maybe.contains(&10),
+            "token ?k=15 must not keep (= ?k 0); proven {:?} maybe {:?}",
+            cands.proven,
+            cands.maybe
+        );
+    }
+
+    #[test]
+    fn equality_and_range_share_a_dim_without_colliding() {
+        let mut compiled = HashMap::new();
+        compiled.insert(10, eq_bind_lit(0));
+        compiled.insert(20, cmp_bind_lit(gt_op(), 10));
+        let tree = WhereTree::build(&compiled);
+        let span = crate::rust_caller_span!();
+
+        let at_eq = tree.candidates(&bindings_k(0), &span);
+        assert!(at_eq.proven.contains(&10), "eq 0 proven; {:?}", at_eq.proven);
+        assert!(
+            !at_eq.proven.contains(&20) && !at_eq.maybe.contains(&20),
+            "0 is not > 10; proven {:?} maybe {:?}",
+            at_eq.proven,
+            at_eq.maybe
+        );
+
+        let at_range = tree.candidates(&bindings_k(15), &span);
+        assert!(
+            at_range.proven.contains(&20),
+            "> 10 at 15 proven; {:?}",
+            at_range.proven
+        );
+        assert!(
+            !at_range.proven.contains(&10) && !at_range.maybe.contains(&10),
+            "15 is not = 0; proven {:?} maybe {:?}",
+            at_range.proven,
+            at_range.maybe
+        );
+
+        let neither = tree.candidates(&bindings_k(5), &span);
+        assert!(
+            neither.proven.is_empty() && neither.maybe.is_empty(),
+            "5 is neither = 0 nor > 10; proven {:?} maybe {:?}",
+            neither.proven,
+            neither.maybe
         );
     }
 }

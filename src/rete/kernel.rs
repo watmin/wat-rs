@@ -133,10 +133,15 @@ pub(crate) struct WorkingMemory {
     /// Fire-scoped pair buffer. `Element.binds` and `Token.binds` are
     /// spans into this vec. Append-only during fire
     /// (`DESIGN-STONE-bind-pool`, `DESIGN-STONE-token-bind-pool`).
-    pub(crate) bind_pool: Vec<(u32, Value)>,
+    pub(crate) bind_pool: Vec<(u32, u32)>,
     /// Unique bind-variable keys. `bind_pool` stores ids
     /// (`DESIGN-STONE-bind-key-intern`).
     pub(crate) bind_keys: Vec<Value>,
+    /// Unique bind fillers. `bind_pool` stores ids
+    /// (`DESIGN-STONE-bind-value-intern`).
+    pub(crate) bind_vals: Vec<Value>,
+    /// Intern of `bind_vals` (`DESIGN-STONE-bind-value-intern`).
+    pub(crate) bind_val_ids: FxHashMap<Value, u32>,
     /// Input fact count. `Element.fact < n_input` indexes `facts`.
     pub(crate) n_input: u32,
     /// Derived facts, append-only across rounds. Not cleared at
@@ -238,10 +243,13 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
 ///   struct_form[1] = `PM`                     — the bindings
 ///
 /// Each `Tuple` is `Value::Tuple(Arc<Vec<Value>>)` with two elements: `[fact, Value::i64(alpha_id)]`.
+#[allow(clippy::too_many_arguments)]
 fn value_token_to_native(
     tok: &Value,
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
     derived: &mut Vec<Value>,
     n_input: u32,
@@ -339,6 +347,8 @@ fn value_token_to_native(
         },
         binds: span_from_pairs(
             keys,
+            vals,
+            ids,
             pool,
             bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
         ),
@@ -348,10 +358,12 @@ fn value_token_to_native(
 /// Encode a native `Token` → Value Token Record (lossless round-trip with `value_token_to_native`).
 ///
 /// Produces the same shape `make_token` did: `struct_form = [PV<Tuple(fact,i64)>, PM bindings]`.
+#[allow(clippy::too_many_arguments)]
 fn native_token_to_value(
     tok: Token,
     keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
     match_pool: &[(u32, i64)],
     facts: &Value,
     derived: &[Value],
@@ -370,7 +382,7 @@ fn native_token_to_value(
         token_names(),
         Arc::new(vec![
             Value::wat__core__PersistentVector(matches_pv),
-            Value::wat__core__PersistentMap(pmap_from_span(tok.binds, keys, pool)),
+            Value::wat__core__PersistentMap(pmap_from_span(tok.binds, keys, vals, pool)),
         ]),
     )))
 }
@@ -378,11 +390,14 @@ fn native_token_to_value(
 /// Decode a `beta-memory` PersistentMap (node-id → PV<Token Record>) into native tokens.
 ///
 /// Each node's PV contains `Value Token Records`; each is decoded to a native `Token`.
+#[allow(clippy::too_many_arguments)]
 fn pm_to_beta(
     op: &'static str,
     pm: &Value,
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
     derived: &mut Vec<Value>,
     n_input: u32,
@@ -410,7 +425,7 @@ fn pm_to_beta(
                         let mut ts: Vec<Token> = Vec::with_capacity(pv.len());
                         for tv in pv.iter() {
                             ts.push(value_token_to_native(
-                                tv, keys, pool, match_pool, derived, n_input,
+                                tv, keys, vals, ids, pool, match_pool, derived, n_input,
                             )?);
                         }
                         ts
@@ -444,10 +459,12 @@ fn pm_to_beta(
 }
 
 /// Encode a native beta map (`HashMap<i64, Vec<Token>>`) back to a Value PersistentMap.
+#[allow(clippy::too_many_arguments)]
 fn beta_to_pm(
     beta: HashMap<i64, Vec<Token>>,
     keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
     match_pool: &[(u32, i64)],
     facts: &Value,
     derived: &[Value],
@@ -458,7 +475,7 @@ fn beta_to_pm(
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for tok in tokens {
             pv.push_back_mut(native_token_to_value(
-                tok, keys, pool, match_pool, facts, derived, n_input,
+                tok, keys, vals, pool, match_pool, facts, derived, n_input,
             ));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
@@ -475,7 +492,9 @@ fn beta_to_pm(
 fn value_to_element(
     el: &Value,
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
     derived: &mut Vec<Value>,
     n_input: u32,
 ) -> Result<Element, EvalBreak> {
@@ -515,7 +534,7 @@ fn value_to_element(
             .into())
         }
     };
-    Ok(push_element(keys, pool, fact_idx, bindings))
+    Ok(push_element(keys, vals, ids, pool, fact_idx, bindings))
 }
 
 /// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
@@ -527,12 +546,13 @@ fn value_to_element(
 fn native_element_to_value(
     el: Element,
     keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
 ) -> Value {
-    let pm = pmap_from_span(el.binds, keys, pool);
+    let pm = pmap_from_span(el.binds, keys, vals, pool);
     Value::Aggregate(Arc::new(AggregateValue::record(
         (*element_class_fqdn()).clone(),
         element_names(),
@@ -546,11 +566,14 @@ fn native_element_to_value(
 /// Decode an `alpha-memory` PersistentMap (node-id → PV<Element Record>) into native elements.
 ///
 /// Each node's PV contains `Value Element Records`; each is decoded to a native `Element`.
+#[allow(clippy::too_many_arguments)]
 fn pm_to_alpha(
     op: &'static str,
     pm: &Value,
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
     derived: &mut Vec<Value>,
     n_input: u32,
 ) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
@@ -576,7 +599,7 @@ fn pm_to_alpha(
                     Value::wat__core__PersistentVector(pv) => {
                         let mut es: Vec<Element> = Vec::with_capacity(pv.len());
                         for ev in pv.iter() {
-                            es.push(value_to_element(ev, keys, pool, derived, n_input)?);
+                            es.push(value_to_element(ev, keys, vals, ids, pool, derived, n_input)?);
                         }
                         es
                     }
@@ -612,7 +635,8 @@ fn pm_to_alpha(
 fn alpha_to_pm(
     alpha: HashMap<i64, Vec<Element>>,
     keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -622,7 +646,7 @@ fn alpha_to_pm(
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for el in elements {
             pv.push_back_mut(native_element_to_value(
-                el, keys, pool, facts, derived, n_input,
+                el, keys, vals, pool, facts, derived, n_input,
             ));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
@@ -698,6 +722,8 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
 
     let mut bind_pool = Vec::new();
     let mut bind_keys = Vec::new();
+    let mut bind_vals = Vec::new();
+    let mut bind_val_ids = FxHashMap::default();
     let mut match_pool = Vec::new();
     let n_input = match &facts {
         Value::wat__core__PersistentVector(pv) => pv.len() as u32,
@@ -708,6 +734,8 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         OP,
         alpha_pm,
         &mut bind_keys,
+        &mut bind_vals,
+        &mut bind_val_ids,
         &mut bind_pool,
         &mut derived_facts,
         n_input,
@@ -716,6 +744,8 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         OP,
         beta_pm,
         &mut bind_keys,
+        &mut bind_vals,
+        &mut bind_val_ids,
         &mut bind_pool,
         &mut match_pool,
         &mut derived_facts,
@@ -739,6 +769,8 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         query,
         bind_pool,
         bind_keys,
+        bind_vals,
+        bind_val_ids,
         n_input,
         derived_facts,
         match_pool,
@@ -846,6 +878,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     let alpha_pm = alpha_to_pm(
         wm.alpha,
         &wm.bind_keys,
+        &wm.bind_vals,
         &wm.bind_pool,
         &wm.facts,
         &wm.derived_facts,
@@ -856,6 +889,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     let beta_pm = beta_to_pm(
         wm.beta,
         &wm.bind_keys,
+        &wm.bind_vals,
         &wm.bind_pool,
         &wm.match_pool,
         &wm.facts,
@@ -1107,11 +1141,13 @@ fn explained_names() -> Arc<Vec<String>> {
 /// — where an Element must actually become a Value.)
 fn push_element(
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
     fact: u32,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> Element {
-    let binds = span_from_pairs(keys, pool, pairs);
+    let binds = span_from_pairs(keys, vals, ids, pool, pairs);
     Element { fact, binds }
 }
 
@@ -1154,9 +1190,25 @@ fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     i
 }
 
-fn bind_view<'a>(keys: &'a [Value], pool: &'a [(u32, Value)], span: BindSpan) -> BindView<'a> {
+fn intern_val(vals: &mut Vec<Value>, ids: &mut FxHashMap<Value, u32>, v: Value) -> u32 {
+    if let Some(&id) = ids.get(&v) {
+        return id;
+    }
+    let id = vals.len() as u32;
+    ids.insert(v.clone(), id);
+    vals.push(v);
+    id
+}
+
+fn bind_view<'a>(
+    keys: &'a [Value],
+    vals: &'a [Value],
+    pool: &'a [(u32, u32)],
+    span: BindSpan,
+) -> BindView<'a> {
     BindView {
         keys,
+        vals,
         pairs: pool_slice(pool, span),
     }
 }
@@ -1164,25 +1216,27 @@ fn bind_view<'a>(keys: &'a [Value], pool: &'a [(u32, Value)], span: BindSpan) ->
 fn element_fact_bindings<'a>(
     el: &Element,
     keys: &'a [Value],
-    pool: &'a [(u32, Value)],
+    vals: &'a [Value],
+    pool: &'a [(u32, u32)],
 ) -> BindView<'a> {
-    bind_view(keys, pool, el.binds)
+    bind_view(keys, vals, pool, el.binds)
 }
 
-fn pool_slice(pool: &[(u32, Value)], span: BindSpan) -> &[(u32, Value)] {
+fn pool_slice(pool: &[(u32, u32)], span: BindSpan) -> &[(u32, u32)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]
 }
 
 fn span_from_pairs(
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> BindSpan {
     let off = pool.len();
     for (k, v) in pairs {
-        let id = intern_key(keys, &k);
-        pool.push((id, v));
+        pool.push((intern_key(keys, &k), intern_val(vals, ids, v)));
     }
     BindSpan {
         off: off as u32,
@@ -1208,10 +1262,11 @@ fn empty_span() -> BindSpan {
 fn pmap_from_span(
     span: BindSpan,
     keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
 ) -> crate::value::pmap::PMap {
     crate::value::pmap::PMap::from_pairs(
-        bind_view(keys, pool, span)
+        bind_view(keys, vals, pool, span)
             .iter()
             .map(|(k, v)| (k.clone(), v.clone())),
     )
@@ -1268,6 +1323,8 @@ fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
                 &mut match_scratch,
                 &mut wm.bind_pool,
                 &mut wm.bind_keys,
+                &mut wm.bind_vals,
+                &mut wm.bind_val_ids,
                 fact,
             ) else {
                 continue;
@@ -1785,7 +1842,7 @@ fn extend_token(
     el_fact: u32,
     el_span: BindSpan,
     alpha_id: i64,
-    pool: &mut Vec<(u32, Value)>,
+    pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
 ) -> Token {
     // Concat left edges + the new fact idx. Do not hold a slice across push
@@ -1799,18 +1856,18 @@ fn extend_token(
     }
     match_pool.push((el_fact, alpha_id));
     // Concat left + right-only into the bind pool. Do not hold a slice across push
-    // (`DESIGN-STONE-token-bind-pool`).
+    // (`DESIGN-STONE-token-bind-pool`, `DESIGN-STONE-bind-value-intern`).
     let lo = tok.binds.off as usize;
     let ln = tok.binds.len as usize;
     let eo = el_span.off as usize;
     let en = el_span.len as usize;
     let start = pool.len();
     for i in 0..ln {
-        let p = pool[lo + i].clone();
+        let p = pool[lo + i];
         pool.push(p);
     }
     for i in 0..en {
-        let (k, v) = pool[eo + i].clone();
+        let (k, v) = pool[eo + i];
         let already = (start..start + ln).any(|j| pool[j].0 == k);
         if !already {
             pool.push((k, v));
@@ -1843,22 +1900,25 @@ fn token_assoc(
     k: Value,
     v: Value,
     keys: &mut Vec<Value>,
-    pool: &mut Vec<(u32, Value)>,
+    vals: &mut Vec<Value>,
+    ids: &mut FxHashMap<Value, u32>,
+    pool: &mut Vec<(u32, u32)>,
 ) -> Token {
     let kid = intern_key(keys, &k);
-    let pairs: Vec<(u32, Value)> = pool_slice(pool, tok.binds).to_vec();
+    let vid = intern_val(vals, ids, v);
+    let pairs: Vec<(u32, u32)> = pool_slice(pool, tok.binds).to_vec();
     let start = pool.len();
     let mut found = false;
     for (ek, ev) in pairs {
         if ek == kid {
-            pool.push((ek, v.clone()));
+            pool.push((ek, vid));
             found = true;
         } else {
             pool.push((ek, ev));
         }
     }
     if !found {
-        pool.push((kid, v));
+        pool.push((kid, vid));
     }
     Token {
         matches: tok.matches,
@@ -1885,9 +1945,10 @@ fn join_extend(
     alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(u32, Value)>,
+    pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
     bind_keys: &[Value],
+    vals: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -1898,7 +1959,7 @@ fn join_extend(
     if compiled.has_seed_cmp()
         && fact_bindings_under(
             fact_at(facts, derived, n_input, el.fact),
-            &bind_view(bind_keys, pool, tok.binds),
+            &bind_view(bind_keys, vals, pool, tok.binds),
             compiled,
             scratch,
         )
@@ -1923,9 +1984,10 @@ fn keyed_join(
     alpha_id: i64,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(u32, Value)>,
+    pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
     bind_keys: &[Value],
+    vals: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -1936,8 +1998,8 @@ fn keyed_join(
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
     let join_keys: Vec<Value> = {
-        let sample_tok_bindings = bind_view(bind_keys, pool, left_tokens[0].binds);
-        let sample_el_bindings = element_fact_bindings(&right_elements[0], bind_keys, pool);
+        let sample_tok_bindings = bind_view(bind_keys, vals, pool, left_tokens[0].binds);
+        let sample_el_bindings = element_fact_bindings(&right_elements[0], bind_keys, vals, pool);
         let mut keys: Vec<Value> = sample_tok_bindings
             .iter()
             .map(|(k, _)| k.clone())
@@ -1962,7 +2024,7 @@ fn keyed_join(
     // Step 2: index RIGHT (elements) by join-key-value tuple.
     let mut index: HashMap<Vec<Value>, Vec<usize>> = HashMap::new();
     for (i, el) in right_elements.iter().enumerate() {
-        let el_bindings = element_fact_bindings(el, bind_keys, pool);
+        let el_bindings = element_fact_bindings(el, bind_keys, vals, pool);
         let key: Vec<Value> = join_keys
             .iter()
             .map(|k| {
@@ -1980,7 +2042,7 @@ fn keyed_join(
         let probe_key: Vec<Value> = join_keys
             .iter()
             .map(|k| {
-                Bindings::get(&bind_view(bind_keys, pool, tok.binds), k)
+                Bindings::get(&bind_view(bind_keys, vals, pool, tok.binds), k)
                     .cloned()
                     .expect("keyed_join: join key missing from token bindings")
             })
@@ -1996,6 +2058,7 @@ fn keyed_join(
                     pool,
                     match_pool,
                     bind_keys,
+                    vals,
                     facts,
                     derived,
                     n_input,
@@ -2068,6 +2131,7 @@ fn hash_join_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak
                 &mut wm.bind_pool,
                 &mut wm.match_pool,
                 &wm.bind_keys,
+                &wm.bind_vals,
                 &wm.facts,
                 &wm.derived_facts,
                 wm.n_input,
@@ -2159,13 +2223,13 @@ fn production_pass(wm: &mut WorkingMemory, arm: &ReteArm, sym: &SymbolTable) -> 
             if ts.is_empty() {
                 continue;
             }
-            let first = bind_view(&wm.bind_keys, &wm.bind_pool, ts[0].binds);
+            let first = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, ts[0].binds);
             let slot_tables: Vec<Vec<Option<usize>>> = compiled_rhs
                 .iter()
                 .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                 .collect();
             for tok in ts {
-                let pairs = bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds);
+                let pairs = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds);
                 for (compiled, slots) in compiled_rhs.iter().zip(&slot_tables) {
                     let derived = crate::rete::compiled_rhs::exec_compiled_rhs_at(
                         compiled, pairs, slots, sym,
@@ -2197,6 +2261,8 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     wm.production.clear();
     wm.bind_pool.clear();
     wm.bind_keys.clear();
+    wm.bind_vals.clear();
+    wm.bind_val_ids.clear();
     wm.match_pool.clear();
     wm.derived_facts.clear();
 
@@ -2237,7 +2303,7 @@ fn harvest_query_memory(wm: &mut WorkingMemory) {
         let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
         for pid in node_parents(node_id, &wm.network) {
             if let Some(ts) = wm.beta.get(&pid) {
-                maps.extend(ts.iter().map(|t| pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_pool)));
+                maps.extend(ts.iter().map(|t| pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)));
             }
         }
         wm.query.insert(qname, maps);
@@ -2539,12 +2605,13 @@ fn gather_join_keys<B: Bindings + ?Sized>(
     sample_bindings: &B,
     elements: &[Element],
     bind_keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
 ) -> Vec<Value> {
     if elements.is_empty() {
         return Vec::new();
     }
-    let sample_el_bindings = element_fact_bindings(&elements[0], bind_keys, pool);
+    let sample_el_bindings = element_fact_bindings(&elements[0], bind_keys, vals, pool);
     let mut keys: Vec<Value> = sample_bindings
         .iter()
         .map(|(k, _)| k)
@@ -2584,12 +2651,68 @@ impl GatherIndex {
             Self::Nary(m) => m.get(key).map_or(&[], Vec::as_slice),
         }
     }
+
+    /// Push new alpha indices into existing buckets (`DESIGN-STONE-persist-gather-across-rounds`).
+    /// New ids are `>=` the previous length (alpha only appends). Foldl order holds.
+    fn append(
+        &mut self,
+        new_idxs: &[usize],
+        elements: &[Element],
+        join_keys: &[Value],
+        bind_keys: &[Value],
+        vals: &[Value],
+        pool: &[(u32, u32)],
+    ) {
+        if new_idxs.is_empty() || elements.is_empty() || join_keys.is_empty() {
+            return;
+        }
+        match self {
+            Self::Unary(m) => {
+                let jk = &join_keys[0];
+                for &i in new_idxs {
+                    let el_bindings = element_fact_bindings(&elements[i], bind_keys, vals, pool);
+                    if let Some(v) = Bindings::get(&el_bindings, jk) {
+                        m.entry(v.clone()).or_default().push(i);
+                    }
+                }
+            }
+            Self::Nary(m) => {
+                for &i in new_idxs {
+                    let el_bindings = element_fact_bindings(&elements[i], bind_keys, vals, pool);
+                    let key = key_of(&el_bindings, join_keys);
+                    m.entry(key).or_default().push(i);
+                }
+            }
+        }
+    }
 }
 
-/// Round-scoped cache: `(alpha_id, join_keys) -> index`. Buckets are indices
-/// into **this round's** `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
-/// After step 1 that vec does not grow; the cache dies with the round.
+/// Fire-scoped cache: `(alpha_id, join_keys) -> index`. Buckets are indices
+/// into `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
+/// Persists across rounds; `append` takes `d_alpha`
+/// (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
 type GatherCache = FxHashMap<(i64, Vec<Value>), GatherIndex>;
+
+fn append_d_alpha(
+    cache: &mut GatherCache,
+    d_alpha: &HashMap<i64, Vec<usize>>,
+    wm: &WorkingMemory,
+) {
+    for ((aid, join_keys), idx) in cache.iter_mut() {
+        let Some(news) = d_alpha.get(aid) else {
+            continue;
+        };
+        let els = alpha_elements(&wm.alpha, *aid);
+        idx.append(
+            news,
+            els,
+            join_keys,
+            &wm.bind_keys,
+            &wm.bind_vals,
+            &wm.bind_pool,
+        );
+    }
+}
 
 fn alpha_elements(alpha: &HashMap<i64, Vec<Element>>, alpha_id: i64) -> &[Element] {
     alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[])
@@ -2606,13 +2729,14 @@ fn build_gather_index(
     elements: &[Element],
     join_keys: &[Value],
     bind_keys: &[Value],
-    pool: &[(u32, Value)],
+    vals: &[Value],
+    pool: &[(u32, u32)],
 ) -> GatherIndex {
     if join_keys.len() == 1 {
         let jk = &join_keys[0];
         let mut index: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, bind_keys, pool);
+            let el_bindings = element_fact_bindings(el, bind_keys, vals, pool);
             if let Some(v) = Bindings::get(&el_bindings, jk) {
                 index.entry(v.clone()).or_default().push(i);
             }
@@ -2621,7 +2745,7 @@ fn build_gather_index(
     } else {
         let mut index: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, bind_keys, pool);
+            let el_bindings = element_fact_bindings(el, bind_keys, vals, pool);
             let key = key_of(&el_bindings, join_keys);
             index.entry(key).or_default().push(i);
         }
@@ -2629,8 +2753,9 @@ fn build_gather_index(
     }
 }
 
-/// Get-or-build the round-scoped gather index for `alpha_id` under `sample`'s shared keys.
-/// Acc, Negation, and Exists all miss through here so one pair is built once per round.
+/// Get-or-build the fire-scoped gather index for `alpha_id` under `sample`'s shared keys.
+/// Acc, Negation, and Exists all miss through here so one pair is built once per fire
+/// and appended across rounds (`DESIGN-STONE-persist-gather-across-rounds`).
 fn ensure_gather<B: Bindings + ?Sized>(
     cache: &mut GatherCache,
     wm: &WorkingMemory,
@@ -2638,12 +2763,12 @@ fn ensure_gather<B: Bindings + ?Sized>(
     sample: &B,
 ) -> Vec<Value> {
     let els = alpha_elements(&wm.alpha, alpha_id);
-    let join_keys = gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_pool);
+    let join_keys = gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
     let cache_key = (alpha_id, join_keys.clone());
     cache.entry(cache_key).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);
-        build_gather_index(els, &join_keys, &wm.bind_keys, &wm.bind_pool)
+        build_gather_index(els, &join_keys, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)
     });
     join_keys
 }
@@ -2711,8 +2836,14 @@ fn seeded_bindings_keyed(
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
 /// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
 /// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-fn acc_var_i64(el: &Element, var: &Value, bind_keys: &[Value], pool: &[(u32, Value)]) -> i64 {
-    let bindings = element_fact_bindings(el, bind_keys, pool);
+fn acc_var_i64(
+    el: &Element,
+    var: &Value,
+    bind_keys: &[Value],
+    vals: &[Value],
+    pool: &[(u32, u32)],
+) -> i64 {
+    let bindings = element_fact_bindings(el, bind_keys, vals, pool);
     match Bindings::get(&bindings, var) {
         Some(Value::i64(n)) => *n,
         Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
@@ -2728,7 +2859,7 @@ fn operand_slot(
     bucket: &[usize],
     var: &Value,
     bind_keys: &[Value],
-    pool: &[(u32, Value)],
+    pool: &[(u32, u32)],
 ) -> Option<usize> {
     let &i = bucket.first()?;
     pool_slice(pool, elements[i].binds)
@@ -2736,10 +2867,13 @@ fn operand_slot(
         .position(|(id, _)| bind_keys.get(*id as usize) == Some(var))
 }
 
-fn slot_i64(el: &Element, slot: usize, pool: &[(u32, Value)]) -> i64 {
+fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, u32)]) -> i64 {
     match pool_slice(pool, el.binds).get(slot) {
-        Some((_, Value::i64(n))) => *n,
-        Some((_, other)) => panic!("accumulate: slot bound to non-i64 {other:?}"),
+        Some((_, vid)) => match vals.get(*vid as usize) {
+            Some(Value::i64(n)) => *n,
+            Some(other) => panic!("accumulate: slot bound to non-i64 {other:?}"),
+            None => panic!("accumulate: slot {slot} filler id {vid} missing"),
+        },
         None => panic!("accumulate: slot {slot} missing in element bindings"),
     }
 }
@@ -2753,8 +2887,9 @@ fn fold_bucket(
     elements: &[Element],
     bucket: &[usize],
     sym: &SymbolTable,
-    pool: &[(u32, Value)],
+    pool: &[(u32, u32)],
     bind_keys: &[Value],
+    vals: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -2769,7 +2904,7 @@ fn fold_bucket(
                 .iter()
                 .map(|&i| {
                     census_gather_visit();
-                    slot_i64(&elements[i], slot, pool)
+                    slot_i64(&elements[i], slot, vals, pool)
                 })
                 .sum();
             Ok(Some(Value::i64(s)))
@@ -2781,7 +2916,7 @@ fn fold_bucket(
             let mut acc: Option<i64> = None;
             for &i in bucket {
                 census_gather_visit();
-                let v = slot_i64(&elements[i], slot, pool);
+                let v = slot_i64(&elements[i], slot, vals, pool);
                 acc = Some(match acc {
                     Some(cur) if cur <= v => cur,
                     _ => v,
@@ -2796,7 +2931,7 @@ fn fold_bucket(
             let mut acc: Option<i64> = None;
             for &i in bucket {
                 census_gather_visit();
-                let v = slot_i64(&elements[i], slot, pool);
+                let v = slot_i64(&elements[i], slot, vals, pool);
                 acc = Some(match acc {
                     Some(cur) if cur >= v => cur,
                     _ => v,
@@ -2813,7 +2948,7 @@ fn fold_bucket(
                 .iter()
                 .map(|&i| {
                     census_gather_visit();
-                    slot_i64(&elements[i], slot, pool)
+                    slot_i64(&elements[i], slot, vals, pool)
                 })
                 .sum();
             Ok(Some(Value::i64(s / n)))
@@ -2823,7 +2958,7 @@ fn fold_bucket(
         | AccFold::GroupBy(_)
         | AccFold::User { .. } => {
             let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
-            accumulate_value(fold, &gathered, sym, pool, bind_keys, facts, derived, n_input)
+            accumulate_value(fold, &gathered, sym, pool, bind_keys, vals, facts, derived, n_input)
         }
     }
 }
@@ -2967,8 +3102,9 @@ fn accumulate_value(
     fold: &AccFold,
     gathered: &[&Element],
     sym: &SymbolTable,
-    pool: &[(u32, Value)],
+    pool: &[(u32, u32)],
     bind_keys: &[Value],
+    vals: &[Value],
     facts: &Value,
     derived: &[Value],
     n_input: u32,
@@ -2976,14 +3112,14 @@ fn accumulate_value(
     Ok(match fold {
         AccFold::Count => Some(Value::i64(gathered.len() as i64)),
         AccFold::Sum(var) => {
-            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, bind_keys, pool)).sum();
+            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, bind_keys, vals, pool)).sum();
             Some(Value::i64(s))
         }
         AccFold::Min(var) => {
             // None seed; first element sets it, subsequent narrow with `<`. Empty → None.
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, var, bind_keys, pool);
+                let v = acc_var_i64(el, var, bind_keys, vals, pool);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v < cur {
@@ -3000,7 +3136,7 @@ fn accumulate_value(
         AccFold::Max(var) => {
             let mut acc: Option<i64> = None;
             for el in gathered {
-                let v = acc_var_i64(el, var, bind_keys, pool);
+                let v = acc_var_i64(el, var, bind_keys, vals, pool);
                 acc = Some(match acc {
                     Some(cur) => {
                         if v > cur {
@@ -3019,14 +3155,14 @@ fn accumulate_value(
             if n == 0 {
                 None
             } else {
-                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, bind_keys, pool)).sum();
+                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, bind_keys, vals, pool)).sum();
                 Some(Value::i64(s / n))
             }
         }
         AccFold::Distinct(var) => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                let v = Value::i64(acc_var_i64(el, var, bind_keys, pool));
+                let v = Value::i64(acc_var_i64(el, var, bind_keys, vals, pool));
                 if !pv.iter().any(|x| *x == v) {
                     pv.push_back_mut(v);
                 }
@@ -3044,7 +3180,7 @@ fn accumulate_value(
             let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
             for el in gathered {
                 let fact = fact_at(facts, derived, n_input, el.fact);
-                let k = Value::i64(acc_var_i64(el, var, bind_keys, pool));
+                let k = Value::i64(acc_var_i64(el, var, bind_keys, vals, pool));
                 let pv = match pm.get(&k) {
                     Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
                     _ => rpds::VectorSync::new_sync(),
@@ -3061,7 +3197,7 @@ fn accumulate_value(
         AccFold::User { var, program } => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var, bind_keys, pool)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, var, bind_keys, vals, pool)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
             Some(crate::rete::expr_ir::exec_call(
@@ -3172,14 +3308,20 @@ thread_local! {
 /// the same parent delta by construction on a shared-prefix axis, and overwriting would make the
 /// captured sample depend on node iteration order).
 #[cfg(test)]
-fn capture_where_sample(expr: &WatAST, tokens: &[Token], keys: &[Value], pool: &[(u32, Value)]) {
+fn capture_where_sample(
+    expr: &WatAST,
+    tokens: &[Token],
+    keys: &[Value],
+    vals: &[Value],
+    pool: &[(u32, u32)],
+) {
     WHERE_SAMPLE.with(|c| {
         if let Some(slot @ None) = c.borrow_mut().as_mut() {
             *slot = Some((
                 expr.clone(),
                 tokens
                     .iter()
-                    .map(|t| pmap_from_span(t.binds, keys, pool))
+                    .map(|t| pmap_from_span(t.binds, keys, vals, pool))
                     .collect(),
             ));
         }
@@ -3715,13 +3857,24 @@ fn dispatch_where_tests(
     if use_tree {
         let span = crate::rust_caller_span!();
         for tok in tokens {
-            let binds = bind_view(&sink.wm.bind_keys, &sink.wm.bind_pool, tok.binds);
+            let binds = bind_view(&sink.wm.bind_keys, &sink.wm.bind_vals, &sink.wm.bind_pool, tok.binds);
             let cands = sink.where_tree.candidates(&binds, &span);
-            let cand_set: HashSet<i64> = cands.into_iter().collect();
+            let proven: HashSet<i64> = cands.proven.into_iter().collect();
+            let maybe: HashSet<i64> = cands.maybe.into_iter().collect();
             for &tid in tids {
                 // Uncovered ids are not in the tree — always eval.
                 // Covered + miss is a proven fail (or a raise we suppress).
-                if sink.where_tree.covers(tid) && !cand_set.contains(&tid) {
+                if sink.where_tree.covers(tid) && !proven.contains(&tid) && !maybe.contains(&tid) {
+                    continue;
+                }
+                if proven.contains(&tid) && sink.where_tree.is_pure_cmp(tid) {
+                    census_count("filter:test-reuse");
+                    census_count("filter:test-pass");
+                    if sink.beta_readers.contains(&tid) {
+                        beta_written(tid, 1);
+                        sink.wm.beta.entry(tid).or_default().push(*tok);
+                    }
+                    sink.d_beta.entry(tid).or_default().push(*tok);
                     continue;
                 }
                 census_count("filter:test-evals");
@@ -3742,7 +3895,7 @@ fn dispatch_where_tests(
                 if exec_stashed_where(
                     sink.compiled_wheres,
                     tid,
-                    &bind_view(&sink.wm.bind_keys, &sink.wm.bind_pool, tok.binds),
+                    &bind_view(&sink.wm.bind_keys, &sink.wm.bind_vals, &sink.wm.bind_pool, tok.binds),
                     sink.sym,
                 )? {
                     census_count("filter:test-pass");
@@ -4159,14 +4312,11 @@ fn alpha_activate_fact(
         }
         _ => return Ok(()),
     };
-    let __cand = phase_start();
     let alphas = alpha_tree.candidates(fact_class, fact_fields);
-    phase_end("  ├ alpha:candidates", __cand);
     if alphas.is_empty() {
         return Ok(());
     }
     for aid in &alphas {
-        let __am = phase_start();
         let compiled = rematch_compiled(compiled_conds, *aid)?;
         let matched = crate::rete::compiled_cond::exec_compiled(
             compiled,
@@ -4174,21 +4324,18 @@ fn alpha_activate_fact(
             match_scratch,
             &mut wm.bind_pool,
             &mut wm.bind_keys,
+            &mut wm.bind_vals,
+            &mut wm.bind_val_ids,
             fact,
         );
-        phase_end("  ├ alpha:match", __am);
         if let Some((off, len)) = matched {
-            let __mk = phase_start();
             let el = make_element(fact_idx, off, len);
-            phase_end("  ├ alpha:element", __mk);
-            let __pu = phase_start();
             let slot = {
                 let v = wm.alpha.entry(*aid).or_default();
                 v.push(el);
                 v.len() - 1
             };
             d_alpha.entry(*aid).or_default().push(slot);
-            phase_end("  └ alpha:push", __pu);
         }
     }
     Ok(())
@@ -4219,6 +4366,8 @@ fn fire_fixpoint_delta(
     wm.production.clear();
     wm.bind_pool.clear();
     wm.bind_keys.clear();
+    wm.bind_vals.clear();
+    wm.bind_val_ids.clear();
     wm.match_pool.clear();
     wm.derived_facts.clear();
 
@@ -4272,6 +4421,9 @@ fn fire_fixpoint_delta(
     let mut left_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Token>>> = HashMap::new();
     let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Element>>> = HashMap::new();
     let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
+    // P6-for-gathers: persist across rounds, append d_alpha
+    // (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
+    let mut gather_cache: GatherCache = FxHashMap::default();
 
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
     // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
@@ -4294,17 +4446,6 @@ fn fire_fixpoint_delta(
         // Indices into this round's wm.alpha[aid] (DESIGN-STONE-delta-alpha-indices).
         let mut d_alpha: HashMap<i64, Vec<usize>> = HashMap::new();
         let mut d_beta: HashMap<i64, Vec<Token>> = HashMap::new();
-
-        // Round-scoped gather-index cache, shared by the accumulate pass and the
-        // Negation/Exists filter pass: `gather_index` is a pure function of (alpha memory,
-        // join keys), so the first reader of an (alpha_id, join_keys) pair builds and stores;
-        // the rest borrow. Keyed on BOTH — `alpha_id` alone is not sufficient: two nodes
-        // reading the same alpha can have parents binding different variable sets, and a
-        // wrong-tuple index makes every probe miss silently (DESIGN-STONE-gather-index-cache.md).
-        // Round-scoped, never longer: `wm.alpha` grows in step 1 of this same round, so a cache
-        // that outlived a round would serve a stale index. Declared HERE, same lifetime as
-        // `d_alpha`/`d_beta`, so it cannot leak across rounds.
-        let mut gather_cache: GatherCache = FxHashMap::default();
 
         phase_end("  ├ round:preamble", __pre);
 
@@ -4345,6 +4486,7 @@ fn fire_fixpoint_delta(
         }
 
         phase_end("alpha", __pt0);
+        append_d_alpha(&mut gather_cache, &d_alpha, &wm);
 
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
         let __pt1 = phase_start();
@@ -4446,8 +4588,8 @@ fn fire_fixpoint_delta(
                     let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
-                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
-                            let mut keys: Vec<Value> = bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds)
+                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
+                            let mut keys: Vec<Value> = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds)
                                 .iter()
                                 .map(|(k, _)| k.clone())
                                 .filter(|k| Bindings::get(&el_b, k).is_some())
@@ -4501,7 +4643,7 @@ fn fire_fixpoint_delta(
                     {
                         let ridx = right_idx.entry(*child_id).or_default();
                         for el in &all_right {
-                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                             let k = key_of(&el_b, jk);
                             ridx.entry(k).or_default().push(*el);
                         }
@@ -4522,7 +4664,7 @@ fn fire_fixpoint_delta(
                     let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in &all_left {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -4534,6 +4676,7 @@ fn fire_fixpoint_delta(
                                         &mut wm.bind_pool,
                                         &mut wm.match_pool,
                                         &wm.bind_keys,
+                                        &wm.bind_vals,
                                         &wm.facts,
                                         &wm.derived_facts,
                                         wm.n_input,
@@ -4550,7 +4693,7 @@ fn fire_fixpoint_delta(
                     {
                         let lidx = left_idx.entry(*child_id).or_default();
                         for tok in all_left {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
                             lidx.entry(k).or_default().push(tok);
                         }
                     }
@@ -4598,7 +4741,7 @@ fn fire_fixpoint_delta(
                     let right_mem = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
                     for &ei in dr {
                         let el = &right_mem[ei];
-                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                         let k = key_of(&el_b, jk);
                         ridx.entry(k).or_default().push(*el);
                     }
@@ -4612,7 +4755,7 @@ fn fire_fixpoint_delta(
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in dl {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -4624,6 +4767,7 @@ fn fire_fixpoint_delta(
                                         &mut wm.bind_pool,
                                         &mut wm.match_pool,
                                         &wm.bind_keys,
+                                        &wm.bind_vals,
                                         &wm.facts,
                                         &wm.derived_facts,
                                         wm.n_input,
@@ -4646,7 +4790,7 @@ fn fire_fixpoint_delta(
                             wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
                         for &ei in dr {
                             let el = &right_mem[ei];
-                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                             let k = key_of(&el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
@@ -4659,6 +4803,7 @@ fn fire_fixpoint_delta(
                                         &mut wm.bind_pool,
                                         &mut wm.match_pool,
                                         &wm.bind_keys,
+                                        &wm.bind_vals,
                                         &wm.facts,
                                         &wm.derived_facts,
                                         wm.n_input,
@@ -4678,7 +4823,7 @@ fn fire_fixpoint_delta(
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
                     for tok in dl {
-                        let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), jk);
+                        let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
                         lidx.entry(k).or_default().push(*tok);
                     }
                 }
@@ -4768,7 +4913,7 @@ fn fire_fixpoint_delta(
                 &mut gather_cache,
                 &wm,
                 from_alpha_id,
-                &bind_view(&wm.bind_keys, &wm.bind_pool, new_tokens[0].binds),
+                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, new_tokens[0].binds),
             );
             phase_end("  ├ accum:index", __ix);
             // No clone — indices name this round's wm.alpha[id] (step 1 is done).
@@ -4788,12 +4933,12 @@ fn fire_fixpoint_delta(
             let operand_keys = acc_fold.operand_keys();
             let __fd = phase_start();
             for tok in new_tokens {
-                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), &join_keys);
+                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), &join_keys);
                 let bucket: &[usize] = index.bucket(&key);
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
-                        Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), k).is_none()
+                        Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), k).is_none()
                             && !operand_keys.iter().any(|o| o == *k)
                     })
                     .cloned()
@@ -4810,6 +4955,7 @@ fn fire_fixpoint_delta(
                             sym,
                             &wm.bind_pool,
                             &wm.bind_keys,
+                            &wm.bind_vals,
                             &wm.facts,
                             &wm.derived_facts,
                             wm.n_input,
@@ -4820,6 +4966,8 @@ fn fire_fixpoint_delta(
                             result_var.clone(),
                             aggregate,
                             &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
                             &mut wm.bind_pool,
                         );
                         if beta_readers.contains(node_id) {
@@ -4846,15 +4994,15 @@ fn fire_fixpoint_delta(
                                     wm.n_input,
                                     el.fact,
                                 ),
-                                &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                 compiled,
                                 &mut match_scratch,
                             )
                             .is_some(),
                             None => {
-                                let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                                let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                                 token_element_compatible(
-                                    &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                     &el_b,
                                 )
                             }
@@ -4872,14 +5020,14 @@ fn fire_fixpoint_delta(
                 let groups: Vec<(crate::value::pmap::PMap, Vec<&Element>)> = if group_keys
                     .is_empty()
                 {
-                    vec![(pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_pool), gathered)]
+                    vec![(pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool), gathered)]
                 } else if gathered.is_empty() {
                     Vec::new()
                 } else {
                     let mut order: Vec<Vec<(Value, Value)>> = Vec::new();
                     let mut buckets: HashMap<Vec<(Value, Value)>, Vec<&Element>> = HashMap::new();
                     for el in gathered {
-                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                         let proj = project_group_keys(&el_b, &group_keys);
                         buckets
                             .entry(proj.clone())
@@ -4892,7 +5040,7 @@ fn fire_fixpoint_delta(
                     order
                         .into_iter()
                         .map(|proj| {
-                            let mut nb = pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_pool);
+                            let mut nb = pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                             for (k, v) in &proj {
                                 nb = nb.assoc(k.clone(), v.clone());
                             }
@@ -4909,6 +5057,7 @@ fn fire_fixpoint_delta(
                             sym,
                             &wm.bind_pool,
                             &wm.bind_keys,
+                            &wm.bind_vals,
                             &wm.facts,
                             &wm.derived_facts,
                             wm.n_input,
@@ -4919,6 +5068,8 @@ fn fire_fixpoint_delta(
                             matches: tok.matches,
                             binds: span_from_pairs(
                                 &mut wm.bind_keys,
+                                &mut wm.bind_vals,
+                                &mut wm.bind_val_ids,
                                 &mut wm.bind_pool,
                                 new_bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
                             ),
@@ -4987,7 +5138,7 @@ fn fire_fixpoint_delta(
                         .into_iter()
                         .flatten()
                         .map(|el| {
-                            let eb = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                            let eb = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                             crate::value::pmap::PMap::from_pairs(
                                 eb.iter().map(|(k, v)| (k.clone(), v.clone())),
                             )
@@ -5013,6 +5164,8 @@ fn fire_fixpoint_delta(
                         matches: empty_span(),
                         binds: span_from_pairs(
                             &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
                             &mut wm.bind_pool,
                             ext.iter().map(|(k, v)| (k.clone(), v.clone())),
                         ),
@@ -5036,7 +5189,7 @@ fn fire_fixpoint_delta(
                 // handles. Census only; production never reads `:expr`.
                 #[cfg(test)]
                 if let Value::wat__WatAST(ast) = &sf[1] {
-                    capture_where_sample(ast.as_ref(), &new_tokens, &wm.bind_keys, &wm.bind_pool);
+                    capture_where_sample(ast.as_ref(), &new_tokens, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                 }
                 // Siblings that share this TestNode's parent set see the same token
                 // stream — dispatch once through the where-tree (b).
@@ -5084,7 +5237,7 @@ fn fire_fixpoint_delta(
                 for tok in new_tokens {
                     let any_compat = token_exists_under(
                         driver,
-                        &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                         &wm,
                         compiled_conds,
                         &mut match_scratch,
@@ -5154,6 +5307,7 @@ fn fire_fixpoint_delta(
                     &mut wm.bind_pool,
                     &mut wm.match_pool,
                     &wm.bind_keys,
+                    &wm.bind_vals,
                     &wm.facts,
                     &wm.derived_facts,
                     wm.n_input,
@@ -5246,7 +5400,7 @@ fn fire_fixpoint_delta(
                         for tok in new_tokens {
                             let any_compat = token_exists_under(
                                 driver,
-                                &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                 &wm,
                                 compiled_conds,
                                 &mut match_scratch,
@@ -5325,6 +5479,7 @@ fn fire_fixpoint_delta(
                                     &mut wm.bind_pool,
                                     &mut wm.match_pool,
                                     &wm.bind_keys,
+                                    &wm.bind_vals,
                                     &wm.facts,
                                     &wm.derived_facts,
                                     wm.n_input,
@@ -5359,7 +5514,7 @@ fn fire_fixpoint_delta(
                             for tok in &parent_toks {
                                 let any_compat = token_exists_under(
                                     driver,
-                                    &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                     &wm,
                                     compiled_conds,
                                     &mut match_scratch,
@@ -5427,13 +5582,13 @@ fn fire_fixpoint_delta(
                 // upper bound for this parent's tokens × RHS forms.
                 seen_ids.reserve(ts.len().saturating_mul(compiled_rhs_forms.len()));
 
-                let first = bind_view(&wm.bind_keys, &wm.bind_pool, ts[0].binds);
+                let first = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, ts[0].binds);
                 let slot_tables: Vec<Vec<Option<usize>>> = compiled_rhs_forms
                     .iter()
                     .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                     .collect();
                 for tok in ts {
-                    let pairs = bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds);
+                    let pairs = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds);
                     for (compiled, slots) in compiled_rhs_forms.iter().zip(&slot_tables) {
                     let __prhs = phase_start();
                     let derived = crate::rete::compiled_rhs::exec_compiled_rhs_at(
@@ -5465,6 +5620,7 @@ fn fire_fixpoint_delta(
                                     native_token_to_value(
                                         *tok,
                                         &wm.bind_keys,
+                                        &wm.bind_vals,
                                         &wm.bind_pool,
                                         &wm.match_pool,
                                         &wm.facts,
@@ -5634,7 +5790,7 @@ fn fire_fixpoint_delta(
         }
         for els in wm.alpha.values() {
             for el in els {
-                let b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_pool);
+                let b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                 census_count(ebucket(b.len()));
                 census_count("bind-card:ELEMENTS");
             }
@@ -5656,6 +5812,8 @@ fn fire_fixpoint_delta(
     // Pairs last — Element spans must not dangle (`DESIGN-STONE-bind-pool`).
     wm.bind_pool.clear();
     wm.bind_keys.clear();
+    wm.bind_vals.clear();
+    wm.bind_val_ids.clear();
     wm.match_pool.clear();
     phase_end("  └ round:drop-memories", __drop);
     phase_end("ROUND LOOP", __rounds);
@@ -6684,6 +6842,7 @@ mod tests {
     use crate::runtime::{Environment, Value};
     use crate::types::Nature;
     use crate::value::value::AggregateValue;
+    use rustc_hash::FxHashMap;
     use std::sync::Arc;
 
     /// The cold-and-windy world: Temperature + WindSpeed + ColdAndWindy records + the rule.
@@ -7034,7 +7193,7 @@ mod tests {
 
         // (4) Token carries ?t = 25 in its bindings.
         let qt_key = Value::String(Arc::new("?t".to_string()));
-        let qt_val = Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds), &qt_key).cloned();
+        let qt_val = Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), &qt_key).cloned();
         assert_eq!(
             qt_val,
             Some(Value::i64(25)),
@@ -7128,17 +7287,17 @@ mod tests {
         // joined_token_unifies_both_conditions: ?t=15, ?w=45, ?loc="Oslo".
         let tok = &tokens[0];
         let qt = Bindings::get(
-            &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+            &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
             &Value::String(Arc::new("?t".to_string())),
         )
         .cloned();
         let qw = Bindings::get(
-            &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+            &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
             &Value::String(Arc::new("?w".to_string())),
         )
         .cloned();
         let ql = Bindings::get(
-            &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+            &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
             &Value::String(Arc::new("?loc".to_string())),
         )
         .cloned();
@@ -7325,7 +7484,7 @@ mod tests {
             .iter()
             .map(|tok| {
                 match Bindings::get(
-                    &bind_view(&wm.bind_keys, &wm.bind_pool, tok.binds),
+                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                     &Value::String(Arc::new("?loc".to_string())),
                 ) {
                     Some(Value::String(s)) => s.as_str().to_string(),
@@ -8052,8 +8211,8 @@ mod tests {
     fn node_share_filter_eval_census() {
         let mut table = String::from(
             "\nnode-share — `where` evaluations vs passes (the (b) ShadowNode gate)\n\
-             \x20 rules  items |    evals    passes   wasted  waste%   evals/token\n\
-             \x20 --------------------------------------------------------------------\n",
+             \x20 rules  items |    evals    reuse    passes   wasted  waste%   evals/token\n\
+             \x20 -----------------------------------------------------------------------------\n",
         );
         let mut worst_waste = 0.0f64;
         for (n, m) in [(10i64, 200i64), (25, 200), (50, 200)] {
@@ -8076,15 +8235,17 @@ mod tests {
                     .unwrap_or(0)
             };
             let evals = get("filter:test-evals");
+            let reuse = get("filter:test-reuse");
             let passes = get("filter:test-pass");
             let envs = get("filter:test-env-builds");
             let keys = get("filter:test-key-alloc");
             // Non-vacuity FIRST: a fire that never reached a TestNode would report 0 evals and
             // 0 passes, and a "0% waste" reading would look like the best possible news.
+            // Proven `(= dim lit)` or range skip `exec_where` (`filter:test-reuse`).
             assert!(
-                evals > 0,
-                "node-share N={n} M={m} recorded ZERO `where` evaluations — the filter pass never \
-                 ran, so any ratio taken from this is an artifact, not a measurement"
+                evals > 0 || reuse > 0,
+                "node-share N={n} M={m} recorded ZERO `where` evaluations and ZERO reuse — the \
+                 filter pass never ran, so any ratio taken from this is an artifact, not a measurement"
             );
             assert!(
                 passes > 0,
@@ -8092,10 +8253,14 @@ mod tests {
                  (under-approx) or nothing fired"
             );
             let wasted = evals.saturating_sub(passes);
-            let waste_pct = 100.0 * wasted as f64 / evals as f64;
+            let waste_pct = if evals == 0 {
+                0.0
+            } else {
+                100.0 * wasted as f64 / evals as f64
+            };
             worst_waste = worst_waste.max(waste_pct);
             table.push_str(&format!(
-                "  {n:>5}  {m:>5} | {evals:>8}  {passes:>8} {wasted:>8}  {waste_pct:>5.1}%  \
+                "  {n:>5}  {m:>5} | {evals:>8}  {reuse:>8}  {passes:>8} {wasted:>8}  {waste_pct:>5.1}%  \
                  {:>10.2}  | envs {envs:>7}  keyallocs {keys:>7}\n",
                 evals as f64 / m as f64,
             ));
@@ -8211,9 +8376,10 @@ mod tests {
     ///       are what stand between it and a silent empty gather.
     ///   (c) the cache outliving a round — `wm.alpha` grows in step 1, so a stale index under-reads
     ///       and `count`/`sum` emit identities for groups that do have elements.
-    /// Landed: the round-scoped `gather_cache` keyed on `(alpha_id, join_keys)`
-    /// (`src/rete/kernel.rs`, the round-loop head) makes this GREEN at 2 builds / 80,000
-    /// elements — see `DESIGN-STONE-gather-index-cache.md`.
+    /// Landed: the fire-scoped `gather_cache` keyed on `(alpha_id, join_keys)`
+    /// (`DESIGN-STONE-gather-index-cache.md`, persist
+    /// `DESIGN-STONE-persist-gather-across-rounds.md`) makes this GREEN at 2
+    /// builds / 80,000 elements on a cold accum fire.
     #[test]
     fn gather_index_is_built_once_per_alpha_and_keyset() {
         let rows = accum_count_census(200, 200);
@@ -8367,8 +8533,9 @@ mod tests {
     (:wat::core::range 0 n)))\n")
     }
 
-    /// Returns (alpha:match ns, alpha:element ns, alpha total ns) for one bind-world at `n` facts.
-    fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> (u64, u64, u64) {
+    /// Returns outer `alpha` ns for one bind-world at `n` facts.
+    /// Child timers were retired (`DESIGN-STONE-retire-alpha-child-marks`).
+    fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> u64 {
         let world = startup_from_source(
             &bind_world(reading_cond),
             None,
@@ -8384,17 +8551,10 @@ mod tests {
                 .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
                 .value_owned()
         });
-        let get = |k: &str| {
-            rows.iter()
-                .find(|(n2, _)| *n2 == k)
-                .map(|(_, ns)| *ns)
-                .unwrap_or(0)
-        };
-        (
-            get("  ├ alpha:match"),
-            get("  ├ alpha:element"),
-            get("alpha"),
-        )
+        rows.iter()
+            .find(|(n2, _)| *n2 == "alpha")
+            .map(|(_, ns)| *ns)
+            .unwrap_or(0)
     }
 
     /// Diagnostic — one bind vs two binds on the same condition, same facts.
@@ -8405,31 +8565,26 @@ mod tests {
         const RUNS: usize = 3;
         let n = 40_000i64;
 
-        let (mut m1, mut e1, mut a1) = (0u64, 0u64, 0u64);
-        let (mut m2, mut e2, mut a2) = (0u64, 0u64, 0u64);
+        let mut a1 = 0u64;
+        let mut a2 = 0u64;
         for _ in 0..RUNS {
-            let (m, e, a) = bind_world_alpha_ns(ONE, n);
-            m1 += m;
-            e1 += e;
-            a1 += a;
-            let (m, e, a) = bind_world_alpha_ns(TWO, n);
-            m2 += m;
-            e2 += e;
-            a2 += a;
+            a1 += bind_world_alpha_ns(ONE, n);
+            a2 += bind_world_alpha_ns(TWO, n);
         }
         let r = RUNS as f64;
-        let (m1, e1, a1) = (m1 as f64 / r, e1 as f64 / r, a1 as f64 / r);
-        let (m2, e2, a2) = (m2 as f64 / r, e2 as f64 / r, a2 as f64 / r);
+        let a1 = a1 as f64 / r;
+        let a2 = a2 as f64 / r;
         assert!(
-            m1 > 0.0 && m2 > 0.0,
-            "alpha:match recorded nothing — the instrument never fired"
+            a1 > 0.0 && a2 > 0.0,
+            "alpha recorded nothing — the instrument never fired"
         );
 
         println!(
-            "\nalpha cost per BINDING — {n} facts, mean of {RUNS}\n                 1 bind : match {:>7.2} ms   element {:>6.2} ms   alpha {:>7.2} ms\n                 2 binds: match {:>7.2} ms   element {:>6.2} ms   alpha {:>7.2} ms\n                 delta  : match {:>7.2} ms ({:>4.0} ns/fact)   element {:>6.2} ms   alpha {:>7.2} ms\n",
-            m1 / 1e6, e1 / 1e6, a1 / 1e6,
-            m2 / 1e6, e2 / 1e6, a2 / 1e6,
-            (m2 - m1) / 1e6, (m2 - m1) / n as f64, (e2 - e1) / 1e6, (a2 - a1) / 1e6
+            "\nalpha cost per BINDING — {n} facts, mean of {RUNS}\n                 1 bind : alpha {:>7.2} ms\n                 2 binds: alpha {:>7.2} ms\n                 delta  : alpha {:>7.2} ms ({:>4.0} ns/fact)\n",
+            a1 / 1e6,
+            a2 / 1e6,
+            (a2 - a1) / 1e6,
+            (a2 - a1) / n as f64
         );
     }
 
@@ -8513,9 +8668,23 @@ mod tests {
         assert!(!census.is_empty(), "round census recorded nothing");
         let last = census.last().expect("non-empty");
         println!(
-            "\naccum alpha memories — G=200 W=200 (200 Groups + 40,000 Readings)\n                 alpha_nodes {}   alpha_elements {}\n",
-            last.alpha_nodes, last.alpha_elements
+            "\naccum alpha memories — G=200 W=200 (200 Groups + 40,000 Readings)\n\
+             rounds {}\n                 last alpha_nodes {}   last alpha_elements {}\n",
+            census.len(),
+            last.alpha_nodes,
+            last.alpha_elements
         );
+        for row in &census {
+            println!(
+                "  r{}  dIn {}  aNodes {}  aEls {}  prod {}  seen {}",
+                row.round,
+                row.delta_facts_in,
+                row.alpha_nodes,
+                row.alpha_elements,
+                row.production_facts,
+                row.seen_facts
+            );
+        }
     }
 
     /// Diagnostic — how MANY matcher operations, at the size the phase census apportions.
@@ -8950,15 +9119,12 @@ mod tests {
         // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
         // deleted or stops firing still fails loudly, while a mark that is ADDED shows up for
         // free. Both directions covered; neither can go quiet.
-        const REQUIRED_PHASES: [&str; 23] = [
+        const REQUIRED_PHASES: [&str; 20] = [
             "IN: to_transient",
             "SETUP: indexes",
             "  ├ setup:seen",
             "ROUND LOOP",
             "alpha",
-            "  ├ alpha:match",
-            "  ├ alpha:element",
-            "  └ alpha:push",
             "root-join",
             "hash-join",
             "accumulate",
@@ -10459,9 +10625,24 @@ mod tests {
         let net = |raw: f64, pairs: u64| raw - pairs as f64 * cal;
         let kid_net: [f64; 4] = std::array::from_fn(|i| net(kid_raw[i], kid_pairs[i]));
         let pk_net: [f64; 2] = std::array::from_fn(|i| net(pk_raw[i], pk_pairs[i]));
-        let remainder_alpha = alpha_raw - kid_raw.iter().sum::<f64>();
-        let tax_alpha: f64 = kid_pairs.iter().map(|k| *k as f64 * cal).sum();
-        let honest_alpha: f64 = kid_net.iter().map(|n| n.max(0.0)).sum();
+        // Child timers retired: remainder/tax of those pairs is 0, and
+        // the outer `alpha` row *is* honest_alpha (`DESIGN-STONE-retire-alpha-child-marks`).
+        let kids_retired = kid_pairs.iter().all(|k| *k == 0);
+        let remainder_alpha = if kids_retired {
+            0.0
+        } else {
+            alpha_raw - kid_raw.iter().sum::<f64>()
+        };
+        let tax_alpha: f64 = if kids_retired {
+            0.0
+        } else {
+            kid_pairs.iter().map(|k| *k as f64 * cal).sum()
+        };
+        let honest_alpha: f64 = if kids_retired {
+            net(alpha_raw, alpha_pairs).max(0.0)
+        } else {
+            kid_net.iter().map(|n| n.max(0.0)).sum()
+        };
         let remainder_prod = prod_raw - pk_raw.iter().sum::<f64>();
         let tax_prod: f64 = pk_pairs.iter().map(|k| *k as f64 * cal).sum();
         let honest_prod: f64 = pk_net.iter().map(|n| n.max(0.0)).sum();
@@ -10549,6 +10730,14 @@ mod tests {
         assert!(
             alpha_pairs > 0,
             "alpha recorded 0 pairs — leftover split is a dead fire:{table}"
+        );
+        assert!(
+            kids_retired,
+            "alpha child timers still fire — pairs {kid_pairs:?}:{table}"
+        );
+        assert!(
+            honest_fire > 0.0,
+            "honest_FIRE must be > 0 after retiring child tax:{table}"
         );
     }
 
@@ -10804,8 +10993,10 @@ mod tests {
             })
             .collect();
 
-        fn build_alpha(facts: &[Value], gkey: &Value, vkey: &Value) -> (Vec<super::Element>, Vec<(u32, Value)>) {
+        fn build_alpha(facts: &[Value], gkey: &Value, vkey: &Value) -> (Vec<super::Element>, Vec<(u32, u32)>) {
             let mut keys = Vec::new();
+            let mut vals = Vec::new();
+            let mut ids = FxHashMap::default();
             let mut pool = Vec::new();
             let mut alpha = Vec::with_capacity(facts.len());
             for i in 0..facts.len() {
@@ -10813,6 +11004,8 @@ mod tests {
                 let v = Value::i64((i % 200) as i64);
                 let binds = super::span_from_pairs(
                     &mut keys,
+                    &mut vals,
+                    &mut ids,
                     &mut pool,
                     [(gkey.clone(), g), (vkey.clone(), v)],
                 );
@@ -10919,13 +11112,17 @@ mod tests {
         let vkey = Value::String(Arc::new("?v".into()));
         let join_keys = [gkey.clone()];
         let mut keys = Vec::new();
-        let mut pool: Vec<(u32, Value)> = Vec::new();
+        let mut vals = Vec::new();
+        let mut ids = FxHashMap::default();
+        let mut pool: Vec<(u32, u32)> = Vec::new();
         let mut els: Vec<super::Element> = Vec::with_capacity(N);
         for i in 0..N {
             let g = Value::i64((i / 200) as i64);
             let v = Value::i64((i % 200) as i64);
             let binds = super::span_from_pairs(
                 &mut keys,
+                &mut vals,
+                &mut ids,
                 &mut pool,
                 [(gkey.clone(), g), (vkey.clone(), v)],
             );
@@ -10941,7 +11138,7 @@ mod tests {
             t0.elapsed().as_nanos() as f64
         }
 
-        black_box(super::build_gather_index(&els, &join_keys, &keys, &pool));
+        black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool));
 
         let mut k = 0.0;
         let mut v = 0.0;
@@ -10951,14 +11148,14 @@ mod tests {
         for _ in 0..RUNS {
             k += time_ns(|| {
                 for el in &els {
-                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
                     black_box(super::key_of(&pairs, &join_keys));
                 }
             });
             v += time_ns(|| {
                 let mut idx: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
-                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
                     let key = super::key_of(&pairs, &join_keys);
                     idx.entry(key).or_default().push(i);
                 }
@@ -10967,7 +11164,7 @@ mod tests {
             u += time_ns(|| {
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
-                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
                     if let Some(val) = Bindings::get(&pairs, &gkey) {
                         idx.entry(val.clone()).or_default().push(i);
                     }
@@ -10975,12 +11172,12 @@ mod tests {
                 black_box(idx.len());
             });
             b += time_ns(|| {
-                black_box(super::build_gather_index(&els, &join_keys, &keys, &pool));
+                black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool));
             });
             s += time_ns(|| {
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
-                    let pairs = super::element_fact_bindings(el, &keys, &pool);
+                    let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
                     if let Some(val) = Bindings::get(&pairs, &gkey) {
                         idx.entry(val.clone()).or_default().push(i);
                     }
@@ -11037,15 +11234,21 @@ mod tests {
         let join_keys = [k.clone()];
 
         let mut keys = Vec::new();
-        let mut bind_pool: Vec<(u32, Value)> = Vec::new();
+        let mut vals = Vec::new();
+        let mut ids = FxHashMap::default();
+        let mut bind_pool: Vec<(u32, u32)> = Vec::new();
         let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
             &mut keys,
+            &mut vals,
+            &mut ids,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (l.clone(), Value::i64(2))],
         );
         let right_binds = super::span_from_pairs(
             &mut keys,
+            &mut vals,
+            &mut ids,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (r.clone(), Value::i64(3))],
         );
@@ -11078,7 +11281,7 @@ mod tests {
                 &mut bp,
                 &mut mp,
             ));
-            black_box(super::key_of(&super::bind_view(&keys, &bind_pool, left_binds), &join_keys));
+            black_box(super::key_of(&super::bind_view(&keys, &vals, &bind_pool, left_binds), &join_keys));
             black_box(idx.get(&vec![Value::i64(1)]));
         }
 
@@ -11097,11 +11300,11 @@ mod tests {
                 let en = right_binds.len as usize;
                 let start = bp.len();
                 for i in 0..ln {
-                    let p = bp[lo + i].clone();
+                    let p = bp[lo + i];
                     bp.push(p);
                 }
                 for i in 0..en {
-                    let (kk, vv) = bp[eo + i].clone();
+                    let (kk, vv) = bp[eo + i];
                     let already = (start..start + ln).any(|j| bp[j].0 == kk);
                     if !already {
                         bp.push((kk, vv));
@@ -11140,7 +11343,7 @@ mod tests {
 
             kk += time_ns(N, || {
                 black_box(super::key_of(
-                    &super::bind_view(&keys, &bind_pool, left_binds),
+                    &super::bind_view(&keys, &vals, &bind_pool, left_binds),
                     &join_keys,
                 ));
             });
@@ -11206,15 +11409,21 @@ mod tests {
             Arc::new(vec![Value::i64(1), Value::i64(3)]),
         )));
         let mut keys = Vec::new();
-        let mut bind_pool: Vec<(u32, Value)> = Vec::new();
+        let mut vals = Vec::new();
+        let mut ids = FxHashMap::default();
+        let mut bind_pool: Vec<(u32, u32)> = Vec::new();
         let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
             &mut keys,
+            &mut vals,
+            &mut ids,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (l.clone(), Value::i64(2))],
         );
         let right_binds = super::span_from_pairs(
             &mut keys,
+            &mut vals,
+            &mut ids,
             &mut bind_pool,
             [(k.clone(), Value::i64(1)), (r.clone(), Value::i64(3))],
         );
@@ -11281,6 +11490,7 @@ mod tests {
                     &mut bp,
                     &mut mp,
                     &keys,
+                    &vals,
                     &facts_pv,
                     &derived,
                     0,
@@ -11339,6 +11549,7 @@ mod tests {
                         &mut bp,
                         &mut mp,
                         &keys,
+                        &vals,
                         &facts_pv,
                         &derived,
                         0,
@@ -11851,12 +12062,16 @@ mod tests {
                 );
                 let mut pool = Vec::new();
                 let mut bkeys = Vec::new();
+                let mut bvals = Vec::new();
+                let mut bids = FxHashMap::default();
                 let via_compiled = exec_compiled(
                     &compiled[aid],
                     fact_fields,
                     &mut scratch,
                     &mut pool,
                     &mut bkeys,
+                    &mut bvals,
+                    &mut bids,
                     fact,
                 );
 
@@ -11868,7 +12083,7 @@ mod tests {
                             off: *off,
                             len: *len,
                         };
-                        let c: Vec<(Value, Value)> = super::bind_view(&bkeys, &pool, span)
+                        let c: Vec<(Value, Value)> = super::bind_view(&bkeys, &bvals, &pool, span)
                             .iter()
                             .map(|(k, v)| (k.clone(), v.clone()))
                             .collect();
@@ -11948,6 +12163,8 @@ mod tests {
                         &mut scratch,
                         &mut Vec::new(),
                         &mut Vec::new(),
+                        &mut Vec::new(),
+                        &mut FxHashMap::default(),
                         fact,
                     )
                     .is_none()

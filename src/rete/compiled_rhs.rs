@@ -296,8 +296,11 @@ pub(crate) fn exec_compiled_rhs_at(
     let mut fields: Vec<Value> = Vec::with_capacity(ops.len());
     for (op, slot) in ops.iter().zip(slots) {
         let v = match op {
-            RhsOp::Bind(_, ast_debug) => match slot.and_then(|i| pairs.pairs.get(i)) {
-                Some((_, v)) => v.clone(),
+            RhsOp::Bind(_, ast_debug) => match slot.and_then(|i| {
+                let (_, vid) = pairs.pairs.get(i)?;
+                pairs.vals.get(*vid as usize)
+            }) {
+                Some(v) => v.clone(),
                 None => return Err(unbound_operand(ast_debug)),
             },
             RhsOp::Lit(v) => v.clone(),
@@ -655,13 +658,15 @@ mod tests {
         let slotted = rhs_bind_slots(&compiled, pairs.as_slice());
         let via_get = exec_compiled_rhs(&compiled, pairs.as_slice(), &sym).expect("exec");
         let view_keys: Vec<Value> = pairs.iter().map(|(k, _)| k.clone()).collect();
-        let view_pairs: Vec<(u32, Value)> = pairs
+        let view_pairs: Vec<(u32, u32)> = pairs
             .iter()
             .enumerate()
-            .map(|(i, (_, v))| (i as u32, v.clone()))
+            .map(|(i, _)| (i as u32, i as u32))
             .collect();
+        let view_vals: Vec<Value> = pairs.iter().map(|(_, v)| v.clone()).collect();
         let view = crate::rete::matcher::BindView {
             keys: &view_keys,
+            vals: &view_vals,
             pairs: &view_pairs,
         };
         let via_slot = exec_compiled_rhs_at(&compiled, view, &slotted, &sym).expect("at");

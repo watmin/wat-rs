@@ -89,23 +89,29 @@ pub(crate) trait Bindings {
     fn iter(&self) -> impl Iterator<Item = (&Value, &Value)>;
 }
 
-/// Fire-scoped bind view: key ids into `bind_keys`, fillers in `pairs`
-/// (`DESIGN-STONE-bind-key-intern`).
+/// Fire-scoped bind view: key ids into `bind_keys`, filler ids into
+/// `bind_vals` (`DESIGN-STONE-bind-key-intern`,
+/// `DESIGN-STONE-bind-value-intern`).
 #[derive(Clone, Copy)]
 pub(crate) struct BindView<'a> {
     pub keys: &'a [Value],
-    pub pairs: &'a [(u32, Value)],
+    pub vals: &'a [Value],
+    pub pairs: &'a [(u32, u32)],
 }
 
 impl Bindings for BindView<'_> {
     fn get(&self, k: &Value) -> Option<&Value> {
-        self.pairs.iter().find_map(|(i, v)| {
-            (self.keys.get(*i as usize) == Some(k)).then_some(v)
+        self.pairs.iter().find_map(|(i, vid)| {
+            (self.keys.get(*i as usize) == Some(k))
+                .then(|| self.vals.get(*vid as usize))
+                .flatten()
         })
     }
     fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
-        self.pairs.iter().filter_map(|(i, v)| {
-            self.keys.get(*i as usize).map(|k| (k, v))
+        self.pairs.iter().filter_map(|(i, vid)| {
+            let k = self.keys.get(*i as usize)?;
+            let v = self.vals.get(*vid as usize)?;
+            Some((k, v))
         })
     }
 }
@@ -688,7 +694,7 @@ pub(crate) enum ReteClauseShape<'a> {
 }
 
 /// The comparison an inline alpha constraint performs — independent of the type it is spelled at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum CmpKind {
     Eq,
     NotEq,

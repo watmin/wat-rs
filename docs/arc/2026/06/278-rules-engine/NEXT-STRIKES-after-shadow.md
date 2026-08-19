@@ -111,10 +111,59 @@ on this cell. Persist is still ~0 on a cold fire.
 | **2ab** | `DESIGN-STONE-fact-as-index.md` — Element.fact is a `u32`. | Isolated A 1.06 → **0.00**. drop 3.63 → **1.14**. FIRE 57.92 → **51.56**. | **LANDED** |
 | **2ac** | `DESIGN-STONE-match-pool-fact-as-index.md` — match_pool is `(u32, i64)`. | Isolated M 1.08 → **0.00**. D 1.84 → **0.77**. in-fire drop 1.14 → 1.18 (wash). FIRE 51.56 → **53.83** (alpha instrument). root-join 0.14 → **0.03**. | **LANDED** |
 | **2ad** | `DESIGN-STONE-bind-key-intern.md` — bind keys are a fire-scoped `u32`. | Isolated B 0.78 → **0.32** (value Drop leftover). drop 1.18 → **0.46**. FIRE 53.83 → **48.52**. | **LANDED** |
-| **2ae** | leftover isolated drop is bind *value* Drop (B **0.32**). Do not intern `names`. | — | **NEXT to draw** |
-| 3 | `DESIGN-STONE-persist-gather-across-rounds.md` — P6 for gathers; append `d_alpha`. | ~0 on a cold fire (index is first-round hash). | after a census names a multi-round cell |
-| 4 | `DESIGN-STONE-where-dim-reuse.md` — `(b)`: do not `exec_where` a proven `(= dim lit)`. | node-share polish (already 3.18 ms) | after the accum wall |
-| 5 | `DESIGN-STONE-where-range-edges.md` — populate `range_children`. | chaos-engine / `where-numeric`; not this grid | after 4 |
+| **2ae** | `DESIGN-STONE-bind-value-intern.md` — fillers are a fire-scoped `u32`. | Isolated B 0.32 → **0.00**. drop 0.46 → **0.01**. FIRE 48.52 → **49.13** (alpha wash). Isolated drop exhausted. | **LANDED** |
+| **3** | `DESIGN-STONE-persist-gather-across-rounds.md` — P6 for gathers; append `d_alpha`. | Accum 2 rounds, aEls **80200 both**. builds **2**. FIRE 49.13 → **51.68** (wash). Not a FIRE cut on this cell. | **LANDED** |
+| **4** | `DESIGN-STONE-where-dim-reuse.md` — skip `exec_where` on proven `(= dim lit)`. | `[50 200]` evals **0**, reuse **200**, passes **200**. FIRE 1.71 → **1.62**. filter 0.50 → **0.43** (walk leftover). | **LANDED** |
+| **5** | `DESIGN-STONE-where-range-edges.md` — populate `range_children`. | Unit: `(> ?k 10)` prune 5 / prove 15. `[50 200]` evals **0** / reuse **200**. FIRE 1.62 → **1.65** wash. Accum **48.32** wash. Mechanism, not a FIRE cut. Alpha-tree ranges untouched. | **LANDED** |
+| **6** | `DESIGN-STONE-retire-alpha-child-marks.md` — per-fact alpha timers off. | Child pairs **0**. FIRE 48.65 → **26.53**. honest_FIRE −2.21 → **26.25**. honest_alpha **18.16** (was hidden in remainder). setup:seen **3.92**. Node-share evals 0 / reuse 200. | **LANDED** |
+
+## After 6 — leftovers
+
+The candidates trap is gone from census FIRE. Remaining
+honest rows at accum `[200 200]`:
+
+- **honest alpha 18.16** — tree + `exec_compiled` + push,
+  40k facts × 2 rounds. Largest engine leftover.
+- **`setup:seen` 3.92** — 2z said fire context; isolated
+  P was 1.67. Do not intern a Vec into Session.
+- **accum:index 2.03**
+
+Parked: fact insertion (section below). Refused: intern
+`names`, facts in `bind_pool`, retry 2e/2o, persist gather
+to dodge the fold, 297, service-ify, alpha-tree range
+edges, `not=` as a range, two constraints on one dim as a
+conjunction, sample marks, retire `prod:compiled-rhs`.
+
+## Parked — fact insertion (after FIRE is exhausted)
+
+Not this queue. Do not draw a stone until 2ae and the named
+FIRE leftovers are done.
+
+`probe-insert-cost-split.wat` on **c800d7d5** (release, one
+run per n; witnesses held). N chained `insert`, not
+`insert-all`. `insert − conj` is **flat ~2000 ns/fact**:
+
+| n | baseline | conj | insert | insert − conj |
+|---:|---:|---:|---:|---:|
+| 5 000 | 2991 | 2286 | 4305 | **2018** |
+| 10 000 | 3191 | 2625 | 4722 | **2097** |
+| 20 000 | 3060 | 2564 | 4645 | **2081** |
+| 40 000 | 3100 | 2822 | 4802 | **1981** |
+
+Against the stones: native-insert **+11.8 µs** (pre-`insert'`);
+insert-all.md **+1027 ns**; this tip **+2.0 µs**. Still ~6×
+the interpreted path. ~2× the post-native snapshot. All
+three arms moved (baseline 2.2 → 3.0 µs) — foldl+construct
+is heavier too.
+
+Not seqable (`range` is still `Vec`; `foldl` still walks it).
+Not foldr. Not the aggregate-identity O(n²) leak (Session
+`identity = 0`; `value_is_shallow` bails on `network`).
+
+When chasing: add an `insert-all` arm to the same probe.
+Unweighed suspects: Reading stamp; `insert'` allocating
+`available: Vec<String>` per fact; Session 7 → 8 fields;
+`insert` as a `defclause` in front of `insert'`.
 
 Already on disk, **not** this queue:
 

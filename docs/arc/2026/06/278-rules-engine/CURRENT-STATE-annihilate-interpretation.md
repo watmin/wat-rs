@@ -5,15 +5,16 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–13, fold through bind-key intern.
+**Right now:** items 1–13, fold through where-range-edges.
 Queue: `NEXT-STRIKES-after-shadow.md`. Fanout dry. Accum
-`[200 200]` FIRE **48.52**. 2ad: bind_pool is `(u32, Value)`;
-unique keys live in `bind_keys`. Isolated B **0.32** (i64
-Drop leftover). in-fire drop **0.46**. Token stays two
-spans. Next intern: leftover drop is bind *value* Drop.
-Do not intern record `names`. Do not put facts in
-`bind_pool`. Do not retry 2e. Do not persist gather. Do
-not start 297. Do not merge `origin/main`.
+`[200 200]` FIRE **26.53** (48.65 → 26.53; retired per-fact
+alpha child timers). honest_alpha **18.16**. `setup:seen`
+**3.92**. Node-share `[50 200]` evals **0** / reuse **200**.
+FIRE **1.55**. Alpha-tree ranges stay empty. Do not intern
+record `names`. Do not put facts in `bind_pool`. Do not
+retry 2e. Do not persist gather to dodge the fold. Do not
+start 297. Shared checkpoint **c800d7d5**. Fact insertion
+parked. Next leftover: honest alpha 18 ms, then seen.
 
 ### Completeness grid — 2026-08-17 — do not drop
 
@@ -206,8 +207,11 @@ The list (do not drop an item) — **arm persisted before `(b)`:**
     evals ≈ passes ≈ M, waste < 50% (measured 0%).
     Unit: `tree_picks_the_matching_equality_leaf`,
     `no_key_predicate_rides_wildcard`. Range edges
-    reserved, unpopulated. Driver Exists/Not stay on
-    keyed gather — not this index.
+    populated (`DESIGN-STONE-where-range-edges`):
+    `(> ?k 10)` prunes 5 / proves 15. Two constraints
+    on one dim ride wildcard; not `pure_cmp`. Alpha-tree
+    `range_children` stays empty. Driver Exists/Not stay
+    on keyed gather — not this index.
 14. **`#wat.rete/Export`.** **landed (this turn).** The
     compiled program as one EDN value. `export` / `import`.
     Native fire. Oracle cannot consume it. Stratify
