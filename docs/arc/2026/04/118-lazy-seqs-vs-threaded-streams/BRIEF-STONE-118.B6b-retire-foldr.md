@@ -85,3 +85,72 @@ report it rather than migrating it.
 3. Both capability headers, before and after.
 4. Everything you ran; state plainly that you did not run the floor.
 5. Honest deltas, line counts, wall-clock against a 45–70 minute prediction.
+
+---
+
+## ⛔ AMENDED 2026-08-18 (post-compaction, pre-strike) — THE CENSUS ABOVE MISSED THREE ROOMS
+
+Re-measured against the disk before release. The 43 `src/` sites and the 5 `:wat::core::foldr`
+call sites above are all **correct**. Three things they do not cover:
+
+### A — `src/runtime.rs` holds TWO unit tests, and one of them IS this stone's acceptance row
+
+Both sit inside the 7 `runtime.rs` hits counted as blast radius, and step 1 above says only
+"delete it and its dispatch arm." Measured, they are not the same thing:
+
+- **`:37866 foldr_is_right_associative`** — asserts **2** for `1-(2-(3-0))`. That is
+  **EXPECTATIONS row 2, verbatim, already on disk.** ★ **REWRITE it** to
+  `(reduce f init (reverse coll))` and keep the assertion at `2`. Do not delete it: the row that
+  proves the capability survives the retirement is this test.
+- **`:37882 foldl_vs_foldr_differ_on_nonassoc_op`** — measured: its body calls **only `foldl`**
+  and asserts **−6**. The `foldr` half lives in the NAME and the comment, never in a call. So it
+  is a **rename + comment fix**, not a rewrite — and it is the negative control that keeps
+  discriminating a left fold from a right one, so it stays.
+  `[[feedback_a_negative_control_that_can_be_kept_must_be_kept]]`
+
+### B — the refusal does not name a replacement unless you add a retirement-table row
+
+`src/remedy/retirement.rs` is the substrate's explicit memory of its own evolution — an exact
+static table, `(retired, replacement, note)`, consulted by `remedies_for`. Deleting the dispatch
+arm alone yields a generic unknown-form error, which **fails EXPECTATIONS row 1** ("the message
+names the replacement"). **Add the row**, following the shape of the `:wat::core::vec` entry
+(which carries a two-part note):
+
+```rust
+RetirementEntry { retired: ":wat::core::foldr", replacement: ":wat::core::reduce",
+    note: Some("wat is STRICT, so a right fold is `(:wat::core::reduce f init (:wat::core::reverse coll))` — `foldr` was `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct only because it is LAZY (arc 118.B6b)") },
+```
+
+The module's header carries an arc-history table; append the row there too — that is the
+convention every prior entry followed.
+
+### C — a `wat-scripts/` file calls the RETE spelling, and wat-scripts must LOAD
+
+`wat-scripts/scratch-pad/probe-arc278-57-round1b-parametric-and-hof.wat:42–46` defines
+`:probe-foldr` via **`:wat::rete::core::foldr`**. The census above grepped `:wat::core::foldr`
+and never saw it. `wat-scripts/` is loader-gated (`every_wat_scripts_file_loads`), so deleting the
+vocabulary row in step 2 takes this file red. **Delete the `:probe-foldr` def**, and record why
+INLINE — that file already documents its own `PersistentVector/get` conversion in exactly that
+style, four comment lines above the fold defs. The file's header says it probes "the five
+Redispatch-class higher-order combinators"; it now probes four. Correct the header.
+
+### The gates to expect, by name — do not discover these the hard way
+
+```
+src/rete/vocabulary.rs:1524  every_rete_row_is_total
+src/rete/vocabulary.rs:1561  every_row_is_admitted
+src/rete/vocabulary.rs:1626  every_rete_name_is_unique
+src/rete/purity.rs:2168      completeness_gate::every_dispatched_verb_is_classified_or_disposed
+```
+
+### ★ A FINDING TO REPORT, NOT TO ACT ON — there is no `:wat::rete::core::reverse`
+
+Measured: the rete vocabulary has `foldl`, `foldr`, `map`, `filter`, **`reduce`** — and **no
+`reverse`**. So core's replacement composition `(reduce f init (reverse coll))` is spellable in
+wat and **NOT spellable in a `where`**: removing `foldr`'s row leaves the rete sub-language with
+no right fold at all.
+
+Removing the row is still **forced** — it is a `Redispatch` alias whose `core_name` points at a
+verb that will not exist, i.e. a dangling declaration. Whether to mint a `reverse` row alongside
+is a **language-surface addition and the builder's ruling**. ⛔ **Do not mint it.** Report the
+hole; the orchestrator carries it up.
