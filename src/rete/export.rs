@@ -13,8 +13,8 @@ use crate::rete::compiled_rhs::{CompiledRhs, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
     class_field_names, get_node, kind_of, network_identity, node_children, node_record,
-    rete_arm_get_or_build, rete_arm_intern, rule_deps_from_rules, session_names, sorted_node_ids,
-    AccFold, CondDriver, ReteArm, RuleDep,
+    invert_feeding_alpha, kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
+    rule_deps_from_rules, session_names, sorted_node_ids, AccFold, CondDriver, ReteArm, RuleDep,
 };
 use crate::rete::matcher::{alpha_pattern, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
@@ -1581,8 +1581,11 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
     let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
     let alpha_tree = AlphaTree::unpruned(&alpha_by_type);
     let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
+    let kind_ids = kind_id_lists(&network, &node_ids);
+    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
     let arm = Arc::new(ReteArm {
         node_ids,
+        kind_ids,
         compiled_conds,
         compiled_drivers,
         compiled_wheres,
@@ -1591,6 +1594,7 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
         alpha_tree,
         where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         beta_readers,
         compiled_max_slots,

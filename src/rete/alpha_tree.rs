@@ -41,6 +41,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use rustc_hash::FxHashMap;
+
 use crate::ast::WatAST;
 use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
 use crate::rete::kernel::class_field_names;
@@ -61,8 +63,9 @@ pub(crate) struct Node {
     /// leaf (empty `children`/`wildcard`), where it is never read.
     dim: usize,
     /// Equality fan-out: a field value this dim was proven to require, to the subtree of
-    /// alphas that could still match.
-    children: HashMap<Value, Arc<Node>>,
+    /// alphas that could still match. FxHash — SipHash of the field `Value` 40k
+    /// times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`).
+    children: FxHashMap<Value, Arc<Node>>,
     /// Alphas that do not constrain `dim` by a provable equality — always walked.
     wildcard: Option<Arc<Node>>,
     /// Reserved for range/mask edges (unpopulated this stone; see module docs).
@@ -78,7 +81,9 @@ pub(crate) struct Node {
 /// Built once at setup time (P8, alongside `alpha_by_type`/`alpha_cond`) from the immutable
 /// network; never rebuilt per round.
 pub(crate) struct AlphaTree {
-    roots: HashMap<String, Arc<Node>>,
+    /// Linear over a handful of types (`DESIGN-STONE-alpha-class-lookup`).
+    /// SipHash of the FQDN 40k times was 3.26 ms; `str` eq is not.
+    roots: Vec<(String, Arc<Node>)>,
 }
 
 impl AlphaTree {
@@ -89,7 +94,7 @@ impl AlphaTree {
         alpha_cond: &HashMap<i64, WatAST>,
         sym: &SymbolTable,
     ) -> Self {
-        let mut roots = HashMap::with_capacity(alpha_by_type.len());
+        let mut roots = Vec::with_capacity(alpha_by_type.len());
         for (class, alpha_ids) in alpha_by_type {
             let field_names = class_field_names(sym, class);
 
@@ -114,7 +119,7 @@ impl AlphaTree {
                 .collect();
 
             let root = build_node(alpha_ids.clone(), &disc, &dims, 0);
-            roots.insert(class.clone(), root);
+            roots.push((class.clone(), root));
         }
         AlphaTree { roots }
     }
@@ -123,18 +128,18 @@ impl AlphaTree {
     /// (a superset); unpruned. The residual does not carry WatAST, so
     /// `build` cannot re-derive discriminators. `(b)` indexes later.
     pub(crate) fn unpruned(alpha_by_type: &HashMap<String, Vec<i64>>) -> Self {
-        let mut roots = HashMap::with_capacity(alpha_by_type.len());
+        let mut roots = Vec::with_capacity(alpha_by_type.len());
         for (class, alpha_ids) in alpha_by_type {
-            roots.insert(
+            roots.push((
                 class.clone(),
                 Arc::new(Node {
                     dim: 0,
-                    children: HashMap::new(),
+                    children: FxHashMap::default(),
                     wildcard: None,
                     range_children: Vec::new(),
                     leaves: alpha_ids.clone(),
                 }),
-            );
+            ));
         }
         AlphaTree { roots }
     }
@@ -142,12 +147,30 @@ impl AlphaTree {
     /// Walk `class`'s tree for a fact's field values, returning the **candidate set** of alpha
     /// ids the caller must still run `alpha_match_inner` on. A superset of the alphas that
     /// actually match — never a subset. Unknown class (no alpha of that type at all): empty.
+    #[cfg(test)]
     pub(crate) fn candidates(&self, class: &str, fields: &[Value]) -> Vec<i64> {
         let mut out = Vec::new();
-        if let Some(root) = self.roots.get(class) {
-            walk(root, fields, &mut out);
-        }
+        self.candidates_into(class, fields, &mut out);
         out
+    }
+
+    /// Fill `out` with the same candidate set as [`Self::candidates`].
+    /// Clears `out` first. Callers reuse the buffer
+    /// (`DESIGN-STONE-alpha-tree-walk-split`).
+    pub(crate) fn candidates_into(&self, class: &str, fields: &[Value], out: &mut Vec<i64>) {
+        out.clear();
+        if let Some(root) = self.root_for(class) {
+            walk(root, fields, out);
+        }
+    }
+
+    fn root_for(&self, class: &str) -> Option<&Arc<Node>> {
+        self.roots.iter().find(|(c, _)| c == class).map(|(_, n)| n)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn has_class(&self, class: &str) -> bool {
+        self.root_for(class).is_some()
     }
 }
 
@@ -164,7 +187,7 @@ fn build_node(
     if pos >= dims.len() || alpha_ids.len() <= 1 {
         return Arc::new(Node {
             dim: 0,
-            children: HashMap::new(),
+            children: FxHashMap::default(),
             wildcard: None,
             range_children: Vec::new(),
             leaves: alpha_ids,
@@ -181,7 +204,7 @@ fn build_node(
         }
     }
 
-    let children: HashMap<Value, Arc<Node>> = buckets
+    let children: FxHashMap<Value, Arc<Node>> = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
         .collect();

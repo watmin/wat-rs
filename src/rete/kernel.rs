@@ -26,6 +26,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ast::WatAST;
+use crate::rete::compiled_cond::ValIntern;
 use crate::rete::matcher::{classify_rete_clause, BindView, Bindings, ReteClauseShape};
 use crate::runtime::{
     EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
@@ -119,7 +120,7 @@ pub(crate) struct WorkingMemory {
     /// Passthrough — immutable input: ordered rule vector.
     pub(crate) rules: Value,
     /// Mutable mirror of `alpha-memory`  (node-id → [native Element]).
-    pub(crate) alpha: HashMap<i64, Vec<Element>>,
+    pub(crate) alpha: FxHashMap<i64, Vec<Element>>,
     /// Mutable mirror of `beta-memory`   (node-id → [native Token]).
     pub(crate) beta: HashMap<i64, Vec<Token>>,
     /// Mutable mirror of `production-memory` (node-id → [Record]).
@@ -141,7 +142,7 @@ pub(crate) struct WorkingMemory {
     /// (`DESIGN-STONE-bind-value-intern`).
     pub(crate) bind_vals: Vec<Value>,
     /// Intern of `bind_vals` (`DESIGN-STONE-bind-value-intern`).
-    pub(crate) bind_val_ids: FxHashMap<Value, u32>,
+    pub(crate) bind_val_ids: crate::rete::compiled_cond::ValIntern,
     /// Input fact count. `Element.fact < n_input` indexes `facts`.
     pub(crate) n_input: u32,
     /// Derived facts, append-only across rounds. Not cleared at
@@ -248,7 +249,7 @@ fn value_token_to_native(
     tok: &Value,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
     derived: &mut Vec<Value>,
@@ -396,7 +397,7 @@ fn pm_to_beta(
     pm: &Value,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
     match_pool: &mut Vec<(u32, i64)>,
     derived: &mut Vec<Value>,
@@ -493,7 +494,7 @@ fn value_to_element(
     el: &Value,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
     derived: &mut Vec<Value>,
     n_input: u32,
@@ -572,14 +573,15 @@ fn pm_to_alpha(
     pm: &Value,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
     derived: &mut Vec<Value>,
     n_input: u32,
-) -> Result<HashMap<i64, Vec<Element>>, EvalBreak> {
+) -> Result<FxHashMap<i64, Vec<Element>>, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
-            let mut out: HashMap<i64, Vec<Element>> = HashMap::with_capacity(m.len());
+            let mut out: FxHashMap<i64, Vec<Element>> =
+                FxHashMap::with_capacity_and_hasher(m.len(), Default::default());
             for (k, v) in m.iter() {
                 let node_id = match k {
                     Value::i64(n) => *n,
@@ -631,9 +633,9 @@ fn pm_to_alpha(
     }
 }
 
-/// Encode a native alpha map (`HashMap<i64, Vec<Element>>`) back to a Value PersistentMap.
+/// Encode a native alpha map (`FxHashMap<i64, Vec<Element>>`) back to a Value PersistentMap.
 fn alpha_to_pm(
-    alpha: HashMap<i64, Vec<Element>>,
+    alpha: FxHashMap<i64, Vec<Element>>,
     keys: &[Value],
     vals: &[Value],
     pool: &[(u32, u32)],
@@ -723,7 +725,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     let mut bind_pool = Vec::new();
     let mut bind_keys = Vec::new();
     let mut bind_vals = Vec::new();
-    let mut bind_val_ids = FxHashMap::default();
+    let mut bind_val_ids = crate::rete::compiled_cond::ValIntern::default();
     let mut match_pool = Vec::new();
     let n_input = match &facts {
         Value::wat__core__PersistentVector(pv) => pv.len() as u32,
@@ -1142,7 +1144,7 @@ fn explained_names() -> Arc<Vec<String>> {
 fn push_element(
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
     fact: u32,
     pairs: impl IntoIterator<Item = (Value, Value)>,
@@ -1190,14 +1192,12 @@ fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     i
 }
 
-fn intern_val(vals: &mut Vec<Value>, ids: &mut FxHashMap<Value, u32>, v: Value) -> u32 {
-    if let Some(&id) = ids.get(&v) {
-        return id;
-    }
-    let id = vals.len() as u32;
-    ids.insert(v.clone(), id);
-    vals.push(v);
-    id
+fn intern_val(
+    vals: &mut Vec<Value>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
+    v: Value,
+) -> u32 {
+    crate::rete::compiled_cond::intern_val(vals, ids, v)
 }
 
 fn bind_view<'a>(
@@ -1230,7 +1230,7 @@ fn pool_slice(pool: &[(u32, u32)], span: BindSpan) -> &[(u32, u32)] {
 fn span_from_pairs(
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> BindSpan {
@@ -1300,6 +1300,14 @@ fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &crate::val
 /// A missing compiled cond refuses — do not walk `alpha_match_inner`.
 fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
     let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(arm.compiled_max_slots);
+    let mut cand_scratch: Vec<i64> = Vec::new();
+    let mut cond_key_ids: HashMap<i64, Vec<u32>> = HashMap::new();
+    for (&id, c) in &arm.compiled_conds {
+        cond_key_ids.insert(
+            id,
+            crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
+        );
+    }
 
     let input = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.clone(),
@@ -1314,10 +1322,11 @@ fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
             }
             _ => continue,
         };
-        let alphas = arm.alpha_tree.candidates(fact_class, fact_fields);
-        for aid in &alphas {
-            let compiled = rematch_compiled(&arm.compiled_conds, *aid)?;
-            let Some((off, len)) = crate::rete::compiled_cond::exec_compiled(
+        arm.alpha_tree
+            .candidates_into(fact_class, fact_fields, &mut cand_scratch);
+        for aid in cand_scratch.iter().copied() {
+            let compiled = rematch_compiled(&arm.compiled_conds, aid)?;
+            let Some((off, len)) = crate::rete::compiled_cond::exec_compiled_with_key_ids(
                 compiled,
                 fact_fields,
                 &mut match_scratch,
@@ -1326,11 +1335,12 @@ fn alpha_pass(wm: &mut WorkingMemory, arm: &ReteArm) -> Result<(), EvalBreak> {
                 &mut wm.bind_vals,
                 &mut wm.bind_val_ids,
                 fact,
+                cond_key_ids.get(&aid).map(|v| v.as_slice()),
             ) else {
                 continue;
             };
             let el = make_element(i as u32, off, len);
-            wm.alpha.entry(*aid).or_default().push(el);
+            wm.alpha.entry(aid).or_default().push(el);
         }
     }
     Ok(())
@@ -1901,7 +1911,7 @@ fn token_assoc(
     v: Value,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    ids: &mut FxHashMap<Value, u32>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
 ) -> Token {
     let kid = intern_key(keys, &k);
@@ -2637,16 +2647,18 @@ fn gather_join_keys<B: Bindings + ?Sized>(
 /// Join-key → element indices (bucket), as built by `build_gather_index`.
 /// Unary when `join_keys.len() == 1` — no one-element `Vec` (`DESIGN-STONE-gather-unary-index`).
 enum GatherIndex {
-    Unary(FxHashMap<Value, Vec<usize>>),
+    /// One join key: interned filler id (`DESIGN-STONE-gather-val-id`).
+    UnaryId(FxHashMap<u32, Vec<usize>>),
     Nary(FxHashMap<Vec<Value>, Vec<usize>>),
 }
 
 impl GatherIndex {
-    fn bucket(&self, key: &[Value]) -> &[usize] {
+    fn bucket(&self, key: &[Value], val_ids: &ValIntern) -> &[usize] {
         match self {
-            Self::Unary(m) => key
+            Self::UnaryId(m) => key
                 .first()
-                .and_then(|k| m.get(k))
+                .and_then(|k| val_ids.get(k))
+                .and_then(|vid| m.get(&vid))
                 .map_or(&[], Vec::as_slice),
             Self::Nary(m) => m.get(key).map_or(&[], Vec::as_slice),
         }
@@ -2667,12 +2679,18 @@ impl GatherIndex {
             return;
         }
         match self {
-            Self::Unary(m) => {
-                let jk = &join_keys[0];
+            Self::UnaryId(m) => {
+                let Some(kid) = bind_keys
+                    .iter()
+                    .position(|k| k == &join_keys[0])
+                    .map(|i| i as u32)
+                else {
+                    return;
+                };
                 for &i in new_idxs {
-                    let el_bindings = element_fact_bindings(&elements[i], bind_keys, vals, pool);
-                    if let Some(v) = Bindings::get(&el_bindings, jk) {
-                        m.entry(v.clone()).or_default().push(i);
+                    let pairs = pool_slice(pool, elements[i].binds);
+                    if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
+                        m.entry(*vid).or_default().push(i);
                     }
                 }
             }
@@ -2695,7 +2713,7 @@ type GatherCache = FxHashMap<(i64, Vec<Value>), GatherIndex>;
 
 fn append_d_alpha(
     cache: &mut GatherCache,
-    d_alpha: &HashMap<i64, Vec<usize>>,
+    d_alpha: &FxHashMap<i64, Vec<usize>>,
     wm: &WorkingMemory,
 ) {
     for ((aid, join_keys), idx) in cache.iter_mut() {
@@ -2714,7 +2732,7 @@ fn append_d_alpha(
     }
 }
 
-fn alpha_elements(alpha: &HashMap<i64, Vec<Element>>, alpha_id: i64) -> &[Element] {
+fn alpha_elements(alpha: &FxHashMap<i64, Vec<Element>>, alpha_id: i64) -> &[Element] {
     alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[])
 }
 
@@ -2733,15 +2751,20 @@ fn build_gather_index(
     pool: &[(u32, u32)],
 ) -> GatherIndex {
     if join_keys.len() == 1 {
-        let jk = &join_keys[0];
-        let mut index: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
-        for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, bind_keys, vals, pool);
-            if let Some(v) = Bindings::get(&el_bindings, jk) {
-                index.entry(v.clone()).or_default().push(i);
+        let mut index: FxHashMap<u32, Vec<usize>> = FxHashMap::default();
+        if let Some(kid) = bind_keys
+            .iter()
+            .position(|k| k == &join_keys[0])
+            .map(|i| i as u32)
+        {
+            for (i, el) in elements.iter().enumerate() {
+                let pairs = pool_slice(pool, el.binds);
+                if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
+                    index.entry(*vid).or_default().push(i);
+                }
             }
         }
-        GatherIndex::Unary(index)
+        GatherIndex::UnaryId(index)
     } else {
         let mut index: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
@@ -2788,7 +2811,7 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
         .get(&(alpha_id, join_keys))
         .expect("ensure_gather just inserted");
     let elements = alpha_elements(&wm.alpha, alpha_id);
-    let bucket = index.bucket(&key);
+    let bucket = index.bucket(&key, &wm.bind_val_ids);
     bucket.iter().any(|&i| {
         census_gather_visit();
         fact_bindings_under(
@@ -2816,7 +2839,7 @@ fn seeded_bindings_keyed(
         .get(&(alpha_id, join_keys))
         .expect("ensure_gather just inserted");
     let elements = alpha_elements(&wm.alpha, alpha_id);
-    let bucket = index.bucket(&key);
+    let bucket = index.bucket(&key, &wm.bind_val_ids);
     bucket
         .iter()
         .filter_map(|&i| {
@@ -3926,8 +3949,117 @@ fn sorted_parents_of(parents_of: &HashMap<i64, Vec<i64>>, id: i64) -> Vec<i64> {
 /// The intern holds a strong `Arc` — a Weak died the moment fire returned,
 /// which is the hole this item closes. Process-lifetime per unique network;
 /// the Session is a fact overlay, not the owner of the circuits.
+/// Kind-partitioned node ids, each a subsequence of `node_ids` (topo).
+/// Fire-path passes iterate these instead of `node_ids` + `get_node` +
+/// `kind_of` (`DESIGN-STONE-arm-kind-lists`).
+pub(crate) struct KindIdLists {
+    pub(crate) alpha: Vec<i64>,
+    pub(crate) join_parent: Vec<i64>,
+    pub(crate) acc: Vec<i64>,
+    pub(crate) filter: Vec<i64>,
+    pub(crate) prod: Vec<i64>,
+    pub(crate) filter_or_acc: Vec<i64>,
+}
+
+pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
+    let mut alpha = Vec::new();
+    let mut join_parent = Vec::new();
+    let mut acc = Vec::new();
+    let mut filter = Vec::new();
+    let mut prod = Vec::new();
+    for &id in node_ids {
+        let Some(node) = get_node(network, id) else {
+            continue;
+        };
+        match kind_of(node) {
+            "AlphaNode" => alpha.push(id),
+            "RootJoinNode" | "HashJoinNode" => join_parent.push(id),
+            "AccumulateNode" => acc.push(id),
+            "TestNode" | "NegationNode" | "ExistsNode" => filter.push(id),
+            "ProductionNode" => prod.push(id),
+            _ => {}
+        }
+    }
+    let filter_or_acc = merge_sorted_ids(&filter, &acc);
+    KindIdLists {
+        alpha,
+        join_parent,
+        acc,
+        filter,
+        prod,
+        filter_or_acc,
+    }
+}
+
+pub(crate) fn invert_feeding_alpha(feeding_alpha_of: &HashMap<i64, i64>) -> HashMap<i64, Vec<i64>> {
+    let mut out: HashMap<i64, Vec<i64>> = HashMap::new();
+    for (join_id, alpha_id) in feeding_alpha_of {
+        out.entry(*alpha_id).or_default().push(*join_id);
+    }
+    out
+}
+
+/// Seed dirty join-parents: left `d_beta` or a HashJoin child whose
+/// feeding alpha has right-delta. The hash-join pass grows this set as
+/// it emits (middle joins: J1's tokens dirty J1 as parent of J2).
+fn seed_dirty_join_parents(
+    join_parent: &[i64],
+    d_beta: &HashMap<i64, Vec<Token>>,
+    d_alpha: &FxHashMap<i64, Vec<usize>>,
+    joins_fed_by: &HashMap<i64, Vec<i64>>,
+    parents_of: &HashMap<i64, Vec<i64>>,
+) -> FxHashSet<i64> {
+    let mut dirty = FxHashSet::default();
+    for (pid, toks) in d_beta {
+        if !toks.is_empty() && join_parent.binary_search(pid).is_ok() {
+            dirty.insert(*pid);
+        }
+    }
+    for (aid, idxs) in d_alpha {
+        if idxs.is_empty() {
+            continue;
+        }
+        let Some(joins) = joins_fed_by.get(aid) else {
+            continue;
+        };
+        for j in joins {
+            let Some(ps) = parents_of.get(j) else {
+                continue;
+            };
+            for p in ps {
+                if join_parent.binary_search(p).is_ok() {
+                    dirty.insert(*p);
+                }
+            }
+        }
+    }
+    dirty
+}
+
+fn merge_sorted_ids(a: &[i64], b: &[i64]) -> Vec<i64> {
+    let mut out = Vec::with_capacity(a.len() + b.len());
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        if a[i] < b[j] {
+            out.push(a[i]);
+            i += 1;
+        } else if b[j] < a[i] {
+            out.push(b[j]);
+            j += 1;
+        } else {
+            out.push(a[i]);
+            i += 1;
+            j += 1;
+        }
+    }
+    out.extend_from_slice(&a[i..]);
+    out.extend_from_slice(&b[j..]);
+    out
+}
+
 pub(crate) struct ReteArm {
     pub(crate) node_ids: Vec<i64>,
+    pub(crate) kind_ids: KindIdLists,
     pub(crate) compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     pub(crate) compiled_drivers: HashMap<i64, CondDriver>,
     pub(crate) compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program>,
@@ -3937,6 +4069,9 @@ pub(crate) struct ReteArm {
     /// (b) ShadowNode — armed `where` index. Built from `compiled_wheres`.
     pub(crate) where_tree: crate::rete::where_tree::WhereTree,
     pub(crate) feeding_alpha_of: HashMap<i64, i64>,
+    /// Invert of `feeding_alpha_of`: alpha id → HashJoin ids it feeds.
+    /// Dirty-join-parent construction (`DESIGN-STONE-dirty-join-parents`).
+    pub(crate) joins_fed_by: HashMap<i64, Vec<i64>>,
     pub(crate) parents_of: HashMap<i64, Vec<i64>>,
     pub(crate) beta_readers: HashSet<i64>,
     pub(crate) compiled_max_slots: usize,
@@ -4102,8 +4237,11 @@ fn build_rete_arm(
     }
     let rule_deps = rule_deps_from_rules(rules, sym);
 
+    let kind_ids = kind_id_lists(network, &node_ids);
+    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
     Ok(ReteArm {
         node_ids,
+        kind_ids,
         compiled_conds,
         compiled_drivers,
         compiled_wheres,
@@ -4112,6 +4250,7 @@ fn build_rete_arm(
         alpha_tree,
         where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         beta_readers,
         compiled_max_slots,
@@ -4258,8 +4397,11 @@ pub(crate) fn subset_rete_arm(
         .unwrap_or(0);
     let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
 
+    let kind_ids = kind_id_lists(sliced_network, &node_ids);
+    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
     Arc::new(ReteArm {
         node_ids,
+        kind_ids,
         compiled_conds,
         compiled_drivers,
         compiled_wheres,
@@ -4268,6 +4410,7 @@ pub(crate) fn subset_rete_arm(
         alpha_tree,
         where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         beta_readers,
         compiled_max_slots,
@@ -4297,14 +4440,17 @@ pub(crate) fn subset_rete_arm(
 /// probe cost per match instead of O(W) rebuild per round per node.
 /// Step-1 alpha activate for one fact. Shared by the seed worklist (`wm.facts`)
 /// and later owned deltas (`DESIGN-STONE-setup-seen-once`).
+#[allow(clippy::too_many_arguments)]
 fn alpha_activate_fact(
     fact: &Value,
     fact_idx: u32,
     wm: &mut WorkingMemory,
-    d_alpha: &mut HashMap<i64, Vec<usize>>,
+    d_alpha: &mut FxHashMap<i64, Vec<usize>>,
     alpha_tree: &crate::rete::alpha_tree::AlphaTree,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     match_scratch: &mut Vec<Option<Value>>,
+    cand_scratch: &mut Vec<i64>,
+    cond_key_ids: &HashMap<i64, Vec<u32>>,
 ) -> Result<(), EvalBreak> {
     let (fact_class, fact_fields) = match fact {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
@@ -4312,13 +4458,13 @@ fn alpha_activate_fact(
         }
         _ => return Ok(()),
     };
-    let alphas = alpha_tree.candidates(fact_class, fact_fields);
-    if alphas.is_empty() {
+    alpha_tree.candidates_into(fact_class, fact_fields, cand_scratch);
+    if cand_scratch.is_empty() {
         return Ok(());
     }
-    for aid in &alphas {
-        let compiled = rematch_compiled(compiled_conds, *aid)?;
-        let matched = crate::rete::compiled_cond::exec_compiled(
+    for aid in cand_scratch.iter().copied() {
+        let compiled = rematch_compiled(compiled_conds, aid)?;
+        let matched = crate::rete::compiled_cond::exec_compiled_with_key_ids(
             compiled,
             fact_fields,
             match_scratch,
@@ -4327,15 +4473,16 @@ fn alpha_activate_fact(
             &mut wm.bind_vals,
             &mut wm.bind_val_ids,
             fact,
+            cond_key_ids.get(&aid).map(|v| v.as_slice()),
         );
         if let Some((off, len)) = matched {
             let el = make_element(fact_idx, off, len);
             let slot = {
-                let v = wm.alpha.entry(*aid).or_default();
+                let v = wm.alpha.entry(aid).or_default();
                 v.push(el);
                 v.len() - 1
             };
-            d_alpha.entry(*aid).or_default().push(slot);
+            d_alpha.entry(aid).or_default().push(slot);
         }
     }
     Ok(())
@@ -4387,12 +4534,11 @@ fn fire_fixpoint_delta(
     wm.bind_pool
         .reserve(input_facts.len().saturating_mul(4));
     let __seen = phase_start();
+    let __seen_alloc = phase_start();
     let mut seen_ids: FxHashSet<u64> =
         FxHashSet::with_capacity_and_hasher(input_facts.len(), Default::default());
     let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
-    for f in input_facts.iter() {
-        seen_insert(&mut seen_ids, &mut seen_rest, f);
-    }
+    phase_end("  │  setup:seen:alloc", __seen_alloc);
     phase_end("  ├ setup:seen", __seen);
     let mut owned_delta: Vec<u32> = Vec::new();
     let mut seed_round = true;
@@ -4400,8 +4546,11 @@ fn fire_fixpoint_delta(
     // Item 12 — the arm lives next to the network. Hit: skip lower/classify.
     // Miss: build once, intern under the network's rust identity. insert/clone
     // share that identity (facts overlay).
+    let __arm = phase_start();
     let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym)?;
+    phase_end("  ├ setup:arm", __arm);
     let node_ids = arm.node_ids.clone();
+    let kind_ids = &arm.kind_ids;
     let compiled_conds = &arm.compiled_conds;
     let compiled_drivers = &arm.compiled_drivers;
     let compiled_wheres = &arm.compiled_wheres;
@@ -4430,6 +4579,14 @@ fn fire_fixpoint_delta(
     // `resize` back up never reallocates after this point — the failure path it guards allocates
     // nothing (row 2 of the DESIGN-STONE's scorecard).
     let mut match_scratch: Vec<Option<Value>> = Vec::with_capacity(arm.compiled_max_slots);
+    let mut cand_scratch: Vec<i64> = Vec::new();
+    let mut cond_key_ids: HashMap<i64, Vec<u32>> = HashMap::new();
+    for (&id, c) in compiled_conds {
+        cond_key_ids.insert(
+            id,
+            crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
+        );
+    }
 
     // A8 instrument: the round counter the census stamps its rows with (test-only).
     #[cfg(test)]
@@ -4444,7 +4601,7 @@ fn fire_fixpoint_delta(
         let __pre = phase_start();
         // Per-round delta sets (new elements/tokens created THIS round).
         // Indices into this round's wm.alpha[aid] (DESIGN-STONE-delta-alpha-indices).
-        let mut d_alpha: HashMap<i64, Vec<usize>> = HashMap::new();
+        let mut d_alpha: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
         let mut d_beta: HashMap<i64, Vec<Token>> = HashMap::new();
 
         phase_end("  ├ round:preamble", __pre);
@@ -4458,7 +4615,12 @@ fn fire_fixpoint_delta(
         };
         let __pt0 = phase_start();
         if seed_round {
+            // Two pairs / fire, not per fact (`DESIGN-STONE-alpha-leftover-split`).
+            let __seed = phase_start();
             for (i, fact) in input_facts.iter().enumerate() {
+                // Fold `seen_insert` into this walk (`DESIGN-STONE-fold-seen-into-seed`).
+                // Every input is in `seen` before production considers derived facts.
+                seen_insert(&mut seen_ids, &mut seen_rest, fact);
                 alpha_activate_fact(
                     fact,
                     i as u32,
@@ -4467,10 +4629,14 @@ fn fire_fixpoint_delta(
                     alpha_tree,
                     compiled_conds,
                     &mut match_scratch,
+                    &mut cand_scratch,
+                    &cond_key_ids,
                 )?;
             }
+            phase_end("  ├ alpha:seed", __seed);
             seed_round = false;
         } else {
+            let __delta = phase_start();
             for &idx in &owned_delta {
                 let fact = fact_at(&wm.facts, &wm.derived_facts, wm.n_input, idx).clone();
                 alpha_activate_fact(
@@ -4481,8 +4647,11 @@ fn fire_fixpoint_delta(
                     alpha_tree,
                     compiled_conds,
                     &mut match_scratch,
+                    &mut cand_scratch,
+                    &cond_key_ids,
                 )?;
             }
+            phase_end("  └ alpha:delta", __delta);
         }
 
         phase_end("alpha", __pt0);
@@ -4490,7 +4659,7 @@ fn fire_fixpoint_delta(
 
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
         let __pt1 = phase_start();
-        for node_id in &node_ids {
+        for node_id in &kind_ids.alpha {
             // Group C: use &Value ref — no clone; kind_of/node_children take &Value.
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
@@ -4550,7 +4719,21 @@ fn fire_fixpoint_delta(
         // Invariant: (Δleft×Δright) appears in term1 only (right_idx already has Δright at step 3);
         //            old_left×Δright appears in term2 only (left_idx lacks Δleft at step 4).
         //            No double-count, no miss — same semi-naive result as the keyed_join rebuild.
-        for node_id in &node_ids {
+        // Dirty join-parents only (`DESIGN-STONE-dirty-join-parents`): left d_beta
+        // or a HashJoin child whose feeding alpha has d_alpha. First-keying runs
+        // the round the second side arrives (that delta is non-empty). Grow the
+        // set as we emit so a middle join (J1→J2) is visited this round.
+        let mut dirty_parents = seed_dirty_join_parents(
+            &kind_ids.join_parent,
+            &d_beta,
+            &d_alpha,
+            &arm.joins_fed_by,
+            parents_of,
+        );
+        for node_id in &kind_ids.join_parent {
+            if !dirty_parents.contains(node_id) {
+                continue;
+            }
             // Group C: use &Value ref (wm.network borrow) — no clone; kind_of/node_children take &Value.
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
@@ -4711,10 +4894,14 @@ fn fire_fixpoint_delta(
                             beta.push(*t);
                         }
                     }
+                    let n_emit = new_tokens.len();
                     let delta = d_beta.entry(*child_id).or_default();
-                    delta.reserve(new_tokens.len());
+                    delta.reserve(n_emit);
                     for new_tok in new_tokens {
                         delta.push(new_tok);
+                    }
+                    if n_emit > 0 {
+                        dirty_parents.insert(*child_id);
                     }
                     phase_end("  ├ hj:catchup:emit", __cem);
                     continue; // Skip incremental steps 2–5 for this round.
@@ -4840,10 +5027,14 @@ fn fire_fixpoint_delta(
                         beta.push(*t);
                     }
                 }
+                let n_emit = new_tokens.len();
                 let delta = d_beta.entry(*child_id).or_default();
-                delta.reserve(new_tokens.len());
+                delta.reserve(n_emit);
                 for new_tok in new_tokens {
                     delta.push(new_tok);
+                }
+                if n_emit > 0 {
+                    dirty_parents.insert(*child_id);
                 }
                 phase_end("  ├ hj:step6-emit", __s6);
             }
@@ -4861,7 +5052,7 @@ fn fire_fixpoint_delta(
         // wm.beta[acc] (cumulative) + d_beta[acc] (new-this-round, consumed downstream).
         // min/max/mean on an empty gather → no value → drop the token.
         // Runs BEFORE the filter-pass so a :where on the result-var sees the binding.
-        for node_id in &node_ids {
+        for node_id in &kind_ids.acc {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
                 None => continue,
@@ -4934,7 +5125,7 @@ fn fire_fixpoint_delta(
             let __fd = phase_start();
             for tok in new_tokens {
                 let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), &join_keys);
-                let bucket: &[usize] = index.bucket(&key);
+                let bucket: &[usize] = index.bucket(&key, &wm.bind_val_ids);
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
@@ -5099,7 +5290,7 @@ fn fire_fixpoint_delta(
         // Passing tokens are pushed to wm.beta[node_id] (cumulative) and d_beta[node_id]
         // (new-this-round, consumed by production in step 4).
         let mut tests_done: HashSet<i64> = HashSet::new();
-        for node_id in &node_ids {
+        for node_id in &kind_ids.filter {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
                 None => continue,
@@ -5267,7 +5458,7 @@ fn fire_fixpoint_delta(
         // is nothing to double-count.
         let __pt36 = phase_start();
         let mut after_join_frontier: Vec<i64> = Vec::new();
-        for node_id in &node_ids {
+        for node_id in &kind_ids.filter_or_acc {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
                 None => continue,
@@ -5542,7 +5733,7 @@ fn fire_fixpoint_delta(
         // ── 4. Production delta: fire production nodes on NEW tokens only. ────────
         let __pt5 = phase_start();
         let mut next_delta: Vec<u32> = Vec::new();
-        for node_id in &node_ids {
+        for node_id in &kind_ids.prod {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
                 None => continue,
@@ -6430,6 +6621,76 @@ fn fire_rules_stratified(
         }
         other => Ok(other.clone()),
     }
+}
+
+// ── Public entry: intern the arm at compile-all ──────────────────────────────
+
+/// `(:wat::rete::arm-session' <session>) -> :wat::rete::Session`
+///
+/// Item 12's contract: compile puts the arm next to the network. WAT
+/// `compile-all` builds the Session and did not intern the rust `ReteArm`;
+/// first `fire-rules` paid the build (`DESIGN-STONE-arm-at-compile`).
+/// Value unchanged. Same process-lifetime table as `rete_arm_get_or_build`.
+pub(crate) fn eval_arm_session(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::arm-session'";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let (network, rules) = match &session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
+            let sf = a.fields.as_slice();
+            if sf.len() < 2 {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: ":wat::rete::Session",
+                        got: Box::new(ValueSnapshot::of(&session)),
+                    },
+                )
+                .into());
+            }
+            (&sf[0], &sf[1])
+        }
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Session",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    if network_identity(network).is_none() {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::PersistentMap network with intern identity",
+                got: Box::new(ValueSnapshot::of(network)),
+            },
+        )
+        .into());
+    }
+    rete_arm_get_or_build(network, rules, sym)?;
+    Ok(session)
 }
 
 // ── Public entry: native fire-rules' ─────────────────────────────────────────
@@ -9119,12 +9380,16 @@ mod tests {
         // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
         // deleted or stops firing still fails loudly, while a mark that is ADDED shows up for
         // free. Both directions covered; neither can go quiet.
-        const REQUIRED_PHASES: [&str; 20] = [
+        const REQUIRED_PHASES: [&str; 24] = [
             "IN: to_transient",
             "SETUP: indexes",
             "  ├ setup:seen",
+            "  │  setup:seen:alloc",
+            "  ├ setup:arm",
             "ROUND LOOP",
             "alpha",
+            "  ├ alpha:seed",
+            "  └ alpha:delta",
             "root-join",
             "hash-join",
             "accumulate",
@@ -9544,20 +9809,28 @@ mod tests {
     session\n\
     (:wat::core::range 0 width)))\n";
 
-    /// Fire a depth×width cascade through the native path; return the per-phase nanosecond rows.
-    fn depth_split_phases(depth: i64, width: i64) -> Vec<(&'static str, u64)> {
+    /// Fire a depth×width cascade through the native path; per-phase split with pair counts.
+    fn cascade_phase_census(depth: i64, width: i64) -> Vec<(&'static str, u64, u64)> {
         let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("depth-split world should freeze");
         let src = format!(
             "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width}))"
         );
         let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
-        let (_fired, rows) = super::with_phase_census(|| {
+        let (_fired, rows) = super::with_phase_census_counted(|| {
             eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("fire raised at depth={depth} width={width}: {e:?}"))
+                .unwrap_or_else(|e| panic!("cascade fire raised at depth={depth} width={width}: {e:?}"))
                 .value_owned()
         });
         rows
+    }
+
+    /// Fire a depth×width cascade through the native path; return the per-phase nanosecond rows.
+    fn depth_split_phases(depth: i64, width: i64) -> Vec<(&'static str, u64)> {
+        cascade_phase_census(depth, width)
+            .into_iter()
+            .map(|(n, ns, _)| (n, ns))
+            .collect()
     }
 
     /// ★ Does the fire ever READ the beta memory it writes?
@@ -9756,6 +10029,88 @@ mod tests {
             s_tot > 0 && d_tot > 0,
             "the phase census recorded nothing — the probe measured its own scaffolding, not the \
              fire. A zero here means `with_phase_census` never saw a round.{table}"
+        );
+    }
+
+    /// Kind lists interned on the arm (`DESIGN-STONE-arm-kind-lists`).
+    /// Prints sizes at cascade depth 50. Lists are disjoint subsequences
+    /// of `node_ids`. Does not wall-gate FIRE.
+    #[test]
+    fn cascade_kind_list_split() {
+        let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("depth-split world should freeze");
+        let src = "(:wat::rete::compile (:dc::build-rules 50))";
+        let ast = crate::parse_one!(src).expect("parse compile");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile raised: {e:?}"))
+            .value_owned();
+        let wm = super::to_transient(&session).expect("to_transient of compiled session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for cascade network");
+        let k = &arm.kind_ids;
+        let n = arm.node_ids.len();
+        let table = format!(
+            "\ncascade kind lists — depth 50 compile\n\
+             node_ids          {:>6}\n\
+             alpha             {:>6}\n\
+             join_parent       {:>6}\n\
+             acc               {:>6}\n\
+             filter            {:>6}\n\
+             prod              {:>6}\n\
+             filter_or_acc     {:>6}\n",
+            n,
+            k.alpha.len(),
+            k.join_parent.len(),
+            k.acc.len(),
+            k.filter.len(),
+            k.prod.len(),
+            k.filter_or_acc.len(),
+        );
+        println!("{table}");
+
+        let in_nodes = |ids: &[i64]| ids.iter().all(|id| arm.node_ids.contains(id));
+        assert!(
+            in_nodes(&k.alpha)
+                && in_nodes(&k.join_parent)
+                && in_nodes(&k.acc)
+                && in_nodes(&k.filter)
+                && in_nodes(&k.prod),
+            "a kind list id is not in node_ids:{table}"
+        );
+
+        let mut seen = std::collections::HashSet::new();
+        for id in k
+            .alpha
+            .iter()
+            .chain(&k.join_parent)
+            .chain(&k.acc)
+            .chain(&k.filter)
+            .chain(&k.prod)
+        {
+            assert!(
+                seen.insert(*id),
+                "kind lists overlap on {id}:{table}"
+            );
+        }
+
+        let sorted = |v: &[i64]| v.windows(2).all(|w| w[0] < w[1]);
+        assert!(
+            sorted(&k.alpha)
+                && sorted(&k.join_parent)
+                && sorted(&k.acc)
+                && sorted(&k.filter)
+                && sorted(&k.prod)
+                && sorted(&k.filter_or_acc),
+            "a kind list is not strictly increasing:{table}"
+        );
+        assert_eq!(
+            k.filter_or_acc.len(),
+            k.filter.len() + k.acc.len(),
+            "filter_or_acc is not the merge of filter+acc:{table}"
+        );
+        assert!(
+            n > 0 && k.alpha.len() + k.join_parent.len() + k.prod.len() > 0,
+            "compile produced an empty network:{table}"
         );
     }
 
@@ -10512,6 +10867,302 @@ mod tests {
         );
     }
 
+    /// Native FIRE rank at the three closest 08-20 grid cells
+    /// (`DESIGN-STONE-cell-rank-after-grid`).
+    #[test]
+    fn cell_rank_after_grid() {
+        const RUNS: usize = 3;
+        const TOP: [&str; 4] = [
+            "IN: to_transient",
+            "SETUP: indexes",
+            "ROUND LOOP",
+            "OUT: to_persistent",
+        ];
+
+        fn fire_and_top(
+            rows: &[(&'static str, u64, u64)],
+        ) -> (f64, &'static str, f64) {
+            let fire: u64 = TOP
+                .iter()
+                .filter_map(|n| {
+                    rows.iter()
+                        .find(|(name, _, _)| *name == *n)
+                        .map(|(_, ns, _)| *ns)
+                })
+                .sum();
+            let mut best_name = "(none)";
+            let mut best_ns = 0u64;
+            for (name, ns, _) in rows {
+                if TOP.contains(name) || *name == "WHOLE EVAL (compile+seed+fire)" {
+                    continue;
+                }
+                if *ns > best_ns {
+                    best_ns = *ns;
+                    best_name = name;
+                }
+            }
+            (fire as f64, best_name, best_ns as f64)
+        }
+
+        let mut fanout = (0.0, "", 0.0);
+        let mut cascade = (0.0, "", 0.0);
+        let mut accum = (0.0, "", 0.0);
+        for _ in 0..RUNS {
+            let (f, n, c) = fire_and_top(&fanout_phase_census(100, 20));
+            fanout.0 += f;
+            fanout.1 = n;
+            fanout.2 += c;
+            let (f, n, c) = fire_and_top(&cascade_phase_census(50, 100));
+            cascade.0 += f;
+            cascade.1 = n;
+            cascade.2 += c;
+            let (f, n, c) = fire_and_top(&accum_phase_census(200, 200));
+            accum.0 += f;
+            accum.1 = n;
+            accum.2 += c;
+        }
+        let r = RUNS as f64;
+        fanout.0 /= r;
+        fanout.2 /= r;
+        cascade.0 /= r;
+        cascade.2 /= r;
+        accum.0 /= r;
+        accum.2 /= r;
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\ncell rank after grid — mean of {RUNS}\n\
+             FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
+             08-20 closest rungs: fanout [40000], deep-cascade [50 100], accum [200 200]\n\
+             \n\
+             cell                    FIRE      top-row\n\
+             fanout        [100 20]  {:>7.2} ms   {} {:>7.2} ms\n\
+             deep-cascade  [50 100]  {:>7.2} ms   {} {:>7.2} ms\n\
+             accum         [200 200] {:>7.2} ms   {} {:>7.2} ms\n",
+            ms(fanout.0),
+            fanout.1,
+            ms(fanout.2),
+            ms(cascade.0),
+            cascade.1,
+            ms(cascade.2),
+            ms(accum.0),
+            accum.1,
+            ms(accum.2),
+        );
+        println!("{table}");
+        assert!(
+            fanout.0 > 0.0 && cascade.0 > 0.0 && accum.0 > 0.0,
+            "a cell recorded FIRE 0 — the rank is a dead fire:{table}"
+        );
+    }
+
+    /// Honest FIRE at the three closest cells after intern 17
+    /// (`DESIGN-STONE-honest-rank-after-arm`). Production raw on
+    /// fanout is 80k test marks (2p); intern from honest_FIRE.
+    #[test]
+    fn honest_cell_rank_after_arm() {
+        const CAL_N: u64 = 200_000;
+        const RUNS: usize = 3;
+
+        let cal_t0 = std::time::Instant::now();
+        super::with_phase_census(|| {
+            for _ in 0..CAL_N {
+                let m = super::phase_start();
+                super::phase_end("cal", m);
+            }
+        });
+        let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+
+        fn fire_top_honest(
+            rows: &[(&'static str, u64, u64)],
+            cal: f64,
+        ) -> (f64, &'static str, f64, f64) {
+            const TOP: [&str; 4] = [
+                "IN: to_transient",
+                "SETUP: indexes",
+                "ROUND LOOP",
+                "OUT: to_persistent",
+            ];
+            const RHS: &str = "  ├ prod:compiled-rhs";
+            const DEDUP: &str = "  ├ prod:dedup-store";
+            let fire: u64 = TOP
+                .iter()
+                .filter_map(|n| {
+                    rows.iter()
+                        .find(|(name, _, _)| *name == *n)
+                        .map(|(_, ns, _)| *ns)
+                })
+                .sum();
+            let mut best_name = "(none)";
+            let mut best_ns = 0u64;
+            for (name, ns, _) in rows {
+                if TOP.contains(name) || *name == "WHOLE EVAL (compile+seed+fire)" {
+                    continue;
+                }
+                if *ns > best_ns {
+                    best_ns = *ns;
+                    best_name = name;
+                }
+            }
+            let of = |name: &str| -> (u64, u64) {
+                rows.iter()
+                    .find(|(n, _, _)| *n == name)
+                    .map(|(_, ns, k)| (*ns, *k))
+                    .unwrap_or((0, 0))
+            };
+            let (prod, _) = of("production");
+            let (rhs, rhs_k) = of(RHS);
+            let (dedup, dedup_k) = of(DEDUP);
+            let remainder = prod.saturating_sub(rhs).saturating_sub(dedup) as f64;
+            let tax = (rhs_k + dedup_k) as f64 * cal;
+            let honest = fire as f64 - remainder - tax;
+            (fire as f64, best_name, best_ns as f64, honest)
+        }
+
+        let mut fanout = (0.0, "", 0.0, 0.0);
+        let mut cascade = (0.0, "", 0.0, 0.0);
+        let mut accum = (0.0, "", 0.0, 0.0);
+        for _ in 0..RUNS {
+            let t = fire_top_honest(&fanout_phase_census(100, 20), cal);
+            fanout.0 += t.0;
+            fanout.1 = t.1;
+            fanout.2 += t.2;
+            fanout.3 += t.3;
+            let t = fire_top_honest(&cascade_phase_census(50, 100), cal);
+            cascade.0 += t.0;
+            cascade.1 = t.1;
+            cascade.2 += t.2;
+            cascade.3 += t.3;
+            let t = fire_top_honest(&accum_phase_census(200, 200), cal);
+            accum.0 += t.0;
+            accum.1 = t.1;
+            accum.2 += t.2;
+            accum.3 += t.3;
+        }
+        let r = RUNS as f64;
+        fanout.0 /= r;
+        fanout.2 /= r;
+        fanout.3 /= r;
+        cascade.0 /= r;
+        cascade.2 /= r;
+        cascade.3 /= r;
+        accum.0 /= r;
+        accum.2 /= r;
+        accum.3 /= r;
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\nhonest cell rank after arm — mean of {RUNS}\n\
+             instrument: {cal:.1} ns per mark pair\n\
+             FIRE is IN+SETUP+ROUND+OUT; honest_FIRE strips production remainder+tax (2p)\n\
+             \n\
+             cell                    FIRE     honest_FIRE   top-row\n\
+             fanout        [100 20]  {:>7.2} ms  {:>7.2} ms   {} {:>7.2} ms\n\
+             deep-cascade  [50 100]  {:>7.2} ms  {:>7.2} ms   {} {:>7.2} ms\n\
+             accum         [200 200] {:>7.2} ms  {:>7.2} ms   {} {:>7.2} ms\n",
+            ms(fanout.0),
+            ms(fanout.3),
+            fanout.1,
+            ms(fanout.2),
+            ms(cascade.0),
+            ms(cascade.3),
+            cascade.1,
+            ms(cascade.2),
+            ms(accum.0),
+            ms(accum.3),
+            accum.1,
+            ms(accum.2),
+        );
+        println!("{table}");
+        assert!(
+            fanout.0 > 0.0 && cascade.0 > 0.0 && accum.0 > 0.0,
+            "a cell recorded FIRE 0 — the rank is a dead fire:{table}"
+        );
+        assert!(
+            fanout.3 < fanout.0,
+            "fanout honest_FIRE was not less than raw — production tax did not subtract:{table}"
+        );
+    }
+
+    /// Leftover cascade SETUP: arm vs remainder (`DESIGN-STONE-cascade-setup-split`).
+    #[test]
+    fn cascade_setup_leftover_split() {
+        const CAL_N: u64 = 200_000;
+        const RUNS: usize = 3;
+
+        let cal_t0 = std::time::Instant::now();
+        super::with_phase_census(|| {
+            for _ in 0..CAL_N {
+                let m = super::phase_start();
+                super::phase_end("cal", m);
+            }
+        });
+        let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+
+        let mut setup_raw = 0.0;
+        let mut seen_raw = 0.0;
+        let mut arm_raw = 0.0;
+        let mut setup_pairs = 0u64;
+        let mut seen_pairs = 0u64;
+        let mut arm_pairs = 0u64;
+        let mut builds = 0usize;
+        for _ in 0..RUNS {
+            let before = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+            let rows = cascade_phase_census(50, 100);
+            let after = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+            builds += after.saturating_sub(before);
+            let of = |name: &str| -> (u64, u64) {
+                rows.iter()
+                    .find(|(n, _, _)| *n == name)
+                    .map(|(_, ns, k)| (*ns, *k))
+                    .unwrap_or((0, 0))
+            };
+            let (s_ns, s_k) = of("SETUP: indexes");
+            let (seen_ns, seen_k) = of("  ├ setup:seen");
+            let (arm_ns, arm_k) = of("  ├ setup:arm");
+            setup_raw += s_ns as f64;
+            seen_raw += seen_ns as f64;
+            arm_raw += arm_ns as f64;
+            setup_pairs = s_k;
+            seen_pairs = seen_k;
+            arm_pairs = arm_k;
+        }
+        let r = RUNS as f64;
+        setup_raw /= r;
+        seen_raw /= r;
+        arm_raw /= r;
+        let remainder_raw = setup_raw - seen_raw - arm_raw;
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\ncascade SETUP leftover split — [50 100], mean of {RUNS}\n\
+             instrument: {cal:.1} ns per mark pair\n\
+             \n\
+             SETUP                     {:>7.2} ms raw  {:>6}x\n\
+               setup:seen              {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+               setup:arm               {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+             remainder (SETUP−seen−arm){:>7.2} ms\n\
+             ARM_BUILDS                {:>7}  ({:.2} per run)\n",
+            ms(setup_raw),
+            setup_pairs,
+            ms(seen_raw),
+            ms(seen_raw - seen_pairs as f64 * cal),
+            seen_pairs,
+            ms(arm_raw),
+            ms(arm_raw - arm_pairs as f64 * cal),
+            arm_pairs,
+            ms(remainder_raw),
+            builds,
+            builds as f64 / r,
+        );
+        println!("{table}");
+        assert!(
+            setup_raw > 0.0,
+            "SETUP recorded 0 — the fire never ran:{table}"
+        );
+        assert!(
+            arm_pairs > 0,
+            "setup:arm recorded 0 pairs — the mark never fired:{table}"
+        );
+    }
+
     /// Leftover accum `[200 200]`: alpha remainder vs tax, then the
     /// named engine rows (`DESIGN-STONE-accum-leftover-split`).
     #[test]
@@ -10741,6 +11392,1480 @@ mod tests {
         );
     }
 
+    /// Honest alpha 18 ms: seed vs delta, then stacked isolated lumps
+    /// (`DESIGN-STONE-alpha-leftover-split`). No per-fact timers.
+    #[test]
+    fn accum_alpha_leftover_split() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let mut fire = 0.0;
+        let mut alpha = 0.0;
+        let mut seed = 0.0;
+        let mut delta = 0.0;
+        let mut seed_pairs = 0u64;
+        let mut delta_pairs = 0u64;
+        for _ in 0..RUNS {
+            let rows = accum_phase_census(200, 200);
+            let of = |name: &str| -> (u64, u64) {
+                rows.iter()
+                    .find(|(n, _, _)| *n == name)
+                    .map(|(_, ns, k)| (*ns, *k))
+                    .unwrap_or((0, 0))
+            };
+            fire += ["IN: to_transient", "SETUP: indexes", "ROUND LOOP", "OUT: to_persistent"]
+                .iter()
+                .map(|n| of(n).0 as f64)
+                .sum::<f64>();
+            alpha += of("alpha").0 as f64;
+            let (s_ns, s_k) = of("  ├ alpha:seed");
+            seed += s_ns as f64;
+            seed_pairs = s_k;
+            let (d_ns, d_k) = of("  └ alpha:delta");
+            delta += d_ns as f64;
+            delta_pairs = d_k;
+        }
+        let r = RUNS as f64;
+        fire /= r;
+        alpha /= r;
+        seed /= r;
+        delta /= r;
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let input_pv: rpds::VectorSync<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.clone(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        let facts: Vec<Value> = input_pv.iter().cloned().collect();
+        assert!(
+            !facts.is_empty(),
+            "compile+seed produced 0 facts — isolated loops would be vacuous"
+        );
+
+        let reset = |wm: &mut super::WorkingMemory, d_alpha: &mut FxHashMap<i64, Vec<usize>>| {
+            wm.alpha.clear();
+            wm.bind_pool.clear();
+            wm.bind_keys.clear();
+            wm.bind_vals.clear();
+            wm.bind_val_ids.clear();
+            d_alpha.clear();
+        };
+
+        let mut wp = 0.0;
+        let mut w = 0.0;
+        let mut c = 0.0;
+        let mut t = 0.0;
+        let mut m = 0.0;
+        let mut a = 0.0;
+        for _ in 0..RUNS {
+            wp += time_ns(|| {
+                for f in input_pv.iter() {
+                    black_box(f);
+                }
+            });
+            w += time_ns(|| {
+                for f in &facts {
+                    black_box(f);
+                }
+            });
+            c += time_ns(|| {
+                for f in &facts {
+                    match f {
+                        Value::Aggregate(ag) if ag.nature != Nature::Struct => {
+                            black_box((ag.class.as_ref(), ag.fields.as_slice()));
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            t += time_ns(|| {
+                for f in &facts {
+                    match f {
+                        Value::Aggregate(ag) if ag.nature != Nature::Struct => {
+                            black_box(arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice()));
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            m += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset(&mut wm, &mut FxHashMap::default());
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        black_box(crate::rete::compiled_cond::exec_compiled(
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                        ));
+                    }
+                }
+            });
+            a += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                let mut cand = Vec::new();
+                let mut d_alpha: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
+                reset(&mut wm, &mut d_alpha);
+                let mut cond_key_ids: HashMap<i64, Vec<u32>> = HashMap::new();
+                for (&id, c) in &arm.compiled_conds {
+                    cond_key_ids.insert(
+                        id,
+                        crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
+                    );
+                }
+                for (i, fact) in facts.iter().enumerate() {
+                    super::alpha_activate_fact(
+                        fact,
+                        i as u32,
+                        &mut wm,
+                        &mut d_alpha,
+                        &arm.alpha_tree,
+                        &arm.compiled_conds,
+                        &mut scratch,
+                        &mut cand,
+                        &cond_key_ids,
+                    )
+                    .expect("isolated activate");
+                    black_box(d_alpha.len());
+                }
+            });
+        }
+        wp /= r;
+        w /= r;
+        c /= r;
+        t /= r;
+        m /= r;
+        a /= r;
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum alpha leftover split — [200 200], mean of {RUNS}\n\
+             in-fire (2 pairs, not per fact)\n\
+             FIRE                       {:>7.2} ms\n\
+             alpha                      {:>7.2} ms\n\
+               seed                     {:>7.2} ms  {:>6}x\n\
+               delta                    {:>7.2} ms  {:>6}x\n\
+               seed+delta               {:>7.2} ms\n\
+             \n\
+             isolated (cold intern each run, {} facts)\n\
+             Wp  PV iter                {:>7.2} ms\n\
+             W   Vec iter               {:>7.2} ms\n\
+             C   class extract          {:>7.2} ms\n\
+             T   + candidates           {:>7.2} ms\n\
+             M   + exec_compiled        {:>7.2} ms\n\
+             A   alpha_activate_fact    {:>7.2} ms\n\
+             \n\
+             C−W   extract              {:>7.2} ms\n\
+             T−C   tree                 {:>7.2} ms\n\
+             M−T   exec_compiled+intern {:>7.2} ms\n\
+             A−M   push                 {:>7.2} ms\n\
+             A vs seed                  {:>7.2} ms isolated vs {:>7.2} in-fire\n",
+            ms(fire),
+            ms(alpha),
+            ms(seed),
+            seed_pairs,
+            ms(delta),
+            delta_pairs,
+            ms(seed + delta),
+            facts.len(),
+            ms(wp),
+            ms(w),
+            ms(c),
+            ms(t),
+            ms(m),
+            ms(a),
+            ms(c - w),
+            ms(t - c),
+            ms(m - t),
+            ms(a - m),
+            ms(a),
+            ms(seed),
+        );
+        println!("{table}");
+        assert!(seed > 0.0, "alpha:seed recorded 0 — the mark never fired:{table}");
+        assert!(a > 0.0, "isolated activate recorded 0 — the loop never ran:{table}");
+        assert!(
+            seed_pairs > 0,
+            "alpha:seed pairs 0 — leftover split is a dead fire:{table}"
+        );
+    }
+
+    /// `M−T` 7.65 ms: ops vs intern (`DESIGN-STONE-compiled-match-split`).
+    #[test]
+    fn accum_compiled_match_split() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        assert!(
+            !facts.is_empty(),
+            "compile+seed produced 0 facts — isolated loops would be vacuous"
+        );
+
+        let n_fact_bind = arm
+            .compiled_conds
+            .values()
+            .filter(|c| c.fact_bind().is_some())
+            .count();
+        let mut n_cands = 0u64;
+        let mut n_ops_true = 0u64;
+        {
+            let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+            for f in &facts {
+                let Value::Aggregate(ag) = f else { continue };
+                if ag.nature == Nature::Struct {
+                    continue;
+                }
+                let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                n_cands += alphas.len() as u64;
+                for aid in &alphas {
+                    let compiled =
+                        super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                    scratch.clear();
+                    scratch.resize(compiled.n_slots(), None);
+                    if crate::rete::compiled_cond::exec_ops(
+                        compiled.ops(),
+                        &mut scratch,
+                        ag.fields.as_slice(),
+                        true,
+                    ) {
+                        n_ops_true += 1;
+                    }
+                }
+            }
+        }
+
+        let reset_pools = |wm: &mut super::WorkingMemory| {
+            wm.bind_pool.clear();
+            wm.bind_keys.clear();
+            wm.bind_vals.clear();
+            wm.bind_val_ids.clear();
+        };
+
+        let mut t = 0.0;
+        let mut o = 0.0;
+        let mut mc = 0.0;
+        let mut mw = 0.0;
+        for _ in 0..RUNS {
+            t += time_ns(|| {
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    black_box(arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice()));
+                }
+            });
+            o += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        black_box(crate::rete::compiled_cond::exec_ops(
+                            compiled.ops(),
+                            &mut scratch,
+                            ag.fields.as_slice(),
+                            true,
+                        ));
+                    }
+                }
+            });
+            mc += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset_pools(&mut wm);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        black_box(crate::rete::compiled_cond::exec_compiled(
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                        ));
+                    }
+                }
+            });
+        }
+        {
+            let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+            reset_pools(&mut wm);
+            for f in &facts {
+                let Value::Aggregate(ag) = f else { continue };
+                if ag.nature == Nature::Struct {
+                    continue;
+                }
+                let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                for aid in &alphas {
+                    let compiled =
+                        super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                    let _ = crate::rete::compiled_cond::exec_compiled(
+                        compiled,
+                        ag.fields.as_slice(),
+                        &mut scratch,
+                        &mut wm.bind_pool,
+                        &mut wm.bind_keys,
+                        &mut wm.bind_vals,
+                        &mut wm.bind_val_ids,
+                        f,
+                    );
+                }
+            }
+            for _ in 0..RUNS {
+                mw += time_ns(|| {
+                    let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                    wm.bind_pool.clear();
+                    for f in &facts {
+                        let Value::Aggregate(ag) = f else { continue };
+                        if ag.nature == Nature::Struct {
+                            continue;
+                        }
+                        let alphas =
+                            arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                        for aid in &alphas {
+                            let compiled = super::rematch_compiled(&arm.compiled_conds, *aid)
+                                .expect("compiled cond");
+                            black_box(crate::rete::compiled_cond::exec_compiled(
+                                compiled,
+                                ag.fields.as_slice(),
+                                &mut scratch,
+                                &mut wm.bind_pool,
+                                &mut wm.bind_keys,
+                                &mut wm.bind_vals,
+                                &mut wm.bind_val_ids,
+                                f,
+                            ));
+                        }
+                    }
+                });
+            }
+        }
+        let r = RUNS as f64;
+        t /= r;
+        o /= r;
+        mc /= r;
+        mw /= r;
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum compiled-match split — 40,200 facts, mean of {RUNS}\n\
+             fact_bind conds {n_fact_bind}   candidates {n_cands}   ops-true {n_ops_true}\n\
+             \n\
+             T   candidates                 {:>7.2} ms\n\
+             O   + exec_ops                 {:>7.2} ms\n\
+             Mc  + exec_compiled (cold)     {:>7.2} ms\n\
+             Mw  + exec_compiled (warm)     {:>7.2} ms\n\
+             \n\
+             O−T   ops                      {:>7.2} ms\n\
+             Mc−O  intern/materialize cold  {:>7.2} ms\n\
+             Mc−Mw intern cold tax          {:>7.2} ms\n",
+            ms(t),
+            ms(o),
+            ms(mc),
+            ms(mw),
+            ms(o - t),
+            ms(mc - o),
+            ms(mc - mw),
+        );
+        println!("{table}");
+        assert!(o > 0.0, "exec_ops recorded 0 — the loop never ran:{table}");
+        assert!(n_cands > 0, "zero candidates — split is vacuous:{table}");
+    }
+
+    /// intern/materialize 6.18 ms: clone vs intern_key vs intern_val vs push
+    /// (`DESIGN-STONE-materialize-split`).
+    #[test]
+    fn accum_materialize_split() {
+        use crate::rete::compiled_cond::{exec_ops, intern_key, intern_val, materialize_into};
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        assert!(
+            !facts.is_empty(),
+            "compile+seed produced 0 facts — isolated loops would be vacuous"
+        );
+
+        let reset = |wm: &mut super::WorkingMemory| {
+            wm.bind_pool.clear();
+            wm.bind_keys.clear();
+            wm.bind_vals.clear();
+            wm.bind_val_ids.clear();
+        };
+
+        let mut o = 0.0;
+        let mut c = 0.0;
+        let mut k = 0.0;
+        let mut v = 0.0;
+        let mut p = 0.0;
+        let mut m = 0.0;
+        for _ in 0..RUNS {
+            o += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        black_box(exec_ops(
+                            compiled.ops(),
+                            &mut scratch,
+                            ag.fields.as_slice(),
+                            true,
+                        ));
+                    }
+                }
+            });
+            c += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                            continue;
+                        }
+                        for &slot in compiled.output_slots() {
+                            black_box(scratch.get(slot).and_then(|x| x.clone()));
+                        }
+                    }
+                }
+            });
+            k += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset(&mut wm);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                            continue;
+                        }
+                        for &slot in compiled.output_slots() {
+                            black_box(scratch.get(slot).and_then(|x| x.clone()));
+                        }
+                        for key in compiled.slot_keys() {
+                            black_box(intern_key(&mut wm.bind_keys, key));
+                        }
+                    }
+                }
+            });
+            v += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset(&mut wm);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                            continue;
+                        }
+                        for (i, &slot) in compiled.output_slots().iter().enumerate() {
+                            let Some(val) = scratch.get(slot).and_then(|x| x.clone()) else {
+                                continue;
+                            };
+                            black_box(intern_key(&mut wm.bind_keys, &compiled.slot_keys()[i]));
+                            black_box(intern_val(
+                                &mut wm.bind_vals,
+                                &mut wm.bind_val_ids,
+                                val,
+                            ));
+                        }
+                    }
+                }
+            });
+            p += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset(&mut wm);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                            continue;
+                        }
+                        for (i, &slot) in compiled.output_slots().iter().enumerate() {
+                            let Some(val) = scratch.get(slot).and_then(|x| x.clone()) else {
+                                continue;
+                            };
+                            let kid = intern_key(&mut wm.bind_keys, &compiled.slot_keys()[i]);
+                            let vid = intern_val(&mut wm.bind_vals, &mut wm.bind_val_ids, val);
+                            wm.bind_pool.push((kid, vid));
+                        }
+                    }
+                }
+            });
+            m += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset(&mut wm);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                            continue;
+                        }
+                        black_box(materialize_into(
+                            compiled,
+                            &scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                            None,
+                        ));
+                    }
+                }
+            });
+        }
+        let r = RUNS as f64;
+        o /= r;
+        c /= r;
+        k /= r;
+        v /= r;
+        p /= r;
+        m /= r;
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum materialize split — 40,200 facts, mean of {RUNS}\n\
+             \n\
+             O   exec_ops                   {:>7.2} ms\n\
+             C   + clone slots              {:>7.2} ms\n\
+             K   + intern_key               {:>7.2} ms\n\
+             V   + intern_val               {:>7.2} ms\n\
+             P   + pool.push                {:>7.2} ms\n\
+             M   + materialize_into         {:>7.2} ms\n\
+             \n\
+             C−O   clone                    {:>7.2} ms\n\
+             K−C   intern_key               {:>7.2} ms\n\
+             V−K   intern_val               {:>7.2} ms\n\
+             P−V   pool.push                {:>7.2} ms\n\
+             M−P   materialize leftover     {:>7.2} ms\n",
+            ms(o),
+            ms(c),
+            ms(k),
+            ms(v),
+            ms(p),
+            ms(m),
+            ms(c - o),
+            ms(k - c),
+            ms(v - k),
+            ms(p - v),
+            ms(m - p),
+        );
+        println!("{table}");
+        assert!(v > 0.0, "intern_val recorded 0 — the loop never ran:{table}");
+    }
+
+    /// Tree 4.46 ms: class HashMap vs walk vs Vec alloc
+    /// (`DESIGN-STONE-alpha-tree-walk-split`).
+    #[test]
+    fn accum_alpha_tree_walk_split() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        assert!(
+            !facts.is_empty(),
+            "compile+seed produced 0 facts — isolated loops would be vacuous"
+        );
+
+        let mut e = 0.0;
+        let mut g = 0.0;
+        let mut i = 0.0;
+        let mut t = 0.0;
+        for _ in 0..RUNS {
+            e += time_ns(|| {
+                for f in &facts {
+                    match f {
+                        Value::Aggregate(ag) if ag.nature != Nature::Struct => {
+                            black_box((ag.class.as_ref(), ag.fields.as_slice()));
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            g += time_ns(|| {
+                for f in &facts {
+                    match f {
+                        Value::Aggregate(ag) if ag.nature != Nature::Struct => {
+                            black_box((
+                                ag.fields.as_slice(),
+                                arm.alpha_tree.has_class(ag.class.as_ref()),
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            i += time_ns(|| {
+                let mut buf = Vec::new();
+                for f in &facts {
+                    match f {
+                        Value::Aggregate(ag) if ag.nature != Nature::Struct => {
+                            arm.alpha_tree.candidates_into(
+                                ag.class.as_ref(),
+                                ag.fields.as_slice(),
+                                &mut buf,
+                            );
+                            black_box(buf.len());
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            t += time_ns(|| {
+                for f in &facts {
+                    match f {
+                        Value::Aggregate(ag) if ag.nature != Nature::Struct => {
+                            black_box(
+                                arm.alpha_tree
+                                    .candidates(ag.class.as_ref(), ag.fields.as_slice()),
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+        let r = RUNS as f64;
+        e /= r;
+        g /= r;
+        i /= r;
+        t /= r;
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum alpha-tree walk split — 40,200 facts, mean of {RUNS}\n\
+             \n\
+             E   class extract              {:>7.2} ms\n\
+             G   + has_class                {:>7.2} ms\n\
+             I   + walk into reused Vec     {:>7.2} ms\n\
+             T   candidates() new Vec       {:>7.2} ms\n\
+             \n\
+             G−E   class HashMap            {:>7.2} ms\n\
+             I−G   walk                     {:>7.2} ms\n\
+             T−I   Vec alloc                {:>7.2} ms\n",
+            ms(e),
+            ms(g),
+            ms(i),
+            ms(t),
+            ms(g - e),
+            ms(i - g),
+            ms(t - i),
+        );
+        println!("{table}");
+        assert!(i > 0.0, "walk recorded 0 — the loop never ran:{table}");
+    }
+
+    /// Class lookup 3.26 ms: std HashMap vs FxHash vs linear
+    /// (`DESIGN-STONE-alpha-class-lookup`).
+    #[test]
+    fn accum_alpha_class_lookup_split() {
+        use rustc_hash::FxHashMap;
+        use std::collections::HashMap;
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        let classes: Vec<Arc<str>> = facts
+            .iter()
+            .filter_map(|f| match f {
+                Value::Aggregate(ag) if ag.nature != Nature::Struct => Some(ag.class.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !classes.is_empty(),
+            "compile+seed produced 0 classed facts — lookup split is vacuous"
+        );
+        let mut unique: Vec<String> = Vec::new();
+        for c in &classes {
+            let s = c.as_ref();
+            if !unique.iter().any(|u| u == s) {
+                unique.push(s.to_string());
+            }
+        }
+        let n_types = unique.len();
+
+        let mut std_map: HashMap<String, u8> = HashMap::with_capacity(n_types);
+        let mut fx_map: FxHashMap<String, u8> = FxHashMap::default();
+        fx_map.reserve(n_types);
+        let mut lin: Vec<(String, u8)> = Vec::with_capacity(n_types);
+        for (i, u) in unique.iter().enumerate() {
+            std_map.insert(u.clone(), i as u8);
+            fx_map.insert(u.clone(), i as u8);
+            lin.push((u.clone(), i as u8));
+        }
+
+        let mut s = 0.0;
+        let mut f = 0.0;
+        let mut l = 0.0;
+        for _ in 0..RUNS {
+            s += time_ns(|| {
+                for c in &classes {
+                    black_box(std_map.get(c.as_ref()));
+                }
+            });
+            f += time_ns(|| {
+                for c in &classes {
+                    black_box(fx_map.get(c.as_ref()));
+                }
+            });
+            l += time_ns(|| {
+                for c in &classes {
+                    let cs = c.as_ref();
+                    black_box(lin.iter().find(|(k, _)| k == cs).map(|(_, v)| v));
+                }
+            });
+        }
+        let r = RUNS as f64;
+        s /= r;
+        f /= r;
+        l /= r;
+        let best = f.min(l);
+        let winner = if l <= f { "L" } else { "F" };
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum alpha class-lookup split — {} facts, {n_types} types, mean of {RUNS}\n\
+             types: {unique:?}\n\
+             \n\
+             S  std HashMap (engine)        {:>7.2} ms\n\
+             F  FxHashMap                   {:>7.2} ms\n\
+             L  linear Vec                  {:>7.2} ms\n\
+             \n\
+             S−F                            {:>7.2} ms\n\
+             S−L                            {:>7.2} ms\n\
+             winner {winner}  cut               {:>7.2} ms\n",
+            classes.len(),
+            ms(s),
+            ms(f),
+            ms(l),
+            ms(s - f),
+            ms(s - l),
+            ms(s - best),
+        );
+        println!("{table}");
+        assert!(s > 0.0, "std HashMap lookup recorded 0 — the loop never ran:{table}");
+        assert!(n_types > 0, "zero types — split is vacuous:{table}");
+    }
+
+    /// A−M 3.45 ms: HashMap entry vs Vec push vs d_alpha
+    /// (`DESIGN-STONE-alpha-push-split`).
+    #[test]
+    fn accum_alpha_push_split() {
+        use crate::rete::compiled_cond::exec_compiled;
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        assert!(
+            !facts.is_empty(),
+            "compile+seed produced 0 facts — isolated loops would be vacuous"
+        );
+
+        let reset = |wm: &mut super::WorkingMemory, d_alpha: &mut FxHashMap<i64, Vec<usize>>| {
+            wm.alpha.clear();
+            wm.bind_pool.clear();
+            wm.bind_keys.clear();
+            wm.bind_vals.clear();
+            wm.bind_val_ids.clear();
+            d_alpha.clear();
+        };
+
+        let mut m = 0.0;
+        let mut h = 0.0;
+        let mut v = 0.0;
+        let mut d = 0.0;
+        let mut a = 0.0;
+        for _ in 0..RUNS {
+            m += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                reset(&mut wm, &mut FxHashMap::default());
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        black_box(exec_compiled(
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                        ));
+                    }
+                }
+            });
+            h += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                let mut d_alpha: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
+                reset(&mut wm, &mut d_alpha);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        if exec_compiled(
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                        )
+                        .is_some()
+                        {
+                            black_box(wm.alpha.entry(*aid).or_default().len());
+                        }
+                    }
+                }
+            });
+            v += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                let mut d_alpha: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
+                reset(&mut wm, &mut d_alpha);
+                for (i, f) in facts.iter().enumerate() {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        if let Some((off, len)) = exec_compiled(
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                        ) {
+                            let el = super::make_element(i as u32, off, len);
+                            wm.alpha.entry(*aid).or_default().push(el);
+                        }
+                    }
+                }
+            });
+            d += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                let mut d_alpha: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
+                reset(&mut wm, &mut d_alpha);
+                for (i, f) in facts.iter().enumerate() {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        if let Some((off, len)) = exec_compiled(
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_pool,
+                            &mut wm.bind_keys,
+                            &mut wm.bind_vals,
+                            &mut wm.bind_val_ids,
+                            f,
+                        ) {
+                            let el = super::make_element(i as u32, off, len);
+                            let slot = {
+                                let mem = wm.alpha.entry(*aid).or_default();
+                                mem.push(el);
+                                mem.len() - 1
+                            };
+                            d_alpha.entry(*aid).or_default().push(slot);
+                        }
+                    }
+                }
+            });
+            a += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                let mut cand = Vec::new();
+                let mut d_alpha: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
+                reset(&mut wm, &mut d_alpha);
+                let mut cond_key_ids: HashMap<i64, Vec<u32>> = HashMap::new();
+                for (&id, c) in &arm.compiled_conds {
+                    cond_key_ids.insert(
+                        id,
+                        crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
+                    );
+                }
+                for (i, fact) in facts.iter().enumerate() {
+                    super::alpha_activate_fact(
+                        fact,
+                        i as u32,
+                        &mut wm,
+                        &mut d_alpha,
+                        &arm.alpha_tree,
+                        &arm.compiled_conds,
+                        &mut scratch,
+                        &mut cand,
+                        &cond_key_ids,
+                    )
+                    .expect("isolated activate");
+                    black_box(d_alpha.len());
+                }
+            });
+        }
+        let r = RUNS as f64;
+        m /= r;
+        h /= r;
+        v /= r;
+        d /= r;
+        a /= r;
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum alpha push split — 40,200 facts, mean of {RUNS}\n\
+             \n\
+             M   exec_compiled              {:>7.2} ms\n\
+             H   + alpha.entry              {:>7.2} ms\n\
+             V   + Vec::push                {:>7.2} ms\n\
+             D   + d_alpha.entry            {:>7.2} ms\n\
+             A   alpha_activate_fact        {:>7.2} ms\n\
+             \n\
+             H−M   HashMap entry            {:>7.2} ms\n\
+             V−H   Vec push                 {:>7.2} ms\n\
+             D−V   d_alpha                  {:>7.2} ms\n\
+             A−D   leftover                 {:>7.2} ms\n\
+             A−M   push lump                {:>7.2} ms\n",
+            ms(m),
+            ms(h),
+            ms(v),
+            ms(d),
+            ms(a),
+            ms(h - m),
+            ms(v - h),
+            ms(d - v),
+            ms(a - d),
+            ms(a - m),
+        );
+        println!("{table}");
+        assert!(d > 0.0, "d_alpha path recorded 0 — the loop never ran:{table}");
+    }
+
+    /// intern_val 2.77 ms: Value map vs i64 map vs small-int table
+    /// (`DESIGN-STONE-intern-val-i64`).
+    #[test]
+    fn accum_intern_val_i64_split() {
+        use crate::rete::compiled_cond::exec_ops;
+        use rustc_hash::FxHashMap;
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+
+        let mut payloads: Vec<Value> = Vec::new();
+        {
+            let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+            for f in &facts {
+                let Value::Aggregate(ag) = f else { continue };
+                if ag.nature == Nature::Struct {
+                    continue;
+                }
+                let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                for aid in &alphas {
+                    let compiled =
+                        super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                    scratch.clear();
+                    scratch.resize(compiled.n_slots(), None);
+                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                        continue;
+                    }
+                    for &slot in compiled.output_slots() {
+                        if let Some(v) = scratch.get(slot).and_then(|x| x.clone()) {
+                            payloads.push(v);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            !payloads.is_empty(),
+            "no interned fillers — intern_val split is vacuous"
+        );
+        let mut n_i64 = 0u64;
+        let mut n_other = 0u64;
+        let mut min_i = i64::MAX;
+        let mut max_i = i64::MIN;
+        for v in &payloads {
+            match v {
+                Value::i64(n) => {
+                    n_i64 += 1;
+                    min_i = min_i.min(*n);
+                    max_i = max_i.max(*n);
+                }
+                _ => n_other += 1,
+            }
+        }
+        let table_ok = n_other == 0 && min_i >= 0 && max_i < 4096;
+
+        let mut vns = 0.0;
+        let mut ins = 0.0;
+        let mut ans = 0.0;
+        for _ in 0..RUNS {
+            vns += time_ns(|| {
+                let mut vals = Vec::new();
+                let mut ids = crate::rete::compiled_cond::ValIntern::default();
+                for v in &payloads {
+                    black_box(crate::rete::compiled_cond::intern_val(
+                        &mut vals,
+                        &mut ids,
+                        v.clone(),
+                    ));
+                }
+            });
+            ins += time_ns(|| {
+                let mut vals = Vec::new();
+                let mut ids: FxHashMap<i64, u32> = FxHashMap::default();
+                for v in &payloads {
+                    let Value::i64(n) = *v else {
+                        panic!("non-i64 in I arm");
+                    };
+                    let id = if let Some(&id) = ids.get(&n) {
+                        id
+                    } else {
+                        let id = vals.len() as u32;
+                        ids.insert(n, id);
+                        vals.push(Value::i64(n));
+                        id
+                    };
+                    black_box(id);
+                }
+            });
+            if table_ok {
+                ans += time_ns(|| {
+                    let mut vals = Vec::new();
+                    let mut slot = vec![u32::MAX; (max_i as usize) + 1];
+                    for v in &payloads {
+                        let Value::i64(n) = *v else { panic!() };
+                        let i = n as usize;
+                        let id = if slot[i] != u32::MAX {
+                            slot[i]
+                        } else {
+                            let id = vals.len() as u32;
+                            slot[i] = id;
+                            vals.push(Value::i64(n));
+                            id
+                        };
+                        black_box(id);
+                    }
+                });
+            }
+        }
+        let r = RUNS as f64;
+        vns /= r;
+        ins /= r;
+        if table_ok {
+            ans /= r;
+        }
+        let best = if table_ok { ins.min(ans) } else { ins };
+        let winner = if table_ok && ans <= ins { "A" } else { "I" };
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum intern_val i64 split — {} fillers, mean of {RUNS}\n\
+             i64 {n_i64}  other {n_other}  min {min_i}  max {max_i}  table_ok {table_ok}\n\
+             \n\
+             V  FxHashMap<Value> (engine)   {:>7.2} ms\n\
+             I  FxHashMap<i64>              {:>7.2} ms\n\
+             A  slot table                  {:>7.2} ms\n\
+             \n\
+             V−I                            {:>7.2} ms\n\
+             V−A                            {:>7.2} ms\n\
+             winner {winner}  cut               {:>7.2} ms\n",
+            payloads.len(),
+            ms(vns),
+            ms(ins),
+            if table_ok { ms(ans) } else { f64::NAN },
+            ms(vns - ins),
+            if table_ok { ms(vns - ans) } else { f64::NAN },
+            ms(vns - best),
+        );
+        println!("{table}");
+        assert!(vns > 0.0, "intern_val recorded 0 — the loop never ran:{table}");
+        assert!(n_i64 > 0, "zero i64 fillers — split is vacuous:{table}");
+    }
+
+    /// O−T 1.90 ms: scratch reset vs exec_ops body
+    /// (`DESIGN-STONE-exec-ops-split`).
+    #[test]
+    fn accum_exec_ops_split() {
+        use crate::rete::compiled_cond::exec_ops;
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let staged = "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)";
+        let ast = crate::parse_one!(staged).expect("parse compile+seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+            .value_owned();
+        let wm = super::to_transient(&session).expect("to_transient of seeded session");
+        let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+            .expect("arm for accum network");
+        let facts: Vec<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => panic!("seeded session facts are a PersistentVector"),
+        };
+        assert!(
+            !facts.is_empty(),
+            "compile+seed produced 0 facts — isolated loops would be vacuous"
+        );
+
+        let mut t = 0.0;
+        let mut rset = 0.0;
+        let mut f = 0.0;
+        let mut o = 0.0;
+        for _ in 0..RUNS {
+            t += time_ns(|| {
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    black_box(
+                        arm.alpha_tree
+                            .candidates(ag.class.as_ref(), ag.fields.as_slice()),
+                    );
+                }
+            });
+            rset += time_ns(|| {
+                let mut scratch: Vec<Option<Value>> =
+                    Vec::with_capacity(arm.compiled_max_slots);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        black_box(scratch.len());
+                    }
+                }
+            });
+            f += time_ns(|| {
+                let mut scratch: Vec<Option<Value>> =
+                    Vec::with_capacity(arm.compiled_max_slots);
+                for fct in &facts {
+                    let Value::Aggregate(ag) = fct else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        let n = compiled.n_slots();
+                        if scratch.len() != n {
+                            scratch.resize(n, None);
+                        }
+                        scratch.fill(None);
+                        black_box(scratch.len());
+                    }
+                }
+            });
+            o += time_ns(|| {
+                let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+                for f in &facts {
+                    let Value::Aggregate(ag) = f else { continue };
+                    if ag.nature == Nature::Struct {
+                        continue;
+                    }
+                    let alphas = arm.alpha_tree.candidates(ag.class.as_ref(), ag.fields.as_slice());
+                    for aid in &alphas {
+                        let compiled =
+                            super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
+                        scratch.clear();
+                        scratch.resize(compiled.n_slots(), None);
+                        black_box(exec_ops(
+                            compiled.ops(),
+                            &mut scratch,
+                            ag.fields.as_slice(),
+                            true,
+                        ));
+                    }
+                }
+            });
+        }
+        let runs = RUNS as f64;
+        t /= runs;
+        rset /= runs;
+        f /= runs;
+        o /= runs;
+
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\naccum exec_ops split — 40,200 facts, mean of {RUNS}\n\
+             \n\
+             T   candidates                 {:>7.2} ms\n\
+             R   + clear/resize             {:>7.2} ms\n\
+             F   + fill(None)               {:>7.2} ms\n\
+             O   + exec_ops                 {:>7.2} ms\n\
+             \n\
+             R−T   scratch clear/resize     {:>7.2} ms\n\
+             F−T   scratch fill             {:>7.2} ms\n\
+             O−R   exec_ops body            {:>7.2} ms\n\
+             O−T   ops lump                 {:>7.2} ms\n",
+            ms(t),
+            ms(rset),
+            ms(f),
+            ms(o),
+            ms(rset - t),
+            ms(f - t),
+            ms(o - rset),
+            ms(o - t),
+        );
+        println!("{table}");
+        assert!(o > 0.0, "exec_ops recorded 0 — the loop never ran:{table}");
+    }
+
     /// `FxHashSet<Value>` vs fingerprint set (`DESIGN-STONE-seen-identity-set`).
     #[test]
     fn seen_identity_set_split() {
@@ -10968,6 +13093,127 @@ mod tests {
         );
     }
 
+    /// In-fire `setup:seen` alloc vs insert, plus isolated on real seeded facts
+    /// (`DESIGN-STONE-seen-fire-context`).
+    #[test]
+    fn accum_seen_fire_context_split() {
+        use rustc_hash::FxHashSet;
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const RUNS: usize = 3;
+        const G: i64 = 200;
+        const W: i64 = 200;
+
+        let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum-axis world should freeze");
+        let src = format!(
+            "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {G} {W})"
+        );
+        let ast = crate::parse_one!(src.as_str()).expect("parse seed");
+        let session = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
+            .value_owned();
+        let wm = super::to_transient(&session).expect("to_transient");
+        let pv: rpds::VectorSync<Value> = match &wm.facts {
+            Value::wat__core__PersistentVector(pv) => pv.clone(),
+            _ => panic!("seeded facts is a PersistentVector"),
+        };
+        let n = pv.len();
+        assert!(n > 40_000, "seeded [200 200] must hold ~40,200 facts, got {n}");
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let mut a = 0.0;
+        let mut x = 0.0;
+        let mut s = 0.0;
+        for _ in 0..RUNS {
+            a += time_ns(|| {
+                let ids: FxHashSet<u64> =
+                    FxHashSet::with_capacity_and_hasher(n, Default::default());
+                let rest: FxHashSet<Value> = FxHashSet::default();
+                black_box(ids.len() + rest.len());
+            });
+            x += time_ns(|| {
+                let mut sum = 0u64;
+                for f in pv.iter() {
+                    if let Value::Aggregate(ag) = f {
+                        sum = sum.wrapping_add(ag.identity());
+                    }
+                }
+                black_box(sum);
+            });
+            s += time_ns(|| {
+                let mut ids: FxHashSet<u64> =
+                    FxHashSet::with_capacity_and_hasher(n, Default::default());
+                let mut rest: FxHashSet<Value> = FxHashSet::default();
+                for f in pv.iter() {
+                    super::seen_insert(&mut ids, &mut rest, f);
+                }
+                black_box(ids.len() + rest.len());
+            });
+        }
+
+        let mut fire_seen = 0.0;
+        let mut fire_alloc = 0.0;
+        let mut fire_ins = 0.0;
+        for _ in 0..RUNS {
+            let rows = accum_phase_census(G, W);
+            let of = |name: &str| -> u64 {
+                rows.iter()
+                    .find(|(nm, _, _)| *nm == name)
+                    .map(|(_, ns, _)| *ns)
+                    .unwrap_or(0)
+            };
+            fire_seen += of("  ├ setup:seen") as f64;
+            fire_alloc += of("  │  setup:seen:alloc") as f64;
+            fire_ins += of("  │  setup:seen:insert") as f64;
+        }
+        let r = RUNS as f64;
+        a /= r;
+        x /= r;
+        s /= r;
+        fire_seen /= r;
+        fire_alloc /= r;
+        fire_ins /= r;
+        let ms = |ns: f64| ns / 1e6;
+        let table = format!(
+            "\nseen fire-context split — accum [{G} {W}], {n} facts, mean of {RUNS}\n\
+             \n\
+             in-fire\n\
+             setup:seen                    {:>7.2} ms\n\
+               alloc                       {:>7.2} ms\n\
+               insert                      {:>7.2} ms\n\
+             \n\
+             isolated (same seeded PV)\n\
+             A  HashSet with_capacity      {:>7.2} ms\n\
+             X  identity() walk            {:>7.2} ms\n\
+             S  seen_insert loop           {:>7.2} ms\n\
+             \n\
+             S−A  insert beyond alloc      {:>7.2} ms\n\
+             in-fire insert − S            {:>7.2} ms\n\
+             in-fire seen − S              {:>7.2} ms\n",
+            ms(fire_seen),
+            ms(fire_alloc),
+            ms(fire_ins),
+            ms(a),
+            ms(x),
+            ms(s),
+            ms(s - a),
+            ms(fire_ins - s),
+            ms(fire_seen - s),
+        );
+        println!("{table}");
+        assert!(
+            s > 0.0,
+            "isolated seen_insert recorded 0 — the loop never ran:{table}"
+        );
+    }
+
     /// Four clears of leftover `drop-memories` (`DESIGN-STONE-drop-memories-split`).
     #[test]
     fn drop_memories_cost_split() {
@@ -10996,7 +13242,7 @@ mod tests {
         fn build_alpha(facts: &[Value], gkey: &Value, vkey: &Value) -> (Vec<super::Element>, Vec<(u32, u32)>) {
             let mut keys = Vec::new();
             let mut vals = Vec::new();
-            let mut ids = FxHashMap::default();
+            let mut ids = crate::rete::compiled_cond::ValIntern::default();
             let mut pool = Vec::new();
             let mut alpha = Vec::with_capacity(facts.len());
             for i in 0..facts.len() {
@@ -11113,7 +13359,7 @@ mod tests {
         let join_keys = [gkey.clone()];
         let mut keys = Vec::new();
         let mut vals = Vec::new();
-        let mut ids = FxHashMap::default();
+        let mut ids = crate::rete::compiled_cond::ValIntern::default();
         let mut pool: Vec<(u32, u32)> = Vec::new();
         let mut els: Vec<super::Element> = Vec::with_capacity(N);
         for i in 0..N {
@@ -11216,6 +13462,99 @@ mod tests {
         );
     }
 
+    /// Unary gather `HashMap<Value>` vs interned filler id
+    /// (`DESIGN-STONE-gather-val-id`).
+    #[test]
+    fn gather_val_id_split() {
+        use rustc_hash::FxHashMap;
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const N: usize = 40_200;
+        const RUNS: usize = 3;
+
+        let gkey = Value::String(Arc::new("?g".into()));
+        let vkey = Value::String(Arc::new("?v".into()));
+        let join_keys = [gkey.clone()];
+        let mut keys = Vec::new();
+        let mut vals = Vec::new();
+        let mut ids = crate::rete::compiled_cond::ValIntern::default();
+        let mut pool: Vec<(u32, u32)> = Vec::new();
+        let mut els: Vec<super::Element> = Vec::with_capacity(N);
+        for i in 0..N {
+            let g = Value::i64((i / 200) as i64);
+            let v = Value::i64((i % 200) as i64);
+            let binds = super::span_from_pairs(
+                &mut keys,
+                &mut vals,
+                &mut ids,
+                &mut pool,
+                [(gkey.clone(), g), (vkey.clone(), v)],
+            );
+            els.push(super::Element { fact: 0, binds });
+        }
+        let kid = super::intern_key(&mut keys, &gkey);
+
+        fn time_ns(mut body: impl FnMut()) -> f64 {
+            let t0 = Instant::now();
+            body();
+            t0.elapsed().as_nanos() as f64
+        }
+
+        let mut u = 0.0;
+        let mut iarm = 0.0;
+        let mut b = 0.0;
+        for _ in 0..RUNS {
+            u += time_ns(|| {
+                let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
+                for (i, el) in els.iter().enumerate() {
+                    let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
+                    if let Some(val) = Bindings::get(&pairs, &gkey) {
+                        idx.entry(val.clone()).or_default().push(i);
+                    }
+                }
+                black_box(idx.len());
+            });
+            iarm += time_ns(|| {
+                let mut idx: FxHashMap<u32, Vec<usize>> = FxHashMap::default();
+                for (i, el) in els.iter().enumerate() {
+                    let pairs = super::pool_slice(&pool, el.binds);
+                    if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
+                        idx.entry(*vid).or_default().push(i);
+                    }
+                }
+                black_box(idx.len());
+            });
+            b += time_ns(|| {
+                black_box(super::build_gather_index(
+                    &els, &join_keys, &keys, &vals, &pool,
+                ));
+            });
+        }
+        let r = RUNS as f64;
+        u /= r;
+        iarm /= r;
+        b /= r;
+        assert!(iarm > 0.0, "vid insert recorded 0 ns — the loop never ran");
+        let ms = |ns: f64| ns / 1e6;
+        println!(
+            "\ngather val-id split — {N} Readings, join_keys=[?g], mean of {RUNS}\n\
+             unscaled (one build; the cell pays two)\n\
+             \n\
+             U  HashMap<Value> clone+insert        {:>7.2} ms\n\
+             I  HashMap<u32> vid insert            {:>7.2} ms\n\
+             B  build_gather_index (authority)     {:>7.2} ms\n\
+             \n\
+             U−I  predicted cut per build          {:>7.2} ms\n\
+             ×2 builds on the cell                 {:>7.2} ms\n",
+            ms(u),
+            ms(iarm),
+            ms(b),
+            ms(u - iarm),
+            ms((u - iarm) * 2.0),
+        );
+    }
+
     /// Apportion leftover `hj:catchup:probe` (12.30 ms / 40k ≈ 307 ns)
     /// without nesting 40k marks (`DESIGN-STONE-probe-extend-split`).
     #[test]
@@ -11235,7 +13574,7 @@ mod tests {
 
         let mut keys = Vec::new();
         let mut vals = Vec::new();
-        let mut ids = FxHashMap::default();
+        let mut ids = crate::rete::compiled_cond::ValIntern::default();
         let mut bind_pool: Vec<(u32, u32)> = Vec::new();
         let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
@@ -11410,7 +13749,7 @@ mod tests {
         )));
         let mut keys = Vec::new();
         let mut vals = Vec::new();
-        let mut ids = FxHashMap::default();
+        let mut ids = crate::rete::compiled_cond::ValIntern::default();
         let mut bind_pool: Vec<(u32, u32)> = Vec::new();
         let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
@@ -12063,7 +14402,7 @@ mod tests {
                 let mut pool = Vec::new();
                 let mut bkeys = Vec::new();
                 let mut bvals = Vec::new();
-                let mut bids = FxHashMap::default();
+                let mut bids = crate::rete::compiled_cond::ValIntern::default();
                 let via_compiled = exec_compiled(
                     &compiled[aid],
                     fact_fields,
@@ -12164,7 +14503,7 @@ mod tests {
                         &mut Vec::new(),
                         &mut Vec::new(),
                         &mut Vec::new(),
-                        &mut FxHashMap::default(),
+                        &mut crate::rete::compiled_cond::ValIntern::default(),
                         fact,
                     )
                     .is_none()

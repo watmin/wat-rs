@@ -2206,6 +2206,7 @@ mod completeness_gate {
     ":wat::rete::alpha-match",
     ":wat::rete::alpha-match-local",
     ":wat::rete::alpha-match-under",
+    ":wat::rete::arm-session'",
     ":wat::rete::cond-has-deferred-constraint?",
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",

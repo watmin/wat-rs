@@ -528,6 +528,7 @@ fn compile_operand_expr(
 /// Populate: write pairs into `pool`, `?p` first when this cond is
 /// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
 /// `alpha_match_inner` + `attach_fact` (STOP-1).
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn exec_compiled(
     compiled: &CompiledCond,
@@ -536,8 +537,33 @@ pub(crate) fn exec_compiled(
     pool: &mut Vec<(u32, u32)>,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    val_ids: &mut FxHashMap<Value, u32>,
+    val_ids: &mut ValIntern,
     fact: &Value,
+) -> Option<(u32, u16)> {
+    exec_compiled_with_key_ids(
+        compiled,
+        fact_fields,
+        scratch,
+        pool,
+        keys,
+        vals,
+        val_ids,
+        fact,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn exec_compiled_with_key_ids(
+    compiled: &CompiledCond,
+    fact_fields: &[Value],
+    scratch: &mut Vec<Option<Value>>,
+    pool: &mut Vec<(u32, u32)>,
+    keys: &mut Vec<Value>,
+    vals: &mut Vec<Value>,
+    val_ids: &mut ValIntern,
+    fact: &Value,
+    key_ids: Option<&[u32]>,
 ) -> Option<(u32, u16)> {
     // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's call counter, parallel to
     // `alpha_match_inner`'s `match:calls`. Since this stone re-points the round loop's step 1 at
@@ -550,10 +576,10 @@ pub(crate) fn exec_compiled(
     if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
         return None;
     }
-    materialize_into(compiled, scratch, pool, keys, vals, val_ids, fact)
+    materialize_into(compiled, scratch, pool, keys, vals, val_ids, fact, key_ids)
 }
 
-fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
+pub(crate) fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     if let Some(i) = keys.iter().position(|x| x == k) {
         return i as u32;
     }
@@ -562,29 +588,111 @@ fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     i
 }
 
-fn intern_val(vals: &mut Vec<Value>, ids: &mut FxHashMap<Value, u32>, v: Value) -> u32 {
-    if let Some(&id) = ids.get(&v) {
+/// Intern this cond's `fact_bind?` then `slot_keys` once
+/// (`DESIGN-STONE-cond-key-ids`). Fire SETUP, not per fact.
+pub(crate) fn intern_cond_keys(compiled: &CompiledCond, keys: &mut Vec<Value>) -> Vec<u32> {
+    let extra = usize::from(compiled.fact_bind.is_some());
+    let mut ids = Vec::with_capacity(extra + compiled.slot_keys.len());
+    if let Some(k) = &compiled.fact_bind {
+        ids.push(intern_key(keys, k));
+    }
+    for k in compiled.slot_keys.iter() {
+        ids.push(intern_key(keys, k));
+    }
+    ids
+}
+
+/// Fire-scoped filler intern (`DESIGN-STONE-intern-val-i64`).
+/// Nonnegative i64 below `I64_SMALL` skip hashing `Value`.
+const I64_SMALL: usize = 4096;
+
+pub(crate) struct ValIntern {
+    any: FxHashMap<Value, u32>,
+    small: Vec<u32>,
+}
+
+impl Default for ValIntern {
+    fn default() -> Self {
+        ValIntern {
+            any: FxHashMap::default(),
+            small: vec![u32::MAX; I64_SMALL],
+        }
+    }
+}
+
+impl ValIntern {
+    pub(crate) fn clear(&mut self) {
+        self.any.clear();
+        self.small.fill(u32::MAX);
+    }
+
+    /// Read-only intern lookup (`DESIGN-STONE-gather-val-id`).
+    pub(crate) fn get(&self, v: &Value) -> Option<u32> {
+        if let Value::i64(n) = v {
+            if *n >= 0 {
+                let i = *n as usize;
+                if i < self.small.len() {
+                    let slot = self.small[i];
+                    if slot != u32::MAX {
+                        return Some(slot);
+                    }
+                }
+            }
+        }
+        self.any.get(v).copied()
+    }
+}
+
+pub(crate) fn intern_val(vals: &mut Vec<Value>, ids: &mut ValIntern, v: Value) -> u32 {
+    if let Value::i64(n) = v {
+        if n >= 0 {
+            let i = n as usize;
+            if i < ids.small.len() {
+                let slot = ids.small[i];
+                if slot != u32::MAX {
+                    return slot;
+                }
+                let id = vals.len() as u32;
+                ids.small[i] = id;
+                vals.push(Value::i64(n));
+                return id;
+            }
+        }
+    }
+    if let Some(&id) = ids.any.get(&v) {
         return id;
     }
     let id = vals.len() as u32;
-    ids.insert(v.clone(), id);
+    ids.any.insert(v.clone(), id);
     vals.push(v);
     id
 }
 
-fn materialize_into(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn materialize_into(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
     pool: &mut Vec<(u32, u32)>,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
-    val_ids: &mut FxHashMap<Value, u32>,
+    val_ids: &mut ValIntern,
     fact: &Value,
+    key_ids: Option<&[u32]>,
 ) -> Option<(u32, u16)> {
     let off = pool.len();
+    let mut kid = 0usize;
+    let next_key = |keys: &mut Vec<Value>, kid: &mut usize, fallback: &Value| -> u32 {
+        if let Some(ids) = key_ids {
+            let id = ids[*kid];
+            *kid += 1;
+            id
+        } else {
+            intern_key(keys, fallback)
+        }
+    };
     if let Some(key) = &compiled.fact_bind {
         pool.push((
-            intern_key(keys, key),
+            next_key(keys, &mut kid, key),
             intern_val(vals, val_ids, fact.clone()),
         ));
     }
@@ -601,7 +709,7 @@ fn materialize_into(
             }
         };
         pool.push((
-            intern_key(keys, &compiled.slot_keys[i]),
+            next_key(keys, &mut kid, &compiled.slot_keys[i]),
             intern_val(vals, val_ids, v),
         ));
     }
@@ -655,7 +763,7 @@ fn materialize(
     Some(out.into())
 }
 
-fn exec_ops(
+pub(crate) fn exec_ops(
     ops: &[Op],
     slots: &mut [Option<Value>],
     fact_fields: &[Value],
@@ -777,7 +885,7 @@ mod tests {
                 &mut Vec::new(),
                 &mut Vec::new(),
                 &mut Vec::new(),
-                &mut FxHashMap::default(),
+                &mut ValIntern::default(),
                 &Value::i64(20),
             )
                 .is_some(),
@@ -826,7 +934,7 @@ mod tests {
                 &mut Vec::new(),
                 &mut Vec::new(),
                 &mut Vec::new(),
-                &mut FxHashMap::default(),
+                &mut ValIntern::default(),
                 &Value::i64(20),
             )
             .is_none(),

@@ -116,23 +116,53 @@ on this cell. Persist is still ~0 on a cold fire.
 | **4** | `DESIGN-STONE-where-dim-reuse.md` — skip `exec_where` on proven `(= dim lit)`. | `[50 200]` evals **0**, reuse **200**, passes **200**. FIRE 1.71 → **1.62**. filter 0.50 → **0.43** (walk leftover). | **LANDED** |
 | **5** | `DESIGN-STONE-where-range-edges.md` — populate `range_children`. | Unit: `(> ?k 10)` prune 5 / prove 15. `[50 200]` evals **0** / reuse **200**. FIRE 1.62 → **1.65** wash. Accum **48.32** wash. Mechanism, not a FIRE cut. Alpha-tree ranges untouched. | **LANDED** |
 | **6** | `DESIGN-STONE-retire-alpha-child-marks.md` — per-fact alpha timers off. | Child pairs **0**. FIRE 48.65 → **26.53**. honest_FIRE −2.21 → **26.25**. honest_alpha **18.16** (was hidden in remainder). setup:seen **3.92**. Node-share evals 0 / reuse 200. | **LANDED** |
+| **7** | `DESIGN-STONE-alpha-leftover-split.md` — rank 18 ms without per-fact timers. | Seed **17.97**, delta **0.04**. Isolated: `M−T` **7.65**, tree **4.46**, push **3.45**. A 16.54 ≈ seed 17.97. **No intern.** | **LANDED** |
+| **8** | `DESIGN-STONE-compiled-match-split.md` — ops vs intern inside `M−T`. | Ops **1.90**. intern/materialize **6.18**. Cold-insert tax **0.22**. `fact_bind` 0. 80,200/80,200 ops-true. **No intern.** | **LANDED** |
+| **9** | `DESIGN-STONE-materialize-split.md` — clone vs key vs val vs push. | intern_val **2.77**. clone **1.02**. intern_key 0.86. pool.push 0.28. Pile, not one intern. **No intern.** | **LANDED** |
+| **10** | `DESIGN-STONE-alpha-tree-walk-split.md` — class HashMap vs walk vs alloc. | Class HashMap **3.26**. Walk **0.08**. Vec alloc **0.82** (< 1 — no reused buffer). **No intern.** | **LANDED** |
+| **11** | `DESIGN-STONE-alpha-class-lookup.md` — intern class lookup. | 2 types. L **0.26**, F 0.71, S 1.81. Cut S−L **1.55**. `roots` is linear. G−E **3.26 → 0.65**. | **LANDED** |
+| **12** | `DESIGN-STONE-alpha-push-split.md` — HashMap entry vs Vec vs d_alpha. | H−M **1.38**. Interned `wm.alpha`/`d_alpha` FxHashMap. A−M **3.81 → 2.30**. `seen` not interned. | **LANDED** |
+| **13** | `DESIGN-STONE-intern-val-i64.md` — i64 intern table. | 120k i64, 0–999. A **0.29**, I 0.44, V 1.81. Cut **1.52**. V−K **2.77 → 0.44**. | **LANDED** |
+| **14** | `DESIGN-STONE-exec-ops-split.md` — scratch vs Bind. | Scratch **1.71**. exec_ops body **0.12**. fill(None) **1.78** (not faster — intern reverted). | **LANDED, no intern** |
+| **15** | `DESIGN-STONE-cell-rank-after-grid.md` — FIRE at the three closest 08-20 cells. | cascade **30.12** (prod 4.96). fanout 26.91 (prod 17.91). accum 21.71 (alpha 13.11). SETUP at cascade **12.70**. | **LANDED, no intern** |
+| **16** | `DESIGN-STONE-cascade-setup-split.md` — arm vs remainder of SETUP. | SETUP **12.52**. arm **12.51**. remainder 0.01. ARM_BUILDS **1.00/run**. WAT compile does not intern. | **LANDED, no intern** |
+| **17** | `DESIGN-STONE-arm-at-compile.md` — intern `ReteArm` at `compile-all`. | setup:arm **12.51 → 0.00**. SETUP 12.52 → **0.01**. cascade FIRE 30.12 → **17.62**. ARM_BUILDS 1.00/run (compile). | **LANDED** |
+| **18** | `DESIGN-STONE-honest-rank-after-arm.md` — honest FIRE after 17. | fanout honest **12.67** (raw 27.31). cascade 12.90. **accum 20.73**. Production 18 is 2p tax. | **LANDED, no intern** |
+| **19** | `DESIGN-STONE-alpha-candidate-buf.md` — reuse `candidates_into`. | seed 12.83 → **11.68**. A 11.39 → **10.15**. A−M 1.77 → **0.67**. FIRE 21.15 → **19.78**. | **LANDED** |
+| **20** | `DESIGN-STONE-seen-fire-context.md` — in-fire alloc vs insert. | seen **3.99**. alloc 0.01. insert **3.98**. Isolated S 2.95 (X identity **1.73**). Fire context **1.03**. | **LANDED, no intern** |
+| **21** | `DESIGN-STONE-fold-seen-into-seed.md` — `seen_insert` on the seed walk. | seen 3.99 → **0.01**. seed 11.68 → **16.01**. FIRE 19.78 → **19.57** (wash). | **LANDED** |
+| **22** | `DESIGN-STONE-cond-key-ids.md` — intern cond slot keys once per fire. | FIRE 20.93 → **19.95**. Isolated K−C still ~1 (scans). | **LANDED** |
+| **23** | `DESIGN-STONE-gather-val-id.md` — unary gather hashes filler ids. | U−I **1.40**/build. index 1.97 → **0.61**. FIRE 19.95 → **19.08**. | **LANDED** |
+| **24** | `DESIGN-STONE-alpha-tree-fxhash.md` — `Node.children` FxHashMap. | I−G 1.03 → **0.98** wash (predicted 0.4 missed). FIRE 19.04 → **18.75**. Kept (hasher family). | **LANDED, wash** |
+| **25** | `DESIGN-STONE-arm-kind-lists.md` — fire-path passes iterate kind lists on the arm. | A0 ROUND extra **+7.04 → +2.06**. Cascade FIRE 18.06 → **11.76**. Honest 13.25 → **7.32**. Hash-join extra **1.43** remains. | **LANDED** |
+| **26** | `DESIGN-STONE-dirty-join-parents.md` — hash-join skips idle same-kind parents. | Hash-join extra **1.43 → 0.08**. ROUND extra +2.06 → **+0.95**. Cascade FIRE 11.76 → **10.35**. Honest 7.32 → **6.72**. | **LANDED** |
 
-## After 6 — leftovers
+## After 26 — leftovers (ranked)
 
-The candidates trap is gone from census FIRE. Remaining
-honest rows at accum `[200 200]`:
+Idle same-kind hash-join is dead. A0 ROUND extra is a
+pile of pieces under 1 (root-join 0.45, production 0.39).
 
-- **honest alpha 18.16** — tree + `exec_compiled` + push,
-  40k facts × 2 rounds. Largest engine leftover.
-- **`setup:seen` 3.92** — 2z said fire context; isolated
-  P was 1.67. Do not intern a Vec into Session.
-- **accum:index 2.03**
+1. **scratch reset ~1.75** — STOP new representation.
+2. accum honest **~19** (alpha seed). Isolated pile < 1
+   except scratch STOP.
+3. fanout OUT 4.53 — 2u rpds, refused.
+4. cascade ROUND extra +0.95 — pieces under 1. Do not
+   dirty-agenda root-join (0.45).
+5. clone 0.91 under.
+
+Grid `T03-32-37Z` (intern 7–26, `GRID_SKIP_ORACLE=1`):
+30/30 `:match`, 30/30 `:us`. Closest Clara cell is now
+**fanout `[40000]` ratio 3.59** (was cascade 3.34).
+Cascade `[50 100]` 3.34 → **6.92**. Fanout wat-ns 58.5 →
+52.8. Dominance leftover is fanout fire (OUT 4.53 refused;
+production 2p tax).
 
 Parked: fact insertion (section below). Refused: intern
 `names`, facts in `bind_pool`, retry 2e/2o, persist gather
 to dodge the fold, 297, service-ify, alpha-tree range
 edges, `not=` as a range, two constraints on one dim as a
-conjunction, sample marks, retire `prod:compiled-rhs`.
+conjunction, sample marks, retire `prod:compiled-rhs`,
+restore per-fact alpha timers.
 
 ## Parked — fact insertion (after FIRE is exhausted)
 

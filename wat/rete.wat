@@ -1528,15 +1528,18 @@
                     next-id  (:wat::rete::CompileState/next-id final-state)
                     empty-pm (:wat::core::PersistentMap)
                     empty-pv (:wat::core::PersistentVector)]
-    (:wat::rete::Session
-       :network network
-       :rules rules
-       :alpha-memory empty-pm
-       :beta-memory empty-pm
-       :production-memory empty-pm
-       :facts empty-pv
-       :next-id next-id
-       :query-memory empty-pm)))
+    ;; Intern the rust ReteArm under the network identity so first fire-rules HIT
+    ;; (`DESIGN-STONE-arm-at-compile`). Session bytes unchanged.
+    (:wat::rete::arm-session'
+      (:wat::rete::Session
+         :network network
+         :rules rules
+         :alpha-memory empty-pm
+         :beta-memory empty-pm
+         :production-memory empty-pm
+         :facts empty-pv
+         :next-id next-id
+         :query-memory empty-pm))))
 
 ;; ─── insert + fire-rules ────────────────────────────────────────────────────────
 

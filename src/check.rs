@@ -20521,6 +20521,18 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 278 — intern the rust ReteArm at compile-all (`DESIGN-STONE-arm-at-compile`).
+    // (:wat::rete::arm-session' <session: :wat::rete::Session>) → :wat::rete::Session
+    env.register(
+        ":wat::rete::arm-session'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
     // (:wat::rete::fire-rules-explain' <session: :wat::rete::Session>) → :wat::rete::Explained
     // EPHEMERAL result — re-derived per explain; never serialized.

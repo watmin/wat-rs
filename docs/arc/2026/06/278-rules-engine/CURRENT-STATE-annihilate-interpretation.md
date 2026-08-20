@@ -5,16 +5,24 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–13, fold through where-range-edges.
-Queue: `NEXT-STRIKES-after-shadow.md`. Fanout dry. Accum
-`[200 200]` FIRE **26.53** (48.65 → 26.53; retired per-fact
-alpha child timers). honest_alpha **18.16**. `setup:seen`
-**3.92**. Node-share `[50 200]` evals **0** / reuse **200**.
-FIRE **1.55**. Alpha-tree ranges stay empty. Do not intern
-record `names`. Do not put facts in `bind_pool`. Do not
-retry 2e. Do not persist gather to dodge the fold. Do not
-start 297. Shared checkpoint **c800d7d5**. Fact insertion
-parked. Next leftover: honest alpha 18 ms, then seen.
+**Right now:** items 1–13, intern 1–26. **26 dirty
+join-parents.** Hash-join extra +1.43 → **+0.08**. A0
+ROUND extra +2.06 → **+0.95**. Cascade FIRE 11.76 →
+**10.35**, honest 7.32 → **6.72**. Grow-on-emit holds
+middle joins. Queue: `NEXT-STRIKES-after-shadow.md`.
+Next leftover: scratch 1.75 STOP. Accum honest ~19
+(alpha seed, pile < 1). Do not intern names. Do not
+intern on insert. Do not start 297. grok-rete DR this
+commit (intern 7–26; prior **c9d75104**). Fact insertion
+parked. Grid
+`T03-32-37Z` (intern 7–26): 30/30 `:match`, 30/30 `:us`.
+Closest ratio **fanout `[40000]` 3.59** (wat 52.8 ms).
+Cascade `[50 100]` 3.34 → **6.92** (wat 36.3 → **18.0**).
+Accum `[200 200]` 6.29 → 6.07 (wat 27.5 → 24.9). Dirty
+intern 7–26 not committed.
+
+> ⛔ You did not live this. Run recolligere against the disk
+> before you act on any line above.
 
 ### Completeness grid — 2026-08-17 — do not drop
 

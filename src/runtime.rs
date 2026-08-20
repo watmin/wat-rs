@@ -5562,6 +5562,11 @@ fn dispatch_keyword_head_value(
         ":wat::rete::fire-rules'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
             crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym)
         }
+        // Arc 278 — intern the rust ReteArm when compile-all returns a Session
+        // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
+        ":wat::rete::arm-session'" => {
+            crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
+        }
         // Arc 278 — native Rust `insert` (the dual of `insert-spec`, the wat oracle).
         // (:wat::rete::insert' <session> <fact>) → :wat::rete::Session
         // Zero activation (rete.wat:828-830): stages `fact` into `facts`, resolved BY NAME
