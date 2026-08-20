@@ -56,6 +56,7 @@ use crate::ast::WatAST;
 use crate::runtime::{Function, FunctionBody, SymbolTable};
 use crate::span::Span;
 use crate::types::{TypeError, TypeErrorKind, TypeEnv, TypeExpr};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// A function's declared signature: universally-quantified type
@@ -2998,7 +2999,10 @@ fn infer_list(
                 };
             }
             ":wat::core::Vector" => {
-                let (val, mut errs) = infer_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                // Arc 109 step ① — accept `(Vector [T] …)` alongside the existing
+                // positional `(Vector :T …)`; see `unwrap_type_param_bracket`.
+                let spliced_args = unwrap_type_param_bracket(args);
+                let (val, mut errs) = infer_list_constructor(&spliced_args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -3104,6 +3108,14 @@ fn infer_list(
                 };
             }
             ":wat::core::Tuple" => {
+                // Arc 109 step ① — STOP-3, not wired to `unwrap_type_param_bracket`.
+                // `infer_tuple_constructor` has no leading-type-arg path: every arg is
+                // routed through the general `infer()` dispatcher and its own type is
+                // taken as the tuple's per-position type. A spliced `(Tuple [K V] …)`
+                // would hand `infer()` a bare type keyword as if it were a value — for
+                // the six Doctrine-1 scalars (`is_primitive_type_keyword_in_value_position`,
+                // arc 242) that is a hard checker error, not a build. Left unchanged; see
+                // `unwrap_type_param_bracket`'s doc comment and the stone's report.
                 let (val, mut errs) = infer_tuple_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3130,7 +3142,10 @@ fn infer_list(
                 };
             }
             ":wat::core::HashMap" => {
-                let (val, mut errs) = infer_hashmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                // Arc 109 step ① — accept `(HashMap [K V] …)` alongside the existing
+                // positional `(HashMap :K :V …)`; see `unwrap_type_param_bracket`.
+                let spliced_args = unwrap_type_param_bracket(args);
+                let (val, mut errs) = infer_hashmap_constructor(&spliced_args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -3139,6 +3154,14 @@ fn infer_list(
             }
             // Arc-278-0a — PersistentMap constructor: same K/V inference as HashMap;
             // returns PersistentMap<K,V> instead of HashMap<K,V>.
+            //
+            // Arc 109 step ① — STOP-3, not wired to `unwrap_type_param_bracket`. Per the
+            // brief: today this fn REJECTS leading type keywords and infers K/V purely
+            // from the k/v pairs (`args.chunks(2)` from index 0, no leading-arg skip).
+            // Splicing `[K V]` ahead would misalign the chunking — the first "pair"
+            // becomes (K, V) themselves, each routed through `infer()`, which rejects a
+            // Doctrine-1 scalar keyword (arc 242) in value position outright. Confirmed,
+            // not just measured for HashMap's shape: shipping nothing further here.
             ":wat::core::PersistentMap" => {
                 let (val, mut errs) = infer_persistentmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -3149,6 +3172,12 @@ fn infer_list(
             }
             // Arc-278-0b — PersistentVector constructor: infers T from elements;
             // returns PersistentVector<T>.
+            //
+            // Arc 109 step ① — STOP-3, not wired to `unwrap_type_param_bracket`, same
+            // root cause as `PersistentMap` above: no leading-type-arg path, every arg
+            // (spliced type keyword included) goes through `infer()`, which rejects a
+            // Doctrine-1 scalar keyword (arc 242) in value position. Shipping nothing
+            // further here.
             ":wat::core::PersistentVector" => {
                 let (val, mut errs) = infer_persistentvector_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -3177,7 +3206,10 @@ fn infer_list(
             // this match. Per-Type impls (`:wat::core::Vector/length`
             // etc.) reach the standard scheme path via env.get.
             ":wat::core::HashSet" => {
-                let (val, mut errs) = infer_hashset_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                // Arc 109 step ① — accept `(HashSet [T] …)` alongside the existing
+                // positional `(HashSet :T …)`; see `unwrap_type_param_bracket`.
+                let spliced_args = unwrap_type_param_bracket(args);
+                let (val, mut errs) = infer_hashset_constructor(&spliced_args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -11908,6 +11940,50 @@ fn process_let_binding(
         remedies: vec![],
     } });
     CheckResult::errs(binding_errors)
+}
+
+/// Arc 109 step ① — accept the bracketed type-param group `(Head [K V …] …)`
+/// in VALUE position and re-present it as the positional leading type args
+/// `(Head K V … …)` every constructor already understands. Splices `args[0]`'s
+/// items ahead of `args[1..]` when `args[0]` is a `WatAST::Vector`; otherwise
+/// borrows `args` unchanged (pass-through — additive, no behavior change to
+/// the existing positional-keyword call sites).
+///
+/// Callers are the constructor arms that read LEADING type keywords straight
+/// off `args[0..]` via `parse_type_expr` (Vector's `infer_list_constructor`,
+/// `infer_hashmap_constructor`, `infer_hashset_constructor`) — those are the
+/// only three of the six `109/BRIEF-STONE-109-parametric-bracket-accept.md`
+/// Room 2 arms with an actual leading-type-arg reading path. `Tuple`,
+/// `PersistentMap`, and `PersistentVector` infer every element purely from
+/// the VALUES (no leading-type slot at all) by routing each arg through the
+/// general `infer()` dispatcher — which rejects a primitive-scalar type
+/// keyword in value position (Doctrine 1, arc 242,
+/// `is_primitive_type_keyword_in_value_position`). Splicing a bracket ahead
+/// of those three's args would hand `infer()` a bare `:wat::core::i64` /
+/// `:String` / etc. node and it would reject it outright — STOP-3, per the
+/// brief. Do not wire this helper into those three call sites.
+///
+/// `pub(crate)` — Room 3 (`src/runtime.rs`'s dispatch arms for `:wat::core::Vector`
+/// / `HashMap` / `HashSet`, which delegate to `eval_vector_ctor` / `eval_hashmap_ctor`
+/// / `eval_hashset_ctor` in `src/collection/eval.rs`, the runtime twins of the three
+/// check.rs arms wired here) needs the SAME splice, at the SAME place in the
+/// pipeline: the dispatch call site, not inside the `eval_*_ctor` fn (mirroring
+/// this file's own rule — the callee fns stay untouched). `runtime.rs` already
+/// calls dozens of `crate::check::…` items fully-qualified (`format_type`, `rename`,
+/// `CheckEnv`, …) — `check` ↔ `runtime` already cross-reference each other within
+/// this crate, which Rust permits freely — so `crate::check::unwrap_type_param_bracket(..)`
+/// at the three runtime dispatch arms follows that existing idiom: the splice logic
+/// is written once here and reused, not duplicated, across the check/runtime boundary.
+pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
+    match args.first() {
+        Some(WatAST::Vector(inner, _)) => {
+            let mut spliced = Vec::with_capacity(inner.len() + args.len() - 1);
+            spliced.extend(inner.iter().cloned());
+            spliced.extend(args[1..].iter().cloned());
+            Cow::Owned(spliced)
+        }
+        _ => Cow::Borrowed(args),
+    }
 }
 
 /// Type-check `(:wat::core::HashSet :T x1 x2 ...)`. First arg is a

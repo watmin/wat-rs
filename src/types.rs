@@ -4516,9 +4516,20 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
         None => raw_head,
     };
     // Parse args recursively.
-    let args: Result<Vec<TypeExpr>, TypeError> = items[1..].iter()
-        .map(parse_type_node)
-        .collect();
+    //
+    // Arc 109 step ① — the bracketed type-param group `(Head [type…])`. When the
+    // args tail is EXACTLY ONE `WatAST::Vector`, that vector's own items are the
+    // type-param list (`(Head [A B])` → args `[A, B]`; `(Head [])` → args `[]`);
+    // otherwise unchanged (`(Head A B)` parses each item positionally, as today).
+    // This does not collide with the standalone function-type bracket `[A :-> B]`
+    // (`parse_type_node`'s `WatAST::Vector` arm, ~line 4383): that arm only fires
+    // when a bracket is parsed as a top-level type node on its own, never here,
+    // where a bracket is one argument of a parametric head. Position — head vs.
+    // standalone — already distinguishes the two; nothing here changes that.
+    let args: Result<Vec<TypeExpr>, TypeError> = match &items[1..] {
+        [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_node).collect(),
+        rest => rest.iter().map(parse_type_node).collect(),
+    };
     let args = args?;
     // Arc 251 — the `Tuple` constructor head produces a TUPLE type, not a generic Parametric:
     // `(wat.type/Tuple A B)` → `TypeExpr::Tuple([A,B])`; the empty `(wat.type/Tuple)` → the

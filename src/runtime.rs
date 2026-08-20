@@ -6207,7 +6207,12 @@ fn dispatch_keyword_head_value(
         // 3858) still surfaces friendly redirect for users typing
         // legacy keywords; runtime arm gone for defense-in-depth.
         ":wat::core::Vector" => {
-            crate::collection::eval::eval_vector_ctor(args, list_span, env, sym)
+            // Arc 109 step ① Room 3 — accept `(Vector [T] …)` alongside the existing
+            // positional `(Vector :T …)`; see `crate::check::unwrap_type_param_bracket`.
+            // Splice at the dispatch call site, mirroring check.rs's Room 2 arm exactly —
+            // `eval_vector_ctor` itself stays untouched.
+            let spliced_args = crate::check::unwrap_type_param_bracket(args);
+            crate::collection::eval::eval_vector_ctor(&spliced_args, list_span, env, sym)
         }
         // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch_keyword_head
@@ -6218,6 +6223,13 @@ fn dispatch_keyword_head_value(
         // per slice 1f's vec→Vector playbook completed. Legacy
         // `:wat::core::tuple` arm retired; Pattern 2 poison in
         // check.rs handles any remaining consumer sites at type-check.
+        //
+        // Arc 109 step ① Room 3 — STOP-3, not wired to `crate::check::unwrap_type_param_bracket`,
+        // matching check.rs's `:wat::core::Tuple` arm. `eval_tuple_ctor` (below) has no
+        // leading-type-arg path — every arg is `eval_inner`'d as a value positionally; a
+        // spliced bracket's type-keyword items would be evaluated as VALUES rather than
+        // consumed as a declared type, corrupting arity/contents rather than building the
+        // intended tuple. Left unchanged.
         ":wat::core::Tuple" => eval_tuple_ctor(args, list_span, env, sym),
         // ═══ PARTITION (runtime side) — see the CLAUSE vs INTRINSIC marker in
         // check.rs `infer_list`. INTRINSIC = type-level computation; two flavors.
@@ -6417,16 +6429,30 @@ fn dispatch_keyword_head_value(
             crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym)
         }
         ":wat::core::HashMap" => {
-            crate::collection::eval::eval_hashmap_ctor(args, list_span, env, sym)
+            // Arc 109 step ① Room 3 — accept `(HashMap [K V] …)` alongside the existing
+            // positional `(HashMap :K :V …)`; see `crate::check::unwrap_type_param_bracket`.
+            let spliced_args = crate::check::unwrap_type_param_bracket(args);
+            crate::collection::eval::eval_hashmap_ctor(&spliced_args, list_span, env, sym)
         }
+        // Arc 109 step ① Room 3 — STOP-3, not wired to `crate::check::unwrap_type_param_bracket`,
+        // matching check.rs's `:wat::core::PersistentMap` arm: `eval_persistentmap_ctor` has no
+        // leading-type-arg path (`args.chunks(2)` from index 0, every arg `eval_inner`'d as a
+        // value); splicing `[K V]` ahead would misalign the pair chunking exactly as it does at
+        // check time. Left unchanged.
         ":wat::core::PersistentMap" => {
             crate::collection::eval::eval_persistentmap_ctor(args, list_span, env, sym)
         }
+        // Arc 109 step ① Room 3 — STOP-3, not wired, same root cause as `PersistentMap` above:
+        // `eval_persistentvector_ctor` has no leading-type-arg path — every arg is `eval_inner`'d
+        // as a positional element. Left unchanged.
         ":wat::core::PersistentVector" => {
             crate::collection::eval::eval_persistentvector_ctor(args, list_span, env, sym)
         }
         ":wat::core::HashSet" => {
-            crate::collection::eval::eval_hashset_ctor(args, list_span, env, sym)
+            // Arc 109 step ① Room 3 — accept `(HashSet [T] …)` alongside the existing
+            // positional `(HashSet :T …)`; see `crate::check::unwrap_type_param_bracket`.
+            let spliced_args = crate::check::unwrap_type_param_bracket(args);
+            crate::collection::eval::eval_hashset_ctor(&spliced_args, list_span, env, sym)
         }
         // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
         // are now Dispatches (declared in `wat/core.wat`). The
