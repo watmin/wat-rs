@@ -67,10 +67,60 @@ Two honest orders, and this is the builder's call:
 here in the first place — a convention that was never a check. Doing it again, deliberately, with the
 mechanism known and available, would be the same heresy in better handwriting.
 
-## Held open, deliberately unanswered
+## ⊹ CORRECTED SAME DAY — `Value` IS the honest V for rete. My R7 citation was misapplied.
 
-The question that started this — **what IS the honest V for rete's `bindings`?** — is NOT answered
-here, and `Value` is not the answer:
+The section this replaces argued V is *not* `Value`, citing `types.rs:1160` (arc 278 R7). **That was
+me moving a conclusion into a context whose precondition I never checked**
+(`[[feedback_a_claims_support_does_not_travel_with_the_claim]]`).
+
+> Builder: *"isn't rete just holding Value instances?… the inserter and reader both declare the actual
+> types… rete needs arbitrary records who implement instances of facts. that's why we needed Values as
+> a bottom type — 'i'm holding something that two parties will agree on, i don't need to care to move
+> it between them'."*
+
+**R7's objection was about CONSUMPTION** — a decoded JSON payload the caller wants to *use*, where
+having no accessor is fatal. **Rete is TRANSPORT.** It never interprets a binding. Measured, at the
+one site that looked like interpretation (`rete.wat:1937`):
+
+```wat
+((:wat::core::Some v)
+ (:wat::core::PersistentMap/assoc bm k v))   ; get from one map, assoc into another
+(:wat::core::None bm)
+```
+
+Carry, not consume. And every operation rete actually performs survives an opaque `Value` — measured,
+all exit 0:
+
+```
+equality on two Option<Value>          ✓   compare without interpreting
+presence via match, payload ignored    ✓
+carry — get and hand back              ✓
+assoc a concrete i64 into a Value slot ✓   "UP is free"
+```
+
+`Value` behaving as a top — everything goes up into it, nothing comes down out without a cast — is
+**exactly** the transport property wanted. R7 and this are not in conflict; they are opposite uses of
+the same type, and R7's own resolution (go parametric) was right *for a consumer* and wrong here.
+
+### So the role determination is ANSWERED
+
+```wat
+bindings <- (:wat::core::PersistentMap [:wat::core::String :wat::core::Value])
+```
+
+**K = `String`** — `rete.wat:146` already declares `result-var <- :wat::core::String` for the same
+`?var` names, and every literal key measured is a String (`"?count"`, `"?fact"`, `"?inner"`,
+`"?label"`, `"?s"`, `"?t"`).
+**V = `Value`** — the fact-agnostic carrier, per the builder's ruling above.
+
+⚠ **The rest of this note is UNAFFECTED.** The 13 verbs are still blanket-accepted, so this annotation
+is still INERT until they carry real `TypeScheme`s. Knowing the right answer does not make the checker
+enforce it — schemes first, then annotate, exactly as recommended above.
+
+## The superseded argument, kept for the record
+
+The following was my reasoning BEFORE the builder's correction above. It is wrong about rete and
+retained because the R7 quote it carries is still true *of consumers*:
 
 > `types.rs:1160`, arc 278 R7, a recorded CORRECTION of exactly this move: *"declared the payload as
 > the bare `:wat::core::Value` (the universal top)… **That was wrong: UP is free, DOWN is CHECKED**,
