@@ -3108,14 +3108,11 @@ fn infer_list(
                 };
             }
             ":wat::core::Tuple" => {
-                // Arc 109 step ① — STOP-3, not wired to `unwrap_type_param_bracket`.
-                // `infer_tuple_constructor` has no leading-type-arg path: every arg is
-                // routed through the general `infer()` dispatcher and its own type is
-                // taken as the tuple's per-position type. A spliced `(Tuple [K V] …)`
-                // would hand `infer()` a bare type keyword as if it were a value — for
-                // the six Doctrine-1 scalars (`is_primitive_type_keyword_in_value_position`,
-                // arc 242) that is a hard checker error, not a build. Left unchanged; see
-                // `unwrap_type_param_bracket`'s doc comment and the stone's report.
+                // Arc 109 step ①b — `(Tuple [T1 T2 …] …)` now accepted too. Not wired
+                // to `unwrap_type_param_bracket` (splicing still corrupts this fn — see
+                // that helper's doc comment); `infer_tuple_constructor` detects and
+                // parses its own leading bracket internally, so this call site is
+                // unchanged from step ①'s STOP-3 shape.
                 let (val, mut errs) = infer_tuple_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3155,13 +3152,11 @@ fn infer_list(
             // Arc-278-0a — PersistentMap constructor: same K/V inference as HashMap;
             // returns PersistentMap<K,V> instead of HashMap<K,V>.
             //
-            // Arc 109 step ① — STOP-3, not wired to `unwrap_type_param_bracket`. Per the
-            // brief: today this fn REJECTS leading type keywords and infers K/V purely
-            // from the k/v pairs (`args.chunks(2)` from index 0, no leading-arg skip).
-            // Splicing `[K V]` ahead would misalign the chunking — the first "pair"
-            // becomes (K, V) themselves, each routed through `infer()`, which rejects a
-            // Doctrine-1 scalar keyword (arc 242) in value position outright. Confirmed,
-            // not just measured for HashMap's shape: shipping nothing further here.
+            // Arc 109 step ①b — `(PersistentMap [K V] …)` now accepted too. Not wired
+            // to `unwrap_type_param_bracket` (splicing would misalign the `args.chunks(2)`
+            // pairing — see that helper's doc comment); `infer_persistentmap_constructor`
+            // detects and parses its own leading bracket internally, so this call site is
+            // unchanged from step ①'s STOP-3 shape.
             ":wat::core::PersistentMap" => {
                 let (val, mut errs) = infer_persistentmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -3173,11 +3168,11 @@ fn infer_list(
             // Arc-278-0b — PersistentVector constructor: infers T from elements;
             // returns PersistentVector<T>.
             //
-            // Arc 109 step ① — STOP-3, not wired to `unwrap_type_param_bracket`, same
-            // root cause as `PersistentMap` above: no leading-type-arg path, every arg
-            // (spliced type keyword included) goes through `infer()`, which rejects a
-            // Doctrine-1 scalar keyword (arc 242) in value position. Shipping nothing
-            // further here.
+            // Arc 109 step ①b — `(PersistentVector [T] …)` now accepted too. Not wired
+            // to `unwrap_type_param_bracket`, same reasoning as `PersistentMap` above;
+            // `infer_persistentvector_constructor` detects and parses its own leading
+            // bracket internally, so this call site is unchanged from step ①'s STOP-3
+            // shape.
             ":wat::core::PersistentVector" => {
                 let (val, mut errs) = infer_persistentvector_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -11963,6 +11958,18 @@ fn process_let_binding(
 /// `:String` / etc. node and it would reject it outright — STOP-3, per the
 /// brief. Do not wire this helper into those three call sites.
 ///
+/// Arc 109 step ①b lifted that STOP-3 (`109/BRIEF-STONE-109-parametric-bracket-the-remaining-three.md`).
+/// `Tuple` / `PersistentMap` / `PersistentVector` still do NOT use THIS helper — splicing
+/// still corrupts them, unchanged from the reasoning above — but each now detects and
+/// parses its own leading bracket directly via the sibling helpers
+/// `is_type_bracket_candidate` / `parse_bracket_type_keyword`, just below. Unlike this
+/// helper's UNCONDITIONAL splice (sound only because Vector/HashMap/HashSet already
+/// required a leading type keyword, so a literal Vector was never a legal first arg for
+/// them), those three's bracket detection is CONDITIONAL: a literal `WatAST::Vector` was
+/// (and remains) a legal first VALUE for all three — `(:wat::core::Tuple [1 2 3] "tag")`
+/// is a real corpus fixture (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`),
+/// a 2-tuple whose first element is a `Vector<i64>` literal, not a type bracket.
+///
 /// `pub(crate)` — Room 3 (`src/runtime.rs`'s dispatch arms for `:wat::core::Vector`
 /// / `HashMap` / `HashSet`, which delegate to `eval_vector_ctor` / `eval_hashmap_ctor`
 /// / `eval_hashset_ctor` in `src/collection/eval.rs`, the runtime twins of the three
@@ -11983,6 +11990,78 @@ pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
             Cow::Owned(spliced)
         }
         _ => Cow::Borrowed(args),
+    }
+}
+
+/// Arc 109 step ①b — whether a `WatAST::Vector`'s CONTENTS look like a
+/// leading `[type…]` bracket rather than an ordinary data-vector VALUE.
+///
+/// `Tuple` / `PersistentMap` / `PersistentVector` never required a leading
+/// type keyword the way Vector/HashMap/HashSet do, so a literal
+/// `WatAST::Vector` was — and, per the STOP-2 no-bracket-form-changes rule,
+/// remains — a legal first ELEMENT for all three. Unconditionally treating
+/// `args.first()` as a bracket (`unwrap_type_param_bracket`'s rule) would
+/// silently reinterpret real corpus usage: `(:wat::core::Tuple [1 2 3] "tag")`
+/// (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is a 2-tuple
+/// whose first element is a `Vector<i64>` literal, not a type declaration.
+///
+/// The discriminator: a genuine type-parameter bracket is syntactically a
+/// non-empty vector of BARE type-keyword tokens (`[wat.type/i64]`,
+/// `[:wat::core::i64 :wat::core::Record]`); `[1 2 3]` is a vector of integer
+/// literals, so it fails this check and is left as an ordinary value — the
+/// bracket-less path runs untouched. (This does not distinguish a bracket
+/// from a data-vector-of-KEYWORDS, e.g. `[:a :b]` — no such usage exists
+/// today for these three heads in `wat/`, `wat-scripts/`, or `tests/`
+/// (confirmed by search), so the ambiguity is real but currently vacuous;
+/// a future literal vector-of-keyword-VALUES in this exact position would
+/// need a different production to stay unambiguous.)
+pub(crate) fn is_type_bracket_candidate(items: &[WatAST]) -> bool {
+    !items.is_empty() && items.iter().all(|e| matches!(e, WatAST::Keyword(_, _)))
+}
+
+/// Arc 109 step ①b — parse one keyword token from inside a leading
+/// `[T]` / `[K V]` / `[T1 T2 …]` bracket into a `TypeExpr`. Shared by
+/// `infer_tuple_constructor`, `infer_persistentmap_constructor`, and
+/// `infer_persistentvector_constructor` — each calls this once per
+/// bracket slot rather than duplicating the parse+fallback logic three
+/// times. Mirrors the leading-type-keyword read already used by
+/// `infer_hashset_constructor` / `infer_list_constructor` (Arc 215 stone
+/// 2's `:wat::type::Infer` handling included): a valid type path parses
+/// straight through; `:wat::type::Infer` routes to a fresh variable (T is
+/// inferred from the elements at that position); anything else is a
+/// `MalformedForm` diagnostic that ALSO falls back to a fresh variable —
+/// poison-and-continue, so one bad slot doesn't abort checking the rest
+/// of the constructor.
+fn parse_bracket_type_keyword(
+    head: &str,
+    node: &WatAST,
+    fresh: &mut InferCtx,
+    local_errors: &mut Vec<CheckError>,
+) -> TypeExpr {
+    let WatAST::Keyword(k, kspan) = node else {
+        // `is_type_bracket_candidate` already guarantees every bracket
+        // element is a `WatAST::Keyword`; this arm is unreachable through
+        // this stone's own callers and kept only as a defensive fallback.
+        local_errors.push(CheckError { span: node.span().clone(), kind: CheckErrorKind::MalformedForm {
+            head: head.into(),
+            reason: "bracketed type must be a type keyword".into(),
+            remedies: vec![],
+        } });
+        return fresh.fresh();
+    };
+    if k == crate::types::INFER_TYPE_PATH {
+        return fresh.fresh();
+    }
+    match crate::types::parse_type_expr(k) {
+        Ok(t) => t,
+        Err(_) => {
+            local_errors.push(CheckError { span: kspan.clone(), kind: CheckErrorKind::MalformedForm {
+                head: head.into(),
+                reason: format!("bracketed type {} is not a valid type keyword", k),
+                remedies: vec![],
+            } });
+            fresh.fresh()
+        }
     }
 }
 
@@ -13943,10 +14022,24 @@ fn infer_hashmap_constructor(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc-278-0a — Type-check `(:wat::core::PersistentMap k1 v1 k2 v2 ...)`.
-/// Takes alternating key/value pairs directly — NO leading K/V type keywords.
-/// K and V types are inferred from the actual arguments (fresh variables unified
-/// against each key and value respectively). Returns `PersistentMap<K,V>`.
+/// Arc-278-0a — Type-check `(:wat::core::PersistentMap k1 v1 k2 v2 ...)`,
+/// now also `(:wat::core::PersistentMap [K V] k1 v1 k2 v2 ...)` (Arc 109 step
+/// ①b). Bracket-less: K and V are free type variables, inferred from the
+/// first pair (if any) then UNIFIED against the rest — exactly as before.
+///
+/// With a `[K V]` bracket: K/V are NOT fresh variables started from the
+/// first pair — they ARE the declared unification target every key/value
+/// is checked against, via `assignable` (up-cast) rather than `unify`
+/// (invariant). This is the one contract change the stone's brief calls
+/// out: it is what lets a declared common supertype (e.g. the record-top
+/// `:wat::core::Record`) hold heterogeneous values —
+/// `109/NOTE-typed-literal-constructors.md`'s worked example
+/// (`(:wat::core::PersistentMap [:wat::core::i64 :wat::core::Record] 0
+/// (:user::A :x 1) 1 (:user::B :y "s"))`) now builds. `unwrap_type_param_bracket`
+/// is bypassed (see its doc comment): this fn has no leading-type-arg read
+/// path, so a spliced bare type keyword would flow into the elementwise
+/// `infer()` calls below and trip Doctrine-1. `is_type_bracket_candidate` /
+/// `parse_bracket_type_keyword` detect + parse the bracket directly instead.
 fn infer_persistentmap_constructor(
     args: &[WatAST],
     head_span: &Span,
@@ -13956,28 +14049,53 @@ fn infer_persistentmap_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // Arity must be even (alternating k/v pairs); zero is valid (empty PersistentMap).
-    if !args.len().is_multiple_of(2) {
+    let (declared, values): (Option<(TypeExpr, TypeExpr)>, &[WatAST]) = match args.first() {
+        Some(WatAST::Vector(inner, bspan)) if is_type_bracket_candidate(inner) => {
+            let rest = &args[1..];
+            if inner.len() != 2 {
+                local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::PersistentMap".into(),
+                    reason: format!("bracket must declare exactly 2 types [K V]; got {}", inner.len()),
+                    remedies: vec![],
+                } });
+                (Some((fresh.fresh(), fresh.fresh())), rest)
+            } else {
+                let k_t = parse_bracket_type_keyword(":wat::core::PersistentMap", &inner[0], fresh, &mut local_errors);
+                let v_t = parse_bracket_type_keyword(":wat::core::PersistentMap", &inner[1], fresh, &mut local_errors);
+                (Some((k_t, v_t)), rest)
+            }
+        }
+        _ => (None, args),
+    };
+    // Arity must be even (alternating k/v pairs); zero is valid (empty PersistentMap,
+    // including a declared-but-empty `(PersistentMap [K V])`).
+    if !values.len().is_multiple_of(2) {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::PersistentMap".into(),
             reason: format!(
                 "arity must be even (alternating key/value pairs); got {}",
-                args.len()
+                values.len()
             ),
             remedies: vec![],
         } });
+        let (fk, fv) = declared.unwrap_or_else(|| (fresh.fresh(), fresh.fresh()));
         return CheckResult::partial_with(TypeExpr::Parametric {
             head: "wat::core::PersistentMap".into(),
-            args: vec![fresh.fresh(), fresh.fresh()],
+            args: vec![fk, fv],
         }, local_errors);
     }
-    // K and V are free type variables — inferred from the first pair (if any),
-    // then unified against the rest. An empty ctor produces PersistentMap<fresh_K, fresh_V>.
-    let k_ty = fresh.fresh();
-    let v_ty = fresh.fresh();
-    for (i, chunk) in args.chunks(2).enumerate() {
+    // Bracket-less: K/V are free type variables — inferred from the first pair (if
+    // any), then unified against the rest. With a bracket: K/V are the declared
+    // targets from above; every pair up-casts against them instead.
+    let (k_ty, v_ty) = declared.clone().unwrap_or_else(|| (fresh.fresh(), fresh.fresh()));
+    for (i, chunk) in values.chunks(2).enumerate() {
         if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
+            let ok = if declared.is_some() {
+                assignable(&k_arg_ty, &k_ty, subst, env)
+            } else {
+                unify(&k_arg_ty, &k_ty, subst, env.types()).is_ok()
+            };
+            if !ok {
                 local_errors.push(CheckError { span: chunk[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::PersistentMap".into(),
                     param: format!("key #{}", i + 1),
@@ -13990,7 +14108,12 @@ fn infer_persistentmap_constructor(
             .get(1)
             .and_then(|a| infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
         {
-            if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
+            let ok = if declared.is_some() {
+                assignable(&v_arg_ty, &v_ty, subst, env)
+            } else {
+                unify(&v_arg_ty, &v_ty, subst, env.types()).is_ok()
+            };
+            if !ok {
                 local_errors.push(CheckError { span: chunk[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::PersistentMap".into(),
                     param: format!("value #{}", i + 1),
@@ -14007,10 +14130,18 @@ fn infer_persistentmap_constructor(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc-278-0b — Type-check `(:wat::core::PersistentVector e1 e2 ...)`.
-/// Takes bare elements in order — NO leading type keyword.
-/// T is inferred from the first element (if any), then unified against the rest.
-/// An empty ctor produces `PersistentVector<fresh_T>`. Returns `PersistentVector<T>`.
+/// Arc-278-0b — Type-check `(:wat::core::PersistentVector e1 e2 ...)`, now
+/// also `(:wat::core::PersistentVector [T] e1 e2 ...)` (Arc 109 step ①b).
+/// Bracket-less: T is a free type variable, inferred from the first element
+/// (if any) then UNIFIED against the rest — exactly as before.
+///
+/// With a `[T]` bracket: T is NOT a fresh variable started from the first
+/// element — it IS the declared unification target every element is
+/// checked against, via `assignable` (up-cast) rather than `unify`
+/// (invariant), so a declared common supertype can hold heterogeneous
+/// elements (`109/NOTE-typed-literal-constructors.md`). Bracket detection
+/// mirrors `infer_persistentmap_constructor` — see that fn's doc comment
+/// for why `unwrap_type_param_bracket`'s splice is bypassed here.
 fn infer_persistentvector_constructor(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `arg.span()`, more precise than the coarse head span
@@ -14021,12 +14152,36 @@ fn infer_persistentvector_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // T is a free type variable — inferred from the first element (if any),
-    // then unified against the rest. An empty ctor produces PersistentVector<fresh_T>.
-    let t_ty = fresh.fresh();
-    for (i, arg) in args.iter().enumerate() {
+    let (declared_t, values): (Option<TypeExpr>, &[WatAST]) = match args.first() {
+        Some(WatAST::Vector(inner, bspan)) if is_type_bracket_candidate(inner) => {
+            let rest = &args[1..];
+            if inner.len() != 1 {
+                local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::PersistentVector".into(),
+                    reason: format!("bracket must declare exactly 1 type [T]; got {}", inner.len()),
+                    remedies: vec![],
+                } });
+                (Some(fresh.fresh()), rest)
+            } else {
+                let t = parse_bracket_type_keyword(":wat::core::PersistentVector", &inner[0], fresh, &mut local_errors);
+                (Some(t), rest)
+            }
+        }
+        _ => (None, args),
+    };
+    // Bracket-less: T is a free type variable — inferred from the first element
+    // (if any), then unified against the rest. An empty ctor produces
+    // PersistentVector<fresh_T>. With a bracket: T is the declared target above;
+    // every element up-casts against it instead.
+    let t_ty = declared_t.clone().unwrap_or_else(|| fresh.fresh());
+    for (i, arg) in values.iter().enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if unify(&arg_ty, &t_ty, subst, env.types()).is_err() {
+            let ok = if declared_t.is_some() {
+                assignable(&arg_ty, &t_ty, subst, env)
+            } else {
+                unify(&arg_ty, &t_ty, subst, env.types()).is_ok()
+            };
+            if !ok {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::PersistentVector".into(),
                     param: format!("element #{}", i + 1),
@@ -14148,6 +14303,34 @@ fn infer_tuple_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
+    // Arc 109 step ①b — optional leading `[T1 T2 … Tn]` bracket. Tuple is the
+    // odd shape among the three this stone lifts: it has no single declared
+    // element type to unify against — it's heterogeneous BY CONSTRUCTION, one
+    // type per POSITION — so the bracket's arity is checked against the VALUE
+    // arity, not folded into a single target. A mismatch is a hard
+    // `ArityMismatch` (never silently truncated or padded), matching how
+    // every other arity check in this file behaves: reusing
+    // `check_tuple_constructor_against` gets this for free — it is the SAME
+    // per-position up-cast (`assignable`) helper the ann-form-directed
+    // `check_compound_against_expected` dispatcher already uses for a Tuple
+    // ctor call sitting in an expected-`Tuple<...>` position, so this is the
+    // second caller of existing machinery, not a second implementation of it.
+    if let Some(WatAST::Vector(inner, _)) = args.first() {
+        // arity-mismatch errors below locate at the whole form via `head_span`,
+        // matching `check_tuple_constructor_against`'s own convention.
+        if is_type_bracket_candidate(inner) {
+            let mut expected: Vec<TypeExpr> = Vec::with_capacity(inner.len());
+            for node in inner.iter() {
+                expected.push(parse_bracket_type_keyword(":wat::core::Tuple", node, fresh, &mut local_errors));
+            }
+            let (val, mut errs) = check_tuple_constructor_against(&args[1..], &expected, head_span, env, locals, fresh, subst).into_parts();
+            local_errors.append(&mut errs);
+            return match val {
+                Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                None => CheckResult::errs(local_errors),
+            };
+        }
+    }
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::Tuple".into(),
