@@ -95,20 +95,52 @@ not a check that catches the tear, a shape in which the tear has no form.
 **Room 3 — speech.** `check.rs:15619`, `format_type_inner`'s Parametric arm (`format!("{}<{}>")`) and
 its `format_type` twin. One site each. See the pinned decision.
 
-## ⛔ THE ONE CONTRACT DECISION — does RENDERING follow the source syntax?
+## ⊹ RULED 2026-08-20 — RENDERING FOLLOWS. THE ANNIHILATION IS COMPLETE.
 
-113 angle-form occurrences live in `tests/**/*.edn` goldens across 29 files (`Vector<T>` 18,
-`Option<T>` 17, `Tuple<T…>` 12, `Result<T,E>` 12, `HashSet<T>` 12, `HashMap<K,V>` 12 …), mostly as
-generic shape-prose inside error messages rather than concrete renderings.
+> Builder: *"this move is the annihilation of angle brackets from wat…. they are gone, completely….
+> they must be annihilated…. we've been dragging our feet on this for a long time…. they die this day."*
 
-- **Rendering follows** → diagnostics print `(:wat::core::Vector [:wat::core::i64])`. 113 golden
-  occurrences move; every type-bearing message gets longer.
-- **Rendering stays angled** → goldens barely move, and the compiler **prints a syntax it refuses to
-  read**. That fails Honest outright.
+"Completely" settles the open this section used to hold. A `Vector<T>` rendered into a diagnostic IS
+an angle bracket in wat; a compiler that PRINTS a syntax it REFUSES TO READ is the incoherence this
+arc exists to end. So `format_type` / `format_type_inner` (`check.rs:15619`) emit the bracketed form,
+and the **113 angle-form occurrences across 29 `tests/**/*.edn` goldens** move with them.
 
-**RECOMMENDATION: rendering follows.** A language that speaks a dialect it will not accept is exactly
-the incoherence this arc exists to end, and the 113 are mechanical. ⚠ NOT YET RULED by the builder —
-this stone does not proceed past step ① without that call.
+## ⛔ THE SCOPE BOUNDARY — NOT EVERY `<` IS AN ANGLE BRACKET
+
+This is the number that defines the strike, measured across `wat/` + `tests/**/*.wat`:
+
+```
+must DIE    parametric  Head<…>                        ~3,236 sites
+must LIVE   <- (5261) · -> (4446) · > >= (87) · <  (81)
+            · <= (23) · :-> (14)                        9,912 sites
+```
+
+**A textual `<` → `[` sweep destroys the corpus.** The migration is a FORM-AWARE wat-fix codemod
+(R21) and nothing else.
+
+**The discriminator is already written — it is the lexer's own rule** (`lexer.rs:792`, `:942`), and the
+codemod must use the same one or it is guessing: inside a keyword token, `<` preceded by `::` is the
+**operator** (`:wat::core::<`); `<` preceded by alphanumeric / `_` / `'` **opens type params**
+(`Vector<`, `Thread'<`). `<-` / `->` / `:->` are separate tokens entirely and never enter a keyword.
+
+⚠ The angle form lives INSIDE a keyword token, so the rewrite is a NODE REPLACEMENT — one `Keyword`
+node becomes a `List` node — not a text substitution within a node. wat-fix's span-faithful
+`ast-span` + `fix-text-apply` is the mechanism.
+
+**Head census (head-by-codemod, tail-by-name):** `Vector` 674 · `PersistentVector` 232 · `Peer` 119 ·
+`Option` 98 · `Stream` 63 · `Seqable` 63 · `HashMap` 60 · `Address` 56 · `Result` 48 ·
+`ThreadSelfPeer` 42 · `Peer'` 29 (⚠ the primed head — `'` before `<` is legal and must survive).
+
+## ⊹ WHAT THIS STONE IS NOT — the second hard problem is NOT here
+
+> Builder: *"this removes one of two hard problems for the clojure flip…. the second one is the
+> annihilation of illegal keywords…. `:wat::core::+` is illegal, `wat.core/+` is not… we are not
+> attacking keywords here.. we are attacking angle brackets."*
+
+**Illegal keywords are a SEPARATE strike and are out of scope here.** This stone does not touch the
+`:wat::core::` spelling, does not rename a single head, and does not approach the 6,552 distinct
+colon-quoted spellings the 255 seam counts. It changes ONE thing: how a parametric's type args are
+grouped. Keeping these apart is what makes each survivable.
 
 ## The strike order — the cut is TOTAL at ③
 
