@@ -46,18 +46,18 @@ and delete the literal arms. **They do NOT all share a `@Category`** — see bel
 4. The four bodies — `runtime.rs:27423, 27452, 27716, 27812`. **Read all four before declaring.**
 5. The four schemes — `check.rs:18101, 18121, 18130, 18147`. **Your `@arg`/`@ret` must match these
    exactly** — unlike home #5, the gate is live here.
-6. **`wat/runtime-meta.wat`** — `:Project`'s prose (names three of your four) and `:Transform`'s.
+6. **`wat/runtime-meta.wat`** — `:Projection`'s prose (names three of your four) and `:Transform`'s.
 
 ## The axis table — RE-DERIVE, then agree or dissent with the deciding line
 
 | verb | Purity | Determinism | Category |
 |---|---|---|---|
-| `LociDiedError/message` | derive | derive | **Project** |
-| `Failure/message` | derive | derive | **Project** |
-| `Failure/location` | derive | derive | **Project** |
+| `LociDiedError/message` | derive | derive | **Projection** |
+| `Failure/message` | derive | derive | **Projection** |
+| `Failure/location` | derive | derive | **Projection** |
 | `LociDiedError/to-failure` | derive | derive | **Transform** |
 
-★ **Do not homogenize the Category column.** `:Project` returns a component that already existed;
+★ **Do not homogenize the Category column.** `:Projection` returns a component that already existed;
 `to-failure` matches `ev.variant_name` and CONSTRUCTS a `Failure` — a different-kind value. If your
 body-read says otherwise on any row, that is a finding: report it, do not tidy it.
 

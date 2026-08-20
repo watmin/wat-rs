@@ -6749,22 +6749,10 @@ fn dispatch_keyword_head_value(
         // canonical replacements; the type-checker poisons every call site
         // with a self-describing migration hint. Runtime impls deleted
         // alongside the dispatch — no callers reach this layer post-poison.
-        // Arc 278 the LociDiedError stone — ONE loci-agnostic death report;
-        // the two `Thread/ProcessDiedError/*` accessor families collapse to one.
-        ":wat::kernel::LociDiedError/message" => {
-            eval_died_error_message(args, env, sym, ":wat::kernel::LociDiedError", list_span)
-        }
-        // Arc 278 the string-wrap annihilation — `Failure/message` /
-        // `Failure/location` are DERIVED accessors (the stored fields were
-        // REMOVED; Failure carries the raised `:wat::core::Error` structurally).
-        // They read `error.message` / `error.location` off the mandatory `error`
-        // field. Same hand-written-derived-accessor shape as `LociDiedError/message`
-        // above; the type schemes are registered in check.rs beside it.
-        ":wat::kernel::Failure/message" => eval_failure_message(args, env, sym, list_span),
-        ":wat::kernel::Failure/location" => eval_failure_location(args, env, sym, list_span),
-        ":wat::kernel::LociDiedError/to-failure" => {
-            eval_died_error_to_failure(args, env, sym, ":wat::kernel::LociDiedError", list_span)
-        }
+        // Arc 255.1c-kernel-error — LociDiedError/message, Failure/message,
+        // Failure/location, LociDiedError/to-failure moved to the intrinsic
+        // registry (`src/intrinsic/kernel_error.rs`); dispatch now reaches
+        // them via the registry lookup above, not a literal arm here.
         // Arc 170 CULMINATION (arc 278 IPC de-prime) — `:wat::kernel::extract-panics`
         // ANNIHILATED with the run-sandboxed family (its only callers were the
         // deleted manual sandbox drivers; the primed peer wire delivers the
@@ -27420,7 +27408,7 @@ fn thread_died_error_shutdown() -> Value {
 /// mandatory `:wat::core::Error` field. (`message` is no longer a stored field;
 /// storing it alongside `error` would duplicate and could drift — four-questions
 /// Fork B.) Every existing `Failure/message` reader keeps working unchanged.
-fn eval_failure_message(
+pub(crate) fn eval_failure_message(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -27449,7 +27437,7 @@ fn eval_failure_message(
 /// the string-wrap annihilation. DERIVED accessor: reads `error.location` (a
 /// mandatory `:wat::kernel::Location` on the error) and wraps it in `Some` to keep
 /// the accessor's historic `Option<Location>` return shape.
-fn eval_failure_location(
+pub(crate) fn eval_failure_location(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -27713,7 +27701,7 @@ fn died_error_payload_message(v: &Value) -> Option<Arc<String>> {
 ///
 /// Field 0 is `message` for `Panic` / `RuntimeError` /
 /// `StartupError` / `EntryFormFailure` / `MainSignature` / `BadReturn`.
-fn eval_died_error_message(
+pub(crate) fn eval_died_error_message(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -27809,7 +27797,7 @@ fn edn_is_loci_died_chain(v: &wat_edn::OwnedValue) -> bool {
 /// Shared backbone for ThreadDiedError/to-failure and
 /// ProcessDiedError/to-failure — variants are identical; only the
 /// expected type_path differs.
-fn eval_died_error_to_failure(
+pub(crate) fn eval_died_error_to_failure(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,

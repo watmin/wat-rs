@@ -180,7 +180,7 @@
 ;; field accessor. The inverse of `:Combine`, which builds a larger value of the same
 ;; kind; nothing had named taking a part back out. NOT `:Probe`: a probe computes a
 ;; new fact (`empty?`, `length`); an accessor returns a part that already existed.
-  :Project
+  :Projection
 ;; Refuses a call site at CHECK TIME; the contract is discharged before evaluation
 ;; ever runs — `require-wire-address`. ONE axis: constrains which programs compile.
 ;; The runtime body is identity or otherwise incidental to the variant's purpose.

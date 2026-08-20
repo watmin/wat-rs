@@ -25,14 +25,14 @@ surface of the two error types — carrying **two categories**:
 
 | verb | `@Category` | why |
 |---|---|---|
-| `LociDiedError/message` | **Project** | returns a component that was already there |
-| `Failure/message` | **Project** | ditto — one hop deeper, see below |
-| `Failure/location` | **Project** | ditto |
+| `LociDiedError/message` | **Projection** | returns a component that was already there |
+| `Failure/message` | **Projection** | ditto — one hop deeper, see below |
+| `Failure/location` | **Projection** | ditto |
 | `LociDiedError/to-failure` | **Transform** | matches the variant and CONSTRUCTS a Failure |
 
-`:Project`'s prose names the first three outright. It does **not** name `to-failure`, and the body
+`:Projection`'s prose names the first three outright. It does **not** name `to-failure`, and the body
 says why: `eval_died_error_to_failure` (`runtime.rs:27812`) matches `ev.variant_name` (`"Panic"` →
-extract the message) and builds a `Failure` — a **different-kind** value. That is neither `:Project`
+extract the message) and builds a `Failure` — a **different-kind** value. That is neither `:Projection`
 (a part that already existed) nor `:Combine` (a larger value of the *same* kind). It is a
 representation transform.
 
@@ -65,7 +65,7 @@ From the dispatch comment (`runtime.rs:6757`):
 > accessors (the stored fields were REMOVED; Failure carries the raised `:wat::core::Error`
 > structurally). They read `error.message` / `error.location` off the mandatory `error` field."*
 
-They project `failure.error.message`, not `failure.message`. Still `:Project` — a part that already
+They project `failure.error.message`, not `failure.message`. Still `:Projection` — a part that already
 existed — but through a hop, and the rider derives that from the body rather than the name.
 
 ## The one contract decision, pinned
@@ -75,12 +75,12 @@ rider's reading makes all four one category, that is a finding to report — not
 
 ## The taxonomy's own residue, now in front of real rows
 
-`255.1c-taxonomy` recorded: *"Whether DERIVED record accessors should carry `:Project`. They have no
+`255.1c-taxonomy` recorded: *"Whether DERIVED record accessors should carry `:Projection`. They have no
 `Category` today by design (`accessor_meta` derives from the frozen `TypeEnv`). Widening the registry
 to cover derived rows is a registry-shape question, not a taxonomy one."*
 
 These four are the **hand-written** accessors, so they are in scope and the residue is not. But this
-home puts three `:Project` rows on disk beside a generated-accessor population that has none — which
+home puts three `:Projection` rows on disk beside a generated-accessor population that has none — which
 is the concrete form of that open question. **Named, not answered.**
 
 ## Blast radius
@@ -117,3 +117,34 @@ scheduled rather than rediscovered.
 
 69 → 73 registered production names. Four arms leave `runtime.rs`, and the registry gains its first
 home whose rows do not share a category.
+
+---
+
+## ⊘ RENAMED MID-STRIKE 2026-08-19 — `:Project` → `:Projection`, on the builder's call
+
+The variant shipped as `:Project` in `255.1c-taxonomy` and was renamed before this home's rows ever
+reached a commit. Builder: *"is it Project or Projection?.... hrm...."* → *"Projection it is"*.
+
+**The deciding argument is ambiguity in THIS repo's idiom.** Our whole vocabulary is arcs, stones and
+projects; a `Category` column reading `Project` invites a double-take on every read. `Projection` has
+no such collision and is the exact word — taking a component out of a product IS a projection. It
+also sits naturally beside `Reflection`, its closest sibling in kind.
+
+**It does NOT re-trip the rejection that killed `:Accessor`.** That was refused as an AGENT noun —
+the thing that does it rather than the doing. `Projection` is the act; the agent noun would be
+`Projector`. Checked deliberately, because "a rejected option returns in new clothes" is a mistake
+made earlier the same day. `[[feedback_a_rejected_option_returns_in_new_clothes]]`
+
+**The counter, recorded rather than buried:** it breaks the bare-stem quartet `Transform` / `Probe` /
+`Combine` / `Project`, and `:Projection`'s own prose calls it *"the inverse of `:Combine`"*. Measured
+before deciding: **`Combine` has ZERO tenants** (as do `Probe`, `Declaration`, `Binding`), so the
+pairing was a prose claim, not a shipped constraint. If the family matters later the coherent end
+state is `Projection`/`Combination`, and aligning `Combine` costs nothing while nothing carries it.
+
+**Cost of doing it now vs later:** three rows, uncommitted, plus the four mirrors — the same sites the
+`:Clock`→`:Entropic` rename touched hours earlier. Renaming after the rows shipped would have cost
+strictly more, which is why it was folded into this stone rather than filed.
+
+Done by the orchestrator by hand, not delegated: a six-site rename layered on a released rider's
+uncommitted work is more coordination risk than the calibration is worth. Recorded because the
+default is to delegate.

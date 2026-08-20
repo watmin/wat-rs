@@ -69,7 +69,7 @@
 /// `Category::variants()`, so a new variant that forgets this line goes RED.
 /// (The proc-macro's two sibling messages DO derive — they are `format!`.)
 const CATEGORY_LEGAL_VALUES: &str =
-    "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Project, CheckGate";
+    "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Projection, CheckGate";
 
 // ⛔ `Category` IS GENERATED FROM wat — it is not written here.
 //
@@ -1159,7 +1159,7 @@ mod tests {
             Category::Binding, Category::Entropic, Category::Arithmetic,
             Category::Io, Category::Probe, Category::Combine, Category::Declaration,
             Category::Resource, Category::Message, Category::Ambient,
-            Category::Project, Category::CheckGate,
+            Category::Projection, Category::CheckGate,
         ];
         for c in all {
             let name = match c {
@@ -1176,7 +1176,7 @@ mod tests {
                 Category::Resource => "Resource",
                 Category::Message => "Message",
                 Category::Ambient => "Ambient",
-                Category::Project => "Project",
+                Category::Projection => "Projection",
                 Category::CheckGate => "CheckGate",
             };
             assert_eq!(c.as_str(), name, "as_str() disagrees for {name}");
