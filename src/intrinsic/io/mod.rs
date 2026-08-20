@@ -12,16 +12,22 @@
 //! - [`writer`] — push bytes OUT: the `IOWriter` mirror (`new`, `open-file`,
 //!   `from-fd`, `to-bytes`, `to-string`, `write`, `write-all`,
 //!   `write-string`, `print`, `println`, `writeln`, `flush`, `close`).
-//! - `fs` — the filesystem-adjacent one-shots and the two RAII temp handles
-//!   (not yet carved; stone 255.1c-io-fs, 6 rows).
+//! - [`fs`] — the filesystem-adjacent one-shots and the two RAII temp
+//!   handles (`TempFile/new`, `TempFile/path`, `TempDir/new`,
+//!   `TempDir/path`, `read-file`, `list-dir`) — the third and last home.
 //!
-//! **The bodies do not live here.** All thirty arms across the family's
-//! eventual three files delegate into `crate::io::` — one module, so the
+//! **255.1c-io-fs closed the family** (stone 3 of 3): every `:wat::io::`
+//! verb is now a `#[wat_intrinsic]` registration; no `:wat::io::`
+//! literal-match arm remains in `runtime.rs`.
+//!
+//! **The bodies do not live here.** All twenty-nine arms across the
+//! family's three files delegate into `crate::io::` — one module, so the
 //! "bodies do not live in this tier" claim `kernel/mod.rs` makes for its
 //! nine homes holds for this family's three, for the same reason: carving a
 //! verb into the registry changes which PATH reaches its handler (registry
 //! lookup vs. a literal `match head { … }` arm in `runtime.rs`), never the
 //! handler itself.
 
+mod fs;
 mod reader;
 mod writer;

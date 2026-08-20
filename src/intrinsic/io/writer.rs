@@ -130,7 +130,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Determinism   Deterministic
 /// @Category      Resource
 /// @ret     :wat::io::IOWriter a fresh, empty in-memory writer
-/// @example (:wat::io::IOWriter/to-bytes (:wat::io::IOWriter/new)) #=> (:wat::core::Vector :u8)
+/// @example (:wat::io::IOWriter/to-bytes (:wat::io::IOWriter/new)) #=> []
 // Registered `TypeScheme` — `check.rs:15818` — gate LIVE. Nullary: zero
 // `params`, so zero `@arg` lines above (the RET TRAP the brief calls out).
 //

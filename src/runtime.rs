@@ -6441,33 +6441,14 @@ fn dispatch_keyword_head_value(
         // the per-Type impl (`:HashMap/assoc` etc., `:Vector/concat`).
         // Aliases dispatch through env.get; the per-Type primitives
         // sit in the per-Type block above.
-        // :wat::io:: — abstract IO substrate (arc 008 slice 2). The
-        // `:wat::io::IOReader/*` and `:wat::io::IOWriter/*` arms that used to
-        // sit here were carved to `#[wat_intrinsic]` registrations — see
-        // `src/intrinsic/io/{reader,writer}.rs`. What remains below is the
-        // two RAII temp handles, the filesystem one-shots, and
-        // `:wat::stdlib::sources` (a different family, never carved here).
-        // Arc 093 — auto-deleting temp file / temp dir wrappers
-        // around Rust's `tempfile` crate. Drop unlinks the
-        // file/dir when the wat value's Arc-count reaches zero.
-        ":wat::io::TempFile/new" => {
-            crate::io::eval_io_temp_file_new(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::TempFile/path" => {
-            crate::io::eval_io_temp_file_path(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::TempDir/new" => {
-            crate::io::eval_io_temp_dir_new(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::TempDir/path" => {
-            crate::io::eval_io_temp_dir_path(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::read-file" => {
-            crate::io::eval_io_read_file(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::list-dir" => {
-            crate::io::eval_io_list_dir(args, list_span, env, sym).map_err(Into::into)
-        }
+        // :wat::io:: — abstract IO substrate (arc 008 slice 2) — CLOSED.
+        // Every `:wat::io::` verb (`IOReader/*`, `IOWriter/*`, the two RAII
+        // temp handles, the filesystem one-shots) has been carved to
+        // `#[wat_intrinsic]` registrations — see `src/intrinsic/io/`
+        // (`reader.rs`, `writer.rs`, `fs.rs`). No `:wat::io::` literal-match
+        // arm remains here. `:wat::stdlib::sources`, below, is a different
+        // family (arc 275 Stone 275.1's baked stdlib load order) and was
+        // never carved here.
         // Arc 275 Stone 275.1 — baked stdlib load order for deporder.
         ":wat::stdlib::sources" => {
             crate::io::eval_stdlib_sources(args, list_span, env, sym).map_err(Into::into)
