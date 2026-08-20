@@ -9,8 +9,9 @@
 //! - [`reader`] — pull bytes IN: construct an `IOReader` (from bytes, a
 //!   string, a file, or a raw fd) and read from it (`read`, `read-all`,
 //!   `read-all-string`, `read-line`, `read-frame`, `rewind`).
-//! - `writer` — push bytes OUT: the `IOWriter` mirror (not yet carved;
-//!   stone 255.1c-io-writer, 13 rows).
+//! - [`writer`] — push bytes OUT: the `IOWriter` mirror (`new`, `open-file`,
+//!   `from-fd`, `to-bytes`, `to-string`, `write`, `write-all`,
+//!   `write-string`, `print`, `println`, `writeln`, `flush`, `close`).
 //! - `fs` — the filesystem-adjacent one-shots and the two RAII temp handles
 //!   (not yet carved; stone 255.1c-io-fs, 6 rows).
 //!
@@ -23,3 +24,4 @@
 //! handler itself.
 
 mod reader;
+mod writer;

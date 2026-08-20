@@ -6441,37 +6441,12 @@ fn dispatch_keyword_head_value(
         // the per-Type impl (`:HashMap/assoc` etc., `:Vector/concat`).
         // Aliases dispatch through env.get; the per-Type primitives
         // sit in the per-Type block above.
-        // :wat::io::IOWriter — abstract IO substrate (arc 008 slice 2).
-        // Byte-oriented primitives with char-level conveniences. The
-        // `:wat::io::IOReader/*` arms that used to sit here were carved to
-        // `#[wat_intrinsic]` registrations — see `src/intrinsic/io/reader.rs`.
-        ":wat::io::IOWriter/new" => {
-            crate::io::eval_iowriter_new(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/open-file" => {
-            crate::io::eval_iowriter_open_file(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/from-fd" => {
-            crate::io::eval_iowriter_from_fd(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/to-bytes" => {
-            crate::io::eval_iowriter_to_bytes(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/to-string" => {
-            crate::io::eval_iowriter_to_string(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/write" => {
-            crate::io::eval_iowriter_write(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/write-all" => {
-            crate::io::eval_iowriter_write_all(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/write-string" => {
-            crate::io::eval_iowriter_write_string(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/print" => {
-            crate::io::eval_iowriter_print(args, env, sym, list_span).map_err(Into::into)
-        }
+        // :wat::io:: — abstract IO substrate (arc 008 slice 2). The
+        // `:wat::io::IOReader/*` and `:wat::io::IOWriter/*` arms that used to
+        // sit here were carved to `#[wat_intrinsic]` registrations — see
+        // `src/intrinsic/io/{reader,writer}.rs`. What remains below is the
+        // two RAII temp handles, the filesystem one-shots, and
+        // `:wat::stdlib::sources` (a different family, never carved here).
         // Arc 093 — auto-deleting temp file / temp dir wrappers
         // around Rust's `tempfile` crate. Drop unlinks the
         // file/dir when the wat value's Arc-count reaches zero.
@@ -6497,19 +6472,6 @@ fn dispatch_keyword_head_value(
         ":wat::stdlib::sources" => {
             crate::io::eval_stdlib_sources(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::io::IOWriter/println" => {
-            crate::io::eval_iowriter_println(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/writeln" => {
-            crate::io::eval_iowriter_writeln(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/flush" => {
-            crate::io::eval_iowriter_flush(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOWriter/close" => {
-            crate::io::eval_iowriter_close(args, env, sym, list_span).map_err(Into::into)
-        }
-
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::holon::Atom" => eval_holon_atom_constructor(args, list_span, env, sym),
         ":wat::holon::to-holon" => eval_holon_to_holon(args, list_span, env, sym),

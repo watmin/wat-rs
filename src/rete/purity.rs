@@ -2066,6 +2066,65 @@ mod completeness_gate {
     /// gate green — that is the laundering this gate exists to prevent; CLASSIFY the verb in
     /// `intrinsic_meta`, or give its namespace a disposition in `RULES` with the reason.
     const KNOWN_UNREVIEWED: &[&str] = &[
+        // ── RESTORED 2026-08-20 (255.1c-io-writer). These 48 were removed from this ledger by
+        // the carve stones that moved their verbs OUT of `runtime.rs` — `:wat::time::` ×41 by
+        // 255.1c-time (`25c1f4521`), `Bytes::` ×2 by home #1, and the reflect/intrinsic rows.
+        // That commit recorded it as *"unreviewed debt 214 -> 173"*. IT WAS NOT A REVIEW.
+        // The ratchet said "41 verb(s) are no longer unreviewed" because they had left the
+        // SCAN's sight, not because anyone ruled on them — and the honest response to a
+        // population that shrank was to ask why, not to delete the names that fell out of it.
+        // `dispatch_verbs` now scans the `#[wat_intrinsic]` homes too, so they are back in the
+        // population and their debt is visible again. Nothing here is classified; 255.3 owns
+        // that. [[feedback_a_gate_freezes_names_never_a_count]] — the gate froze the names
+        // correctly; the DISPOSITION of its red is what went wrong.
+        ":wat::core::Bytes::from-hex",
+        ":wat::core::Bytes::to-hex",
+        ":wat::core::render-doc",
+        ":wat::core::show-source",
+        ":wat::intrinsic::examples",
+        ":wat::intrinsic::variadic-args-measurement",
+        ":wat::intrinsic::yields-witness",
+        ":wat::time::+",
+        ":wat::time::-",
+        ":wat::time::Day",
+        ":wat::time::Hour",
+        ":wat::time::Microsecond",
+        ":wat::time::Millisecond",
+        ":wat::time::Minute",
+        ":wat::time::Nanosecond",
+        ":wat::time::Second",
+        ":wat::time::ago",
+        ":wat::time::at",
+        ":wat::time::at-millis",
+        ":wat::time::at-nanos",
+        ":wat::time::days",
+        ":wat::time::days-ago",
+        ":wat::time::days-from-now",
+        ":wat::time::epoch-millis",
+        ":wat::time::epoch-nanos",
+        ":wat::time::epoch-seconds",
+        ":wat::time::from-iso8601",
+        ":wat::time::from-now",
+        ":wat::time::hours",
+        ":wat::time::hours-ago",
+        ":wat::time::hours-from-now",
+        ":wat::time::microseconds",
+        ":wat::time::microseconds-ago",
+        ":wat::time::microseconds-from-now",
+        ":wat::time::milliseconds",
+        ":wat::time::milliseconds-ago",
+        ":wat::time::milliseconds-from-now",
+        ":wat::time::minutes",
+        ":wat::time::minutes-ago",
+        ":wat::time::minutes-from-now",
+        ":wat::time::nanoseconds",
+        ":wat::time::nanoseconds-ago",
+        ":wat::time::nanoseconds-from-now",
+        ":wat::time::now",
+        ":wat::time::seconds",
+        ":wat::time::seconds-ago",
+        ":wat::time::seconds-from-now",
+        ":wat::time::to-iso8601",
     ":wat::core::Option/expect",
     ":wat::core::Option/try",
     ":wat::core::Record/assoc",
@@ -2281,6 +2340,48 @@ mod completeness_gate {
                 }
             }
         }
+        // ⚠ ARC 255'S CARVE DRAINS THIS SCAN. Every home carved out of `runtime.rs`'s literal
+        // dispatch removes verbs from the only population this scan could see — and a shrinking
+        // population makes a COMPLETENESS gate report better every stone while measuring less.
+        // `:wat::io::` alone moved 23 verbs and took the count 423 → 400, one below the
+        // non-vacuity floor below, which is what surfaced this. A verb dispatched through the
+        // registry is still DISPATCHED; it just no longer appears as a literal arm. So the
+        // population is the UNION — literal arms plus every `#[wat_intrinsic]`-registered name.
+        // Read as text, like the arms above, so this stays one mechanism and not two.
+        for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src/intrinsic"))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let mut files = Vec::new();
+            if entry.path().is_dir() {
+                files.extend(
+                    std::fs::read_dir(entry.path())
+                        .into_iter()
+                        .flatten()
+                        .flatten()
+                        .map(|e| e.path()),
+                );
+            } else {
+                files.push(entry.path());
+            }
+            let rs = files
+                .into_iter()
+                .filter(|f| f.extension().is_some_and(|e| e == "rs"));
+            for f in rs {
+                let Ok(text) = std::fs::read_to_string(&f) else {
+                    continue;
+                };
+                for line in text.lines() {
+                    let t = line.trim_start();
+                    if let Some(rest) = t.strip_prefix("#[wat_intrinsic(\"") {
+                        if let Some(j) = rest.find('"') {
+                            out.push(rest[..j].to_string());
+                        }
+                    }
+                }
+            }
+        }
         out.sort();
         out.dedup();
         out
@@ -2289,7 +2390,10 @@ mod completeness_gate {
     #[test]
     fn every_dispatched_verb_is_classified_or_disposed() {
         let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/runtime.rs"))
-            .expect("runtime.rs must be readable — it IS the source of truth for what verbs exist");
+            .expect(
+                "runtime.rs must be readable — it holds the verbs still dispatched \
+                 literally; the `#[wat_intrinsic]` homes hold the rest (arc 255)",
+            );
         let verbs = dispatch_verbs(&src);
 
         // Non-vacuity FIRST. If a rename broke the anchors this returns a handful of verbs, every
