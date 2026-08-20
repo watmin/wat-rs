@@ -148,3 +148,96 @@ Registered production names **53 → 60**. Seven arms leave `runtime.rs`. `:Ambi
 variant with zero tenants to the home of a whole family — and the honest claim is not the count. It
 is that **the registry's purity column and the runtime's prefix rule can finally be shown to
 disagree, on rows where the body proves which one is right.**
+
+---
+
+## ⊘ RULED 2026-08-19 — **OPTION B. THE REGISTRY IS THE AUTHORITY.**
+
+**Builder:** *"B... the registry is the truth now... that's why we built it. the registry must answer
+these kinds of questions... forms and funcs must be registered in a central authority who can resolve
+such questions.. that's 255 purpose."*
+
+That is not a patch to one function. It is a **direction of authority**, and once stated it decides
+three sites at once — all of which currently ask a prefix what only the registry can know.
+
+### The principle, in one line
+
+> **Ask the registry. The prefix guesses only where the registry is silent.**
+
+### Site 1 — `is_effectful_op` (`runtime.rs:29726`)
+
+Splits in two. The public door consults the registry; the prefix rule survives as a **named private
+fallback** for verbs not yet carved:
+
+```rust
+pub(crate) fn is_effectful_op(head: &str) -> bool {
+    // Arc 255: the registry is the authority. A registered row DECLARED its
+    // purity from its body; the prefix cannot see inside one.
+    if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
+        return matches!(e.purity, wat_doc::Purity::Effectful);
+    }
+    effectful_by_prefix(head)   // ← the guess, for the un-carved remainder
+}
+```
+
+`registry()` is a `OnceLock` over an `inventory` sweep returning `&'static`, and `lookup_entry` is a
+`HashMap::get` on `&str` — safe from any caller, no init-order hazard. On the step path the very next
+statement is a `match head_kw.as_str()` over dozens of arms, so one hash lookup is not a new order of
+cost. **That is an argument from shape, not a benchmark; no perf claim is made here.**
+
+### Site 2 — `derive_pure_deterministic` (`runtime.rs:29724`) — ⚠ ITS DOC IS FALSE TWICE
+
+```
+;; claim 1: "the same derivation used by metadata-of's intrinsic branch ... and the
+;;           verify-examples reflection seam. Extracted here so both callers share
+;;           one source of truth."
+;; claim 2: "this set is the residual for not-yet-registered intrinsics
+;;           (dies when they migrate to #[wat_intrinsic])."
+```
+
+**Both are false, measured at HEAD.** It has **one** caller, not two — `metadata-of` now reads
+`entry.purity`/`entry.determinism` directly (`runtime.rs:14181–14183`, *"declared enum values from
+the doc, not derived bools"*). And that one caller is `reflect.rs:75`, inside
+`for entry in registry().all_entries()` — so it is fed `entry.name` and computes a **prefix guess for
+a row whose declared purity and determinism sit in the same struct it was handed.**
+
+The verbs migrated. The hand-list did not die. Under the ruling, `reflect.rs` reads the entry it
+already holds, and `derive_pure_deterministic` — with its `NONDETERMINISTIC: &[&str]` hand-list — is
+left with the population it honestly describes, or no population at all. **The rider measures which,
+and does not delete a capability on its own.**
+
+### Site 3 — the gate must be RE-POINTED, or it becomes theater
+
+This is the concern raised before the ruling, and the ruling does not dissolve it — it **relocates**
+it. Once site 1 lands, `pure_declared_matches_is_effectful_op` compares `entry.purity` against a
+function that *returns* `entry.purity`. It goes green automatically and **can never fail again for a
+registered row.** Shipping it unchanged would be a gate that reads a copy of the truth and inherits
+it — `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]` — one day after the seam recorded
+*"hand-maintained lists, four times in one day."*
+
+**So the biconditional stops being an ASSERTION and becomes a CENSUS.** It compares two things that
+are still genuinely independent — each row's **declared** purity, and what **`effectful_by_prefix`
+alone** would have said — and reports every disagreement as an inventory rather than a failure. The
+split in site 1 is what keeps the second opinion computable; without it there would be nothing left
+to compare against.
+
+This preserves the finding instead of erasing it. The four readers carved by this stone are the
+census's **first four entries**, and the instrument acquires a second honest job: it is a
+**prefix-accuracy meter**, and the rows still answered by prefix are exactly the ones not yet carved.
+
+What the gate keeps asserting, unchanged and still able to fail: **`Effectful ⇒ effectful_by_prefix`
+for UNREGISTERED verbs** — the direction with teeth, where a doc could still lie about an effect the
+runtime does not know to refuse.
+
+### What this stone does NOT do
+
+- **Widen the carve.** Still seven verbs. Sites 1–3 are the ruling applied where it lands; no
+  additional kernel concern is carved.
+- **Delete `derive_pure_deterministic` or its hand-list on the rider's judgement.** If it is left with
+  zero callers that is a finding to report — `[[feedback_no_consumers_does_not_mean_dead]]`; zero
+  consumers is not evidence of deadness, and the disposition is the builder's.
+- **Change what `step_*` or `rete/purity.rs` are FOR.** Both keep refusing effectful ops. They will
+  now refuse based on a declared fact instead of a namespace guess — for the four readers that is a
+  behaviour change, and its exposure was measured before the ruling: **zero non-comment call sites in
+  `wat/` outside `kernel/services/stdio.wat`, and none in the rete grid.** Small today; the guard is
+  forward-looking, so the change is recorded as real, not dismissed as theoretical.
