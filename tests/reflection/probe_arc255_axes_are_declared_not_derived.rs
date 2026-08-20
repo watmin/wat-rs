@@ -15,12 +15,22 @@
 //!     fields, doc-commented "Declared purity — from `@Purity <Variant>` in the doc."
 //!   - `@Purity Pure` / `@Determinism Deterministic` are LIVE tags on real handlers
 //!     (`src/intrinsic/bytes.rs:36-38`).
-//!   - `pure_declared_matches_is_effectful_op` (cfg(test), `intrinsic/mod.rs:596`) already asserts
-//!     the declared value agrees with `is_effectful_op` for every registered entry.
+//!   - `declared_purity_vs_effectful_by_prefix_census` (cfg(test), `intrinsic/mod.rs`) records
+//!     every registered row where the declared value and the `effectful_by_prefix` namespace
+//!     guess disagree. It was `pure_declared_matches_is_effectful_op` and asserted a
+//!     biconditional until arc 255.1c site 3; see below.
 //!
-//! Derivation (`derive_pure_deterministic`, `runtime.rs:24371`) is the fallback for verbs that are
-//! NOT enrolled — not the model for ones that are. This file pins that, so the next reader who
-//! meets the stale header has a green test contradicting it.
+//! ⊘ UPDATED 2026-08-19 (arc 255.1c-kernel-ambient-ii). The sentence that used to sit here —
+//! "Derivation (`derive_pure_deterministic`) is the fallback for verbs that are NOT enrolled" —
+//! described a function that **no longer exists**. The builder ruled the registry is the
+//! authority for a form's properties, so `is_effectful_op` now consults it first and falls back
+//! to a named `effectful_by_prefix` guess only where the registry is silent;
+//! `derive_pure_deterministic` lost its last caller and was deleted. Its `(pure, deterministic)`
+//! two-bool shape could not have survived arc 299.3 regardless — that stone splits `Purity` into
+//! `Pure | Effectful | Entropic`, and a bool cannot carry three states.
+//!
+//! **This file's thesis is UNCHANGED and still holds:** the axes are DECLARED, not derived.
+//! What changed is that the fallback is now named as the guess it always was.
 //! ([[feedback_ground_a_fields_liveness_by_its_writer_not_its_comment]] — the lesson, re-lived.)
 //!
 //! ## Two facts recorded while measuring, for whoever picks up arc 255

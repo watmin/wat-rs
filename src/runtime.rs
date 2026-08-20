@@ -6734,7 +6734,10 @@ fn dispatch_keyword_head_value(
         ":wat::eval-signed-string!" => eval_form_signed_string(args, env, sym, list_span),
 
         // Kernel primitives — channel IO + stop flag + user signals.
-        ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
+        // Arc 255.1c-kernel-ambient — stopped?/sigusr1?/sigusr2?/sighup?/reset-sigusr1!/
+        // reset-sigusr2!/reset-sighup! moved to the intrinsic registry
+        // (`src/intrinsic/kernel_ambient.rs`); dispatch now reaches them via the
+        // registry lookup above, not a literal arm here.
         ":wat::kernel::call-site" => eval_kernel_call_site(args, list_span),
         ":wat::kernel::macro-call-site" => eval_kernel_macro_call_site(args, list_span),
         // Arc 255.1c-kernel-stdio — println/pprintln/eprintln/epprintln/readln'/read-frame
@@ -6879,33 +6882,10 @@ fn dispatch_keyword_head_value(
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The orphaned eval body in src/fork.rs
         // was removed in arc 214 Stone 6.2.
-        ":wat::kernel::sigusr1?" => {
-            eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1, list_span)
-        }
-        ":wat::kernel::sigusr2?" => {
-            eval_user_signal_query(args, ":wat::kernel::sigusr2?", &KERNEL_SIGUSR2, list_span)
-        }
-        ":wat::kernel::sighup?" => {
-            eval_user_signal_query(args, ":wat::kernel::sighup?", &KERNEL_SIGHUP, list_span)
-        }
-        ":wat::kernel::reset-sigusr1!" => eval_user_signal_reset(
-            args,
-            ":wat::kernel::reset-sigusr1!",
-            &KERNEL_SIGUSR1,
-            list_span,
-        ),
-        ":wat::kernel::reset-sigusr2!" => eval_user_signal_reset(
-            args,
-            ":wat::kernel::reset-sigusr2!",
-            &KERNEL_SIGUSR2,
-            list_span,
-        ),
-        ":wat::kernel::reset-sighup!" => eval_user_signal_reset(
-            args,
-            ":wat::kernel::reset-sighup!",
-            &KERNEL_SIGHUP,
-            list_span,
-        ),
+        // Arc 255.1c-kernel-ambient — sigusr1?/sigusr2?/sighup?/reset-sigusr1!/
+        // reset-sigusr2!/reset-sighup! (plus stopped? above, near call-site) moved to
+        // the intrinsic registry (`src/intrinsic/kernel_ambient.rs`); dispatch now
+        // reaches them via the registry lookup above, not a literal arm here.
 
         // :wat::core::use! — resolve-pass declaration, no-op at runtime.
         // Validation happens during resolve; by the time eval runs, the
@@ -25622,7 +25602,7 @@ use crate::value::{snapshot_call_stack, FrameInfo};
 ///
 /// `?` suffix per the 2026-04-19 naming-convention stance —
 /// predicates end in `?`.
-fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -25941,7 +25921,7 @@ fn eval_runtime_current_thread(args: &[WatAST], list_span: &Span) -> Result<Valu
 /// Shared body for the three user-signal predicates — nullary, reads a
 /// given atomic flag. `op` is the wat-facing keyword path for error
 /// messages.
-fn eval_user_signal_query(
+pub(crate) fn eval_user_signal_query(
     args: &[WatAST],
     op: &str,
     flag: &AtomicBool,
@@ -25965,7 +25945,7 @@ fn eval_user_signal_query(
 /// given atomic flag back to `false`. Unlike the terminal stop flag
 /// (set-once), user-signal flags are designed to be toggled by userland
 /// after the signal's condition has been handled.
-fn eval_user_signal_reset(
+pub(crate) fn eval_user_signal_reset(
     args: &[WatAST],
     op: &str,
     flag: &AtomicBool,
@@ -29720,10 +29700,17 @@ fn step_list(
     }
 }
 
-/// Effectful-op classifier. Anything under `:wat::kernel::*`,
-/// `:wat::io::*`, or the eval/load family is rejected in step mode —
-/// the consumer falls back to `:wat::eval-ast!` for those sub-forms.
-pub(crate) fn is_effectful_op(head: &str) -> bool {
+/// Prefix-based effectful guess — the pre-arc-255 classifier, kept as a
+/// named fallback for verbs not yet carved into the intrinsic registry.
+/// Anything under `:wat::kernel::*`, `:wat::io::*`, or the eval/load family
+/// is rejected in step mode — the consumer falls back to `:wat::eval-ast!`
+/// for those sub-forms.
+///
+/// This is a GUESS about a namespace, not a fact about a body — a
+/// registered row's declared purity is a stronger signal (`is_effectful_op`
+/// consults it first). Kept `pub(crate)` for `src/intrinsic/mod.rs`'s test
+/// module (arc 255.1c site 3's census).
+pub(crate) fn effectful_by_prefix(head: &str) -> bool {
     head.starts_with(":wat::kernel::")
         || head.starts_with(":wat::io::")
         || head.starts_with(":wat::eval-")
@@ -29731,24 +29718,16 @@ pub(crate) fn is_effectful_op(head: &str) -> bool {
         || head.starts_with(":wat::config::")
 }
 
-/// Derive `(pure, deterministic)` for an intrinsic FQDN — the same derivation
-/// used by `metadata-of`'s intrinsic branch (runtime.rs:10108) and the
-/// iv-b2-a `verify-examples` reflection seam. Extracted here so both callers
-/// share one source of truth.
-///
-///   pure          = !is_effectful_op(name)
-///   deterministic = pure && name ∉ NONDETERMINISTIC
-///
-/// The NONDETERMINISTIC hand-list is the residual from arc 255's original
-/// scope: deriving determinism structurally is its own future stone.
-pub(crate) fn derive_pure_deterministic(name: &str) -> (bool, bool) {
-    // Registered intrinsics now declare `@deterministic` in their doc; this set
-    // is the residual for not-yet-registered intrinsics (dies when they migrate
-    // to `#[wat_intrinsic]`).
-    const NONDETERMINISTIC: &[&str] = &[":wat::core::Uuid/v4"];
-    let pure = !is_effectful_op(name);
-    let deterministic = pure && !NONDETERMINISTIC.contains(&name);
-    (pure, deterministic)
+/// Effectful-op classifier — the registry is the authority (arc 255.1c). A
+/// registered row DECLARED its purity from its body; the prefix cannot see
+/// inside one. `Pure` and `Preserving` both mean not-effectful, so
+/// `matches!(.., Effectful)` is the whole test. Falls back to the prefix
+/// guess only for verbs not yet carved into the registry.
+pub(crate) fn is_effectful_op(head: &str) -> bool {
+    if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
+        return matches!(e.purity, wat_doc::Purity::Effectful);
+    }
+    effectful_by_prefix(head)
 }
 
 /// True iff `form` is a primitive literal — Phase 2's notion of

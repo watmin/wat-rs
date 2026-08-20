@@ -17,7 +17,8 @@
 //! ## The point of this home — the registry's first `Effectful` rows
 //!
 //! Every row registered before this home is `Pure`/`Preserving`; nothing has
-//! ever been `Effectful`, so `pure_declared_matches_is_effectful_op`
+//! ever been `Effectful`, so the declared-vs-`is_effectful_op` cross-check (renamed
+//! `declared_purity_vs_effectful_by_prefix_census` by arc 255.1c site 3)
 //! (`src/intrinsic/mod.rs:601`, cross-checking the declared `@Purity` against
 //! `runtime::is_effectful_op`'s prefix classification) has never seen a row it
 //! could disagree with. All six here write fd 1/2 or read fd 0 — genuine

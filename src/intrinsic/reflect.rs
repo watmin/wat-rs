@@ -45,8 +45,11 @@ fn example_names() -> Arc<Vec<String>> {
 /// - `expr`: the example expression, parsed into a quoted form (`Value::wat__WatAST`)
 /// - `expected`: `Value::Option` — `Some(WatAST)` when `#=>` is present + runnable, else `None`
 /// - `run`: bool — true for `@example`, false for `@example-norun`
-/// - `pure`: bool — derived from `is_effectful_op`
-/// - `deterministic`: bool — derived from pure ∧ ∉ NONDETERMINISTIC
+/// - `pure`: bool — read off the entry's declared `purity` (arc 255.1c site 2;
+///   `Pure`/`Preserving` both count, since a registered row's declared purity
+///   is a fact about its body, not a namespace guess)
+/// - `deterministic`: bool — `pure` ∧ declared `determinism` is
+///   `Deterministic`/`Preserving`
 ///
 /// A parse failure of an example string is a loud seam error (acceptable —
 /// a malformed example is a real defect; the macro enforced the doc SHAPE,
@@ -72,7 +75,15 @@ pub(crate) fn eval_intrinsic_examples(
 
     for entry in crate::intrinsic::registry().all_entries() {
         let fqdn_kw = Value::wat__core__keyword(Arc::new(entry.name.to_string()));
-        let (pure, det) = crate::runtime::derive_pure_deterministic(entry.name);
+        // Arc 255.1c site 2 — read the entry we already hold instead of a prefix
+        // guess: `entry.purity`/`entry.determinism` are declared fields in the
+        // same struct, not re-derived from the FQDN.
+        let pure = matches!(entry.purity, wat_doc::Purity::Pure | wat_doc::Purity::Preserving);
+        let det = pure
+            && matches!(
+                entry.determinism,
+                wat_doc::Determinism::Deterministic | wat_doc::Determinism::Preserving
+            );
 
         for ex in entry.examples {
             // Parse `expr` into a quoted form — loud on failure.
