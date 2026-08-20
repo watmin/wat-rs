@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-19 (end of day). Replaced in place, never appended.
+# SEAM — the ONE live breadcrumb. As of 2026-08-20 (the teleport). Replaced in place, never appended.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -7,125 +7,150 @@
 
 > `255/SEAM.md`, `251/SEAM.md`, `278/SEAM.md` are PARKED and point here.
 
-## GROUND FIRST
-
-> **Written against `ec11f6ac`.** Run **`git log --oneline ec11f6ac..HEAD`**. Empty → nothing moved.
-> Non-empty → every commit in it outranks every line below.
-
-⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`. **`mcp__wat__eval` LIES** — use `./target/release/wat`.
+## ★★★ YOU ARE ON A DIFFERENT MACHINE. THE LAPTOP IS RETIRED.
 
 ```
-floor .......... 4819/4819, 0 FAIL, 19 skipped   (own invocation)
-clippy ......... 0          ignores ......... 13
-stash@{0} ...... the lifecycle strike. NEVER drop.
+host   JohnDesktop        user john        /home/john/work/holon/wat-rs
+floor  77.8s  (was ~245s on the laptop — 3.2x; the two SLOW tests are not slow here)
+```
+
+⛔ **`docs/COMPACTION-AMNESIA-RECOVERY.md` STILL SAYS `/home/watmin` ELEVEN TIMES** — Section 1's
+workspace map, the "only do work in ~/work/holon/wat-rs" rule, the incident citations. **On this host
+that map points at a home that does not exist.** It is the FIRST doc a compacted self opens, and it is
+now wrong. **Fix it before anything else.** ⚠ Leave the `/home/watmin` hits in
+`docs/arc/2026/06/293-*/BRIEF-*.md` alone — those are dated historical records (FM 14 Bucket C).
+
+**Both MCPs are live but were registered at the WRONG SCOPE** (`/home/john/work`, one level above
+where we work). Re-scoped to `/home/john/work/holon` in `~/.claude.json`; backup alongside. If they
+ever go missing again, that is the first thing to check.
+⚠ **`mcp__wat__eval` runs `~/.cargo/bin/wat`, NOT `target/release/wat`.** Right now they are
+byte-identical (`sha 525c4b8f`) — but that lasts only until the next rebuild. **`cargo install` after
+any substrate change, or the MCP becomes a time machine.**
+
+## GROUND FIRST
+
+> **Written against `6dd7bb18`.** Run **`git log --oneline 6dd7bb18..HEAD`**. Empty → nothing moved.
+> Non-empty → every commit in it outranks every line below.
+
+⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
+
+```
+floor .......... 4818/4818, 0 FAIL, 19 skipped, 77.8s   (own invocation)
+clippy ......... 0 under `-D warnings`
+stash@{0} ...... the lifecycle strike. NEVER drop. ⚠ base is ff7705ba — 383 COMMITS BACK, and
+                 wat/service.wat has been rewritten ~5x since. It will need a real 3-way merge,
+                 not `git stash pop`. It survived the teleport as a git BUNDLE, not a patch —
+                 a patch would not apply, and did not.
 ```
 
 ⚠ **RUN EVERYTHING CAPPED.** `systemd-run --user --scope -q -p MemoryMax=<N> -p MemorySwapMax=0
-timeout <s> …` — `MemorySwapMax=0` is load-bearing. **Read exit codes directly, never through a pipe.**
+timeout <s> …`. **Read exit codes directly, never through a pipe.**
 
-## ★★ THE FRONTIER — THE KERNEL CARVE. Every one of its 44 verbs now has an honest row.
+## ★★ THE KERNEL TIER IS DONE. Eleven homes; literal dispatch is ZERO.
 
-`255.1c-taxonomy` **STRUCK** (`ec11f6ac`). `Category` went 10 → 15 and its subject line stopped lying.
-The kernel carve was blocked on exactly that and is now unblocked. **Do not re-derive the taxonomy —
-it cost two `intueri` casts and a builder override.**
+`grep '":wat::kernel::[^"]*" *=>' src/runtime.rs` → **0 hits.** Every `:wat::kernel::` verb reaches
+its handler through the registry. What opened as *"not a family — a TIER braiding seven concerns
+across 49 arms"* closed as:
 
 ```
-:Resource   custody of a handle — acquire, release, ADMINISTER   (name ADOPTED from task #68)
-:Message    payload to/from a locus you hold a handle to — NOT :Io
-:Ambient    process-global state, BOTH directions                (rejected :Signal-as-Clock-sibling)
-:Project    the inverse of :Combine — returns a COMPONENT        (not :Accessor — an agent noun)
-:CheckGate  refuses a call site at check time; runtime is identity
+src/intrinsic/kernel/   mod.rs abort ambient error identity message resource serve source stdio
+src/intrinsic/          bytes.rs  reflect.rs  special/  time.rs  witness.rs
 ```
 
-**The 44 kernel verbs decompose into seven concerns** (`255/DESIGN-STONE-255.1c-kernel-stdio.md`) —
-stdio ✅ carved as home #3; **concurrency · networking · signals · errors · handles/capability ·
-misc** remain. ⚠ That table is NOT exhaustive: `signal`, `address-wire?`, `require-wire-address`,
-`macro-call-site` sit in no row. Its own arithmetic (46) does not match its stated 49, and today's
-dispatch count is 44. **Bookkeeping drift, not a defect** — nothing breaks by carving a subset; that
-is the state of the other ~395 verbs too.
+**72 → 86 registered forms.** `time.rs` at 17 rows is the largest file still at top level — the
+`kernel/`-directory question has not been asked of it.
 
-★ **A carve rider must RE-DERIVE each verb's Category from its BODY.** The last home's rider had its
-`Io`/`Reflection` first pass overruled and re-derived; that is the discipline working, not a failure.
+★ **Two rulings that will keep paying, both from this campaign:**
+1. **The carve boundary is the CATEGORY, not the decomposition table's row.** The table was wrong in
+   EVERY stone that tested it (homes #4–#8). It is not a map; the categories are.
+2. **A HOME is a code-organization unit; a CATEGORY is a per-row label.** A home may honestly hold
+   several. `kernel/identity.rs` is the proof — ONE subject (*what is this peer or address*) across
+   THREE categories. Six categories in one file, though, means a bucket — that is what killed the
+   name `kernel_remainder.rs`.
+
+## ★★ #110 IS NOT ABSTRACT ANY MORE — AND IT IS ON THE CAPABILITY PATH
+
+`peer-pid` has **18 corpus call sites and ZERO mentions in `src/check.rs`.** No scheme, no inference
+arm. It falls through to `check.rs:5561`'s *"silent-by-intent — no scheme found; accept and pass"*,
+which returns a **fresh type variable**: args unchecked, arity unchecked.
+
+And it is not decorative. `peer-pid` → `Option<i64>`, the far-end child pid; `wat/bracket.wat:714`
+GRANT-BOOT and `:754` REVOKE-SHUTDOWN match it and hand the pid to `allow'`, which inserts it into a
+**SocketListener's allow-set**. Both sites unwrap correctly — **and nothing enforces that they keep
+doing so**, because a fresh type variable unifies with anything.
+
+⛔ **Registering a verb does NOT give it a type.** `#[wat_intrinsic]` populates the registry for docs,
+reflection and dispatch; `check.rs` schemes are separate. Home #5's five are registered and still
+skipped by the doc gate. **Do not report the carve as having closed any of this.**
 
 ## ★ THE 255 ROAD — the builder's chain, grounded. This is WHY, and it is not obvious.
 
 ```
 255 registry  →  the INVENTORY (every form, by name, with confidence)
-   →  the flip:  :wat::core::+  →  wat.core/+
-                 HashMap<K,V>   →  (wat.type/HashMap [wat.type/K wat.type/V])
+   →  the flip:  :wat::core::+  →  wat.core/+   ·   HashMap<K,V> → (wat.type/HashMap [...])
       →  ONLY THEN can the two EDN encoders merge
 ```
 
-**Builder:** *"we cannot [kill the two EDN paths] until we annihilate the edn illegal parametric and
-illegal keyword syntax... the registry is necessary to force us to inventory every form so we can
-mass fix with confidence."*
+**The scale, measured** (`251/CENSUS-the-illegal-edn-form-classes.md`): 79,253 colon-quoted
+occurrences but **6,552 DISTINCT spellings** — top 12 are 33% of the corpus, so *head-by-codemod,
+tail-by-name*. ★★ **The 951 comma-bearing parametrics are the dangerous ones:** after the flip
+`(f HashMap<K,V>)` reads as VALID EDN and **silently changes arity 2→3**. Which is why **255.1b-iv**
+(#110) must precede the flip.
 
-**The scale, measured** (`251/CENSUS-the-illegal-edn-form-classes.md`):
+## ★ THE TAXONOMY IS HELD, AND THE METHOD IS THE POINT
 
-```
-colon-quoted symbol   79,253 occurrences · 6,552 DISTINCT spellings · 1,263 .wat files
-angle parametric       2,945, of which 951 COMMA-BEARING
-double-slash           NO VALIDATED COUNT — the pattern was refuted, so no number was written
-```
+`intueri` was cast on `Category` and its verdict is **RECORDED AND HELD, NOT ACTED ON** —
+`255/NOTE-intueri-on-Category-HELD-pending-precedent.md`. Builder: *"we continue with the names we
+have as seek failures to classify as we move forward."*
 
-★ **The migration unit is 6,552, not 79,253**, and the top 12 spellings are 26,138 occurrences —
-**33% of the corpus.** So it is *head-by-codemod, tail-by-name*, and the registry is what lets the two
-compose (it can hold two spellings at once).
-★★ **The 951 comma-bearing are the dangerous ones:** after the flip `(f HashMap<K,V>)` reads as
-VALID EDN and **silently changes arity 2→3.** Which is why **255.1b-iv** (kill the blanket-accept)
-must precede the flip — today an unregistered `:wat::` head type-checks clean, so a mass rename would
-ship half-broken and silent. Task **#110**, two doors measured (`resolve/walk.rs:257` +
-`check.rs:5568`); 255's record names only the first.
+> **A naming argument in the abstract is taste. A verb that will not classify is data.**
 
-## ★ ARC 118 IS INSCRIBED (`ba3bd70c`). Opened as arc 004 on 2026-04-20. Closed 2026-08-19.
+So every carve is also a **classification-failure hunt**. Do not re-cast that ward; do not mint a
+variant on a rider's judgement. ⚠ The ward found `:CheckGate`'s prose asserts *"One member today"*
+about a verb that was not registered at all — now true, since home #8 carved `require-wire-address`.
 
-**R5 — QVAESTIO SVBSTITVTA LEGEM ELVDIT.** Arc 004 shipped a thread-per-stage CSP pipeline AS "lazy
-sequences" and deferred the real thing with *"in-process lazy chains haven't been demanded by a
-caller"* — while carrying **Lesson 1: "Absence is signal"** in the same file. The law was not broken;
-it was EVADED by substituting the question. **Written. Do not re-derive.**
+## THE GOLDENS — a standing orchestrator step, and BOTH corrections matter
 
-## GROK'S RETE IS MERGED (`c800d7d5`) — and the grid is NOT a time series
-
-`compiled_where` shipped (task #49 closed); `src/rete/` is a compiler now. ⚠ All 30 grid verdicts read
-`:wall-winner :us` — but the runs set `GRID_SKIP_ORACLE=1` (the spec fire *was* the bulk of wat-wall)
-**and** `fanout.wat` was edited 3× since 2026-08-01. **Do not diff two dated grid files and report a
-trend.**
+**EIGHT fixtures pin a `src/` line, not five**: `runtime.rs ×5 · check.rs ×2 · freeze.rs ×1`
+(`grep -rl ':file "src/' tests/`). I used "five" for four consecutive stones and met the other three
+as a surprise. **★ AND THE DELTA IS NOT ALWAYS UNIFORM** — one stone's `numstat` said −64 while only
+−12 sat above the pinned site. **Confirm which hunks PRECEDE each pinned line; never apply the net.**
+Then: `:col` unchanged, only `:line` moved; bump; verify by floor.
+★ Best case: make the stone unable to shift them — if `git diff --stat src/runtime.rs` is EMPTY, the
+goldens are proven by ABSENCE.
 
 ## THE STILL-OPEN
 
-- **The kernel carve** — the frontier. Pick a concern, re-derive from bodies.
-- **#110** the blanket-accept (255.1b-iv) · **#109** the rete right fold (HELD; 255 owns purity)
-- **#107** macro bodies reach only intrinsics — ⚠ its control CANNOT live in `wat-scripts/` (a file
-  there must LOAD); rebuild it in `tests/` first
-- **#108** promotion drops free-variable unification. ⚠ `255/NOTE-promotion-is-not-relocation` says
-  measuring the other 141 arms is *"one grep away."* **IT IS NOT** — `StreamContainer::of_type` is 4
-  sites in `infer.rs` + 6 in `check.rs`, and the arms classify several ways. Needs a form-reader.
-- **#91 HolonAST is 1014 mentions in `src/`** — `HolonRepresentable` is 0, so "holon-rep is done" is
-  TRUE and "the holon/wat separation is done" is FALSE. Read `294/RULING-holonast-and-hologram-…` first.
-- **Stone A** (`255/CHAIN-…`) — reduced to ONE structural move (16 arms → a `const TAG`). Its other
-  three defects closed by 294; its blocker (the `EdnRepresentable` name) evaporated. ⚠ `PORTABLE` is
-  **already built** by 294.m as a REGISTRY QUERY, better than the design's const.
-- **296 is OPEN** (INSCRIPTION absent) · **295** unblocked by 118's close, not started
+- **Fix the recovery doc's paths** (above). Then `time.rs` — does it want `kernel/`'s treatment?
+- **#110** the blanket-accept · **#91** HolonAST at 1014 mentions in `src/` (`HolonRepresentable` is
+  0, so *"holon-rep is done"* is TRUE and *"the holon/wat separation is done"* is FALSE) — that is the
+  bridge scaffolding, and the builder wants it killed in non-VSA/HDC expressions.
+- **`verify_examples_reports_no_failures` is RED** under a stale `#[ignore]`. A rider bisected it:
+  reverting its own new examples left the failure identical — **pre-existing, and not ours.**
+- The nine `kernel/` homes still cross-reference each other by their OLD filenames in prose. One
+  sweep, not nine.
+- `rustfmt --check` flags 3 double-space nonconformances in `kernel/source.rs`, inherited verbatim.
+- **296 is OPEN** · **295** unblocked by 118's close, not started · `:wat::kernel::close` has zero
+  direct call sites but IS exercisable — unadopted, **not** unreachable.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **A REJECTED OPTION RETURNS IN NEW CLOTHES.** I proposed "ambient vs addressed" as a Category
-> axis while *quoting* the header that lists "where its input comes from" as REJECTED. It was the
-> output-side mirror of exactly that. **Check your own proposal against the reject list you are
-> citing.** `[[feedback_a_rejected_option_returns_in_new_clothes]]`
+> ⚠ **NEVER `git add -A` WHILE A RIDER IS IN THE FIELD.** I did, and it swept 969 lines of unbuilt
+> source into a docs commit and **pushed a RED floor to the DR site.** FM 18/19's *quiescent tree*
+> is about the TREE, not about `cargo`. `[[feedback_i_committed_on_a_non_quiescent_tree]]`
 >
-> ⚠ **A SCOPED FILTER CAN BE BLIND TO ITS OWN SUBJECT.** My `nextest -E` did not match the test I had
-> named as the stone's acceptance row. The rider caught it. A green from a filter that cannot see the
-> load-bearing test is worth nothing.
+> ⚠ **FIVE PATTERN ERRORS IN ONE DAY, ALL MINE.** Whitespace-sensitive greps, `.into()` vs
+> `.to_string()`, a path class that could not match a slash. **When a registry, compiler or gate can
+> answer the question, do not ask `grep`** — the reconciled count RECONCILED (72 = 72); a grep is a
+> guess with a number on it. `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 >
-> ⚠ **HAND-MAINTAINED LISTS, FOUR TIMES IN ONE DAY** — the three purity ledgers, the kernel
-> decomposition table, the "one grep away" claim, and `Category`'s four mirrors under a header saying
-> *"there is no second list."* **That class is the whole reason 255 exists.**
+> ⚠ **ZERO CALLERS IS NEVER THE ARGUMENT. REACHABILITY IS.** `drop` was retired because its argument
+> type has no constructor — a gate demanding a runnable example proved it. The same test SAVED
+> `address-wire?` the same hour. `[[feedback_no_consumers_does_not_mean_dead]]`
 >
-> ⚠ **A WARD THAT ONLY HEARS THE CASE *FOR* IS NOT INDEPENDENT.** Both `intueri` casts were told my
-> hypotheses were mine and to refute them freely; both did, and both were right to.
+> ⚠ **A RIDER REPORTING STATE YOU DID NOT CREATE IS AN ALARM ABOUT YOUR TREE, NOT ITS ERROR.**
 >
-> `NON BIS IN IDEM FLVMEN.` · `QVAESTIO SVBSTITVTA LEGEM ELVDIT.` · `MVRVS AVCTOREM NON NOVIT.`
+> `NON BIS IN IDEM FLVMEN.` · `QVAESTIO SVBSTITVTA LEGEM ELVDIT.` · `ENTROPIA MENSVRA PVRITATIS.`
