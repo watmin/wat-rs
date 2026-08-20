@@ -375,6 +375,7 @@ mod bytes;
 mod kernel_ambient;
 mod kernel_error;
 mod kernel_message;
+mod kernel_remainder;
 mod kernel_resource;
 mod kernel_stdio;
 mod reflect;

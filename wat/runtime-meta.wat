@@ -116,7 +116,9 @@
 ;; The program interrogating ITSELF — `metadata-of`, `show-source`, `render-doc`.
 ;; NOT reading a clock or a stream: those come from outside the program.
   :Reflection
-;; Directs evaluation — `if`, and applying a callable handed in as a value.
+;; Directs evaluation — `if`, and applying a callable handed in as a value. Also verbs
+;; that ABANDON evaluation rather than direct it — `raise!`/`assertion-failed!` never
+;; return; they panic through the call stack instead of choosing which branch runs next.
   :ControlFlow
 ;; Introduces a LOCAL, scoped name at runtime — `let`. Contrast `:Declaration`,
 ;; which registers a program-level entity.
@@ -181,9 +183,9 @@
 ;; new fact (`empty?`, `length`); an accessor returns a part that already existed.
   :Projection
 ;; Refuses a call site at CHECK TIME; the contract is discharged before evaluation
-;; ever runs — `require-wire-address`. ONE axis: constrains which programs compile.
-;; The runtime body is identity or otherwise incidental to the variant's purpose.
-;; One member today, deliberately: minted ahead of the totality campaign's `must-*`
-;; family on the builder's forward knowledge; revisit this variant at the second
-;; member rather than treating the thin membership as an error.
+;; ever runs — `require-wire-address`, which unifies its argument's transport marker
+;; against `Wire` in `infer_require_wire_address` and raises a `TypeMismatch` naming
+;; `Shared` when it does not fit. ONE axis: constrains which programs compile. The
+;; runtime body is identity or otherwise incidental to the variant's purpose — minted
+;; ahead of the totality campaign's `must-*` family on the builder's forward knowledge.
   :CheckGate)

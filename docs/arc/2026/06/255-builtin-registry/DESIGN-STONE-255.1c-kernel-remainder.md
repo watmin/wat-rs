@@ -122,3 +122,59 @@ would have been wrong), confirm `:col` unchanged, bump, verify by floor.
 
 86 → 99 registered forms, and `:wat::kernel::` literal dispatch reaches **zero**. The tier that
 opened as *"not a family — a TIER braiding seven concerns across 49 arms"* closes as eight homes.
+
+---
+
+## ⊘ AMENDED MID-STRIKE — `kernel_remainder.rs` IS A BAD NAME, AND THE NAME WAS THE SYMPTOM
+
+**Builder:** *"uhm.... this is an awful name..."* — of `src/intrinsic/kernel_remainder.rs`, which
+**this design supplied as the default** and the rider took.
+
+It names the file by **what was left over**. That is the `utils`/`helpers`/`misc` mumble `intueri`
+names outright: *"The file tree should mirror the domain. When you `ls src/`, you should see the
+architecture — not `utils`, `helpers`, `common`, `misc`."* Written by the orchestrator, in a brief,
+the same day that ward was cast.
+
+**And the name was diagnosing the grouping, not just labelling it.** The rider's thirteen rows landed
+on **SIX** categories:
+
+```
+Reflection 4 · ControlFlow 3 · Probe 2 · Projection 2 · CheckGate 1 · Transform 1
+```
+
+Home #6 ruled that a HOME is a code-organization unit and a CATEGORY is a per-row label, so a home may
+honestly hold two. **Six is not a home — it is a bucket**, and the only thing its members share is
+"not yet carved". The bad name was the accurate one.
+
+### THE SPLIT — four homes, names ruled by the builder
+
+```
+kernel_abort.rs     raise! · assertion-failed!                        verbs that NEVER RETURN
+kernel_source.rs    here · call-site · macro-call-site · fn-forms     the program reading its own
+                                                                      source position and form
+kernel_identity.rs  peer-pid · peer-process · peer-wire? ·            asking a peer/address WHAT IT IS
+                    address-wire? · require-wire-address              — projected, probed, and gated
+kernel_serve.rs     serve-dispatch-op · retag-op                      service-dispatch plumbing
+```
+
+⚠ `kernel_reflect.rs` was considered and rejected — it collides with the existing
+`src/intrinsic/reflect.rs`, and these four are narrower than reflection anyway: source position and
+form, not arbitrary self-interrogation.
+
+★ `kernel_identity.rs` is the interesting one and it VINDICATES home #6's distinction: one subject
+(*what is this peer or address*) across three categories — `:Projection` projects the pid,
+`:Probe` asks whether it is a wire, `:CheckGate` refuses a call site that lacks a wire address. A
+home named for its subject; categories per row.
+
+**Builder's ruling, verbatim:** *"those names are fine,, 109 owes a massive renaming, we'll address
+any misnames then, those are fine for now"* — so these ship, and **arc 109 owns the sweep** if any
+of them reads wrong later.
+
+### Sequencing
+
+The rider's thirteen rows are CORRECT and fully reusable — only the partition changes, not a single
+`@Category`, `@Purity` or body. It finishes; the split is a `git mv`-shaped follow-on.
+
+**Progress meter, corrected:** the tier closes as **eleven homes**, not eight —
+stdio · time · ambient · message · error · resource · abort · source · identity · serve · (bytes,
+reflect, witness predate the carve).

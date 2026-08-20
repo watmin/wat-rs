@@ -4314,13 +4314,14 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
             match head {
                 ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
-                // Arc 278 RST stone — tail-position special-case (mirrors
-                // `:wat::core::match` immediately above): preserves the
-                // `serve` self-recursion trampoline through the panic-catch
-                // wrapper. See eval_kernel_serve_dispatch_op_tail's doc.
-                ":wat::kernel::serve-dispatch-op" => {
-                    eval_kernel_serve_dispatch_op_tail(args, &list_span, env, sym)
-                }
+                // Arc 255.1c-kernel-remainder (home #8) — the `:wat::kernel::serve-dispatch-op`
+                // tail-position special-case that used to live HERE moved to the intrinsic
+                // registry (`src/intrinsic/kernel_remainder.rs`); the fallthrough `_ =>
+                // eval_inner(ast, env, sym)` arm at the bottom of this match now reaches it via
+                // registry lookup, which calls `crate::runtime::eval_kernel_serve_dispatch_op_tail`
+                // — the SAME delegate, still evaluating `body` via `eval_tail` internally, so the
+                // `serve` self-recursion trampoline is preserved. See that module's doc for the
+                // full derivation (verified safe against `apply_function`'s trampoline loop).
                 // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
                 // for eval_tail's caller (apply_function trampoline uses bare Value).
                 ":wat::core::let" => {
@@ -5635,11 +5636,18 @@ fn dispatch_keyword_head_value(
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
         // ":wat::holon::from-holon" is routed by dispatch_keyword_head directly (producer).
         ":wat::core::match" => eval_match(args, list_span, env, sym),
-        // Arc 278 RST stone — non-tail companion of the eval_tail special
-        // case above; see eval_kernel_serve_dispatch_op's doc.
-        ":wat::kernel::serve-dispatch-op" => {
-            eval_kernel_serve_dispatch_op(args, list_span, env, sym)
-        }
+        // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::serve-dispatch-op`'s
+        // non-tail literal arm (and its `eval_kernel_serve_dispatch_op` delegate, which
+        // evaluated `body` via `eval_inner`) moved to the intrinsic registry, WHICH NOW
+        // REGISTERS THE TAIL DELEGATE (`eval_kernel_serve_dispatch_op_tail`) for this FQDN —
+        // a two-arm collapse to one handler. The `eval_inner`-based non-tail delegate was
+        // already "defensive parity… reached only if ever evaluated outside serve's tail
+        // position" per its own doc (codegen never places it there); with both literal arms
+        // gone there is no second dispatch path left for it to be parity FOR, so it is
+        // deleted rather than kept as unreachable duplicate code. See
+        // `src/intrinsic/kernel_remainder.rs`'s doc for the full derivation, including why
+        // routing serve-dispatch-op through the registry via the TAIL delegate preserves
+        // `serve`'s TCO (verified against `apply_function`'s trampoline loop).
         // Arc 109 slice 1j — § D' Option/Result method forms.
         // Stone 241.15: the three retiring verbs (:wat::core::try,
         // :wat::core::option::expect, :wat::core::result::expect) are now
@@ -5659,7 +5667,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::struct-new" => eval_struct_new(args, list_span, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
         ":wat::core::variant" => eval_variant(args, list_span, env, sym),
-        ":wat::kernel::retag-op" => eval_retag_op(args, list_span, env, sym),
+        // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::retag-op` moved to the
+        // intrinsic registry (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches
+        // `eval_retag_op` (unchanged) via the registry lookup above, not a literal arm here.
         ":wat::core::first" => {
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
         }
@@ -6738,8 +6748,9 @@ fn dispatch_keyword_head_value(
         // reset-sigusr2!/reset-sighup! moved to the intrinsic registry
         // (`src/intrinsic/kernel_ambient.rs`); dispatch now reaches them via the
         // registry lookup above, not a literal arm here.
-        ":wat::kernel::call-site" => eval_kernel_call_site(args, list_span),
-        ":wat::kernel::macro-call-site" => eval_kernel_macro_call_site(args, list_span),
+        // Arc 255.1c-kernel-remainder (home #8) — call-site/macro-call-site moved to the
+        // intrinsic registry (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches
+        // them via the registry lookup above, not a literal arm here.
         // Arc 255.1c-kernel-stdio — println/pprintln/eprintln/epprintln/readln'/read-frame
         // moved to the intrinsic registry (`src/intrinsic/kernel_stdio.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
@@ -6770,20 +6781,9 @@ fn dispatch_keyword_head_value(
         // wat-level helper is the only place collected-output-as-
         // Vec<String> survives, where it earns its keep as the
         // test assertion target.
-        ":wat::kernel::assertion-failed!" => {
-            crate::assertion::eval_kernel_assertion_failed(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::kernel::raise!" => eval_kernel_raise(args, list_span, env, sym),
-        // Arc 296 — returns the source coordinate of the `(here)` form itself.
-        ":wat::kernel::here" => eval_kernel_here(args, list_span),
-        // Arc 259 (forced-hand) Stone S1 — reify a fn value (anonymous or
-        // named-by-reference) into shippable forms via `closure_extract`.
-        // See `crate::closure_extract::eval_kernel_fn_forms` doc.
-        ":wat::kernel::fn-forms" => {
-            crate::closure_extract::eval_kernel_fn_forms(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
+        // Arc 255.1c-kernel-remainder (home #8) — assertion-failed!/raise!/here/fn-forms
+        // moved to the intrinsic registry (`src/intrinsic/kernel_remainder.rs`); dispatch
+        // now reaches them via the registry lookup above, not a literal arm here.
         // Arc 259 S2c-ii-b — spawn-program' is now a wat defclause in wat/spawn.wat.
         // The 3-arg Rust intrinsic is RETIRED; the defclause dispatches on the host
         // type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process').
@@ -6803,33 +6803,21 @@ fn dispatch_keyword_head_value(
         // — owner-to-child signal delivery. STOP-1: Process<I,O> only, no shared
         // codegen with Thread'/Peer'. STOP-3: routes through Pidfd::send_signal, never
         // kill(pid, sig). See eval_signal.
-        // DESIGN-STONE-a-service-that-measures-itself.md A1 — un-erase the concrete
-        // locus a Peer<I,O>-typed value already holds. Same runtime-tag read as
-        // peer-pid, different projection (the peer value itself, not its pid). See
-        // eval_peer_process.
-        ":wat::kernel::peer-process" => eval_peer_process(args, list_span, env, sym),
-        // DESIGN-STONE-the-client-validates-locally.md STOP-3 — "branch on whether
-        // there is a wire", never `locus == process`. Un-erases the one fact
-        // `is_socket_tier()` already knows about a PEER_TYPE_PATH connection: TRUE
-        // for a socket-tier peer (send' encodes via send_wire — a wire), FALSE for
-        // thread-tier (shared memory, never encodes). See eval_peer_wire.
-        ":wat::kernel::peer-wire?" => eval_peer_wire(args, list_span, env, sym),
-        // 293.W.2e — Address answers "is this shared memory?": portable_form Some = wire,
-        // None = crossbeam. Same purity/bool as peer-wire?, ADDRESS_TYPE_PATH not PEER.
-        ":wat::kernel::address-wire?" => eval_address_wire(args, list_span, env, sym),
-        // 293.W.2f — check-time Wire door; runtime is identity.
-        ":wat::kernel::require-wire-address" => eval_require_wire_address(args, list_span, env, sym),
+        // Arc 255.1c-kernel-remainder (home #8) — peer-process/peer-wire?/address-wire?/
+        // require-wire-address moved to the intrinsic registry
+        // (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches them via the
+        // registry lookup above, not a literal arm here.
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
         // connect' mints the connection pairs, wraps the client Peer' end locally,
         // ships the server's raw halves over the rendezvous.
         // accept' receives the server's raw halves from the rendezvous, wraps the
         // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
-        // Arc 170 capability circuit, stone 2 — peer-pid: pure projection of the
-        // far-end child pid off the peer. Process peer → (Some pid) read from the
-        // Pidfd the bundle already holds; thread peer → :None (far end is a cell in
-        // this process, no separate pid). Identity only; no signal, no effect.
-        ":wat::kernel::peer-pid" => eval_peer_pid(args, list_span, env, sym),
+        // Arc 255.1c-kernel-remainder (home #8) — peer-pid moved to the intrinsic
+        // registry (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches it via
+        // the registry lookup above, not a literal arm here. Still type-invisible to
+        // `check.rs` (no scheme, no `infer_*` arm) — registration documents the verb,
+        // it does not close that hole (task #110 / 255.1b-iv).
         // Arc 209 C0b.3b-b — allow'/deny': mutate the SocketListener's allow-set.
         // allow' : (Listener'<S,R>, i64) -> nil  — insert pid; process-tier only.
         // deny'  : (Listener'<S,R>, i64) -> nil  — remove pid; process-tier only.
@@ -16194,7 +16182,7 @@ fn expect_panic(
 ///
 /// Argument: `:wat::core::Error`. Return type: polymorphic `:T`
 /// (never returns; same convention as assertion-failed!).
-fn eval_kernel_raise(
+pub(crate) fn eval_kernel_raise(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -16253,7 +16241,7 @@ fn eval_kernel_raise(
 /// Returns the source coordinate of the `(here)` form itself —
 /// the `list_span` of the call site — as a `:wat::kernel::Location`
 /// record `{file, line, col}`. Arity 0; any arguments are an error.
-fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::here";
     if !args.is_empty() {
         return Err(RuntimeError::new(
@@ -16496,7 +16484,7 @@ fn eval_variant(
 /// tagged (in-process, thread tier) or re-decoded to the service path (process
 /// tier), so the re-tag is a no-op for it. Generated-only (the `defservice`
 /// macro supplies both path literals it already computes); users never call it.
-fn eval_retag_op(
+pub(crate) fn eval_retag_op(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -25582,7 +25570,7 @@ pub(crate) fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<V
 /// user call that invoked `(:wat::kernel::call-site)`. Mirrors the
 /// mechanism `:wat::kernel::assertion-failed!` uses to find "where the
 /// author wrote the assert" (src/assertion.rs).
-fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::call-site";
     if !args.is_empty() {
         return Err(RuntimeError::new(
@@ -25645,7 +25633,7 @@ fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
 /// expanded (threaded through `MacroCallSiteGuard`): at expand time there is no
 /// enclosing runtime fn, but the macro itself is known, so its name is the
 /// honest symbol — never absent.
-fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::macro-call-site";
     if !args.is_empty() {
         return Err(RuntimeError::new(
@@ -31209,7 +31197,7 @@ pub(crate) fn eval_peer_try_send_prime(
 ///
 /// The pid is an identity only (reuse-unsafe for `kill()` per `Pidfd::pid` doc);
 /// it becomes an entry in the capability allow-set later.
-fn eval_peer_pid(
+pub(crate) fn eval_peer_pid(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -31927,7 +31915,7 @@ pub(crate) fn eval_signal(
 /// runtime tag read, no effect, no signal. Unlike `peer-pid` this does not
 /// need to reach inside the bundle for a field — the peer value itself IS
 /// the answer, just re-tagged at the type level (via the Option wrapper).
-fn eval_peer_process(
+pub(crate) fn eval_peer_process(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -31988,7 +31976,7 @@ fn eval_peer_process(
 /// - already closed (`None`) → `false`: nothing to measure against a peer with
 ///   no live transport either way, and the caller's own `send'` will face the
 ///   real `Closed`/`Lost` outcome regardless of this answer.
-fn eval_peer_wire(
+pub(crate) fn eval_peer_wire(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -32043,7 +32031,7 @@ fn eval_peer_wire(
 /// (SocketAddress; a process may hold and dial it). None = shared memory
 /// (crossbeam; only a thread in that address space may dial it).
 /// Downcast reuses `eval_connect_prime`'s ADDRESS_TYPE_PATH match.
-fn eval_address_wire(
+pub(crate) fn eval_address_wire(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -32091,7 +32079,7 @@ fn eval_address_wire(
 
 /// `(:wat::kernel::require-wire-address x)` — 293.W.2f. Runtime identity;
 /// the Wire check lives in `infer_require_wire_address`.
-fn eval_require_wire_address(
+pub(crate) fn eval_require_wire_address(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -33038,7 +33026,7 @@ pub(crate) fn eval_kernel_after(
 /// primitive: the trampoline that makes `serve`'s indefinite recursion not
 /// grow the Rust stack depends on the recursive call staying in tail
 /// position all the way through this wrapper.
-fn eval_kernel_serve_dispatch_op_tail(
+pub(crate) fn eval_kernel_serve_dispatch_op_tail(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -33082,51 +33070,19 @@ fn eval_kernel_serve_dispatch_op_tail(
     }
 }
 
-/// Non-tail companion of [`eval_kernel_serve_dispatch_op_tail`] — same
-/// catch/broadcast/resume shape, reached only if `serve-dispatch-op'` is ever
-/// evaluated outside serve's tail position (defensive parity with
-/// `:wat::core::match`'s own `eval_match`/`eval_match_tail` pair; the
-/// `defservice` codegen never places it anywhere but the tail-position arm
-/// body, so this arm exists for robustness, not because it is exercised).
-fn eval_kernel_serve_dispatch_op(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::serve-dispatch-op";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let body = &args[1];
-    let outcome =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_inner(body, env, sym)));
-    match outcome {
-        // Arc 278 the recv'-outcome wall (move #2) — see the tail companion above: a wat
-        // RuntimeError (Diagnostic) out of the handler is a crash; broadcast the sentinel
-        // before propagating so the client gets `Lost`, never a mute `Closed`. Never on a
-        // control-flow Signal.
-        Ok(result) => {
-            if let Err(EvalBreak::Diagnostic(_)) = &result {
-                crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
-            }
-            result.map(|tv| tv.value_owned())
-        }
-        Err(payload) => {
-            crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
-            std::panic::resume_unwind(payload);
-        }
-    }
-}
+// Arc 255.1c-kernel-remainder (home #8) — the `eval_inner`-based non-tail companion
+// (`eval_kernel_serve_dispatch_op`) that used to live HERE is DELETED, not merely
+// unregistered. It was "defensive parity… reached only if `serve-dispatch-op'` is ever
+// evaluated outside serve's tail position… the codegen never places it anywhere else" per
+// its own doc — already dead in practice. With both literal match arms gone (the tail arm
+// in `eval_tail` and the non-tail arm above), `:wat::kernel::serve-dispatch-op` has exactly
+// ONE dispatch path left: the intrinsic registry, which registers
+// `eval_kernel_serve_dispatch_op_tail` (unchanged, still above this comment) for the FQDN —
+// there is no second call shape remaining for a "non-tail companion" to be parity FOR.
+// Keeping it would have been unreachable duplicate code. See
+// `src/intrinsic/kernel_remainder.rs`'s doc for the full derivation, including why the tail
+// delegate is the correct (and only safe) choice to preserve `serve`'s TCO when reached
+// through the registry's generic fallback path.
 
 pub(crate) fn eval_poll_prime(
     args: &[WatAST],
