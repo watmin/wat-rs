@@ -33,7 +33,19 @@ else echo "  ✓ check PASSES 5 args — the blanket-accept, demonstrated."; fi
 
 echo; echo "=== every :wat::io:: verb, 7 args ==="
 enforced=0; fellthrough=0; bespoke=0
-for v in $(grep -oE '":wat::io::[^"]+" *=>' src/runtime.rs | sed 's/" *=>//; s/^"//' | sort -u); do
+# ⚠ THE POPULATION MUST NOT SHRINK AS THE CARVE PROCEEDS. An earlier version of this
+# probe enumerated ONLY `runtime.rs` dispatch arms — the exact thing each stone DELETES.
+# After 255.1c-io-reader it silently measured 19 verbs instead of 29 and still printed a
+# reassuring "0 fell through". A probe whose population is drained by the work it audits
+# reports success by measuring nothing. Enumerate the UNION of both homes: arms still in
+# `runtime.rs` PLUS names already registered via `#[wat_intrinsic]`.
+VERBS=$( { grep -ohE '":wat::io::[^"]+" *=>' src/runtime.rs | sed 's/" *=>//; s/^"//'
+           grep -rohE '#\[wat_intrinsic\("(:wat::io::[^"]+)"' src/intrinsic/ | sed 's/.*("//; s/"$//'
+         } | sort -u )
+count=$(echo "$VERBS" | grep -c .)
+echo "  population: $count verbs (arms in runtime.rs + registered intrinsics)"
+if [ "$count" -lt 29 ]; then echo "  ⛔ POPULATION SHRANK below 29 — the enumerator is losing verbs, not the corpus."; fi
+for v in $VERBS; do
   out=$(probe "$v" 7)
   if   echo "$out" | grep -q ArityMismatch;  then enforced=$((enforced+1))
   elif echo "$out" | grep -q MalformedForm;  then bespoke=$((bespoke+1));  echo "  ⚠ bespoke arm: $v"

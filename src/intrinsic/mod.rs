@@ -372,6 +372,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 }
 
 mod bytes;
+mod io;
 mod kernel;
 mod reflect;
 mod witness;

@@ -6441,40 +6441,10 @@ fn dispatch_keyword_head_value(
         // the per-Type impl (`:HashMap/assoc` etc., `:Vector/concat`).
         // Aliases dispatch through env.get; the per-Type primitives
         // sit in the per-Type block above.
-        // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
-        // substrate (arc 008 slice 2). Two wat-level types; multiple
-        // concrete backings (real stdio, StringIo). Byte-oriented
-        // primitives with char-level conveniences.
-        ":wat::io::IOReader/from-bytes" => {
-            crate::io::eval_ioreader_from_bytes(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOReader/from-string" => {
-            crate::io::eval_ioreader_from_string(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOReader/open-file" => {
-            crate::io::eval_ioreader_open_file(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOReader/from-fd" => {
-            crate::io::eval_ioreader_from_fd(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::io::IOReader/read" => {
-            crate::io::eval_ioreader_read(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOReader/read-all" => {
-            crate::io::eval_ioreader_read_all(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOReader/read-all-string" => {
-            crate::io::eval_ioreader_read_all_string(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOReader/read-line" => {
-            crate::io::eval_ioreader_read_line(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOReader/read-frame" => {
-            crate::io::eval_ioreader_read_frame(args, env, sym, list_span).map_err(Into::into)
-        }
-        ":wat::io::IOReader/rewind" => {
-            crate::io::eval_ioreader_rewind(args, env, sym, list_span).map_err(Into::into)
-        }
+        // :wat::io::IOWriter — abstract IO substrate (arc 008 slice 2).
+        // Byte-oriented primitives with char-level conveniences. The
+        // `:wat::io::IOReader/*` arms that used to sit here were carved to
+        // `#[wat_intrinsic]` registrations — see `src/intrinsic/io/reader.rs`.
         ":wat::io::IOWriter/new" => {
             crate::io::eval_iowriter_new(args, list_span, env, sym).map_err(Into::into)
         }
