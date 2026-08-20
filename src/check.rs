@@ -19856,6 +19856,12 @@ fn register_builtins(env: &mut CheckEnv) {
         head: "wat::core::HashSet".into(),
         args: vec![t],
     };
+    // BRIEF-STONE-the-thirteen-schemes — same shape as `hashmap_of` above, head string
+    // already established at check.rs:14083/:14127.
+    let persistentmap_of = |k: TypeExpr, v: TypeExpr| TypeExpr::Parametric {
+        head: "wat::core::PersistentMap".into(),
+        args: vec![k, v],
+    };
 
     // Arc 146 slice 2 — per-Type length impls. The dispatch
     // `:wat::core::length` (declared in `wat/core.wat`) routes call
@@ -20100,6 +20106,147 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![pv_of(t_var()), pv_of(t_var())],
             ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // BRIEF-STONE-the-thirteen-schemes (docs/arc/2026/04/109-kill-std/) — the 13 PersistentMap/*
+    // and PersistentVector/* verbs, previously blanket-accepted (no scheme registered, so the
+    // "no scheme found for multi-arg form" fallback (`check.rs:5588` at time of writing) returned
+    // a fresh type variable: arity unchecked, K/V never propagated). Each scheme below is its std twin's,
+    // VERBATIM, with only the container constructor swapped — no redesign; see
+    // NOTE-the-persistent-family-is-outside-the-type-checker.md for the measurement. Reuses
+    // `persistentmap_of` (above) and `pv_of` (just above, for PersistentVector/concat) rather
+    // than minting fresh helpers.
+
+    // PersistentMap/get ← HashMap/get (check.rs:19990)
+    env.register(
+        ":wat::core::PersistentMap/get".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var()), k_var()],
+            ret: opt(v_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/assoc ← HashMap/assoc (check.rs:20034)
+    env.register(
+        ":wat::core::PersistentMap/assoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var()), k_var(), v_var()],
+            ret: persistentmap_of(k_var(), v_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/dissoc ← HashMap/dissoc (check.rs:20043)
+    env.register(
+        ":wat::core::PersistentMap/dissoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var()), k_var()],
+            ret: persistentmap_of(k_var(), v_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/keys ← HashMap/keys (check.rs:20052)
+    env.register(
+        ":wat::core::PersistentMap/keys".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var())],
+            ret: vec_of(k_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/values ← HashMap/values (check.rs:20061)
+    env.register(
+        ":wat::core::PersistentMap/values".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var())],
+            ret: vec_of(v_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/length ← HashMap/length (check.rs:19881)
+    env.register(
+        ":wat::core::PersistentMap/length".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/empty? ← HashMap/empty? (check.rs:19924)
+    env.register(
+        ":wat::core::PersistentMap/empty?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // PersistentMap/contains-key? ← HashMap/contains-key? (check.rs:19957)
+    env.register(
+        ":wat::core::PersistentMap/contains-key?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![persistentmap_of(k_var(), v_var()), k_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // PersistentVector/get ← Vector/get (check.rs:19981)
+    env.register(
+        ":wat::core::PersistentVector/get".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), i64_ty()],
+            ret: opt(t_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentVector/conj ← Vector/conj (check.rs:20003)
+    env.register(
+        ":wat::core::PersistentVector/conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), t_var()],
+            ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    // PersistentVector/length ← Vector/length (check.rs:19872)
+    env.register(
+        ":wat::core::PersistentVector/length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    // PersistentVector/empty? ← Vector/empty? (check.rs:19915)
+    env.register(
+        ":wat::core::PersistentVector/empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // PersistentVector/contains? ← Vector/contains? (check.rs:19948)
+    env.register(
+        ":wat::core::PersistentVector/contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), t_var()],
+            ret: bool_ty(),
             rest_param_type: None,
         },
     );
